@@ -13,6 +13,7 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local _ = require("gettext")
 local logger = require("logger")
 local md5 = require("ffi/sha2").md5
+local random = require("random")
 
 ------------------------------------------
 ------------ Helper Functions ------------

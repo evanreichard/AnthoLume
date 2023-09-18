@@ -72,6 +72,7 @@ func (api *API) registerWebAppRoutes() {
 
 	api.Router.HTMLRender = render
 
+	api.Router.GET("/manifest.json", api.webManifest)
 	api.Router.GET("/login", api.createAppResourcesRoute("login"))
 	api.Router.GET("/register", api.createAppResourcesRoute("login", gin.H{"Register": true}))
 	api.Router.GET("/logout", api.authWebAppMiddleware, api.authLogout)

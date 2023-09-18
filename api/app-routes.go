@@ -25,6 +25,11 @@ func baseResourceRoute(template string, args ...map[string]any) func(c *gin.Cont
 	}
 }
 
+func (api *API) webManifest(c *gin.Context) {
+	c.Header("Content-Type", "application/manifest+json")
+	c.File("./assets/manifest.json")
+}
+
 func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any) func(*gin.Context) {
 	// Merge Optional Template Data
 	var templateVarsBase = gin.H{}
