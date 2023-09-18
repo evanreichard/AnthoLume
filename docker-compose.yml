@@ -1,0 +1,12 @@
+---
+services:
+  sync-ninja:
+    # working_dir: /app
+    environment:
+      - CONFIG_PATH=/data
+      - DATA_PATH=/data
+    ports:
+      - "8585:8585"
+    build: .
+    volumes:
+      - ./data:/data

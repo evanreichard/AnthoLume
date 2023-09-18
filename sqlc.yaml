@@ -1,0 +1,60 @@
+version: 2
+sql:
+  - engine: "sqlite"
+    schema: "./database/schema.sql"
+    queries: "./database/query.sql"
+    gen:
+      go:
+        package: "database"
+        out: "database"
+        emit_json_tags: true
+        overrides:
+          # Type pointers needed for JSON
+          - column: "documents.md5"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "documents.filepath"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "documents.title"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "documents.author"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "documents.series"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "documents.series_index"
+            go_type:
+              type: "int64"
+              pointer: true
+          - column: "documents.lang"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "documents.description"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "documents.olid"
+            go_type:
+              type: "string"
+              pointer: true
+
+          # Do not generate JSON
+          - column: "documents.synced"
+            go_struct_tag: 'json:"-"'
+          - column: "documents.olid"
+            go_struct_tag: 'json:"-"'
+          - column: "documents.deleted"
+            go_struct_tag: 'json:"-"'
+          - column: "users.pass"
+            go_struct_tag: 'json:"-"'
+          - column: "users.admin"
+            go_struct_tag: 'json:"-"'

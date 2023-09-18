@@ -1,0 +1,35 @@
+<svg viewBox="0 0 {{ $data.Width }} {{ $data.Height }}" class="chart">
+  <!-- Box Graph -->
+  {{ range $idx, $item := $data.BarPoints }}
+  <g class="bar" transform="translate({{ $item.X }}, 0)" fill="gray">
+    <rect y="{{ $item.Y }}" height="{{ $item.Size }}" width="33"></rect>
+  </g>
+  {{ end }}
+
+  <!-- Linear Line Graph -->
+  <polyline
+    fill="none"
+    stroke="black"
+    stroke-width="2"
+    points="
+      {{ range $item := $data.LinePoints }}
+      {{ $item.X }},{{ $item.Y }}
+      {{ end }}
+      "
+  />
+
+  <!-- Bezier Curve Line Graph -->
+  <path
+    fill="#316BBE"
+    fill-opacity="0.5"
+    stroke="none"
+    d="{{ $data.BezierPath }} {{ $data.BezierFill }}"
+  />
+
+  <path
+    fill="none"
+    fill-opacity="0.1"
+    stroke="none"
+    d="{{ $data.BezierPath }}"
+  />
+</svg>

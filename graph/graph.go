@@ -1,0 +1,173 @@
+package graph
+
+import (
+	"fmt"
+	"math"
+
+	"reichard.io/bbank/database"
+)
+
+type SVGGraphPoint struct {
+	X    int
+	Y    int
+	Size int
+}
+
+type SVGGraphData struct {
+	Height     int
+	Width      int
+	Offset     int
+	LinePoints []SVGGraphPoint
+	BarPoints  []SVGGraphPoint
+	BezierPath string
+	BezierFill string
+}
+
+type SVGBezierOpposedLine struct {
+	Length int
+	Angle  int
+}
+
+func GetSVGGraphData(inputData []database.GetDailyReadStatsRow, svgWidth int) SVGGraphData {
+	// Static Padding
+	var padding int = 5
+
+	// Derive Height
+	var maxHeight int = 0
+	for _, item := range inputData {
+		if int(item.MinutesRead) > maxHeight {
+			maxHeight = int(item.MinutesRead)
+		}
+	}
+
+	// Derive Block Offsets & Transformed Coordinates (Line & Bar)
+	var blockOffset int = int(math.Floor(float64(svgWidth) / float64(len(inputData))))
+
+	// Line & Bar Points
+	linePoints := []SVGGraphPoint{}
+	barPoints := []SVGGraphPoint{}
+
+	// Bezier Fill Coordinates (Max X, Min X, Max Y)
+	var maxBX int = 0
+	var maxBY int = 0
+	var minBX int = 0
+	for idx, item := range inputData {
+		itemSize := int(item.MinutesRead)
+		itemY := (maxHeight + padding) - itemSize
+		barPoints = append(barPoints, SVGGraphPoint{
+			X:    (idx * blockOffset) + (blockOffset / 2),
+			Y:    itemY,
+			Size: itemSize + padding,
+		})
+
+		lineX := (idx + 1) * blockOffset
+		linePoints = append(linePoints, SVGGraphPoint{
+			X:    lineX,
+			Y:    itemY,
+			Size: itemSize + padding,
+		})
+
+		if lineX > maxBX {
+			maxBX = lineX
+		}
+
+		if lineX < minBX {
+			minBX = lineX
+		}
+
+		if itemY > maxBY {
+			maxBY = itemY
+		}
+	}
+
+	// Return Data
+	return SVGGraphData{
+		Width:      svgWidth + padding*2,
+		Height:     maxHeight + padding*2,
+		Offset:     blockOffset,
+		LinePoints: linePoints,
+		BarPoints:  barPoints,
+		BezierPath: getSVGBezierPath(linePoints),
+		BezierFill: fmt.Sprintf("L %d,%d L %d,%d Z", maxBX, maxBY+padding, minBX, maxBY+padding),
+	}
+}
+
+func getSVGBezierOpposedLine(pointA SVGGraphPoint, pointB SVGGraphPoint) SVGBezierOpposedLine {
+	lengthX := float64(pointB.X - pointA.X)
+	lengthY := float64(pointB.Y - pointA.Y)
+
+	return SVGBezierOpposedLine{
+		Length: int(math.Sqrt(math.Pow(lengthX, 2) + math.Pow(lengthY, 2))),
+		Angle:  int(math.Atan2(lengthY, lengthX)),
+	}
+
+	// length = Math.sqrt(Math.pow(lengthX, 2) + Math.pow(lengthY, 2)),
+	// angle = Math.atan2(lengthY, lengthX)
+}
+
+func getSVGBezierControlPoint(currentPoint *SVGGraphPoint, prevPoint *SVGGraphPoint, nextPoint *SVGGraphPoint, isReverse bool) SVGGraphPoint {
+	// First / Last Point
+	if prevPoint == nil {
+		prevPoint = currentPoint
+	}
+	if nextPoint == nil {
+		nextPoint = currentPoint
+	}
+
+	// Modifiers
+	var smoothingRatio float64 = 0.2
+	var directionModifier float64 = 0
+	if isReverse == true {
+		directionModifier = math.Pi
+	}
+
+	opposingLine := getSVGBezierOpposedLine(*prevPoint, *nextPoint)
+	var lineAngle float64 = float64(opposingLine.Angle) + directionModifier
+	var lineLength float64 = float64(opposingLine.Length) * smoothingRatio
+
+	// Calculate Control Point
+	return SVGGraphPoint{
+		X: currentPoint.X + int(math.Cos(float64(lineAngle))*lineLength),
+		Y: currentPoint.Y + int(math.Sin(float64(lineAngle))*lineLength),
+	}
+}
+
+func getSVGBezierCurve(point SVGGraphPoint, index int, allPoints []SVGGraphPoint) []SVGGraphPoint {
+	var pointMinusTwo *SVGGraphPoint
+	var pointMinusOne *SVGGraphPoint
+	var pointPlusOne *SVGGraphPoint
+
+	if index-2 >= 0 && index-2 < len(allPoints) {
+		pointMinusTwo = &allPoints[index-2]
+	}
+	if index-1 >= 0 && index-1 < len(allPoints) {
+		pointMinusOne = &allPoints[index-1]
+	}
+	if index+1 >= 0 && index+1 < len(allPoints) {
+		pointPlusOne = &allPoints[index+1]
+	}
+
+	startControlPoint := getSVGBezierControlPoint(pointMinusOne, pointMinusTwo, &point, false)
+	endControlPoint := getSVGBezierControlPoint(&point, pointMinusOne, pointPlusOne, true)
+
+	return []SVGGraphPoint{
+		startControlPoint,
+		endControlPoint,
+		point,
+	}
+}
+
+func getSVGBezierPath(allPoints []SVGGraphPoint) string {
+	var bezierSVGPath string = ""
+
+	for index, point := range allPoints {
+		if index == 0 {
+			bezierSVGPath += fmt.Sprintf("M %d,%d", point.X, point.Y)
+		} else {
+			newPoints := getSVGBezierCurve(point, index, allPoints)
+			bezierSVGPath += fmt.Sprintf(" C%d,%d %d,%d %d,%d", newPoints[0].X, newPoints[0].Y, newPoints[1].X, newPoints[1].Y, newPoints[2].X, newPoints[2].Y)
+		}
+	}
+
+	return bezierSVGPath
+}

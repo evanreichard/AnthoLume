@@ -1,0 +1,235 @@
+{{template "base.html" .}} {{define "title"}}Home{{end}} {{define "content"}}
+
+<div class="w-full">
+  <div class="relative w-full px-4 py-4 bg-white shadow-lg dark:bg-gray-700">
+    <p
+      class="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500"
+    >
+      Daily Read Totals
+    </p>
+    {{ $data := (GetSVGGraphData .Data.GraphData 800)}}
+
+    <svg viewBox="0 0 {{ $data.Width }} {{ $data.Height }}">
+      <path
+        fill="#316BBE"
+        fill-opacity="0.5"
+        stroke="none"
+        d="{{ $data.BezierPath }} {{ $data.BezierFill }}"
+      />
+
+      <path fill="none" stroke="#316BBE" d="{{ $data.BezierPath }}" />
+
+      {{ range $index, $item := $data.LinePoints }}
+      <line
+        class="hover-trigger"
+        stroke="black"
+        stroke-opacity="0.0"
+        stroke-width="{{ $data.Offset }}"
+        x1="{{ $item.X }}"
+        x2="{{ $item.X }}"
+        y1="0"
+        y2="{{ $data.Height }}"
+      ></line>
+      <g class="hover-item">
+        <line
+          class="text-black dark:text-white"
+          stroke-opacity="0.2"
+          x1="{{ $item.X }}"
+          x2="{{ $item.X }}"
+          y1="30"
+          y2="{{ $data.Height }}"
+        ></line>
+        <text
+          class="text-black dark:text-white"
+          alignment-baseline="middle"
+          transform="translate({{ $item.X }}, 5) translate(-30, 8)"
+          font-size="10"
+        >
+          {{ (index $.Data.GraphData $index).Date }}
+        </text>
+        <text
+          class="text-black dark:text-white"
+          alignment-baseline="middle"
+          transform="translate({{ $item.X }}, 25) translate(-30, -2)"
+          font-size="10"
+        >
+          {{ (index $.Data.GraphData $index).MinutesRead }} minutes
+        </text>
+      </g>
+      {{ end }}
+    </svg>
+
+    <style>
+      /* Interactive Hover */
+      .hover-item {
+        visibility: hidden;
+        opacity: 0;
+      }
+      .hover-trigger:hover + .hover-item,
+      .hover-item:hover {
+        visibility: visible;
+        opacity: 1;
+      }
+
+      /* SVG Component Styling */
+      svg text.text-black {
+        fill: black;
+      }
+      svg line.text-black {
+        stroke: black;
+      }
+      @media (prefers-color-scheme: dark) {
+        svg text.dark\:text-white {
+          fill: white;
+        }
+        svg line.dark\:text-white {
+          stroke: white;
+        }
+      }
+    </style>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 gap-4 my-4 md:grid-cols-4">
+  <div class="w-full">
+    <div
+      class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded"
+    >
+      <div class="flex flex-col justify-around dark:text-white w-full text-xs">
+        <p class="text-2xl font-bold text-black dark:text-white">
+          {{ .Data.DatabaseInfo.DocumentsSize }}
+        </p>
+        <p class="text-sm text-gray-400">Documents</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="w-full">
+    <div
+      class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded"
+    >
+      <div class="flex flex-col justify-around dark:text-white w-full text-xs">
+        <p class="text-2xl font-bold text-black dark:text-white">
+          {{ .Data.DatabaseInfo.ActivitySize }}
+        </p>
+        <p class="text-sm text-gray-400">Activity Records</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="w-full">
+    <div
+      class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded"
+    >
+      <div class="flex flex-col justify-around dark:text-white w-full text-xs">
+        <p class="text-2xl font-bold text-black dark:text-white">
+          {{ .Data.DatabaseInfo.ProgressSize }}
+        </p>
+        <p class="text-sm text-gray-400">Progress Records</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="w-full">
+    <div
+      class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded"
+    >
+      <div class="flex flex-col justify-around dark:text-white w-full text-xs">
+        <p class="text-2xl font-bold text-black dark:text-white">
+          {{ .Data.DatabaseInfo.DevicesSize }}
+        </p>
+        <p class="text-sm text-gray-400">Devices</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 gap-4 my-4 md:grid-cols-2 lg:grid-cols-3">
+  <div class="w-full">
+    <div class="relative w-full px-4 py-6 bg-white shadow-lg dark:bg-gray-700">
+      <p
+        class="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500"
+      >
+        Daily Read Streak
+      </p>
+      <div class="flex items-end my-6 space-x-2">
+        <p class="text-5xl font-bold text-black dark:text-white">
+          {{ .Data.DailyStreak.CurrentStreak }}
+        </p>
+      </div>
+      <div class="dark:text-white">
+        <div
+          class="flex items-center justify-between pb-2 mb-2 text-sm border-b border-gray-200"
+        >
+          <div>
+            <p>Current Daily Streak</p>
+            <div class="flex items-end text-xs text-gray-400">
+              {{ .Data.DailyStreak.CurrentStreakStartDate }} ➞ {{
+              .Data.DailyStreak.CurrentStreakEndDate }}
+            </div>
+          </div>
+          <div class="flex items-end font-bold">
+            {{ .Data.DailyStreak.CurrentStreak }}
+          </div>
+        </div>
+        <div class="flex items-center justify-between pb-2 mb-2 text-sm">
+          <div>
+            <p>Best Daily Streak</p>
+            <div class="flex items-end text-xs text-gray-400">
+              {{ .Data.DailyStreak.MaxStreakStartDate }} ➞ {{
+              .Data.DailyStreak.MaxStreakEndDate }}
+            </div>
+          </div>
+          <div class="flex items-end font-bold">
+            {{ .Data.DailyStreak.MaxStreak }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="w-full">
+    <div class="relative w-full px-4 py-6 bg-white shadow-lg dark:bg-gray-700">
+      <p
+        class="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500"
+      >
+        Weekly Read Streak
+      </p>
+      <div class="flex items-end my-6 space-x-2">
+        <p class="text-5xl font-bold text-black dark:text-white">
+          {{ .Data.WeeklyStreak.CurrentStreak }}
+        </p>
+      </div>
+      <div class="dark:text-white">
+        <div
+          class="flex items-center justify-between pb-2 mb-2 text-sm border-b border-gray-200"
+        >
+          <div>
+            <p>Current Weekly Streak</p>
+            <div class="flex items-end text-xs text-gray-400">
+              {{ .Data.WeeklyStreak.CurrentStreakStartDate }} ➞ {{
+              .Data.WeeklyStreak.CurrentStreakEndDate }}
+            </div>
+          </div>
+          <div class="flex items-end font-bold">
+            {{ .Data.WeeklyStreak.CurrentStreak }}
+          </div>
+        </div>
+        <div class="flex items-center justify-between pb-2 mb-2 text-sm">
+          <div>
+            <p>Best Weekly Streak</p>
+            <div class="flex items-end text-xs text-gray-400">
+              {{ .Data.WeeklyStreak.MaxStreakStartDate }} ➞ {{
+              .Data.WeeklyStreak.MaxStreakEndDate }}
+            </div>
+          </div>
+          <div class="flex items-end font-bold">
+            {{ .Data.WeeklyStreak.MaxStreak }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{end}}

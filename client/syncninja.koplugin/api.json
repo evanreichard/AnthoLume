@@ -1,0 +1,61 @@
+{
+  "base_url": "http://127.0.0.1:8585",
+  "name": "syncninja",
+  "methods": {
+    "add_activity": {
+      "path": "/api/ko/activity",
+      "method": "POST",
+      "required_params": ["device_id", "device", "activity"],
+      "payload": ["device_id", "device", "activity"],
+      "expected_status": [200, 401]
+    },
+    "add_documents": {
+      "path": "/api/ko/documents",
+      "method": "POST",
+      "required_params": ["documents"],
+      "payload": ["documents"],
+      "expected_status": [200, 401]
+    },
+    "check_documents": {
+      "path": "/api/ko/syncs/documents",
+      "method": "POST",
+      "required_params": ["device_id", "device", "have"],
+      "payload": ["device_id", "device", "have"],
+      "expected_status": [200, 401]
+    },
+    "check_activity": {
+      "path": "/api/ko/syncs/activity",
+      "method": "POST",
+      "required_params": ["device_id"],
+      "payload": ["device_id"],
+      "expected_status": [200, 401]
+    },
+    "download_document": {
+      "path": "/api/ko/documents/:document/file",
+      "method": "GET",
+      "required_params": ["document"],
+      "expected_status": [200, 401]
+    },
+    "upload_document": {
+      "path": "/api/ko/documents/:document/file",
+      "method": "PUT",
+      "required_params": ["document", "file"],
+      "form-data": {
+        "file": "@:file"
+      },
+      "expected_status": [200, 401]
+    },
+    "authorize": {
+      "path": "/api/ko/users/auth",
+      "method": "GET",
+      "expected_status": [200, 401]
+    },
+    "register": {
+      "path": "/api/ko/users/create",
+      "method": "POST",
+      "required_params": ["username", "password"],
+      "payload": ["username", "password"],
+      "expected_status": [201, 402]
+    }
+  }
+}
