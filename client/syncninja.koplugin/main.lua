@@ -1,3 +1,4 @@
+local ConfirmBox = require("ui/widget/confirmbox")
 local DataStorage = require("datastorage")
 local Device = require("device")
 local Dispatcher = require("dispatcher")
@@ -593,11 +594,12 @@ function SyncNinja:checkActivity(interactive)
     -- API Callback Function
     local callback_func = function(ok, body)
         if not ok then
-            -- TODO: if interactive
-            UIManager:show(InfoMessage:new{
-                text = _("SyncNinja: checkActivity Error"),
-                timeout = 3
-            })
+            if interactive == true then
+                UIManager:show(InfoMessage:new{
+                    text = _("SyncNinja: checkActivity Error"),
+                    timeout = 3
+                })
+            end
             return logger.dbg("SyncNinja: checkActivity Error:", dump(body))
         end
 
@@ -626,11 +628,12 @@ function SyncNinja:uploadActivity(activity_data, interactive)
     -- API Callback Function
     local callback_func = function(ok, body)
         if not ok then
-            -- TODO: if interactive
-            UIManager:show(InfoMessage:new{
-                text = _("SyncNinja: uploadActivity Error"),
-                timeout = 3
-            })
+            if interactive == true then
+                UIManager:show(InfoMessage:new{
+                    text = _("SyncNinja: uploadActivity Error"),
+                    timeout = 3
+                })
+            end
 
             return logger.dbg("SyncNinja: uploadActivity Error:", dump(body))
         end
@@ -660,27 +663,47 @@ function SyncNinja:checkDocuments(interactive)
     -- API Callback Function
     local callback_func = function(ok, body)
         if not ok then
-            -- TODO: if interactive
-            UIManager:show(InfoMessage:new{
-                text = _("SyncNinja: checkDocuments Error"),
-                timeout = 3
-            })
+            if interactive == true then
+                UIManager:show(InfoMessage:new{
+                    text = _("SyncNinja: checkDocuments Error"),
+                    timeout = 3
+                })
+            end
             return logger.dbg("SyncNinja: checkDocuments Error:", dump(body))
         end
 
-        -- Documents Wanted
-        if not (next(body.want) == nil) then
-            local hash_want = {}
-            for _, v in pairs(body.want) do hash_want[v] = true end
+        -- Document Metadata Wanted
+        if not (next(body.want_metadata) == nil) then
+            local hash_want_metadata = {}
+            for _, v in pairs(body.want_metadata) do
+                hash_want_metadata[v] = true
+            end
 
             local upload_doc_metadata = {}
             for _, v in pairs(doc_metadata) do
-                if hash_want[v.id] == true then
+                if hash_want_metadata[v.id] == true then
                     table.insert(upload_doc_metadata, v)
                 end
             end
 
-            self:uploadDocuments(upload_doc_metadata, interactive)
+            self:uploadDocumentMetadata(upload_doc_metadata, interactive)
+        end
+
+        -- Document Files Wanted
+        if not (next(body.want_files) == nil) then
+            local hash_want_files = {}
+            for _, v in pairs(body.want_files) do
+                hash_want_files[v] = true
+            end
+
+            local upload_doc_files = {}
+            for _, v in pairs(doc_metadata) do
+                if hash_want_files[v.id] == true then
+                    table.insert(upload_doc_files, v)
+                end
+            end
+
+            self:uploadDocumentFiles(upload_doc_files, interactive)
         end
 
         -- Documents Provided
@@ -706,8 +729,8 @@ function SyncNinja:downloadDocuments(doc_metadata, interactive)
     -- TODO
 end
 
-function SyncNinja:uploadDocuments(doc_metadata, interactive)
-    logger.dbg("SyncNinja: uploadDocuments")
+function SyncNinja:uploadDocumentMetadata(doc_metadata, interactive)
+    logger.dbg("SyncNinja: uploadDocumentMetadata")
 
     -- Ensure Document Sync Enabled
     if self.settings.sync_documents ~= true then return end
@@ -715,12 +738,14 @@ function SyncNinja:uploadDocuments(doc_metadata, interactive)
     -- API Callback Function
     local callback_func = function(ok, body)
         if not ok then
-            -- TODO: if interactive
-            UIManager:show(InfoMessage:new{
-                text = _("SyncNinja: uploadDocuments Error"),
-                timeout = 3
-            })
-            return logger.dbg("SyncNinja: uploadDocuments Error:", dump(body))
+            if interactive == true then
+                UIManager:show(InfoMessage:new{
+                    text = _("SyncNinja: uploadDocumentMetadata Error"),
+                    timeout = 3
+                })
+            end
+            return logger.dbg("SyncNinja: uploadDocumentMetadata Error:",
+                              dump(body))
         end
     end
 
@@ -735,20 +760,51 @@ function SyncNinja:uploadDocuments(doc_metadata, interactive)
     local ok, err = pcall(client.add_documents, client, self.settings.username,
                           self.settings.password, doc_metadata, callback_func)
 
+end
+
+function SyncNinja:uploadDocumentFiles(doc_metadata, interactive)
+    logger.dbg("SyncNinja: uploadDocumentFiles")
+
     -- Ensure Document File Sync Enabled
     if self.settings.sync_document_files ~= true then return end
     if interactive ~= true then return end
 
+    -- API Callback Function
+    local callback_func = function(ok, body)
+        if not ok then
+            UIManager:show(InfoMessage:new{
+                text = _("SyncNinja: uploadDocumentFiles Error"),
+                timeout = 3
+            })
+            return logger.dbg("SyncNinja: uploadDocumentFiles Error:",
+                              dump(body))
+        end
+    end
+
     -- API File Upload
     local confirm_upload_callback = function()
+        UIManager:show(InfoMessage:new{
+            text = _("Uploading Documents - Please Wait...")
+        })
+
+        -- API Client
+        local SyncNinjaClient = require("SyncNinjaClient")
+        local client = SyncNinjaClient:new{
+            custom_url = self.settings.server,
+            service_spec = self.path .. "/api.json"
+        }
+
         for _, v in pairs(doc_metadata) do
             if v.filepath ~= nil then
+                -- TODO: Partial File Uploads (Resolve: OOM Issue)
                 local ok, err = pcall(client.upload_document, client,
                                       self.settings.username,
                                       self.settings.password, v.id, v.filepath,
                                       callback_func)
             end
         end
+
+        UIManager:show(InfoMessage:new{text = _("Uploading Documents Complete")})
     end
 
     UIManager:show(ConfirmBox:new{

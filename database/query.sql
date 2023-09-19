@@ -123,13 +123,20 @@ WHERE
     AND documents.id NOT IN (sqlc.slice('document_ids'));
 
 -- name: GetWantedDocuments :many
-SELECT CAST(value AS TEXT) AS id
+SELECT
+    CAST(value AS TEXT) AS id,
+    CAST((documents.filepath IS NULL) AS BOOLEAN) AS want_file,
+    CAST((documents.synced != true) AS BOOLEAN) AS want_metadata
 FROM json_each(?1)
 LEFT JOIN documents
 ON value = documents.id
 WHERE (
     documents.id IS NOT NULL
-    AND documents.synced = false
+    AND documents.deleted = false
+    AND (
+	documents.synced = false
+	OR documents.filepath IS NULL
+    )
 )
 OR (documents.id IS NULL)
 OR CAST($document_ids AS TEXT) != CAST($document_ids AS TEXT);
@@ -242,7 +249,7 @@ FROM capped_stats;
 
 -- name: GetDocumentDaysRead :one
 WITH document_days AS (
-    SELECT date(start_time, 'localtime') AS dates
+    SELECT DATE(start_time, 'localtime') AS dates
     FROM rescaled_activity
     WHERE document_id = $document_id
     AND user_id = $user_id
@@ -251,93 +258,13 @@ WITH document_days AS (
 SELECT CAST(count(*) AS INTEGER) AS days_read
 FROM document_days;
 
--- name: GetUserDayStreaks :one
-WITH document_days AS (
-    SELECT date(start_time, 'localtime') AS read_day
-    FROM activity
-    WHERE user_id = $user_id
-    GROUP BY read_day
-    ORDER BY read_day DESC
-),
-partitions AS (
-    SELECT
-        document_days.*,
-        row_number() OVER (
-            PARTITION BY 1 ORDER BY read_day DESC
-        ) AS seqnum
-    FROM document_days
-),
-streaks AS (
-    SELECT
-        count(*) AS streak,
-        MIN(read_day) AS start_date,
-        MAX(read_day) AS end_date
-    FROM partitions
-    GROUP BY date(read_day, '+' || seqnum || ' day')
-    ORDER BY end_date DESC
-),
-max_streak AS (
-    SELECT
-        MAX(streak) AS max_streak,
-        start_date AS max_streak_start_date,
-        end_date AS max_streak_end_date
-    FROM streaks
-)
-SELECT
-    CAST(max_streak AS INTEGER),
-    CAST(max_streak_start_date AS TEXT),
-    CAST(max_streak_end_date AS TEXT),
-    streak AS current_streak,
-    CAST(start_date AS TEXT) AS current_streak_start_date,
-    CAST(end_date AS TEXT) AS current_streak_end_date
-FROM max_streak, streaks LIMIT 1;
-
--- name: GetUserWeekStreaks :one
-WITH document_weeks AS (
-    SELECT STRFTIME('%Y-%m-%d', start_time, 'localtime', 'weekday 0', '-7 day') AS read_week
-    FROM activity
-    WHERE user_id = $user_id
-    GROUP BY read_week
-    ORDER BY read_week DESC
-),
-partitions AS (
-    SELECT
-        document_weeks.*,
-        row_number() OVER (
-            PARTITION BY 1 ORDER BY read_week DESC
-        ) AS seqnum
-    FROM document_weeks
-),
-streaks AS (
-    SELECT
-        count(*) AS streak,
-        MIN(read_week) AS start_date,
-        MAX(read_week) AS end_date
-    FROM partitions
-    GROUP BY date(read_week, '+' || (seqnum * 7) || ' day')
-    ORDER BY end_date DESC
-),
-max_streak AS (
-    SELECT
-        MAX(streak) AS max_streak,
-        start_date AS max_streak_start_date,
-        end_date AS max_streak_end_date
-    FROM streaks
-)
-SELECT
-    CAST(max_streak AS INTEGER),
-    CAST(max_streak_start_date AS TEXT),
-    CAST(max_streak_end_date AS TEXT),
-    streak AS current_streak,
-    CAST(start_date AS TEXT) AS current_streak_start_date,
-    CAST(end_date AS TEXT) AS current_streak_end_date
-FROM max_streak, streaks LIMIT 1;
-
 -- name: GetUserWindowStreaks :one
 WITH document_windows AS (
     SELECT CASE
-      WHEN ?2 = "WEEK" THEN STRFTIME('%Y-%m-%d', start_time, 'localtime', 'weekday 0', '-7 day')
-      WHEN ?2 = "DAY" THEN date(start_time, 'localtime')
+      -- TODO: Timezones! E.g. DATE(start_time, '-5 hours')
+      -- TODO: Timezones! E.g. DATE(start_time, '-5 hours', '-7 days')
+      WHEN ?2 = "WEEK" THEN STRFTIME('%Y-%m-%d', start_time, 'weekday 0', '-7 day')
+      WHEN ?2 = "DAY" THEN DATE(start_time)
     END AS read_window
     FROM activity
     WHERE user_id = $user_id
@@ -360,8 +287,8 @@ streaks AS (
         MAX(read_window) AS end_date
     FROM partitions
     GROUP BY CASE
-	WHEN ?2 = "DAY" THEN date(read_window, '+' || seqnum || ' day')
-	WHEN ?2 = "WEEK" THEN date(read_window, '+' || (seqnum * 7) || ' day')
+	WHEN ?2 = "DAY" THEN DATE(read_window, '+' || seqnum || ' day')
+	WHEN ?2 = "WEEK" THEN DATE(read_window, '+' || (seqnum * 7) || ' day')
     END
     ORDER BY end_date DESC
 ),
@@ -371,15 +298,29 @@ max_streak AS (
         start_date AS max_streak_start_date,
         end_date AS max_streak_end_date
     FROM streaks
+),
+current_streak AS (
+    SELECT
+        streak AS current_streak,
+        start_date AS current_streak_start_date,
+        end_date AS current_streak_end_date
+    FROM streaks
+    WHERE CASE
+      WHEN ?2 = "WEEK" THEN STRFTIME('%Y-%m-%d', 'now', 'weekday 0', '-7 day') = current_streak_end_date
+      WHEN ?2 = "DAY" THEN DATE('now', '-1 day') = current_streak_end_date OR DATE('now') = current_streak_end_date
+    END
+    LIMIT 1
 )
 SELECT
-    CAST(max_streak AS INTEGER),
-    CAST(max_streak_start_date AS TEXT),
-    CAST(max_streak_end_date AS TEXT),
-    streak AS current_streak,
-    CAST(start_date AS TEXT) AS current_streak_start_date,
-    CAST(end_date AS TEXT) AS current_streak_end_date
-FROM max_streak, streaks LIMIT 1;
+    CAST(IFNULL(max_streak, 0) AS INTEGER) AS max_streak,
+    CAST(IFNULL(max_streak_start_date, "N/A") AS TEXT) AS max_streak_start_date,
+    CAST(IFNULL(max_streak_end_date, "N/A") AS TEXT) AS max_streak_end_date,
+    IFNULL(current_streak, 0) AS current_streak,
+    CAST(IFNULL(current_streak_start_date, "N/A") AS TEXT) AS current_streak_start_date,
+    CAST(IFNULL(current_streak_end_date, "N/A") AS TEXT) AS current_streak_end_date
+FROM max_streak
+LEFT JOIN current_streak ON 1 = 1
+LIMIT 1;
 
 -- name: GetDatabaseInfo :one
 SELECT
@@ -391,16 +332,16 @@ LIMIT 1;
 
 -- name: GetDailyReadStats :many
 WITH RECURSIVE last_30_days (date) AS (
-    SELECT date('now') AS date
+    SELECT DATE('now') AS date
     UNION ALL
-    SELECT date(date, '-1 days')
+    SELECT DATE(date, '-1 days')
     FROM last_30_days
     LIMIT 30
 ),
 activity_records AS (
     SELECT
         sum(duration) AS seconds_read,
-        date(start_time, 'localtime') AS day
+        DATE(start_time, 'localtime') AS day
     FROM activity
     WHERE user_id = $user_id
     GROUP BY day
@@ -420,7 +361,7 @@ LIMIT 30;
 
 -- SELECT
 --     sum(duration) / 60 AS minutes_read,
---     date(start_time, 'localtime') AS day
+--     DATE(start_time, 'localtime') AS day
 -- FROM activity
 -- GROUP BY day
 -- ORDER BY day DESC

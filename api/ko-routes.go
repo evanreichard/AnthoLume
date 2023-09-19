@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	argon2 "github.com/alexedwards/argon2id"
@@ -61,9 +62,10 @@ type requestCheckDocumentSync struct {
 }
 
 type responseCheckDocumentSync struct {
-	Want   []string            `json:"want"`
-	Give   []database.Document `json:"give"`
-	Delete []string            `json:"deleted"`
+	WantFiles    []string            `json:"want_files"`
+	WantMetadata []string            `json:"want_metadata"`
+	Give         []database.Document `json:"give"`
+	Delete       []string            `json:"deleted"`
 }
 
 type requestDocumentID struct {
@@ -79,6 +81,10 @@ func (api *API) authorizeUser(c *gin.Context) {
 }
 
 func (api *API) createUser(c *gin.Context) {
+	if !api.Config.RegistrationEnabled {
+		c.AbortWithStatus(http.StatusConflict)
+	}
+
 	var rUser requestUser
 	if err := c.ShouldBindJSON(&rUser); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid User Data"})
@@ -96,7 +102,6 @@ func (api *API) createUser(c *gin.Context) {
 		return
 	}
 
-	// TODO - Initial User is Admin & Enable / Disable Registration
 	rows, err := api.DB.Queries.CreateUser(api.DB.Ctx, database.CreateUserParams{
 		ID:   rUser.Username,
 		Pass: hashedPassword,
@@ -411,22 +416,38 @@ func (api *API) checkDocumentsSync(c *gin.Context) {
 		return
 	}
 
-	wantedDocIDs, err := api.DB.Queries.GetWantedDocuments(api.DB.Ctx, string(jsonHaves))
+	wantedDocs, err := api.DB.Queries.GetWantedDocuments(api.DB.Ctx, string(jsonHaves))
 	if err != nil {
 		log.Error("GetWantedDocuments Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
 	}
 
+	// Split Metadata & File Wants
+	var wantedMetadataDocIDs []string
+	var wantedFilesDocIDs []string
+	for _, v := range wantedDocs {
+		if v.WantMetadata {
+			wantedMetadataDocIDs = append(wantedMetadataDocIDs, v.ID)
+		}
+		if v.WantFile {
+			wantedFilesDocIDs = append(wantedFilesDocIDs, v.ID)
+		}
+	}
+
 	rCheckDocSync := responseCheckDocumentSync{
-		Delete: []string{},
-		Want:   []string{},
-		Give:   []database.Document{},
+		Delete:       []string{},
+		WantFiles:    []string{},
+		WantMetadata: []string{},
+		Give:         []database.Document{},
 	}
 
 	// Ensure Empty Array
-	if wantedDocIDs != nil {
-		rCheckDocSync.Want = wantedDocIDs
+	if wantedMetadataDocIDs != nil {
+		rCheckDocSync.WantMetadata = wantedMetadataDocIDs
+	}
+	if wantedFilesDocIDs != nil {
+		rCheckDocSync.WantFiles = wantedFilesDocIDs
 	}
 	if missingDocs != nil {
 		rCheckDocSync.Give = missingDocs
@@ -481,6 +502,9 @@ func (api *API) uploadDocumentFile(c *gin.Context) {
 	} else {
 		fileName = fileName + " - Unknown"
 	}
+
+	// Remove Slashes
+	fileName = strings.ReplaceAll(fileName, "/", "")
 
 	// Derive & Sanitize File Name
 	fileName = "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, document.ID, fileExtension))

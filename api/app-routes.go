@@ -74,6 +74,8 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 				"DatabaseInfo": database_info,
 				"GraphData":    read_graph_data,
 			}
+		} else if routeName == "login" {
+			templateVars["RegistrationEnabled"] = api.Config.RegistrationEnabled
 		}
 
 		c.HTML(http.StatusOK, routeName, templateVars)
@@ -150,20 +152,3 @@ func (api *API) getDocumentCover(c *gin.Context) {
 
 	c.File(*coverFilePath)
 }
-
-/*
-METADATA:
-  - Metadata Match
-  - Update Metadata
-*/
-
-/*
-GRAPHS:
-  - Streaks (Daily, Weekly, Monthly)
-  - Last Week Activity (Daily - Pages & Time)
-
-
-  - Pages Read (Daily, Weekly, Monthly)
-  - Reading Progress
-  - Average Reading Time (Daily, Weekly, Monthly)
-*/

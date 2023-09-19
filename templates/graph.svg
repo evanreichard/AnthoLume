@@ -1,8 +1,13 @@
-<svg viewBox="0 0 {{ $data.Width }} {{ $data.Height }}" class="chart">
+{{ $data := (GetSVGGraphData .Data.GraphData 800 150 )}}
+<svg viewBox="0 0 {{ $data.Width }} {{ $data.Height }}">
   <!-- Box Graph -->
   {{ range $idx, $item := $data.BarPoints }}
   <g class="bar" transform="translate({{ $item.X }}, 0)" fill="gray">
-    <rect y="{{ $item.Y }}" height="{{ $item.Size }}" width="33"></rect>
+    <rect
+      y="{{ $item.Y }}"
+      height="{{ $item.Size }}"
+      width="{{ $data.Offset }}"
+    ></rect>
   </g>
   {{ end }}
 
@@ -12,13 +17,13 @@
     stroke="black"
     stroke-width="2"
     points="
-      {{ range $item := $data.LinePoints }}
-      {{ $item.X }},{{ $item.Y }}
-      {{ end }}
-      "
+  {{ range $item := $data.LinePoints }}
+  {{ $item.X }},{{ $item.Y }}
+  {{ end }}
+  "
   />
 
-  <!-- Bezier Curve Line Graph -->
+  <!-- Bezier Line Graph -->
   <path
     fill="#316BBE"
     fill-opacity="0.5"
@@ -26,10 +31,44 @@
     d="{{ $data.BezierPath }} {{ $data.BezierFill }}"
   />
 
-  <path
-    fill="none"
-    fill-opacity="0.1"
-    stroke="none"
-    d="{{ $data.BezierPath }}"
-  />
+  <path fill="none" stroke="#316BBE" d="{{ $data.BezierPath }}" />
+
+  {{ range $index, $item := $data.LinePoints }}
+  <line
+    class="hover-trigger"
+    stroke="black"
+    stroke-opacity="0.0"
+    stroke-width="{{ $data.Offset }}"
+    x1="{{ $item.X }}"
+    x2="{{ $item.X }}"
+    y1="0"
+    y2="{{ $data.Height }}"
+  ></line>
+  <g class="hover-item">
+    <line
+      class="text-black dark:text-white"
+      stroke-opacity="0.2"
+      x1="{{ $item.X }}"
+      x2="{{ $item.X }}"
+      y1="30"
+      y2="{{ $data.Height }}"
+    ></line>
+    <text
+      class="text-black dark:text-white"
+      alignment-baseline="middle"
+      transform="translate({{ $item.X }}, 5) translate(-30, 8)"
+      font-size="10"
+    >
+      {{ (index $.Data.GraphData $index).Date }}
+    </text>
+    <text
+      class="text-black dark:text-white"
+      alignment-baseline="middle"
+      transform="translate({{ $item.X }}, 25) translate(-30, -2)"
+      font-size="10"
+    >
+      {{ (index $.Data.GraphData $index).MinutesRead }} minutes
+    </text>
+  </g>
+  {{ end }}
 </svg>

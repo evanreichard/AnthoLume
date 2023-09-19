@@ -28,10 +28,7 @@ type SVGBezierOpposedLine struct {
 	Angle  int
 }
 
-func GetSVGGraphData(inputData []database.GetDailyReadStatsRow, svgWidth int) SVGGraphData {
-	// Static Padding
-	var padding int = 5
-
+func GetSVGGraphData(inputData []database.GetDailyReadStatsRow, svgWidth int, svgHeight int) SVGGraphData {
 	// Derive Height
 	var maxHeight int = 0
 	for _, item := range inputData {
@@ -40,7 +37,13 @@ func GetSVGGraphData(inputData []database.GetDailyReadStatsRow, svgWidth int) SV
 		}
 	}
 
-	// Derive Block Offsets & Transformed Coordinates (Line & Bar)
+	// Vertical Graph Real Estate
+	var sizePercentage float32 = 0.5
+
+	// Scale Ratio -> Desired Height
+	var sizeRatio float32 = float32(svgHeight) * sizePercentage / float32(maxHeight)
+
+	// Point Block Offset
 	var blockOffset int = int(math.Floor(float64(svgWidth) / float64(len(inputData))))
 
 	// Line & Bar Points
@@ -52,19 +55,19 @@ func GetSVGGraphData(inputData []database.GetDailyReadStatsRow, svgWidth int) SV
 	var maxBY int = 0
 	var minBX int = 0
 	for idx, item := range inputData {
-		itemSize := int(item.MinutesRead)
-		itemY := (maxHeight + padding) - itemSize
+		itemSize := int(float32(item.MinutesRead) * sizeRatio)
+		itemY := svgHeight - itemSize
+		lineX := (idx + 1) * blockOffset
 		barPoints = append(barPoints, SVGGraphPoint{
-			X:    (idx * blockOffset) + (blockOffset / 2),
+			X:    lineX - (blockOffset / 2),
 			Y:    itemY,
-			Size: itemSize + padding,
+			Size: itemSize,
 		})
 
-		lineX := (idx + 1) * blockOffset
 		linePoints = append(linePoints, SVGGraphPoint{
 			X:    lineX,
 			Y:    itemY,
-			Size: itemSize + padding,
+			Size: itemSize,
 		})
 
 		if lineX > maxBX {
@@ -82,13 +85,13 @@ func GetSVGGraphData(inputData []database.GetDailyReadStatsRow, svgWidth int) SV
 
 	// Return Data
 	return SVGGraphData{
-		Width:      svgWidth + padding*2,
-		Height:     maxHeight + padding*2,
+		Width:      svgWidth,
+		Height:     svgHeight,
 		Offset:     blockOffset,
 		LinePoints: linePoints,
 		BarPoints:  barPoints,
 		BezierPath: getSVGBezierPath(linePoints),
-		BezierFill: fmt.Sprintf("L %d,%d L %d,%d Z", maxBX, maxBY+padding, minBX, maxBY+padding),
+		BezierFill: fmt.Sprintf("L %d,%d L %d,%d Z", maxBX, maxBY, minBX+blockOffset, maxBY),
 	}
 }
 

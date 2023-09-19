@@ -7,9 +7,10 @@
     >
       Daily Read Totals
     </p>
-    {{ $data := (GetSVGGraphData .Data.GraphData 800)}}
 
+    {{ $data := (GetSVGGraphData .Data.GraphData 800 70 )}}
     <svg viewBox="0 0 {{ $data.Width }} {{ $data.Height }}">
+      <!-- Bezier Line Graph -->
       <path
         fill="#316BBE"
         fill-opacity="0.5"

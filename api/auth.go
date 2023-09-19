@@ -113,6 +113,10 @@ func (api *API) authLogout(c *gin.Context) {
 }
 
 func (api *API) authFormRegister(c *gin.Context) {
+	if !api.Config.RegistrationEnabled {
+		c.AbortWithStatus(http.StatusConflict)
+	}
+
 	username := strings.TrimSpace(c.PostForm("username"))
 	rawPassword := strings.TrimSpace(c.PostForm("password"))
 

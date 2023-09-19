@@ -2,27 +2,37 @@ package config
 
 import (
 	"os"
+	"strings"
 )
 
 type Config struct {
+	// Server Config
+	Version    string
+	ListenPort string
+
+	// DB Configuration
 	DBType     string
 	DBName     string
 	DBPassword string
+
+	// Data Paths
 	ConfigPath string
 	DataPath   string
-	ListenPort string
-	Version    string
+
+	// Miscellaneous Settings
+	RegistrationEnabled bool
 }
 
 func Load() *Config {
 	return &Config{
-		DBType:     getEnv("DATABASE_TYPE", "SQLite"),
-		DBName:     getEnv("DATABASE_NAME", "bbank"),
-		DBPassword: getEnv("DATABASE_PASSWORD", ""),
-		ConfigPath: getEnv("CONFIG_PATH", "/config"),
-		DataPath:   getEnv("DATA_PATH", "/data"),
-		ListenPort: getEnv("LISTEN_PORT", "8585"),
-		Version:    "0.0.1",
+		Version:             "0.0.1",
+		DBType:              trimLowerString(getEnv("DATABASE_TYPE", "SQLite")),
+		DBName:              trimLowerString(getEnv("DATABASE_NAME", "book_manager")),
+		DBPassword:          getEnv("DATABASE_PASSWORD", ""),
+		ConfigPath:          getEnv("CONFIG_PATH", "/config"),
+		DataPath:            getEnv("DATA_PATH", "/data"),
+		ListenPort:          getEnv("LISTEN_PORT", "8585"),
+		RegistrationEnabled: trimLowerString(getEnv("REGISTRATION_ENABLED", "false")) == "true",
 	}
 }
 
@@ -31,4 +41,8 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func trimLowerString(val string) string {
+	return strings.ToLower(strings.TrimSpace(val))
 }

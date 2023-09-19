@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	_ "embed"
+	"fmt"
 	"path"
 
 	sqlite "github.com/mattn/go-sqlite3"
@@ -20,11 +21,6 @@ type DBManager struct {
 //go:embed schema.sql
 var ddl string
 
-func foobar() string {
-	log.Info("WTF")
-	return ""
-}
-
 func NewMgr(c *config.Config) *DBManager {
 	// Create Manager
 	dbm := &DBManager{
@@ -32,19 +28,12 @@ func NewMgr(c *config.Config) *DBManager {
 	}
 
 	// Create Database
-	if c.DBType == "SQLite" {
-
+	if c.DBType == "sqlite" {
 		sql.Register("sqlite3_custom", &sqlite.SQLiteDriver{
-			ConnectHook: func(conn *sqlite.SQLiteConn) error {
-				if err := conn.RegisterFunc("test_func", foobar, false); err != nil {
-					log.Info("Error Registering")
-					return err
-				}
-				return nil
-			},
+			ConnectHook: connectHookSQLite,
 		})
 
-		dbLocation := path.Join(c.ConfigPath, "bbank.db")
+		dbLocation := path.Join(c.ConfigPath, fmt.Sprintf("%s.db", c.DBName))
 
 		var err error
 		dbm.DB, err = sql.Open("sqlite3_custom", dbLocation)
@@ -63,4 +52,14 @@ func NewMgr(c *config.Config) *DBManager {
 	dbm.Queries = New(dbm.DB)
 
 	return dbm
+}
+
+func connectHookSQLite(conn *sqlite.SQLiteConn) error {
+	if err := conn.RegisterFunc("test_func", func() string {
+		return "FOOBAR"
+	}, false); err != nil {
+		log.Info("Error Registering Function")
+		return err
+	}
+	return nil
 }
