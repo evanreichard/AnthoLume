@@ -1,6 +1,10 @@
 local UIManager = require("ui/uimanager")
-local socketutil = require("socketutil")
+local http = require("socket.http")
+local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
+local ltn12 = require("ltn12")
+local socket = require("socket")
+local socketutil = require("socketutil")
 
 -- Push/Pull
 local SYNC_TIMEOUTS = {2, 5}
@@ -199,23 +203,68 @@ function SyncNinjaClient:download_document(username, password, document,
     end
 end
 
-function SyncNinjaClient:upload_document(username, password, document, file,
+function SyncNinjaClient:upload_document(username, password, document, filepath,
                                          callback)
-    self.client:reset_middlewares()
-    self.client:enable("Format.JSON")
-    self.client:enable("GinClient")
-    self.client:enable("SyncNinjaAuth",
-                       {username = username, userkey = password})
+    -- Create URL
+    local url = self.custom_url ..
+                    (self.custom_url:sub(-#"/") ~= "/" and "/" or "") ..
+                    "api/ko/documents/" .. document .. "/file"
 
-    local ok, res = pcall(function()
-        return self.client:upload_document({document = document, file = file})
-    end)
-    if ok then
-        callback(res.status == 200, res.body)
-    else
+    -- Track Length, Sources, and Boundary
+    local len = 0
+    local sources = {}
+    local boundary = "-----BoundaryePkpFF7tjBAqx29L"
+
+    -- Open File & Get Size
+    local file = io.open(filepath, "rb")
+    local file_size = lfs.attributes(filepath, 'size')
+
+    -- Insert File Start
+    local str_start = {}
+    table.insert(str_start, "--" .. boundary .. "\r\n")
+    table.insert(str_start, 'content-disposition: form-data; name="file";')
+    table.insert(str_start, 'filename="' .. "test" ..
+                     '"\r\ncontent-type: application/octet-stream\r\n\r\n')
+    str_start = table.concat(str_start)
+    table.insert(sources, ltn12.source.string(str_start))
+    len = len + #str_start
+
+    -- Insert File
+    table.insert(sources, ltn12.source.file(file))
+    len = len + file_size
+
+    -- Insert File End
+    local str_end = "\r\n"
+    table.insert(sources, ltn12.source.string(str_end))
+    len = len + #str_end
+
+    -- Insert Multipart End
+    local str = string.format("--%s--\r\n", boundary)
+    table.insert(sources, ltn12.source.string(str))
+    len = len + #str
+
+    -- Execute Request
+    logger.dbg("SyncNinja: upload_document - Uploading [" .. len .. "]:",
+               filepath)
+
+    local resp = {}
+    local code, headers, status = socket.skip(1, http.request {
+        url = url,
+        method = 'PUT',
+        headers = {
+            ["Content-Length"] = len,
+            ['Content-Type'] = "multipart/form-data; boundary=" .. boundary,
+            ['X-Auth-User'] = username,
+            ['X-Auth-Key'] = password
+        },
+        source = ltn12.source.cat(unpack(sources)),
+        sink = ltn12.sink.table(resp)
+    })
+
+    if code ~= 200 then
         logger.dbg("SyncNinjaClient:upload_document failure:", res)
-        callback(false, res.body)
     end
+    callback(code == 200, resp)
 end
 
 ------------------------------------------

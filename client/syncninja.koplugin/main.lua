@@ -1,7 +1,6 @@
 local ConfirmBox = require("ui/widget/confirmbox")
 local DataStorage = require("datastorage")
 local Device = require("device")
-local Dispatcher = require("dispatcher")
 local DocSettings = require("docsettings")
 local InfoMessage = require("ui/widget/infomessage")
 local MultiInputDialog = require("ui/widget/multiinputdialog")
@@ -14,11 +13,6 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local _ = require("gettext")
 local logger = require("logger")
 local md5 = require("ffi/sha2").md5
-
--- TODO:
---   - Handle ReadHistory missing files (statistics.sqlite3, bookinfo_cache.sqlite3)
---   - Handle document uploads (Manual push only, warning saying this may take awhile)
---   - Configure activity bulk size? 1000, 5000, 10000? Separate manual settings to upload ALL?
 
 ------------------------------------------
 ------------ Helper Functions ------------
@@ -574,9 +568,10 @@ function SyncNinja:performSync(interactive)
     self:checkActivity(interactive)
     self:checkDocuments(interactive)
 
+    -- Notify
     if interactive == true then
         UIManager:show(InfoMessage:new{
-            text = _("SyncNinja: Manual Sync Success"),
+            text = _("SyncNinja: Manual Sync Initiated"),
             timeout = 3
         })
     end
@@ -634,7 +629,6 @@ function SyncNinja:uploadActivity(activity_data, interactive)
                     timeout = 3
                 })
             end
-
             return logger.dbg("SyncNinja: uploadActivity Error:", dump(body))
         end
     end
@@ -769,7 +763,6 @@ function SyncNinja:uploadDocumentFiles(doc_metadata, interactive)
     if self.settings.sync_document_files ~= true then return end
     if interactive ~= true then return end
 
-    -- API Callback Function
     local callback_func = function(ok, body)
         if not ok then
             UIManager:show(InfoMessage:new{
@@ -787,24 +780,30 @@ function SyncNinja:uploadDocumentFiles(doc_metadata, interactive)
             text = _("Uploading Documents - Please Wait...")
         })
 
-        -- API Client
-        local SyncNinjaClient = require("SyncNinjaClient")
-        local client = SyncNinjaClient:new{
-            custom_url = self.settings.server,
-            service_spec = self.path .. "/api.json"
-        }
+        UIManager:nextTick(function()
+            -- API Client
+            local SyncNinjaClient = require("SyncNinjaClient")
+            local client = SyncNinjaClient:new{
+                custom_url = self.settings.server,
+                service_spec = self.path .. "/api.json"
+            }
 
-        for _, v in pairs(doc_metadata) do
-            if v.filepath ~= nil then
-                -- TODO: Partial File Uploads (Resolve: OOM Issue)
-                local ok, err = pcall(client.upload_document, client,
-                                      self.settings.username,
-                                      self.settings.password, v.id, v.filepath,
-                                      callback_func)
+            for _, v in pairs(doc_metadata) do
+                if v.filepath ~= nil then
+                    local ok, err = pcall(client.upload_document, client,
+                                          self.settings.username,
+                                          self.settings.password, v.id,
+                                          v.filepath, callback_func)
+                else
+                    logger.dbg("SyncNinja: uploadDocumentFiles - no file for:",
+                               v.id)
+                end
             end
-        end
 
-        UIManager:show(InfoMessage:new{text = _("Uploading Documents Complete")})
+            UIManager:show(InfoMessage:new{
+                text = _("Uploading Documents Complete")
+            })
+        end)
     end
 
     UIManager:show(ConfirmBox:new{
