@@ -80,13 +80,12 @@ func (api *API) registerWebAppRoutes() {
 
 	api.Router.GET("/", api.authWebAppMiddleware, api.createAppResourcesRoute("home"))
 	api.Router.GET("/documents", api.authWebAppMiddleware, api.createAppResourcesRoute("documents"))
+	api.Router.GET("/activity", api.authWebAppMiddleware, api.createAppResourcesRoute("activity"))
 	api.Router.GET("/documents/:document/file", api.authWebAppMiddleware, api.downloadDocumentFile)
 	api.Router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.getDocumentCover)
 
 	// TODO
-	api.Router.GET("/activity", api.authWebAppMiddleware, baseResourceRoute("activity"))
 	api.Router.GET("/graphs", api.authWebAppMiddleware, baseResourceRoute("graphs"))
-
 }
 
 func (api *API) registerKOAPIRoutes(apiGroup *gin.RouterGroup) {

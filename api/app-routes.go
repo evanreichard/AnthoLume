@@ -27,16 +27,24 @@ func baseResourceRoute(template string, args ...map[string]any) func(c *gin.Cont
 
 func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any) func(*gin.Context) {
 	// Merge Optional Template Data
-	var templateVars = gin.H{}
+	var templateVarsBase = gin.H{}
 	if len(args) > 0 {
-		templateVars = args[0]
+		templateVarsBase = args[0]
 	}
-	templateVars["RouteName"] = routeName
+	templateVarsBase["RouteName"] = routeName
 
 	return func(c *gin.Context) {
 		rUser, _ := c.Get("AuthorizedUser")
-		qParams := bindQueryParams(c)
+
+		// Copy Base & Update
+		templateVars := gin.H{}
+		for k, v := range templateVarsBase {
+			templateVars[k] = v
+		}
 		templateVars["User"] = rUser
+
+		// Potential URL Parameters
+		qParams := bindQueryParams(c)
 
 		if routeName == "documents" {
 			documents, err := api.DB.Queries.GetDocumentsWithStats(api.DB.Ctx, database.GetDocumentsWithStatsParams{
@@ -45,28 +53,44 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 				Limit:  *qParams.Limit,
 			})
 			if err != nil {
-				log.Info(err)
+				log.Error("[createAppResourcesRoute] GetDocumentsWithStats DB Error:", err)
 				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 				return
 			}
 
 			templateVars["Data"] = documents
+		} else if routeName == "activity" {
+			activity, err := api.DB.Queries.GetActivity(api.DB.Ctx, database.GetActivityParams{
+				UserID: rUser.(string),
+				Offset: (*qParams.Page - 1) * *qParams.Limit,
+				Limit:  *qParams.Limit,
+			})
+			if err != nil {
+				log.Error("[createAppResourcesRoute] GetActivity DB Error:", err)
+				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+				return
+			}
+
+			templateVars["Data"] = activity
 		} else if routeName == "home" {
-			weekly_streak, _ := api.DB.Queries.GetUserWindowStreaks(api.DB.Ctx, database.GetUserWindowStreaksParams{
+			weekly_streak, err := api.DB.Queries.GetUserWindowStreaks(api.DB.Ctx, database.GetUserWindowStreaksParams{
 				UserID: rUser.(string),
 				Window: "WEEK",
 			})
+			if err != nil {
+				log.Warn("[createAppResourcesRoute] GetUserWindowStreaks DB Error:", err)
+			}
 
-			daily_streak, _ := api.DB.Queries.GetUserWindowStreaks(api.DB.Ctx, database.GetUserWindowStreaksParams{
+			daily_streak, err := api.DB.Queries.GetUserWindowStreaks(api.DB.Ctx, database.GetUserWindowStreaksParams{
 				UserID: rUser.(string),
 				Window: "DAY",
 			})
+			if err != nil {
+				log.Warn("[createAppResourcesRoute] GetUserWindowStreaks DB Error:", err)
+			}
 
 			database_info, _ := api.DB.Queries.GetDatabaseInfo(api.DB.Ctx, rUser.(string))
-			read_graph_data, err := api.DB.Queries.GetDailyReadStats(api.DB.Ctx, rUser.(string))
-			if err != nil {
-				log.Info("HMMMM:", err)
-			}
+			read_graph_data, _ := api.DB.Queries.GetDailyReadStats(api.DB.Ctx, rUser.(string))
 
 			templateVars["Data"] = gin.H{
 				"DailyStreak":  daily_streak,
@@ -85,6 +109,7 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 func (api *API) getDocumentCover(c *gin.Context) {
 	var rDoc requestDocumentID
 	if err := c.ShouldBindUri(&rDoc); err != nil {
+		log.Error("[getDocumentCover] Invalid URI Bind")
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
@@ -92,6 +117,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 	// Validate Document Exists in DB
 	document, err := api.DB.Queries.GetDocument(api.DB.Ctx, rDoc.DocumentID)
 	if err != nil {
+		log.Error("[getDocumentCover] GetDocument DB Error:", err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
@@ -99,7 +125,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 	// Handle Identified Document
 	if document.Olid != nil {
 		if *document.Olid == "UNKNOWN" {
-			c.Redirect(http.StatusFound, "/assets/no-cover.jpg")
+			c.File("./assets/no-cover.jpg")
 			return
 		}
 
@@ -110,7 +136,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 		// Validate File Exists
 		_, err = os.Stat(safePath)
 		if err != nil {
-			c.Redirect(http.StatusFound, "/assets/no-cover.jpg")
+			c.File("./assets/no-cover.jpg")
 			return
 		}
 
@@ -141,12 +167,12 @@ func (api *API) getDocumentCover(c *gin.Context) {
 		ID:   document.ID,
 		Olid: &coverID,
 	}); err != nil {
-		log.Error("Document Upsert Error")
+		log.Warn("[getDocumentCover] UpsertDocument DB Error:", err)
 	}
 
 	// Return Unknown Cover
 	if coverID == "UNKNOWN" {
-		c.Redirect(http.StatusFound, "/assets/no-cover.jpg")
+		c.File("./assets/no-cover.jpg")
 		return
 	}
 

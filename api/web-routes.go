@@ -135,7 +135,7 @@ func (api *API) getActivity(c *gin.Context) {
 	}
 
 	if activity == nil {
-		activity = []database.Activity{}
+		activity = []database.GetActivityRow{}
 	}
 
 	c.JSON(http.StatusOK, activity)

@@ -11,9 +11,28 @@
       class="relative h-screen overflow-hidden bg-gray-100 dark:bg-gray-800"
     >
       <div class="flex items-start justify-between">
-        <div class="relative hidden h-screen shadow-lg lg:block w-64">
+	<input type="checkbox" id="mobile-nav-button" class="hidden"/>
+        <div class="fixed -left-64 duration-500 transition-all w-56 z-50 h-screen shadow-lg lg:left-0 lg:block lg:relative">
           <div class="h-full bg-white dark:bg-gray-700">
-            <div class="flex items-center justify-start pt-4 ml-8">
+            <div class="flex items-center justify-center gap-4 h-16">
+	      <label
+		id="mobile-nav-close-button"
+		for="mobile-nav-button"
+		class="flex block items-center p-2 text-gray-500 bg-white rounded-full shadow text-md cursor-pointer lg:hidden"
+	      >
+		<svg
+		  width="20"
+		  height="20"
+		  class="text-gray-400"
+		  fill="currentColor"
+		  viewBox="0 0 1792 1792"
+		  xmlns="http://www.w3.org/2000/svg"
+		>
+		  <path
+		    d="M1664 1344v128q0 26-19 45t-45 19h-1408q-26 0-45-19t-19-45v-128q0-26 19-45t45-19h1408q26 0 45 19t19 45zm0-512v128q0 26-19 45t-45 19h-1408q-26 0-45-19t-19-45v-128q0-26 19-45t45-19h1408q26 0 45 19t19 45zm0-512v128q0 26-19 45t-45 19h-1408q-26 0-45-19t-19-45v-128q0-26 19-45t45-19h1408q26 0 45 19t19 45z"
+		  ></path>
+		</svg>
+	      </label>
               <p class="text-xl font-bold dark:text-white">Book Manager</p>
             </div>
             <nav class="mt-6">
@@ -100,8 +119,9 @@
         <div class="flex flex-col w-full">
           <header class="z-40 flex items-center justify-between w-full h-16">
             <div class="block ml-6 lg:hidden">
-              <button
-                class="flex items-center p-2 text-gray-500 bg-white rounded-full shadow text-md"
+              <label
+		for="mobile-nav-button"
+                class="flex items-center p-2 text-gray-500 bg-white rounded-full shadow text-md cursor-pointer"
               >
                 <svg
                   width="20"
@@ -115,67 +135,71 @@
                     d="M1664 1344v128q0 26-19 45t-45 19h-1408q-26 0-45-19t-19-45v-128q0-26 19-45t45-19h1408q26 0 45 19t19 45zm0-512v128q0 26-19 45t-45 19h-1408q-26 0-45-19t-19-45v-128q0-26 19-45t45-19h1408q26 0 45 19t19 45zm0-512v128q0 26-19 45t-45 19h-1408q-26 0-45-19t-19-45v-128q0-26 19-45t45-19h1408q26 0 45 19t19 45z"
                   ></path>
                 </svg>
-              </button>
+              </label>
             </div>
 	    <h1 class="text-xl font-bold dark:text-white px-6">{{block "title" .}}{{end}}</h1>
 	    <div
 	      class="relative flex items-center justify-end w-full p-4 space-x-4"
 	    >
 	      <a href="#" class="relative block">
-		    <svg
-		      width="20"
-		      fill="currentColor"
-		      height="20"
-		      class="text-gray-800 dark:text-gray-200"
-		      viewBox="0 0 1792 1792"
-		      xmlns="http://www.w3.org/2000/svg"
-		    >
-		      <path
-			d="M1523 1339q-22-155-87.5-257.5t-184.5-118.5q-67 74-159.5 115.5t-195.5 41.5-195.5-41.5-159.5-115.5q-119 16-184.5 118.5t-87.5 257.5q106 150 271 237.5t356 87.5 356-87.5 271-237.5zm-243-699q0-159-112.5-271.5t-271.5-112.5-271.5 112.5-112.5 271.5 112.5 271.5 271.5 112.5 271.5-112.5 112.5-271.5zm512 256q0 182-71 347.5t-190.5 286-285.5 191.5-349 71q-182 0-348-71t-286-191-191-286-71-348 71-348 191-286 286-191 348-71 348 71 286 191 191 286 71 348z"
-		      />
-		    </svg>
-	      </a>
-	      <button
-		class="custom-profile-button flex items-center text-gray-500 dark:text-white text-md py-4"
-	      >
-	      {{ .User }}
 		<svg
 		  width="20"
-		  height="20"
-		  class="ml-2 text-gray-400"
 		  fill="currentColor"
+		  height="20"
+		  class="text-gray-800 dark:text-gray-200"
 		  viewBox="0 0 1792 1792"
 		  xmlns="http://www.w3.org/2000/svg"
 		>
 		  <path
-		    d="M1408 704q0 26-19 45l-448 448q-19 19-45 19t-45-19l-448-448q-19-19-19-45t19-45 45-19h896q26 0 45 19t19 45z"
-		  ></path>
+		    d="M1523 1339q-22-155-87.5-257.5t-184.5-118.5q-67 74-159.5 115.5t-195.5 41.5-195.5-41.5-159.5-115.5q-119 16-184.5 118.5t-87.5 257.5q106 150 271 237.5t356 87.5 356-87.5 271-237.5zm-243-699q0-159-112.5-271.5t-271.5-112.5-271.5 112.5-112.5 271.5 112.5 271.5 271.5 112.5 271.5-112.5 112.5-271.5zm512 256q0 182-71 347.5t-190.5 286-285.5 191.5-349 71q-182 0-348-71t-286-191-191-286-71-348 71-348 191-286 286-191 348-71 348 71 286 191 191 286 71 348z"
+		  />
 		</svg>
-	      </button>
-                <div
-                  class="custom-profile-dropdown transition duration-200 absolute right-4 top-16 pt-4"
-                >
+	      </a>
+	      <input type="checkbox" id="user-dropdown-button" class="hidden"/>
+	      <div
+		id="user-dropdown"
+		class="transition duration-200 absolute right-4 top-16 pt-4"
+	      >
+		<div
+		  class="w-56 origin-top-right bg-white rounded-md shadow-lg dark:shadow-gray-800 dark:bg-gray-700 ring-1 ring-black ring-opacity-5"
+		>
 		  <div
-		    class="w-56 origin-top-right bg-white rounded-md shadow-lg dark:shadow-gray-800 dark:bg-gray-700 ring-1 ring-black ring-opacity-5"
+		    class="py-1"
+		    role="menu"
+		    aria-orientation="vertical"
+		    aria-labelledby="options-menu"
 		  >
-		    <div
-		      class="py-1"
-		      role="menu"
-		      aria-orientation="vertical"
-		      aria-labelledby="options-menu"
+		    <a
+		      href="/logout"
+		      class="block block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600"
+		      role="menuitem"
 		    >
-		      <a
-			href="/logout"
-			class="block block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600"
-			role="menuitem"
-		      >
-			<span class="flex flex-col">
-			  <span>Logout</span>
-			</span>
-		      </a>
-		    </div>
+		      <span class="flex flex-col">
+			<span>Logout</span>
+		      </span>
+		    </a>
 		  </div>
 		</div>
+	      </div>
+	      <label for="user-dropdown-button">
+		<div
+		  class="flex items-center text-gray-500 dark:text-white text-md py-4 cursor-pointer"
+		>
+		  {{ .User }}
+		  <svg
+		    width="20"
+		    height="20"
+		    class="ml-2 text-gray-400"
+		    fill="currentColor"
+		    viewBox="0 0 1792 1792"
+		    xmlns="http://www.w3.org/2000/svg"
+		  >
+		    <path
+		      d="M1408 704q0 26-19 45l-448 448q-19 19-45 19t-45-19l-448-448q-19-19-19-45t19-45 45-19h896q26 0 45 19t19 45z"
+		    ></path>
+		  </svg>
+		</div>
+	      </label>
 	    </div>
           </header>
           <div class="h-screen px-4 pb-24 overflow-auto md:px-6">
@@ -187,15 +211,25 @@
 
     <!-- Custom Animation CSS -->
     <style>
-      .custom-profile-dropdown {
-        visibility: hidden;
-        opacity: 0;
+
+      /* ----------------------------- */
+      /* ------ Navigation Slide ----- */
+      /* ----------------------------- */
+      #mobile-nav-button:checked + div {
+	left: 0px;
       }
 
-      .custom-profile-button:hover + .custom-profile-dropdown,
-      .custom-profile-dropdown:hover {
+      /* ----------------------------- */
+      /* ------- User Dropdown ------- */
+      /* ----------------------------- */
+      #user-dropdown-button:checked + #user-dropdown {
         visibility: visible;
         opacity: 1;
+      }
+
+      #user-dropdown {
+	visibility: hidden;
+	opacity: 0;
       }
     </style>
   </body>

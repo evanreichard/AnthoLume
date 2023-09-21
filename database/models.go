@@ -72,8 +72,9 @@ type RescaledActivity struct {
 }
 
 type User struct {
-	ID        string    `json:"id"`
-	Pass      string    `json:"-"`
-	Admin     bool      `json:"-"`
-	CreatedAt time.Time `json:"created_at"`
+	ID         string    `json:"id"`
+	Pass       string    `json:"-"`
+	Admin      bool      `json:"-"`
+	TimeOffset string    `json:"time_offset"`
+	CreatedAt  time.Time `json:"created_at"`
 }

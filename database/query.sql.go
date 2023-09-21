@@ -96,27 +96,48 @@ func (q *Queries) DeleteDocument(ctx context.Context, id string) (int64, error) 
 }
 
 const getActivity = `-- name: GetActivity :many
-SELECT id, user_id, document_id, device_id, start_time, duration, current_page, total_pages, created_at FROM activity
+SELECT
+    document_id,
+    CAST(DATETIME(activity.start_time, time_offset) AS TEXT) AS start_time,
+    title,
+    author,
+    duration,
+    current_page,
+    total_pages
+FROM activity
+LEFT JOIN documents ON documents.id = activity.document_id
+LEFT JOIN users ON users.id = activity.user_id
 WHERE
-    user_id = ?1
+    activity.user_id = ?1
     AND (
-        (?2 = TRUE AND document_id = ?3)
-        OR ?2 = FALSE
+        CAST(?2 AS BOOLEAN) = TRUE
+        AND document_id = ?3
     )
+    OR ?2 = FALSE
 ORDER BY start_time DESC
 LIMIT ?5
 OFFSET ?4
 `
 
 type GetActivityParams struct {
-	UserID     string      `json:"user_id"`
-	DocFilter  interface{} `json:"doc_filter"`
-	DocumentID string      `json:"document_id"`
-	Offset     int64       `json:"offset"`
-	Limit      int64       `json:"limit"`
+	UserID     string `json:"user_id"`
+	DocFilter  bool   `json:"doc_filter"`
+	DocumentID string `json:"document_id"`
+	Offset     int64  `json:"offset"`
+	Limit      int64  `json:"limit"`
 }
 
-func (q *Queries) GetActivity(ctx context.Context, arg GetActivityParams) ([]Activity, error) {
+type GetActivityRow struct {
+	DocumentID  string  `json:"document_id"`
+	StartTime   string  `json:"start_time"`
+	Title       *string `json:"title"`
+	Author      *string `json:"author"`
+	Duration    int64   `json:"duration"`
+	CurrentPage int64   `json:"current_page"`
+	TotalPages  int64   `json:"total_pages"`
+}
+
+func (q *Queries) GetActivity(ctx context.Context, arg GetActivityParams) ([]GetActivityRow, error) {
 	rows, err := q.db.QueryContext(ctx, getActivity,
 		arg.UserID,
 		arg.DocFilter,
@@ -128,19 +149,17 @@ func (q *Queries) GetActivity(ctx context.Context, arg GetActivityParams) ([]Act
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Activity
+	var items []GetActivityRow
 	for rows.Next() {
-		var i Activity
+		var i GetActivityRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
 			&i.DocumentID,
-			&i.DeviceID,
 			&i.StartTime,
+			&i.Title,
+			&i.Author,
 			&i.Duration,
 			&i.CurrentPage,
 			&i.TotalPages,
-			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -156,8 +175,9 @@ func (q *Queries) GetActivity(ctx context.Context, arg GetActivityParams) ([]Act
 }
 
 const getDailyReadStats = `-- name: GetDailyReadStats :many
-WITH RECURSIVE last_30_days (date) AS (
-    SELECT DATE('now') AS date
+WITH RECURSIVE last_30_days AS (
+    SELECT DATE('now', time_offset) AS date
+    FROM users WHERE users.id = ?1
     UNION ALL
     SELECT DATE(date, '-1 days')
     FROM last_30_days
@@ -166,8 +186,9 @@ WITH RECURSIVE last_30_days (date) AS (
 activity_records AS (
     SELECT
         sum(duration) AS seconds_read,
-        DATE(start_time, 'localtime') AS day
+        DATE(start_time, time_offset) AS day
     FROM activity
+    LEFT JOIN users ON users.id = activity.user_id
     WHERE user_id = ?1
     GROUP BY day
     ORDER BY day DESC
@@ -372,8 +393,9 @@ func (q *Queries) GetDocument(ctx context.Context, documentID string) (Document,
 
 const getDocumentDaysRead = `-- name: GetDocumentDaysRead :one
 WITH document_days AS (
-    SELECT DATE(start_time, 'localtime') AS dates
+    SELECT DATE(start_time, time_offset) AS dates
     FROM rescaled_activity
+    JOIN users ON users.id = rescaled_activity.user_id
     WHERE document_id = ?1
     AND user_id = ?2
     GROUP BY dates
@@ -521,7 +543,7 @@ WITH true_progress AS (
         total_pages,
         ROUND(CAST(current_page AS REAL) / CAST(total_pages AS REAL) * 100, 2) AS percentage
     FROM activity
-    WHERE user_id = ?3
+    WHERE user_id = ?1
     GROUP BY document_id
     HAVING MAX(start_time)
 )
@@ -531,10 +553,7 @@ SELECT
     CAST(IFNULL(current_page, 0) AS INTEGER) AS current_page,
     CAST(IFNULL(total_pages, 0) AS INTEGER) AS total_pages,
     CAST(IFNULL(total_time_minutes, 0) AS INTEGER) AS total_time_minutes,
-
-    CAST(
-        STRFTIME('%Y-%m-%dT%H:%M:%SZ', IFNULL(last_read, "1970-01-01")
-    ) AS TEXT) AS last_read,
+    CAST(DATETIME(IFNULL(last_read, "1970-01-01"), time_offset) AS TEXT) AS last_read,
 
     CAST(CASE
         WHEN percentage > 97.0 THEN 100.0
@@ -543,16 +562,17 @@ SELECT
     END AS REAL) AS percentage
 
 FROM documents
-LEFT JOIN true_progress ON document_id = id
-ORDER BY last_read DESC, created_at DESC
-LIMIT ?2
-OFFSET ?1
+LEFT JOIN true_progress ON true_progress.document_id = documents.id
+LEFT JOIN users ON users.id = ?1
+ORDER BY true_progress.last_read DESC, documents.created_at DESC
+LIMIT ?3
+OFFSET ?2
 `
 
 type GetDocumentsWithStatsParams struct {
+	UserID string `json:"user_id"`
 	Offset int64  `json:"offset"`
 	Limit  int64  `json:"limit"`
-	UserID string `json:"user_id"`
 }
 
 type GetDocumentsWithStatsRow struct {
@@ -578,7 +598,7 @@ type GetDocumentsWithStatsRow struct {
 }
 
 func (q *Queries) GetDocumentsWithStats(ctx context.Context, arg GetDocumentsWithStatsParams) ([]GetDocumentsWithStatsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getDocumentsWithStats, arg.Offset, arg.Limit, arg.UserID)
+	rows, err := q.db.QueryContext(ctx, getDocumentsWithStats, arg.UserID, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -742,7 +762,7 @@ func (q *Queries) GetProgress(ctx context.Context, arg GetProgressParams) (GetPr
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, pass, admin, created_at FROM users
+SELECT id, pass, admin, time_offset, created_at FROM users
 WHERE id = ?1 LIMIT 1
 `
 
@@ -753,6 +773,7 @@ func (q *Queries) GetUser(ctx context.Context, userID string) (User, error) {
 		&i.ID,
 		&i.Pass,
 		&i.Admin,
+		&i.TimeOffset,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -761,12 +782,11 @@ func (q *Queries) GetUser(ctx context.Context, userID string) (User, error) {
 const getUserWindowStreaks = `-- name: GetUserWindowStreaks :one
 WITH document_windows AS (
     SELECT CASE
-      -- TODO: Timezones! E.g. DATE(start_time, '-5 hours')
-      -- TODO: Timezones! E.g. DATE(start_time, '-5 hours', '-7 days')
-      WHEN ?2 = "WEEK" THEN STRFTIME('%Y-%m-%d', start_time, 'weekday 0', '-7 day')
-      WHEN ?2 = "DAY" THEN DATE(start_time)
+      WHEN ?2 = "WEEK" THEN STRFTIME('%Y-%m-%d', start_time, 'weekday 0', '-7 day', time_offset)
+      WHEN ?2 = "DAY" THEN DATE(start_time, time_offset)
     END AS read_window
     FROM activity
+    JOIN users ON users.id = activity.user_id
     WHERE user_id = ?1
     AND CAST(?2 AS TEXT) = CAST(?2 AS TEXT)
     GROUP BY read_window
@@ -787,8 +807,8 @@ streaks AS (
         MAX(read_window) AS end_date
     FROM partitions
     GROUP BY CASE
-	WHEN ?2 = "DAY" THEN DATE(read_window, '+' || seqnum || ' day')
-	WHEN ?2 = "WEEK" THEN DATE(read_window, '+' || (seqnum * 7) || ' day')
+        WHEN ?2 = "DAY" THEN DATE(read_window, '+' || seqnum || ' day')
+        WHEN ?2 = "WEEK" THEN DATE(read_window, '+' || (seqnum * 7) || ' day')
     END
     ORDER BY end_date DESC
 ),
@@ -852,7 +872,7 @@ func (q *Queries) GetUserWindowStreaks(ctx context.Context, arg GetUserWindowStr
 }
 
 const getUsers = `-- name: GetUsers :many
-SELECT id, pass, admin, created_at FROM users
+SELECT id, pass, admin, time_offset, created_at FROM users
 WHERE
     users.id = ?1
     OR ?1 IN (
@@ -885,6 +905,7 @@ func (q *Queries) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, err
 			&i.ID,
 			&i.Pass,
 			&i.Admin,
+			&i.TimeOffset,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -904,7 +925,7 @@ const getWantedDocuments = `-- name: GetWantedDocuments :many
 SELECT
     CAST(value AS TEXT) AS id,
     CAST((documents.filepath IS NULL) AS BOOLEAN) AS want_file,
-    CAST((documents.synced != true) AS BOOLEAN) AS want_metadata
+    CAST((IFNULL(documents.synced, false) != true) AS BOOLEAN) AS want_metadata
 FROM json_each(?1)
 LEFT JOIN documents
 ON value = documents.id
@@ -912,8 +933,8 @@ WHERE (
     documents.id IS NOT NULL
     AND documents.deleted = false
     AND (
-	documents.synced = false
-	OR documents.filepath IS NULL
+        documents.synced = false
+        OR documents.filepath IS NULL
     )
 )
 OR (documents.id IS NULL)

@@ -1,12 +1,12 @@
 {{template "base.html" .}} {{define "title"}}Documents{{end}} {{define
 "content"}}
-<div class="grid grid-cols-1 gap-4 my-4 md:grid-cols-2 lg:grid-cols-3">
+<div class="grid grid-cols-1 gap-4 mb-4 md:grid-cols-2 lg:grid-cols-3">
   {{range $doc := .Data }}
   <div class="w-full">
     <div class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded">
       <div class="min-w-fit h-48 relative">
 	<a href="./documents/{{$doc.ID}}/file">
-	  <img class="rounded object-cover h-full w-full" src="./documents/{{$doc.ID}}/cover"></img>
+	  <img class="rounded object-cover h-full" src="./documents/{{$doc.ID}}/cover"></img>
 	</a>
       </div>
       <div class="flex flex-col justify-around dark:text-white w-full text-xs">

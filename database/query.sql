@@ -126,7 +126,7 @@ WHERE
 SELECT
     CAST(value AS TEXT) AS id,
     CAST((documents.filepath IS NULL) AS BOOLEAN) AS want_file,
-    CAST((documents.synced != true) AS BOOLEAN) AS want_metadata
+    CAST((IFNULL(documents.synced, false) != true) AS BOOLEAN) AS want_metadata
 FROM json_each(?1)
 LEFT JOIN documents
 ON value = documents.id
@@ -134,8 +134,8 @@ WHERE (
     documents.id IS NOT NULL
     AND documents.deleted = false
     AND (
-	documents.synced = false
-	OR documents.filepath IS NULL
+        documents.synced = false
+        OR documents.filepath IS NULL
     )
 )
 OR (documents.id IS NULL)
@@ -174,10 +174,7 @@ SELECT
     CAST(IFNULL(current_page, 0) AS INTEGER) AS current_page,
     CAST(IFNULL(total_pages, 0) AS INTEGER) AS total_pages,
     CAST(IFNULL(total_time_minutes, 0) AS INTEGER) AS total_time_minutes,
-
-    CAST(
-        STRFTIME('%Y-%m-%dT%H:%M:%SZ', IFNULL(last_read, "1970-01-01")
-    ) AS TEXT) AS last_read,
+    CAST(DATETIME(IFNULL(last_read, "1970-01-01"), time_offset) AS TEXT) AS last_read,
 
     CAST(CASE
         WHEN percentage > 97.0 THEN 100.0
@@ -186,8 +183,9 @@ SELECT
     END AS REAL) AS percentage
 
 FROM documents
-LEFT JOIN true_progress ON document_id = id
-ORDER BY last_read DESC, created_at DESC
+LEFT JOIN true_progress ON true_progress.document_id = documents.id
+LEFT JOIN users ON users.id = $user_id
+ORDER BY true_progress.last_read DESC, documents.created_at DESC
 LIMIT $limit
 OFFSET $offset;
 
@@ -206,13 +204,24 @@ LIMIT $limit
 OFFSET $offset;
 
 -- name: GetActivity :many
-SELECT * FROM activity
+SELECT
+    document_id,
+    CAST(DATETIME(activity.start_time, time_offset) AS TEXT) AS start_time,
+    title,
+    author,
+    duration,
+    current_page,
+    total_pages
+FROM activity
+LEFT JOIN documents ON documents.id = activity.document_id
+LEFT JOIN users ON users.id = activity.user_id
 WHERE
-    user_id = $user_id
+    activity.user_id = $user_id
     AND (
-        ($doc_filter = TRUE AND document_id = $document_id)
-        OR $doc_filter = FALSE
+        CAST($doc_filter AS BOOLEAN) = TRUE
+        AND document_id = $document_id
     )
+    OR $doc_filter = FALSE
 ORDER BY start_time DESC
 LIMIT $limit
 OFFSET $offset;
@@ -249,8 +258,9 @@ FROM capped_stats;
 
 -- name: GetDocumentDaysRead :one
 WITH document_days AS (
-    SELECT DATE(start_time, 'localtime') AS dates
+    SELECT DATE(start_time, time_offset) AS dates
     FROM rescaled_activity
+    JOIN users ON users.id = rescaled_activity.user_id
     WHERE document_id = $document_id
     AND user_id = $user_id
     GROUP BY dates
@@ -261,12 +271,11 @@ FROM document_days;
 -- name: GetUserWindowStreaks :one
 WITH document_windows AS (
     SELECT CASE
-      -- TODO: Timezones! E.g. DATE(start_time, '-5 hours')
-      -- TODO: Timezones! E.g. DATE(start_time, '-5 hours', '-7 days')
-      WHEN ?2 = "WEEK" THEN STRFTIME('%Y-%m-%d', start_time, 'weekday 0', '-7 day')
-      WHEN ?2 = "DAY" THEN DATE(start_time)
+      WHEN ?2 = "WEEK" THEN STRFTIME('%Y-%m-%d', start_time, 'weekday 0', '-7 day', time_offset)
+      WHEN ?2 = "DAY" THEN DATE(start_time, time_offset)
     END AS read_window
     FROM activity
+    JOIN users ON users.id = activity.user_id
     WHERE user_id = $user_id
     AND CAST($window AS TEXT) = CAST($window AS TEXT)
     GROUP BY read_window
@@ -287,8 +296,8 @@ streaks AS (
         MAX(read_window) AS end_date
     FROM partitions
     GROUP BY CASE
-	WHEN ?2 = "DAY" THEN DATE(read_window, '+' || seqnum || ' day')
-	WHEN ?2 = "WEEK" THEN DATE(read_window, '+' || (seqnum * 7) || ' day')
+        WHEN ?2 = "DAY" THEN DATE(read_window, '+' || seqnum || ' day')
+        WHEN ?2 = "WEEK" THEN DATE(read_window, '+' || (seqnum * 7) || ' day')
     END
     ORDER BY end_date DESC
 ),
@@ -331,8 +340,9 @@ SELECT
 LIMIT 1;
 
 -- name: GetDailyReadStats :many
-WITH RECURSIVE last_30_days (date) AS (
-    SELECT DATE('now') AS date
+WITH RECURSIVE last_30_days AS (
+    SELECT DATE('now', time_offset) AS date
+    FROM users WHERE users.id = $user_id
     UNION ALL
     SELECT DATE(date, '-1 days')
     FROM last_30_days
@@ -341,8 +351,9 @@ WITH RECURSIVE last_30_days (date) AS (
 activity_records AS (
     SELECT
         sum(duration) AS seconds_read,
-        DATE(start_time, 'localtime') AS day
+        DATE(start_time, time_offset) AS day
     FROM activity
+    LEFT JOIN users ON users.id = activity.user_id
     WHERE user_id = $user_id
     GROUP BY day
     ORDER BY day DESC
@@ -358,11 +369,3 @@ FROM last_30_days
 LEFT JOIN activity_records ON activity_records.day == last_30_days.date
 ORDER BY date DESC
 LIMIT 30;
-
--- SELECT
---     sum(duration) / 60 AS minutes_read,
---     DATE(start_time, 'localtime') AS day
--- FROM activity
--- GROUP BY day
--- ORDER BY day DESC
--- LIMIT 10;

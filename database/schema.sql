@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
 
     pass TEXT NOT NULL,
     admin BOOLEAN NOT NULL DEFAULT 0 CHECK (admin IN (0, 1)),
+    time_offset TEXT NOT NULL DEFAULT '0 hours',
 
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

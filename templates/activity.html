@@ -1,4 +1,56 @@
 {{template "base.html" .}} {{define "title"}}Activity{{end}} {{define
 "content"}}
-<h1>Activity</h1>
+
+<div class="px-4 -mx-4 overflow-x-auto">
+  <div class="inline-block min-w-full overflow-hidden rounded shadow">
+    <table class="min-w-full leading-normal bg-white dark:bg-gray-700 text-xs">
+      <thead class="text-gray-800 dark:text-gray-400">
+        <tr>
+          <th
+            scope="col"
+            class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+          >
+            Document
+          </th>
+          <th
+            scope="col"
+            class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+          >
+            Time
+          </th>
+          <th
+            scope="col"
+            class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+          >
+            Duration
+          </th>
+          <th
+            scope="col"
+            class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+          >
+            Page
+          </th>
+        </tr>
+      </thead>
+      <tbody class="text-black dark:text-white">
+        {{range $activity := .Data }}
+        <tr>
+          <td class="p-3 border-b border-gray-200">
+            <p>{{ $activity.Author }} - {{ $activity.Title }}</p>
+          </td>
+          <td class="p-3 border-b border-gray-200">
+            <p>{{ $activity.StartTime }}</p>
+          </td>
+          <td class="p-3 border-b border-gray-200">
+            <p>{{ $activity.Duration }}</p>
+          </td>
+          <td class="p-3 border-b border-gray-200">
+            <p>{{ $activity.CurrentPage }} / {{ $activity.TotalPages }}</p>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
 {{end}}

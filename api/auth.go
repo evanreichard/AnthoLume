@@ -36,6 +36,7 @@ func (api *API) authAPIMiddleware(c *gin.Context) {
 	// Utilize Session Token
 	if authorizedUser := session.Get("authorizedUser"); authorizedUser != nil {
 		c.Set("AuthorizedUser", authorizedUser)
+		c.Header("Cache-Control", "private")
 		c.Next()
 		return
 	}
@@ -69,6 +70,7 @@ func (api *API) authWebAppMiddleware(c *gin.Context) {
 	// Utilize Session Token
 	if authorizedUser := session.Get("authorizedUser"); authorizedUser != nil {
 		c.Set("AuthorizedUser", authorizedUser)
+		c.Header("Cache-Control", "private")
 		c.Next()
 		return
 	}
