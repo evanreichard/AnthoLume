@@ -781,10 +781,12 @@ func (q *Queries) GetUser(ctx context.Context, userID string) (User, error) {
 
 const getUserWindowStreaks = `-- name: GetUserWindowStreaks :one
 WITH document_windows AS (
-    SELECT CASE
-      WHEN ?2 = "WEEK" THEN STRFTIME('%Y-%m-%d', start_time, 'weekday 0', '-7 day', time_offset)
-      WHEN ?2 = "DAY" THEN DATE(start_time, time_offset)
-    END AS read_window
+    SELECT
+	CASE
+	  WHEN ?2 = "WEEK" THEN STRFTIME('%Y-%m-%d', start_time, time_offset, 'weekday 0', '-7 day')
+	  WHEN ?2 = "DAY" THEN DATE(start_time, time_offset)
+	END AS read_window,
+	time_offset
     FROM activity
     JOIN users ON users.id = activity.user_id
     WHERE user_id = ?1
@@ -794,7 +796,7 @@ WITH document_windows AS (
 ),
 partitions AS (
     SELECT
-        document_windows.read_window,
+        document_windows.read_window, document_windows.time_offset,
         row_number() OVER (
             PARTITION BY 1 ORDER BY read_window DESC
         ) AS seqnum
@@ -804,12 +806,15 @@ streaks AS (
     SELECT
         count(*) AS streak,
         MIN(read_window) AS start_date,
-        MAX(read_window) AS end_date
+        MAX(read_window) AS end_date,
+	time_offset
     FROM partitions
-    GROUP BY CASE
-        WHEN ?2 = "DAY" THEN DATE(read_window, '+' || seqnum || ' day')
-        WHEN ?2 = "WEEK" THEN DATE(read_window, '+' || (seqnum * 7) || ' day')
-    END
+    GROUP BY
+	CASE
+	    WHEN ?2 = "DAY" THEN DATE(read_window, '+' || seqnum || ' day')
+	    WHEN ?2 = "WEEK" THEN DATE(read_window, '+' || (seqnum * 7) || ' day')
+	END,
+	time_offset
     ORDER BY end_date DESC
 ),
 max_streak AS (
@@ -826,8 +831,8 @@ current_streak AS (
         end_date AS current_streak_end_date
     FROM streaks
     WHERE CASE
-      WHEN ?2 = "WEEK" THEN STRFTIME('%Y-%m-%d', 'now', 'weekday 0', '-7 day') = current_streak_end_date
-      WHEN ?2 = "DAY" THEN DATE('now', '-1 day') = current_streak_end_date OR DATE('now') = current_streak_end_date
+      WHEN ?2 = "WEEK" THEN STRFTIME('%Y-%m-%d', 'now', time_offset, 'weekday 0', '-7 day') = current_streak_end_date
+      WHEN ?2 = "DAY" THEN DATE('now', time_offset, '-1 day') = current_streak_end_date OR DATE('now', time_offset) = current_streak_end_date
     END
     LIMIT 1
 )
