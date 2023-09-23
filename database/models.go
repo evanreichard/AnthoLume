@@ -32,13 +32,17 @@ type Document struct {
 	ID          string    `json:"id"`
 	Md5         *string   `json:"md5"`
 	Filepath    *string   `json:"filepath"`
+	Coverfile   *string   `json:"coverfile"`
 	Title       *string   `json:"title"`
 	Author      *string   `json:"author"`
 	Series      *string   `json:"series"`
 	SeriesIndex *int64    `json:"series_index"`
 	Lang        *string   `json:"lang"`
 	Description *string   `json:"description"`
+	Gbid        *string   `json:"gbid"`
 	Olid        *string   `json:"-"`
+	Isbn10      *string   `json:"isbn10"`
+	Isbn13      *string   `json:"isbn13"`
 	Synced      bool      `json:"-"`
 	Deleted     bool      `json:"-"`
 	UpdatedAt   time.Time `json:"updated_at"`
@@ -60,6 +64,19 @@ type DocumentProgress struct {
 	Percentage float64   `json:"percentage"`
 	Progress   string    `json:"progress"`
 	CreatedAt  time.Time `json:"created_at"`
+}
+
+type Metadatum struct {
+	ID          int64     `json:"id"`
+	DocumentID  string    `json:"document_id"`
+	Title       *string   `json:"title"`
+	Author      *string   `json:"author"`
+	Description *string   `json:"description"`
+	Gbid        *string   `json:"gbid"`
+	Olid        *string   `json:"olid"`
+	Isbn10      *string   `json:"isbn10"`
+	Isbn13      *string   `json:"isbn13"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type RescaledActivity struct {

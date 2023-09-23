@@ -25,7 +25,7 @@ type API struct {
 
 func NewApi(db *database.DBManager, c *config.Config) *API {
 	api := &API{
-		HTMLPolicy: bluemonday.StripTagsPolicy(),
+		HTMLPolicy: bluemonday.StrictPolicy(),
 		Router:     gin.Default(),
 		Config:     c,
 		DB:         db,
@@ -99,6 +99,9 @@ func (api *API) registerWebAppRoutes() {
 	api.Router.GET("/documents/:document", api.authWebAppMiddleware, api.createAppResourcesRoute("document"))
 	api.Router.GET("/documents/:document/file", api.authWebAppMiddleware, api.downloadDocumentFile)
 	api.Router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.getDocumentCover)
+	api.Router.POST("/documents/:document/edit", api.authWebAppMiddleware, api.editDocument)
+	api.Router.POST("/documents/:document/identify", api.authWebAppMiddleware, api.identifyDocument)
+	api.Router.POST("/documents/:document/delete", api.authWebAppMiddleware, api.deleteDocument)
 
 	// TODO
 	api.Router.GET("/graphs", api.authWebAppMiddleware, baseResourceRoute("graphs"))

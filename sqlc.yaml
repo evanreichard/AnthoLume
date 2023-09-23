@@ -18,6 +18,10 @@ sql:
             go_type:
               type: "string"
               pointer: true
+          - column: "documents.coverfile"
+            go_type:
+              type: "string"
+              pointer: true
           - column: "documents.title"
             go_type:
               type: "string"
@@ -43,6 +47,47 @@ sql:
               type: "string"
               pointer: true
           - column: "documents.olid"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "documents.gbid"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "documents.isbn10"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "documents.isbn13"
+            go_type:
+              type: "string"
+              pointer: true
+
+          - column: "metadata.title"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "metadata.author"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "metadata.description"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "metadata.gbid"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "metadata.olid"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "metadata.isbn10"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "metadata.isbn13"
             go_type:
               type: "string"
               pointer: true

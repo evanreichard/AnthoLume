@@ -86,3 +86,4 @@ CGO_ENABLED=1 CGO_CFLAGS="-D_LARGEFILE64_SOURCE" go build -o /bookmanager cmd/ma
 ## Notes
 
 - Icons: https://www.svgrepo.com/collection/solar-bold-icons
+- Icons: https://www.svgrepo.com/collection/scarlab-solid-oval-interface-icons/

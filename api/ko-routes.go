@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"os"
@@ -71,8 +72,6 @@ type responseCheckDocumentSync struct {
 type requestDocumentID struct {
 	DocumentID string `uri:"document" binding:"required"`
 }
-
-var allowedExtensions []string = []string{".epub", ".html"}
 
 func (api *API) authorizeUser(c *gin.Context) {
 	c.JSON(200, gin.H{
@@ -485,7 +484,7 @@ func (api *API) uploadDocumentFile(c *gin.Context) {
 	fileMime, err := mimetype.DetectReader(uploadedFile)
 	fileExtension := fileMime.Extension()
 
-	if !slices.Contains(allowedExtensions, fileExtension) {
+	if !slices.Contains([]string{".epub", ".html"}, fileExtension) {
 		log.Error("[uploadDocumentFile] Invalid FileType:", fileExtension)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Filetype"})
 		return
@@ -609,12 +608,12 @@ func (api *API) sanitizeInput(val any) *string {
 	switch v := val.(type) {
 	case *string:
 		if v != nil {
-			newString := api.HTMLPolicy.Sanitize(string(*v))
+			newString := html.UnescapeString(api.HTMLPolicy.Sanitize(string(*v)))
 			return &newString
 		}
 	case string:
 		if v != "" {
-			newString := api.HTMLPolicy.Sanitize(string(v))
+			newString := html.UnescapeString(api.HTMLPolicy.Sanitize(string(v)))
 			return &newString
 		}
 	}

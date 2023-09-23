@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -17,7 +19,9 @@ type MetadataInfo struct {
 	Author      *string
 	Description *string
 	GBID        *string
-	ISBN        []*string
+	OLID        *string
+	ISBN10      *string
+	ISBN13      *string
 }
 
 type gBooksIdentifiers struct {
@@ -42,77 +46,117 @@ type gBooksQueryResponse struct {
 	Items      []gBooksQueryItem `json:"items"`
 }
 
-const GBOOKS_QUERY_URL string = "https://www.googleapis.com/books/v1/volumes?q=%s&filter=ebooks&download=epub"
+const GBOOKS_QUERY_URL string = "https://www.googleapis.com/books/v1/volumes?q=%s"
 const GBOOKS_GBID_INFO_URL string = "https://www.googleapis.com/books/v1/volumes/%s"
 const GBOOKS_GBID_COVER_URL string = "https://books.google.com/books/content/images/frontcover/%s?fife=w480-h690"
 
-func GetMetadata(data *MetadataInfo) error {
-	var queryResult *gBooksQueryItem
-	if data.GBID != nil {
+func GetMetadata(metadataSearch MetadataInfo) ([]MetadataInfo, error) {
+	var queryResults []gBooksQueryItem
+	if metadataSearch.GBID != nil {
 		// Use GBID
-		resp, err := performGBIDRequest(*data.GBID)
+		resp, err := performGBIDRequest(*metadataSearch.GBID)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		queryResult = resp
-	} else if len(data.ISBN) > 0 {
-		searchQuery := "isbn:" + *data.ISBN[0]
+
+		queryResults = []gBooksQueryItem{*resp}
+	} else if metadataSearch.ISBN13 != nil {
+		searchQuery := "isbn:" + *metadataSearch.ISBN13
 		resp, err := performSearchRequest(searchQuery)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		queryResult = &resp.Items[0]
-	} else if data.Title != nil && data.Author != nil {
-		searchQuery := url.QueryEscape(fmt.Sprintf("%s %s", *data.Title, *data.Author))
+
+		queryResults = resp.Items
+	} else if metadataSearch.ISBN10 != nil {
+		searchQuery := "isbn:" + *metadataSearch.ISBN10
 		resp, err := performSearchRequest(searchQuery)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		queryResult = &resp.Items[0]
+
+		queryResults = resp.Items
+	} else if metadataSearch.Title != nil || metadataSearch.Author != nil {
+		var searchQuery string
+		if metadataSearch.Title != nil {
+			searchQuery = searchQuery + *metadataSearch.Title
+		}
+		if metadataSearch.Author != nil {
+			searchQuery = searchQuery + " " + *metadataSearch.Author
+		}
+
+		// Escape & Trim
+		searchQuery = url.QueryEscape(strings.TrimSpace(searchQuery))
+		resp, err := performSearchRequest(searchQuery)
+		if err != nil {
+			return nil, err
+		}
+
+		queryResults = resp.Items
 	} else {
-		return errors.New("Invalid Data")
+		return nil, errors.New("Invalid Data")
 	}
 
-	// Merge Data
-	data.GBID = &queryResult.ID
-	data.Description = &queryResult.Info.Description
-	data.Title = &queryResult.Info.Title
-	if len(queryResult.Info.Authors) > 0 {
-		data.Author = &queryResult.Info.Authors[0]
-	}
-	for _, item := range queryResult.Info.Identifiers {
-		if item.Type == "ISBN_10" || item.Type == "ISBN_13" {
-			data.ISBN = append(data.ISBN, &item.Identifier)
+	// Normalize Data
+	allMetadata := []MetadataInfo{}
+	for i := range queryResults {
+		item := queryResults[i] // Range Value Pointer Issue
+		itemResult := MetadataInfo{
+			GBID:        &item.ID,
+			Title:       &item.Info.Title,
+			Description: &item.Info.Description,
 		}
 
+		if len(item.Info.Authors) > 0 {
+			itemResult.Author = &item.Info.Authors[0]
+		}
+
+		for i := range item.Info.Identifiers {
+			item := item.Info.Identifiers[i] // Range Value Pointer Issue
+
+			if itemResult.ISBN10 != nil && itemResult.ISBN13 != nil {
+				break
+			} else if itemResult.ISBN10 == nil && item.Type == "ISBN_10" {
+				itemResult.ISBN10 = &item.Identifier
+			} else if itemResult.ISBN13 == nil && item.Type == "ISBN_13" {
+				itemResult.ISBN13 = &item.Identifier
+			}
+		}
+
+		allMetadata = append(allMetadata, itemResult)
 	}
 
-	return nil
+	return allMetadata, nil
 }
 
-func SaveCover(id string, safePath string) error {
+func SaveCover(gbid string, coverDir string, documentID string) (*string, error) {
+
+	// Google Books -> JPG
+	coverFile := "." + filepath.Clean(fmt.Sprintf("/%s.jpg", documentID))
+	coverFilePath := filepath.Join(coverDir, coverFile)
+
 	// Validate File Doesn't Exists
-	_, err := os.Stat(safePath)
+	_, err := os.Stat(coverFilePath)
 	if err == nil {
 		log.Warn("[SaveCover] File Alreads Exists")
-		return nil
+		return &coverFile, nil
 	}
 
 	// Create File
-	out, err := os.Create(safePath)
+	out, err := os.Create(coverFilePath)
 	if err != nil {
 		log.Error("[SaveCover] File Create Error")
-		return errors.New("File Failure")
+		return nil, errors.New("File Failure")
 	}
 	defer out.Close()
 
 	// Download File
 	log.Info("[SaveCover] Downloading Cover")
-	coverURL := fmt.Sprintf(GBOOKS_GBID_COVER_URL, id)
+	coverURL := fmt.Sprintf(GBOOKS_GBID_COVER_URL, gbid)
 	resp, err := http.Get(coverURL)
 	if err != nil {
 		log.Error("[SaveCover] Cover URL API Failure")
-		return errors.New("API Failure")
+		return nil, errors.New("API Failure")
 	}
 	defer resp.Body.Close()
 
@@ -121,20 +165,19 @@ func SaveCover(id string, safePath string) error {
 	_, err = io.Copy(out, resp.Body)
 	if err != nil {
 		log.Error("[SaveCover] File Copy Error")
-		return errors.New("File Failure")
+		return nil, errors.New("File Failure")
 	}
 
 	// Return FilePath
-	return nil
+	return &coverFile, nil
 }
 
 func performSearchRequest(searchQuery string) (*gBooksQueryResponse, error) {
 	apiQuery := fmt.Sprintf(GBOOKS_QUERY_URL, searchQuery)
-
-	log.Info("[performSearchRequest] Acquiring CoverID")
+	log.Info("[performSearchRequest] Acquiring Metadata: ", apiQuery)
 	resp, err := http.Get(apiQuery)
 	if err != nil {
-		log.Error("[performSearchRequest] Cover URL API Failure")
+		log.Error("[performSearchRequest] Google Books Query URL API Failure")
 		return nil, errors.New("API Failure")
 	}
 

@@ -61,6 +61,59 @@ func (q *Queries) AddActivity(ctx context.Context, arg AddActivityParams) (Activ
 	return i, err
 }
 
+const addMetadata = `-- name: AddMetadata :one
+INSERT INTO metadata (
+    document_id,
+    title,
+    author,
+    description,
+    gbid,
+    olid,
+    isbn10,
+    isbn13
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, document_id, title, author, description, gbid, olid, isbn10, isbn13, created_at
+`
+
+type AddMetadataParams struct {
+	DocumentID  string  `json:"document_id"`
+	Title       *string `json:"title"`
+	Author      *string `json:"author"`
+	Description *string `json:"description"`
+	Gbid        *string `json:"gbid"`
+	Olid        *string `json:"olid"`
+	Isbn10      *string `json:"isbn10"`
+	Isbn13      *string `json:"isbn13"`
+}
+
+func (q *Queries) AddMetadata(ctx context.Context, arg AddMetadataParams) (Metadatum, error) {
+	row := q.db.QueryRowContext(ctx, addMetadata,
+		arg.DocumentID,
+		arg.Title,
+		arg.Author,
+		arg.Description,
+		arg.Gbid,
+		arg.Olid,
+		arg.Isbn10,
+		arg.Isbn13,
+	)
+	var i Metadatum
+	err := row.Scan(
+		&i.ID,
+		&i.DocumentID,
+		&i.Title,
+		&i.Author,
+		&i.Description,
+		&i.Gbid,
+		&i.Olid,
+		&i.Isbn10,
+		&i.Isbn13,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :execrows
 INSERT INTO users (id, pass)
 VALUES (?, ?)
@@ -366,7 +419,7 @@ func (q *Queries) GetDevices(ctx context.Context, arg GetDevicesParams) ([]Devic
 }
 
 const getDocument = `-- name: GetDocument :one
-SELECT id, md5, filepath, title, author, series, series_index, lang, description, olid, synced, deleted, updated_at, created_at FROM documents
+SELECT id, md5, filepath, coverfile, title, author, series, series_index, lang, description, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at FROM documents
 WHERE id = ?1 LIMIT 1
 `
 
@@ -377,13 +430,17 @@ func (q *Queries) GetDocument(ctx context.Context, documentID string) (Document,
 		&i.ID,
 		&i.Md5,
 		&i.Filepath,
+		&i.Coverfile,
 		&i.Title,
 		&i.Author,
 		&i.Series,
 		&i.SeriesIndex,
 		&i.Lang,
 		&i.Description,
+		&i.Gbid,
 		&i.Olid,
+		&i.Isbn10,
+		&i.Isbn13,
 		&i.Synced,
 		&i.Deleted,
 		&i.UpdatedAt,
@@ -501,7 +558,7 @@ WITH true_progress AS (
     LIMIT 1
 )
 SELECT
-    documents.id, documents.md5, documents.filepath, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.olid, documents.synced, documents.deleted, documents.updated_at, documents.created_at,
+    documents.id, documents.md5, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at,
 
     CAST(IFNULL(current_page, 0) AS INTEGER) AS current_page,
     CAST(IFNULL(total_pages, 0) AS INTEGER) AS total_pages,
@@ -531,13 +588,17 @@ type GetDocumentWithStatsRow struct {
 	ID               string    `json:"id"`
 	Md5              *string   `json:"md5"`
 	Filepath         *string   `json:"filepath"`
+	Coverfile        *string   `json:"coverfile"`
 	Title            *string   `json:"title"`
 	Author           *string   `json:"author"`
 	Series           *string   `json:"series"`
 	SeriesIndex      *int64    `json:"series_index"`
 	Lang             *string   `json:"lang"`
 	Description      *string   `json:"description"`
+	Gbid             *string   `json:"gbid"`
 	Olid             *string   `json:"-"`
+	Isbn10           *string   `json:"isbn10"`
+	Isbn13           *string   `json:"isbn13"`
 	Synced           bool      `json:"-"`
 	Deleted          bool      `json:"-"`
 	UpdatedAt        time.Time `json:"updated_at"`
@@ -556,13 +617,17 @@ func (q *Queries) GetDocumentWithStats(ctx context.Context, arg GetDocumentWithS
 		&i.ID,
 		&i.Md5,
 		&i.Filepath,
+		&i.Coverfile,
 		&i.Title,
 		&i.Author,
 		&i.Series,
 		&i.SeriesIndex,
 		&i.Lang,
 		&i.Description,
+		&i.Gbid,
 		&i.Olid,
+		&i.Isbn10,
+		&i.Isbn13,
 		&i.Synced,
 		&i.Deleted,
 		&i.UpdatedAt,
@@ -577,7 +642,7 @@ func (q *Queries) GetDocumentWithStats(ctx context.Context, arg GetDocumentWithS
 }
 
 const getDocuments = `-- name: GetDocuments :many
-SELECT id, md5, filepath, title, author, series, series_index, lang, description, olid, synced, deleted, updated_at, created_at FROM documents
+SELECT id, md5, filepath, coverfile, title, author, series, series_index, lang, description, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at FROM documents
 ORDER BY created_at DESC
 LIMIT ?2
 OFFSET ?1
@@ -601,13 +666,17 @@ func (q *Queries) GetDocuments(ctx context.Context, arg GetDocumentsParams) ([]D
 			&i.ID,
 			&i.Md5,
 			&i.Filepath,
+			&i.Coverfile,
 			&i.Title,
 			&i.Author,
 			&i.Series,
 			&i.SeriesIndex,
 			&i.Lang,
 			&i.Description,
+			&i.Gbid,
 			&i.Olid,
+			&i.Isbn10,
+			&i.Isbn13,
 			&i.Synced,
 			&i.Deleted,
 			&i.UpdatedAt,
@@ -641,7 +710,7 @@ WITH true_progress AS (
     HAVING MAX(start_time)
 )
 SELECT
-    documents.id, documents.md5, documents.filepath, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.olid, documents.synced, documents.deleted, documents.updated_at, documents.created_at,
+    documents.id, documents.md5, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at,
 
     CAST(IFNULL(current_page, 0) AS INTEGER) AS current_page,
     CAST(IFNULL(total_pages, 0) AS INTEGER) AS total_pages,
@@ -657,6 +726,7 @@ SELECT
 FROM documents
 LEFT JOIN true_progress ON true_progress.document_id = documents.id
 LEFT JOIN users ON users.id = ?1
+WHERE documents.deleted == false
 ORDER BY true_progress.last_read DESC, documents.created_at DESC
 LIMIT ?3
 OFFSET ?2
@@ -672,13 +742,17 @@ type GetDocumentsWithStatsRow struct {
 	ID               string    `json:"id"`
 	Md5              *string   `json:"md5"`
 	Filepath         *string   `json:"filepath"`
+	Coverfile        *string   `json:"coverfile"`
 	Title            *string   `json:"title"`
 	Author           *string   `json:"author"`
 	Series           *string   `json:"series"`
 	SeriesIndex      *int64    `json:"series_index"`
 	Lang             *string   `json:"lang"`
 	Description      *string   `json:"description"`
+	Gbid             *string   `json:"gbid"`
 	Olid             *string   `json:"-"`
+	Isbn10           *string   `json:"isbn10"`
+	Isbn13           *string   `json:"isbn13"`
 	Synced           bool      `json:"-"`
 	Deleted          bool      `json:"-"`
 	UpdatedAt        time.Time `json:"updated_at"`
@@ -703,13 +777,17 @@ func (q *Queries) GetDocumentsWithStats(ctx context.Context, arg GetDocumentsWit
 			&i.ID,
 			&i.Md5,
 			&i.Filepath,
+			&i.Coverfile,
 			&i.Title,
 			&i.Author,
 			&i.Series,
 			&i.SeriesIndex,
 			&i.Lang,
 			&i.Description,
+			&i.Gbid,
 			&i.Olid,
+			&i.Isbn10,
+			&i.Isbn13,
 			&i.Synced,
 			&i.Deleted,
 			&i.UpdatedAt,
@@ -754,7 +832,7 @@ func (q *Queries) GetLastActivity(ctx context.Context, arg GetLastActivityParams
 }
 
 const getMissingDocuments = `-- name: GetMissingDocuments :many
-SELECT documents.id, documents.md5, documents.filepath, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.olid, documents.synced, documents.deleted, documents.updated_at, documents.created_at FROM documents
+SELECT documents.id, documents.md5, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at FROM documents
 WHERE
     documents.filepath IS NOT NULL
     AND documents.deleted = false
@@ -784,13 +862,17 @@ func (q *Queries) GetMissingDocuments(ctx context.Context, documentIds []string)
 			&i.ID,
 			&i.Md5,
 			&i.Filepath,
+			&i.Coverfile,
 			&i.Title,
 			&i.Author,
 			&i.Series,
 			&i.SeriesIndex,
 			&i.Lang,
 			&i.Description,
+			&i.Gbid,
 			&i.Olid,
+			&i.Isbn10,
+			&i.Isbn13,
 			&i.Synced,
 			&i.Deleted,
 			&i.UpdatedAt,
@@ -875,11 +957,11 @@ func (q *Queries) GetUser(ctx context.Context, userID string) (User, error) {
 const getUserWindowStreaks = `-- name: GetUserWindowStreaks :one
 WITH document_windows AS (
     SELECT
-	CASE
-	  WHEN ?2 = "WEEK" THEN DATE(start_time, time_offset, 'weekday 0', '-7 day')
-	  WHEN ?2 = "DAY" THEN DATE(start_time, time_offset)
-	END AS read_window,
-	time_offset
+        CASE
+          WHEN ?2 = "WEEK" THEN DATE(start_time, time_offset, 'weekday 0', '-7 day')
+          WHEN ?2 = "DAY" THEN DATE(start_time, time_offset)
+        END AS read_window,
+        time_offset
     FROM activity
     JOIN users ON users.id = activity.user_id
     WHERE user_id = ?1
@@ -899,14 +981,14 @@ streaks AS (
         count(*) AS streak,
         MIN(read_window) AS start_date,
         MAX(read_window) AS end_date,
-	time_offset
+        time_offset
     FROM partitions
     GROUP BY
-	CASE
-	    WHEN ?2 = "DAY" THEN DATE(read_window, '+' || seqnum || ' day')
-	    WHEN ?2 = "WEEK" THEN DATE(read_window, '+' || (seqnum * 7) || ' day')
-	END,
-	time_offset
+        CASE
+            WHEN ?2 = "DAY" THEN DATE(read_window, '+' || seqnum || ' day')
+            WHEN ?2 = "WEEK" THEN DATE(read_window, '+' || (seqnum * 7) || ' day')
+        END,
+        time_offset
     ORDER BY end_date DESC
 ),
 max_streak AS (
@@ -1073,7 +1155,7 @@ UPDATE documents
 SET
   deleted = ?1
 WHERE id = ?2
-RETURNING id, md5, filepath, title, author, series, series_index, lang, description, olid, synced, deleted, updated_at, created_at
+RETURNING id, md5, filepath, coverfile, title, author, series, series_index, lang, description, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at
 `
 
 type UpdateDocumentDeletedParams struct {
@@ -1088,13 +1170,17 @@ func (q *Queries) UpdateDocumentDeleted(ctx context.Context, arg UpdateDocumentD
 		&i.ID,
 		&i.Md5,
 		&i.Filepath,
+		&i.Coverfile,
 		&i.Title,
 		&i.Author,
 		&i.Series,
 		&i.SeriesIndex,
 		&i.Lang,
 		&i.Description,
+		&i.Gbid,
 		&i.Olid,
+		&i.Isbn10,
+		&i.Isbn13,
 		&i.Synced,
 		&i.Deleted,
 		&i.UpdatedAt,
@@ -1108,7 +1194,7 @@ UPDATE documents
 SET
     synced = ?1
 WHERE id = ?2
-RETURNING id, md5, filepath, title, author, series, series_index, lang, description, olid, synced, deleted, updated_at, created_at
+RETURNING id, md5, filepath, coverfile, title, author, series, series_index, lang, description, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at
 `
 
 type UpdateDocumentSyncParams struct {
@@ -1123,13 +1209,17 @@ func (q *Queries) UpdateDocumentSync(ctx context.Context, arg UpdateDocumentSync
 		&i.ID,
 		&i.Md5,
 		&i.Filepath,
+		&i.Coverfile,
 		&i.Title,
 		&i.Author,
 		&i.Series,
 		&i.SeriesIndex,
 		&i.Lang,
 		&i.Description,
+		&i.Gbid,
 		&i.Olid,
+		&i.Isbn10,
+		&i.Isbn13,
 		&i.Synced,
 		&i.Deleted,
 		&i.UpdatedAt,
@@ -1211,33 +1301,42 @@ INSERT INTO documents (
     id,
     md5,
     filepath,
+    coverfile,
     title,
     author,
     series,
     series_index,
     lang,
     description,
-    olid
+    olid,
+    gbid,
+    isbn10,
+    isbn13
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT DO UPDATE
 SET
     md5 =           COALESCE(excluded.md5, md5),
     filepath =      COALESCE(excluded.filepath, filepath),
+    coverfile =     COALESCE(excluded.coverfile, coverfile),
     title =         COALESCE(excluded.title, title),
     author =        COALESCE(excluded.author, author),
     series =        COALESCE(excluded.series, series),
     series_index =  COALESCE(excluded.series_index, series_index),
     lang =          COALESCE(excluded.lang, lang),
     description =   COALESCE(excluded.description, description),
-    olid =          COALESCE(excluded.olid, olid)
-RETURNING id, md5, filepath, title, author, series, series_index, lang, description, olid, synced, deleted, updated_at, created_at
+    olid =          COALESCE(excluded.olid, olid),
+    gbid =          COALESCE(excluded.gbid, gbid),
+    isbn10 =        COALESCE(excluded.isbn10, isbn10),
+    isbn13 =        COALESCE(excluded.isbn13, isbn13)
+RETURNING id, md5, filepath, coverfile, title, author, series, series_index, lang, description, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at
 `
 
 type UpsertDocumentParams struct {
 	ID          string  `json:"id"`
 	Md5         *string `json:"md5"`
 	Filepath    *string `json:"filepath"`
+	Coverfile   *string `json:"coverfile"`
 	Title       *string `json:"title"`
 	Author      *string `json:"author"`
 	Series      *string `json:"series"`
@@ -1245,6 +1344,9 @@ type UpsertDocumentParams struct {
 	Lang        *string `json:"lang"`
 	Description *string `json:"description"`
 	Olid        *string `json:"-"`
+	Gbid        *string `json:"gbid"`
+	Isbn10      *string `json:"isbn10"`
+	Isbn13      *string `json:"isbn13"`
 }
 
 func (q *Queries) UpsertDocument(ctx context.Context, arg UpsertDocumentParams) (Document, error) {
@@ -1252,6 +1354,7 @@ func (q *Queries) UpsertDocument(ctx context.Context, arg UpsertDocumentParams) 
 		arg.ID,
 		arg.Md5,
 		arg.Filepath,
+		arg.Coverfile,
 		arg.Title,
 		arg.Author,
 		arg.Series,
@@ -1259,19 +1362,26 @@ func (q *Queries) UpsertDocument(ctx context.Context, arg UpsertDocumentParams) 
 		arg.Lang,
 		arg.Description,
 		arg.Olid,
+		arg.Gbid,
+		arg.Isbn10,
+		arg.Isbn13,
 	)
 	var i Document
 	err := row.Scan(
 		&i.ID,
 		&i.Md5,
 		&i.Filepath,
+		&i.Coverfile,
 		&i.Title,
 		&i.Author,
 		&i.Series,
 		&i.SeriesIndex,
 		&i.Lang,
 		&i.Description,
+		&i.Gbid,
 		&i.Olid,
+		&i.Isbn10,
+		&i.Isbn13,
 		&i.Synced,
 		&i.Deleted,
 		&i.UpdatedAt,

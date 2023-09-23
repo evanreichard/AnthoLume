@@ -1,3 +1,17 @@
+-- name: AddMetadata :one
+INSERT INTO metadata (
+    document_id,
+    title,
+    author,
+    description,
+    gbid,
+    olid,
+    isbn10,
+    isbn13
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING *;
+
 -- name: CreateUser :execrows
 INSERT INTO users (id, pass)
 VALUES (?, ?)
@@ -12,26 +26,34 @@ INSERT INTO documents (
     id,
     md5,
     filepath,
+    coverfile,
     title,
     author,
     series,
     series_index,
     lang,
     description,
-    olid
+    olid,
+    gbid,
+    isbn10,
+    isbn13
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT DO UPDATE
 SET
     md5 =           COALESCE(excluded.md5, md5),
     filepath =      COALESCE(excluded.filepath, filepath),
+    coverfile =     COALESCE(excluded.coverfile, coverfile),
     title =         COALESCE(excluded.title, title),
     author =        COALESCE(excluded.author, author),
     series =        COALESCE(excluded.series, series),
     series_index =  COALESCE(excluded.series_index, series_index),
     lang =          COALESCE(excluded.lang, lang),
     description =   COALESCE(excluded.description, description),
-    olid =          COALESCE(excluded.olid, olid)
+    olid =          COALESCE(excluded.olid, olid),
+    gbid =          COALESCE(excluded.gbid, gbid),
+    isbn10 =        COALESCE(excluded.isbn10, isbn10),
+    isbn13 =        COALESCE(excluded.isbn13, isbn13)
 RETURNING *;
 
 -- name: DeleteDocument :execrows
@@ -222,6 +244,7 @@ SELECT
 FROM documents
 LEFT JOIN true_progress ON true_progress.document_id = documents.id
 LEFT JOIN users ON users.id = $user_id
+WHERE documents.deleted == false
 ORDER BY true_progress.last_read DESC, documents.created_at DESC
 LIMIT $limit
 OFFSET $offset;
@@ -308,11 +331,11 @@ FROM document_days;
 -- name: GetUserWindowStreaks :one
 WITH document_windows AS (
     SELECT
-	CASE
-	  WHEN ?2 = "WEEK" THEN DATE(start_time, time_offset, 'weekday 0', '-7 day')
-	  WHEN ?2 = "DAY" THEN DATE(start_time, time_offset)
-	END AS read_window,
-	time_offset
+        CASE
+          WHEN ?2 = "WEEK" THEN DATE(start_time, time_offset, 'weekday 0', '-7 day')
+          WHEN ?2 = "DAY" THEN DATE(start_time, time_offset)
+        END AS read_window,
+        time_offset
     FROM activity
     JOIN users ON users.id = activity.user_id
     WHERE user_id = $user_id
@@ -332,14 +355,14 @@ streaks AS (
         count(*) AS streak,
         MIN(read_window) AS start_date,
         MAX(read_window) AS end_date,
-	time_offset
+        time_offset
     FROM partitions
     GROUP BY
-	CASE
-	    WHEN ?2 = "DAY" THEN DATE(read_window, '+' || seqnum || ' day')
-	    WHEN ?2 = "WEEK" THEN DATE(read_window, '+' || (seqnum * 7) || ' day')
-	END,
-	time_offset
+        CASE
+            WHEN ?2 = "DAY" THEN DATE(read_window, '+' || seqnum || ' day')
+            WHEN ?2 = "WEEK" THEN DATE(read_window, '+' || (seqnum * 7) || ' day')
+        END,
+        time_offset
     ORDER BY end_date DESC
 ),
 max_streak AS (

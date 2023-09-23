@@ -18,18 +18,43 @@ CREATE TABLE IF NOT EXISTS documents (
 
     md5 TEXT,
     filepath TEXT,
+    coverfile TEXT,
     title TEXT,
     author TEXT,
     series TEXT,
     series_index INTEGER,
     lang TEXT,
     description TEXT,
+
+    gbid TEXT,
     olid TEXT,
+    isbn10 TEXT,
+    isbn13 TEXT,
+
     synced BOOLEAN NOT NULL DEFAULT 0 CHECK (synced IN (0, 1)),
     deleted BOOLEAN NOT NULL DEFAULT 0 CHECK (deleted IN (0, 1)),
 
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Metadata
+CREATE TABLE IF NOT EXISTS metadata (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    document_id TEXT NOT NULL,
+
+    title TEXT,
+    author TEXT,
+    description TEXT,
+    gbid TEXT,
+    olid TEXT,
+    isbn10 TEXT,
+    isbn13 TEXT,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (document_id) REFERENCES documents (id)
 );
 
 -- Devices
