@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
@@ -64,12 +65,38 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			}
 
 			templateVars["Data"] = documents
+		} else if routeName == "document" {
+			var rDocID requestDocumentID
+			if err := c.ShouldBindUri(&rDocID); err != nil {
+				log.Error("[createAppResourcesRoute] Invalid URI Bind")
+				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+				return
+			}
+
+			document, err := api.DB.Queries.GetDocumentWithStats(api.DB.Ctx, database.GetDocumentWithStatsParams{
+				UserID:     rUser.(string),
+				DocumentID: rDocID.DocumentID,
+			})
+			if err != nil {
+				log.Error("[createAppResourcesRoute] GetDocumentWithStats DB Error:", err)
+				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+				return
+			}
+
+			templateVars["Data"] = document
 		} else if routeName == "activity" {
-			activity, err := api.DB.Queries.GetActivity(api.DB.Ctx, database.GetActivityParams{
+			activityFilter := database.GetActivityParams{
 				UserID: rUser.(string),
 				Offset: (*qParams.Page - 1) * *qParams.Limit,
 				Limit:  *qParams.Limit,
-			})
+			}
+
+			if qParams.Document != nil {
+				activityFilter.DocFilter = true
+				activityFilter.DocumentID = *qParams.Document
+			}
+
+			activity, err := api.DB.Queries.GetActivity(api.DB.Ctx, activityFilter)
 			if err != nil {
 				log.Error("[createAppResourcesRoute] GetActivity DB Error:", err)
 				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
@@ -78,6 +105,7 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 
 			templateVars["Data"] = activity
 		} else if routeName == "home" {
+			start_time := time.Now()
 			weekly_streak, err := api.DB.Queries.GetUserWindowStreaks(api.DB.Ctx, database.GetUserWindowStreaksParams{
 				UserID: rUser.(string),
 				Window: "WEEK",
@@ -85,6 +113,8 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			if err != nil {
 				log.Warn("[createAppResourcesRoute] GetUserWindowStreaks DB Error:", err)
 			}
+			log.Info("GetUserWindowStreaks - WEEK - ", time.Since(start_time))
+			start_time = time.Now()
 
 			daily_streak, err := api.DB.Queries.GetUserWindowStreaks(api.DB.Ctx, database.GetUserWindowStreaksParams{
 				UserID: rUser.(string),
@@ -93,9 +123,15 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			if err != nil {
 				log.Warn("[createAppResourcesRoute] GetUserWindowStreaks DB Error:", err)
 			}
+			log.Info("GetUserWindowStreaks - DAY - ", time.Since(start_time))
 
+			start_time = time.Now()
 			database_info, _ := api.DB.Queries.GetDatabaseInfo(api.DB.Ctx, rUser.(string))
+			log.Info("GetDatabaseInfo - ", time.Since(start_time))
+
+			start_time = time.Now()
 			read_graph_data, _ := api.DB.Queries.GetDailyReadStats(api.DB.Ctx, rUser.(string))
+			log.Info("GetDailyReadStats - ", time.Since(start_time))
 
 			templateVars["Data"] = gin.H{
 				"DailyStreak":  daily_streak,
@@ -156,16 +192,38 @@ func (api *API) getDocumentCover(c *gin.Context) {
 	*/
 
 	var coverID string = "UNKNOWN"
-	var coverFilePath *string
+	var coverFilePath string
 
 	// Identify Documents & Save Covers
-	coverIDs, err := metadata.GetCoverIDs(document.Title, document.Author)
-	if err == nil && len(coverIDs) > 0 {
-		coverFilePath, err = metadata.DownloadAndSaveCover(coverIDs[0], api.Config.DataPath)
+	bookMetadata := metadata.MetadataInfo{
+		Title:  document.Title,
+		Author: document.Author,
+	}
+	err = metadata.GetMetadata(&bookMetadata)
+	if err == nil && bookMetadata.GBID != nil {
+		// Derive & Sanitize File Name
+		fileName := "." + filepath.Clean(fmt.Sprintf("/%s.jpg", *bookMetadata.GBID))
+
+		// Generate Storage Path
+		coverFilePath = filepath.Join(api.Config.DataPath, "covers", fileName)
+
+		err := metadata.SaveCover(*bookMetadata.GBID, coverFilePath)
 		if err == nil {
-			coverID = coverIDs[0]
+			coverID = *bookMetadata.GBID
+			log.Info("Title:", *bookMetadata.Title)
+			log.Info("Author:", *bookMetadata.Author)
+			log.Info("Description:", *bookMetadata.Description)
+			log.Info("IDs:", bookMetadata.ISBN)
 		}
 	}
+
+	// coverIDs, err := metadata.GetCoverOLIDs(document.Title, document.Author)
+	// if err == nil && len(coverIDs) > 0 {
+	// 	coverFilePath, err = metadata.DownloadAndSaveCover(coverIDs[0], api.Config.DataPath)
+	// 	if err == nil {
+	// 		coverID = coverIDs[0]
+	// 	}
+	// }
 
 	// Upsert Document
 	if _, err = api.DB.Queries.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
@@ -181,5 +239,5 @@ func (api *API) getDocumentCover(c *gin.Context) {
 		return
 	}
 
-	c.File(*coverFilePath)
+	c.File(coverFilePath)
 }

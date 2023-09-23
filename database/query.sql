@@ -154,6 +154,43 @@ ORDER BY created_at DESC
 LIMIT $limit
 OFFSET $offset;
 
+-- name: GetDocumentWithStats :one
+WITH true_progress AS (
+    SELECT
+        start_time AS last_read,
+        SUM(duration) / 60 AS total_time_minutes,
+        document_id,
+        current_page,
+        total_pages,
+        ROUND(CAST(current_page AS REAL) / CAST(total_pages AS REAL) * 100, 2) AS percentage
+    FROM activity
+    WHERE user_id = $user_id
+    AND document_id = $document_id
+    GROUP BY document_id
+    HAVING MAX(start_time)
+    LIMIT 1
+)
+SELECT
+    documents.*,
+
+    CAST(IFNULL(current_page, 0) AS INTEGER) AS current_page,
+    CAST(IFNULL(total_pages, 0) AS INTEGER) AS total_pages,
+    CAST(IFNULL(total_time_minutes, 0) AS INTEGER) AS total_time_minutes,
+    CAST(DATETIME(IFNULL(last_read, "1970-01-01"), time_offset) AS TEXT) AS last_read,
+
+    CAST(CASE
+        WHEN percentage > 97.0 THEN 100.0
+        WHEN percentage IS NULL THEN 0.0
+        ELSE percentage
+    END AS REAL) AS percentage
+
+FROM documents
+LEFT JOIN true_progress ON true_progress.document_id = documents.id
+LEFT JOIN users ON users.id = $user_id
+WHERE documents.id = $document_id
+ORDER BY true_progress.last_read DESC, documents.created_at DESC
+LIMIT 1;
+
 -- name: GetDocumentsWithStats :many
 WITH true_progress AS (
     SELECT
@@ -272,7 +309,7 @@ FROM document_days;
 WITH document_windows AS (
     SELECT
 	CASE
-	  WHEN ?2 = "WEEK" THEN STRFTIME('%Y-%m-%d', start_time, time_offset, 'weekday 0', '-7 day')
+	  WHEN ?2 = "WEEK" THEN DATE(start_time, time_offset, 'weekday 0', '-7 day')
 	  WHEN ?2 = "DAY" THEN DATE(start_time, time_offset)
 	END AS read_window,
 	time_offset
@@ -281,7 +318,6 @@ WITH document_windows AS (
     WHERE user_id = $user_id
     AND CAST($window AS TEXT) = CAST($window AS TEXT)
     GROUP BY read_window
-    ORDER BY read_window DESC
 ),
 partitions AS (
     SELECT
@@ -312,6 +348,7 @@ max_streak AS (
         start_date AS max_streak_start_date,
         end_date AS max_streak_end_date
     FROM streaks
+    LIMIT 1
 ),
 current_streak AS (
     SELECT
@@ -320,7 +357,7 @@ current_streak AS (
         end_date AS current_streak_end_date
     FROM streaks
     WHERE CASE
-      WHEN ?2 = "WEEK" THEN STRFTIME('%Y-%m-%d', 'now', time_offset, 'weekday 0', '-7 day') = current_streak_end_date
+      WHEN ?2 = "WEEK" THEN DATE('now', time_offset, 'weekday 0', '-7 day') = current_streak_end_date
       WHEN ?2 = "DAY" THEN DATE('now', time_offset, '-1 day') = current_streak_end_date OR DATE('now', time_offset) = current_streak_end_date
     END
     LIMIT 1
@@ -360,6 +397,7 @@ activity_records AS (
     FROM activity
     LEFT JOIN users ON users.id = activity.user_id
     WHERE user_id = $user_id
+    AND start_time > DATE('now', '-31 days')
     GROUP BY day
     ORDER BY day DESC
     LIMIT 30

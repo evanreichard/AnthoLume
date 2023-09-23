@@ -21,6 +21,7 @@ type Config struct {
 
 	// Miscellaneous Settings
 	RegistrationEnabled bool
+	CookieSessionKey    string
 }
 
 func Load() *Config {
@@ -32,6 +33,7 @@ func Load() *Config {
 		ConfigPath:          getEnv("CONFIG_PATH", "/config"),
 		DataPath:            getEnv("DATA_PATH", "/data"),
 		ListenPort:          getEnv("LISTEN_PORT", "8585"),
+		CookieSessionKey:    trimLowerString(getEnv("COOKIE_SESSION_KEY", "")),
 		RegistrationEnabled: trimLowerString(getEnv("REGISTRATION_ENABLED", "false")) == "true",
 	}
 }

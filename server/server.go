@@ -59,4 +59,5 @@ func (s *Server) StopServer() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	s.httpServer.Shutdown(ctx)
+	s.API.DB.DB.Close()
 }

@@ -1,4 +1,5 @@
 PRAGMA foreign_keys = ON;
+PRAGMA journal_mode = WAL;
 
 -- Authentication
 CREATE TABLE IF NOT EXISTS users (

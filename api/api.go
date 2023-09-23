@@ -9,31 +9,44 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	"github.com/microcosm-cc/bluemonday"
+	log "github.com/sirupsen/logrus"
 	"reichard.io/bbank/config"
 	"reichard.io/bbank/database"
 	"reichard.io/bbank/graph"
 )
 
 type API struct {
-	Router *gin.Engine
-	Config *config.Config
-	DB     *database.DBManager
+	Router     *gin.Engine
+	Config     *config.Config
+	DB         *database.DBManager
+	HTMLPolicy *bluemonday.Policy
 }
 
 func NewApi(db *database.DBManager, c *config.Config) *API {
 	api := &API{
-		Router: gin.Default(),
-		Config: c,
-		DB:     db,
+		HTMLPolicy: bluemonday.StripTagsPolicy(),
+		Router:     gin.Default(),
+		Config:     c,
+		DB:         db,
 	}
 
 	// Assets & Web App Templates
 	api.Router.Static("/assets", "./assets")
 
 	// Generate Secure Token
-	newToken, err := generateToken(64)
-	if err != nil {
-		panic("Unable to generate secure token")
+	var newToken []byte
+	var err error
+
+	if c.CookieSessionKey != "" {
+		log.Info("[NewApi] Utilizing Environment Cookie Session Key")
+		newToken = []byte(c.CookieSessionKey)
+	} else {
+		log.Info("[NewApi] Generating Cookie Session Key")
+		newToken, err = generateToken(64)
+		if err != nil {
+			panic("Unable to generate secure token")
+		}
 	}
 
 	// Configure Cookie Session Store
@@ -69,6 +82,7 @@ func (api *API) registerWebAppRoutes() {
 	render.AddFromFilesFuncs("graphs", helperFuncs, "templates/base.html", "templates/graphs.html")
 	render.AddFromFilesFuncs("activity", helperFuncs, "templates/base.html", "templates/activity.html")
 	render.AddFromFilesFuncs("documents", helperFuncs, "templates/base.html", "templates/documents.html")
+	render.AddFromFilesFuncs("document", helperFuncs, "templates/base.html", "templates/document.html")
 
 	api.Router.HTMLRender = render
 
@@ -80,8 +94,9 @@ func (api *API) registerWebAppRoutes() {
 	api.Router.POST("/register", api.authFormRegister)
 
 	api.Router.GET("/", api.authWebAppMiddleware, api.createAppResourcesRoute("home"))
-	api.Router.GET("/documents", api.authWebAppMiddleware, api.createAppResourcesRoute("documents"))
 	api.Router.GET("/activity", api.authWebAppMiddleware, api.createAppResourcesRoute("activity"))
+	api.Router.GET("/documents", api.authWebAppMiddleware, api.createAppResourcesRoute("documents"))
+	api.Router.GET("/documents/:document", api.authWebAppMiddleware, api.createAppResourcesRoute("document"))
 	api.Router.GET("/documents/:document/file", api.authWebAppMiddleware, api.downloadDocumentFile)
 	api.Router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.getDocumentCover)
 

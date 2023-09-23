@@ -1,5 +1,6 @@
-{{template "base.html" .}} {{define "title"}}Home{{end}} {{define "content"}}
-
+{{template "base.html" .}} {{define "title"}}Home{{end}} {{define "header"}}
+<a href="./">Home</a>
+{{end}} {{define "content"}}
 <div class="w-full">
   <div
     class="relative w-full px-4 py-4 bg-white shadow-lg dark:bg-gray-700 rounded"
@@ -103,7 +104,7 @@
     <div
       class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded"
     >
-      <div class="flex flex-col justify-around dark:text-white w-full text-xs">
+      <div class="flex flex-col justify-around dark:text-white w-full text-sm">
         <p class="text-2xl font-bold text-black dark:text-white">
           {{ .Data.DatabaseInfo.DocumentsSize }}
         </p>
@@ -116,7 +117,7 @@
     <div
       class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded"
     >
-      <div class="flex flex-col justify-around dark:text-white w-full text-xs">
+      <div class="flex flex-col justify-around dark:text-white w-full text-sm">
         <p class="text-2xl font-bold text-black dark:text-white">
           {{ .Data.DatabaseInfo.ActivitySize }}
         </p>
@@ -129,7 +130,7 @@
     <div
       class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded"
     >
-      <div class="flex flex-col justify-around dark:text-white w-full text-xs">
+      <div class="flex flex-col justify-around dark:text-white w-full text-sm">
         <p class="text-2xl font-bold text-black dark:text-white">
           {{ .Data.DatabaseInfo.ProgressSize }}
         </p>
@@ -142,7 +143,7 @@
     <div
       class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded"
     >
-      <div class="flex flex-col justify-around dark:text-white w-full text-xs">
+      <div class="flex flex-col justify-around dark:text-white w-full text-sm">
         <p class="text-2xl font-bold text-black dark:text-white">
           {{ .Data.DatabaseInfo.DevicesSize }}
         </p>
@@ -173,7 +174,7 @@
         >
           <div>
             <p>Current Daily Streak</p>
-            <div class="flex items-end text-xs text-gray-400">
+            <div class="flex items-end text-sm text-gray-400">
               {{ .Data.DailyStreak.CurrentStreakStartDate }} ➞ {{
               .Data.DailyStreak.CurrentStreakEndDate }}
             </div>
@@ -185,7 +186,7 @@
         <div class="flex items-center justify-between pb-2 mb-2 text-sm">
           <div>
             <p>Best Daily Streak</p>
-            <div class="flex items-end text-xs text-gray-400">
+            <div class="flex items-end text-sm text-gray-400">
               {{ .Data.DailyStreak.MaxStreakStartDate }} ➞ {{
               .Data.DailyStreak.MaxStreakEndDate }}
             </div>
@@ -218,7 +219,7 @@
         >
           <div>
             <p>Current Weekly Streak</p>
-            <div class="flex items-end text-xs text-gray-400">
+            <div class="flex items-end text-sm text-gray-400">
               {{ .Data.WeeklyStreak.CurrentStreakStartDate }} ➞ {{
               .Data.WeeklyStreak.CurrentStreakEndDate }}
             </div>
@@ -230,7 +231,7 @@
         <div class="flex items-center justify-between pb-2 mb-2 text-sm">
           <div>
             <p>Best Weekly Streak</p>
-            <div class="flex items-end text-xs text-gray-400">
+            <div class="flex items-end text-sm text-gray-400">
               {{ .Data.WeeklyStreak.MaxStreakStartDate }} ➞ {{
               .Data.WeeklyStreak.MaxStreakEndDate }}
             </div>

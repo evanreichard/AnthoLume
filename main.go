@@ -48,7 +48,9 @@ func cmdServer(ctx *cli.Context) error {
 	signal.Notify(c, os.Interrupt)
 	<-c
 
+	log.Info("Stopping Server")
 	server.StopServer()
+	log.Info("Server Stopped")
 	os.Exit(0)
 
 	return nil

@@ -40,6 +40,7 @@ In additional to the compatible KOSync API's, we add:
 | DATA_PATH            | /data         | Directory where to store the documents and cover metadata            |
 | LISTEN_PORT          | 8585          | Port the server listens at                                           |
 | REGISTRATION_ENABLED | false         | Whether to allow registration (applies to both WebApp & KOSync API)  |
+| COOKIE_SESSION_KEY   | <EMPTY>       | Optional secret cookie session key (auto generated if not provided)  |
 
 # Client (KOReader Plugin)
 

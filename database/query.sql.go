@@ -190,6 +190,7 @@ activity_records AS (
     FROM activity
     LEFT JOIN users ON users.id = activity.user_id
     WHERE user_id = ?1
+    AND start_time > DATE('now', '-31 days')
     GROUP BY day
     ORDER BY day DESC
     LIMIT 30
@@ -480,6 +481,98 @@ func (q *Queries) GetDocumentReadStatsCapped(ctx context.Context, arg GetDocumen
 	)
 	var i GetDocumentReadStatsCappedRow
 	err := row.Scan(&i.PagesRead, &i.TotalTime)
+	return i, err
+}
+
+const getDocumentWithStats = `-- name: GetDocumentWithStats :one
+WITH true_progress AS (
+    SELECT
+        start_time AS last_read,
+        SUM(duration) / 60 AS total_time_minutes,
+        document_id,
+        current_page,
+        total_pages,
+        ROUND(CAST(current_page AS REAL) / CAST(total_pages AS REAL) * 100, 2) AS percentage
+    FROM activity
+    WHERE user_id = ?1
+    AND document_id = ?2
+    GROUP BY document_id
+    HAVING MAX(start_time)
+    LIMIT 1
+)
+SELECT
+    documents.id, documents.md5, documents.filepath, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.olid, documents.synced, documents.deleted, documents.updated_at, documents.created_at,
+
+    CAST(IFNULL(current_page, 0) AS INTEGER) AS current_page,
+    CAST(IFNULL(total_pages, 0) AS INTEGER) AS total_pages,
+    CAST(IFNULL(total_time_minutes, 0) AS INTEGER) AS total_time_minutes,
+    CAST(DATETIME(IFNULL(last_read, "1970-01-01"), time_offset) AS TEXT) AS last_read,
+
+    CAST(CASE
+        WHEN percentage > 97.0 THEN 100.0
+        WHEN percentage IS NULL THEN 0.0
+        ELSE percentage
+    END AS REAL) AS percentage
+
+FROM documents
+LEFT JOIN true_progress ON true_progress.document_id = documents.id
+LEFT JOIN users ON users.id = ?1
+WHERE documents.id = ?2
+ORDER BY true_progress.last_read DESC, documents.created_at DESC
+LIMIT 1
+`
+
+type GetDocumentWithStatsParams struct {
+	UserID     string `json:"user_id"`
+	DocumentID string `json:"document_id"`
+}
+
+type GetDocumentWithStatsRow struct {
+	ID               string    `json:"id"`
+	Md5              *string   `json:"md5"`
+	Filepath         *string   `json:"filepath"`
+	Title            *string   `json:"title"`
+	Author           *string   `json:"author"`
+	Series           *string   `json:"series"`
+	SeriesIndex      *int64    `json:"series_index"`
+	Lang             *string   `json:"lang"`
+	Description      *string   `json:"description"`
+	Olid             *string   `json:"-"`
+	Synced           bool      `json:"-"`
+	Deleted          bool      `json:"-"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	CreatedAt        time.Time `json:"created_at"`
+	CurrentPage      int64     `json:"current_page"`
+	TotalPages       int64     `json:"total_pages"`
+	TotalTimeMinutes int64     `json:"total_time_minutes"`
+	LastRead         string    `json:"last_read"`
+	Percentage       float64   `json:"percentage"`
+}
+
+func (q *Queries) GetDocumentWithStats(ctx context.Context, arg GetDocumentWithStatsParams) (GetDocumentWithStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getDocumentWithStats, arg.UserID, arg.DocumentID)
+	var i GetDocumentWithStatsRow
+	err := row.Scan(
+		&i.ID,
+		&i.Md5,
+		&i.Filepath,
+		&i.Title,
+		&i.Author,
+		&i.Series,
+		&i.SeriesIndex,
+		&i.Lang,
+		&i.Description,
+		&i.Olid,
+		&i.Synced,
+		&i.Deleted,
+		&i.UpdatedAt,
+		&i.CreatedAt,
+		&i.CurrentPage,
+		&i.TotalPages,
+		&i.TotalTimeMinutes,
+		&i.LastRead,
+		&i.Percentage,
+	)
 	return i, err
 }
 
@@ -783,7 +876,7 @@ const getUserWindowStreaks = `-- name: GetUserWindowStreaks :one
 WITH document_windows AS (
     SELECT
 	CASE
-	  WHEN ?2 = "WEEK" THEN STRFTIME('%Y-%m-%d', start_time, time_offset, 'weekday 0', '-7 day')
+	  WHEN ?2 = "WEEK" THEN DATE(start_time, time_offset, 'weekday 0', '-7 day')
 	  WHEN ?2 = "DAY" THEN DATE(start_time, time_offset)
 	END AS read_window,
 	time_offset
@@ -792,7 +885,6 @@ WITH document_windows AS (
     WHERE user_id = ?1
     AND CAST(?2 AS TEXT) = CAST(?2 AS TEXT)
     GROUP BY read_window
-    ORDER BY read_window DESC
 ),
 partitions AS (
     SELECT
@@ -823,6 +915,7 @@ max_streak AS (
         start_date AS max_streak_start_date,
         end_date AS max_streak_end_date
     FROM streaks
+    LIMIT 1
 ),
 current_streak AS (
     SELECT
@@ -831,7 +924,7 @@ current_streak AS (
         end_date AS current_streak_end_date
     FROM streaks
     WHERE CASE
-      WHEN ?2 = "WEEK" THEN STRFTIME('%Y-%m-%d', 'now', time_offset, 'weekday 0', '-7 day') = current_streak_end_date
+      WHEN ?2 = "WEEK" THEN DATE('now', time_offset, 'weekday 0', '-7 day') = current_streak_end_date
       WHEN ?2 = "DAY" THEN DATE('now', time_offset, '-1 day') = current_streak_end_date OR DATE('now', time_offset) = current_streak_end_date
     END
     LIMIT 1

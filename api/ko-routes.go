@@ -335,12 +335,12 @@ func (api *API) addDocuments(c *gin.Context) {
 	for _, doc := range rNewDocs.Documents {
 		doc, err := qtx.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
 			ID:          doc.ID,
-			Title:       doc.Title,
-			Author:      doc.Author,
-			Series:      doc.Series,
+			Title:       api.sanitizeInput(doc.Title),
+			Author:      api.sanitizeInput(doc.Author),
+			Series:      api.sanitizeInput(doc.Series),
 			SeriesIndex: doc.SeriesIndex,
-			Lang:        doc.Lang,
-			Description: doc.Description,
+			Lang:        api.sanitizeInput(doc.Lang),
+			Description: api.sanitizeInput(doc.Description),
 		})
 		if err != nil {
 			log.Error("[addDocuments] UpsertDocument DB Error:", err)
@@ -603,6 +603,22 @@ func (api *API) downloadDocumentFile(c *gin.Context) {
 	// Force Download (Security)
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filepath.Base(*document.Filepath)))
 	c.File(filePath)
+}
+
+func (api *API) sanitizeInput(val any) *string {
+	switch v := val.(type) {
+	case *string:
+		if v != nil {
+			newString := api.HTMLPolicy.Sanitize(string(*v))
+			return &newString
+		}
+	case string:
+		if v != "" {
+			newString := api.HTMLPolicy.Sanitize(string(v))
+			return &newString
+		}
+	}
+	return nil
 }
 
 func getKeys[M ~map[K]V, K comparable, V any](m M) []K {
