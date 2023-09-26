@@ -85,7 +85,8 @@ func (api *API) authFormLogin(c *gin.Context) {
 
 	if username == "" || rawPassword == "" {
 		c.HTML(http.StatusUnauthorized, "login", gin.H{
-			"Error": "Invalid Credentials",
+			"RegistrationEnabled": api.Config.RegistrationEnabled,
+			"Error":               "Invalid Credentials",
 		})
 		return
 	}
@@ -93,7 +94,8 @@ func (api *API) authFormLogin(c *gin.Context) {
 
 	if authorized := api.authorizeCredentials(username, password); authorized != true {
 		c.HTML(http.StatusUnauthorized, "login", gin.H{
-			"Error": "Invalid Credentials",
+			"RegistrationEnabled": api.Config.RegistrationEnabled,
+			"Error":               "Invalid Credentials",
 		})
 		return
 	}

@@ -380,8 +380,12 @@ current_streak AS (
         end_date AS current_streak_end_date
     FROM streaks
     WHERE CASE
-      WHEN ?2 = "WEEK" THEN DATE('now', time_offset, 'weekday 0', '-7 day') = current_streak_end_date
-      WHEN ?2 = "DAY" THEN DATE('now', time_offset, '-1 day') = current_streak_end_date OR DATE('now', time_offset) = current_streak_end_date
+      WHEN ?2 = "WEEK" THEN
+          DATE('now', time_offset, 'weekday 0', '-14 day') = current_streak_end_date
+          OR DATE('now', time_offset, 'weekday 0', '-7 day') = current_streak_end_date
+      WHEN ?2 = "DAY" THEN
+          DATE('now', time_offset, '-1 day') = current_streak_end_date
+          OR DATE('now', time_offset) = current_streak_end_date
     END
     LIMIT 1
 )

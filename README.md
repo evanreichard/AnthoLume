@@ -1,14 +1,29 @@
 # Book Manager
 
 <p align="center">
-    <a href="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/web_login.png">
-        <img src="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/web_login.png" width="30%">
+    <a href="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/pwa/login.png">
+        <img src="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/pwa/login.png" width="19%">
     </a>
-    <a href="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/web_home.png">
-        <img src="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/web_home.png" width="30%">
+    <a href="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/pwa/home.png">
+        <img src="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/pwa/home.png" width="19%">
     </a>
-    <a href="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/web_documents.png">
-        <img src="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/web_documents.png" width="30%">
+    <a href="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/pwa/documents.png">
+        <img src="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/pwa/documents.png" width="19%">
+    </a>
+    <a href="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/pwa/document.png">
+        <img src="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/pwa/document.png" width="19%">
+    </a>
+    <a href="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/pwa/metadata.png">
+        <img src="https://gitea.va.reichard.io/evan/BookManager/raw/branch/master/screenshots/pwa/metadata.png" width="19%">
+    </a>
+</p>
+
+<p align="center">
+    <a href="https://gitea.va.reichard.io/evan/BookManager/src/branch/master/screenshots/web/README.md">
+        --- WEB ---
+    </a>
+    <a href="https://gitea.va.reichard.io/evan/BookManager/src/branch/master/screenshots/pwa/README.md">
+        --- PWA ---
     </a>
 </p>
 
@@ -24,10 +39,29 @@ In additional to the compatible KOSync API's, we add:
 
 - Additional APIs to automatically upload reading statistics
 - Automatically upload documents to the server (can download in the "Documents" view)
-- Automatic book cover metadata scraping (Thanks [OpenLibrary](https://openlibrary.org/))
+- Book metadata scraping (Thanks [OpenLibrary](https://openlibrary.org/) & [Google Books API](https://developers.google.com/books/docs/v1/getting_started))
 - No JavaScript! All information is rendered server side.
 
 # Server
+
+Docker Image: `docker pull gitea.va.reichard.io/evan/bookmanager:latest`
+
+## Quick Start
+
+```bash
+# Make Data Directory
+mkdir -p bookmanager_data
+
+# Run Server
+docker run \
+    -p 8585:8585 \
+    -e REGISTRATION_ENABLED=true \
+    -v ./bookmanager_data:/config \
+    -v ./bookmanager_data:/data \
+    gitea.va.reichard.io/evan/bookmanager:latest
+```
+
+The service is now accessible at: `http://localhost:8585`
 
 ## Configuration
 
@@ -50,22 +84,22 @@ See documentation in the `client` subfolder: [SyncNinja](https://gitea.va.reicha
 
 SQLC Generation (v1.21.0):
 
-```
+```bash
 go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 ~/go/bin/sqlc generate
 ```
 
 Run Development:
 
-```
-CONFIG_PATH=./data DATA_PATH=./data go run cmd/main.go serve
+```bash
+CONFIG_PATH=./data DATA_PATH=./data go run main.go serve
 ```
 
 # Building
 
 The `Dockerfile` and `Makefile` contain the build information:
 
-```
+```bash
 # Build Local Docker Image
 make docker_build_local
 
@@ -75,12 +109,12 @@ make docker_build_release_latest
 
 If manually building, you must enable CGO:
 
-```
+```bash
 # Download Dependencies
 go mod download
 
 # Compile (Binary `./bookmanager`)
-CGO_ENABLED=1 CGO_CFLAGS="-D_LARGEFILE64_SOURCE" go build -o /bookmanager cmd/main.go
+CGO_ENABLED=1 CGO_CFLAGS="-D_LARGEFILE64_SOURCE" go build -o /bookmanager
 ```
 
 ## Notes

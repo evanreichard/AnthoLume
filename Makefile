@@ -14,9 +14,13 @@ docker_build_local:
 docker_build_release_beta:
 	docker buildx build \
 		--platform linux/amd64,linux/arm64 \
-		-t gitea.va.reichard.io/reichard/bookmanager:beta --push .
+		-t gitea.va.reichard.io/reichard/bookmanager:beta \
+		-t gitea.va.reichard.io/evan/bookmanager:beta \
+		--push .
 
 docker_build_release_latest:
 	docker buildx build \
 		--platform linux/amd64,linux/arm64 \
-		-t gitea.va.reichard.io/reichard/bookmanager:latest --push .
+		-t gitea.va.reichard.io/reichard/bookmanager:latest \
+		-t gitea.va.reichard.io/evan/bookmanager:latest \
+		--push .

@@ -21,8 +21,11 @@ type requestDocumentEdit struct {
 	Title       *string               `form:"title"`
 	Author      *string               `form:"author"`
 	Description *string               `form:"description"`
+	ISBN10      *string               `form:"isbn_10"`
+	ISBN13      *string               `form:"isbn_13"`
 	RemoveCover *string               `form:"remove_cover"`
-	CoverFile   *multipart.FileHeader `form:"cover"`
+	CoverGBID   *string               `form:"cover_gbid"`
+	CoverFile   *multipart.FileHeader `form:"cover_file"`
 }
 
 type requestDocumentIdentify struct {
@@ -101,6 +104,7 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 				return
 			}
 
+			templateVars["RelBase"] = "../"
 			templateVars["Data"] = document
 		} else if routeName == "activity" {
 			activityFilter := database.GetActivityParams{
@@ -131,7 +135,7 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			if err != nil {
 				log.Warn("[createAppResourcesRoute] GetUserWindowStreaks DB Error:", err)
 			}
-			log.Info("GetUserWindowStreaks - WEEK - ", time.Since(start_time))
+			log.Debug("GetUserWindowStreaks - WEEK - ", time.Since(start_time))
 			start_time = time.Now()
 
 			daily_streak, err := api.DB.Queries.GetUserWindowStreaks(api.DB.Ctx, database.GetUserWindowStreaksParams{
@@ -141,15 +145,15 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			if err != nil {
 				log.Warn("[createAppResourcesRoute] GetUserWindowStreaks DB Error:", err)
 			}
-			log.Info("GetUserWindowStreaks - DAY - ", time.Since(start_time))
+			log.Debug("GetUserWindowStreaks - DAY - ", time.Since(start_time))
 
 			start_time = time.Now()
 			database_info, _ := api.DB.Queries.GetDatabaseInfo(api.DB.Ctx, rUser.(string))
-			log.Info("GetDatabaseInfo - ", time.Since(start_time))
+			log.Debug("GetDatabaseInfo - ", time.Since(start_time))
 
 			start_time = time.Now()
 			read_graph_data, _ := api.DB.Queries.GetDailyReadStats(api.DB.Ctx, rUser.(string))
-			log.Info("GetDailyReadStats - ", time.Since(start_time))
+			log.Debug("GetDailyReadStats - ", time.Since(start_time))
 
 			templateVars["Data"] = gin.H{
 				"DailyStreak":  daily_streak,
@@ -218,7 +222,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 		firstResult := metadataResults[0]
 
 		// Save Cover
-		fileName, err := metadata.SaveCover(*firstResult.GBID, coverDir, document.ID)
+		fileName, err := metadata.SaveCover(*firstResult.GBID, coverDir, document.ID, false)
 		if err == nil {
 			coverFile = *fileName
 		}
@@ -275,8 +279,11 @@ func (api *API) editDocument(c *gin.Context) {
 	if rDocEdit.Author == nil &&
 		rDocEdit.Title == nil &&
 		rDocEdit.Description == nil &&
-		rDocEdit.CoverFile == nil &&
-		rDocEdit.RemoveCover == nil {
+		rDocEdit.ISBN10 == nil &&
+		rDocEdit.ISBN13 == nil &&
+		rDocEdit.RemoveCover == nil &&
+		rDocEdit.CoverGBID == nil &&
+		rDocEdit.CoverFile == nil {
 		log.Error("[createAppResourcesRoute] Missing Form Values")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
@@ -288,7 +295,6 @@ func (api *API) editDocument(c *gin.Context) {
 		s := "UNKNOWN"
 		coverFileName = &s
 	} else if rDocEdit.CoverFile != nil {
-
 		// Validate Type & Derive Extension on MIME
 		uploadedFile, err := rDocEdit.CoverFile.Open()
 		if err != nil {
@@ -325,6 +331,14 @@ func (api *API) editDocument(c *gin.Context) {
 		}
 
 		coverFileName = &fileName
+	} else if rDocEdit.CoverGBID != nil {
+		// TODO
+
+		var coverDir string = filepath.Join(api.Config.DataPath, "covers")
+		fileName, err := metadata.SaveCover(*rDocEdit.CoverGBID, coverDir, rDocID.DocumentID, true)
+		if err == nil {
+			coverFileName = fileName
+		}
 	}
 
 	// Update Document
@@ -333,6 +347,8 @@ func (api *API) editDocument(c *gin.Context) {
 		Title:       api.sanitizeInput(rDocEdit.Title),
 		Author:      api.sanitizeInput(rDocEdit.Author),
 		Description: api.sanitizeInput(rDocEdit.Description),
+		Isbn10:      api.sanitizeInput(rDocEdit.ISBN10),
+		Isbn13:      api.sanitizeInput(rDocEdit.ISBN13),
 		Coverfile:   coverFileName,
 	}); err != nil {
 		log.Error("[createAppResourcesRoute] UpsertDocument DB Error:", err)
@@ -367,6 +383,8 @@ func (api *API) deleteDocument(c *gin.Context) {
 }
 
 func (api *API) identifyDocument(c *gin.Context) {
+	rUser, _ := c.Get("AuthorizedUser")
+
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
 		log.Error("[identifyDocument] Invalid URI Bind")
@@ -399,36 +417,52 @@ func (api *API) identifyDocument(c *gin.Context) {
 		return
 	}
 
+	// Template Variables
+	templateVars := gin.H{
+		"RelBase": "../../",
+	}
+
+	// Get Metadata
 	metadataResults, err := metadata.GetMetadata(metadata.MetadataInfo{
 		Title:  rDocIdentify.Title,
 		Author: rDocIdentify.Author,
 		ISBN10: rDocIdentify.ISBN,
 		ISBN13: rDocIdentify.ISBN,
 	})
-	if err != nil || len(metadataResults) == 0 {
-		log.Error("[identifyDocument] Metadata Error")
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Metadata Error"})
+	if err == nil && len(metadataResults) > 0 {
+		firstResult := metadataResults[0]
+
+		// Store First Metadata Result
+		if _, err = api.DB.Queries.AddMetadata(api.DB.Ctx, database.AddMetadataParams{
+			DocumentID:  rDocID.DocumentID,
+			Title:       firstResult.Title,
+			Author:      firstResult.Author,
+			Description: firstResult.Description,
+			Gbid:        firstResult.GBID,
+			Olid:        firstResult.OLID,
+			Isbn10:      firstResult.ISBN10,
+			Isbn13:      firstResult.ISBN13,
+		}); err != nil {
+			log.Error("[identifyDocument] AddMetadata DB Error:", err)
+		}
+
+		templateVars["Metadata"] = firstResult
+	} else {
+		log.Warn("[identifyDocument] Metadata Error")
+		templateVars["MetadataError"] = "No Metadata Found"
+	}
+
+	document, err := api.DB.Queries.GetDocumentWithStats(api.DB.Ctx, database.GetDocumentWithStatsParams{
+		UserID:     rUser.(string),
+		DocumentID: rDocID.DocumentID,
+	})
+	if err != nil {
+		log.Error("[identifyDocument] GetDocumentWithStats DB Error:", err)
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
 	}
 
-	// TODO
-	firstResult := metadataResults[0]
+	templateVars["Data"] = document
 
-	if firstResult.Title != nil {
-		log.Info("Title:", *firstResult.Title)
-	}
-	if firstResult.Author != nil {
-		log.Info("Author:", *firstResult.Author)
-	}
-	if firstResult.Description != nil {
-		log.Info("Description:", *firstResult.Description)
-	}
-	if firstResult.ISBN10 != nil {
-		log.Info("ISBN 10:", *firstResult.ISBN10)
-	}
-	if firstResult.ISBN13 != nil {
-		log.Info("ISBN 13:", *firstResult.ISBN13)
-	}
-
-	c.Redirect(http.StatusFound, "/")
+	c.HTML(http.StatusOK, "document", templateVars)
 }

@@ -129,7 +129,7 @@ func GetMetadata(metadataSearch MetadataInfo) ([]MetadataInfo, error) {
 	return allMetadata, nil
 }
 
-func SaveCover(gbid string, coverDir string, documentID string) (*string, error) {
+func SaveCover(gbid string, coverDir string, documentID string, overwrite bool) (*string, error) {
 
 	// Google Books -> JPG
 	coverFile := "." + filepath.Clean(fmt.Sprintf("/%s.jpg", documentID))
@@ -137,7 +137,7 @@ func SaveCover(gbid string, coverDir string, documentID string) (*string, error)
 
 	// Validate File Doesn't Exists
 	_, err := os.Stat(coverFilePath)
-	if err == nil {
+	if err == nil && overwrite == false {
 		log.Warn("[SaveCover] File Alreads Exists")
 		return &coverFile, nil
 	}
