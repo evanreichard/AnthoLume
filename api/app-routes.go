@@ -17,6 +17,12 @@ import (
 	"reichard.io/bbank/metadata"
 )
 
+type queryParams struct {
+	Page     *int64  `form:"page"`
+	Limit    *int64  `form:"limit"`
+	Document *string `form:"document"`
+}
+
 type requestDocumentEdit struct {
 	Title       *string               `form:"title"`
 	Author      *string               `form:"author"`
@@ -332,8 +338,6 @@ func (api *API) editDocument(c *gin.Context) {
 
 		coverFileName = &fileName
 	} else if rDocEdit.CoverGBID != nil {
-		// TODO
-
 		var coverDir string = filepath.Join(api.Config.DataPath, "covers")
 		fileName, err := metadata.SaveCover(*rDocEdit.CoverGBID, coverDir, rDocID.DocumentID, true)
 		if err == nil {
@@ -465,4 +469,24 @@ func (api *API) identifyDocument(c *gin.Context) {
 	templateVars["Data"] = document
 
 	c.HTML(http.StatusOK, "document", templateVars)
+}
+
+func bindQueryParams(c *gin.Context) queryParams {
+	var qParams queryParams
+	c.BindQuery(&qParams)
+
+	if qParams.Limit == nil {
+		var defaultValue int64 = 50
+		qParams.Limit = &defaultValue
+	} else if *qParams.Limit < 0 {
+		var zeroValue int64 = 0
+		qParams.Limit = &zeroValue
+	}
+
+	if qParams.Page == nil || *qParams.Page < 1 {
+		var oneValue int64 = 0
+		qParams.Page = &oneValue
+	}
+
+	return qParams
 }

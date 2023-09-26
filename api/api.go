@@ -65,7 +65,6 @@ func NewApi(db *database.DBManager, c *config.Config) *API {
 	// Register API Routes
 	apiGroup := api.Router.Group("/api")
 	api.registerKOAPIRoutes(apiGroup)
-	api.registerWebAPIRoutes(apiGroup)
 
 	return api
 }
@@ -110,8 +109,6 @@ func (api *API) registerWebAppRoutes() {
 func (api *API) registerKOAPIRoutes(apiGroup *gin.RouterGroup) {
 	koGroup := apiGroup.Group("/ko")
 
-	koGroup.GET("/info", api.serverInfo)
-
 	koGroup.POST("/users/create", api.createUser)
 	koGroup.GET("/users/auth", api.authAPIMiddleware, api.authorizeUser)
 
@@ -125,24 +122,6 @@ func (api *API) registerKOAPIRoutes(apiGroup *gin.RouterGroup) {
 
 	koGroup.POST("/activity", api.authAPIMiddleware, api.addActivities)
 	koGroup.POST("/syncs/activity", api.authAPIMiddleware, api.checkActivitySync)
-}
-
-func (api *API) registerWebAPIRoutes(apiGroup *gin.RouterGroup) {
-	v1Group := apiGroup.Group("/v1")
-
-	v1Group.GET("/info", api.serverInfo)
-
-	v1Group.POST("/users", api.createUser)
-	v1Group.GET("/users", api.authAPIMiddleware, api.getUsers)
-
-	v1Group.POST("/documents", api.authAPIMiddleware, api.checkDocumentsSync)
-	v1Group.GET("/documents", api.authAPIMiddleware, api.getDocuments)
-
-	v1Group.GET("/documents/:document/file", api.authAPIMiddleware, api.downloadDocumentFile)
-	v1Group.PUT("/documents/:document/file", api.authAPIMiddleware, api.uploadDocumentFile)
-
-	v1Group.GET("/activity", api.authAPIMiddleware, api.getActivity)
-	v1Group.GET("/devices", api.authAPIMiddleware, api.getDevices)
 }
 
 func generateToken(n int) ([]byte, error) {

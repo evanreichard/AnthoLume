@@ -12,6 +12,7 @@ import (
 	"reichard.io/bbank/database"
 )
 
+// KOSync API Auth Headers
 type authHeader struct {
 	AuthUser string `header:"x-auth-user"`
 	AuthKey  string `header:"x-auth-key"`
@@ -90,6 +91,8 @@ func (api *API) authFormLogin(c *gin.Context) {
 		})
 		return
 	}
+
+	// MD5 - KOSync Compatiblity
 	password := fmt.Sprintf("%x", md5.Sum([]byte(rawPassword)))
 
 	if authorized := api.authorizeCredentials(username, password); authorized != true {
@@ -107,13 +110,6 @@ func (api *API) authFormLogin(c *gin.Context) {
 	session.Save()
 
 	c.Redirect(http.StatusFound, "/")
-}
-
-func (api *API) authLogout(c *gin.Context) {
-	session := sessions.Default(c)
-	session.Clear()
-	session.Save()
-	c.Redirect(http.StatusFound, "/login")
 }
 
 func (api *API) authFormRegister(c *gin.Context) {
@@ -172,4 +168,11 @@ func (api *API) authFormRegister(c *gin.Context) {
 	session.Save()
 
 	c.Redirect(http.StatusFound, "/")
+}
+
+func (api *API) authLogout(c *gin.Context) {
+	session := sessions.Default(c)
+	session.Clear()
+	session.Save()
+	c.Redirect(http.StatusFound, "/login")
 }
