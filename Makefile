@@ -11,16 +11,15 @@ build_local:
 docker_build_local:
 	docker build -t bookmanager:latest .
 
-docker_build_release_beta:
+docker_build_release_dev:
 	docker buildx build \
 		--platform linux/amd64,linux/arm64 \
-		-t gitea.va.reichard.io/reichard/bookmanager:beta \
-		-t gitea.va.reichard.io/evan/bookmanager:beta \
+		-t gitea.va.reichard.io/evan/bookmanager:dev \
 		--push .
 
 docker_build_release_latest:
 	docker buildx build \
 		--platform linux/amd64,linux/arm64 \
-		-t gitea.va.reichard.io/reichard/bookmanager:latest \
 		-t gitea.va.reichard.io/evan/bookmanager:latest \
+		-t gitea.va.reichard.io/evan/bookmanager:`git describe --tags` \
 		--push .
