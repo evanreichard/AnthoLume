@@ -40,11 +40,15 @@ In additional to the compatible KOSync API's, we add:
 - Additional APIs to automatically upload reading statistics
 - Automatically upload documents to the server (can download in the "Documents" view)
 - Book metadata scraping (Thanks [OpenLibrary](https://openlibrary.org/) & [Google Books API](https://developers.google.com/books/docs/v1/getting_started))
-- No JavaScript! All information is rendered server side.
+- No JavaScript! All information is generated server side.
 
 # Server
 
 Docker Image: `docker pull gitea.va.reichard.io/evan/bookmanager:latest`
+
+## KOSync API
+
+The KOSync compatible API endpoint is located at: `http(s)://<SERVER>/api/ko`
 
 ## Quick Start
 
@@ -61,7 +65,7 @@ docker run \
     gitea.va.reichard.io/evan/bookmanager:latest
 ```
 
-The service is now accessible at: `http://localhost:8585`
+The service is now accessible at: `http://localhost:8585`. I recommend registering an account and then disabling registration unless you expect more users.
 
 ## Configuration
 

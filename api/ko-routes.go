@@ -107,7 +107,7 @@ func (api *API) createUser(c *gin.Context) {
 
 	rows, err := api.DB.Queries.CreateUser(api.DB.Ctx, database.CreateUserParams{
 		ID:   rUser.Username,
-		Pass: hashedPassword,
+		Pass: &hashedPassword,
 	})
 	if err != nil {
 		log.Error("[createUser] CreateUser DB Error:", err)

@@ -121,8 +121,8 @@ ON CONFLICT DO NOTHING
 `
 
 type CreateUserParams struct {
-	ID   string `json:"id"`
-	Pass string `json:"-"`
+	ID   string  `json:"id"`
+	Pass *string `json:"-"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (int64, error) {
@@ -376,35 +376,33 @@ func (q *Queries) GetDevice(ctx context.Context, deviceID string) (Device, error
 }
 
 const getDevices = `-- name: GetDevices :many
-SELECT id, user_id, device_name, created_at, sync FROM devices
-WHERE user_id = ?1
-ORDER BY created_at DESC
-LIMIT ?3
-OFFSET ?2
+SELECT
+    devices.device_name,
+    CAST(DATETIME(devices.created_at, users.time_offset) AS TEXT) AS created_at,
+    CAST(DATETIME(MAX(activity.created_at), users.time_offset) AS TEXT) AS last_sync
+FROM activity
+JOIN devices ON devices.id = activity.device_id
+JOIN users ON users.id = ?1
+WHERE devices.user_id = ?1
+GROUP BY activity.device_id
 `
 
-type GetDevicesParams struct {
-	UserID string `json:"user_id"`
-	Offset int64  `json:"offset"`
-	Limit  int64  `json:"limit"`
+type GetDevicesRow struct {
+	DeviceName string `json:"device_name"`
+	CreatedAt  string `json:"created_at"`
+	LastSync   string `json:"last_sync"`
 }
 
-func (q *Queries) GetDevices(ctx context.Context, arg GetDevicesParams) ([]Device, error) {
-	rows, err := q.db.QueryContext(ctx, getDevices, arg.UserID, arg.Offset, arg.Limit)
+func (q *Queries) GetDevices(ctx context.Context, userID string) ([]GetDevicesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getDevices, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Device
+	var items []GetDevicesRow
 	for rows.Next() {
-		var i Device
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.DeviceName,
-			&i.CreatedAt,
-			&i.Sync,
-		); err != nil {
+		var i GetDevicesRow
+		if err := rows.Scan(&i.DeviceName, &i.CreatedAt, &i.LastSync); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1267,6 +1265,34 @@ func (q *Queries) UpdateProgress(ctx context.Context, arg UpdateProgressParams) 
 		&i.DeviceID,
 		&i.Percentage,
 		&i.Progress,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateUser = `-- name: UpdateUser :one
+UPDATE users
+SET
+    pass = COALESCE(?1, pass),
+    time_offset = COALESCE(?2, time_offset)
+WHERE id = ?3
+RETURNING id, pass, admin, time_offset, created_at
+`
+
+type UpdateUserParams struct {
+	Password   *string `json:"-"`
+	TimeOffset *string `json:"time_offset"`
+	UserID     string  `json:"user_id"`
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUser, arg.Password, arg.TimeOffset, arg.UserID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Pass,
+		&i.Admin,
+		&i.TimeOffset,
 		&i.CreatedAt,
 	)
 	return i, err

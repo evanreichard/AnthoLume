@@ -14,6 +14,7 @@ import (
 	"reichard.io/bbank/config"
 	"reichard.io/bbank/database"
 	"reichard.io/bbank/graph"
+	"reichard.io/bbank/utils"
 )
 
 type API struct {
@@ -74,11 +75,13 @@ func (api *API) registerWebAppRoutes() {
 	render := multitemplate.NewRenderer()
 	helperFuncs := template.FuncMap{
 		"GetSVGGraphData": graph.GetSVGGraphData,
+		"GetUTCOffsets":   utils.GetUTCOffsets,
 	}
 
 	render.AddFromFilesFuncs("login", helperFuncs, "templates/login.html")
 	render.AddFromFilesFuncs("home", helperFuncs, "templates/base.html", "templates/home.html")
 	render.AddFromFilesFuncs("graphs", helperFuncs, "templates/base.html", "templates/graphs.html")
+	render.AddFromFilesFuncs("settings", helperFuncs, "templates/base.html", "templates/settings.html")
 	render.AddFromFilesFuncs("activity", helperFuncs, "templates/base.html", "templates/activity.html")
 	render.AddFromFilesFuncs("documents", helperFuncs, "templates/base.html", "templates/documents.html")
 	render.AddFromFilesFuncs("document", helperFuncs, "templates/base.html", "templates/document.html")
@@ -93,6 +96,8 @@ func (api *API) registerWebAppRoutes() {
 	api.Router.POST("/register", api.authFormRegister)
 
 	api.Router.GET("/", api.authWebAppMiddleware, api.createAppResourcesRoute("home"))
+	api.Router.GET("/settings", api.authWebAppMiddleware, api.createAppResourcesRoute("settings"))
+	api.Router.POST("/settings", api.authWebAppMiddleware, api.editSettings)
 	api.Router.GET("/activity", api.authWebAppMiddleware, api.createAppResourcesRoute("activity"))
 	api.Router.GET("/documents", api.authWebAppMiddleware, api.createAppResourcesRoute("documents"))
 	api.Router.GET("/documents/:document", api.authWebAppMiddleware, api.createAppResourcesRoute("document"))

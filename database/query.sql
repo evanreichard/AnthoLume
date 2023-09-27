@@ -21,6 +21,14 @@ ON CONFLICT DO NOTHING;
 SELECT * FROM users
 WHERE id = $user_id LIMIT 1;
 
+-- name: UpdateUser :one
+UPDATE users
+SET
+    pass = COALESCE($password, pass),
+    time_offset = COALESCE($time_offset, time_offset)
+WHERE id = $user_id
+RETURNING *;
+
 -- name: UpsertDocument :one
 INSERT INTO documents (
     id,
@@ -287,11 +295,15 @@ LIMIT $limit
 OFFSET $offset;
 
 -- name: GetDevices :many
-SELECT * FROM devices
-WHERE user_id = $user_id
-ORDER BY created_at DESC
-LIMIT $limit
-OFFSET $offset;
+SELECT
+    devices.device_name,
+    CAST(DATETIME(devices.created_at, users.time_offset) AS TEXT) AS created_at,
+    CAST(DATETIME(MAX(activity.created_at), users.time_offset) AS TEXT) AS last_sync
+FROM activity
+JOIN devices ON devices.id = activity.device_id
+JOIN users ON users.id = $user_id
+WHERE devices.user_id = $user_id
+GROUP BY activity.device_id;
 
 -- name: GetDocumentReadStats :one
 SELECT

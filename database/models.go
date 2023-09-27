@@ -21,11 +21,11 @@ type Activity struct {
 }
 
 type Device struct {
-	ID         string    `json:"id"`
-	UserID     string    `json:"user_id"`
-	DeviceName string    `json:"device_name"`
-	CreatedAt  time.Time `json:"created_at"`
-	Sync       bool      `json:"sync"`
+	ID         string `json:"id"`
+	UserID     string `json:"user_id"`
+	DeviceName string `json:"device_name"`
+	CreatedAt  string `json:"created_at"`
+	Sync       bool   `json:"sync"`
 }
 
 type Document struct {
@@ -90,8 +90,8 @@ type RescaledActivity struct {
 
 type User struct {
 	ID         string    `json:"id"`
-	Pass       string    `json:"-"`
+	Pass       *string   `json:"-"`
 	Admin      bool      `json:"-"`
-	TimeOffset string    `json:"time_offset"`
+	TimeOffset *string   `json:"time_offset"`
 	CreatedAt  time.Time `json:"created_at"`
 }

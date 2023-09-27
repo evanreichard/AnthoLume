@@ -24,7 +24,7 @@ func (api *API) authorizeCredentials(username string, password string) (authoriz
 		return false
 	}
 
-	if match, err := argon2.ComparePasswordAndHash(password, user.Pass); err != nil || match != true {
+	if match, err := argon2.ComparePasswordAndHash(password, *user.Pass); err != nil || match != true {
 		return false
 	}
 
@@ -94,7 +94,6 @@ func (api *API) authFormLogin(c *gin.Context) {
 
 	// MD5 - KOSync Compatiblity
 	password := fmt.Sprintf("%x", md5.Sum([]byte(rawPassword)))
-
 	if authorized := api.authorizeCredentials(username, password); authorized != true {
 		c.HTML(http.StatusUnauthorized, "login", gin.H{
 			"RegistrationEnabled": api.Config.RegistrationEnabled,
@@ -140,7 +139,7 @@ func (api *API) authFormRegister(c *gin.Context) {
 
 	rows, err := api.DB.Queries.CreateUser(api.DB.Ctx, database.CreateUserParams{
 		ID:   username,
-		Pass: hashedPassword,
+		Pass: &hashedPassword,
 	})
 
 	// SQL Error

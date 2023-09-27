@@ -2,22 +2,24 @@
 <html lang="en">
   <head>
     <link rel="manifest" href="{{ .RelBase }}./manifest.json" />
+    <meta name="theme-color" content="#F3F4F6" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#1F2937" media="(prefers-color-scheme: dark)">
     <meta charset="utf-8" />
     <meta name="viewport"
 	  content="width=device-width, initial-scale=0.90, user-scalable=no">
     <script src="https://cdn.tailwindcss.com"></script>
     <title>Book Manager - {{block "title" .}}{{end}}</title>
   </head>
-  <body>
+  <body class="bg-gray-100 dark:bg-gray-800">
     <main
-      class="relative h-screen overflow-hidden bg-gray-100 dark:bg-gray-800"
+      class="relative h-screen overflow-hidden"
     >
       <div class="flex items-center justify-between w-full h-16">
         <div id="mobile-nav-button" class="flex flex-col z-40 relative ml-6">
           <input type="checkbox" class="absolute lg:hidden z-50 -top-2 w-7 h-7 flex cursor-pointer opacity-0 w-12 h-12" />
-          <span class="lg:hidden w-7 h-0.5 z-40 mt-0.5 bg-white"></span>
-          <span class="lg:hidden w-7 h-0.5 z-40 mt-1 bg-white"></span>
-          <span class="lg:hidden w-7 h-0.5 z-40 mt-1 bg-white"></span>
+          <span class="lg:hidden bg-black w-7 h-0.5 z-40 mt-0.5 dark:bg-white"></span>
+          <span class="lg:hidden bg-black w-7 h-0.5 z-40 mt-1 dark:bg-white"></span>
+          <span class="lg:hidden bg-black w-7 h-0.5 z-40 mt-1 dark:bg-white"></span>
 
           <div id="menu" class="fixed -mt-6 -ml-6 lg:-mt-8 h-full w-56 lg:w-48 bg-white dark:bg-gray-700 shadow-lg">
             <div class="h-16 flex justify-end lg:justify-around">
@@ -102,7 +104,7 @@
             </div>
           </div>
         </div>
-        <h1 class="text-xl font-bold dark:text-white px-6">{{block "header" .}}{{end}}</h1>
+        <h1 class="text-xl font-bold dark:text-white px-6 lg:ml-44">{{block "header" .}}{{end}}</h1>
         <div
           class="relative flex items-center justify-end w-full p-4 space-x-4"
         >
@@ -134,6 +136,15 @@
                 aria-orientation="vertical"
                 aria-labelledby="options-menu"
               >
+                <a
+                  href="/settings"
+                  class="block block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600"
+                  role="menuitem"
+                >
+                  <span class="flex flex-col">
+                    <span>Settings</span>
+                  </span>
+                </a>
                 <a
                   href="/logout"
                   class="block block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600"
@@ -175,7 +186,6 @@
 
     <!-- Custom Animation CSS -->
     <style>
-
       /* ----------------------------- */
       /* ------- User Dropdown ------- */
       /* ----------------------------- */
@@ -210,7 +220,6 @@
       #mobile-nav-button input:checked ~ span {
         opacity: 1;
         transform: rotate(45deg) translate(2px, -2px);
-        background: #FFFFFF;
       }
 
       #mobile-nav-button input:checked ~ span:nth-last-child(3) {

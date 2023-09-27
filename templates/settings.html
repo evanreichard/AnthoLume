@@ -1,0 +1,217 @@
+{{template "base.html" .}} {{define "title"}}Settings{{end}} {{define "header"}}
+<a href="./settings">Settings</a>
+{{end}} {{define "content"}}
+<div class="h-full w-full relative">
+  <div class="w-full flex flex-col md:flex-row gap-4">
+    <div>
+      <div
+        class="flex flex-col p-4 items-center rounded shadow-lg md:w-60 lg:w-80 bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+      >
+        <svg
+          width="60"
+          fill="currentColor"
+          height="60"
+          class="text-gray-800 dark:text-gray-200"
+          viewBox="0 0 1792 1792"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M1523 1339q-22-155-87.5-257.5t-184.5-118.5q-67 74-159.5 115.5t-195.5 41.5-195.5-41.5-159.5-115.5q-119 16-184.5 118.5t-87.5 257.5q106 150 271 237.5t356 87.5 356-87.5 271-237.5zm-243-699q0-159-112.5-271.5t-271.5-112.5-271.5 112.5-112.5 271.5 112.5 271.5 271.5 112.5 271.5-112.5 112.5-271.5zm512 256q0 182-71 347.5t-190.5 286-285.5 191.5-349 71q-182 0-348-71t-286-191-191-286-71-348 71-348 191-286 286-191 348-71 348 71 286 191 191 286 71 348z"
+          />
+        </svg>
+        <p class="text-lg">{{ .User }}</p>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-4 grow">
+      <div
+        class="flex flex-col gap-2 grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+      >
+        <p class="text-lg font-semibold mb-2">Change Password</p>
+        <form
+          class="flex gap-4 flex-col lg:flex-row"
+          action="./settings"
+          method="POST"
+        >
+          <div class="flex flex-col grow">
+            <div class="flex relative">
+              <span
+                class="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm"
+              >
+                <svg
+                  width="15"
+                  height="15"
+                  fill="currentColor"
+                  viewBox="0 0 1792 1792"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M1376 768q40 0 68 28t28 68v576q0 40-28 68t-68 28h-960q-40 0-68-28t-28-68v-576q0-40 28-68t68-28h32v-320q0-185 131.5-316.5t316.5-131.5 316.5 131.5 131.5 316.5q0 26-19 45t-45 19h-64q-26 0-45-19t-19-45q0-106-75-181t-181-75-181 75-75 181v320h736z"
+                  ></path>
+                </svg>
+              </span>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                class="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                placeholder="Password"
+              />
+            </div>
+          </div>
+          <div class="flex flex-col grow">
+            <div class="flex relative">
+              <span
+                class="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm"
+              >
+                <svg
+                  width="15"
+                  height="15"
+                  fill="currentColor"
+                  viewBox="0 0 1792 1792"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M1376 768q40 0 68 28t28 68v576q0 40-28 68t-68 28h-960q-40 0-68-28t-28-68v-576q0-40 28-68t68-28h32v-320q0-185 131.5-316.5t316.5-131.5 316.5 131.5 131.5 316.5q0 26-19 45t-45 19h-64q-26 0-45-19t-19-45q0-106-75-181t-181-75-181 75-75 181v320h736z"
+                  ></path>
+                </svg>
+              </span>
+              <input
+                type="password"
+                id="new_password"
+                name="new_password"
+                class="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                placeholder="New Password"
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            class="px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2"
+          >
+            <span class="w-full">Submit</span>
+          </button>
+        </form>
+        {{ if .PasswordErrorMessage }}
+        <span class="text-red-400 text-xs">{{ .PasswordErrorMessage }}</span>
+        {{ else if .PasswordMessage }}
+        <span class="text-green-400 text-xs">{{ .PasswordMessage }}</span>
+        {{ end }}
+      </div>
+
+      <div
+        class="flex flex-col grow gap-2 p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+      >
+        <p class="text-lg font-semibold mb-2">Change Time Offset</p>
+        <form
+          class="flex gap-4 flex-col lg:flex-row"
+          action="./settings"
+          method="POST"
+        >
+          <div class="flex relative grow">
+            <span
+              class="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm"
+            >
+              <svg
+                width="16"
+                height="16"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"
+                />
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M12 7.25C12.4142 7.25 12.75 7.58579 12.75 8V11.6893L15.0303 13.9697C15.3232 14.2626 15.3232 14.7374 15.0303 15.0303C14.7374 15.3232 14.2626 15.3232 13.9697 15.0303L11.4697 12.5303C11.329 12.3897 11.25 12.1989 11.25 12V8C11.25 7.58579 11.5858 7.25 12 7.25Z"
+                  fill="white"
+                />
+              </svg>
+            </span>
+            <select
+              class="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+              id="time_offset"
+              name="time_offset"
+            >
+              {{ range $item := GetUTCOffsets }}
+              <option
+                {{
+                if
+                (eq
+                $item.Value
+                $.Data.Settings.TimeOffset)
+                }}selected{{
+                end
+                }}
+                value="{{ $item.Value }}"
+              >
+                {{ $item.Name }}
+              </option>
+              {{ end }}
+            </select>
+          </div>
+          <button
+            type="submit"
+            class="px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2"
+          >
+            <span class="w-full">Submit</span>
+          </button>
+        </form>
+
+        {{ if .TimeOffsetErrorMessage }}
+        <span class="text-red-400 text-xs">{{ .TimeOffsetErrorMessage }}</span>
+        {{ else if .TimeOffsetMessage }}
+        <span class="text-green-400 text-xs">{{ .TimeOffsetMessage }}</span>
+        {{ end }}
+      </div>
+
+      <div
+        class="flex flex-col grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+      >
+        <p class="text-lg font-semibold">Devices</p>
+        <table class="min-w-full bg-white dark:bg-gray-700 text-sm">
+          <thead class="text-gray-800 dark:text-gray-400">
+            <tr>
+              <th
+                scope="col"
+                class="p-3 pl-0 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+              >
+                Name
+              </th>
+              <th
+                scope="col"
+                class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+              >
+                Last Sync
+              </th>
+              <th
+                scope="col"
+                class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+              >
+                Created
+              </th>
+            </tr>
+          </thead>
+          <tbody class="text-black dark:text-white">
+            {{ range $device := .Data.Devices }}
+            <tr>
+              <td class="p-3 pl-0">
+                <p>{{ $device.DeviceName }}</p>
+              </td>
+              <td class="p-3">
+                <p>{{ $device.LastSync }}</p>
+              </td>
+              <td class="p-3">
+                <p>{{ $device.CreatedAt }}</p>
+              </td>
+            </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}

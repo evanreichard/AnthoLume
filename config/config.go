@@ -26,7 +26,7 @@ type Config struct {
 
 func Load() *Config {
 	return &Config{
-		Version:             "0.0.1",
+		Version:             "0.0.2",
 		DBType:              trimLowerString(getEnv("DATABASE_TYPE", "SQLite")),
 		DBName:              trimLowerString(getEnv("DATABASE_NAME", "book_manager")),
 		DBPassword:          getEnv("DATABASE_PASSWORD", ""),

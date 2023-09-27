@@ -9,7 +9,7 @@ sql:
         out: "database"
         emit_json_tags: true
         overrides:
-          # Type pointers needed for JSON
+          # Documents
           - column: "documents.md5"
             go_type:
               type: "string"
@@ -63,6 +63,7 @@ sql:
               type: "string"
               pointer: true
 
+          # Metadata
           - column: "metadata.title"
             go_type:
               type: "string"
@@ -88,6 +89,33 @@ sql:
               type: "string"
               pointer: true
           - column: "metadata.isbn13"
+            go_type:
+              type: "string"
+              pointer: true
+
+          # Devices
+          - column: "devices.id"
+            go_type:
+              type: "string"
+          - column: "devices.user_id"
+            go_type:
+              type: "string"
+          - column: "devices.device_name"
+            go_type:
+              type: "string"
+          - column: "devices.sync"
+            go_type:
+              type: "bool"
+          - column: "devices.created_at"
+            go_type:
+              type: "string"
+
+          # Devices
+          - column: "users.pass"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "users.time_offset"
             go_type:
               type: "string"
               pointer: true

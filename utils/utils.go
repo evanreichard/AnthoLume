@@ -1,49 +1,51 @@
 package utils
 
-import (
-	"bytes"
-	"crypto/md5"
-	// "encoding/hex"
-	"fmt"
-	"io"
-	"os"
-)
-
-func CalculatePartialMD5(filePath string) string {
-	file, err := os.Open(filePath)
-	if err != nil {
-		panic(err)
-	}
-
-	defer file.Close()
-
-	var step int64 = 1024
-	var size int64 = 1024
-	var buf bytes.Buffer
-
-	for i := -1; i <= 10; i++ {
-		byteStep := make([]byte, size)
-
-		var newShift int64 = int64(i * 2)
-		var newOffset int64
-		if i == -1 {
-			newOffset = 0
-		} else {
-			newOffset = step << newShift
-		}
-
-		_, err := file.ReadAt(byteStep, newOffset)
-		if err == io.EOF {
-			break
-		}
-		buf.Write(byteStep)
-	}
-
-	allBytes := buf.Bytes()
-	return fmt.Sprintf("%x", md5.Sum(allBytes))
+type UTCOffset struct {
+	Name  string
+	Value string
 }
 
-func main() {
-	fileHash := CalculatePartialMD5("test.epub")
-	fmt.Println("MD5: ", fileHash)
+var UTC_OFFSETS = []UTCOffset{
+	{Value: "-12 hours", Name: "UTC−12:00"},
+	{Value: "-11 hours", Name: "UTC−11:00"},
+	{Value: "-10 hours", Name: "UTC−10:00"},
+	{Value: "-9.5 hours", Name: "UTC−09:30"},
+	{Value: "-9 hours", Name: "UTC−09:00"},
+	{Value: "-8 hours", Name: "UTC−08:00"},
+	{Value: "-7 hours", Name: "UTC−07:00"},
+	{Value: "-6 hours", Name: "UTC−06:00"},
+	{Value: "-5 hours", Name: "UTC−05:00"},
+	{Value: "-4 hours", Name: "UTC−04:00"},
+	{Value: "-3.5 hours", Name: "UTC−03:30"},
+	{Value: "-3 hours", Name: "UTC−03:00"},
+	{Value: "-2 hours", Name: "UTC−02:00"},
+	{Value: "-1 hours", Name: "UTC−01:00"},
+	{Value: "0 hours", Name: "UTC±00:00"},
+	{Value: "+1 hours", Name: "UTC+01:00"},
+	{Value: "+2 hours", Name: "UTC+02:00"},
+	{Value: "+3 hours", Name: "UTC+03:00"},
+	{Value: "+3.5 hours", Name: "UTC+03:30"},
+	{Value: "+4 hours", Name: "UTC+04:00"},
+	{Value: "+4.5 hours", Name: "UTC+04:30"},
+	{Value: "+5 hours", Name: "UTC+05:00"},
+	{Value: "+5.5 hours", Name: "UTC+05:30"},
+	{Value: "+5.75 hours", Name: "UTC+05:45"},
+	{Value: "+6 hours", Name: "UTC+06:00"},
+	{Value: "+6.5 hours", Name: "UTC+06:30"},
+	{Value: "+7 hours", Name: "UTC+07:00"},
+	{Value: "+8 hours", Name: "UTC+08:00"},
+	{Value: "+8.75 hours", Name: "UTC+08:45"},
+	{Value: "+9 hours", Name: "UTC+09:00"},
+	{Value: "+9.5 hours", Name: "UTC+09:30"},
+	{Value: "+10 hours", Name: "UTC+10:00"},
+	{Value: "+10.5 hours", Name: "UTC+10:30"},
+	{Value: "+11 hours", Name: "UTC+11:00"},
+	{Value: "+12 hours", Name: "UTC+12:00"},
+	{Value: "+12.75 hours", Name: "UTC+12:45"},
+	{Value: "+13 hours", Name: "UTC+13:00"},
+	{Value: "+14 hours", Name: "UTC+14:00"},
+}
+
+func GetUTCOffsets() []UTCOffset {
+	return UTC_OFFSETS
 }

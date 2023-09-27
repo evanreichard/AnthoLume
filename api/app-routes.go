@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/md5"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	argon2 "github.com/alexedwards/argon2id"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
@@ -38,6 +40,12 @@ type requestDocumentIdentify struct {
 	Title  *string `form:"title"`
 	Author *string `form:"author"`
 	ISBN   *string `form:"isbn"`
+}
+
+type requestSettingsEdit struct {
+	Password    *string `form:"password"`
+	NewPassword *string `form:"new_password"`
+	TimeOffset  *string `form:"time_offset"`
 }
 
 func baseResourceRoute(template string, args ...map[string]any) func(c *gin.Context) {
@@ -166,6 +174,27 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 				"WeeklyStreak": weekly_streak,
 				"DatabaseInfo": database_info,
 				"GraphData":    read_graph_data,
+			}
+		} else if routeName == "settings" {
+			user, err := api.DB.Queries.GetUser(api.DB.Ctx, rUser.(string))
+			if err != nil {
+				log.Error("[createAppResourcesRoute] GetUser DB Error:", err)
+				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+				return
+			}
+
+			devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, rUser.(string))
+			if err != nil {
+				log.Error("[createAppResourcesRoute] GetDevices DB Error:", err)
+				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+				return
+			}
+
+			templateVars["Data"] = gin.H{
+				"Settings": gin.H{
+					"TimeOffset": *user.TimeOffset,
+				},
+				"Devices": devices,
 			}
 		} else if routeName == "login" {
 			templateVars["RegistrationEnabled"] = api.Config.RegistrationEnabled
@@ -469,6 +498,88 @@ func (api *API) identifyDocument(c *gin.Context) {
 	templateVars["Data"] = document
 
 	c.HTML(http.StatusOK, "document", templateVars)
+}
+
+func (api *API) editSettings(c *gin.Context) {
+	rUser, _ := c.Get("AuthorizedUser")
+
+	var rUserSettings requestSettingsEdit
+	if err := c.ShouldBind(&rUserSettings); err != nil {
+		log.Error("[editSettings] Invalid Form Bind")
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		return
+	}
+
+	// Validate Something Exists
+	if rUserSettings.Password == nil && rUserSettings.NewPassword == nil && rUserSettings.TimeOffset == nil {
+		log.Error("[editSettings] Missing Form Values")
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		return
+	}
+
+	templateVars := gin.H{
+		"User": rUser,
+	}
+	newUserSettings := database.UpdateUserParams{
+		UserID: rUser.(string),
+	}
+
+	// Set New Password
+	if rUserSettings.Password != nil && rUserSettings.NewPassword != nil {
+		password := fmt.Sprintf("%x", md5.Sum([]byte(*rUserSettings.Password)))
+		authorized := api.authorizeCredentials(rUser.(string), password)
+		if authorized == true {
+			password := fmt.Sprintf("%x", md5.Sum([]byte(*rUserSettings.NewPassword)))
+			hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
+			if err != nil {
+				templateVars["PasswordErrorMessage"] = "Unknown Error"
+			} else {
+				templateVars["PasswordMessage"] = "Password Updated"
+				newUserSettings.Password = &hashedPassword
+			}
+		} else {
+			templateVars["PasswordErrorMessage"] = "Invalid Password"
+		}
+	}
+
+	// Set Time Offset
+	if rUserSettings.TimeOffset != nil {
+		templateVars["TimeOffsetMessage"] = "Time Offset Updated"
+		newUserSettings.TimeOffset = rUserSettings.TimeOffset
+	}
+
+	// Update User
+	_, err := api.DB.Queries.UpdateUser(api.DB.Ctx, newUserSettings)
+	if err != nil {
+		log.Error("[editSettings] UpdateUser DB Error:", err)
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		return
+	}
+
+	// Get User
+	user, err := api.DB.Queries.GetUser(api.DB.Ctx, rUser.(string))
+	if err != nil {
+		log.Error("[editSettings] GetUser DB Error:", err)
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		return
+	}
+
+	// Get Devices
+	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, rUser.(string))
+	if err != nil {
+		log.Error("[editSettings] GetDevices DB Error:", err)
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		return
+	}
+
+	templateVars["Data"] = gin.H{
+		"Settings": gin.H{
+			"TimeOffset": *user.TimeOffset,
+		},
+		"Devices": devices,
+	}
+
+	c.HTML(http.StatusOK, "settings", templateVars)
 }
 
 func bindQueryParams(c *gin.Context) queryParams {
