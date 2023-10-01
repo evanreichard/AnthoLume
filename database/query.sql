@@ -41,12 +41,13 @@ INSERT INTO documents (
     series_index,
     lang,
     description,
+    words,
     olid,
     gbid,
     isbn10,
     isbn13
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT DO UPDATE
 SET
     md5 =           COALESCE(excluded.md5, md5),
@@ -58,6 +59,7 @@ SET
     series_index =  COALESCE(excluded.series_index, series_index),
     lang =          COALESCE(excluded.lang, lang),
     description =   COALESCE(excluded.description, description),
+    words =         COALESCE(excluded.words, words),
     olid =          COALESCE(excluded.olid, olid),
     gbid =          COALESCE(excluded.gbid, gbid),
     isbn10 =        COALESCE(excluded.isbn10, isbn10),
@@ -188,10 +190,15 @@ OFFSET $offset;
 WITH true_progress AS (
     SELECT
         start_time AS last_read,
-        SUM(duration) / 60 AS total_time_minutes,
+        SUM(duration) AS total_time_seconds,
         document_id,
         current_page,
         total_pages,
+
+	-- Determine Read Pages
+	COUNT(DISTINCT current_page) AS read_pages,
+
+	-- Derive Percentage of Book
         ROUND(CAST(current_page AS REAL) / CAST(total_pages AS REAL) * 100, 2) AS percentage
     FROM activity
     WHERE user_id = $user_id
@@ -205,13 +212,23 @@ SELECT
 
     CAST(IFNULL(current_page, 0) AS INTEGER) AS current_page,
     CAST(IFNULL(total_pages, 0) AS INTEGER) AS total_pages,
-    CAST(IFNULL(total_time_minutes, 0) AS INTEGER) AS total_time_minutes,
+    CAST(IFNULL(total_time_seconds, 0) AS INTEGER) AS total_time_seconds,
     CAST(DATETIME(IFNULL(last_read, "1970-01-01"), time_offset) AS TEXT) AS last_read,
+    CAST(IFNULL(read_pages, 0) AS INTEGER) AS read_pages,
 
+    -- Calculate Seconds / Page
+    --   1. Calculate Total Time in Seconds (Sum Duration in Activity)
+    --   2. Divide by Read Pages (Distinct Pages in Activity)
     CAST(CASE
-        WHEN percentage > 97.0 THEN 100.0
-        WHEN percentage IS NULL THEN 0.0
-        ELSE percentage
+	WHEN total_time_seconds IS NULL THEN 0.0
+	ELSE ROUND(CAST(total_time_seconds AS REAL) / CAST(read_pages AS REAL))
+    END AS INTEGER) AS seconds_per_page,
+
+    -- Arbitrarily >97% is Complete
+    CAST(CASE
+	WHEN percentage > 97.0 THEN 100.0
+	WHEN percentage IS NULL THEN 0.0
+	ELSE percentage
     END AS REAL) AS percentage
 
 FROM documents
@@ -225,7 +242,7 @@ LIMIT 1;
 WITH true_progress AS (
     SELECT
         start_time AS last_read,
-        SUM(duration) / 60 AS total_time_minutes,
+        SUM(duration) AS total_time_seconds,
         document_id,
         current_page,
         total_pages,
@@ -240,7 +257,7 @@ SELECT
 
     CAST(IFNULL(current_page, 0) AS INTEGER) AS current_page,
     CAST(IFNULL(total_pages, 0) AS INTEGER) AS total_pages,
-    CAST(IFNULL(total_time_minutes, 0) AS INTEGER) AS total_time_minutes,
+    CAST(IFNULL(total_time_seconds, 0) AS INTEGER) AS total_time_seconds,
     CAST(DATETIME(IFNULL(last_read, "1970-01-01"), time_offset) AS TEXT) AS last_read,
 
     CAST(CASE

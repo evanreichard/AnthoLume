@@ -1,5 +1,10 @@
 package utils
 
+import (
+	"fmt"
+	"math"
+)
+
 type UTCOffset struct {
 	Name  string
 	Value string
@@ -48,4 +53,28 @@ var UTC_OFFSETS = []UTCOffset{
 
 func GetUTCOffsets() []UTCOffset {
 	return UTC_OFFSETS
+}
+
+func NiceSeconds(input int64) (result string) {
+	days := math.Floor(float64(input) / 60 / 60 / 24)
+	seconds := input % (60 * 60 * 24)
+	hours := math.Floor(float64(seconds) / 60 / 60)
+	seconds = input % (60 * 60)
+	minutes := math.Floor(float64(seconds) / 60)
+	seconds = input % 60
+
+	if days > 0 {
+		result += fmt.Sprintf("%dd ", int(days))
+	}
+	if hours > 0 {
+		result += fmt.Sprintf("%dh ", int(hours))
+	}
+	if minutes > 0 {
+		result += fmt.Sprintf("%dm ", int(minutes))
+	}
+	if seconds > 0 {
+		result += fmt.Sprintf("%ds", int(seconds))
+	}
+
+	return
 }

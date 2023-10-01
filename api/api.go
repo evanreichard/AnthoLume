@@ -76,6 +76,7 @@ func (api *API) registerWebAppRoutes() {
 	helperFuncs := template.FuncMap{
 		"GetSVGGraphData": graph.GetSVGGraphData,
 		"GetUTCOffsets":   utils.GetUTCOffsets,
+		"NiceSeconds":     utils.NiceSeconds,
 	}
 
 	render.AddFromFilesFuncs("login", helperFuncs, "templates/login.html")

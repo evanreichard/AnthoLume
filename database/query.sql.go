@@ -417,7 +417,7 @@ func (q *Queries) GetDevices(ctx context.Context, userID string) ([]GetDevicesRo
 }
 
 const getDocument = `-- name: GetDocument :one
-SELECT id, md5, filepath, coverfile, title, author, series, series_index, lang, description, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at FROM documents
+SELECT id, md5, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at FROM documents
 WHERE id = ?1 LIMIT 1
 `
 
@@ -435,6 +435,7 @@ func (q *Queries) GetDocument(ctx context.Context, documentID string) (Document,
 		&i.SeriesIndex,
 		&i.Lang,
 		&i.Description,
+		&i.Words,
 		&i.Gbid,
 		&i.Olid,
 		&i.Isbn10,
@@ -543,10 +544,15 @@ const getDocumentWithStats = `-- name: GetDocumentWithStats :one
 WITH true_progress AS (
     SELECT
         start_time AS last_read,
-        SUM(duration) / 60 AS total_time_minutes,
+        SUM(duration) AS total_time_seconds,
         document_id,
         current_page,
         total_pages,
+
+	-- Determine Read Pages
+	COUNT(DISTINCT current_page) AS read_pages,
+
+	-- Derive Percentage of Book
         ROUND(CAST(current_page AS REAL) / CAST(total_pages AS REAL) * 100, 2) AS percentage
     FROM activity
     WHERE user_id = ?1
@@ -556,17 +562,27 @@ WITH true_progress AS (
     LIMIT 1
 )
 SELECT
-    documents.id, documents.md5, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at,
+    documents.id, documents.md5, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.words, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at,
 
     CAST(IFNULL(current_page, 0) AS INTEGER) AS current_page,
     CAST(IFNULL(total_pages, 0) AS INTEGER) AS total_pages,
-    CAST(IFNULL(total_time_minutes, 0) AS INTEGER) AS total_time_minutes,
+    CAST(IFNULL(total_time_seconds, 0) AS INTEGER) AS total_time_seconds,
     CAST(DATETIME(IFNULL(last_read, "1970-01-01"), time_offset) AS TEXT) AS last_read,
+    CAST(IFNULL(read_pages, 0) AS INTEGER) AS read_pages,
 
+    -- Calculate Seconds / Page
+    --   1. Calculate Total Time in Seconds (Sum Duration in Activity)
+    --   2. Divide by Read Pages (Distinct Pages in Activity)
     CAST(CASE
-        WHEN percentage > 97.0 THEN 100.0
-        WHEN percentage IS NULL THEN 0.0
-        ELSE percentage
+	WHEN total_time_seconds IS NULL THEN 0.0
+	ELSE ROUND(CAST(total_time_seconds AS REAL) / CAST(read_pages AS REAL))
+    END AS INTEGER) AS seconds_per_page,
+
+    -- Arbitrarily >97% is Complete
+    CAST(CASE
+	WHEN percentage > 97.0 THEN 100.0
+	WHEN percentage IS NULL THEN 0.0
+	ELSE percentage
     END AS REAL) AS percentage
 
 FROM documents
@@ -593,6 +609,7 @@ type GetDocumentWithStatsRow struct {
 	SeriesIndex      *int64    `json:"series_index"`
 	Lang             *string   `json:"lang"`
 	Description      *string   `json:"description"`
+	Words            *int64    `json:"words"`
 	Gbid             *string   `json:"gbid"`
 	Olid             *string   `json:"-"`
 	Isbn10           *string   `json:"isbn10"`
@@ -603,8 +620,10 @@ type GetDocumentWithStatsRow struct {
 	CreatedAt        time.Time `json:"created_at"`
 	CurrentPage      int64     `json:"current_page"`
 	TotalPages       int64     `json:"total_pages"`
-	TotalTimeMinutes int64     `json:"total_time_minutes"`
+	TotalTimeSeconds int64     `json:"total_time_seconds"`
 	LastRead         string    `json:"last_read"`
+	ReadPages        int64     `json:"read_pages"`
+	SecondsPerPage   int64     `json:"seconds_per_page"`
 	Percentage       float64   `json:"percentage"`
 }
 
@@ -622,6 +641,7 @@ func (q *Queries) GetDocumentWithStats(ctx context.Context, arg GetDocumentWithS
 		&i.SeriesIndex,
 		&i.Lang,
 		&i.Description,
+		&i.Words,
 		&i.Gbid,
 		&i.Olid,
 		&i.Isbn10,
@@ -632,15 +652,17 @@ func (q *Queries) GetDocumentWithStats(ctx context.Context, arg GetDocumentWithS
 		&i.CreatedAt,
 		&i.CurrentPage,
 		&i.TotalPages,
-		&i.TotalTimeMinutes,
+		&i.TotalTimeSeconds,
 		&i.LastRead,
+		&i.ReadPages,
+		&i.SecondsPerPage,
 		&i.Percentage,
 	)
 	return i, err
 }
 
 const getDocuments = `-- name: GetDocuments :many
-SELECT id, md5, filepath, coverfile, title, author, series, series_index, lang, description, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at FROM documents
+SELECT id, md5, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at FROM documents
 ORDER BY created_at DESC
 LIMIT ?2
 OFFSET ?1
@@ -671,6 +693,7 @@ func (q *Queries) GetDocuments(ctx context.Context, arg GetDocumentsParams) ([]D
 			&i.SeriesIndex,
 			&i.Lang,
 			&i.Description,
+			&i.Words,
 			&i.Gbid,
 			&i.Olid,
 			&i.Isbn10,
@@ -697,7 +720,7 @@ const getDocumentsWithStats = `-- name: GetDocumentsWithStats :many
 WITH true_progress AS (
     SELECT
         start_time AS last_read,
-        SUM(duration) / 60 AS total_time_minutes,
+        SUM(duration) AS total_time_seconds,
         document_id,
         current_page,
         total_pages,
@@ -708,11 +731,11 @@ WITH true_progress AS (
     HAVING MAX(start_time)
 )
 SELECT
-    documents.id, documents.md5, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at,
+    documents.id, documents.md5, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.words, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at,
 
     CAST(IFNULL(current_page, 0) AS INTEGER) AS current_page,
     CAST(IFNULL(total_pages, 0) AS INTEGER) AS total_pages,
-    CAST(IFNULL(total_time_minutes, 0) AS INTEGER) AS total_time_minutes,
+    CAST(IFNULL(total_time_seconds, 0) AS INTEGER) AS total_time_seconds,
     CAST(DATETIME(IFNULL(last_read, "1970-01-01"), time_offset) AS TEXT) AS last_read,
 
     CAST(CASE
@@ -747,6 +770,7 @@ type GetDocumentsWithStatsRow struct {
 	SeriesIndex      *int64    `json:"series_index"`
 	Lang             *string   `json:"lang"`
 	Description      *string   `json:"description"`
+	Words            *int64    `json:"words"`
 	Gbid             *string   `json:"gbid"`
 	Olid             *string   `json:"-"`
 	Isbn10           *string   `json:"isbn10"`
@@ -757,7 +781,7 @@ type GetDocumentsWithStatsRow struct {
 	CreatedAt        time.Time `json:"created_at"`
 	CurrentPage      int64     `json:"current_page"`
 	TotalPages       int64     `json:"total_pages"`
-	TotalTimeMinutes int64     `json:"total_time_minutes"`
+	TotalTimeSeconds int64     `json:"total_time_seconds"`
 	LastRead         string    `json:"last_read"`
 	Percentage       float64   `json:"percentage"`
 }
@@ -782,6 +806,7 @@ func (q *Queries) GetDocumentsWithStats(ctx context.Context, arg GetDocumentsWit
 			&i.SeriesIndex,
 			&i.Lang,
 			&i.Description,
+			&i.Words,
 			&i.Gbid,
 			&i.Olid,
 			&i.Isbn10,
@@ -792,7 +817,7 @@ func (q *Queries) GetDocumentsWithStats(ctx context.Context, arg GetDocumentsWit
 			&i.CreatedAt,
 			&i.CurrentPage,
 			&i.TotalPages,
-			&i.TotalTimeMinutes,
+			&i.TotalTimeSeconds,
 			&i.LastRead,
 			&i.Percentage,
 		); err != nil {
@@ -830,7 +855,7 @@ func (q *Queries) GetLastActivity(ctx context.Context, arg GetLastActivityParams
 }
 
 const getMissingDocuments = `-- name: GetMissingDocuments :many
-SELECT documents.id, documents.md5, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at FROM documents
+SELECT documents.id, documents.md5, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.words, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at FROM documents
 WHERE
     documents.filepath IS NOT NULL
     AND documents.deleted = false
@@ -867,6 +892,7 @@ func (q *Queries) GetMissingDocuments(ctx context.Context, documentIds []string)
 			&i.SeriesIndex,
 			&i.Lang,
 			&i.Description,
+			&i.Words,
 			&i.Gbid,
 			&i.Olid,
 			&i.Isbn10,
@@ -1157,7 +1183,7 @@ UPDATE documents
 SET
   deleted = ?1
 WHERE id = ?2
-RETURNING id, md5, filepath, coverfile, title, author, series, series_index, lang, description, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at
+RETURNING id, md5, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at
 `
 
 type UpdateDocumentDeletedParams struct {
@@ -1179,6 +1205,7 @@ func (q *Queries) UpdateDocumentDeleted(ctx context.Context, arg UpdateDocumentD
 		&i.SeriesIndex,
 		&i.Lang,
 		&i.Description,
+		&i.Words,
 		&i.Gbid,
 		&i.Olid,
 		&i.Isbn10,
@@ -1196,7 +1223,7 @@ UPDATE documents
 SET
     synced = ?1
 WHERE id = ?2
-RETURNING id, md5, filepath, coverfile, title, author, series, series_index, lang, description, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at
+RETURNING id, md5, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at
 `
 
 type UpdateDocumentSyncParams struct {
@@ -1218,6 +1245,7 @@ func (q *Queries) UpdateDocumentSync(ctx context.Context, arg UpdateDocumentSync
 		&i.SeriesIndex,
 		&i.Lang,
 		&i.Description,
+		&i.Words,
 		&i.Gbid,
 		&i.Olid,
 		&i.Isbn10,
@@ -1338,12 +1366,13 @@ INSERT INTO documents (
     series_index,
     lang,
     description,
+    words,
     olid,
     gbid,
     isbn10,
     isbn13
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT DO UPDATE
 SET
     md5 =           COALESCE(excluded.md5, md5),
@@ -1355,11 +1384,12 @@ SET
     series_index =  COALESCE(excluded.series_index, series_index),
     lang =          COALESCE(excluded.lang, lang),
     description =   COALESCE(excluded.description, description),
+    words =         COALESCE(excluded.words, words),
     olid =          COALESCE(excluded.olid, olid),
     gbid =          COALESCE(excluded.gbid, gbid),
     isbn10 =        COALESCE(excluded.isbn10, isbn10),
     isbn13 =        COALESCE(excluded.isbn13, isbn13)
-RETURNING id, md5, filepath, coverfile, title, author, series, series_index, lang, description, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at
+RETURNING id, md5, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at
 `
 
 type UpsertDocumentParams struct {
@@ -1373,6 +1403,7 @@ type UpsertDocumentParams struct {
 	SeriesIndex *int64  `json:"series_index"`
 	Lang        *string `json:"lang"`
 	Description *string `json:"description"`
+	Words       *int64  `json:"words"`
 	Olid        *string `json:"-"`
 	Gbid        *string `json:"gbid"`
 	Isbn10      *string `json:"isbn10"`
@@ -1391,6 +1422,7 @@ func (q *Queries) UpsertDocument(ctx context.Context, arg UpsertDocumentParams) 
 		arg.SeriesIndex,
 		arg.Lang,
 		arg.Description,
+		arg.Words,
 		arg.Olid,
 		arg.Gbid,
 		arg.Isbn10,
@@ -1408,6 +1440,7 @@ func (q *Queries) UpsertDocument(ctx context.Context, arg UpsertDocumentParams) 
 		&i.SeriesIndex,
 		&i.Lang,
 		&i.Description,
+		&i.Words,
 		&i.Gbid,
 		&i.Olid,
 		&i.Isbn10,

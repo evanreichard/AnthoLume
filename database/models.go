@@ -39,6 +39,7 @@ type Document struct {
 	SeriesIndex *int64    `json:"series_index"`
 	Lang        *string   `json:"lang"`
 	Description *string   `json:"description"`
+	Words       *int64    `json:"words"`
 	Gbid        *string   `json:"gbid"`
 	Olid        *string   `json:"-"`
 	Isbn10      *string   `json:"isbn10"`

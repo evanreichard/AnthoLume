@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS documents (
     series_index INTEGER,
     lang TEXT,
     description TEXT,
+    words INTEGER,
 
     gbid TEXT,
     olid TEXT,

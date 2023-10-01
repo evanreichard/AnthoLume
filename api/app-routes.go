@@ -75,21 +75,24 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 	templateVarsBase["RouteName"] = routeName
 
 	return func(c *gin.Context) {
-		rUser, _ := c.Get("AuthorizedUser")
+		var userID string
+		if rUser, _ := c.Get("AuthorizedUser"); rUser != nil {
+			userID = rUser.(string)
+		}
 
 		// Copy Base & Update
 		templateVars := gin.H{}
 		for k, v := range templateVarsBase {
 			templateVars[k] = v
 		}
-		templateVars["User"] = rUser
+		templateVars["User"] = userID
 
 		// Potential URL Parameters
 		qParams := bindQueryParams(c)
 
 		if routeName == "documents" {
 			documents, err := api.DB.Queries.GetDocumentsWithStats(api.DB.Ctx, database.GetDocumentsWithStatsParams{
-				UserID: rUser.(string),
+				UserID: userID,
 				Offset: (*qParams.Page - 1) * *qParams.Limit,
 				Limit:  *qParams.Limit,
 			})
@@ -97,6 +100,10 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 				log.Error("[createAppResourcesRoute] GetDocumentsWithStats DB Error:", err)
 				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 				return
+			}
+
+			if err = api.getDocumentsWordCount(documents); err != nil {
+				log.Error("[createAppResourcesRoute] Unable to Get Word Counts: ", err)
 			}
 
 			templateVars["Data"] = documents
@@ -109,7 +116,7 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			}
 
 			document, err := api.DB.Queries.GetDocumentWithStats(api.DB.Ctx, database.GetDocumentWithStatsParams{
-				UserID:     rUser.(string),
+				UserID:     userID,
 				DocumentID: rDocID.DocumentID,
 			})
 			if err != nil {
@@ -118,11 +125,21 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 				return
 			}
 
+			statistics := gin.H{
+				"TotalTimeLeftSeconds": (document.TotalPages - document.CurrentPage) * document.SecondsPerPage,
+				"WordsPerMinute":       "N/A",
+			}
+
+			if document.Words != nil && *document.Words != 0 {
+				statistics["WordsPerMinute"] = (*document.Words / document.TotalPages * document.ReadPages) / (document.TotalTimeSeconds / 60.0)
+			}
+
 			templateVars["RelBase"] = "../"
 			templateVars["Data"] = document
+			templateVars["Statistics"] = statistics
 		} else if routeName == "activity" {
 			activityFilter := database.GetActivityParams{
-				UserID: rUser.(string),
+				UserID: userID,
 				Offset: (*qParams.Page - 1) * *qParams.Limit,
 				Limit:  *qParams.Limit,
 			}
@@ -143,7 +160,7 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 		} else if routeName == "home" {
 			start_time := time.Now()
 			weekly_streak, err := api.DB.Queries.GetUserWindowStreaks(api.DB.Ctx, database.GetUserWindowStreaksParams{
-				UserID: rUser.(string),
+				UserID: userID,
 				Window: "WEEK",
 			})
 			if err != nil {
@@ -153,7 +170,7 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			start_time = time.Now()
 
 			daily_streak, err := api.DB.Queries.GetUserWindowStreaks(api.DB.Ctx, database.GetUserWindowStreaksParams{
-				UserID: rUser.(string),
+				UserID: userID,
 				Window: "DAY",
 			})
 			if err != nil {
@@ -162,11 +179,11 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			log.Debug("GetUserWindowStreaks - DAY - ", time.Since(start_time))
 
 			start_time = time.Now()
-			database_info, _ := api.DB.Queries.GetDatabaseInfo(api.DB.Ctx, rUser.(string))
+			database_info, _ := api.DB.Queries.GetDatabaseInfo(api.DB.Ctx, userID)
 			log.Debug("GetDatabaseInfo - ", time.Since(start_time))
 
 			start_time = time.Now()
-			read_graph_data, _ := api.DB.Queries.GetDailyReadStats(api.DB.Ctx, rUser.(string))
+			read_graph_data, _ := api.DB.Queries.GetDailyReadStats(api.DB.Ctx, userID)
 			log.Debug("GetDailyReadStats - ", time.Since(start_time))
 
 			templateVars["Data"] = gin.H{
@@ -176,14 +193,14 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 				"GraphData":    read_graph_data,
 			}
 		} else if routeName == "settings" {
-			user, err := api.DB.Queries.GetUser(api.DB.Ctx, rUser.(string))
+			user, err := api.DB.Queries.GetUser(api.DB.Ctx, userID)
 			if err != nil {
 				log.Error("[createAppResourcesRoute] GetUser DB Error:", err)
 				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 				return
 			}
 
-			devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, rUser.(string))
+			devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, userID)
 			if err != nil {
 				log.Error("[createAppResourcesRoute] GetDevices DB Error:", err)
 				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
@@ -248,16 +265,16 @@ func (api *API) getDocumentCover(c *gin.Context) {
 	var coverFile string = "UNKNOWN"
 
 	// Identify Documents & Save Covers
-	metadataResults, err := metadata.GetMetadata(metadata.MetadataInfo{
+	metadataResults, err := metadata.SearchMetadata(metadata.GBOOK, metadata.MetadataInfo{
 		Title:  document.Title,
 		Author: document.Author,
 	})
 
-	if err == nil && len(metadataResults) > 0 && metadataResults[0].GBID != nil {
+	if err == nil && len(metadataResults) > 0 && metadataResults[0].ID != nil {
 		firstResult := metadataResults[0]
 
 		// Save Cover
-		fileName, err := metadata.SaveCover(*firstResult.GBID, coverDir, document.ID, false)
+		fileName, err := metadata.CacheCover(*firstResult.ID, coverDir, document.ID, false)
 		if err == nil {
 			coverFile = *fileName
 		}
@@ -268,8 +285,8 @@ func (api *API) getDocumentCover(c *gin.Context) {
 			Title:       firstResult.Title,
 			Author:      firstResult.Author,
 			Description: firstResult.Description,
-			Gbid:        firstResult.GBID,
-			Olid:        firstResult.OLID,
+			Gbid:        firstResult.ID,
+			Olid:        nil,
 			Isbn10:      firstResult.ISBN10,
 			Isbn13:      firstResult.ISBN13,
 		}); err != nil {
@@ -368,7 +385,7 @@ func (api *API) editDocument(c *gin.Context) {
 		coverFileName = &fileName
 	} else if rDocEdit.CoverGBID != nil {
 		var coverDir string = filepath.Join(api.Config.DataPath, "covers")
-		fileName, err := metadata.SaveCover(*rDocEdit.CoverGBID, coverDir, rDocID.DocumentID, true)
+		fileName, err := metadata.CacheCover(*rDocEdit.CoverGBID, coverDir, rDocID.DocumentID, true)
 		if err == nil {
 			coverFileName = fileName
 		}
@@ -456,7 +473,7 @@ func (api *API) identifyDocument(c *gin.Context) {
 	}
 
 	// Get Metadata
-	metadataResults, err := metadata.GetMetadata(metadata.MetadataInfo{
+	metadataResults, err := metadata.SearchMetadata(metadata.GBOOK, metadata.MetadataInfo{
 		Title:  rDocIdentify.Title,
 		Author: rDocIdentify.Author,
 		ISBN10: rDocIdentify.ISBN,
@@ -471,8 +488,8 @@ func (api *API) identifyDocument(c *gin.Context) {
 			Title:       firstResult.Title,
 			Author:      firstResult.Author,
 			Description: firstResult.Description,
-			Gbid:        firstResult.GBID,
-			Olid:        firstResult.OLID,
+			Gbid:        firstResult.ID,
+			Olid:        nil,
 			Isbn10:      firstResult.ISBN10,
 			Isbn13:      firstResult.ISBN13,
 		}); err != nil {
@@ -495,7 +512,17 @@ func (api *API) identifyDocument(c *gin.Context) {
 		return
 	}
 
+	statistics := gin.H{
+		"TotalTimeLeftSeconds": (document.TotalPages - document.CurrentPage) * document.SecondsPerPage,
+		"WordsPerMinute":       "N/A",
+	}
+
+	if document.Words != nil && *document.Words != 0 {
+		statistics["WordsPerMinute"] = (*document.Words / document.TotalPages * document.ReadPages) / (document.TotalTimeSeconds / 60.0)
+	}
+
 	templateVars["Data"] = document
+	templateVars["Statistics"] = statistics
 
 	c.HTML(http.StatusOK, "document", templateVars)
 }
@@ -580,6 +607,45 @@ func (api *API) editSettings(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "settings", templateVars)
+}
+
+func (api *API) getDocumentsWordCount(documents []database.GetDocumentsWithStatsRow) error {
+	// Do Transaction
+	tx, err := api.DB.DB.Begin()
+	if err != nil {
+		log.Error("[getDocumentsWordCount] Transaction Begin DB Error:", err)
+		return err
+	}
+
+	// Defer & Start Transaction
+	defer tx.Rollback()
+	qtx := api.DB.Queries.WithTx(tx)
+
+	for _, item := range documents {
+		if item.Words == nil && item.Filepath != nil {
+			filePath := filepath.Join(api.Config.DataPath, "documents", *item.Filepath)
+			wordCount, err := metadata.GetWordCount(filePath)
+			if err != nil {
+				log.Warn("[getDocumentsWordCount] Word Count Error - ", err)
+			} else {
+				if _, err := qtx.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
+					ID:    item.ID,
+					Words: &wordCount,
+				}); err != nil {
+					log.Error("[getDocumentsWordCount] UpsertDocument DB Error - ", err)
+					return err
+				}
+			}
+		}
+	}
+
+	// Commit Transaction
+	if err := tx.Commit(); err != nil {
+		log.Error("[getDocumentsWordCount] Transaction Commit DB Error:", err)
+		return err
+	}
+
+	return nil
 }
 
 func bindQueryParams(c *gin.Context) queryParams {

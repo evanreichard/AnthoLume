@@ -295,16 +295,56 @@
 	  {{ or .Data.Author "N/A" }}
 	</p>
       </div>
-      <div>
-	  <p class="text-gray-500">Time Read</p>
-	  <p class="font-medium text-lg">
-	  {{ .Data.TotalTimeMinutes }} Minutes
-	  </p>
+      <div class="relative">
+	<div class="text-gray-500 inline-flex gap-2 relative">
+	  <p>Time Read</p>
+	  <label class="my-auto" for="progress-info-button">
+	    <svg
+	      width="18"
+	      height="18"
+	      class="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
+	      viewBox="0 0 24 24"
+	      fill="currentColor"
+	      xmlns="http://www.w3.org/2000/svg"
+	    >
+	      <path
+		fill-rule="evenodd"
+		clip-rule="evenodd"
+		d="M12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22ZM12 17.75C12.4142 17.75 12.75 17.4142 12.75 17V11C12.75 10.5858 12.4142 10.25 12 10.25C11.5858 10.25 11.25 10.5858 11.25 11V17C11.25 17.4142 11.5858 17.75 12 17.75ZM12 7C12.5523 7 13 7.44772 13 8C13 8.55228 12.5523 9 12 9C11.4477 9 11 8.55228 11 8C11 7.44772 11.4477 7 12 7Z"
+	      />
+	    </svg>
+	  </label>
+	  <input type="checkbox" id="progress-info-button" class="hidden css-button"/>
+
+	  <div class="absolute z-30 top-7 right-0 p-3 transition-all duration-200 bg-gray-200 rounded shadow-lg shadow-gray-500 dark:shadow-gray-900 dark:bg-gray-600">
+	    <div class="text-xs flex">
+              <p class="text-gray-400 w-32">Seconds / Page</p>
+              <p class="font-medium dark:text-white">
+		{{ .Data.SecondsPerPage }}
+              </p>
+	    </div>
+	    <div class="text-xs flex">
+              <p class="text-gray-400 w-32">Words / Minute</p>
+              <p class="font-medium dark:text-white">
+		{{ .Statistics.WordsPerMinute }}
+              </p>
+	    </div>
+	    <div class="text-xs flex">
+              <p class="text-gray-400 w-32">Est. Time Left</p>
+              <p class="font-medium dark:text-white whitespace-nowrap">
+		{{ NiceSeconds .Statistics.TotalTimeLeftSeconds }}
+              </p>
+	    </div>
+	  </div>
+	</div>
+	<p class="font-medium text-lg">
+	  {{ NiceSeconds .Data.TotalTimeSeconds }}
+	</p>
       </div>
       <div>
 	  <p class="text-gray-500">Progress</p>
 	  <p class="font-medium text-lg">
-	  {{ .Data.CurrentPage }} / {{ .Data.TotalPages }} ({{ .Data.Percentage }}%)
+	    {{ .Data.CurrentPage }} / {{ .Data.TotalPages }} ({{ .Data.Percentage }}%)
 	  </p>
       </div>
       <!--
@@ -410,7 +450,7 @@
 	      Cover
 	    </dt>
 	    <dd class="mt-1 text-sm sm:mt-0 sm:col-span-2">
-	      <img class="rounded object-fill h-32" src="https://books.google.com/books/content/images/frontcover/{{ .Metadata.GBID }}?fife=w480-h690"></img>
+	      <img class="rounded object-fill h-32" src="https://books.google.com/books/content/images/frontcover/{{ .Metadata.ID }}?fife=w480-h690"></img>
 	    </dd>
 	  </div>
 	  <div class="p-3 bg-white dark:bg-gray-800 grid grid-cols-3 gap-4 sm:px-6">
@@ -460,7 +500,7 @@
 	  <input type="text" id="description" name="description" value="{{ .Metadata.Description }}">
 	  <input type="text" id="isbn_10" name="isbn_10" value="{{ .Metadata.ISBN10 }}">
 	  <input type="text" id="isbn_13" name="isbn_13" value="{{ .Metadata.ISBN13 }}">
-	  <input type="text" id="cover_gbid" name="cover_gbid" value="{{ .Metadata.GBID }}">
+	  <input type="text" id="cover_gbid" name="cover_gbid" value="{{ .Metadata.ID }}">
 	</div>
       </form>
       <div class="flex justify-end gap-4 m-4">
