@@ -22,11 +22,11 @@ import (
 )
 
 type activityItem struct {
-	DocumentID  string `json:"document"`
-	StartTime   int64  `json:"start_time"`
-	Duration    int64  `json:"duration"`
-	CurrentPage int64  `json:"current_page"`
-	TotalPages  int64  `json:"total_pages"`
+	DocumentID string `json:"document"`
+	StartTime  int64  `json:"start_time"`
+	Duration   int64  `json:"duration"`
+	Page       int64  `json:"page"`
+	Pages      int64  `json:"pages"`
 }
 
 type requestActivity struct {
@@ -256,13 +256,13 @@ func (api *API) addActivities(c *gin.Context) {
 	// Add All Activity
 	for _, item := range rActivity.Activity {
 		if _, err := qtx.AddActivity(api.DB.Ctx, database.AddActivityParams{
-			UserID:      rUser.(string),
-			DocumentID:  item.DocumentID,
-			DeviceID:    rActivity.DeviceID,
-			StartTime:   time.Unix(int64(item.StartTime), 0).UTC(),
-			Duration:    int64(item.Duration),
-			CurrentPage: int64(item.CurrentPage),
-			TotalPages:  int64(item.TotalPages),
+			UserID:     rUser.(string),
+			DocumentID: item.DocumentID,
+			DeviceID:   rActivity.DeviceID,
+			StartTime:  time.Unix(int64(item.StartTime), 0).UTC(),
+			Duration:   int64(item.Duration),
+			Page:       int64(item.Page),
+			Pages:      int64(item.Pages),
 		}); err != nil {
 			log.Error("[addActivities] AddActivity DB Error:", err)
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Activity"})

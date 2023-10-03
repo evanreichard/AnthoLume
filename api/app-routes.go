@@ -126,12 +126,12 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			}
 
 			statistics := gin.H{
-				"TotalTimeLeftSeconds": (document.TotalPages - document.CurrentPage) * document.SecondsPerPage,
+				"TotalTimeLeftSeconds": (document.Pages - document.Page) * document.SecondsPerPage,
 				"WordsPerMinute":       "N/A",
 			}
 
 			if document.Words != nil && *document.Words != 0 {
-				statistics["WordsPerMinute"] = (*document.Words / document.TotalPages * document.ReadPages) / (document.TotalTimeSeconds / 60.0)
+				statistics["WordsPerMinute"] = (*document.Words / document.Pages * document.ReadPages) / (document.TotalTimeSeconds / 60.0)
 			}
 
 			templateVars["RelBase"] = "../"
@@ -513,12 +513,12 @@ func (api *API) identifyDocument(c *gin.Context) {
 	}
 
 	statistics := gin.H{
-		"TotalTimeLeftSeconds": (document.TotalPages - document.CurrentPage) * document.SecondsPerPage,
+		"TotalTimeLeftSeconds": (document.Pages - document.Page) * document.SecondsPerPage,
 		"WordsPerMinute":       "N/A",
 	}
 
 	if document.Words != nil && *document.Words != 0 {
-		statistics["WordsPerMinute"] = (*document.Words / document.TotalPages * document.ReadPages) / (document.TotalTimeSeconds / 60.0)
+		statistics["WordsPerMinute"] = (*document.Words / document.Pages * document.ReadPages) / (document.TotalTimeSeconds / 60.0)
 	}
 
 	templateVars["Data"] = document

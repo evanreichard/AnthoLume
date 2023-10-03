@@ -919,8 +919,8 @@ function SyncNinja:getStatisticsActivity(timestamp)
             document = rows[1][i],
             start_time = tonumber(rows[2][i]),
             duration = tonumber(rows[3][i]),
-            current_page = tonumber(rows[4][i]),
-            total_pages = tonumber(rows[5][i])
+            page = tonumber(rows[4][i]),
+            pages = tonumber(rows[5][i])
         })
     end
 

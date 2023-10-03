@@ -19,21 +19,21 @@ INSERT INTO activity (
     device_id,
     start_time,
     duration,
-    current_page,
-    total_pages
+    page,
+    pages
 )
 VALUES (?, ?, ?, ?, ?, ?, ?)
-RETURNING id, user_id, document_id, device_id, start_time, duration, current_page, total_pages, created_at
+RETURNING id, user_id, document_id, device_id, start_time, duration, page, pages, created_at
 `
 
 type AddActivityParams struct {
-	UserID      string    `json:"user_id"`
-	DocumentID  string    `json:"document_id"`
-	DeviceID    string    `json:"device_id"`
-	StartTime   time.Time `json:"start_time"`
-	Duration    int64     `json:"duration"`
-	CurrentPage int64     `json:"current_page"`
-	TotalPages  int64     `json:"total_pages"`
+	UserID     string    `json:"user_id"`
+	DocumentID string    `json:"document_id"`
+	DeviceID   string    `json:"device_id"`
+	StartTime  time.Time `json:"start_time"`
+	Duration   int64     `json:"duration"`
+	Page       int64     `json:"page"`
+	Pages      int64     `json:"pages"`
 }
 
 func (q *Queries) AddActivity(ctx context.Context, arg AddActivityParams) (Activity, error) {
@@ -43,8 +43,8 @@ func (q *Queries) AddActivity(ctx context.Context, arg AddActivityParams) (Activ
 		arg.DeviceID,
 		arg.StartTime,
 		arg.Duration,
-		arg.CurrentPage,
-		arg.TotalPages,
+		arg.Page,
+		arg.Pages,
 	)
 	var i Activity
 	err := row.Scan(
@@ -54,8 +54,8 @@ func (q *Queries) AddActivity(ctx context.Context, arg AddActivityParams) (Activ
 		&i.DeviceID,
 		&i.StartTime,
 		&i.Duration,
-		&i.CurrentPage,
-		&i.TotalPages,
+		&i.Page,
+		&i.Pages,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -155,8 +155,8 @@ SELECT
     title,
     author,
     duration,
-    current_page,
-    total_pages
+    page,
+    pages
 FROM activity
 LEFT JOIN documents ON documents.id = activity.document_id
 LEFT JOIN users ON users.id = activity.user_id
@@ -181,13 +181,13 @@ type GetActivityParams struct {
 }
 
 type GetActivityRow struct {
-	DocumentID  string  `json:"document_id"`
-	StartTime   string  `json:"start_time"`
-	Title       *string `json:"title"`
-	Author      *string `json:"author"`
-	Duration    int64   `json:"duration"`
-	CurrentPage int64   `json:"current_page"`
-	TotalPages  int64   `json:"total_pages"`
+	DocumentID string  `json:"document_id"`
+	StartTime  string  `json:"start_time"`
+	Title      *string `json:"title"`
+	Author     *string `json:"author"`
+	Duration   int64   `json:"duration"`
+	Page       int64   `json:"page"`
+	Pages      int64   `json:"pages"`
 }
 
 func (q *Queries) GetActivity(ctx context.Context, arg GetActivityParams) ([]GetActivityRow, error) {
@@ -211,8 +211,8 @@ func (q *Queries) GetActivity(ctx context.Context, arg GetActivityParams) ([]Get
 			&i.Title,
 			&i.Author,
 			&i.Duration,
-			&i.CurrentPage,
-			&i.TotalPages,
+			&i.Page,
+			&i.Pages,
 		); err != nil {
 			return nil, err
 		}
@@ -238,7 +238,7 @@ WITH RECURSIVE last_30_days AS (
 ),
 activity_records AS (
     SELECT
-        sum(duration) AS seconds_read,
+        SUM(duration) AS seconds_read,
         DATE(start_time, time_offset) AS day
     FROM activity
     LEFT JOIN users ON users.id = activity.user_id
@@ -290,10 +290,10 @@ func (q *Queries) GetDailyReadStats(ctx context.Context, userID string) ([]GetDa
 
 const getDatabaseInfo = `-- name: GetDatabaseInfo :one
 SELECT
-    (SELECT count(rowid) FROM activity WHERE activity.user_id = ?1) AS activity_size,
-    (SELECT count(rowid) FROM documents) AS documents_size,
-    (SELECT count(rowid) FROM document_progress WHERE document_progress.user_id = ?1) AS progress_size,
-    (SELECT count(rowid) FROM devices WHERE devices.user_id = ?1) AS devices_size
+    (SELECT COUNT(rowid) FROM activity WHERE activity.user_id = ?1) AS activity_size,
+    (SELECT COUNT(rowid) FROM documents) AS documents_size,
+    (SELECT COUNT(rowid) FROM document_progress WHERE document_progress.user_id = ?1) AS progress_size,
+    (SELECT COUNT(rowid) FROM devices WHERE devices.user_id = ?1) AS devices_size
 LIMIT 1
 `
 
@@ -451,13 +451,13 @@ func (q *Queries) GetDocument(ctx context.Context, documentID string) (Document,
 const getDocumentDaysRead = `-- name: GetDocumentDaysRead :one
 WITH document_days AS (
     SELECT DATE(start_time, time_offset) AS dates
-    FROM rescaled_activity
-    JOIN users ON users.id = rescaled_activity.user_id
+    FROM activity
+    JOIN users ON users.id = activity.user_id
     WHERE document_id = ?1
     AND user_id = ?2
     GROUP BY dates
 )
-SELECT CAST(count(*) AS INTEGER) AS days_read
+SELECT CAST(COUNT(*) AS INTEGER) AS days_read
 FROM document_days
 `
 
@@ -475,8 +475,8 @@ func (q *Queries) GetDocumentDaysRead(ctx context.Context, arg GetDocumentDaysRe
 
 const getDocumentReadStats = `-- name: GetDocumentReadStats :one
 SELECT
-    count(DISTINCT page) AS pages_read,
-    sum(duration) AS total_time
+    COUNT(DISTINCT page) AS pages_read,
+    SUM(duration) AS total_time
 FROM rescaled_activity
 WHERE document_id = ?1
 AND user_id = ?2
@@ -503,7 +503,7 @@ func (q *Queries) GetDocumentReadStats(ctx context.Context, arg GetDocumentReadS
 
 const getDocumentReadStatsCapped = `-- name: GetDocumentReadStatsCapped :one
 WITH capped_stats AS (
-    SELECT min(sum(duration), CAST(?1 AS INTEGER)) AS durations
+    SELECT MIN(SUM(duration), CAST(?1 AS INTEGER)) AS durations
     FROM rescaled_activity
     WHERE document_id = ?2
     AND user_id = ?3
@@ -511,8 +511,8 @@ WITH capped_stats AS (
     GROUP BY page
 )
 SELECT
-    CAST(count(*) AS INTEGER) AS pages_read,
-    CAST(sum(durations) AS INTEGER) AS total_time
+    CAST(COUNT(*) AS INTEGER) AS pages_read,
+    CAST(SUM(durations) AS INTEGER) AS total_time
 FROM capped_stats
 `
 
@@ -546,15 +546,15 @@ WITH true_progress AS (
         start_time AS last_read,
         SUM(duration) AS total_time_seconds,
         document_id,
-        current_page,
-        total_pages,
+        page,
+        pages,
 
 	-- Determine Read Pages
-	COUNT(DISTINCT current_page) AS read_pages,
+	COUNT(DISTINCT page) AS read_pages,
 
 	-- Derive Percentage of Book
-        ROUND(CAST(current_page AS REAL) / CAST(total_pages AS REAL) * 100, 2) AS percentage
-    FROM activity
+        ROUND(CAST(page AS REAL) / CAST(pages AS REAL) * 100, 2) AS percentage
+    FROM rescaled_activity
     WHERE user_id = ?1
     AND document_id = ?2
     GROUP BY document_id
@@ -564,8 +564,8 @@ WITH true_progress AS (
 SELECT
     documents.id, documents.md5, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.words, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at,
 
-    CAST(IFNULL(current_page, 0) AS INTEGER) AS current_page,
-    CAST(IFNULL(total_pages, 0) AS INTEGER) AS total_pages,
+    CAST(IFNULL(page, 0) AS INTEGER) AS page,
+    CAST(IFNULL(pages, 0) AS INTEGER) AS pages,
     CAST(IFNULL(total_time_seconds, 0) AS INTEGER) AS total_time_seconds,
     CAST(DATETIME(IFNULL(last_read, "1970-01-01"), time_offset) AS TEXT) AS last_read,
     CAST(IFNULL(read_pages, 0) AS INTEGER) AS read_pages,
@@ -618,8 +618,8 @@ type GetDocumentWithStatsRow struct {
 	Deleted          bool      `json:"-"`
 	UpdatedAt        time.Time `json:"updated_at"`
 	CreatedAt        time.Time `json:"created_at"`
-	CurrentPage      int64     `json:"current_page"`
-	TotalPages       int64     `json:"total_pages"`
+	Page             int64     `json:"page"`
+	Pages            int64     `json:"pages"`
 	TotalTimeSeconds int64     `json:"total_time_seconds"`
 	LastRead         string    `json:"last_read"`
 	ReadPages        int64     `json:"read_pages"`
@@ -650,8 +650,8 @@ func (q *Queries) GetDocumentWithStats(ctx context.Context, arg GetDocumentWithS
 		&i.Deleted,
 		&i.UpdatedAt,
 		&i.CreatedAt,
-		&i.CurrentPage,
-		&i.TotalPages,
+		&i.Page,
+		&i.Pages,
 		&i.TotalTimeSeconds,
 		&i.LastRead,
 		&i.ReadPages,
@@ -722,9 +722,9 @@ WITH true_progress AS (
         start_time AS last_read,
         SUM(duration) AS total_time_seconds,
         document_id,
-        current_page,
-        total_pages,
-        ROUND(CAST(current_page AS REAL) / CAST(total_pages AS REAL) * 100, 2) AS percentage
+        page,
+        pages,
+        ROUND(CAST(page AS REAL) / CAST(pages AS REAL) * 100, 2) AS percentage
     FROM activity
     WHERE user_id = ?1
     GROUP BY document_id
@@ -733,8 +733,8 @@ WITH true_progress AS (
 SELECT
     documents.id, documents.md5, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.words, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at,
 
-    CAST(IFNULL(current_page, 0) AS INTEGER) AS current_page,
-    CAST(IFNULL(total_pages, 0) AS INTEGER) AS total_pages,
+    CAST(IFNULL(page, 0) AS INTEGER) AS page,
+    CAST(IFNULL(pages, 0) AS INTEGER) AS pages,
     CAST(IFNULL(total_time_seconds, 0) AS INTEGER) AS total_time_seconds,
     CAST(DATETIME(IFNULL(last_read, "1970-01-01"), time_offset) AS TEXT) AS last_read,
 
@@ -779,8 +779,8 @@ type GetDocumentsWithStatsRow struct {
 	Deleted          bool      `json:"-"`
 	UpdatedAt        time.Time `json:"updated_at"`
 	CreatedAt        time.Time `json:"created_at"`
-	CurrentPage      int64     `json:"current_page"`
-	TotalPages       int64     `json:"total_pages"`
+	Page             int64     `json:"page"`
+	Pages            int64     `json:"pages"`
 	TotalTimeSeconds int64     `json:"total_time_seconds"`
 	LastRead         string    `json:"last_read"`
 	Percentage       float64   `json:"percentage"`
@@ -815,8 +815,8 @@ func (q *Queries) GetDocumentsWithStats(ctx context.Context, arg GetDocumentsWit
 			&i.Deleted,
 			&i.UpdatedAt,
 			&i.CreatedAt,
-			&i.CurrentPage,
-			&i.TotalPages,
+			&i.Page,
+			&i.Pages,
 			&i.TotalTimeSeconds,
 			&i.LastRead,
 			&i.Percentage,
@@ -1002,7 +1002,7 @@ partitions AS (
 ),
 streaks AS (
     SELECT
-        count(*) AS streak,
+        COUNT(*) AS streak,
         MIN(read_window) AS start_date,
         MAX(read_window) AS end_date,
         time_offset

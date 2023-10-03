@@ -110,13 +110,20 @@ CREATE TABLE IF NOT EXISTS activity (
 
     start_time DATETIME NOT NULL,
     duration INTEGER NOT NULL,
-    current_page INTEGER NOT NULL,
-    total_pages INTEGER NOT NULL,
+    page INTEGER NOT NULL,
+    pages INTEGER NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (user_id) REFERENCES users (id),
     FOREIGN KEY (document_id) REFERENCES documents (id),
     FOREIGN KEY (device_id) REFERENCES devices (id)
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS activity_start_time ON activity (start_time);
+CREATE INDEX IF NOT EXISTS activity_user_id_document_id ON activity (
+    user_id,
+    document_id
 );
 
 -- Update Trigger
@@ -130,20 +137,21 @@ END;
 -- Rescaled Activity View (Adapted from KOReader)
 CREATE VIEW IF NOT EXISTS rescaled_activity AS
 
-WITH RECURSIVE numbers (idx) AS (
+WITH RECURSIVE nums (idx) AS (
     SELECT 1 AS idx
     UNION ALL
     SELECT idx + 1
-    FROM numbers
+    FROM nums
     LIMIT 1000
 ),
 
-total_pages AS (
+current_pages AS (
     SELECT
         document_id,
-        total_pages AS pages
+        user_id,
+        pages
     FROM activity
-    GROUP BY document_id
+    GROUP BY document_id, user_id
     HAVING MAX(start_time)
     ORDER BY start_time DESC
 ),
@@ -153,25 +161,50 @@ intermediate AS (
         activity.document_id,
         activity.device_id,
         activity.user_id,
-        activity.current_page,
-        activity.total_pages,
-        total_pages.pages,
         activity.start_time,
         activity.duration,
-        numbers.idx,
-        -- Derive First Page
-        ((activity.current_page - 1) * total_pages.pages) / activity.total_pages
+        activity.page,
+        current_pages.pages,
+
+        -- Derive first page
+        ((activity.page - 1) * current_pages.pages) / activity.pages
         + 1 AS first_page,
-        -- Derive Last Page
+
+        -- Derive last page
         MAX(
-            ((activity.current_page - 1) * total_pages.pages)
-            / activity.total_pages
+            ((activity.page - 1) * current_pages.pages)
+            / activity.pages
             + 1,
-            (activity.current_page * total_pages.pages) / activity.total_pages
+            (activity.page * current_pages.pages) / activity.pages
         ) AS last_page
+
     FROM activity
-    INNER JOIN total_pages ON total_pages.document_id = activity.document_id
-    INNER JOIN numbers ON numbers.idx <= (last_page - first_page + 1)
+    INNER JOIN current_pages ON
+        current_pages.document_id = activity.document_id
+        AND current_pages.user_id = activity.user_id
+),
+
+-- Improves performance
+num_limit AS (
+    SELECT * FROM nums
+    LIMIT (SELECT MAX(last_page - first_page + 1) FROM intermediate)
+),
+
+rescaled_raw AS (
+    SELECT
+        document_id,
+        device_id,
+        user_id,
+        start_time,
+        last_page,
+	pages,
+        first_page + num_limit.idx - 1 AS page,
+        duration / (
+            last_page - first_page + 1.0
+        ) AS duration
+    FROM intermediate
+    JOIN num_limit ON
+        num_limit.idx <= (last_page - first_page + 1)
 )
 
 SELECT
@@ -179,6 +212,13 @@ SELECT
     device_id,
     user_id,
     start_time,
-    first_page + idx - 1 AS page,
-    duration / (last_page - first_page + 1) AS duration
-FROM intermediate;
+    pages,
+    page,
+
+    -- Round up if last page (maintains total duration)
+    CAST(CASE
+        WHEN page = last_page AND duration != CAST(duration AS INTEGER)
+            THEN duration + 1
+        ELSE duration
+    END AS INTEGER) AS duration
+FROM rescaled_raw;

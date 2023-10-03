@@ -9,15 +9,15 @@ import (
 )
 
 type Activity struct {
-	ID          int64     `json:"id"`
-	UserID      string    `json:"user_id"`
-	DocumentID  string    `json:"document_id"`
-	DeviceID    string    `json:"device_id"`
-	StartTime   time.Time `json:"start_time"`
-	Duration    int64     `json:"duration"`
-	CurrentPage int64     `json:"current_page"`
-	TotalPages  int64     `json:"total_pages"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID         int64     `json:"id"`
+	UserID     string    `json:"user_id"`
+	DocumentID string    `json:"document_id"`
+	DeviceID   string    `json:"device_id"`
+	StartTime  time.Time `json:"start_time"`
+	Duration   int64     `json:"duration"`
+	Page       int64     `json:"page"`
+	Pages      int64     `json:"pages"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 type Device struct {
@@ -85,6 +85,7 @@ type RescaledActivity struct {
 	DeviceID   string    `json:"device_id"`
 	UserID     string    `json:"user_id"`
 	StartTime  time.Time `json:"start_time"`
+	Pages      int64     `json:"pages"`
 	Page       int64     `json:"page"`
 	Duration   int64     `json:"duration"`
 }

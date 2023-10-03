@@ -141,8 +141,8 @@ INSERT INTO activity (
     device_id,
     start_time,
     duration,
-    current_page,
-    total_pages
+    page,
+    pages
 )
 VALUES (?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
@@ -192,15 +192,15 @@ WITH true_progress AS (
         start_time AS last_read,
         SUM(duration) AS total_time_seconds,
         document_id,
-        current_page,
-        total_pages,
+        page,
+        pages,
 
 	-- Determine Read Pages
-	COUNT(DISTINCT current_page) AS read_pages,
+	COUNT(DISTINCT page) AS read_pages,
 
 	-- Derive Percentage of Book
-        ROUND(CAST(current_page AS REAL) / CAST(total_pages AS REAL) * 100, 2) AS percentage
-    FROM activity
+        ROUND(CAST(page AS REAL) / CAST(pages AS REAL) * 100, 2) AS percentage
+    FROM rescaled_activity
     WHERE user_id = $user_id
     AND document_id = $document_id
     GROUP BY document_id
@@ -210,8 +210,8 @@ WITH true_progress AS (
 SELECT
     documents.*,
 
-    CAST(IFNULL(current_page, 0) AS INTEGER) AS current_page,
-    CAST(IFNULL(total_pages, 0) AS INTEGER) AS total_pages,
+    CAST(IFNULL(page, 0) AS INTEGER) AS page,
+    CAST(IFNULL(pages, 0) AS INTEGER) AS pages,
     CAST(IFNULL(total_time_seconds, 0) AS INTEGER) AS total_time_seconds,
     CAST(DATETIME(IFNULL(last_read, "1970-01-01"), time_offset) AS TEXT) AS last_read,
     CAST(IFNULL(read_pages, 0) AS INTEGER) AS read_pages,
@@ -244,9 +244,9 @@ WITH true_progress AS (
         start_time AS last_read,
         SUM(duration) AS total_time_seconds,
         document_id,
-        current_page,
-        total_pages,
-        ROUND(CAST(current_page AS REAL) / CAST(total_pages AS REAL) * 100, 2) AS percentage
+        page,
+        pages,
+        ROUND(CAST(page AS REAL) / CAST(pages AS REAL) * 100, 2) AS percentage
     FROM activity
     WHERE user_id = $user_id
     GROUP BY document_id
@@ -255,8 +255,8 @@ WITH true_progress AS (
 SELECT
     documents.*,
 
-    CAST(IFNULL(current_page, 0) AS INTEGER) AS current_page,
-    CAST(IFNULL(total_pages, 0) AS INTEGER) AS total_pages,
+    CAST(IFNULL(page, 0) AS INTEGER) AS page,
+    CAST(IFNULL(pages, 0) AS INTEGER) AS pages,
     CAST(IFNULL(total_time_seconds, 0) AS INTEGER) AS total_time_seconds,
     CAST(DATETIME(IFNULL(last_read, "1970-01-01"), time_offset) AS TEXT) AS last_read,
 
@@ -295,8 +295,8 @@ SELECT
     title,
     author,
     duration,
-    current_page,
-    total_pages
+    page,
+    pages
 FROM activity
 LEFT JOIN documents ON documents.id = activity.document_id
 LEFT JOIN users ON users.id = activity.user_id
@@ -324,8 +324,8 @@ GROUP BY activity.device_id;
 
 -- name: GetDocumentReadStats :one
 SELECT
-    count(DISTINCT page) AS pages_read,
-    sum(duration) AS total_time
+    COUNT(DISTINCT page) AS pages_read,
+    SUM(duration) AS total_time
 FROM rescaled_activity
 WHERE document_id = $document_id
 AND user_id = $user_id
@@ -333,7 +333,7 @@ AND start_time >= $start_time;
 
 -- name: GetDocumentReadStatsCapped :one
 WITH capped_stats AS (
-    SELECT min(sum(duration), CAST($page_duration_cap AS INTEGER)) AS durations
+    SELECT MIN(SUM(duration), CAST($page_duration_cap AS INTEGER)) AS durations
     FROM rescaled_activity
     WHERE document_id = $document_id
     AND user_id = $user_id
@@ -341,20 +341,20 @@ WITH capped_stats AS (
     GROUP BY page
 )
 SELECT
-    CAST(count(*) AS INTEGER) AS pages_read,
-    CAST(sum(durations) AS INTEGER) AS total_time
+    CAST(COUNT(*) AS INTEGER) AS pages_read,
+    CAST(SUM(durations) AS INTEGER) AS total_time
 FROM capped_stats;
 
 -- name: GetDocumentDaysRead :one
 WITH document_days AS (
     SELECT DATE(start_time, time_offset) AS dates
-    FROM rescaled_activity
-    JOIN users ON users.id = rescaled_activity.user_id
+    FROM activity
+    JOIN users ON users.id = activity.user_id
     WHERE document_id = $document_id
     AND user_id = $user_id
     GROUP BY dates
 )
-SELECT CAST(count(*) AS INTEGER) AS days_read
+SELECT CAST(COUNT(*) AS INTEGER) AS days_read
 FROM document_days;
 
 -- name: GetUserWindowStreaks :one
@@ -381,7 +381,7 @@ partitions AS (
 ),
 streaks AS (
     SELECT
-        count(*) AS streak,
+        COUNT(*) AS streak,
         MIN(read_window) AS start_date,
         MAX(read_window) AS end_date,
         time_offset
@@ -431,10 +431,10 @@ LIMIT 1;
 
 -- name: GetDatabaseInfo :one
 SELECT
-    (SELECT count(rowid) FROM activity WHERE activity.user_id = $user_id) AS activity_size,
-    (SELECT count(rowid) FROM documents) AS documents_size,
-    (SELECT count(rowid) FROM document_progress WHERE document_progress.user_id = $user_id) AS progress_size,
-    (SELECT count(rowid) FROM devices WHERE devices.user_id = $user_id) AS devices_size
+    (SELECT COUNT(rowid) FROM activity WHERE activity.user_id = $user_id) AS activity_size,
+    (SELECT COUNT(rowid) FROM documents) AS documents_size,
+    (SELECT COUNT(rowid) FROM document_progress WHERE document_progress.user_id = $user_id) AS progress_size,
+    (SELECT COUNT(rowid) FROM devices WHERE devices.user_id = $user_id) AS devices_size
 LIMIT 1;
 
 -- name: GetDailyReadStats :many
@@ -448,7 +448,7 @@ WITH RECURSIVE last_30_days AS (
 ),
 activity_records AS (
     SELECT
-        sum(duration) AS seconds_read,
+        SUM(duration) AS seconds_read,
         DATE(start_time, time_offset) AS day
     FROM activity
     LEFT JOIN users ON users.id = activity.user_id
