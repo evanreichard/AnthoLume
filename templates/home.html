@@ -151,6 +151,7 @@
 </div>
 
 <div class="grid grid-cols-1 gap-4 my-4 md:grid-cols-2 lg:grid-cols-3">
+  {{ range $item := .Data.Streaks }}
   <div class="w-full">
     <div
       class="relative w-full px-4 py-6 bg-white shadow-lg dark:bg-gray-700 rounded"
@@ -158,11 +159,12 @@
       <p
         class="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500"
       >
-        Daily Read Streak
+        {{ if eq $item.Window "WEEK" }} Weekly Read Streak {{ else }} Daily Read
+        Streak {{ end }}
       </p>
       <div class="flex items-end my-6 space-x-2">
         <p class="text-5xl font-bold text-black dark:text-white">
-          {{ .Data.DailyStreak.CurrentStreak }}
+          {{ $item.CurrentStreak }}
         </p>
       </div>
       <div class="dark:text-white">
@@ -170,76 +172,73 @@
           class="flex items-center justify-between pb-2 mb-2 text-sm border-b border-gray-200"
         >
           <div>
-            <p>Current Daily Streak</p>
+            <p>
+              {{ if eq $item.Window "WEEK" }} Current Weekly Streak {{ else }}
+              Current Daily Streak {{ end }}
+            </p>
             <div class="flex items-end text-sm text-gray-400">
-              {{ .Data.DailyStreak.CurrentStreakStartDate }} ➞ {{
-              .Data.DailyStreak.CurrentStreakEndDate }}
+              {{ $item.CurrentStreakStartDate }} ➞ {{ $item.CurrentStreakEndDate
+              }}
             </div>
           </div>
-          <div class="flex items-end font-bold">
-            {{ .Data.DailyStreak.CurrentStreak }}
-          </div>
+          <div class="flex items-end font-bold">{{ $item.CurrentStreak }}</div>
         </div>
         <div class="flex items-center justify-between pb-2 mb-2 text-sm">
           <div>
-            <p>Best Daily Streak</p>
+            <p>
+              {{ if eq $item.Window "WEEK" }} Best Weekly Streak {{ else }} Best
+              Daily Streak {{ end }}
+            </p>
             <div class="flex items-end text-sm text-gray-400">
-              {{ .Data.DailyStreak.MaxStreakStartDate }} ➞ {{
-              .Data.DailyStreak.MaxStreakEndDate }}
+              {{ $item.MaxStreakStartDate }} ➞ {{ $item.MaxStreakEndDate }}
             </div>
           </div>
-          <div class="flex items-end font-bold">
-            {{ .Data.DailyStreak.MaxStreak }}
+          <div class="flex items-end font-bold">{{ $item.MaxStreak }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {{ end }}
+
+  <div class="w-full">
+    <div
+      class="flex flex-col justify-between h-full w-full px-4 py-6 bg-white shadow-lg dark:bg-gray-700 rounded"
+    >
+      <div>
+        <p
+          class="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500"
+        >
+          WPM Leaderboard
+        </p>
+        <div class="flex items-end my-6 space-x-2">
+          {{ $length := len .Data.WPMLeaderboard }} {{ if eq $length 0 }}
+          <p class="text-5xl font-bold text-black dark:text-white">N/A</p>
+          {{ else }}
+          <p class="text-5xl font-bold text-black dark:text-white">
+            {{ (index .Data.WPMLeaderboard 0).UserID }}
+          </p>
+          {{ end }}
+        </div>
+      </div>
+      <div class="dark:text-white">
+        {{ range $index, $item := .Data.WPMLeaderboard }} {{ if lt $index 3 }}
+        {{ if eq $index 0 }}
+        <div class="flex items-center justify-between pt-2 pb-2 text-sm">
+          {{ else }}
+          <div
+            class="flex items-center justify-between pt-2 pb-2 text-sm border-t border-gray-200"
+          >
+            {{ end }}
+            <div>
+              <p>{{ $item.UserID }}</p>
+            </div>
+            <div class="flex items-end font-bold">{{ $item.Wpm }} WPM</div>
           </div>
+          {{ end }} {{ end }}
         </div>
       </div>
     </div>
   </div>
 
-  <div class="w-full">
-    <div
-      class="relative w-full px-4 py-6 bg-white shadow-lg dark:bg-gray-700 rounded"
-    >
-      <p
-        class="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500"
-      >
-        Weekly Read Streak
-      </p>
-      <div class="flex items-end my-6 space-x-2">
-        <p class="text-5xl font-bold text-black dark:text-white">
-          {{ .Data.WeeklyStreak.CurrentStreak }}
-        </p>
-      </div>
-      <div class="dark:text-white">
-        <div
-          class="flex items-center justify-between pb-2 mb-2 text-sm border-b border-gray-200"
-        >
-          <div>
-            <p>Current Weekly Streak</p>
-            <div class="flex items-end text-sm text-gray-400">
-              {{ .Data.WeeklyStreak.CurrentStreakStartDate }} ➞ {{
-              .Data.WeeklyStreak.CurrentStreakEndDate }}
-            </div>
-          </div>
-          <div class="flex items-end font-bold">
-            {{ .Data.WeeklyStreak.CurrentStreak }}
-          </div>
-        </div>
-        <div class="flex items-center justify-between pb-2 mb-2 text-sm">
-          <div>
-            <p>Best Weekly Streak</p>
-            <div class="flex items-end text-sm text-gray-400">
-              {{ .Data.WeeklyStreak.MaxStreakStartDate }} ➞ {{
-              .Data.WeeklyStreak.MaxStreakEndDate }}
-            </div>
-          </div>
-          <div class="flex items-end font-bold">
-            {{ .Data.WeeklyStreak.MaxStreak }}
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+  {{end}}
 </div>
-
-{{end}}

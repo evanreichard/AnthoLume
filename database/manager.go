@@ -21,6 +21,9 @@ type DBManager struct {
 //go:embed schema.sql
 var ddl string
 
+//go:embed update_temp_tables.sql
+var tsql string
+
 func NewMgr(c *config.Config) *DBManager {
 	// Create Manager
 	dbm := &DBManager{
@@ -44,22 +47,23 @@ func NewMgr(c *config.Config) *DBManager {
 		log.Fatal("Unsupported Database")
 	}
 
-	// Create Tables
-	if _, err := dbm.DB.ExecContext(dbm.Ctx, ddl); err != nil {
-		log.Fatal(err)
-	}
-
 	dbm.Queries = New(dbm.DB)
 
 	return dbm
 }
 
-func connectHookSQLite(conn *sqlite.SQLiteConn) error {
-	if err := conn.RegisterFunc("test_func", func() string {
-		return "FOOBAR"
-	}, false); err != nil {
-		log.Info("Error Registering Function")
+func (dbm *DBManager) CacheTempTables() error {
+	if _, err := dbm.DB.ExecContext(dbm.Ctx, tsql); err != nil {
 		return err
+	}
+	return nil
+}
+
+func connectHookSQLite(conn *sqlite.SQLiteConn) error {
+	// Create Tables
+	log.Debug("Creating Schema")
+	if _, err := conn.Exec(ddl, nil); err != nil {
+		log.Warn("Create Schema Failure: ", err)
 	}
 	return nil
 }

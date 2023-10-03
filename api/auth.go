@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	argon2 "github.com/alexedwards/argon2id"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	log "github.com/sirupsen/logrus"
 	"reichard.io/bbank/database"
 )
 
@@ -34,13 +36,15 @@ func (api *API) authorizeCredentials(username string, password string) (authoriz
 func (api *API) authAPIMiddleware(c *gin.Context) {
 	session := sessions.Default(c)
 
-	// Utilize Session Token
-	if authorizedUser := session.Get("authorizedUser"); authorizedUser != nil {
-		c.Set("AuthorizedUser", authorizedUser)
+	// Check Session First
+	if user, ok := getSession(session); ok == true {
+		c.Set("AuthorizedUser", user)
 		c.Header("Cache-Control", "private")
 		c.Next()
 		return
 	}
+
+	// Session Failed -> Check Headers (Allowed on API for KOSync Compatibility)
 
 	var rHeader authHeader
 	if err := c.ShouldBindHeader(&rHeader); err != nil {
@@ -57,20 +61,22 @@ func (api *API) authAPIMiddleware(c *gin.Context) {
 		return
 	}
 
-	// Set Session Cookie
-	session.Set("authorizedUser", rHeader.AuthUser)
-	session.Save()
+	if err := setSession(session, rHeader.AuthUser); err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
 
 	c.Set("AuthorizedUser", rHeader.AuthUser)
+	c.Header("Cache-Control", "private")
 	c.Next()
 }
 
 func (api *API) authWebAppMiddleware(c *gin.Context) {
 	session := sessions.Default(c)
 
-	// Utilize Session Token
-	if authorizedUser := session.Get("authorizedUser"); authorizedUser != nil {
-		c.Set("AuthorizedUser", authorizedUser)
+	// Check Session
+	if user, ok := getSession(session); ok == true {
+		c.Set("AuthorizedUser", user)
 		c.Header("Cache-Control", "private")
 		c.Next()
 		return
@@ -102,12 +108,17 @@ func (api *API) authFormLogin(c *gin.Context) {
 		return
 	}
 
+	// Set Session
 	session := sessions.Default(c)
+	if err := setSession(session, username); err != nil {
+		c.HTML(http.StatusUnauthorized, "login", gin.H{
+			"RegistrationEnabled": api.Config.RegistrationEnabled,
+			"Error":               "Unknown Error",
+		})
+		return
+	}
 
-	// Set Session Cookie
-	session.Set("authorizedUser", username)
-	session.Save()
-
+	c.Header("Cache-Control", "private")
 	c.Redirect(http.StatusFound, "/")
 }
 
@@ -160,12 +171,14 @@ func (api *API) authFormRegister(c *gin.Context) {
 		return
 	}
 
+	// Set Session
 	session := sessions.Default(c)
+	if err := setSession(session, username); err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
 
-	// Set Session Cookie
-	session.Set("authorizedUser", username)
-	session.Save()
-
+	c.Header("Cache-Control", "private")
 	c.Redirect(http.StatusFound, "/")
 }
 
@@ -174,4 +187,28 @@ func (api *API) authLogout(c *gin.Context) {
 	session.Clear()
 	session.Save()
 	c.Redirect(http.StatusFound, "/login")
+}
+
+func getSession(session sessions.Session) (user string, ok bool) {
+	// Check Session
+	authorizedUser := session.Get("authorizedUser")
+	if authorizedUser == nil {
+		return "", false
+	}
+
+	// Refresh
+	expiresAt := session.Get("expiresAt")
+	if expiresAt != nil && expiresAt.(int64)-time.Now().Unix() < 60*60*24 {
+		log.Info("[getSession] Refreshing Session")
+		setSession(session, authorizedUser.(string))
+	}
+
+	return authorizedUser.(string), true
+}
+
+func setSession(session sessions.Session, user string) error {
+	// Set Session Cookie
+	session.Set("authorizedUser", user)
+	session.Set("expiresAt", time.Now().Unix()+(60*60*24*7))
+	return session.Save()
 }

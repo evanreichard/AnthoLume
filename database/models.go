@@ -5,27 +5,28 @@
 package database
 
 import (
+	"database/sql"
 	"time"
 )
 
 type Activity struct {
-	ID         int64     `json:"id"`
 	UserID     string    `json:"user_id"`
 	DocumentID string    `json:"document_id"`
 	DeviceID   string    `json:"device_id"`
+	CreatedAt  time.Time `json:"created_at"`
 	StartTime  time.Time `json:"start_time"`
-	Duration   int64     `json:"duration"`
 	Page       int64     `json:"page"`
 	Pages      int64     `json:"pages"`
-	CreatedAt  time.Time `json:"created_at"`
+	Duration   int64     `json:"duration"`
 }
 
 type Device struct {
-	ID         string `json:"id"`
-	UserID     string `json:"user_id"`
-	DeviceName string `json:"device_name"`
-	CreatedAt  string `json:"created_at"`
-	Sync       bool   `json:"sync"`
+	ID         string    `json:"id"`
+	UserID     string    `json:"user_id"`
+	DeviceName string    `json:"device_name"`
+	LastSynced time.Time `json:"last_synced"`
+	CreatedAt  string    `json:"created_at"`
+	Sync       bool      `json:"sync"`
 }
 
 type Document struct {
@@ -50,14 +51,6 @@ type Document struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-type DocumentDeviceSync struct {
-	UserID     string    `json:"user_id"`
-	DocumentID string    `json:"document_id"`
-	DeviceID   string    `json:"device_id"`
-	LastSynced time.Time `json:"last_synced"`
-	Sync       bool      `json:"sync"`
-}
-
 type DocumentProgress struct {
 	UserID     string    `json:"user_id"`
 	DocumentID string    `json:"document_id"`
@@ -65,6 +58,19 @@ type DocumentProgress struct {
 	Percentage float64   `json:"percentage"`
 	Progress   string    `json:"progress"`
 	CreatedAt  time.Time `json:"created_at"`
+}
+
+type DocumentUserStatistic struct {
+	DocumentID       string  `json:"document_id"`
+	UserID           string  `json:"user_id"`
+	LastRead         string  `json:"last_read"`
+	Page             int64   `json:"page"`
+	Pages            int64   `json:"pages"`
+	TotalTimeSeconds int64   `json:"total_time_seconds"`
+	ReadPages        int64   `json:"read_pages"`
+	Percentage       float64 `json:"percentage"`
+	WordsRead        int64   `json:"words_read"`
+	Wpm              float64 `json:"wpm"`
 }
 
 type Metadatum struct {
@@ -80,14 +86,16 @@ type Metadatum struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-type RescaledActivity struct {
+type RawActivity struct {
+	ID         int64     `json:"id"`
+	UserID     string    `json:"user_id"`
 	DocumentID string    `json:"document_id"`
 	DeviceID   string    `json:"device_id"`
-	UserID     string    `json:"user_id"`
 	StartTime  time.Time `json:"start_time"`
-	Pages      int64     `json:"pages"`
 	Page       int64     `json:"page"`
+	Pages      int64     `json:"pages"`
 	Duration   int64     `json:"duration"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 type User struct {
@@ -96,4 +104,50 @@ type User struct {
 	Admin      bool      `json:"-"`
 	TimeOffset *string   `json:"time_offset"`
 	CreatedAt  time.Time `json:"created_at"`
+}
+
+type UserStreak struct {
+	UserID                 string `json:"user_id"`
+	Window                 string `json:"window"`
+	MaxStreak              int64  `json:"max_streak"`
+	MaxStreakStartDate     string `json:"max_streak_start_date"`
+	MaxStreakEndDate       string `json:"max_streak_end_date"`
+	CurrentStreak          int64  `json:"current_streak"`
+	CurrentStreakStartDate string `json:"current_streak_start_date"`
+	CurrentStreakEndDate   string `json:"current_streak_end_date"`
+}
+
+type ViewDocumentUserStatistic struct {
+	DocumentID       string          `json:"document_id"`
+	UserID           string          `json:"user_id"`
+	LastRead         time.Time       `json:"last_read"`
+	Page             int64           `json:"page"`
+	Pages            int64           `json:"pages"`
+	TotalTimeSeconds sql.NullFloat64 `json:"total_time_seconds"`
+	ReadPages        int64           `json:"read_pages"`
+	Percentage       float64         `json:"percentage"`
+	WordsRead        interface{}     `json:"words_read"`
+	Wpm              int64           `json:"wpm"`
+}
+
+type ViewRescaledActivity struct {
+	UserID     string    `json:"user_id"`
+	DocumentID string    `json:"document_id"`
+	DeviceID   string    `json:"device_id"`
+	CreatedAt  time.Time `json:"created_at"`
+	StartTime  time.Time `json:"start_time"`
+	Page       int64     `json:"page"`
+	Pages      int64     `json:"pages"`
+	Duration   int64     `json:"duration"`
+}
+
+type ViewUserStreak struct {
+	UserID                 string      `json:"user_id"`
+	Window                 string      `json:"window"`
+	MaxStreak              interface{} `json:"max_streak"`
+	MaxStreakStartDate     interface{} `json:"max_streak_start_date"`
+	MaxStreakEndDate       interface{} `json:"max_streak_end_date"`
+	CurrentStreak          interface{} `json:"current_streak"`
+	CurrentStreakStartDate interface{} `json:"current_streak_start_date"`
+	CurrentStreakEndDate   interface{} `json:"current_streak_end_date"`
 }

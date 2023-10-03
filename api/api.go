@@ -53,7 +53,7 @@ func NewApi(db *database.DBManager, c *config.Config) *API {
 	// Configure Cookie Session Store
 	store := cookie.NewStore(newToken)
 	store.Options(sessions.Options{
-		MaxAge:   60 * 60 * 24,
+		MaxAge:   60 * 60 * 24 * 7,
 		Secure:   true,
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
@@ -81,7 +81,6 @@ func (api *API) registerWebAppRoutes() {
 
 	render.AddFromFilesFuncs("login", helperFuncs, "templates/login.html")
 	render.AddFromFilesFuncs("home", helperFuncs, "templates/base.html", "templates/home.html")
-	render.AddFromFilesFuncs("graphs", helperFuncs, "templates/base.html", "templates/graphs.html")
 	render.AddFromFilesFuncs("settings", helperFuncs, "templates/base.html", "templates/settings.html")
 	render.AddFromFilesFuncs("activity", helperFuncs, "templates/base.html", "templates/activity.html")
 	render.AddFromFilesFuncs("documents", helperFuncs, "templates/base.html", "templates/documents.html")
@@ -107,9 +106,6 @@ func (api *API) registerWebAppRoutes() {
 	api.Router.POST("/documents/:document/edit", api.authWebAppMiddleware, api.editDocument)
 	api.Router.POST("/documents/:document/identify", api.authWebAppMiddleware, api.identifyDocument)
 	api.Router.POST("/documents/:document/delete", api.authWebAppMiddleware, api.deleteDocument)
-
-	// TODO
-	api.Router.GET("/graphs", api.authWebAppMiddleware, baseResourceRoute("graphs"))
 }
 
 func (api *API) registerKOAPIRoutes(apiGroup *gin.RouterGroup) {

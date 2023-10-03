@@ -37,6 +37,7 @@ type requestActivity struct {
 
 type requestCheckActivitySync struct {
 	DeviceID string `json:"device_id"`
+	Device   string `json:"device"`
 }
 
 type requestDocument struct {
@@ -277,6 +278,14 @@ func (api *API) addActivities(c *gin.Context) {
 		return
 	}
 
+	// Update Temp Tables
+	go func() {
+		log.Info("[addActivities] Caching Temp Tables")
+		if err := api.DB.CacheTempTables(); err != nil {
+			log.Warn("[addActivities] CacheTempTables Failure: ", err)
+		}
+	}()
+
 	c.JSON(http.StatusOK, gin.H{
 		"added": len(rActivity.Activity),
 	})
@@ -289,6 +298,18 @@ func (api *API) checkActivitySync(c *gin.Context) {
 	if err := c.ShouldBindJSON(&rCheckActivity); err != nil {
 		log.Error("[checkActivitySync] Invalid JSON Bind")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		return
+	}
+
+	// Upsert Device
+	if _, err := api.DB.Queries.UpsertDevice(api.DB.Ctx, database.UpsertDeviceParams{
+		ID:         rCheckActivity.DeviceID,
+		UserID:     rUser.(string),
+		DeviceName: rCheckActivity.Device,
+		LastSynced: time.Now().UTC(),
+	}); err != nil {
+		log.Error("[checkActivitySync] UpsertDevice DB Error", err)
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Device"})
 		return
 	}
 
@@ -385,6 +406,7 @@ func (api *API) checkDocumentsSync(c *gin.Context) {
 		ID:         rCheckDocs.DeviceID,
 		UserID:     rUser.(string),
 		DeviceName: rCheckDocs.Device,
+		LastSynced: time.Now().UTC(),
 	})
 	if err != nil {
 		log.Error("[checkDocumentsSync] UpsertDevice DB Error", err)

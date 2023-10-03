@@ -56,6 +56,10 @@ func GetUTCOffsets() []UTCOffset {
 }
 
 func NiceSeconds(input int64) (result string) {
+	if input == 0 {
+		return "N/A"
+	}
+
 	days := math.Floor(float64(input) / 60 / 60 / 24)
 	seconds := input % (60 * 60 * 24)
 	hours := math.Floor(float64(seconds) / 60 / 60)

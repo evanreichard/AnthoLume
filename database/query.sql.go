@@ -13,7 +13,7 @@ import (
 )
 
 const addActivity = `-- name: AddActivity :one
-INSERT INTO activity (
+INSERT INTO raw_activity (
     user_id,
     document_id,
     device_id,
@@ -23,7 +23,7 @@ INSERT INTO activity (
     pages
 )
 VALUES (?, ?, ?, ?, ?, ?, ?)
-RETURNING id, user_id, document_id, device_id, start_time, duration, page, pages, created_at
+RETURNING id, user_id, document_id, device_id, start_time, page, pages, duration, created_at
 `
 
 type AddActivityParams struct {
@@ -36,7 +36,7 @@ type AddActivityParams struct {
 	Pages      int64     `json:"pages"`
 }
 
-func (q *Queries) AddActivity(ctx context.Context, arg AddActivityParams) (Activity, error) {
+func (q *Queries) AddActivity(ctx context.Context, arg AddActivityParams) (RawActivity, error) {
 	row := q.db.QueryRowContext(ctx, addActivity,
 		arg.UserID,
 		arg.DocumentID,
@@ -46,16 +46,16 @@ func (q *Queries) AddActivity(ctx context.Context, arg AddActivityParams) (Activ
 		arg.Page,
 		arg.Pages,
 	)
-	var i Activity
+	var i RawActivity
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.DocumentID,
 		&i.DeviceID,
 		&i.StartTime,
-		&i.Duration,
 		&i.Page,
 		&i.Pages,
+		&i.Duration,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -149,27 +149,39 @@ func (q *Queries) DeleteDocument(ctx context.Context, id string) (int64, error) 
 }
 
 const getActivity = `-- name: GetActivity :many
+WITH filtered_activity AS (
+    SELECT
+        document_id,
+        user_id,
+        start_time,
+        duration,
+        page,
+        pages
+    FROM activity
+    WHERE
+        activity.user_id = ?1
+        AND (
+            (
+                CAST(?2 AS BOOLEAN) = TRUE
+                AND document_id = ?3
+            ) OR ?2 = FALSE
+        )
+    ORDER BY start_time DESC
+    LIMIT ?5
+    OFFSET ?4
+)
+
 SELECT
     document_id,
-    CAST(DATETIME(activity.start_time, time_offset) AS TEXT) AS start_time,
+    CAST(DATETIME(activity.start_time, users.time_offset) AS TEXT) AS start_time,
     title,
     author,
     duration,
     page,
     pages
-FROM activity
+FROM filtered_activity AS activity
 LEFT JOIN documents ON documents.id = activity.document_id
 LEFT JOIN users ON users.id = activity.user_id
-WHERE
-    activity.user_id = ?1
-    AND (
-        CAST(?2 AS BOOLEAN) = TRUE
-        AND document_id = ?3
-    )
-    OR ?2 = FALSE
-ORDER BY start_time DESC
-LIMIT ?5
-OFFSET ?4
 `
 
 type GetActivityParams struct {
@@ -236,16 +248,22 @@ WITH RECURSIVE last_30_days AS (
     FROM last_30_days
     LIMIT 30
 ),
-activity_records AS (
+filtered_activity AS (
+    SELECT
+	user_id,
+        start_time,
+	duration
+    FROM activity
+    WHERE start_time > DATE('now', '-31 days')
+    AND activity.user_id = ?1
+),
+activity_days AS (
     SELECT
         SUM(duration) AS seconds_read,
         DATE(start_time, time_offset) AS day
-    FROM activity
+    FROM filtered_activity AS activity
     LEFT JOIN users ON users.id = activity.user_id
-    WHERE user_id = ?1
-    AND start_time > DATE('now', '-31 days')
     GROUP BY day
-    ORDER BY day DESC
     LIMIT 30
 )
 SELECT
@@ -255,7 +273,7 @@ SELECT
       ELSE seconds_read / 60
     END AS INTEGER) AS minutes_read
 FROM last_30_days
-LEFT JOIN activity_records ON activity_records.day == last_30_days.date
+LEFT JOIN activity_days ON activity_days.day == last_30_days.date
 ORDER BY date DESC
 LIMIT 30
 `
@@ -358,7 +376,7 @@ func (q *Queries) GetDeletedDocuments(ctx context.Context, documentIds []string)
 }
 
 const getDevice = `-- name: GetDevice :one
-SELECT id, user_id, device_name, created_at, sync FROM devices
+SELECT id, user_id, device_name, last_synced, created_at, sync FROM devices
 WHERE id = ?1 LIMIT 1
 `
 
@@ -369,6 +387,7 @@ func (q *Queries) GetDevice(ctx context.Context, deviceID string) (Device, error
 		&i.ID,
 		&i.UserID,
 		&i.DeviceName,
+		&i.LastSynced,
 		&i.CreatedAt,
 		&i.Sync,
 	)
@@ -379,18 +398,16 @@ const getDevices = `-- name: GetDevices :many
 SELECT
     devices.device_name,
     CAST(DATETIME(devices.created_at, users.time_offset) AS TEXT) AS created_at,
-    CAST(DATETIME(MAX(activity.created_at), users.time_offset) AS TEXT) AS last_sync
-FROM activity
-JOIN devices ON devices.id = activity.device_id
-JOIN users ON users.id = ?1
-WHERE devices.user_id = ?1
-GROUP BY activity.device_id
+    CAST(DATETIME(devices.last_synced, users.time_offset) AS TEXT) AS last_synced
+FROM devices
+JOIN users ON users.id = devices.user_id
+WHERE users.id = ?1
 `
 
 type GetDevicesRow struct {
 	DeviceName string `json:"device_name"`
 	CreatedAt  string `json:"created_at"`
-	LastSync   string `json:"last_sync"`
+	LastSynced string `json:"last_synced"`
 }
 
 func (q *Queries) GetDevices(ctx context.Context, userID string) ([]GetDevicesRow, error) {
@@ -402,7 +419,7 @@ func (q *Queries) GetDevices(ctx context.Context, userID string) ([]GetDevicesRo
 	var items []GetDevicesRow
 	for rows.Next() {
 		var i GetDevicesRow
-		if err := rows.Scan(&i.DeviceName, &i.CreatedAt, &i.LastSync); err != nil {
+		if err := rows.Scan(&i.DeviceName, &i.CreatedAt, &i.LastSynced); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -477,7 +494,7 @@ const getDocumentReadStats = `-- name: GetDocumentReadStats :one
 SELECT
     COUNT(DISTINCT page) AS pages_read,
     SUM(duration) AS total_time
-FROM rescaled_activity
+FROM activity
 WHERE document_id = ?1
 AND user_id = ?2
 AND start_time >= ?3
@@ -504,7 +521,7 @@ func (q *Queries) GetDocumentReadStats(ctx context.Context, arg GetDocumentReadS
 const getDocumentReadStatsCapped = `-- name: GetDocumentReadStatsCapped :one
 WITH capped_stats AS (
     SELECT MIN(SUM(duration), CAST(?1 AS INTEGER)) AS durations
-    FROM rescaled_activity
+    FROM activity
     WHERE document_id = ?2
     AND user_id = ?3
     AND start_time >= ?4
@@ -541,55 +558,41 @@ func (q *Queries) GetDocumentReadStatsCapped(ctx context.Context, arg GetDocumen
 }
 
 const getDocumentWithStats = `-- name: GetDocumentWithStats :one
-WITH true_progress AS (
-    SELECT
-        start_time AS last_read,
-        SUM(duration) AS total_time_seconds,
-        document_id,
-        page,
-        pages,
-
-	-- Determine Read Pages
-	COUNT(DISTINCT page) AS read_pages,
-
-	-- Derive Percentage of Book
-        ROUND(CAST(page AS REAL) / CAST(pages AS REAL) * 100, 2) AS percentage
-    FROM rescaled_activity
-    WHERE user_id = ?1
-    AND document_id = ?2
-    GROUP BY document_id
-    HAVING MAX(start_time)
-    LIMIT 1
-)
 SELECT
-    documents.id, documents.md5, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.words, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at,
+    docs.id,
+    docs.title,
+    docs.author,
+    docs.description,
+    docs.isbn10,
+    docs.isbn13,
+    docs.filepath,
+    docs.words,
 
-    CAST(IFNULL(page, 0) AS INTEGER) AS page,
-    CAST(IFNULL(pages, 0) AS INTEGER) AS pages,
-    CAST(IFNULL(total_time_seconds, 0) AS INTEGER) AS total_time_seconds,
-    CAST(DATETIME(IFNULL(last_read, "1970-01-01"), time_offset) AS TEXT) AS last_read,
-    CAST(IFNULL(read_pages, 0) AS INTEGER) AS read_pages,
-
-    -- Calculate Seconds / Page
-    --   1. Calculate Total Time in Seconds (Sum Duration in Activity)
-    --   2. Divide by Read Pages (Distinct Pages in Activity)
+    CAST(COALESCE(dus.wpm, 0.0) AS INTEGER) AS wpm,
+    COALESCE(dus.page, 0) AS page,
+    COALESCE(dus.pages, 0) AS pages,
+    COALESCE(dus.read_pages, 0) AS read_pages,
+    COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
+    DATETIME(COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
+        AS last_read,
+    CASE
+        WHEN dus.percentage > 97.0 THEN 100.0
+        WHEN dus.percentage IS NULL THEN 0.0
+        ELSE dus.percentage
+    END AS percentage,
     CAST(CASE
-	WHEN total_time_seconds IS NULL THEN 0.0
-	ELSE ROUND(CAST(total_time_seconds AS REAL) / CAST(read_pages AS REAL))
-    END AS INTEGER) AS seconds_per_page,
-
-    -- Arbitrarily >97% is Complete
-    CAST(CASE
-	WHEN percentage > 97.0 THEN 100.0
-	WHEN percentage IS NULL THEN 0.0
-	ELSE percentage
-    END AS REAL) AS percentage
-
-FROM documents
-LEFT JOIN true_progress ON true_progress.document_id = documents.id
+        WHEN dus.total_time_seconds IS NULL THEN 0.0
+        ELSE
+	    CAST(dus.total_time_seconds AS REAL)
+	    / CAST(dus.read_pages AS REAL)
+    END AS INTEGER) AS seconds_per_page
+FROM documents AS docs
 LEFT JOIN users ON users.id = ?1
-WHERE documents.id = ?2
-ORDER BY true_progress.last_read DESC, documents.created_at DESC
+LEFT JOIN
+    document_user_statistics AS dus
+    ON dus.document_id = docs.id AND dus.user_id = ?1
+WHERE users.id = ?1
+AND docs.id = ?2
 LIMIT 1
 `
 
@@ -599,32 +602,22 @@ type GetDocumentWithStatsParams struct {
 }
 
 type GetDocumentWithStatsRow struct {
-	ID               string    `json:"id"`
-	Md5              *string   `json:"md5"`
-	Filepath         *string   `json:"filepath"`
-	Coverfile        *string   `json:"coverfile"`
-	Title            *string   `json:"title"`
-	Author           *string   `json:"author"`
-	Series           *string   `json:"series"`
-	SeriesIndex      *int64    `json:"series_index"`
-	Lang             *string   `json:"lang"`
-	Description      *string   `json:"description"`
-	Words            *int64    `json:"words"`
-	Gbid             *string   `json:"gbid"`
-	Olid             *string   `json:"-"`
-	Isbn10           *string   `json:"isbn10"`
-	Isbn13           *string   `json:"isbn13"`
-	Synced           bool      `json:"-"`
-	Deleted          bool      `json:"-"`
-	UpdatedAt        time.Time `json:"updated_at"`
-	CreatedAt        time.Time `json:"created_at"`
-	Page             int64     `json:"page"`
-	Pages            int64     `json:"pages"`
-	TotalTimeSeconds int64     `json:"total_time_seconds"`
-	LastRead         string    `json:"last_read"`
-	ReadPages        int64     `json:"read_pages"`
-	SecondsPerPage   int64     `json:"seconds_per_page"`
-	Percentage       float64   `json:"percentage"`
+	ID               string      `json:"id"`
+	Title            *string     `json:"title"`
+	Author           *string     `json:"author"`
+	Description      *string     `json:"description"`
+	Isbn10           *string     `json:"isbn10"`
+	Isbn13           *string     `json:"isbn13"`
+	Filepath         *string     `json:"filepath"`
+	Words            *int64      `json:"words"`
+	Wpm              int64       `json:"wpm"`
+	Page             int64       `json:"page"`
+	Pages            int64       `json:"pages"`
+	ReadPages        int64       `json:"read_pages"`
+	TotalTimeSeconds int64       `json:"total_time_seconds"`
+	LastRead         interface{} `json:"last_read"`
+	Percentage       interface{} `json:"percentage"`
+	SecondsPerPage   int64       `json:"seconds_per_page"`
 }
 
 func (q *Queries) GetDocumentWithStats(ctx context.Context, arg GetDocumentWithStatsParams) (GetDocumentWithStatsRow, error) {
@@ -632,31 +625,21 @@ func (q *Queries) GetDocumentWithStats(ctx context.Context, arg GetDocumentWithS
 	var i GetDocumentWithStatsRow
 	err := row.Scan(
 		&i.ID,
-		&i.Md5,
-		&i.Filepath,
-		&i.Coverfile,
 		&i.Title,
 		&i.Author,
-		&i.Series,
-		&i.SeriesIndex,
-		&i.Lang,
 		&i.Description,
-		&i.Words,
-		&i.Gbid,
-		&i.Olid,
 		&i.Isbn10,
 		&i.Isbn13,
-		&i.Synced,
-		&i.Deleted,
-		&i.UpdatedAt,
-		&i.CreatedAt,
+		&i.Filepath,
+		&i.Words,
+		&i.Wpm,
 		&i.Page,
 		&i.Pages,
+		&i.ReadPages,
 		&i.TotalTimeSeconds,
 		&i.LastRead,
-		&i.ReadPages,
-		&i.SecondsPerPage,
 		&i.Percentage,
+		&i.SecondsPerPage,
 	)
 	return i, err
 }
@@ -717,38 +700,43 @@ func (q *Queries) GetDocuments(ctx context.Context, arg GetDocumentsParams) ([]D
 }
 
 const getDocumentsWithStats = `-- name: GetDocumentsWithStats :many
-WITH true_progress AS (
-    SELECT
-        start_time AS last_read,
-        SUM(duration) AS total_time_seconds,
-        document_id,
-        page,
-        pages,
-        ROUND(CAST(page AS REAL) / CAST(pages AS REAL) * 100, 2) AS percentage
-    FROM activity
-    WHERE user_id = ?1
-    GROUP BY document_id
-    HAVING MAX(start_time)
-)
 SELECT
-    documents.id, documents.md5, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.words, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at,
+    docs.id,
+    docs.title,
+    docs.author,
+    docs.description,
+    docs.isbn10,
+    docs.isbn13,
+    docs.filepath,
+    docs.words,
 
-    CAST(IFNULL(page, 0) AS INTEGER) AS page,
-    CAST(IFNULL(pages, 0) AS INTEGER) AS pages,
-    CAST(IFNULL(total_time_seconds, 0) AS INTEGER) AS total_time_seconds,
-    CAST(DATETIME(IFNULL(last_read, "1970-01-01"), time_offset) AS TEXT) AS last_read,
-
-    CAST(CASE
-        WHEN percentage > 97.0 THEN 100.0
-        WHEN percentage IS NULL THEN 0.0
-        ELSE percentage
-    END AS REAL) AS percentage
-
-FROM documents
-LEFT JOIN true_progress ON true_progress.document_id = documents.id
+    CAST(COALESCE(dus.wpm, 0.0) AS INTEGER) AS wpm,
+    COALESCE(dus.page, 0) AS page,
+    COALESCE(dus.pages, 0) AS pages,
+    COALESCE(dus.read_pages, 0) AS read_pages,
+    COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
+    DATETIME(COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
+        AS last_read,
+    CASE
+        WHEN dus.percentage > 97.0 THEN 100.0
+        WHEN dus.percentage IS NULL THEN 0.0
+        ELSE dus.percentage
+    END AS percentage,
+    CASE
+        WHEN dus.total_time_seconds IS NULL THEN 0.0
+        ELSE
+            ROUND(
+                CAST(dus.total_time_seconds AS REAL)
+                / CAST(dus.read_pages AS REAL)
+            )
+    END AS seconds_per_page
+FROM documents AS docs
 LEFT JOIN users ON users.id = ?1
-WHERE documents.deleted == false
-ORDER BY true_progress.last_read DESC, documents.created_at DESC
+LEFT JOIN
+    document_user_statistics AS dus
+    ON dus.document_id = docs.id AND dus.user_id = ?1
+WHERE docs.deleted = false
+ORDER BY dus.last_read DESC, docs.created_at DESC
 LIMIT ?3
 OFFSET ?2
 `
@@ -760,30 +748,22 @@ type GetDocumentsWithStatsParams struct {
 }
 
 type GetDocumentsWithStatsRow struct {
-	ID               string    `json:"id"`
-	Md5              *string   `json:"md5"`
-	Filepath         *string   `json:"filepath"`
-	Coverfile        *string   `json:"coverfile"`
-	Title            *string   `json:"title"`
-	Author           *string   `json:"author"`
-	Series           *string   `json:"series"`
-	SeriesIndex      *int64    `json:"series_index"`
-	Lang             *string   `json:"lang"`
-	Description      *string   `json:"description"`
-	Words            *int64    `json:"words"`
-	Gbid             *string   `json:"gbid"`
-	Olid             *string   `json:"-"`
-	Isbn10           *string   `json:"isbn10"`
-	Isbn13           *string   `json:"isbn13"`
-	Synced           bool      `json:"-"`
-	Deleted          bool      `json:"-"`
-	UpdatedAt        time.Time `json:"updated_at"`
-	CreatedAt        time.Time `json:"created_at"`
-	Page             int64     `json:"page"`
-	Pages            int64     `json:"pages"`
-	TotalTimeSeconds int64     `json:"total_time_seconds"`
-	LastRead         string    `json:"last_read"`
-	Percentage       float64   `json:"percentage"`
+	ID               string      `json:"id"`
+	Title            *string     `json:"title"`
+	Author           *string     `json:"author"`
+	Description      *string     `json:"description"`
+	Isbn10           *string     `json:"isbn10"`
+	Isbn13           *string     `json:"isbn13"`
+	Filepath         *string     `json:"filepath"`
+	Words            *int64      `json:"words"`
+	Wpm              int64       `json:"wpm"`
+	Page             int64       `json:"page"`
+	Pages            int64       `json:"pages"`
+	ReadPages        int64       `json:"read_pages"`
+	TotalTimeSeconds int64       `json:"total_time_seconds"`
+	LastRead         interface{} `json:"last_read"`
+	Percentage       interface{} `json:"percentage"`
+	SecondsPerPage   interface{} `json:"seconds_per_page"`
 }
 
 func (q *Queries) GetDocumentsWithStats(ctx context.Context, arg GetDocumentsWithStatsParams) ([]GetDocumentsWithStatsRow, error) {
@@ -797,29 +777,21 @@ func (q *Queries) GetDocumentsWithStats(ctx context.Context, arg GetDocumentsWit
 		var i GetDocumentsWithStatsRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.Md5,
-			&i.Filepath,
-			&i.Coverfile,
 			&i.Title,
 			&i.Author,
-			&i.Series,
-			&i.SeriesIndex,
-			&i.Lang,
 			&i.Description,
-			&i.Words,
-			&i.Gbid,
-			&i.Olid,
 			&i.Isbn10,
 			&i.Isbn13,
-			&i.Synced,
-			&i.Deleted,
-			&i.UpdatedAt,
-			&i.CreatedAt,
+			&i.Filepath,
+			&i.Words,
+			&i.Wpm,
 			&i.Page,
 			&i.Pages,
+			&i.ReadPages,
 			&i.TotalTimeSeconds,
 			&i.LastRead,
 			&i.Percentage,
+			&i.SecondsPerPage,
 		); err != nil {
 			return nil, err
 		}
@@ -978,105 +950,41 @@ func (q *Queries) GetUser(ctx context.Context, userID string) (User, error) {
 	return i, err
 }
 
-const getUserWindowStreaks = `-- name: GetUserWindowStreaks :one
-WITH document_windows AS (
-    SELECT
-        CASE
-          WHEN ?2 = "WEEK" THEN DATE(start_time, time_offset, 'weekday 0', '-7 day')
-          WHEN ?2 = "DAY" THEN DATE(start_time, time_offset)
-        END AS read_window,
-        time_offset
-    FROM activity
-    JOIN users ON users.id = activity.user_id
-    WHERE user_id = ?1
-    AND CAST(?2 AS TEXT) = CAST(?2 AS TEXT)
-    GROUP BY read_window
-),
-partitions AS (
-    SELECT
-        document_windows.read_window, document_windows.time_offset,
-        row_number() OVER (
-            PARTITION BY 1 ORDER BY read_window DESC
-        ) AS seqnum
-    FROM document_windows
-),
-streaks AS (
-    SELECT
-        COUNT(*) AS streak,
-        MIN(read_window) AS start_date,
-        MAX(read_window) AS end_date,
-        time_offset
-    FROM partitions
-    GROUP BY
-        CASE
-            WHEN ?2 = "DAY" THEN DATE(read_window, '+' || seqnum || ' day')
-            WHEN ?2 = "WEEK" THEN DATE(read_window, '+' || (seqnum * 7) || ' day')
-        END,
-        time_offset
-    ORDER BY end_date DESC
-),
-max_streak AS (
-    SELECT
-        MAX(streak) AS max_streak,
-        start_date AS max_streak_start_date,
-        end_date AS max_streak_end_date
-    FROM streaks
-    LIMIT 1
-),
-current_streak AS (
-    SELECT
-        streak AS current_streak,
-        start_date AS current_streak_start_date,
-        end_date AS current_streak_end_date
-    FROM streaks
-    WHERE CASE
-      WHEN ?2 = "WEEK" THEN
-          DATE('now', time_offset, 'weekday 0', '-14 day') = current_streak_end_date
-          OR DATE('now', time_offset, 'weekday 0', '-7 day') = current_streak_end_date
-      WHEN ?2 = "DAY" THEN
-          DATE('now', time_offset, '-1 day') = current_streak_end_date
-          OR DATE('now', time_offset) = current_streak_end_date
-    END
-    LIMIT 1
-)
-SELECT
-    CAST(IFNULL(max_streak, 0) AS INTEGER) AS max_streak,
-    CAST(IFNULL(max_streak_start_date, "N/A") AS TEXT) AS max_streak_start_date,
-    CAST(IFNULL(max_streak_end_date, "N/A") AS TEXT) AS max_streak_end_date,
-    IFNULL(current_streak, 0) AS current_streak,
-    CAST(IFNULL(current_streak_start_date, "N/A") AS TEXT) AS current_streak_start_date,
-    CAST(IFNULL(current_streak_end_date, "N/A") AS TEXT) AS current_streak_end_date
-FROM max_streak
-LEFT JOIN current_streak ON 1 = 1
-LIMIT 1
+const getUserStreaks = `-- name: GetUserStreaks :many
+SELECT user_id, "window", max_streak, max_streak_start_date, max_streak_end_date, current_streak, current_streak_start_date, current_streak_end_date FROM user_streaks
+WHERE user_id = ?1
 `
 
-type GetUserWindowStreaksParams struct {
-	UserID string `json:"user_id"`
-	Window string `json:"window"`
-}
-
-type GetUserWindowStreaksRow struct {
-	MaxStreak              int64       `json:"max_streak"`
-	MaxStreakStartDate     string      `json:"max_streak_start_date"`
-	MaxStreakEndDate       string      `json:"max_streak_end_date"`
-	CurrentStreak          interface{} `json:"current_streak"`
-	CurrentStreakStartDate string      `json:"current_streak_start_date"`
-	CurrentStreakEndDate   string      `json:"current_streak_end_date"`
-}
-
-func (q *Queries) GetUserWindowStreaks(ctx context.Context, arg GetUserWindowStreaksParams) (GetUserWindowStreaksRow, error) {
-	row := q.db.QueryRowContext(ctx, getUserWindowStreaks, arg.UserID, arg.Window)
-	var i GetUserWindowStreaksRow
-	err := row.Scan(
-		&i.MaxStreak,
-		&i.MaxStreakStartDate,
-		&i.MaxStreakEndDate,
-		&i.CurrentStreak,
-		&i.CurrentStreakStartDate,
-		&i.CurrentStreakEndDate,
-	)
-	return i, err
+func (q *Queries) GetUserStreaks(ctx context.Context, userID string) ([]UserStreak, error) {
+	rows, err := q.db.QueryContext(ctx, getUserStreaks, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserStreak
+	for rows.Next() {
+		var i UserStreak
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Window,
+			&i.MaxStreak,
+			&i.MaxStreakStartDate,
+			&i.MaxStreakEndDate,
+			&i.CurrentStreak,
+			&i.CurrentStreakStartDate,
+			&i.CurrentStreakEndDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getUsers = `-- name: GetUsers :many
@@ -1115,6 +1023,54 @@ func (q *Queries) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, err
 			&i.Admin,
 			&i.TimeOffset,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWPMLeaderboard = `-- name: GetWPMLeaderboard :many
+SELECT
+    user_id,
+    CAST(SUM(words_read) AS INTEGER) AS total_words_read,
+    CAST(SUM(total_time_seconds) AS INTEGER) AS total_seconds,
+    ROUND(CAST(SUM(words_read) AS REAL) / (SUM(total_time_seconds) / 60.0), 2)
+        AS wpm
+FROM document_user_statistics
+WHERE words_read > 0
+GROUP BY user_id
+ORDER BY wpm DESC
+`
+
+type GetWPMLeaderboardRow struct {
+	UserID         string  `json:"user_id"`
+	TotalWordsRead int64   `json:"total_words_read"`
+	TotalSeconds   int64   `json:"total_seconds"`
+	Wpm            float64 `json:"wpm"`
+}
+
+func (q *Queries) GetWPMLeaderboard(ctx context.Context) ([]GetWPMLeaderboardRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWPMLeaderboard)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWPMLeaderboardRow
+	for rows.Next() {
+		var i GetWPMLeaderboardRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.TotalWordsRead,
+			&i.TotalSeconds,
+			&i.Wpm,
 		); err != nil {
 			return nil, err
 		}
@@ -1327,27 +1283,35 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 }
 
 const upsertDevice = `-- name: UpsertDevice :one
-INSERT INTO devices (id, user_id, device_name)
-VALUES (?, ?, ?)
+INSERT INTO devices (id, user_id, last_synced, device_name)
+VALUES (?, ?, ?, ?)
 ON CONFLICT DO UPDATE
 SET
-    device_name = COALESCE(excluded.device_name, device_name)
-RETURNING id, user_id, device_name, created_at, sync
+    device_name = COALESCE(excluded.device_name, device_name),
+    last_synced = COALESCE(excluded.last_synced, last_synced)
+RETURNING id, user_id, device_name, last_synced, created_at, sync
 `
 
 type UpsertDeviceParams struct {
-	ID         string `json:"id"`
-	UserID     string `json:"user_id"`
-	DeviceName string `json:"device_name"`
+	ID         string    `json:"id"`
+	UserID     string    `json:"user_id"`
+	LastSynced time.Time `json:"last_synced"`
+	DeviceName string    `json:"device_name"`
 }
 
 func (q *Queries) UpsertDevice(ctx context.Context, arg UpsertDeviceParams) (Device, error) {
-	row := q.db.QueryRowContext(ctx, upsertDevice, arg.ID, arg.UserID, arg.DeviceName)
+	row := q.db.QueryRowContext(ctx, upsertDevice,
+		arg.ID,
+		arg.UserID,
+		arg.LastSynced,
+		arg.DeviceName,
+	)
 	var i Device
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.DeviceName,
+		&i.LastSynced,
 		&i.CreatedAt,
 		&i.Sync,
 	)

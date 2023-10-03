@@ -48,19 +48,6 @@ type requestSettingsEdit struct {
 	TimeOffset  *string `form:"time_offset"`
 }
 
-func baseResourceRoute(template string, args ...map[string]any) func(c *gin.Context) {
-	variables := gin.H{"RouteName": template}
-	if len(args) > 0 {
-		variables = args[0]
-	}
-
-	return func(c *gin.Context) {
-		rUser, _ := c.Get("AuthorizedUser")
-		variables["User"] = rUser
-		c.HTML(http.StatusOK, template, variables)
-	}
-}
-
 func (api *API) webManifest(c *gin.Context) {
 	c.Header("Content-Type", "application/manifest+json")
 	c.File("./assets/manifest.json")
@@ -125,18 +112,9 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 				return
 			}
 
-			statistics := gin.H{
-				"TotalTimeLeftSeconds": (document.Pages - document.Page) * document.SecondsPerPage,
-				"WordsPerMinute":       "N/A",
-			}
-
-			if document.Words != nil && *document.Words != 0 {
-				statistics["WordsPerMinute"] = (*document.Words / document.Pages * document.ReadPages) / (document.TotalTimeSeconds / 60.0)
-			}
-
 			templateVars["RelBase"] = "../"
 			templateVars["Data"] = document
-			templateVars["Statistics"] = statistics
+			templateVars["TotalTimeLeftSeconds"] = (document.Pages - document.Page) * document.SecondsPerPage
 		} else if routeName == "activity" {
 			activityFilter := database.GetActivityParams{
 				UserID: userID,
@@ -158,39 +136,22 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 
 			templateVars["Data"] = activity
 		} else if routeName == "home" {
-			start_time := time.Now()
-			weekly_streak, err := api.DB.Queries.GetUserWindowStreaks(api.DB.Ctx, database.GetUserWindowStreaksParams{
-				UserID: userID,
-				Window: "WEEK",
-			})
-			if err != nil {
-				log.Warn("[createAppResourcesRoute] GetUserWindowStreaks DB Error:", err)
-			}
-			log.Debug("GetUserWindowStreaks - WEEK - ", time.Since(start_time))
-			start_time = time.Now()
-
-			daily_streak, err := api.DB.Queries.GetUserWindowStreaks(api.DB.Ctx, database.GetUserWindowStreaksParams{
-				UserID: userID,
-				Window: "DAY",
-			})
-			if err != nil {
-				log.Warn("[createAppResourcesRoute] GetUserWindowStreaks DB Error:", err)
-			}
-			log.Debug("GetUserWindowStreaks - DAY - ", time.Since(start_time))
-
-			start_time = time.Now()
-			database_info, _ := api.DB.Queries.GetDatabaseInfo(api.DB.Ctx, userID)
-			log.Debug("GetDatabaseInfo - ", time.Since(start_time))
-
-			start_time = time.Now()
+			start := time.Now()
 			read_graph_data, _ := api.DB.Queries.GetDailyReadStats(api.DB.Ctx, userID)
-			log.Debug("GetDailyReadStats - ", time.Since(start_time))
+			log.Info("GetDailyReadStats Performance: ", time.Since(start))
+
+			start = time.Now()
+			database_info, _ := api.DB.Queries.GetDatabaseInfo(api.DB.Ctx, userID)
+			log.Info("GetDatabaseInfo Performance: ", time.Since(start))
+
+			streaks, _ := api.DB.Queries.GetUserStreaks(api.DB.Ctx, userID)
+			wpn_leaderboard, _ := api.DB.Queries.GetWPMLeaderboard(api.DB.Ctx)
 
 			templateVars["Data"] = gin.H{
-				"DailyStreak":  daily_streak,
-				"WeeklyStreak": weekly_streak,
-				"DatabaseInfo": database_info,
-				"GraphData":    read_graph_data,
+				"Streaks":        streaks,
+				"GraphData":      read_graph_data,
+				"DatabaseInfo":   database_info,
+				"WPMLeaderboard": wpn_leaderboard,
 			}
 		} else if routeName == "settings" {
 			user, err := api.DB.Queries.GetUser(api.DB.Ctx, userID)
@@ -512,17 +473,8 @@ func (api *API) identifyDocument(c *gin.Context) {
 		return
 	}
 
-	statistics := gin.H{
-		"TotalTimeLeftSeconds": (document.Pages - document.Page) * document.SecondsPerPage,
-		"WordsPerMinute":       "N/A",
-	}
-
-	if document.Words != nil && *document.Words != 0 {
-		statistics["WordsPerMinute"] = (*document.Words / document.Pages * document.ReadPages) / (document.TotalTimeSeconds / 60.0)
-	}
-
 	templateVars["Data"] = document
-	templateVars["Statistics"] = statistics
+	templateVars["TotalTimeLeftSeconds"] = (document.Pages - document.Page) * document.SecondsPerPage
 
 	c.HTML(http.StatusOK, "document", templateVars)
 }

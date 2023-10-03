@@ -326,13 +326,13 @@
 	    <div class="text-xs flex">
               <p class="text-gray-400 w-32">Words / Minute</p>
               <p class="font-medium dark:text-white">
-		{{ .Statistics.WordsPerMinute }}
+		{{ .Data.Wpm }}
               </p>
 	    </div>
 	    <div class="text-xs flex">
               <p class="text-gray-400 w-32">Est. Time Left</p>
               <p class="font-medium dark:text-white whitespace-nowrap">
-		{{ NiceSeconds .Statistics.TotalTimeLeftSeconds }}
+		{{ NiceSeconds .TotalTimeLeftSeconds }}
               </p>
 	    </div>
 	  </div>

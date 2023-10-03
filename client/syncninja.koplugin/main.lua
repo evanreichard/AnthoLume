@@ -75,7 +75,7 @@ local STATISTICS_ACTIVITY_SINCE_QUERY = [[
     JOIN book AS b 
     ON b.id = psd.id_book
     WHERE start_time > %d
-    ORDER BY start_time ASC LIMIT 1000;
+    ORDER BY start_time ASC LIMIT 5000;
 ]]
 
 local STATISTICS_BOOK_QUERY = [[
@@ -615,7 +615,8 @@ function SyncNinja:checkActivity(interactive)
         service_spec = self.path .. "/api.json"
     }
     local ok, err = pcall(client.check_activity, client, self.settings.username,
-                          self.settings.password, self.device_id, callback_func)
+                          self.settings.password, self.device_id, Device.model,
+                          callback_func)
 end
 
 function SyncNinja:uploadActivity(activity_data, interactive)
@@ -907,7 +908,7 @@ function SyncNinja:getStatisticsActivity(timestamp)
     local conn = SQ3.open(statistics_db)
     local stmt = conn:prepare(string.format(STATISTICS_ACTIVITY_SINCE_QUERY,
                                             timestamp))
-    local rows = stmt:resultset("i", 1000)
+    local rows = stmt:resultset("i", 5000)
     conn:close()
 
     -- No Results

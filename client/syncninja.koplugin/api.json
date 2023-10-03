@@ -26,8 +26,8 @@
     "check_activity": {
       "path": "/api/ko/syncs/activity",
       "method": "POST",
-      "required_params": ["device_id"],
-      "payload": ["device_id"],
+      "required_params": ["device_id", "device"],
+      "payload": ["device_id", "device"],
       "expected_status": [200, 401]
     },
     "download_document": {

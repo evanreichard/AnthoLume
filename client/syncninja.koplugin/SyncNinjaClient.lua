@@ -72,7 +72,8 @@ end
 -------------- New Functions -------------
 ------------------------------------------
 
-function SyncNinjaClient:check_activity(username, password, device_id, callback)
+function SyncNinjaClient:check_activity(username, password, device_id, device,
+                                        callback)
     self.client:reset_middlewares()
     self.client:enable("Format.JSON")
     self.client:enable("GinClient")
@@ -82,7 +83,10 @@ function SyncNinjaClient:check_activity(username, password, device_id, callback)
     socketutil:set_timeout(SYNC_TIMEOUTS[1], SYNC_TIMEOUTS[2])
     local co = coroutine.create(function()
         local ok, res = pcall(function()
-            return self.client:check_activity({device_id = device_id})
+            return self.client:check_activity({
+                device_id = device_id,
+                device = device
+            })
         end)
         if ok then
             callback(res.status == 200, res.body)
