@@ -15,9 +15,14 @@ import (
 )
 
 // KOSync API Auth Headers
-type authHeader struct {
+type authKOHeader struct {
 	AuthUser string `header:"x-auth-user"`
 	AuthKey  string `header:"x-auth-key"`
+}
+
+// OPDS Auth Headers
+type authOPDSHeader struct {
+	Authorization string `header:"authorization"`
 }
 
 func (api *API) authorizeCredentials(username string, password string) (authorized bool) {
@@ -33,7 +38,7 @@ func (api *API) authorizeCredentials(username string, password string) (authoriz
 	return true
 }
 
-func (api *API) authAPIMiddleware(c *gin.Context) {
+func (api *API) authKOMiddleware(c *gin.Context) {
 	session := sessions.Default(c)
 
 	// Check Session First
@@ -46,7 +51,7 @@ func (api *API) authAPIMiddleware(c *gin.Context) {
 
 	// Session Failed -> Check Headers (Allowed on API for KOSync Compatibility)
 
-	var rHeader authHeader
+	var rHeader authKOHeader
 	if err := c.ShouldBindHeader(&rHeader); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Incorrect Headers"})
 		return
@@ -67,6 +72,29 @@ func (api *API) authAPIMiddleware(c *gin.Context) {
 	}
 
 	c.Set("AuthorizedUser", rHeader.AuthUser)
+	c.Header("Cache-Control", "private")
+	c.Next()
+}
+
+func (api *API) authOPDSMiddleware(c *gin.Context) {
+	c.Header("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
+
+	user, rawPassword, hasAuth := c.Request.BasicAuth()
+
+	// Validate Auth Fields
+	if hasAuth != true || user == "" || rawPassword == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization Headers"})
+		return
+	}
+
+	// Validate Auth
+	password := fmt.Sprintf("%x", md5.Sum([]byte(rawPassword)))
+	if authorized := api.authorizeCredentials(user, password); authorized != true {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	c.Set("AuthorizedUser", user)
 	c.Header("Cache-Control", "private")
 	c.Next()
 }

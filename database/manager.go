@@ -5,11 +5,15 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
-	"path"
-
-	sqlite "github.com/mattn/go-sqlite3"
 	log "github.com/sirupsen/logrus"
+	"path"
 	"reichard.io/bbank/config"
+
+	// CGO SQLite
+	// sqlite "github.com/mattn/go-sqlite3"
+
+	// GO SQLite
+	_ "modernc.org/sqlite"
 )
 
 type DBManager struct {
@@ -32,17 +36,32 @@ func NewMgr(c *config.Config) *DBManager {
 
 	// Create Database
 	if c.DBType == "sqlite" {
-		sql.Register("sqlite3_custom", &sqlite.SQLiteDriver{
-			ConnectHook: connectHookSQLite,
-		})
-
+		// GO SQLite
 		dbLocation := path.Join(c.ConfigPath, fmt.Sprintf("%s.db", c.DBName))
-
 		var err error
-		dbm.DB, err = sql.Open("sqlite3_custom", dbLocation)
+		dbm.DB, err = sql.Open("sqlite", dbLocation)
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		// Single Open Connection
+		dbm.DB.SetMaxOpenConns(1)
+		if _, err := dbm.DB.Exec(ddl, nil); err != nil {
+			log.Info("Exec Error:", err)
+		}
+
+		// CGO SQLite
+		// sql.Register("sqlite3_custom", &sqlite.SQLiteDriver{
+		// 	ConnectHook: connectHookSQLite,
+		// })
+
+		// dbLocation := path.Join(c.ConfigPath, fmt.Sprintf("%s.db", c.DBName))
+
+		// var err error
+		// dbm.DB, err = sql.Open("sqlite3_custom", dbLocation)
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
 	} else {
 		log.Fatal("Unsupported Database")
 	}
@@ -59,6 +78,8 @@ func (dbm *DBManager) CacheTempTables() error {
 	return nil
 }
 
+/*
+// CGO SQLite
 func connectHookSQLite(conn *sqlite.SQLiteConn) error {
 	// Create Tables
 	log.Debug("Creating Schema")
@@ -67,3 +88,4 @@ func connectHookSQLite(conn *sqlite.SQLiteConn) error {
 	}
 	return nil
 }
+*/

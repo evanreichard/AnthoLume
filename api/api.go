@@ -66,6 +66,7 @@ func NewApi(db *database.DBManager, c *config.Config) *API {
 	// Register API Routes
 	apiGroup := api.Router.Group("/api")
 	api.registerKOAPIRoutes(apiGroup)
+	api.registerOPDSRoutes(apiGroup)
 
 	return api
 }
@@ -112,18 +113,27 @@ func (api *API) registerKOAPIRoutes(apiGroup *gin.RouterGroup) {
 	koGroup := apiGroup.Group("/ko")
 
 	koGroup.POST("/users/create", api.createUser)
-	koGroup.GET("/users/auth", api.authAPIMiddleware, api.authorizeUser)
+	koGroup.GET("/users/auth", api.authKOMiddleware, api.authorizeUser)
 
-	koGroup.PUT("/syncs/progress", api.authAPIMiddleware, api.setProgress)
-	koGroup.GET("/syncs/progress/:document", api.authAPIMiddleware, api.getProgress)
+	koGroup.PUT("/syncs/progress", api.authKOMiddleware, api.setProgress)
+	koGroup.GET("/syncs/progress/:document", api.authKOMiddleware, api.getProgress)
 
-	koGroup.POST("/documents", api.authAPIMiddleware, api.addDocuments)
-	koGroup.POST("/syncs/documents", api.authAPIMiddleware, api.checkDocumentsSync)
-	koGroup.PUT("/documents/:document/file", api.authAPIMiddleware, api.uploadDocumentFile)
-	koGroup.GET("/documents/:document/file", api.authAPIMiddleware, api.downloadDocumentFile)
+	koGroup.POST("/documents", api.authKOMiddleware, api.addDocuments)
+	koGroup.POST("/syncs/documents", api.authKOMiddleware, api.checkDocumentsSync)
+	koGroup.PUT("/documents/:document/file", api.authKOMiddleware, api.uploadDocumentFile)
+	koGroup.GET("/documents/:document/file", api.authKOMiddleware, api.downloadDocumentFile)
 
-	koGroup.POST("/activity", api.authAPIMiddleware, api.addActivities)
-	koGroup.POST("/syncs/activity", api.authAPIMiddleware, api.checkActivitySync)
+	koGroup.POST("/activity", api.authKOMiddleware, api.addActivities)
+	koGroup.POST("/syncs/activity", api.authKOMiddleware, api.checkActivitySync)
+}
+
+func (api *API) registerOPDSRoutes(apiGroup *gin.RouterGroup) {
+	opdsGroup := apiGroup.Group("/opds")
+
+	opdsGroup.GET("/", api.authOPDSMiddleware, api.opdsDocuments)
+	opdsGroup.GET("/search.xml", api.authOPDSMiddleware, api.opdsSearchDescription)
+	opdsGroup.GET("/documents/:document/file", api.authOPDSMiddleware, api.downloadDocumentFile)
+	opdsGroup.GET("/documents/:document/cover", api.authOPDSMiddleware, api.getDocumentCover)
 }
 
 func generateToken(n int) ([]byte, error) {

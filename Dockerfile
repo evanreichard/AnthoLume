@@ -19,11 +19,7 @@ ARG TARGETARCH
 RUN --mount=target=. \
     --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg \
-    if [ "$TARGETARCH" = "amd64" ]; then \
-	GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=1 CGO_CFLAGS="-D_LARGEFILE64_SOURCE" CC=x86_64-linux-gnu-gcc go build -o /opt/bookmanager/server; \
-    else \
-	GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=1 CGO_CFLAGS="-D_LARGEFILE64_SOURCE" go build -o /opt/bookmanager/server; \
-    fi; \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /opt/bookmanager/server; \
     cp -a ./templates /opt/bookmanager/templates; \
     cp -a ./assets /opt/bookmanager/assets;
 

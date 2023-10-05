@@ -31,16 +31,17 @@
 
 This is BookManager! Will probably be renamed at some point. This repository contains:
 
-- [KOReader KOSync](https://github.com/koreader/koreader-sync-server) Compatible API
-- KOReader Plugin (See `client` subfolder)
-- WebApp
+- Web App / Progressive Web App (PWA)
+- [KOReader](https://github.com/koreader/koreader) Plugin (See `client` subfolder)
+- [KOReader KOSync](https://github.com/koreader/koreader-sync-server) compatible API
+- OPDS API endpoint that provides access to the uploaded documents
 
 In additional to the compatible KOSync API's, we add:
 
 - Additional APIs to automatically upload reading statistics
-- Automatically upload documents to the server (can download in the "Documents" view)
+- Upload documents to the server (can download in the "Documents" view or via OPDS)
 - Book metadata scraping (Thanks [OpenLibrary](https://openlibrary.org/) & [Google Books API](https://developers.google.com/books/docs/v1/getting_started))
-- No JavaScript! All information is generated server side.
+- No JavaScript! All information is generated server side with go templates
 
 # Server
 
@@ -49,6 +50,10 @@ Docker Image: `docker pull gitea.va.reichard.io/evan/bookmanager:latest`
 ## KOSync API
 
 The KOSync compatible API endpoint is located at: `http(s)://<SERVER>/api/ko`
+
+## OPDS API
+
+The OPDS API endpoint is located at: `http(s)://<SERVER>/api/opds`
 
 ## Quick Start
 
@@ -80,6 +85,20 @@ The service is now accessible at: `http://localhost:8585`. I recommend registeri
 | REGISTRATION_ENABLED | false         | Whether to allow registration (applies to both WebApp & KOSync API)  |
 | COOKIE_SESSION_KEY   | <EMPTY>       | Optional secret cookie session key (auto generated if not provided)  |
 
+## Security
+
+### Authentication
+
+- _Web App / PWA_ - Session based token (7 day expiry, refresh after 6 days)
+- _KOSync & SyncNinja API_ - Header based (KOSync compatibility)
+- _OPDS API_ - Basic authentication (KOReader OPDS compatibility)
+
+### Notes
+
+- Credentials are the same amongst all endpoints
+- The native KOSync plugin sends an MD5 hash of the password. Due to that:
+- We store an Argon2 hash _and_ per-password salt of the MD5 hashed original password
+
 # Client (KOReader Plugin)
 
 See documentation in the `client` subfolder: [SyncNinja](https://gitea.va.reichard.io/evan/BookManager/src/branch/master/client/)
@@ -104,21 +123,15 @@ CONFIG_PATH=./data DATA_PATH=./data go run main.go serve
 The `Dockerfile` and `Makefile` contain the build information:
 
 ```bash
+# Build Local (Linux & Darwin - arm64 & amd64)
+make build_local
+
 # Build Local Docker Image
 make docker_build_local
 
-# Push Latest
+# Build Docker & Push Latest or Dev (Linux - arm64 & amd64)
 make docker_build_release_latest
-```
-
-If manually building, you must enable CGO:
-
-```bash
-# Download Dependencies
-go mod download
-
-# Compile (Binary `./bookmanager`)
-CGO_ENABLED=1 CGO_CFLAGS="-D_LARGEFILE64_SOURCE" go build -o /bookmanager
+make docker_build_release_dev
 ```
 
 ## Notes
