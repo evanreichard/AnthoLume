@@ -124,6 +124,11 @@ sql:
               type: "string"
               pointer: true
 
+          # Override Time
+          - db_type: "DATETIME"
+            go_type:
+              type: "string"
+
           # Do not generate JSON
           - column: "documents.synced"
             go_struct_tag: 'json:"-"'

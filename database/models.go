@@ -6,58 +6,57 @@ package database
 
 import (
 	"database/sql"
-	"time"
 )
 
 type Activity struct {
-	UserID     string    `json:"user_id"`
-	DocumentID string    `json:"document_id"`
-	DeviceID   string    `json:"device_id"`
-	CreatedAt  time.Time `json:"created_at"`
-	StartTime  time.Time `json:"start_time"`
-	Page       int64     `json:"page"`
-	Pages      int64     `json:"pages"`
-	Duration   int64     `json:"duration"`
+	UserID     string `json:"user_id"`
+	DocumentID string `json:"document_id"`
+	DeviceID   string `json:"device_id"`
+	CreatedAt  string `json:"created_at"`
+	StartTime  string `json:"start_time"`
+	Page       int64  `json:"page"`
+	Pages      int64  `json:"pages"`
+	Duration   int64  `json:"duration"`
 }
 
 type Device struct {
-	ID         string    `json:"id"`
-	UserID     string    `json:"user_id"`
-	DeviceName string    `json:"device_name"`
-	LastSynced time.Time `json:"last_synced"`
-	CreatedAt  string    `json:"created_at"`
-	Sync       bool      `json:"sync"`
+	ID         string `json:"id"`
+	UserID     string `json:"user_id"`
+	DeviceName string `json:"device_name"`
+	LastSynced string `json:"last_synced"`
+	CreatedAt  string `json:"created_at"`
+	Sync       bool   `json:"sync"`
 }
 
 type Document struct {
-	ID          string    `json:"id"`
-	Md5         *string   `json:"md5"`
-	Filepath    *string   `json:"filepath"`
-	Coverfile   *string   `json:"coverfile"`
-	Title       *string   `json:"title"`
-	Author      *string   `json:"author"`
-	Series      *string   `json:"series"`
-	SeriesIndex *int64    `json:"series_index"`
-	Lang        *string   `json:"lang"`
-	Description *string   `json:"description"`
-	Words       *int64    `json:"words"`
-	Gbid        *string   `json:"gbid"`
-	Olid        *string   `json:"-"`
-	Isbn10      *string   `json:"isbn10"`
-	Isbn13      *string   `json:"isbn13"`
-	Synced      bool      `json:"-"`
-	Deleted     bool      `json:"-"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID          string  `json:"id"`
+	Md5         *string `json:"md5"`
+	Filepath    *string `json:"filepath"`
+	Coverfile   *string `json:"coverfile"`
+	Title       *string `json:"title"`
+	Author      *string `json:"author"`
+	Series      *string `json:"series"`
+	SeriesIndex *int64  `json:"series_index"`
+	Lang        *string `json:"lang"`
+	Description *string `json:"description"`
+	Words       *int64  `json:"words"`
+	Gbid        *string `json:"gbid"`
+	Olid        *string `json:"-"`
+	Isbn10      *string `json:"isbn10"`
+	Isbn13      *string `json:"isbn13"`
+	Synced      bool    `json:"-"`
+	Deleted     bool    `json:"-"`
+	UpdatedAt   string  `json:"updated_at"`
+	CreatedAt   string  `json:"created_at"`
 }
 
 type DocumentProgress struct {
-	UserID     string    `json:"user_id"`
-	DocumentID string    `json:"document_id"`
-	DeviceID   string    `json:"device_id"`
-	Percentage float64   `json:"percentage"`
-	Progress   string    `json:"progress"`
-	CreatedAt  time.Time `json:"created_at"`
+	UserID     string  `json:"user_id"`
+	DocumentID string  `json:"document_id"`
+	DeviceID   string  `json:"device_id"`
+	Percentage float64 `json:"percentage"`
+	Progress   string  `json:"progress"`
+	CreatedAt  string  `json:"created_at"`
 }
 
 type DocumentUserStatistic struct {
@@ -74,36 +73,36 @@ type DocumentUserStatistic struct {
 }
 
 type Metadatum struct {
-	ID          int64     `json:"id"`
-	DocumentID  string    `json:"document_id"`
-	Title       *string   `json:"title"`
-	Author      *string   `json:"author"`
-	Description *string   `json:"description"`
-	Gbid        *string   `json:"gbid"`
-	Olid        *string   `json:"olid"`
-	Isbn10      *string   `json:"isbn10"`
-	Isbn13      *string   `json:"isbn13"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID          int64   `json:"id"`
+	DocumentID  string  `json:"document_id"`
+	Title       *string `json:"title"`
+	Author      *string `json:"author"`
+	Description *string `json:"description"`
+	Gbid        *string `json:"gbid"`
+	Olid        *string `json:"olid"`
+	Isbn10      *string `json:"isbn10"`
+	Isbn13      *string `json:"isbn13"`
+	CreatedAt   string  `json:"created_at"`
 }
 
 type RawActivity struct {
-	ID         int64     `json:"id"`
-	UserID     string    `json:"user_id"`
-	DocumentID string    `json:"document_id"`
-	DeviceID   string    `json:"device_id"`
-	StartTime  time.Time `json:"start_time"`
-	Page       int64     `json:"page"`
-	Pages      int64     `json:"pages"`
-	Duration   int64     `json:"duration"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID         int64  `json:"id"`
+	UserID     string `json:"user_id"`
+	DocumentID string `json:"document_id"`
+	DeviceID   string `json:"device_id"`
+	StartTime  string `json:"start_time"`
+	Page       int64  `json:"page"`
+	Pages      int64  `json:"pages"`
+	Duration   int64  `json:"duration"`
+	CreatedAt  string `json:"created_at"`
 }
 
 type User struct {
-	ID         string    `json:"id"`
-	Pass       *string   `json:"-"`
-	Admin      bool      `json:"-"`
-	TimeOffset *string   `json:"time_offset"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID         string  `json:"id"`
+	Pass       *string `json:"-"`
+	Admin      bool    `json:"-"`
+	TimeOffset *string `json:"time_offset"`
+	CreatedAt  string  `json:"created_at"`
 }
 
 type UserStreak struct {
@@ -120,7 +119,7 @@ type UserStreak struct {
 type ViewDocumentUserStatistic struct {
 	DocumentID       string          `json:"document_id"`
 	UserID           string          `json:"user_id"`
-	LastRead         time.Time       `json:"last_read"`
+	LastRead         string          `json:"last_read"`
 	Page             int64           `json:"page"`
 	Pages            int64           `json:"pages"`
 	TotalTimeSeconds sql.NullFloat64 `json:"total_time_seconds"`
@@ -131,14 +130,14 @@ type ViewDocumentUserStatistic struct {
 }
 
 type ViewRescaledActivity struct {
-	UserID     string    `json:"user_id"`
-	DocumentID string    `json:"document_id"`
-	DeviceID   string    `json:"device_id"`
-	CreatedAt  time.Time `json:"created_at"`
-	StartTime  time.Time `json:"start_time"`
-	Page       int64     `json:"page"`
-	Pages      int64     `json:"pages"`
-	Duration   int64     `json:"duration"`
+	UserID     string `json:"user_id"`
+	DocumentID string `json:"document_id"`
+	DeviceID   string `json:"device_id"`
+	CreatedAt  string `json:"created_at"`
+	StartTime  string `json:"start_time"`
+	Page       int64  `json:"page"`
+	Pages      int64  `json:"pages"`
+	Duration   int64  `json:"duration"`
 }
 
 type ViewUserStreak struct {

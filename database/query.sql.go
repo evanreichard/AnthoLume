@@ -9,7 +9,6 @@ import (
 	"context"
 	"database/sql"
 	"strings"
-	"time"
 )
 
 const addActivity = `-- name: AddActivity :one
@@ -27,13 +26,13 @@ RETURNING id, user_id, document_id, device_id, start_time, page, pages, duration
 `
 
 type AddActivityParams struct {
-	UserID     string    `json:"user_id"`
-	DocumentID string    `json:"document_id"`
-	DeviceID   string    `json:"device_id"`
-	StartTime  time.Time `json:"start_time"`
-	Duration   int64     `json:"duration"`
-	Page       int64     `json:"page"`
-	Pages      int64     `json:"pages"`
+	UserID     string `json:"user_id"`
+	DocumentID string `json:"document_id"`
+	DeviceID   string `json:"device_id"`
+	StartTime  string `json:"start_time"`
+	Duration   int64  `json:"duration"`
+	Page       int64  `json:"page"`
+	Pages      int64  `json:"pages"`
 }
 
 func (q *Queries) AddActivity(ctx context.Context, arg AddActivityParams) (RawActivity, error) {
@@ -173,7 +172,7 @@ WITH filtered_activity AS (
 
 SELECT
     document_id,
-    CAST(DATETIME(activity.start_time, users.time_offset) AS TEXT) AS start_time,
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', activity.start_time, users.time_offset) AS TEXT) AS start_time,
     title,
     author,
     duration,
@@ -397,8 +396,8 @@ func (q *Queries) GetDevice(ctx context.Context, deviceID string) (Device, error
 const getDevices = `-- name: GetDevices :many
 SELECT
     devices.device_name,
-    CAST(DATETIME(devices.created_at, users.time_offset) AS TEXT) AS created_at,
-    CAST(DATETIME(devices.last_synced, users.time_offset) AS TEXT) AS last_synced
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', devices.created_at, users.time_offset) AS TEXT) AS created_at,
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', devices.last_synced, users.time_offset) AS TEXT) AS last_synced
 FROM devices
 JOIN users ON users.id = devices.user_id
 WHERE users.id = ?1
@@ -501,9 +500,9 @@ AND start_time >= ?3
 `
 
 type GetDocumentReadStatsParams struct {
-	DocumentID string    `json:"document_id"`
-	UserID     string    `json:"user_id"`
-	StartTime  time.Time `json:"start_time"`
+	DocumentID string `json:"document_id"`
+	UserID     string `json:"user_id"`
+	StartTime  string `json:"start_time"`
 }
 
 type GetDocumentReadStatsRow struct {
@@ -534,10 +533,10 @@ FROM capped_stats
 `
 
 type GetDocumentReadStatsCappedParams struct {
-	PageDurationCap int64     `json:"page_duration_cap"`
-	DocumentID      string    `json:"document_id"`
-	UserID          string    `json:"user_id"`
-	StartTime       time.Time `json:"start_time"`
+	PageDurationCap int64  `json:"page_duration_cap"`
+	DocumentID      string `json:"document_id"`
+	UserID          string `json:"user_id"`
+	StartTime       string `json:"start_time"`
 }
 
 type GetDocumentReadStatsCappedRow struct {
@@ -573,7 +572,7 @@ SELECT
     COALESCE(dus.pages, 0) AS pages,
     COALESCE(dus.read_pages, 0) AS read_pages,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
-    DATETIME(COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
+    STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
         AS last_read,
     CASE
         WHEN dus.percentage > 97.0 THEN 100.0
@@ -715,7 +714,7 @@ SELECT
     COALESCE(dus.pages, 0) AS pages,
     COALESCE(dus.read_pages, 0) AS read_pages,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
-    DATETIME(COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
+    STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
         AS last_read,
     CASE
         WHEN dus.percentage > 97.0 THEN 100.0
@@ -819,9 +818,9 @@ type GetLastActivityParams struct {
 	UserID   string `json:"user_id"`
 }
 
-func (q *Queries) GetLastActivity(ctx context.Context, arg GetLastActivityParams) (time.Time, error) {
+func (q *Queries) GetLastActivity(ctx context.Context, arg GetLastActivityParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, getLastActivity, arg.DeviceID, arg.UserID)
-	var start_time time.Time
+	var start_time string
 	err := row.Scan(&start_time)
 	return start_time, err
 }
@@ -908,13 +907,13 @@ type GetProgressParams struct {
 }
 
 type GetProgressRow struct {
-	UserID     string    `json:"user_id"`
-	DocumentID string    `json:"document_id"`
-	DeviceID   string    `json:"device_id"`
-	Percentage float64   `json:"percentage"`
-	Progress   string    `json:"progress"`
-	CreatedAt  time.Time `json:"created_at"`
-	DeviceName string    `json:"device_name"`
+	UserID     string  `json:"user_id"`
+	DocumentID string  `json:"document_id"`
+	DeviceID   string  `json:"device_id"`
+	Percentage float64 `json:"percentage"`
+	Progress   string  `json:"progress"`
+	CreatedAt  string  `json:"created_at"`
+	DeviceName string  `json:"device_name"`
 }
 
 func (q *Queries) GetProgress(ctx context.Context, arg GetProgressParams) (GetProgressRow, error) {
@@ -1293,10 +1292,10 @@ RETURNING id, user_id, device_name, last_synced, created_at, sync
 `
 
 type UpsertDeviceParams struct {
-	ID         string    `json:"id"`
-	UserID     string    `json:"user_id"`
-	LastSynced time.Time `json:"last_synced"`
-	DeviceName string    `json:"device_name"`
+	ID         string `json:"id"`
+	UserID     string `json:"user_id"`
+	LastSynced string `json:"last_synced"`
+	DeviceName string `json:"device_name"`
 }
 
 func (q *Queries) UpsertDevice(ctx context.Context, arg UpsertDeviceParams) (Device, error) {

@@ -260,7 +260,7 @@ func (api *API) addActivities(c *gin.Context) {
 			UserID:     rUser.(string),
 			DocumentID: item.DocumentID,
 			DeviceID:   rActivity.DeviceID,
-			StartTime:  time.Unix(int64(item.StartTime), 0).UTC(),
+			StartTime:  time.Unix(int64(item.StartTime), 0).UTC().Format(time.RFC3339),
 			Duration:   int64(item.Duration),
 			Page:       int64(item.Page),
 			Pages:      int64(item.Pages),
@@ -306,7 +306,7 @@ func (api *API) checkActivitySync(c *gin.Context) {
 		ID:         rCheckActivity.DeviceID,
 		UserID:     rUser.(string),
 		DeviceName: rCheckActivity.Device,
-		LastSynced: time.Now().UTC(),
+		LastSynced: time.Now().UTC().Format(time.RFC3339),
 	}); err != nil {
 		log.Error("[checkActivitySync] UpsertDevice DB Error", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Device"})
@@ -319,15 +319,23 @@ func (api *API) checkActivitySync(c *gin.Context) {
 		DeviceID: rCheckActivity.DeviceID,
 	})
 	if err == sql.ErrNoRows {
-		lastActivity = time.UnixMilli(0)
+		lastActivity = time.UnixMilli(0).Format(time.RFC3339)
 	} else if err != nil {
 		log.Error("[checkActivitySync] GetLastActivity DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Error"})
 		return
 	}
 
+	// Parse Time
+	parsedTime, err := time.Parse(time.RFC3339, lastActivity)
+	if err != nil {
+		log.Error("[checkActivitySync] Time Parse Error:", err)
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Error"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"last_sync": lastActivity.Unix(),
+		"last_sync": parsedTime.Unix(),
 	})
 }
 
@@ -406,7 +414,7 @@ func (api *API) checkDocumentsSync(c *gin.Context) {
 		ID:         rCheckDocs.DeviceID,
 		UserID:     rUser.(string),
 		DeviceName: rCheckDocs.Device,
-		LastSynced: time.Now().UTC(),
+		LastSynced: time.Now().UTC().Format(time.RFC3339),
 	})
 	if err != nil {
 		log.Error("[checkDocumentsSync] UpsertDevice DB Error", err)

@@ -61,7 +61,7 @@ WITH filtered_activity AS (
 
 SELECT
     document_id,
-    CAST(DATETIME(activity.start_time, users.time_offset) AS TEXT) AS start_time,
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', activity.start_time, users.time_offset) AS TEXT) AS start_time,
     title,
     author,
     duration,
@@ -131,8 +131,8 @@ WHERE id = $device_id LIMIT 1;
 -- name: GetDevices :many
 SELECT
     devices.device_name,
-    CAST(DATETIME(devices.created_at, users.time_offset) AS TEXT) AS created_at,
-    CAST(DATETIME(devices.last_synced, users.time_offset) AS TEXT) AS last_synced
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', devices.created_at, users.time_offset) AS TEXT) AS created_at,
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', devices.last_synced, users.time_offset) AS TEXT) AS last_synced
 FROM devices
 JOIN users ON users.id = devices.user_id
 WHERE users.id = $user_id;
@@ -192,7 +192,7 @@ SELECT
     COALESCE(dus.pages, 0) AS pages,
     COALESCE(dus.read_pages, 0) AS read_pages,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
-    DATETIME(COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
+    STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
         AS last_read,
     CASE
         WHEN dus.percentage > 97.0 THEN 100.0
@@ -236,7 +236,7 @@ SELECT
     COALESCE(dus.pages, 0) AS pages,
     COALESCE(dus.read_pages, 0) AS read_pages,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
-    DATETIME(COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
+    STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
         AS last_read,
     CASE
         WHEN dus.percentage > 97.0 THEN 100.0

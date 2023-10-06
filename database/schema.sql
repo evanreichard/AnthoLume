@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
     admin BOOLEAN NOT NULL DEFAULT 0 CHECK (admin IN (0, 1)),
     time_offset TEXT NOT NULL DEFAULT '0 hours',
 
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
 -- Books / Documents
@@ -39,8 +39,8 @@ CREATE TABLE IF NOT EXISTS documents (
     synced BOOLEAN NOT NULL DEFAULT 0 CHECK (synced IN (0, 1)),
     deleted BOOLEAN NOT NULL DEFAULT 0 CHECK (deleted IN (0, 1)),
 
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    created_at DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
 -- Metadata
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS metadata (
     isbn10 TEXT,
     isbn13 TEXT,
 
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now')),
 
     FOREIGN KEY (document_id) REFERENCES documents (id)
 );
@@ -68,8 +68,8 @@ CREATE TABLE IF NOT EXISTS devices (
     user_id TEXT NOT NULL,
 
     device_name TEXT NOT NULL,
-    last_synced DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_synced DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    created_at DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now')),
     sync BOOLEAN NOT NULL DEFAULT 1 CHECK (sync IN (0, 1)),
 
     FOREIGN KEY (user_id) REFERENCES users (id)
@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS document_progress (
 
     percentage REAL NOT NULL,
     progress TEXT NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now')),
 
     FOREIGN KEY (user_id) REFERENCES users (id),
     FOREIGN KEY (document_id) REFERENCES documents (id),
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS raw_activity (
     page INTEGER NOT NULL,
     pages INTEGER NOT NULL,
     duration INTEGER NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now')),
 
     FOREIGN KEY (user_id) REFERENCES users (id),
     FOREIGN KEY (document_id) REFERENCES documents (id),
@@ -430,6 +430,6 @@ INSERT INTO document_user_statistics SELECT * FROM view_document_user_statistics
 CREATE TRIGGER IF NOT EXISTS update_documents_updated_at
 BEFORE UPDATE ON documents BEGIN
 UPDATE documents
-SET updated_at = CURRENT_TIMESTAMP
+SET updated_at = STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now')
 WHERE id = old.id;
 END;
