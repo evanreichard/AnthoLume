@@ -195,7 +195,11 @@
             </tr>
           </thead>
           <tbody class="text-black dark:text-white">
-            {{ range $device := .Data.Devices }}
+            {{ if not .Data.Devices }}
+            <tr>
+              <td class="text-center p-3" colspan="3">No Results</td>
+            </tr>
+            {{ end }} {{ range $device := .Data.Devices }}
             <tr>
               <td class="p-3 pl-0">
                 <p>{{ $device.DeviceName }}</p>

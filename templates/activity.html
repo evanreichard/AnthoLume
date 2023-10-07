@@ -33,6 +33,12 @@
         </tr>
       </thead>
       <tbody class="text-black dark:text-white">
+	{{ if not .Data }}
+	<tr>
+	  <td class="text-center p-3" colspan="4">No Results</td>
+	</tr>
+	{{ end }}
+
         {{range $activity := .Data }}
         <tr>
           <td class="p-3 border-b border-gray-200">

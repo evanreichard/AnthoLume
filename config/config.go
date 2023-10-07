@@ -22,6 +22,7 @@ type Config struct {
 	// Miscellaneous Settings
 	RegistrationEnabled bool
 	CookieSessionKey    string
+	SearchEnabled       bool
 }
 
 func Load() *Config {
@@ -35,6 +36,7 @@ func Load() *Config {
 		ListenPort:          getEnv("LISTEN_PORT", "8585"),
 		CookieSessionKey:    trimLowerString(getEnv("COOKIE_SESSION_KEY", "")),
 		RegistrationEnabled: trimLowerString(getEnv("REGISTRATION_ENABLED", "false")) == "true",
+		SearchEnabled:       trimLowerString(getEnv("SEARCH_ENABLED", "false")) == "true",
 	}
 }
 

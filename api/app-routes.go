@@ -17,12 +17,19 @@ import (
 	"golang.org/x/exp/slices"
 	"reichard.io/bbank/database"
 	"reichard.io/bbank/metadata"
+	"reichard.io/bbank/search"
+	"reichard.io/bbank/utils"
 )
 
 type queryParams struct {
 	Page     *int64  `form:"page"`
 	Limit    *int64  `form:"limit"`
 	Document *string `form:"document"`
+}
+
+type searchParams struct {
+	Query    *string `form:"query"`
+	BookType *string `form:"book_type"`
 }
 
 type requestDocumentEdit struct {
@@ -48,6 +55,13 @@ type requestSettingsEdit struct {
 	TimeOffset  *string `form:"time_offset"`
 }
 
+type requestDocumentAdd struct {
+	ID       *string `form:"id"`
+	Title    *string `form:"title"`
+	Author   *string `form:"author"`
+	BookType *string `form:"book_type"`
+}
+
 func (api *API) webManifest(c *gin.Context) {
 	c.Header("Content-Type", "application/manifest+json")
 	c.File("./assets/manifest.json")
@@ -60,6 +74,7 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 		templateVarsBase = args[0]
 	}
 	templateVarsBase["RouteName"] = routeName
+	templateVarsBase["SearchEnabled"] = api.Config.SearchEnabled
 
 	return func(c *gin.Context) {
 		var userID string
@@ -173,6 +188,26 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 					"TimeOffset": *user.TimeOffset,
 				},
 				"Devices": devices,
+			}
+		} else if routeName == "search" {
+			var sParams searchParams
+			c.BindQuery(&sParams)
+
+			// Only Handle Query
+			if sParams.BookType != nil && !slices.Contains([]string{"NON_FICTION", "FICTION"}, *sParams.BookType) {
+				templateVars["SearchErrorMessage"] = "Invalid Book Type"
+			} else if sParams.Query != nil && *sParams.Query == "" {
+				templateVars["SearchErrorMessage"] = "Invalid Query"
+			} else if sParams.BookType != nil && sParams.Query != nil {
+				var bType search.BookType = search.BOOK_FICTION
+				if *sParams.BookType == "NON_FICTION" {
+					bType = search.BOOK_NON_FICTION
+				}
+
+				// Search
+				searchResults := search.SearchBook(*sParams.Query, bType)
+				templateVars["Data"] = searchResults
+				templateVars["BookType"] = *sParams.BookType
 			}
 		} else if routeName == "login" {
 			templateVars["RegistrationEnabled"] = api.Config.RegistrationEnabled
@@ -430,7 +465,8 @@ func (api *API) identifyDocument(c *gin.Context) {
 
 	// Template Variables
 	templateVars := gin.H{
-		"RelBase": "../../",
+		"RelBase":       "../../",
+		"SearchEnabled": api.Config.SearchEnabled,
 	}
 
 	// Get Metadata
@@ -477,6 +513,103 @@ func (api *API) identifyDocument(c *gin.Context) {
 	templateVars["TotalTimeLeftSeconds"] = (document.Pages - document.Page) * document.SecondsPerPage
 
 	c.HTML(http.StatusOK, "document", templateVars)
+}
+
+func (api *API) saveNewDocument(c *gin.Context) {
+	var rDocAdd requestDocumentAdd
+	if err := c.ShouldBind(&rDocAdd); err != nil {
+		log.Error("[saveNewDocument] Invalid Form Bind")
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		return
+	}
+
+	// Validate Form Exists
+	if rDocAdd.ID == nil ||
+		rDocAdd.BookType == nil ||
+		rDocAdd.Title == nil ||
+		rDocAdd.Author == nil {
+		log.Error("[saveNewDocument] Missing Form Values")
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		return
+	}
+
+	var bType search.BookType = search.BOOK_FICTION
+	if *rDocAdd.BookType == "NON_FICTION" {
+		bType = search.BOOK_NON_FICTION
+	}
+
+	// Save Book
+	tempFilePath, err := search.SaveBook(*rDocAdd.ID, bType)
+	if err != nil {
+		log.Warn("[saveNewDocument] Temp File Error: ", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	// Calculate Partial MD5 ID
+	partialMD5, err := utils.CalculatePartialMD5(tempFilePath)
+	if err != nil {
+		log.Warn("[saveNewDocument] Partial MD5 Error: ", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	// Derive Extension on MIME
+	fileMime, err := mimetype.DetectFile(tempFilePath)
+	fileExtension := fileMime.Extension()
+
+	// Derive Filename
+	var fileName string
+	if *rDocAdd.Author != "" {
+		fileName = fileName + *rDocAdd.Author
+	} else {
+		fileName = fileName + "Unknown"
+	}
+
+	if *rDocAdd.Title != "" {
+		fileName = fileName + " - " + *rDocAdd.Title
+	} else {
+		fileName = fileName + " - Unknown"
+	}
+
+	// Remove Slashes
+	fileName = strings.ReplaceAll(fileName, "/", "")
+
+	// Derive & Sanitize File Name
+	fileName = "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, partialMD5, fileExtension))
+
+	// Generate Storage Path
+	safePath := filepath.Join(api.Config.DataPath, "documents", fileName)
+
+	// Move File
+	if err := os.Rename(tempFilePath, safePath); err != nil {
+		log.Warn("[saveNewDocument] Move Temp File Error: ", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	// Get MD5 Hash
+	fileHash, err := getFileMD5(safePath)
+	if err != nil {
+		log.Error("[saveNewDocument] Hash Failure:", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	// Upsert Document
+	if _, err = api.DB.Queries.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
+		ID:       partialMD5,
+		Title:    rDocAdd.Title,
+		Author:   rDocAdd.Author,
+		Md5:      fileHash,
+		Filepath: &fileName,
+	}); err != nil {
+		log.Error("[saveNewDocument] UpsertDocument DB Error:", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	c.Redirect(http.StatusFound, fmt.Sprintf("./documents/%s", partialMD5))
 }
 
 func (api *API) editSettings(c *gin.Context) {
@@ -555,7 +688,8 @@ func (api *API) editSettings(c *gin.Context) {
 		"Settings": gin.H{
 			"TimeOffset": *user.TimeOffset,
 		},
-		"Devices": devices,
+		"Devices":       devices,
+		"SearchEnabled": api.Config.SearchEnabled,
 	}
 
 	c.HTML(http.StatusOK, "settings", templateVars)
