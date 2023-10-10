@@ -1,0 +1,18 @@
+{{template "base.html" .}} {{define "title"}}Reader{{end}} {{define "header"}}
+<a href="../">Documents</a>
+{{end}} {{define "content"}}
+<script src="../../assets/reader/jszip.min.js"></script>
+<script src="../../assets/reader/epub.min.js"></script>
+<script src="../../assets/reader/index.js"></script>
+<div id="viewer" class="w-full h-[100dvh] absolute top-0 left-0"></div>
+<div id="hiddden-viewer" class="hidden"></div>
+<script>
+  let currentReader = new EBookReader("./file", {
+    words: {{ .Data.Words }},
+    pages: {{ .Data.Pages }},
+    progress: "{{ .Progress }}",
+    percentage: {{ .Data.Percentage }},
+    currentWord: {{ .Data.Percentage }} * ({{ .Data.Words }} / 100),
+  });
+</script>
+{{ end}}

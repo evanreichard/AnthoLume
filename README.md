@@ -41,7 +41,8 @@ In additional to the compatible KOSync API's, we add:
 - Additional APIs to automatically upload reading statistics
 - Upload documents to the server (can download in the "Documents" view or via OPDS)
 - Book metadata scraping (Thanks [OpenLibrary](https://openlibrary.org/) & [Google Books API](https://developers.google.com/books/docs/v1/getting_started))
-- No JavaScript! All information is generated server side with go templates
+- No JavaScript for the main app! All information is generated server side with go templates.
+  - JavaScript is used for the ePub reader. Goals to make it service worker to enable a complete offline PWA reading experience.
 
 # Server
 

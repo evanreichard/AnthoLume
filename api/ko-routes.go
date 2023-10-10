@@ -142,6 +142,7 @@ func (api *API) setProgress(c *gin.Context) {
 		ID:         rPosition.DeviceID,
 		UserID:     rUser.(string),
 		DeviceName: rPosition.Device,
+		LastSynced: time.Now().UTC().Format(time.RFC3339),
 	}); err != nil {
 		log.Error("[setProgress] UpsertDevice DB Error:", err)
 	}
@@ -188,7 +189,11 @@ func (api *API) getProgress(c *gin.Context) {
 		UserID:     rUser.(string),
 	})
 
-	if err != nil {
+	if err == sql.ErrNoRows {
+		// Not Found
+		c.JSON(http.StatusOK, gin.H{})
+		return
+	} else if err != nil {
 		log.Error("[getProgress] GetProgress DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Document"})
 		return
@@ -248,6 +253,7 @@ func (api *API) addActivities(c *gin.Context) {
 		ID:         rActivity.DeviceID,
 		UserID:     rUser.(string),
 		DeviceName: rActivity.Device,
+		LastSynced: time.Now().UTC().Format(time.RFC3339),
 	}); err != nil {
 		log.Error("[addActivities] UpsertDevice DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Device"})

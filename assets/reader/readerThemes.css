@@ -1,0 +1,24 @@
+.light {
+  background-color: #fff;
+  color: #000;
+}
+
+.tan {
+  background: #d2b48c;
+  color: #333;
+}
+
+.blue {
+  background: #1f2937;
+  color: #fff;
+}
+
+.gray {
+  background: #232323;
+  color: #fff;
+}
+
+.black {
+  background: #000;
+  color: #ccc;
+}

@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/md5"
+	"database/sql"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -306,6 +307,45 @@ func (api *API) getDocumentCover(c *gin.Context) {
 
 	coverFilePath := filepath.Join(coverDir, coverFile)
 	c.File(coverFilePath)
+}
+
+func (api *API) documentReader(c *gin.Context) {
+	rUser, _ := c.Get("AuthorizedUser")
+
+	var rDoc requestDocumentID
+	if err := c.ShouldBindUri(&rDoc); err != nil {
+		log.Error("[documentReader] Invalid URI Bind")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	progress, err := api.DB.Queries.GetProgress(api.DB.Ctx, database.GetProgressParams{
+		DocumentID: rDoc.DocumentID,
+		UserID:     rUser.(string),
+	})
+
+	if err != nil && err != sql.ErrNoRows {
+		log.Error("[documentReader] UpsertDocument DB Error:", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	document, err := api.DB.Queries.GetDocumentWithStats(api.DB.Ctx, database.GetDocumentWithStatsParams{
+		UserID:     rUser.(string),
+		DocumentID: rDoc.DocumentID,
+	})
+	if err != nil {
+		log.Error("[documentReader] GetDocumentWithStats DB Error:", err)
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		return
+	}
+
+	c.HTML(http.StatusOK, "reader", gin.H{
+		"SearchEnabled": api.Config.SearchEnabled,
+		"Progress":      progress.Progress,
+		"Data":          document,
+		"RelBase":       "../../",
+	})
 }
 
 func (api *API) editDocument(c *gin.Context) {

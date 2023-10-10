@@ -53,7 +53,7 @@ func NewApi(db *database.DBManager, c *config.Config) *API {
 	// Configure Cookie Session Store
 	store := cookie.NewStore(newToken)
 	store.Options(sessions.Options{
-		MaxAge:   60 * 60 * 24 * 7,
+		MaxAge: 60 * 60 * 24 * 7,
 		Secure:   true,
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
@@ -81,6 +81,7 @@ func (api *API) registerWebAppRoutes() {
 	}
 
 	render.AddFromFilesFuncs("login", helperFuncs, "templates/login.html")
+	render.AddFromFilesFuncs("reader", helperFuncs, "templates/reader-base.html", "templates/reader.html")
 	render.AddFromFilesFuncs("home", helperFuncs, "templates/base.html", "templates/home.html")
 	render.AddFromFilesFuncs("search", helperFuncs, "templates/base.html", "templates/search.html")
 	render.AddFromFilesFuncs("settings", helperFuncs, "templates/base.html", "templates/settings.html")
@@ -103,6 +104,7 @@ func (api *API) registerWebAppRoutes() {
 	api.Router.GET("/activity", api.authWebAppMiddleware, api.createAppResourcesRoute("activity"))
 	api.Router.GET("/documents", api.authWebAppMiddleware, api.createAppResourcesRoute("documents"))
 	api.Router.GET("/documents/:document", api.authWebAppMiddleware, api.createAppResourcesRoute("document"))
+	api.Router.GET("/documents/:document/reader", api.authWebAppMiddleware, api.documentReader)
 	api.Router.GET("/documents/:document/file", api.authWebAppMiddleware, api.downloadDocumentFile)
 	api.Router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.getDocumentCover)
 	api.Router.POST("/documents/:document/edit", api.authWebAppMiddleware, api.editDocument)

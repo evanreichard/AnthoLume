@@ -14,6 +14,14 @@
       <label class="z-10 cursor-pointer" for="edit-cover-button">
 	<img class="rounded object-fill w-full" src="{{ .RelBase }}./documents/{{.Data.ID}}/cover"></img>
       </label>
+
+      {{ if .Data.Filepath }}
+      <a
+	href="./{{ .Data.ID }}/reader"
+	class="z-10 text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded text-sm text-center py-1 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800"
+      >Read</a>
+      {{ end }}
+
       <div class="flex flex-wrap-reverse justify-between z-20 gap-2 relative">
 	<div class="min-w-[50%] md:mr-2">
 	  <div class="flex gap-1 text-sm">
