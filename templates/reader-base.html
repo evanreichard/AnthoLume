@@ -2,21 +2,12 @@
 <html lang="en">
   <head>
     <link rel="manifest" href="{{ .RelBase }}./manifest.json" />
-    <meta
-      name="theme-color"
-      content="#F3F4F6"
-      media="(prefers-color-scheme: light)"
-    />
-    <meta
-      name="theme-color"
-      content="#1F2937"
-      media="(prefers-color-scheme: dark)"
-    />
+    <meta name="theme-color" content="#D2B48C" />
     <meta charset="utf-8" />
     <meta
       id="viewport"
       name="viewport"
-      content="width=device-width, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no"
+      content="width=device-width, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <script src="https://cdn.tailwindcss.com"></script>
     <title>Book Manager - {{block "title" .}}{{end}}</title>
@@ -37,10 +28,14 @@
         -ms-overflow-style: none; /* IE and Edge */
         scrollbar-width: none; /* Firefox */
       }
+
+      #bottom-bar {
+        padding-bottom: env(safe-area-inset-bottom);
+      }
     </style>
   </head>
-  <body class="bg-gray-100 dark:bg-gray-800">
-    <main class="relative h-[100dvh] overflow-hidden">
+  <body class="bg-gray-100 dark:bg-gray-800 h-[100dvh]">
+    <main class="relative overflow-hidden">
       <div
         id="top-bar"
         class="-top-32 transition-all duration-200 absolute z-10 bg-gray-100 dark:bg-gray-800 flex items-center justify-around w-full h-32 px-2"
@@ -114,7 +109,7 @@
 
       <div
         id="bottom-bar"
-        class="-bottom-24 transition-all duration-200 absolute z-10 bg-gray-100 dark:bg-gray-800 items-center flex h-24 w-full overflow-y-scroll snap-x snap-mandatory no-scrollbar"
+        class="-bottom-28 transition-all duration-200 absolute z-10 bg-gray-100 dark:bg-gray-800 items-center flex w-full overflow-y-scroll snap-x snap-mandatory no-scrollbar"
       >
         <div
           class="items-center flex flex-col w-screen h-full flex-none snap-center p-2"

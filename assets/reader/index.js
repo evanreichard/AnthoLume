@@ -7,7 +7,7 @@ class EBookReader {
     pages: 0,
     percentage: 0,
     progress: "",
-    readEvents: [],
+    readActivity: [],
     words: 0,
   };
 
@@ -34,25 +34,29 @@ class EBookReader {
     this.loadSettings();
 
     // Initialize
+    this.initDevice();
     this.initThemes();
     this.initRenditionListeners();
     this.initDocumentListeners();
   }
 
   /**
-   * Load position and generate locations
+   * Load progress and generate locations
    **/
   async setupReader() {
-    // Load Position
-    let currentCFI = await this.fromPosition(this.bookState.progress);
+    // Load Progress
+    let currentCFI = await this.fromProgress(this.bookState.progress);
     if (!currentCFI) this.bookState.currentWord = 0;
     await this.rendition.display(currentCFI);
 
-    // Start Timer
-    this.bookState.pageStart = Date.now();
+    // Restore Theme
+    this.setTheme(this.readerSettings.theme || "tan");
 
-    // Get Stats
     let getStats = function () {
+      // Start Timer
+      this.bookState.pageStart = Date.now();
+
+      // Get Stats
       let stats = this.getBookStats();
       this.updateBookStats(stats);
     }.bind(this);
@@ -60,6 +64,24 @@ class EBookReader {
     // Register Content Hook
     this.rendition.hooks.content.register(getStats);
     getStats();
+  }
+
+  initDevice() {
+    function randomID() {
+      return "00000000000000000000000000000000".replace(/[018]/g, (c) =>
+        (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4))))
+          .toString(16)
+          .toUpperCase()
+      );
+    }
+
+    this.readerSettings.deviceName =
+      this.readerSettings.deviceName ||
+      platform.os.toString() + " - " + platform.name;
+
+    this.readerSettings.deviceID = this.readerSettings.deviceID || randomID();
+
+    this.saveSettings();
   }
 
   /**
@@ -70,8 +92,20 @@ class EBookReader {
     THEMES.forEach((theme) =>
       this.rendition.themes.register(theme, THEME_FILE)
     );
+  }
 
-    this.rendition.themes.select(this.readerSettings.theme || "tan");
+  /**
+   * Set theme & meta theme color
+   **/
+  setTheme(themeName) {
+    this.rendition.themes.select(themeName);
+    let themeColorEl = document.querySelector("[name='theme-color']");
+    let backgroundColor = window.getComputedStyle(
+      this.rendition.getContents()[0].content
+    ).backgroundColor;
+    themeColorEl.setAttribute("content", backgroundColor);
+    document.body.style.backgroundColor = backgroundColor;
+    this.saveSettings();
   }
 
   /**
@@ -288,8 +322,7 @@ class EBookReader {
             if (THEMES.length == currentThemeIdx + 1)
               readerSettings.theme = THEMES[0];
             else readerSettings.theme = THEMES[currentThemeIdx + 1];
-            this.themes.select(readerSettings.theme);
-            this.setSettings();
+            setTheme(readerSettings.theme);
           }
         },
         false
@@ -326,10 +359,9 @@ class EBookReader {
           if (THEMES.length == currentThemeIdx + 1)
             this.readerSettings.theme = THEMES[0];
           else this.readerSettings.theme = THEMES[currentThemeIdx + 1];
-          this.rendition.themes.select(readerSettings.theme);
-          this.setSettings();
+          this.setTheme(this.readerSettings.theme);
         }
-      },
+      }.bind(this),
       false
     );
 
@@ -339,8 +371,8 @@ class EBookReader {
           "click",
           function (event) {
             this.readerSettings.theme = event.target.innerText;
-            this.rendition.themes.select(this.readerSettings.theme);
-            this.saveSettings();
+
+            this.setTheme(this.readerSettings.theme);
           }.bind(this)
         );
       }.bind(this)
@@ -355,16 +387,26 @@ class EBookReader {
    * Progresses to the next page & monitors reading activity
    **/
   async nextPage() {
+    // Flush Activity
+    this.flushActivity();
+
     // Get Elapsed Time
     let elapsedTime = Date.now() - this.bookState.pageStart;
 
     // Update Current Word
     let pageWords = await this.getVisibleWordCount();
     let startingWord = this.bookState.currentWord;
+    let percentRead = pageWords / this.bookState.words;
     this.bookState.currentWord += pageWords;
 
     // Add Read Event
-    this.bookState.readEvents.push({ startingWord, pageWords, elapsedTime });
+    this.bookState.readActivity.push({
+      percentRead,
+      startingWord,
+      pageWords,
+      elapsedTime,
+      startTime: this.bookState.pageStart,
+    });
 
     // Render Next Page
     await this.rendition.next();
@@ -376,14 +418,18 @@ class EBookReader {
     let stats = this.getBookStats();
     this.updateBookStats(stats);
 
-    // Test Position
-    console.log(await this.toPosition());
+    // Update & Flush Progress
+    this.bookState.progress = await this.toProgress();
+    this.flushProgress();
   }
 
   /**
    * Progresses to the previous page & monitors reading activity
    **/
   async prevPage() {
+    // Flush Activity
+    this.flushActivity();
+
     // Render Previous Page
     await this.rendition.prev();
 
@@ -398,8 +444,119 @@ class EBookReader {
     let stats = this.getBookStats();
     this.updateBookStats(stats);
 
-    // Test Position
-    console.log(await this.toPosition());
+    // Update & Flush Progress
+    this.bookState.progress = await this.toProgress();
+    this.flushProgress();
+  }
+
+  /**
+   * Normalize and flush activity
+   **/
+  async flushActivity() {
+    // Process & Reset Activity
+    let allActivity = this.bookState.readActivity;
+    this.bookState.readActivity = [];
+
+    const WPM_MAX = 2000;
+    const WPM_MIN = 100;
+
+    let normalizedActivity = allActivity
+      // Exclude Fast WPM
+      .filter((item) => item.pageWords / (item.elapsedTime / 60000) < WPM_MAX)
+      .map((item) => {
+        let pageWPM = item.pageWords / (item.elapsedTime / 60000);
+
+        // Min WPM
+        if (pageWPM < WPM_MIN) {
+          // TODO - Exclude Event?
+          item.elapsedTime = (item.pageWords / WPM_MIN) * 60000;
+        }
+
+        item.pages = Math.round(1 / item.percentRead);
+
+        item.page = Math.round(
+          (item.startingWord * item.pages) / this.bookState.words
+        );
+
+        // Estimate Accuracy Loss (Debugging)
+        // let wordLoss = Math.abs(
+        //   item.pageWords - this.bookState.words / item.pages
+        // );
+        // console.log("Word Loss:", wordLoss);
+
+        return {
+          document: this.bookState.id,
+          duration: Math.round(item.elapsedTime / 1000),
+          start_time: Math.round(item.startTime / 1000),
+          page: item.page,
+          pages: item.pages,
+        };
+      });
+
+    if (normalizedActivity.length == 0) return;
+
+    console.log("Flushing Activity...");
+
+    // Create Activity Event
+    let activityEvent = {
+      device_id: this.readerSettings.deviceID,
+      device: this.readerSettings.deviceName,
+      activity: normalizedActivity,
+    };
+
+    // Flush Activity
+    fetch("/api/ko/activity", {
+      method: "POST",
+      body: JSON.stringify(activityEvent),
+    })
+      .then(async (r) =>
+        console.log("Flushed Activity:", {
+          response: r,
+          json: await r.json(),
+          data: activityEvent,
+        })
+      )
+      .catch((e) =>
+        console.error("Activity Flush Failed:", {
+          error: e,
+          data: activityEvent,
+        })
+      );
+  }
+
+  async flushProgress() {
+    console.log("Flushing Progress...");
+
+    // Create Progress Event
+    let progressEvent = {
+      document: this.bookState.id,
+      device_id: this.readerSettings.deviceID,
+      device: this.readerSettings.deviceName,
+      percentage:
+        Math.round(
+          (this.bookState.currentWord / this.bookState.words) * 100000
+        ) / 100000,
+      progress: this.bookState.progress,
+    };
+
+    // Flush Progress
+    fetch("/api/ko/syncs/progress", {
+      method: "PUT",
+      body: JSON.stringify(progressEvent),
+    })
+      .then(async (r) =>
+        console.log("Flushed Progress:", {
+          response: r,
+          json: await r.json(),
+          data: progressEvent,
+        })
+      )
+      .catch((e) =>
+        console.error("Progress Flush Failed:", {
+          error: e,
+          data: progressEvent,
+        })
+      );
   }
 
   /**
@@ -461,20 +618,17 @@ class EBookReader {
     progressStatus.innerText = `${data.percentage}%`;
     progressBar.style.width = data.percentage + "%";
     chapterName.innerText = `${data.chapterName}`;
-
-    // Do Update
-    // console.log(data);
   }
 
   /**
    * Get XPath from current location
    **/
-  async toPosition() {
+  async toProgress() {
     // Get DocFragment (current book spline index)
     let currentPos = await this.rendition.currentLocation();
     let docFragmentIndex = currentPos.start.index + 1;
 
-    // Base Position
+    // Base Progress
     let newPos = "/body/DocFragment[" + docFragmentIndex + "]/body";
 
     // Get first visible node
@@ -482,7 +636,7 @@ class EBookReader {
     let currentNode = contents.range(currentPos.start.cfi).startContainer
       .parentNode;
 
-    // Walk upwards and build position until body
+    // Walk upwards and build progress until body
     let childPos = "";
     while (currentNode.nodeName != "BODY") {
       let relativeIndex =
@@ -499,32 +653,32 @@ class EBookReader {
       currentNode = currentNode.parentNode;
     }
 
-    // Return derived position
+    // Return derived progress
     return newPos + childPos;
   }
 
   /**
    * Get CFI from XPath
    **/
-  async fromPosition(position) {
-    // Position Reference - Example: /body/DocFragment[15]/body/div[10]/text().184
+  async fromProgress(progress) {
+    // Progress Reference - Example: /body/DocFragment[15]/body/div[10]/text().184
     //
     //     - /body/DocFragment[15] = 15th item in book spline
     //     - [...]/body/div[10] = 10th child div under body (direct descendents only)
     //     - [...]/text().184 = text node of parent, character offset @ 184 chars?
 
-    // No Position
-    if (!position || position == "") return;
+    // No Progress
+    if (!progress || progress == "") return;
 
     // Match Document Fragment Index
-    let fragMatch = position.match(/^\/body\/DocFragment\[(\d+)\]/);
+    let fragMatch = progress.match(/^\/body\/DocFragment\[(\d+)\]/);
     if (!fragMatch) {
-      console.warn("No Position Match");
+      console.warn("No Progress Match");
       return;
     }
 
     // Match Item Index
-    let indexMatch = position.match(/\.(\d+)$/);
+    let indexMatch = progress.match(/\.(\d+)$/);
     let itemIndex = indexMatch ? parseInt(indexMatch[1]) : 0;
 
     // Get Spine Item
@@ -536,7 +690,7 @@ class EBookReader {
 
     // Derive XPath & Namespace
     let namespaceURI = docItem.document.documentElement.namespaceURI;
-    let remainingXPath = position
+    let remainingXPath = progress
       // Replace with new base
       .replace(fragMatch[0], "/html")
       // Replace `.0` Ending Indexes
