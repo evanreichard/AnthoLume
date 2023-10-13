@@ -1,14 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <link rel="manifest" href="{{ .RelBase }}./manifest.json" />
-    <meta name="theme-color" content="#D2B48C" />
     <meta charset="utf-8" />
     <meta
       id="viewport"
       name="viewport"
       content="width=device-width, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <link rel="manifest" href="{{ .RelBase }}./manifest.json" />
+    <meta name="theme-color" content="#D2B48C" />
     <script src="https://cdn.tailwindcss.com"></script>
     <title>Book Manager - {{block "title" .}}{{end}}</title>
     <style>
@@ -16,6 +21,14 @@
       body {
         overscroll-behavior-y: none;
         margin: 0px;
+      }
+
+      html {
+        min-height: calc(100% + env(safe-area-inset-top));
+      }
+
+      #viewer {
+        padding-top: env(safe-area-inset-top);
       }
 
       /* For Webkit-based browsers (Chrome, Safari and Opera) */
@@ -32,20 +45,45 @@
       #bottom-bar {
         padding-bottom: env(safe-area-inset-bottom);
       }
+
+      #top-bar {
+        padding-top: env(safe-area-inset-top);
+      }
+
+      #top-bar:not(.top-0) {
+        top: calc((8em + env(safe-area-inset-top)) * -1);
+      }
     </style>
   </head>
-  <body class="bg-gray-100 dark:bg-gray-800 h-[100dvh]">
+  <body class="bg-gray-100 dark:bg-gray-800">
     <main class="relative overflow-hidden">
       <div
         id="top-bar"
-        class="-top-32 transition-all duration-200 absolute z-10 bg-gray-100 dark:bg-gray-800 flex items-center justify-around w-full h-32 px-2"
+        class="transition-all duration-200 absolute z-10 bg-gray-100 dark:bg-gray-800 w-full px-2"
       >
-        <div class="text-gray-500 absolute top-6 left-4 flex flex-col gap-4">
-          <a href="../{{ .Data.ID }}">
+        <div class="w-full h-32 flex items-center justify-around relative">
+          <div class="text-gray-500 absolute top-6 left-4 flex flex-col gap-4">
+            <a href="../{{ .Data.ID }}">
+              <svg
+                width="32"
+                height="32"
+                class="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 16.714 2 19.0711 3.46447 20.5355C4.92893 22 7.28595 22 12 22C16.714 22 19.0711 22 20.5355 20.5355C22 19.0711 22 16.714 22 12C22 7.28595 22 4.92893 20.5355 3.46447ZM14.0303 8.46967C14.3232 8.76256 14.3232 9.23744 14.0303 9.53033L11.5607 12L14.0303 14.4697C14.3232 14.7626 14.3232 15.2374 14.0303 15.5303C13.7374 15.8232 13.2626 15.8232 12.9697 15.5303L9.96967 12.5303C9.82902 12.3897 9.75 12.1989 9.75 12C9.75 11.8011 9.82902 11.6103 9.96967 11.4697L12.9697 8.46967C13.2626 8.17678 13.7374 8.17678 14.0303 8.46967Z"
+                />
+              </svg>
+            </a>
+
             <svg
               width="32"
               height="32"
-              class="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
+              class="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100 close-top-bar"
               viewBox="0 0 24 24"
               fill="currentColor"
               xmlns="http://www.w3.org/2000/svg"
@@ -53,53 +91,38 @@
               <path
                 fill-rule="evenodd"
                 clip-rule="evenodd"
-                d="M20.5355 3.46447C19.0711 2 16.714 2 12 2C7.28595 2 4.92893 2 3.46447 3.46447C2 4.92893 2 7.28595 2 12C2 16.714 2 19.0711 3.46447 20.5355C4.92893 22 7.28595 22 12 22C16.714 22 19.0711 22 20.5355 20.5355C22 19.0711 22 16.714 22 12C22 7.28595 22 4.92893 20.5355 3.46447ZM14.0303 8.46967C14.3232 8.76256 14.3232 9.23744 14.0303 9.53033L11.5607 12L14.0303 14.4697C14.3232 14.7626 14.3232 15.2374 14.0303 15.5303C13.7374 15.8232 13.2626 15.8232 12.9697 15.5303L9.96967 12.5303C9.82902 12.3897 9.75 12.1989 9.75 12C9.75 11.8011 9.82902 11.6103 9.96967 11.4697L12.9697 8.46967C13.2626 8.17678 13.7374 8.17678 14.0303 8.46967Z"
+                d="M12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22ZM8.96965 8.96967C9.26254 8.67678 9.73742 8.67678 10.0303 8.96967L12 10.9394L13.9696 8.96969C14.2625 8.6768 14.7374 8.6768 15.0303 8.96969C15.3232 9.26258 15.3232 9.73746 15.0303 10.0303L13.0606 12L15.0303 13.9697C15.3232 14.2625 15.3232 14.7374 15.0303 15.0303C14.7374 15.3232 14.2625 15.3232 13.9696 15.0303L12 13.0607L10.0303 15.0303C9.73744 15.3232 9.26256 15.3232 8.96967 15.0303C8.67678 14.7374 8.67678 14.2626 8.96967 13.9697L10.9393 12L8.96965 10.0303C8.67676 9.73744 8.67676 9.26256 8.96965 8.96967Z"
               />
             </svg>
-          </a>
-
-          <svg
-            width="32"
-            height="32"
-            class="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100 close-top-bar"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              fill-rule="evenodd"
-              clip-rule="evenodd"
-              d="M12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22ZM8.96965 8.96967C9.26254 8.67678 9.73742 8.67678 10.0303 8.96967L12 10.9394L13.9696 8.96969C14.2625 8.6768 14.7374 8.6768 15.0303 8.96969C15.3232 9.26258 15.3232 9.73746 15.0303 10.0303L13.0606 12L15.0303 13.9697C15.3232 14.2625 15.3232 14.7374 15.0303 15.0303C14.7374 15.3232 14.2625 15.3232 13.9696 15.0303L12 13.0607L10.0303 15.0303C9.73744 15.3232 9.26256 15.3232 8.96967 15.0303C8.67678 14.7374 8.67678 14.2626 8.96967 13.9697L10.9393 12L8.96965 10.0303C8.67676 9.73744 8.67676 9.26256 8.96965 8.96967Z"
-            />
-          </svg>
-        </div>
-
-        <div class="flex gap-10 h-full p-4 pl-14 rounded">
-          <div class="h-full my-auto relative">
-            <a href="../{{ .Data.ID }}">
-              <img class="rounded object-cover h-full" src="./cover" />
-            </a>
           </div>
-          <div class="flex gap-7 justify-around dark:text-white text-sm">
-            <div class="flex flex-col gap-4">
-              <div class="inline-flex shrink-0 items-center">
-                <div>
-                  <p class="text-gray-400">Title</p>
-                  <p
-                    class="font-medium whitespace-nowrap text-ellipsis overflow-hidden max-w-[50dvw]"
-                  >
-                    {{ or .Data.Title "N/A" }}
-                  </p>
+
+          <div class="flex gap-10 h-full p-4 pl-14 rounded">
+            <div class="h-full my-auto relative">
+              <a href="../{{ .Data.ID }}">
+                <img class="rounded object-cover h-full" src="./cover" />
+              </a>
+            </div>
+            <div class="flex gap-7 justify-around dark:text-white text-sm">
+              <div class="flex flex-col gap-4">
+                <div class="inline-flex shrink-0 items-center">
+                  <div>
+                    <p class="text-gray-400">Title</p>
+                    <p
+                      class="font-medium whitespace-nowrap text-ellipsis overflow-hidden max-w-[50dvw]"
+                    >
+                      {{ or .Data.Title "N/A" }}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div class="inline-flex shrink-0 items-center">
-                <div>
-                  <p class="text-gray-400">Author</p>
-                  <p
-                    class="font-medium whitespace-nowrap text-ellipsis overflow-hidden max-w-[50dvw]"
-                  >
-                    {{ or .Data.Author "N/A" }}
-                  </p>
+                <div class="inline-flex shrink-0 items-center">
+                  <div>
+                    <p class="text-gray-400">Author</p>
+                    <p
+                      class="font-medium whitespace-nowrap text-ellipsis overflow-hidden max-w-[50dvw]"
+                    >
+                      {{ or .Data.Author "N/A" }}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

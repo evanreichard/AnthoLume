@@ -1,192 +1,51 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <meta charset="utf-8" />
+    <meta name="viewport"
+	  content="width=device-width, initial-scale=0.90, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes"/>
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
     <link rel="manifest" href="{{ .RelBase }}./manifest.json" />
     <meta name="theme-color" content="#F3F4F6" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#1F2937" media="(prefers-color-scheme: dark)">
-    <meta charset="utf-8" />
-    <meta name="viewport"
-	  content="width=device-width, initial-scale=0.90, user-scalable=no">
     <script src="https://cdn.tailwindcss.com"></script>
     <title>Book Manager - {{block "title" .}}{{end}}</title>
-  </head>
-  <body class="bg-gray-100 dark:bg-gray-800">
-    <main
-      class="relative h-[100dvh] overflow-hidden"
-    >
-      <div class="flex items-center justify-between w-full h-16">
-        <div id="mobile-nav-button" class="flex flex-col z-40 relative ml-6">
-          <input type="checkbox" class="absolute lg:hidden z-50 -top-2 w-7 h-7 flex cursor-pointer opacity-0 w-12 h-12" />
-          <span class="lg:hidden bg-black w-7 h-0.5 z-40 mt-0.5 dark:bg-white"></span>
-          <span class="lg:hidden bg-black w-7 h-0.5 z-40 mt-1 dark:bg-white"></span>
-          <span class="lg:hidden bg-black w-7 h-0.5 z-40 mt-1 dark:bg-white"></span>
-
-          <div id="menu" class="fixed -mt-6 -ml-6 lg:-mt-8 h-full w-56 lg:w-48 bg-white dark:bg-gray-700 shadow-lg">
-            <div class="h-16 flex justify-end lg:justify-around">
-              <p class="text-xl font-bold dark:text-white text-right my-auto pr-4 lg:pr-0">Book Manager</p>
-            </div>
-            <div class="mt-6">
-              <a
-                class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "home"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
-                href="/"
-              >
-                <span class="text-left">
-                  <svg
-                    width="20"
-                    height="20"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path fill-rule="evenodd" clip-rule="evenodd" d="M2.5192 7.82274C2 8.77128 2 9.91549 2 12.2039V13.725C2 17.6258 2 19.5763 3.17157 20.7881C4.34315 22 6.22876 22 10 22H14C17.7712 22 19.6569 22 20.8284 20.7881C22 19.5763 22 17.6258 22 13.725V12.2039C22 9.91549 22 8.77128 21.4808 7.82274C20.9616 6.87421 20.0131 6.28551 18.116 5.10812L16.116 3.86687C14.1106 2.62229 13.1079 2 12 2C10.8921 2 9.88939 2.62229 7.88403 3.86687L5.88403 5.10813C3.98695 6.28551 3.0384 6.87421 2.5192 7.82274ZM11.25 18C11.25 18.4142 11.5858 18.75 12 18.75C12.4142 18.75 12.75 18.4142 12.75 18V15C12.75 14.5858 12.4142 14.25 12 14.25C11.5858 14.25 11.25 14.5858 11.25 15V18Z" />
-                  </svg>
-                </span>
-                <span class="mx-4 text-sm font-normal">Home</span>
-              </a>
-              <a
-                class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "documents"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
-                href="/documents"
-              >
-                <span class="text-left">
-                  <svg
-                    width="20"
-                    height="20"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path fill-rule="evenodd" clip-rule="evenodd" d="M6.27103 2.11151C5.46135 2.21816 5.03258 2.41324 4.72718 2.71244C4.42179 3.01165 4.22268 3.43172 4.11382 4.225C4.00176 5.04159 4 6.12387 4 7.67568V16.2442C4.38867 15.9781 4.82674 15.7756 5.29899 15.6517C5.82716 15.513 6.44305 15.5132 7.34563 15.5135L20 15.5135V7.67568C20 6.12387 19.9982 5.04159 19.8862 4.22499C19.7773 3.43172 19.5782 3.01165 19.2728 2.71244C18.9674 2.41324 18.5387 2.21816 17.729 2.11151C16.8955 2.00172 15.7908 2 14.2069 2H9.7931C8.2092 2 7.10452 2.00172 6.27103 2.11151ZM6.75862 6.59459C6.75862 6.1468 7.12914 5.78378 7.58621 5.78378H16.4138C16.8709 5.78378 17.2414 6.1468 17.2414 6.59459C17.2414 7.04239 16.8709 7.40541 16.4138 7.40541H7.58621C7.12914 7.40541 6.75862 7.04239 6.75862 6.59459ZM7.58621 9.56757C7.12914 9.56757 6.75862 9.93058 6.75862 10.3784C6.75862 10.8262 7.12914 11.1892 7.58621 11.1892H13.1034C13.5605 11.1892 13.931 10.8262 13.931 10.3784C13.931 9.93058 13.5605 9.56757 13.1034 9.56757H7.58621Z" />
-                    <path d="M7.47341 17.1351H8.68965H13.1034H19.9991C19.9956 18.2657 19.9776 19.1088 19.8862 19.775C19.7773 20.5683 19.5782 20.9884 19.2728 21.2876C18.9674 21.5868 18.5387 21.7818 17.729 21.8885C16.8955 21.9983 15.7908 22 14.2069 22H9.7931C8.2092 22 7.10452 21.9983 6.27103 21.8885C5.46135 21.7818 5.03258 21.5868 4.72718 21.2876C4.42179 20.9884 4.22268 20.5683 4.11382 19.775C4.07259 19.4746 4.0463 19.1382 4.02952 18.7558C4.30088 18.0044 4.93365 17.4264 5.72738 17.218C6.01657 17.1421 6.39395 17.1351 7.47341 17.1351Z" />
-                  </svg>
-                </span>
-                <span class="mx-4 text-sm font-normal">Documents</span>
-              </a>
-              <a
-                class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "activity"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
-                href="/activity"
-              >
-                <span class="text-left">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path d="M9.5 2C8.67157 2 8 2.67157 8 3.5V4.5C8 5.32843 8.67157 6 9.5 6H14.5C15.3284 6 16 5.32843 16 4.5V3.5C16 2.67157 15.3284 2 14.5 2H9.5Z"/>
-                    <path fill-rule="evenodd" clip-rule="evenodd" d="M6.5 4.03662C5.24209 4.10719 4.44798 4.30764 3.87868 4.87694C3 5.75562 3 7.16983 3 9.99826V15.9983C3 18.8267 3 20.2409 3.87868 21.1196C4.75736 21.9983 6.17157 21.9983 9 21.9983H15C17.8284 21.9983 19.2426 21.9983 20.1213 21.1196C21 20.2409 21 18.8267 21 15.9983V9.99826C21 7.16983 21 5.75562 20.1213 4.87694C19.552 4.30764 18.7579 4.10719 17.5 4.03662V4.5C17.5 6.15685 16.1569 7.5 14.5 7.5H9.5C7.84315 7.5 6.5 6.15685 6.5 4.5V4.03662ZM7 9.75C6.58579 9.75 6.25 10.0858 6.25 10.5C6.25 10.9142 6.58579 11.25 7 11.25H7.5C7.91421 11.25 8.25 10.9142 8.25 10.5C8.25 10.0858 7.91421 9.75 7.5 9.75H7ZM10.5 9.75C10.0858 9.75 9.75 10.0858 9.75 10.5C9.75 10.9142 10.0858 11.25 10.5 11.25H17C17.4142 11.25 17.75 10.9142 17.75 10.5C17.75 10.0858 17.4142 9.75 17 9.75H10.5ZM7 13.25C6.58579 13.25 6.25 13.5858 6.25 14C6.25 14.4142 6.58579 14.75 7 14.75H7.5C7.91421 14.75 8.25 14.4142 8.25 14C8.25 13.5858 7.91421 13.25 7.5 13.25H7ZM10.5 13.25C10.0858 13.25 9.75 13.5858 9.75 14C9.75 14.4142 10.0858 14.75 10.5 14.75H17C17.4142 14.75 17.75 14.4142 17.75 14C17.75 13.5858 17.4142 13.25 17 13.25H10.5ZM7 16.75C6.58579 16.75 6.25 17.0858 6.25 17.5C6.25 17.9142 6.58579 18.25 7 18.25H7.5C7.91421 18.25 8.25 17.9142 8.25 17.5C8.25 17.0858 7.91421 16.75 7.5 16.75H7ZM10.5 16.75C10.0858 16.75 9.75 17.0858 9.75 17.5C9.75 17.9142 10.0858 18.25 10.5 18.25H17C17.4142 18.25 17.75 17.9142 17.75 17.5C17.75 17.0858 17.4142 16.75 17 16.75H10.5Z"/>
-                  </svg>
-                </span>
-                <span class="mx-4 text-sm font-normal">Activity</span>
-              </a>
-	      {{ if .SearchEnabled }}
-              <a
-                class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "search"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
-                href="/search"
-              >
-                <span class="text-left">
-		  <svg
-		    width="20"
-		    height="20"
-		    viewBox="0 0 24 24"
-		    fill="currentColor"
-		    xmlns="http://www.w3.org/2000/svg"
-		  >
-		    <path
-		      fill-rule="evenodd"
-		      clip-rule="evenodd"
-		      d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12ZM9 11.5C9 10.1193 10.1193 9 11.5 9C12.8807 9 14 10.1193 14 11.5C14 12.8807 12.8807 14 11.5 14C10.1193 14 9 12.8807 9 11.5ZM11.5 7C9.01472 7 7 9.01472 7 11.5C7 13.9853 9.01472 16 11.5 16C12.3805 16 13.202 15.7471 13.8957 15.31L15.2929 16.7071C15.6834 17.0976 16.3166 17.0976 16.7071 16.7071C17.0976 16.3166 17.0976 15.6834 16.7071 15.2929L15.31 13.8957C15.7471 13.202 16 12.3805 16 11.5C16 9.01472 13.9853 7 11.5 7Z"
-		    ></path>
-		  </svg>
-                </span>
-                <span class="mx-4 text-sm font-normal">Search</span>
-              </a>
-	      {{ end }}
-            </div>
-          </div>
-        </div>
-        <h1 class="text-xl font-bold dark:text-white px-6 lg:ml-44">{{block "header" .}}{{end}}</h1>
-        <div
-          class="relative flex items-center justify-end w-full p-4 space-x-4"
-        >
-          <a href="#" class="relative block">
-            <svg
-              width="20"
-              fill="currentColor"
-              height="20"
-              class="text-gray-800 dark:text-gray-200"
-              viewBox="0 0 1792 1792"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M1523 1339q-22-155-87.5-257.5t-184.5-118.5q-67 74-159.5 115.5t-195.5 41.5-195.5-41.5-159.5-115.5q-119 16-184.5 118.5t-87.5 257.5q106 150 271 237.5t356 87.5 356-87.5 271-237.5zm-243-699q0-159-112.5-271.5t-271.5-112.5-271.5 112.5-112.5 271.5 112.5 271.5 271.5 112.5 271.5-112.5 112.5-271.5zm512 256q0 182-71 347.5t-190.5 286-285.5 191.5-349 71q-182 0-348-71t-286-191-191-286-71-348 71-348 191-286 286-191 348-71 348 71 286 191 191 286 71 348z"
-              />
-            </svg>
-          </a>
-          <input type="checkbox" id="user-dropdown-button" class="hidden"/>
-          <div
-            id="user-dropdown"
-            class="transition duration-200 z-20 absolute right-4 top-16 pt-4"
-          >
-            <div
-              class="w-56 origin-top-right bg-white rounded-md shadow-lg dark:shadow-gray-800 dark:bg-gray-700 ring-1 ring-black ring-opacity-5"
-            >
-              <div
-                class="py-1"
-                role="menu"
-                aria-orientation="vertical"
-                aria-labelledby="options-menu"
-              >
-                <a
-                  href="/settings"
-                  class="block block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600"
-                  role="menuitem"
-                >
-                  <span class="flex flex-col">
-                    <span>Settings</span>
-                  </span>
-                </a>
-                <a
-                  href="/logout"
-                  class="block block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600"
-                  role="menuitem"
-                >
-                  <span class="flex flex-col">
-                    <span>Logout</span>
-                  </span>
-                </a>
-              </div>
-            </div>
-          </div>
-          <label for="user-dropdown-button">
-            <div
-              class="flex items-center text-gray-500 dark:text-white text-md py-4 cursor-pointer"
-            >
-              {{ .User }}
-              <svg
-                width="20"
-                height="20"
-                class="ml-2 text-gray-400"
-                fill="currentColor"
-                viewBox="0 0 1792 1792"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M1408 704q0 26-19 45l-448 448q-19 19-45 19t-45-19l-448-448q-19-19-19-45t19-45 45-19h896q26 0 45 19t19 45z"
-                ></path>
-              </svg>
-            </div>
-          </label>
-        </div>
-      </div>
-
-      <div class="h-[100dvh] px-4 pb-20 overflow-auto md:px-6 lg:ml-48">
-        {{block "content" .}}{{end}}
-      </div>
-    </main>
-
-    <!-- Custom Animation CSS -->
     <style>
+      /* ----------------------------- */
+      /* -------- PWA Styling -------- */
+      /* ----------------------------- */
+      html,
+      body {
+        overscroll-behavior-y: none;
+        margin: 0px;
+      }
+
+      html {
+        height: 100vh;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right)
+          0 env(safe-area-inset-left);
+      }
+
+      main {
+	height: calc(100dvh - 4rem - env(safe-area-inset-top));
+      }
+
+      #container {
+	padding-bottom: calc(5em + env(safe-area-inset-bottom) * 2);
+      }
+
+      /* No Scrollbar - IE, Edge, Firefox */
+      * {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+
+      /* No Scrollbar - WebKit */
+      *::-webkit-scrollbar {
+        display: none;
+      }
+
       /* ----------------------------- */
       /* ------- User Dropdown ------- */
       /* ----------------------------- */
@@ -243,10 +102,193 @@
       }
 
       #menu {
+	top: 0;
+	padding-top: env(safe-area-inset-top);
         transform-origin: 0% 0%;
         transform: translate(-100%, 0);
         transition: transform 0.5s cubic-bezier(0.77,0.2,0.05,1.0);
       }
+
+      @media (orientation: landscape) {
+	#menu {
+	  transform: translate(calc(-1 * (env(safe-area-inset-left) + 100%)), 0);
+	}
+      }
     </style>
+  </head>
+  <body class="bg-gray-100 dark:bg-gray-800">
+    <div class="flex items-center justify-between w-full h-16">
+      <div id="mobile-nav-button" class="flex flex-col z-40 relative ml-6">
+	<input type="checkbox" class="absolute lg:hidden z-50 -top-2 w-7 h-7 flex cursor-pointer opacity-0 w-12 h-12" />
+	<span class="lg:hidden bg-black w-7 h-0.5 z-40 mt-0.5 dark:bg-white"></span>
+	<span class="lg:hidden bg-black w-7 h-0.5 z-40 mt-1 dark:bg-white"></span>
+	<span class="lg:hidden bg-black w-7 h-0.5 z-40 mt-1 dark:bg-white"></span>
+
+	<div id="menu" class="fixed -ml-6 h-full w-56 lg:w-48 bg-white dark:bg-gray-700 shadow-lg">
+	  <div class="h-16 flex justify-end lg:justify-around">
+	    <p class="text-xl font-bold dark:text-white text-right my-auto pr-4 lg:pr-0">Book Manager</p>
+	  </div>
+	  <div class="mt-6">
+	    <a
+	      class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "home"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
+	      href="/"
+	    >
+	      <span class="text-left">
+		<svg
+		  width="20"
+		  height="20"
+		  fill="currentColor"
+		  viewBox="0 0 24 24"
+		  xmlns="http://www.w3.org/2000/svg"
+		>
+		  <path fill-rule="evenodd" clip-rule="evenodd" d="M2.5192 7.82274C2 8.77128 2 9.91549 2 12.2039V13.725C2 17.6258 2 19.5763 3.17157 20.7881C4.34315 22 6.22876 22 10 22H14C17.7712 22 19.6569 22 20.8284 20.7881C22 19.5763 22 17.6258 22 13.725V12.2039C22 9.91549 22 8.77128 21.4808 7.82274C20.9616 6.87421 20.0131 6.28551 18.116 5.10812L16.116 3.86687C14.1106 2.62229 13.1079 2 12 2C10.8921 2 9.88939 2.62229 7.88403 3.86687L5.88403 5.10813C3.98695 6.28551 3.0384 6.87421 2.5192 7.82274ZM11.25 18C11.25 18.4142 11.5858 18.75 12 18.75C12.4142 18.75 12.75 18.4142 12.75 18V15C12.75 14.5858 12.4142 14.25 12 14.25C11.5858 14.25 11.25 14.5858 11.25 15V18Z" />
+		</svg>
+	      </span>
+	      <span class="mx-4 text-sm font-normal">Home</span>
+	    </a>
+	    <a
+	      class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "documents"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
+	      href="/documents"
+	    >
+	      <span class="text-left">
+		<svg
+		  width="20"
+		  height="20"
+		  fill="currentColor"
+		  viewBox="0 0 24 24"
+		  xmlns="http://www.w3.org/2000/svg"
+		>
+		  <path fill-rule="evenodd" clip-rule="evenodd" d="M6.27103 2.11151C5.46135 2.21816 5.03258 2.41324 4.72718 2.71244C4.42179 3.01165 4.22268 3.43172 4.11382 4.225C4.00176 5.04159 4 6.12387 4 7.67568V16.2442C4.38867 15.9781 4.82674 15.7756 5.29899 15.6517C5.82716 15.513 6.44305 15.5132 7.34563 15.5135L20 15.5135V7.67568C20 6.12387 19.9982 5.04159 19.8862 4.22499C19.7773 3.43172 19.5782 3.01165 19.2728 2.71244C18.9674 2.41324 18.5387 2.21816 17.729 2.11151C16.8955 2.00172 15.7908 2 14.2069 2H9.7931C8.2092 2 7.10452 2.00172 6.27103 2.11151ZM6.75862 6.59459C6.75862 6.1468 7.12914 5.78378 7.58621 5.78378H16.4138C16.8709 5.78378 17.2414 6.1468 17.2414 6.59459C17.2414 7.04239 16.8709 7.40541 16.4138 7.40541H7.58621C7.12914 7.40541 6.75862 7.04239 6.75862 6.59459ZM7.58621 9.56757C7.12914 9.56757 6.75862 9.93058 6.75862 10.3784C6.75862 10.8262 7.12914 11.1892 7.58621 11.1892H13.1034C13.5605 11.1892 13.931 10.8262 13.931 10.3784C13.931 9.93058 13.5605 9.56757 13.1034 9.56757H7.58621Z" />
+		  <path d="M7.47341 17.1351H8.68965H13.1034H19.9991C19.9956 18.2657 19.9776 19.1088 19.8862 19.775C19.7773 20.5683 19.5782 20.9884 19.2728 21.2876C18.9674 21.5868 18.5387 21.7818 17.729 21.8885C16.8955 21.9983 15.7908 22 14.2069 22H9.7931C8.2092 22 7.10452 21.9983 6.27103 21.8885C5.46135 21.7818 5.03258 21.5868 4.72718 21.2876C4.42179 20.9884 4.22268 20.5683 4.11382 19.775C4.07259 19.4746 4.0463 19.1382 4.02952 18.7558C4.30088 18.0044 4.93365 17.4264 5.72738 17.218C6.01657 17.1421 6.39395 17.1351 7.47341 17.1351Z" />
+		</svg>
+	      </span>
+	      <span class="mx-4 text-sm font-normal">Documents</span>
+	    </a>
+	    <a
+	      class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "activity"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
+	      href="/activity"
+	    >
+	      <span class="text-left">
+		<svg
+		  width="20"
+		  height="20"
+		  viewBox="0 0 24 24"
+		  fill="currentColor"
+		  xmlns="http://www.w3.org/2000/svg"
+		>
+		  <path d="M9.5 2C8.67157 2 8 2.67157 8 3.5V4.5C8 5.32843 8.67157 6 9.5 6H14.5C15.3284 6 16 5.32843 16 4.5V3.5C16 2.67157 15.3284 2 14.5 2H9.5Z"/>
+		  <path fill-rule="evenodd" clip-rule="evenodd" d="M6.5 4.03662C5.24209 4.10719 4.44798 4.30764 3.87868 4.87694C3 5.75562 3 7.16983 3 9.99826V15.9983C3 18.8267 3 20.2409 3.87868 21.1196C4.75736 21.9983 6.17157 21.9983 9 21.9983H15C17.8284 21.9983 19.2426 21.9983 20.1213 21.1196C21 20.2409 21 18.8267 21 15.9983V9.99826C21 7.16983 21 5.75562 20.1213 4.87694C19.552 4.30764 18.7579 4.10719 17.5 4.03662V4.5C17.5 6.15685 16.1569 7.5 14.5 7.5H9.5C7.84315 7.5 6.5 6.15685 6.5 4.5V4.03662ZM7 9.75C6.58579 9.75 6.25 10.0858 6.25 10.5C6.25 10.9142 6.58579 11.25 7 11.25H7.5C7.91421 11.25 8.25 10.9142 8.25 10.5C8.25 10.0858 7.91421 9.75 7.5 9.75H7ZM10.5 9.75C10.0858 9.75 9.75 10.0858 9.75 10.5C9.75 10.9142 10.0858 11.25 10.5 11.25H17C17.4142 11.25 17.75 10.9142 17.75 10.5C17.75 10.0858 17.4142 9.75 17 9.75H10.5ZM7 13.25C6.58579 13.25 6.25 13.5858 6.25 14C6.25 14.4142 6.58579 14.75 7 14.75H7.5C7.91421 14.75 8.25 14.4142 8.25 14C8.25 13.5858 7.91421 13.25 7.5 13.25H7ZM10.5 13.25C10.0858 13.25 9.75 13.5858 9.75 14C9.75 14.4142 10.0858 14.75 10.5 14.75H17C17.4142 14.75 17.75 14.4142 17.75 14C17.75 13.5858 17.4142 13.25 17 13.25H10.5ZM7 16.75C6.58579 16.75 6.25 17.0858 6.25 17.5C6.25 17.9142 6.58579 18.25 7 18.25H7.5C7.91421 18.25 8.25 17.9142 8.25 17.5C8.25 17.0858 7.91421 16.75 7.5 16.75H7ZM10.5 16.75C10.0858 16.75 9.75 17.0858 9.75 17.5C9.75 17.9142 10.0858 18.25 10.5 18.25H17C17.4142 18.25 17.75 17.9142 17.75 17.5C17.75 17.0858 17.4142 16.75 17 16.75H10.5Z"/>
+		</svg>
+	      </span>
+	      <span class="mx-4 text-sm font-normal">Activity</span>
+	    </a>
+	    {{ if .SearchEnabled }}
+	    <a
+	      class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "search"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
+	      href="/search"
+	    >
+	      <span class="text-left">
+		<svg
+		  width="20"
+		  height="20"
+		  viewBox="0 0 24 24"
+		  fill="currentColor"
+		  xmlns="http://www.w3.org/2000/svg"
+		>
+		  <path
+		    fill-rule="evenodd"
+		    clip-rule="evenodd"
+		    d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12ZM9 11.5C9 10.1193 10.1193 9 11.5 9C12.8807 9 14 10.1193 14 11.5C14 12.8807 12.8807 14 11.5 14C10.1193 14 9 12.8807 9 11.5ZM11.5 7C9.01472 7 7 9.01472 7 11.5C7 13.9853 9.01472 16 11.5 16C12.3805 16 13.202 15.7471 13.8957 15.31L15.2929 16.7071C15.6834 17.0976 16.3166 17.0976 16.7071 16.7071C17.0976 16.3166 17.0976 15.6834 16.7071 15.2929L15.31 13.8957C15.7471 13.202 16 12.3805 16 11.5C16 9.01472 13.9853 7 11.5 7Z"
+		  ></path>
+		</svg>
+	      </span>
+	      <span class="mx-4 text-sm font-normal">Search</span>
+	    </a>
+	    {{ end }}
+	  </div>
+	</div>
+      </div>
+      <h1 class="text-xl font-bold dark:text-white px-6 lg:ml-44">{{block "header" .}}{{end}}</h1>
+      <div
+	class="relative flex items-center justify-end w-full p-4 space-x-4"
+      >
+	<a href="#" class="relative block">
+	  <svg
+	    width="20"
+	    fill="currentColor"
+	    height="20"
+	    class="text-gray-800 dark:text-gray-200"
+	    viewBox="0 0 1792 1792"
+	    xmlns="http://www.w3.org/2000/svg"
+	  >
+	    <path
+	      d="M1523 1339q-22-155-87.5-257.5t-184.5-118.5q-67 74-159.5 115.5t-195.5 41.5-195.5-41.5-159.5-115.5q-119 16-184.5 118.5t-87.5 257.5q106 150 271 237.5t356 87.5 356-87.5 271-237.5zm-243-699q0-159-112.5-271.5t-271.5-112.5-271.5 112.5-112.5 271.5 112.5 271.5 271.5 112.5 271.5-112.5 112.5-271.5zm512 256q0 182-71 347.5t-190.5 286-285.5 191.5-349 71q-182 0-348-71t-286-191-191-286-71-348 71-348 191-286 286-191 348-71 348 71 286 191 191 286 71 348z"
+	    />
+	  </svg>
+	</a>
+	<input type="checkbox" id="user-dropdown-button" class="hidden"/>
+	<div
+	  id="user-dropdown"
+	  class="transition duration-200 z-20 absolute right-4 top-16 pt-4"
+	>
+	  <div
+	    class="w-56 origin-top-right bg-white rounded-md shadow-lg dark:shadow-gray-800 dark:bg-gray-700 ring-1 ring-black ring-opacity-5"
+	  >
+	    <div
+	      class="py-1"
+	      role="menu"
+	      aria-orientation="vertical"
+	      aria-labelledby="options-menu"
+	    >
+	      <a
+		href="/settings"
+		class="block block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600"
+		role="menuitem"
+	      >
+		<span class="flex flex-col">
+		  <span>Settings</span>
+		</span>
+	      </a>
+	      <a
+		href="/logout"
+		class="block block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600"
+		role="menuitem"
+	      >
+		<span class="flex flex-col">
+		  <span>Logout</span>
+		</span>
+	      </a>
+	    </div>
+	  </div>
+	</div>
+	<label for="user-dropdown-button">
+	  <div
+	    class="flex items-center text-gray-500 dark:text-white text-md py-4 cursor-pointer"
+	  >
+	    {{ .User }}
+	    <svg
+	      width="20"
+	      height="20"
+	      class="ml-2 text-gray-400"
+	      fill="currentColor"
+	      viewBox="0 0 1792 1792"
+	      xmlns="http://www.w3.org/2000/svg"
+	    >
+	      <path
+		d="M1408 704q0 26-19 45l-448 448q-19 19-45 19t-45-19l-448-448q-19-19-19-45t19-45 45-19h896q26 0 45 19t19 45z"
+	      ></path>
+	    </svg>
+	  </div>
+	</label>
+      </div>
+    </div>
+
+    <main
+      class="relative overflow-hidden"
+    >
+      <div id="container" class="h-[100dvh] px-4 overflow-auto md:px-6 lg:ml-48">
+        {{block "content" .}}{{end}}
+      </div>
+    </main>
   </body>
 </html>

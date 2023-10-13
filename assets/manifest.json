@@ -2,5 +2,7 @@
   "short_name": "Book Manager",
   "name": "Book Manager",
   "theme_color": "#1F2937",
-  "display": "standalone"
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/"
 }
