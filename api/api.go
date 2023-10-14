@@ -53,7 +53,7 @@ func NewApi(db *database.DBManager, c *config.Config) *API {
 	// Configure Cookie Session Store
 	store := cookie.NewStore(newToken)
 	store.Options(sessions.Options{
-		MaxAge: 60 * 60 * 24 * 7,
+		MaxAge:   60 * 60 * 24 * 7,
 		Secure:   true,
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,

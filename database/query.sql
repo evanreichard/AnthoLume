@@ -135,7 +135,8 @@ SELECT
     CAST(STRFTIME('%Y-%m-%d %H:%M:%S', devices.last_synced, users.time_offset) AS TEXT) AS last_synced
 FROM devices
 JOIN users ON users.id = devices.user_id
-WHERE users.id = $user_id;
+WHERE users.id = $user_id
+ORDER BY devices.last_synced DESC;
 
 -- name: GetDocument :one
 SELECT * FROM documents

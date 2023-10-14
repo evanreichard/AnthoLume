@@ -35,6 +35,7 @@ class EBookReader {
 
     // Initialize
     this.initDevice();
+    this.initWakeLock();
     this.initThemes();
     this.initRenditionListeners();
     this.initDocumentListeners();
@@ -49,12 +50,12 @@ class EBookReader {
     if (!currentCFI) this.bookState.currentWord = 0;
     await this.rendition.display(currentCFI);
 
-    // Restore Theme
-    this.setTheme(this.readerSettings.theme || "tan");
-
     let getStats = function () {
       // Start Timer
       this.bookState.pageStart = Date.now();
+
+      // Restore Theme
+      this.setTheme(this.readerSettings.theme || "tan");
 
       // Get Stats
       let stats = this.getBookStats();
@@ -85,6 +86,46 @@ class EBookReader {
   }
 
   /**
+   * This is a hack and maintains a wake lock. It will
+   * automatically disable if there's been no input for
+   * 10 minutes.
+   *
+   * Ideally we use "navigator.wakeLock", but there's a
+   * bug in Safari (as of iOS 17.03) when intalled as a
+   * PWA that doesn't allow it to work [0]
+   *
+   * Unfortunate downside is iOS indicates that "No Sleep"
+   * is playing in both the Control Center and Lock Screen.
+   * iOS also stops any background sound.
+   *
+   * [0] https://progressier.com/pwa-capabilities/screen-wake-lock
+   **/
+  initWakeLock() {
+    // Setup Wake Lock (Adding to DOM Necessary - iOS 17.03)
+    let timeoutID = null;
+    let wakeLock = new NoSleep();
+
+    // Override Standalone (Modified No-Sleep)
+    if (window.navigator.standalone) {
+      Object.assign(wakeLock.noSleepVideo.style, {
+        position: "absolute",
+        top: "-100%",
+      });
+      document.body.append(wakeLock.noSleepVideo);
+    }
+
+    // User Action Required (Manual bubble up from iFrame)
+    document.addEventListener("wakelock", function () {
+      // 10 Minute Timeout
+      if (timeoutID) clearTimeout(timeoutID);
+      timeoutID = setTimeout(wakeLock.disable, 1000 * 60 * 10);
+
+      // Enable
+      wakeLock.enable();
+    });
+  }
+
+  /**
    * Register all themes with reader
    **/
   initThemes() {
@@ -92,20 +133,37 @@ class EBookReader {
     THEMES.forEach((theme) =>
       this.rendition.themes.register(theme, THEME_FILE)
     );
+
+    let themeLinkEl = document.createElement("link");
+    themeLinkEl.setAttribute("id", "themes");
+    themeLinkEl.setAttribute("rel", "stylesheet");
+    themeLinkEl.setAttribute("href", THEME_FILE);
+    document.head.append(themeLinkEl);
   }
 
   /**
    * Set theme & meta theme color
    **/
   setTheme(themeName) {
+    // Update Settings
+    this.readerSettings.theme = themeName;
+    this.saveSettings();
+
+    // Set Reader Theme
     this.rendition.themes.select(themeName);
+
+    // Get Reader Theme
     let themeColorEl = document.querySelector("[name='theme-color']");
-    let backgroundColor = window.getComputedStyle(
-      this.rendition.getContents()[0].content
-    ).backgroundColor;
+    let themeStyleSheet = document.querySelector("#themes").sheet;
+    let themeStyleRule = Array.from(themeStyleSheet.cssRules).find(
+      (item) => item.selectorText == "." + themeName
+    );
+
+    // Match Reader Theme
+    if (!themeStyleRule) return;
+    let backgroundColor = themeStyleRule.style.backgroundColor;
     themeColorEl.setAttribute("content", backgroundColor);
     document.body.style.backgroundColor = backgroundColor;
-    this.saveSettings();
   }
 
   /**
@@ -155,6 +213,16 @@ class EBookReader {
       this.themes.default({
         "*": { "font-size": "var(--editor-font-size) !important" },
       });
+
+      // ------------------------------------------------ //
+      // ---------------- Wake Lock Hack ---------------- //
+      // ------------------------------------------------ //
+      let wakeLockListener = function () {
+        doc.window.parent.document.dispatchEvent(new CustomEvent("wakelock"));
+      };
+      renderDoc.addEventListener("click", wakeLockListener);
+      renderDoc.addEventListener("gesturechange", wakeLockListener);
+      renderDoc.addEventListener("touchstart", wakeLockListener);
 
       // ------------------------------------------------ //
       // ---------------- Resize Helpers ---------------- //
@@ -356,10 +424,11 @@ class EBookReader {
         // "t" Key (Theme Cycle)
         if ((e.keyCode || e.which) == 84) {
           let currentThemeIdx = THEMES.indexOf(this.readerSettings.theme);
-          if (THEMES.length == currentThemeIdx + 1)
-            this.readerSettings.theme = THEMES[0];
-          else this.readerSettings.theme = THEMES[currentThemeIdx + 1];
-          this.setTheme(this.readerSettings.theme);
+          let newTheme =
+            THEMES.length == currentThemeIdx + 1
+              ? THEMES[0]
+              : THEMES[currentThemeIdx + 1];
+          this.setTheme(newTheme);
         }
       }.bind(this),
       false
@@ -370,9 +439,7 @@ class EBookReader {
         item.addEventListener(
           "click",
           function (event) {
-            this.readerSettings.theme = event.target.innerText;
-
-            this.setTheme(this.readerSettings.theme);
+            this.setTheme(event.target.innerText);
           }.bind(this)
         );
       }.bind(this)
@@ -633,24 +700,46 @@ class EBookReader {
 
     // Get first visible node
     let contents = this.rendition.getContents()[0];
-    let currentNode = contents.range(currentPos.start.cfi).startContainer
-      .parentNode;
+    let node = contents.range(currentPos.start.cfi).startContainer;
 
     // Walk upwards and build progress until body
     let childPos = "";
-    while (currentNode.nodeName != "BODY") {
-      let relativeIndex =
-        Array.from(currentNode.parentNode.children)
-          .filter((item) => item.nodeName == currentNode.nodeName)
-          .indexOf(currentNode) + 1;
+    while (node.nodeName != "BODY") {
+      let ownValue;
 
-      // E.g: /div[10]
-      let itemPos =
-        "/" + currentNode.nodeName.toLowerCase() + "[" + relativeIndex + "]";
+      switch (node.nodeType) {
+        case Node.ELEMENT_NODE:
+          let relativeIndex =
+            Array.from(node.parentNode.children)
+              .filter((item) => item.nodeName == node.nodeName)
+              .indexOf(node) + 1;
 
-      // Prepend childPos & Update currentNode refernce
-      childPos = itemPos + childPos;
-      currentNode = currentNode.parentNode;
+          ownValue = node.nodeName.toLowerCase() + "[" + relativeIndex + "]";
+          break;
+        case Node.ATTRIBUTE_NODE:
+          ownValue = "@" + node.nodeName;
+          break;
+        case Node.TEXT_NODE:
+        case Node.CDATA_SECTION_NODE:
+          ownValue = "text()";
+          break;
+        case Node.PROCESSING_INSTRUCTION_NODE:
+          ownValue = "processing-instruction()";
+          break;
+        case Node.COMMENT_NODE:
+          ownValue = "comment()";
+          break;
+        case Node.DOCUMENT_NODE:
+          ownValue = "";
+          break;
+        default:
+          ownValue = "";
+          break;
+      }
+
+      // Prepend childPos & Update node reference
+      childPos = "/" + ownValue + childPos;
+      node = node.parentNode;
     }
 
     // Return derived progress

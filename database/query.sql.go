@@ -401,6 +401,7 @@ SELECT
 FROM devices
 JOIN users ON users.id = devices.user_id
 WHERE users.id = ?1
+ORDER BY devices.last_synced DESC
 `
 
 type GetDevicesRow struct {

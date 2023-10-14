@@ -56,7 +56,7 @@
     </style>
   </head>
   <body class="bg-gray-100 dark:bg-gray-800">
-    <main class="relative overflow-hidden">
+    <main class="relative overflow-hidden h-[100dvh]">
       <div
         id="top-bar"
         class="transition-all duration-200 absolute z-10 bg-gray-100 dark:bg-gray-800 w-full px-2"
@@ -193,9 +193,7 @@
           </div>
         </div>
       </div>
-      <div class="h-[100dvh] px-4 pb-24 overflow-auto md:px-6 lg:ml-48">
-        {{block "content" .}}{{end}}
-      </div>
+      {{block "content" .}}{{end}}
     </main>
   </body>
 </html>
