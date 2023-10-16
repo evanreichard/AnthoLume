@@ -7,6 +7,7 @@ class EBookReader {
     pages: 0,
     percentage: 0,
     progress: "",
+    progressElement: null,
     readActivity: [],
     words: 0,
   };
@@ -15,9 +16,11 @@ class EBookReader {
     // Set Variables
     Object.assign(this.bookState, bookState);
 
+    // Load Settings
+    this.loadSettings();
+
     // Load EPUB
     this.book = ePub(file, { openAs: "epub" });
-    window.book = this.book;
 
     // Render
     this.rendition = this.book.renderTo("viewer", {
@@ -29,9 +32,6 @@ class EBookReader {
 
     // Setup Reader
     this.book.ready.then(this.setupReader.bind(this));
-
-    // Load Settings
-    this.loadSettings();
 
     // Initialize
     this.initDevice();
@@ -46,9 +46,8 @@ class EBookReader {
    **/
   async setupReader() {
     // Load Progress
-    let currentCFI = await this.fromProgress(this.bookState.progress);
-    if (!currentCFI) this.bookState.currentWord = 0;
-    await this.rendition.display(currentCFI);
+    let { cfi } = await this.getCFIFromXPath(this.bookState.progress);
+    if (!cfi) this.bookState.currentWord = 0;
 
     let getStats = function () {
       // Start Timer
@@ -64,7 +63,12 @@ class EBookReader {
 
     // Register Content Hook
     this.rendition.hooks.content.register(getStats);
-    getStats();
+    await this.rendition.display(cfi);
+
+    // Highlight Element - DOM Has Element
+    let { element } = await this.getCFIFromXPath(this.bookState.progress);
+    this.bookState.progressElement = element;
+    this.highlightPositionMarker();
   }
 
   initDevice() {
@@ -144,19 +148,19 @@ class EBookReader {
   /**
    * Set theme & meta theme color
    **/
-  setTheme(themeName) {
+  setTheme(newTheme) {
     // Update Settings
-    this.readerSettings.theme = themeName;
+    this.readerSettings.theme = newTheme;
     this.saveSettings();
 
     // Set Reader Theme
-    this.rendition.themes.select(themeName);
+    this.rendition.themes.select(newTheme);
 
     // Get Reader Theme
     let themeColorEl = document.querySelector("[name='theme-color']");
     let themeStyleSheet = document.querySelector("#themes").sheet;
     let themeStyleRule = Array.from(themeStyleSheet.cssRules).find(
-      (item) => item.selectorText == "." + themeName
+      (item) => item.selectorText == "." + newTheme
     );
 
     // Match Reader Theme
@@ -164,6 +168,41 @@ class EBookReader {
     let backgroundColor = themeStyleRule.style.backgroundColor;
     themeColorEl.setAttribute("content", backgroundColor);
     document.body.style.backgroundColor = backgroundColor;
+
+    // Update Position Highlight Theme
+    this.rendition.getContents().forEach((item) => {
+      item.document.querySelectorAll(".highlight").forEach((el) => {
+        Object.assign(el.style, {
+          background: backgroundColor,
+        });
+      });
+    });
+  }
+
+  highlightPositionMarker() {
+    if (!this.bookState.progressElement) return;
+
+    // Remove Existing
+    this.rendition.getContents().forEach((item) => {
+      item.document.querySelectorAll(".highlight").forEach((el) => {
+        el.removeAttribute("style");
+        el.classList.remove("highlight");
+      });
+    });
+
+    // Compute Style
+    let backgroundColor = getComputedStyle(
+      this.bookState.progressElement.ownerDocument.body
+    ).backgroundColor;
+
+    // Set Style
+    Object.assign(this.bookState.progressElement.style, {
+      background: backgroundColor,
+      filter: "invert(0.2)",
+    });
+
+    // Update Class
+    this.bookState.progressElement.classList.add("highlight");
   }
 
   /**
@@ -196,12 +235,17 @@ class EBookReader {
     let topBar = document.querySelector("#top-bar");
     let bottomBar = document.querySelector("#bottom-bar");
 
+    // Local Functions
+    let getCFIFromXPath = this.getCFIFromXPath.bind(this);
+    let highlightPositionMarker = this.highlightPositionMarker.bind(this);
     let nextPage = this.nextPage.bind(this);
     let prevPage = this.prevPage.bind(this);
     let saveSettings = this.saveSettings.bind(this);
 
-    // Font Scaling
+    // Local Vars
     let readerSettings = this.readerSettings;
+    let bookState = this.bookState;
+
     this.rendition.hooks.render.register(function (doc, data) {
       let renderDoc = doc.document;
 
@@ -227,15 +271,10 @@ class EBookReader {
       // ------------------------------------------------ //
       // ---------------- Resize Helpers ---------------- //
       // ------------------------------------------------ //
-      let isScaling = false;
       let lastScale = 1;
-      let lastLocation = undefined;
-      let debounceID = undefined;
-      let debounceGesture = () => {
-        this.display(lastLocation.start.cfi);
-        lastLocation = undefined;
-        isScaling = false;
-      };
+      let isScaling = false;
+      let timeoutID = undefined;
+      let cfiLocation = undefined;
 
       // Gesture Listener
       renderDoc.addEventListener(
@@ -244,25 +283,36 @@ class EBookReader {
           e.preventDefault();
 
           isScaling = true;
-          clearTimeout(debounceID);
+          clearTimeout(timeoutID);
 
-          if (!lastLocation) {
-            lastLocation = await this.currentLocation();
-          } else {
-            // Damped Scale
-            readerSettings.fontSize =
-              (readerSettings.fontSize || 1) + (e.scale - lastScale) / 5;
-            lastScale = e.scale;
+          if (!cfiLocation)
+            ({ cfi: cfiLocation } = await getCFIFromXPath(bookState.progress));
+
+          // Damped Scale
+          readerSettings.fontSize =
+            (readerSettings.fontSize || 1) + (e.scale - lastScale) / 5;
+          lastScale = e.scale;
+
+          // Update Font Size
+          renderDoc.documentElement.style.setProperty(
+            "--editor-font-size",
+            (readerSettings.fontSize || 1) + "em"
+          );
+
+          timeoutID = setTimeout(() => {
+            // Display Position
+            this.display(cfiLocation);
+
+            // Reset Variables
+            isScaling = false;
+            cfiLocation = undefined;
+
+            // Highlight Location
+            highlightPositionMarker();
+
+            // Save Settings (Font Size)
             saveSettings();
-
-            // Update Font Size
-            renderDoc.documentElement.style.setProperty(
-              "--editor-font-size",
-              (readerSettings.fontSize || 1) + "em"
-            );
-
-            debounceID = setTimeout(debounceGesture, 200);
-          }
+          }, 250);
         }.bind(this),
         true
       );
@@ -486,7 +536,11 @@ class EBookReader {
     this.updateBookStats(stats);
 
     // Update & Flush Progress
-    this.bookState.progress = await this.toProgress();
+    let currentCFI = await this.rendition.currentLocation();
+    let { element, xpath } = await this.getXPathFromCFI(currentCFI.start.cfi);
+    this.bookState.progress = xpath;
+    this.bookState.progressElement = element;
+
     this.flushProgress();
   }
 
@@ -512,7 +566,10 @@ class EBookReader {
     this.updateBookStats(stats);
 
     // Update & Flush Progress
-    this.bookState.progress = await this.toProgress();
+    let currentCFI = await this.rendition.currentLocation();
+    let { element, xpath } = await this.getXPathFromCFI(currentCFI.start.cfi);
+    this.bookState.progress = xpath;
+    this.bookState.progressElement = element;
     this.flushProgress();
   }
 
@@ -690,17 +747,21 @@ class EBookReader {
   /**
    * Get XPath from current location
    **/
-  async toProgress() {
+  async getXPathFromCFI(cfi) {
     // Get DocFragment (current book spline index)
-    let currentPos = await this.rendition.currentLocation();
-    let docFragmentIndex = currentPos.start.index + 1;
+    let startCFI = cfi.replace("epubcfi(", "");
+    let docFragmentIndex =
+      this.book.spine.spineItems.find((item) =>
+        startCFI.startsWith(item.cfiBase)
+      ).index + 1;
 
     // Base Progress
     let newPos = "/body/DocFragment[" + docFragmentIndex + "]/body";
 
     // Get first visible node
     let contents = this.rendition.getContents()[0];
-    let node = contents.range(currentPos.start.cfi).startContainer;
+    let node = contents.range(cfi).startContainer;
+    let element = null;
 
     // Walk upwards and build progress until body
     let childPos = "";
@@ -709,6 +770,8 @@ class EBookReader {
 
       switch (node.nodeType) {
         case Node.ELEMENT_NODE:
+          // Store First Element Node
+          if (!element) element = node;
           let relativeIndex =
             Array.from(node.parentNode.children)
               .filter((item) => item.nodeName == node.nodeName)
@@ -742,44 +805,51 @@ class EBookReader {
       node = node.parentNode;
     }
 
+    let xpath = newPos + childPos;
+
     // Return derived progress
-    return newPos + childPos;
+    return { xpath, element };
   }
 
   /**
-   * Get CFI from XPath
+   * Get CFI from current location
    **/
-  async fromProgress(progress) {
-    // Progress Reference - Example: /body/DocFragment[15]/body/div[10]/text().184
+  async getCFIFromXPath(xpath) {
+    // XPath Reference - Example: /body/DocFragment[15]/body/div[10]/text().184
     //
     //     - /body/DocFragment[15] = 15th item in book spline
     //     - [...]/body/div[10] = 10th child div under body (direct descendents only)
     //     - [...]/text().184 = text node of parent, character offset @ 184 chars?
 
-    // No Progress
-    if (!progress || progress == "") return;
+    // No XPath
+    if (!xpath || xpath == "") return;
 
     // Match Document Fragment Index
-    let fragMatch = progress.match(/^\/body\/DocFragment\[(\d+)\]/);
+    let fragMatch = xpath.match(/^\/body\/DocFragment\[(\d+)\]/);
     if (!fragMatch) {
-      console.warn("No Progress Match");
+      console.warn("No XPath Match");
       return;
     }
 
     // Match Item Index
-    let indexMatch = progress.match(/\.(\d+)$/);
+    let indexMatch = xpath.match(/\.(\d+)$/);
     let itemIndex = indexMatch ? parseInt(indexMatch[1]) : 0;
 
     // Get Spine Item
     let spinePosition = parseInt(fragMatch[1]) - 1;
-    let docItem = this.book.spine.get(spinePosition);
+    let sectionItem = this.book.spine.get(spinePosition);
+    await sectionItem.load(this.book.load.bind(this.book));
 
-    // Required for docItem.document Access
-    await docItem.load(this.book.load.bind(this.book));
+    // Document Rendered > Document Not Rendered
+    let docItem =
+      this.rendition
+        .getContents()
+        .find((item) => item.sectionIndex == spinePosition)?.document ||
+      sectionItem.document;
 
     // Derive XPath & Namespace
-    let namespaceURI = docItem.document.documentElement.namespaceURI;
-    let remainingXPath = progress
+    let namespaceURI = docItem.documentElement.namespaceURI;
+    let remainingXPath = xpath
       // Replace with new base
       .replace(fragMatch[0], "/html")
       // Replace `.0` Ending Indexes
@@ -791,9 +861,9 @@ class EBookReader {
     if (namespaceURI) remainingXPath = remainingXPath.replaceAll("/", "/ns:");
 
     // Perform XPath
-    let docSearch = docItem.document.evaluate(
+    let docSearch = docItem.evaluate(
       remainingXPath,
-      docItem.document,
+      docItem,
       function (prefix) {
         if (prefix === "ns") {
           return namespaceURI;
@@ -804,10 +874,13 @@ class EBookReader {
     );
 
     // Get Element & CFI
-    let matchedItem = docSearch.iterateNext();
-    let matchedCFI = docItem.cfiFromElement(matchedItem);
-    return matchedCFI;
+    let element = docSearch.iterateNext();
+    let cfi = sectionItem.cfiFromElement(element);
+
+    return { cfi, element };
   }
+
+  // getElementFromXPath(xpath)
 
   /**
    * Get visible word count - used for reading stats
