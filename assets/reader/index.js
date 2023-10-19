@@ -63,6 +63,21 @@ class EBookReader {
 
     // Register Content Hook
     this.rendition.hooks.content.register(getStats);
+
+    /**
+     * Display @ CFI x 2 (Hack)
+     *   I'm pretty sure this is because we set font size in the rendition
+     *   render hook that resides in initRenditionListeners, and that the
+     *   logic in ePub.js runs before or in parallel with the hook when
+     *   setting the CFI position.
+     *
+     *   By running twice we ensure that the hook ran and set the font size
+     *   already, which should now ensure the proper page on the second time
+     *   around.
+     *
+     *   Bug: https://github.com/futurepress/epub.js/issues/1194
+     **/
+    await this.rendition.display(cfi);
     await this.rendition.display(cfi);
 
     // Highlight Element - DOM Has Element
@@ -90,17 +105,14 @@ class EBookReader {
   }
 
   /**
-   * This is a hack and maintains a wake lock. It will
-   * automatically disable if there's been no input for
-   * 10 minutes.
+   * This is a hack and maintains a wake lock. It will automatically disable
+   * if there's been no input for 10 minutes.
    *
-   * Ideally we use "navigator.wakeLock", but there's a
-   * bug in Safari (as of iOS 17.03) when intalled as a
-   * PWA that doesn't allow it to work [0]
+   * Ideally we use "navigator.wakeLock", but there's a bug in Safari (as of
+   * iOS 17.03) when intalled as a PWA that doesn't allow it to work [0]
    *
-   * Unfortunate downside is iOS indicates that "No Sleep"
-   * is playing in both the Control Center and Lock Screen.
-   * iOS also stops any background sound.
+   * Unfortunate downside is iOS indicates that "No Sleep" is playing in both
+   * the Control Center and Lock Screen. iOS also stops any background sound.
    *
    * [0] https://progressier.com/pwa-capabilities/screen-wake-lock
    **/
@@ -840,7 +852,19 @@ class EBookReader {
     let sectionItem = this.book.spine.get(spinePosition);
     await sectionItem.load(this.book.load.bind(this.book));
 
-    // Document Rendered > Document Not Rendered
+    /**
+     * Prefer Document Rendered over Document Not Rendered
+     *
+     * If the rendition is not displayed, the document does not exist in the
+     * DOM. Since we return the matching element for potential theming, we
+     * want to first at least try to get the document that exists in the DOM.
+     *
+     * This is only relevant on initial load and on font resize when we theme
+     * the element to indicate to the user the last position, and is why we run
+     * this function twice in the setupReader function; once before render to
+     * get CFI, and once after render to get the actual element in the DOM to
+     * theme.
+     **/
     let docItem =
       this.rendition
         .getContents()
@@ -879,8 +903,6 @@ class EBookReader {
 
     return { cfi, element };
   }
-
-  // getElementFromXPath(xpath)
 
   /**
    * Get visible word count - used for reading stats
