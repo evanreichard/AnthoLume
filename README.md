@@ -29,6 +29,8 @@
 
 ---
 
+[![Build Status](https://drone.va.reichard.io/api/badges/evan/BookManager/status.svg)](https://drone.va.reichard.io/evan/BookManager)
+
 This is BookManager! Will probably be renamed at some point. This repository contains:
 
 - Web App / Progressive Web App (PWA)

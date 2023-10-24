@@ -17,6 +17,7 @@ docker_build_release_dev:
 	docker buildx build \
 		--platform linux/amd64,linux/arm64 \
 		-t gitea.va.reichard.io/evan/bookmanager:dev \
+		-f Dockerfile-BuildKit \
 		--push .
 
 docker_build_release_latest:
@@ -24,6 +25,7 @@ docker_build_release_latest:
 		--platform linux/amd64,linux/arm64 \
 		-t gitea.va.reichard.io/evan/bookmanager:latest \
 		-t gitea.va.reichard.io/evan/bookmanager:`git describe --tags` \
+		-f Dockerfile-BuildKit \
 		--push .
 
 tests_integration:

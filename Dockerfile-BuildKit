@@ -3,17 +3,19 @@ FROM alpine AS certs
 RUN apk update && apk add ca-certificates
 
 # Build Image
-FROM golang:1.20 AS build
-
-# Copy Source
-WORKDIR /src
-COPY . .
+FROM --platform=$BUILDPLATFORM golang:1.20 AS build
 
 # Create Package Directory
+WORKDIR /src
 RUN mkdir -p /opt/bookmanager
 
-# Compile
-RUN go build -o /opt/bookmanager/server; \
+# Cache Dependencies & Compile
+ARG TARGETOS
+ARG TARGETARCH
+RUN --mount=target=. \
+    --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /opt/bookmanager/server; \
     cp -a ./templates /opt/bookmanager/templates; \
     cp -a ./assets /opt/bookmanager/assets;
 

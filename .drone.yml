@@ -3,15 +3,13 @@ type: kubernetes
 name: default
 
 steps:
-  - name: generate_tags
-    image: node
-    commands:
-      - echo -n "${DRONE_BRANCH}-$(date +'%Y%m%d%H%M%S')-${DRONE_COMMIT:0:10}, latest" > .tags
+  # Unit Tests
   - name: unit test
     image: golang
     commands:
       - make tests_unit
 
+  # Integration Tests (Every Month)
   - name: integration test
     image: golang
     commands:
@@ -21,3 +19,16 @@ steps:
         - cron
       cron:
         - integration-test
+
+  # Publish Dev Docker Image
+  - name: publish_docker
+    image: plugins/docker
+    settings:
+      repo: gitea.va.reichard.io/evan/bookmanager
+      registry: gitea.va.reichard.io
+      tags:
+        - dev
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
