@@ -65,23 +65,22 @@ class EBookReader {
     this.rendition.hooks.content.register(getStats);
 
     /**
-     * Display @ CFI x 2 (Hack)
-     *   I'm pretty sure this is because we set font size in the rendition
-     *   render hook that resides in initRenditionListeners, and that the
-     *   logic in ePub.js runs before or in parallel with the hook when
-     *   setting the CFI position.
+     * Display @ CFI x 3 (Hack)
      *
-     *   By running twice we ensure that the hook ran and set the font size
-     *   already, which should now ensure the proper page on the second time
-     *   around.
+     *   This is absurd. Only way to get it to consistently show the correct
+     *   page is to execute this three times. I tried the font hook,
+     *   rendition hook, relocated hook, etc. No reliable way outside of
+     *   running this three times.
      *
-     *   Bug: https://github.com/futurepress/epub.js/issues/1194
+     *   Likely Bug: https://github.com/futurepress/epub.js/issues/1194
      **/
+    await this.rendition.display(cfi);
     await this.rendition.display(cfi);
     await this.rendition.display(cfi);
 
     // Highlight Element - DOM Has Element
     let { element } = await this.getCFIFromXPath(this.bookState.progress);
+
     this.bookState.progressElement = element;
     this.highlightPositionMarker();
   }

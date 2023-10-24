@@ -18,18 +18,17 @@
     </a>
 </p>
 
+<p align="center">Screenshots</p>
 <p align="center">
-    <a href="https://gitea.va.reichard.io/evan/BookManager/src/branch/master/screenshots/web/README.md">
-        --- WEB ---
-    </a>
-    <a href="https://gitea.va.reichard.io/evan/BookManager/src/branch/master/screenshots/pwa/README.md">
-        --- PWA ---
+    <a href="https://gitea.va.reichard.io/evan/BookManager/src/branch/master/screenshots/web/README.md">Web App</a> - <a href="https://gitea.va.reichard.io/evan/BookManager/src/branch/master/screenshots/pwa/README.md">PWA</a>
+</p>
+<p align="center">
+    <a href="https://drone.va.reichard.io/evan/BookManager" target="_blank">
+        <img src="https://drone.va.reichard.io/api/badges/evan/BookManager/status.svg">
     </a>
 </p>
 
 ---
-
-[![Build Status](https://drone.va.reichard.io/api/badges/evan/BookManager/status.svg)](https://drone.va.reichard.io/evan/BookManager)
 
 This is BookManager! Will probably be renamed at some point. This repository contains:
 
