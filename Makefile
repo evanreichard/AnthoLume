@@ -29,6 +29,5 @@ docker_build_release_latest:
 tests_integration:
 	go test -v -tags=integration -coverpkg=./... ./metadata
 
-
 tests_unit:
 	SET_TEST=set_val go test -v -coverpkg=./... ./...

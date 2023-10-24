@@ -1,0 +1,23 @@
+kind: pipeline
+type: kubernetes
+name: default
+
+steps:
+  - name: generate_tags
+    image: node
+    commands:
+      - echo -n "${DRONE_BRANCH}-$(date +'%Y%m%d%H%M%S')-${DRONE_COMMIT:0:10}, latest" > .tags
+  - name: unit test
+    image: golang
+    commands:
+      - make tests_unit
+
+  - name: integration test
+    image: golang
+    commands:
+      - make tests_integration
+    when:
+      event:
+        - cron
+      cron:
+        - integration-test
