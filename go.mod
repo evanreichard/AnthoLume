@@ -3,6 +3,7 @@ module reichard.io/bbank
 go 1.19
 
 require (
+	github.com/PuerkitoBio/goquery v1.8.1
 	github.com/alexedwards/argon2id v0.0.0-20230305115115-4b3c3280a736
 	github.com/gabriel-vasile/mimetype v1.4.2
 	github.com/gin-contrib/multitemplate v0.0.0-20230212012517-45920c92c271
@@ -10,6 +11,7 @@ require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/microcosm-cc/bluemonday v1.0.25
 	github.com/sirupsen/logrus v1.9.3
+	github.com/taylorskalyo/goreader v0.0.0-20230626212555-e7f5644f8115
 	github.com/urfave/cli/v2 v2.25.7
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
 	golang.org/x/net v0.15.0
@@ -17,7 +19,6 @@ require (
 )
 
 require (
-	github.com/PuerkitoBio/goquery v1.8.1 // indirect
 	github.com/andybalholm/cascadia v1.3.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/bytedance/sonic v1.10.0 // indirect

@@ -13,8 +13,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"reichard.io/bbank/config"
 	"reichard.io/bbank/database"
-	"reichard.io/bbank/graph"
-	"reichard.io/bbank/utils"
 )
 
 type API struct {
@@ -75,9 +73,9 @@ func (api *API) registerWebAppRoutes() {
 	// Define Templates & Helper Functions
 	render := multitemplate.NewRenderer()
 	helperFuncs := template.FuncMap{
-		"GetSVGGraphData": graph.GetSVGGraphData,
-		"GetUTCOffsets":   utils.GetUTCOffsets,
-		"NiceSeconds":     utils.NiceSeconds,
+		"GetSVGGraphData": getSVGGraphData,
+		"GetUTCOffsets":   getUTCOffsets,
+		"NiceSeconds":     niceSeconds,
 	}
 
 	render.AddFromFilesFuncs("login", helperFuncs, "templates/login.html")

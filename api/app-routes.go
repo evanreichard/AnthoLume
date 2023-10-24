@@ -19,7 +19,6 @@ import (
 	"reichard.io/bbank/database"
 	"reichard.io/bbank/metadata"
 	"reichard.io/bbank/search"
-	"reichard.io/bbank/utils"
 )
 
 type queryParams struct {
@@ -587,7 +586,7 @@ func (api *API) saveNewDocument(c *gin.Context) {
 	}
 
 	// Calculate Partial MD5 ID
-	partialMD5, err := utils.CalculatePartialMD5(tempFilePath)
+	partialMD5, err := calculatePartialMD5(tempFilePath)
 	if err != nil {
 		log.Warn("[saveNewDocument] Partial MD5 Error: ", err)
 		c.AbortWithStatus(http.StatusBadRequest)

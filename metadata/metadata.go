@@ -58,13 +58,10 @@ func GetWordCount(filepath string) (int64, error) {
 	}
 
 	if fileExtension := fileMime.Extension(); fileExtension == ".epub" {
-		rc, err := OpenEPUBReader(filepath)
+		totalWords, err := countEPUBWords(filepath)
 		if err != nil {
 			return 0, err
 		}
-
-		rf := rc.Rootfiles[0]
-		totalWords := rf.CountWords()
 		return totalWords, nil
 	} else {
 		return 0, errors.New("Invalid Extension")

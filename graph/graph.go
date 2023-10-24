@@ -3,8 +3,6 @@ package graph
 import (
 	"fmt"
 	"math"
-
-	"reichard.io/bbank/database"
 )
 
 type SVGGraphPoint struct {
@@ -28,12 +26,12 @@ type SVGBezierOpposedLine struct {
 	Angle  int
 }
 
-func GetSVGGraphData(inputData []database.GetDailyReadStatsRow, svgWidth int, svgHeight int) SVGGraphData {
+func GetSVGGraphData(inputData []int64, svgWidth int, svgHeight int) SVGGraphData {
 	// Derive Height
 	var maxHeight int = 0
 	for _, item := range inputData {
-		if int(item.MinutesRead) > maxHeight {
-			maxHeight = int(item.MinutesRead)
+		if int(item) > maxHeight {
+			maxHeight = int(item)
 		}
 	}
 
@@ -55,7 +53,7 @@ func GetSVGGraphData(inputData []database.GetDailyReadStatsRow, svgWidth int, sv
 	var maxBY int = 0
 	var minBX int = 0
 	for idx, item := range inputData {
-		itemSize := int(float32(item.MinutesRead) * sizeRatio)
+		itemSize := int(float32(item) * sizeRatio)
 		itemY := svgHeight - itemSize
 		lineX := (idx + 1) * blockOffset
 		barPoints = append(barPoints, SVGGraphPoint{

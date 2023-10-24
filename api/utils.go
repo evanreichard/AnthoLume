@@ -1,4 +1,4 @@
-package utils
+package api
 
 import (
 	"bytes"
@@ -7,6 +7,9 @@ import (
 	"io"
 	"math"
 	"os"
+
+	"reichard.io/bbank/database"
+	"reichard.io/bbank/graph"
 )
 
 type UTCOffset struct {
@@ -55,11 +58,11 @@ var UTC_OFFSETS = []UTCOffset{
 	{Value: "+14 hours", Name: "UTC+14:00"},
 }
 
-func GetUTCOffsets() []UTCOffset {
+func getUTCOffsets() []UTCOffset {
 	return UTC_OFFSETS
 }
 
-func NiceSeconds(input int64) (result string) {
+func niceSeconds(input int64) (result string) {
 	if input == 0 {
 		return "N/A"
 	}
@@ -88,7 +91,7 @@ func NiceSeconds(input int64) (result string) {
 }
 
 // Reimplemented KOReader Partial MD5 Calculation
-func CalculatePartialMD5(filePath string) (string, error) {
+func calculatePartialMD5(filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return "", err
@@ -120,4 +123,14 @@ func CalculatePartialMD5(filePath string) (string, error) {
 
 	allBytes := buf.Bytes()
 	return fmt.Sprintf("%x", md5.Sum(allBytes)), nil
+}
+
+// Convert Database Array -> Int64 Array
+func getSVGGraphData(inputData []database.GetDailyReadStatsRow, svgWidth int, svgHeight int) graph.SVGGraphData {
+	var intData []int64
+	for _, item := range inputData {
+		intData = append(intData, item.MinutesRead)
+	}
+
+	return graph.GetSVGGraphData(intData, svgWidth, svgHeight)
 }

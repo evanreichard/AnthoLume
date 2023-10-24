@@ -25,3 +25,10 @@ docker_build_release_latest:
 		-t gitea.va.reichard.io/evan/bookmanager:latest \
 		-t gitea.va.reichard.io/evan/bookmanager:`git describe --tags` \
 		--push .
+
+tests_integration:
+	go test -v -tags=integration -coverpkg=./... ./metadata
+
+
+tests_unit:
+	SET_TEST=set_val go test -v -coverpkg=./... ./...
