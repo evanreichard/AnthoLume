@@ -86,6 +86,8 @@ The service is now accessible at: `http://localhost:8585`. I recommend registeri
 | LISTEN_PORT          | 8585          | Port the server listens at                                           |
 | REGISTRATION_ENABLED | false         | Whether to allow registration (applies to both WebApp & KOSync API)  |
 | COOKIE_SESSION_KEY   | <EMPTY>       | Optional secret cookie session key (auto generated if not provided)  |
+| COOKIE_SECURE        | true          | Set Cookie `Secure` attribute (i.e. only works over HTTPS)           |
+| COOKIE_HTTP_ONLY     | true          | Set Cookie `HttpOnly` attribute (i.e. inacessible via JavaScript)    |
 
 ## Security
 

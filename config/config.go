@@ -11,8 +11,8 @@ type Config struct {
 	ListenPort string
 
 	// DB Configuration
-	DBType     string
-	DBName     string
+	DBType string
+	DBName string
 
 	// Data Paths
 	ConfigPath string
@@ -20,8 +20,12 @@ type Config struct {
 
 	// Miscellaneous Settings
 	RegistrationEnabled bool
-	CookieSessionKey    string
 	SearchEnabled       bool
+
+	// Cookie Settings
+	CookieSessionKey string
+	CookieSecure     bool
+	CookieHTTPOnly   bool
 }
 
 func Load() *Config {
@@ -32,9 +36,11 @@ func Load() *Config {
 		ConfigPath:          getEnv("CONFIG_PATH", "/config"),
 		DataPath:            getEnv("DATA_PATH", "/data"),
 		ListenPort:          getEnv("LISTEN_PORT", "8585"),
-		CookieSessionKey:    trimLowerString(getEnv("COOKIE_SESSION_KEY", "")),
 		RegistrationEnabled: trimLowerString(getEnv("REGISTRATION_ENABLED", "false")) == "true",
 		SearchEnabled:       trimLowerString(getEnv("SEARCH_ENABLED", "false")) == "true",
+		CookieSessionKey:    trimLowerString(getEnv("COOKIE_SESSION_KEY", "")),
+		CookieSecure:        trimLowerString(getEnv("COOKIE_SECURE", "true")) == "true",
+		CookieHTTPOnly:      trimLowerString(getEnv("COOKIE_HTTP_ONLY", "true")) == "true",
 	}
 }
 

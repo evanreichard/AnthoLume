@@ -52,8 +52,8 @@ func NewApi(db *database.DBManager, c *config.Config) *API {
 	store := cookie.NewStore(newToken)
 	store.Options(sessions.Options{
 		MaxAge:   60 * 60 * 24 * 7,
-		Secure:   true,
-		HttpOnly: true,
+		Secure:   c.CookieSecure,
+		HttpOnly: c.CookieHTTPOnly,
 		SameSite: http.SameSiteStrictMode,
 	})
 	api.Router.Use(sessions.Sessions("token", store))
