@@ -35,7 +35,7 @@ func TestGBooksISBNQuery(t *testing.T) {
 }
 
 func TestGBooksTitleQuery(t *testing.T) {
-	title := "Alice in Wonderland"
+	title := "Alice in Wonderland 1877527815"
 	metadataResp, err := getGBooksMetadata(MetadataInfo{
 		Title: &title,
 	})

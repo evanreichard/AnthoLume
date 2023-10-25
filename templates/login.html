@@ -11,7 +11,6 @@
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
     />
-    <link rel="manifest" href="./manifest.json" />
     <meta
       name="theme-color"
       content="#F3F4F6"
@@ -22,10 +21,11 @@
       content="#1F2937"
       media="(prefers-color-scheme: dark)"
     />
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width" />
-    <script src="https://cdn.tailwindcss.com"></script>
+
     <title>Book Manager - {{if .Register}}Register{{else}}Login{{end}}</title>
+
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="stylesheet" href="./assets/style.css" />
   </head>
   <body class="bg-gray-100 dark:bg-gray-800 dark:text-white">
     <div class="flex flex-wrap w-full">

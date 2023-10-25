@@ -1,4 +1,4 @@
-build_local:
+build_local: build_tailwind
 	go mod download
 	rm -r ./build
 	mkdir -p ./build
@@ -10,23 +10,30 @@ build_local:
 	env GOOS=darwin GOARCH=arm64 go build -o ./build/server_darwin_arm64
 	env GOOS=darwin GOARCH=amd64 go build -o ./build/server_darwin_amd64
 
-docker_build_local:
+docker_build_local: build_tailwind
 	docker build -t bookmanager:latest .
 
-docker_build_release_dev:
+docker_build_release_dev: build_tailwind
 	docker buildx build \
 		--platform linux/amd64,linux/arm64 \
 		-t gitea.va.reichard.io/evan/bookmanager:dev \
 		-f Dockerfile-BuildKit \
 		--push .
 
-docker_build_release_latest:
+docker_build_release_latest: build_tailwind
 	docker buildx build \
 		--platform linux/amd64,linux/arm64 \
 		-t gitea.va.reichard.io/evan/bookmanager:latest \
 		-t gitea.va.reichard.io/evan/bookmanager:`git describe --tags` \
 		-f Dockerfile-BuildKit \
 		--push .
+
+build_tailwind:
+	tailwind build -o ./assets/style.css
+
+
+clean:
+	rm -rf ./build
 
 tests_integration:
 	go test -v -tags=integration -coverpkg=./... ./metadata

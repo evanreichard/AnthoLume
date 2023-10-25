@@ -78,6 +78,7 @@ func (api *API) registerWebAppRoutes() {
 		"NiceSeconds":     niceSeconds,
 	}
 
+	render.AddFromFiles("error", "templates/error.html")
 	render.AddFromFilesFuncs("login", helperFuncs, "templates/login.html")
 	render.AddFromFilesFuncs("reader", helperFuncs, "templates/reader-base.html", "templates/reader.html")
 	render.AddFromFilesFuncs("home", helperFuncs, "templates/base.html", "templates/home.html")
@@ -101,9 +102,10 @@ func (api *API) registerWebAppRoutes() {
 	api.Router.POST("/settings", api.authWebAppMiddleware, api.editSettings)
 	api.Router.GET("/activity", api.authWebAppMiddleware, api.createAppResourcesRoute("activity"))
 	api.Router.GET("/documents", api.authWebAppMiddleware, api.createAppResourcesRoute("documents"))
+	api.Router.POST("/documents", api.authWebAppMiddleware, api.uploadNewDocument)
 	api.Router.GET("/documents/:document", api.authWebAppMiddleware, api.createAppResourcesRoute("document"))
 	api.Router.GET("/documents/:document/reader", api.authWebAppMiddleware, api.documentReader)
-	api.Router.GET("/documents/:document/file", api.authWebAppMiddleware, api.downloadDocumentFile)
+	api.Router.GET("/documents/:document/file", api.authWebAppMiddleware, api.downloadDocument)
 	api.Router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.getDocumentCover)
 	api.Router.POST("/documents/:document/edit", api.authWebAppMiddleware, api.editDocument)
 	api.Router.POST("/documents/:document/identify", api.authWebAppMiddleware, api.identifyDocument)
@@ -127,8 +129,8 @@ func (api *API) registerKOAPIRoutes(apiGroup *gin.RouterGroup) {
 
 	koGroup.POST("/documents", api.authKOMiddleware, api.addDocuments)
 	koGroup.POST("/syncs/documents", api.authKOMiddleware, api.checkDocumentsSync)
-	koGroup.PUT("/documents/:document/file", api.authKOMiddleware, api.uploadDocumentFile)
-	koGroup.GET("/documents/:document/file", api.authKOMiddleware, api.downloadDocumentFile)
+	koGroup.PUT("/documents/:document/file", api.authKOMiddleware, api.uploadExistingDocument)
+	koGroup.GET("/documents/:document/file", api.authKOMiddleware, api.downloadDocument)
 
 	koGroup.POST("/activity", api.authKOMiddleware, api.addActivities)
 	koGroup.POST("/syncs/activity", api.authKOMiddleware, api.checkActivitySync)
@@ -139,7 +141,7 @@ func (api *API) registerOPDSRoutes(apiGroup *gin.RouterGroup) {
 
 	opdsGroup.GET("/", api.authOPDSMiddleware, api.opdsDocuments)
 	opdsGroup.GET("/search.xml", api.authOPDSMiddleware, api.opdsSearchDescription)
-	opdsGroup.GET("/documents/:document/file", api.authOPDSMiddleware, api.downloadDocumentFile)
+	opdsGroup.GET("/documents/:document/file", api.authOPDSMiddleware, api.downloadDocument)
 	opdsGroup.GET("/documents/:document/cover", api.authOPDSMiddleware, api.getDocumentCover)
 }
 

@@ -500,17 +500,17 @@ func (api *API) checkDocumentsSync(c *gin.Context) {
 	c.JSON(http.StatusOK, rCheckDocSync)
 }
 
-func (api *API) uploadDocumentFile(c *gin.Context) {
+func (api *API) uploadExistingDocument(c *gin.Context) {
 	var rDoc requestDocumentID
 	if err := c.ShouldBindUri(&rDoc); err != nil {
-		log.Error("[uploadDocumentFile] Invalid URI Bind")
+		log.Error("[uploadExistingDocument] Invalid URI Bind")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
 	}
 
 	fileData, err := c.FormFile("file")
 	if err != nil {
-		log.Error("[uploadDocumentFile] File Error:", err)
+		log.Error("[uploadExistingDocument] File Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "File Error"})
 		return
 	}
@@ -521,7 +521,7 @@ func (api *API) uploadDocumentFile(c *gin.Context) {
 	fileExtension := fileMime.Extension()
 
 	if !slices.Contains([]string{".epub", ".html"}, fileExtension) {
-		log.Error("[uploadDocumentFile] Invalid FileType:", fileExtension)
+		log.Error("[uploadExistingDocument] Invalid FileType:", fileExtension)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Filetype"})
 		return
 	}
@@ -529,7 +529,7 @@ func (api *API) uploadDocumentFile(c *gin.Context) {
 	// Validate Document Exists in DB
 	document, err := api.DB.Queries.GetDocument(api.DB.Ctx, rDoc.DocumentID)
 	if err != nil {
-		log.Error("[uploadDocumentFile] GetDocument DB Error:", err)
+		log.Error("[uploadExistingDocument] GetDocument DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Document"})
 		return
 	}
@@ -562,7 +562,7 @@ func (api *API) uploadDocumentFile(c *gin.Context) {
 	if os.IsNotExist(err) {
 		err = c.SaveUploadedFile(fileData, safePath)
 		if err != nil {
-			log.Error("[uploadDocumentFile] Save Failure:", err)
+			log.Error("[uploadExistingDocument] Save Failure:", err)
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "File Error"})
 			return
 		}
@@ -571,7 +571,7 @@ func (api *API) uploadDocumentFile(c *gin.Context) {
 	// Get MD5 Hash
 	fileHash, err := getFileMD5(safePath)
 	if err != nil {
-		log.Error("[uploadDocumentFile] Hash Failure:", err)
+		log.Error("[uploadExistingDocument] Hash Failure:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "File Error"})
 		return
 	}
@@ -582,7 +582,7 @@ func (api *API) uploadDocumentFile(c *gin.Context) {
 		Md5:      fileHash,
 		Filepath: &fileName,
 	}); err != nil {
-		log.Error("[uploadDocumentFile] UpsertDocument DB Error:", err)
+		log.Error("[uploadExistingDocument] UpsertDocument DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Document Error"})
 		return
 	}
@@ -592,7 +592,7 @@ func (api *API) uploadDocumentFile(c *gin.Context) {
 		ID:     document.ID,
 		Synced: true,
 	}); err != nil {
-		log.Error("[uploadDocumentFile] UpdateDocumentSync DB Error:", err)
+		log.Error("[uploadExistingDocument] UpdateDocumentSync DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Document"})
 		return
 	}
@@ -602,10 +602,10 @@ func (api *API) uploadDocumentFile(c *gin.Context) {
 	})
 }
 
-func (api *API) downloadDocumentFile(c *gin.Context) {
+func (api *API) downloadDocument(c *gin.Context) {
 	var rDoc requestDocumentID
 	if err := c.ShouldBindUri(&rDoc); err != nil {
-		log.Error("[downloadDocumentFile] Invalid URI Bind")
+		log.Error("[downloadDocument] Invalid URI Bind")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
 	}
@@ -613,13 +613,13 @@ func (api *API) downloadDocumentFile(c *gin.Context) {
 	// Get Document
 	document, err := api.DB.Queries.GetDocument(api.DB.Ctx, rDoc.DocumentID)
 	if err != nil {
-		log.Error("[uploadDocumentFile] GetDocument DB Error:", err)
+		log.Error("[downloadDocument] GetDocument DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Document"})
 		return
 	}
 
 	if document.Filepath == nil {
-		log.Error("[uploadDocumentFile] Document Doesn't Have File:", rDoc.DocumentID)
+		log.Error("[downloadDocument] Document Doesn't Have File:", rDoc.DocumentID)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Document Doesn't Exist"})
 		return
 	}
@@ -630,7 +630,7 @@ func (api *API) downloadDocumentFile(c *gin.Context) {
 	// Validate File Exists
 	_, err = os.Stat(filePath)
 	if os.IsNotExist(err) {
-		log.Error("[uploadDocumentFile] File Doesn't Exist:", rDoc.DocumentID)
+		log.Error("[downloadDocument] File Doesn't Exist:", rDoc.DocumentID)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Document Doesn't Exists"})
 		return
 	}

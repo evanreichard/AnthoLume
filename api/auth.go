@@ -112,6 +112,7 @@ func (api *API) authWebAppMiddleware(c *gin.Context) {
 
 	c.Redirect(http.StatusFound, "/login")
 	c.Abort()
+	return
 }
 
 func (api *API) authFormLogin(c *gin.Context) {
@@ -152,7 +153,8 @@ func (api *API) authFormLogin(c *gin.Context) {
 
 func (api *API) authFormRegister(c *gin.Context) {
 	if !api.Config.RegistrationEnabled {
-		c.AbortWithStatus(http.StatusConflict)
+		errorPage(c, http.StatusUnauthorized, "Nice try. Registration is disabled.")
+		return
 	}
 
 	username := strings.TrimSpace(c.PostForm("username"))
@@ -202,7 +204,7 @@ func (api *API) authFormRegister(c *gin.Context) {
 	// Set Session
 	session := sessions.Default(c)
 	if err := setSession(session, username); err != nil {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		errorPage(c, http.StatusUnauthorized, "Unauthorized.")
 		return
 	}
 

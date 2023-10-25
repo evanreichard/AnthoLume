@@ -67,3 +67,16 @@ func GetWordCount(filepath string) (int64, error) {
 		return 0, errors.New("Invalid Extension")
 	}
 }
+
+func GetMetadata(filepath string) (*MetadataInfo, error) {
+	fileMime, err := mimetype.DetectFile(filepath)
+	if err != nil {
+		return nil, err
+	}
+
+	if fileExtension := fileMime.Extension(); fileExtension == ".epub" {
+		return getEPUBMetadata(filepath)
+	} else {
+		return nil, errors.New("Invalid Extension")
+	}
+}

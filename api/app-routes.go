@@ -19,6 +19,7 @@ import (
 	"reichard.io/bbank/database"
 	"reichard.io/bbank/metadata"
 	"reichard.io/bbank/search"
+	"reichard.io/bbank/utils"
 )
 
 type queryParams struct {
@@ -30,6 +31,10 @@ type queryParams struct {
 type searchParams struct {
 	Query    *string `form:"query"`
 	BookType *string `form:"book_type"`
+}
+
+type requestDocumentUpload struct {
+	DocumentFile *multipart.FileHeader `form:"document_file"`
 }
 
 type requestDocumentEdit struct {
@@ -100,7 +105,7 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			})
 			if err != nil {
 				log.Error("[createAppResourcesRoute] GetDocumentsWithStats DB Error:", err)
-				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+				errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsWithStats DB Error: %v", err))
 				return
 			}
 
@@ -113,7 +118,7 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			var rDocID requestDocumentID
 			if err := c.ShouldBindUri(&rDocID); err != nil {
 				log.Error("[createAppResourcesRoute] Invalid URI Bind")
-				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+				errorPage(c, http.StatusNotFound, "Invalid document.")
 				return
 			}
 
@@ -123,11 +128,10 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			})
 			if err != nil {
 				log.Error("[createAppResourcesRoute] GetDocumentWithStats DB Error:", err)
-				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+				errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsWithStats DB Error: %v", err))
 				return
 			}
 
-			templateVars["RelBase"] = "../"
 			templateVars["Data"] = document
 			templateVars["TotalTimeLeftSeconds"] = (document.Pages - document.Page) * document.SecondsPerPage
 		} else if routeName == "activity" {
@@ -145,7 +149,7 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			activity, err := api.DB.Queries.GetActivity(api.DB.Ctx, activityFilter)
 			if err != nil {
 				log.Error("[createAppResourcesRoute] GetActivity DB Error:", err)
-				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+				errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetActivity DB Error: %v", err))
 				return
 			}
 
@@ -172,14 +176,14 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			user, err := api.DB.Queries.GetUser(api.DB.Ctx, userID)
 			if err != nil {
 				log.Error("[createAppResourcesRoute] GetUser DB Error:", err)
-				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+				errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
 				return
 			}
 
 			devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, userID)
 			if err != nil {
 				log.Error("[createAppResourcesRoute] GetDevices DB Error:", err)
-				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+				errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
 				return
 			}
 
@@ -221,7 +225,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 	var rDoc requestDocumentID
 	if err := c.ShouldBindUri(&rDoc); err != nil {
 		log.Error("[getDocumentCover] Invalid URI Bind")
-		c.AbortWithStatus(http.StatusBadRequest)
+		errorPage(c, http.StatusNotFound, "Invalid cover.")
 		return
 	}
 
@@ -229,7 +233,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 	document, err := api.DB.Queries.GetDocument(api.DB.Ctx, rDoc.DocumentID)
 	if err != nil {
 		log.Error("[getDocumentCover] GetDocument DB Error:", err)
-		c.AbortWithStatus(http.StatusBadRequest)
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocument DB Error: %v", err))
 		return
 	}
 
@@ -314,7 +318,7 @@ func (api *API) documentReader(c *gin.Context) {
 	var rDoc requestDocumentID
 	if err := c.ShouldBindUri(&rDoc); err != nil {
 		log.Error("[documentReader] Invalid URI Bind")
-		c.AbortWithStatus(http.StatusBadRequest)
+		errorPage(c, http.StatusNotFound, "Invalid document.")
 		return
 	}
 
@@ -325,7 +329,7 @@ func (api *API) documentReader(c *gin.Context) {
 
 	if err != nil && err != sql.ErrNoRows {
 		log.Error("[documentReader] UpsertDocument DB Error:", err)
-		c.AbortWithStatus(http.StatusBadRequest)
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
 		return
 	}
 
@@ -335,7 +339,7 @@ func (api *API) documentReader(c *gin.Context) {
 	})
 	if err != nil {
 		log.Error("[documentReader] GetDocumentWithStats DB Error:", err)
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentWithStats DB Error: %v", err))
 		return
 	}
 
@@ -343,22 +347,152 @@ func (api *API) documentReader(c *gin.Context) {
 		"SearchEnabled": api.Config.SearchEnabled,
 		"Progress":      progress.Progress,
 		"Data":          document,
-		"RelBase":       "../../",
 	})
+}
+
+func (api *API) uploadNewDocument(c *gin.Context) {
+	var rDocUpload requestDocumentUpload
+	if err := c.ShouldBind(&rDocUpload); err != nil {
+		log.Error("[uploadNewDocument] Invalid Form Bind")
+		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		return
+	}
+
+	if rDocUpload.DocumentFile == nil {
+		c.Redirect(http.StatusFound, "./documents")
+		return
+	}
+
+	// Validate Type & Derive Extension on MIME
+	uploadedFile, err := rDocUpload.DocumentFile.Open()
+	if err != nil {
+		log.Error("[uploadNewDocument] File Error: ", err)
+		errorPage(c, http.StatusInternalServerError, "Unable to open file.")
+		return
+	}
+
+	fileMime, err := mimetype.DetectReader(uploadedFile)
+	if err != nil {
+		log.Error("[uploadNewDocument] MIME Error")
+		errorPage(c, http.StatusInternalServerError, "Unable to detect filetype.")
+		return
+	}
+	fileExtension := fileMime.Extension()
+
+	// Validate Extension
+	if !slices.Contains([]string{".epub"}, fileExtension) {
+		log.Error("[uploadNewDocument] Invalid FileType: ", fileExtension)
+		errorPage(c, http.StatusBadRequest, "Invalid filetype.")
+		return
+	}
+
+	// Create Temp File
+	tempFile, err := os.CreateTemp("", "book")
+	if err != nil {
+		log.Warn("[uploadNewDocument] Temp File Create Error: ", err)
+		errorPage(c, http.StatusInternalServerError, "Unable to create temp file.")
+		return
+	}
+	defer tempFile.Close()
+
+	// Save Temp
+	err = c.SaveUploadedFile(rDocUpload.DocumentFile, tempFile.Name())
+	if err != nil {
+		log.Error("[uploadNewDocument] File Error: ", err)
+		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		return
+	}
+
+	// Get Metadata
+	metadataInfo, err := metadata.GetMetadata(tempFile.Name())
+	if err != nil {
+		log.Warn("[uploadNewDocument] GetMetadata Error: ", err)
+		errorPage(c, http.StatusInternalServerError, "Unable to acquire file metadata.")
+		return
+	}
+
+	// Calculate Partial MD5 ID
+	partialMD5, err := utils.CalculatePartialMD5(tempFile.Name())
+	if err != nil {
+		log.Warn("[uploadNewDocument] Partial MD5 Error: ", err)
+		errorPage(c, http.StatusInternalServerError, "Unable to calculate partial MD5.")
+		return
+	}
+
+	// Check Exists
+	_, err = api.DB.Queries.GetDocument(api.DB.Ctx, partialMD5)
+	if err == nil {
+		c.Redirect(http.StatusFound, fmt.Sprintf("./documents/%s", partialMD5))
+		return
+	}
+
+	// Calculate Actual MD5
+	fileHash, err := getFileMD5(tempFile.Name())
+	if err != nil {
+		log.Error("[uploadNewDocument] MD5 Hash Failure:", err)
+		errorPage(c, http.StatusInternalServerError, "Unable to calculate MD5.")
+		return
+	}
+
+	// Derive Filename
+	var fileName string
+	if *metadataInfo.Author != "" {
+		fileName = fileName + *metadataInfo.Author
+	} else {
+		fileName = fileName + "Unknown"
+	}
+
+	if *metadataInfo.Title != "" {
+		fileName = fileName + " - " + *metadataInfo.Title
+	} else {
+		fileName = fileName + " - Unknown"
+	}
+
+	// Remove Slashes
+	fileName = strings.ReplaceAll(fileName, "/", "")
+
+	// Derive & Sanitize File Name
+	fileName = "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, partialMD5, fileExtension))
+
+	// Generate Storage Path
+	safePath := filepath.Join(api.Config.DataPath, "documents", fileName)
+
+	// Move File
+	if err := os.Rename(tempFile.Name(), safePath); err != nil {
+		log.Error("[uploadNewDocument] Move Temp File Error:", err)
+		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		return
+	}
+
+	// Upsert Document
+	if _, err = api.DB.Queries.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
+		ID:          partialMD5,
+		Title:       metadataInfo.Title,
+		Author:      metadataInfo.Author,
+		Description: metadataInfo.Description,
+		Md5:         fileHash,
+		Filepath:    &fileName,
+	}); err != nil {
+		log.Error("[uploadNewDocument] UpsertDocument DB Error:", err)
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
+		return
+	}
+
+	c.Redirect(http.StatusFound, fmt.Sprintf("./documents/%s", partialMD5))
 }
 
 func (api *API) editDocument(c *gin.Context) {
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
 		log.Error("[createAppResourcesRoute] Invalid URI Bind")
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusNotFound, "Invalid document.")
 		return
 	}
 
 	var rDocEdit requestDocumentEdit
 	if err := c.ShouldBind(&rDocEdit); err != nil {
 		log.Error("[createAppResourcesRoute] Invalid Form Bind")
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
@@ -372,7 +506,7 @@ func (api *API) editDocument(c *gin.Context) {
 		rDocEdit.CoverGBID == nil &&
 		rDocEdit.CoverFile == nil {
 		log.Error("[createAppResourcesRoute] Missing Form Values")
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
@@ -386,14 +520,14 @@ func (api *API) editDocument(c *gin.Context) {
 		uploadedFile, err := rDocEdit.CoverFile.Open()
 		if err != nil {
 			log.Error("[createAppResourcesRoute] File Error")
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+			errorPage(c, http.StatusInternalServerError, "Unable to open file.")
 			return
 		}
 
 		fileMime, err := mimetype.DetectReader(uploadedFile)
 		if err != nil {
 			log.Error("[createAppResourcesRoute] MIME Error")
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+			errorPage(c, http.StatusInternalServerError, "Unable to detect filetype.")
 			return
 		}
 		fileExtension := fileMime.Extension()
@@ -401,7 +535,7 @@ func (api *API) editDocument(c *gin.Context) {
 		// Validate Extension
 		if !slices.Contains([]string{".jpg", ".png"}, fileExtension) {
 			log.Error("[uploadDocumentFile] Invalid FileType: ", fileExtension)
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Filetype"})
+			errorPage(c, http.StatusBadRequest, "Invalid filetype.")
 			return
 		}
 
@@ -412,8 +546,8 @@ func (api *API) editDocument(c *gin.Context) {
 		// Save
 		err = c.SaveUploadedFile(rDocEdit.CoverFile, safePath)
 		if err != nil {
-			log.Error("[createAppResourcesRoute] File Error")
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+			log.Error("[createAppResourcesRoute] File Error: ", err)
+			errorPage(c, http.StatusInternalServerError, "Unable to save file.")
 			return
 		}
 
@@ -437,7 +571,7 @@ func (api *API) editDocument(c *gin.Context) {
 		Coverfile:   coverFileName,
 	}); err != nil {
 		log.Error("[createAppResourcesRoute] UpsertDocument DB Error:", err)
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
 		return
 	}
 
@@ -449,18 +583,18 @@ func (api *API) deleteDocument(c *gin.Context) {
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
 		log.Error("[deleteDocument] Invalid URI Bind")
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusNotFound, "Invalid document.")
 		return
 	}
 	changed, err := api.DB.Queries.DeleteDocument(api.DB.Ctx, rDocID.DocumentID)
 	if err != nil {
 		log.Error("[deleteDocument] DeleteDocument DB Error")
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("DeleteDocument DB Error: %v", err))
 		return
 	}
 	if changed == 0 {
 		log.Error("[deleteDocument] DeleteDocument DB Error")
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Document"})
+		errorPage(c, http.StatusNotFound, "Invalid document.")
 		return
 	}
 
@@ -473,14 +607,14 @@ func (api *API) identifyDocument(c *gin.Context) {
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
 		log.Error("[identifyDocument] Invalid URI Bind")
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusNotFound, "Invalid document.")
 		return
 	}
 
 	var rDocIdentify requestDocumentIdentify
 	if err := c.ShouldBind(&rDocIdentify); err != nil {
 		log.Error("[identifyDocument] Invalid Form Bind")
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
@@ -498,13 +632,12 @@ func (api *API) identifyDocument(c *gin.Context) {
 	// Validate Values
 	if rDocIdentify.ISBN == nil && rDocIdentify.Title == nil && rDocIdentify.Author == nil {
 		log.Error("[identifyDocument] Invalid Form")
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
 	// Template Variables
 	templateVars := gin.H{
-		"RelBase":       "../../",
 		"SearchEnabled": api.Config.SearchEnabled,
 	}
 
@@ -544,7 +677,7 @@ func (api *API) identifyDocument(c *gin.Context) {
 	})
 	if err != nil {
 		log.Error("[identifyDocument] GetDocumentWithStats DB Error:", err)
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentWithStats DB Error: %v", err))
 		return
 	}
 
@@ -558,7 +691,7 @@ func (api *API) saveNewDocument(c *gin.Context) {
 	var rDocAdd requestDocumentAdd
 	if err := c.ShouldBind(&rDocAdd); err != nil {
 		log.Error("[saveNewDocument] Invalid Form Bind")
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
@@ -568,7 +701,7 @@ func (api *API) saveNewDocument(c *gin.Context) {
 		rDocAdd.Title == nil ||
 		rDocAdd.Author == nil {
 		log.Error("[saveNewDocument] Missing Form Values")
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
@@ -581,15 +714,15 @@ func (api *API) saveNewDocument(c *gin.Context) {
 	tempFilePath, err := search.SaveBook(*rDocAdd.ID, bType)
 	if err != nil {
 		log.Warn("[saveNewDocument] Temp File Error: ", err)
-		c.AbortWithStatus(http.StatusBadRequest)
+		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
 		return
 	}
 
 	// Calculate Partial MD5 ID
-	partialMD5, err := calculatePartialMD5(tempFilePath)
+	partialMD5, err := utils.CalculatePartialMD5(tempFilePath)
 	if err != nil {
 		log.Warn("[saveNewDocument] Partial MD5 Error: ", err)
-		c.AbortWithStatus(http.StatusBadRequest)
+		errorPage(c, http.StatusInternalServerError, "Unable to calculate partial MD5.")
 		return
 	}
 
@@ -623,7 +756,7 @@ func (api *API) saveNewDocument(c *gin.Context) {
 	// Move File
 	if err := os.Rename(tempFilePath, safePath); err != nil {
 		log.Warn("[saveNewDocument] Move Temp File Error: ", err)
-		c.AbortWithStatus(http.StatusBadRequest)
+		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
 		return
 	}
 
@@ -631,7 +764,7 @@ func (api *API) saveNewDocument(c *gin.Context) {
 	fileHash, err := getFileMD5(safePath)
 	if err != nil {
 		log.Error("[saveNewDocument] Hash Failure:", err)
-		c.AbortWithStatus(http.StatusBadRequest)
+		errorPage(c, http.StatusInternalServerError, "Unable to calculate MD5.")
 		return
 	}
 
@@ -644,7 +777,7 @@ func (api *API) saveNewDocument(c *gin.Context) {
 		Filepath: &fileName,
 	}); err != nil {
 		log.Error("[saveNewDocument] UpsertDocument DB Error:", err)
-		c.AbortWithStatus(http.StatusBadRequest)
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
 		return
 	}
 
@@ -657,14 +790,14 @@ func (api *API) editSettings(c *gin.Context) {
 	var rUserSettings requestSettingsEdit
 	if err := c.ShouldBind(&rUserSettings); err != nil {
 		log.Error("[editSettings] Invalid Form Bind")
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
 	// Validate Something Exists
 	if rUserSettings.Password == nil && rUserSettings.NewPassword == nil && rUserSettings.TimeOffset == nil {
 		log.Error("[editSettings] Missing Form Values")
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
@@ -703,7 +836,7 @@ func (api *API) editSettings(c *gin.Context) {
 	_, err := api.DB.Queries.UpdateUser(api.DB.Ctx, newUserSettings)
 	if err != nil {
 		log.Error("[editSettings] UpdateUser DB Error:", err)
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpdateUser DB Error: %v", err))
 		return
 	}
 
@@ -711,7 +844,7 @@ func (api *API) editSettings(c *gin.Context) {
 	user, err := api.DB.Queries.GetUser(api.DB.Ctx, rUser.(string))
 	if err != nil {
 		log.Error("[editSettings] GetUser DB Error:", err)
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
 		return
 	}
 
@@ -719,7 +852,7 @@ func (api *API) editSettings(c *gin.Context) {
 	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, rUser.(string))
 	if err != nil {
 		log.Error("[editSettings] GetDevices DB Error:", err)
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
 		return
 	}
 
@@ -791,4 +924,25 @@ func bindQueryParams(c *gin.Context) queryParams {
 	}
 
 	return qParams
+}
+
+func errorPage(c *gin.Context, errorCode int, errorMessage string) {
+	var errorHuman string = "We're not even sure what happened."
+
+	switch errorCode {
+	case http.StatusInternalServerError:
+		errorHuman = "Server hiccup."
+	case http.StatusNotFound:
+		errorHuman = "Something's missing."
+	case http.StatusBadRequest:
+		errorHuman = "We didn't expect that."
+	case http.StatusUnauthorized:
+		errorHuman = "You're not allowed to do that."
+	}
+
+	c.HTML(errorCode, "error", gin.H{
+		"Status":  errorCode,
+		"Error":   errorHuman,
+		"Message": errorMessage,
+	})
 }

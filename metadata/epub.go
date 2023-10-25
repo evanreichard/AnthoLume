@@ -8,6 +8,20 @@ import (
 	"golang.org/x/net/html"
 )
 
+func getEPUBMetadata(filepath string) (*MetadataInfo, error) {
+	rc, err := epub.OpenReader(filepath)
+	if err != nil {
+		return nil, err
+	}
+	rf := rc.Rootfiles[0]
+
+	return &MetadataInfo{
+		Title:       &rf.Title,
+		Author:      &rf.Creator,
+		Description: &rf.Description,
+	}, nil
+}
+
 func countEPUBWords(filepath string) (int64, error) {
 	rc, err := epub.OpenReader(filepath)
 	if err != nil {

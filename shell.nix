@@ -3,7 +3,6 @@
 pkgs.mkShell {
   packages = with pkgs; [
     go
-    zig
-    nodejs_20
+    nodePackages.tailwindcss
   ];
 }

@@ -53,9 +53,6 @@ class EBookReader {
       // Start Timer
       this.bookState.pageStart = Date.now();
 
-      // Restore Theme
-      this.setTheme(this.readerSettings.theme || "tan");
-
       // Get Stats
       let stats = this.getBookStats();
       this.updateBookStats(stats);
@@ -64,19 +61,8 @@ class EBookReader {
     // Register Content Hook
     this.rendition.hooks.content.register(getStats);
 
-    /**
-     * Display @ CFI x 3 (Hack)
-     *
-     *   This is absurd. Only way to get it to consistently show the correct
-     *   page is to execute this three times. I tried the font hook,
-     *   rendition hook, relocated hook, etc. No reliable way outside of
-     *   running this three times.
-     *
-     *   Likely Bug: https://github.com/futurepress/epub.js/issues/1194
-     **/
-    await this.rendition.display(cfi);
-    await this.rendition.display(cfi);
-    await this.rendition.display(cfi);
+    // Update Position
+    await this.setPosition(cfi);
 
     // Highlight Element - DOM Has Element
     let { element } = await this.getCFIFromXPath(this.bookState.progress);
@@ -100,6 +86,7 @@ class EBookReader {
 
     this.readerSettings.deviceID = this.readerSettings.deviceID || randomID();
 
+    // Save Settings (Device ID)
     this.saveSettings();
   }
 
@@ -154,24 +141,66 @@ class EBookReader {
     themeLinkEl.setAttribute("rel", "stylesheet");
     themeLinkEl.setAttribute("href", THEME_FILE);
     document.head.append(themeLinkEl);
+
+    // Set Theme Style
+    this.rendition.themes.default({
+      "*": {
+        "font-size": "var(--editor-font-size) !important",
+        "font-family": "var(--editor-font-family) !important",
+      },
+    });
+
+    // Restore Theme Hook
+    this.rendition.hooks.content.register(
+      function () {
+        // Restore Theme
+        this.setTheme();
+
+        // Set Fonts - TODO: Local
+        //   https://gwfh.mranftl.com/fonts
+        this.rendition.getContents().forEach((c) => {
+          [
+            "https://fonts.googleapis.com/css?family=Arbutus+Slab",
+            "https://fonts.googleapis.com/css?family=Open+Sans",
+            "https://fonts.googleapis.com/css?family=Lato:400,400i,700,700i",
+          ].forEach((url) => {
+            let el = c.document.head.appendChild(
+              c.document.createElement("link")
+            );
+            el.setAttribute("rel", "stylesheet");
+            el.setAttribute("href", url);
+          });
+        });
+      }.bind(this)
+    );
   }
 
   /**
    * Set theme & meta theme color
    **/
   setTheme(newTheme) {
-    // Update Settings
-    this.readerSettings.theme = newTheme;
-    this.saveSettings();
+    // Assert Theme Object
+    this.readerSettings.theme =
+      typeof this.readerSettings.theme == "object"
+        ? this.readerSettings.theme
+        : {};
+
+    // Assign Values
+    Object.assign(this.readerSettings.theme, newTheme);
+
+    // Get Desired Theme (Defaults)
+    let colorScheme = this.readerSettings.theme.colorScheme || "tan";
+    let fontFamily = this.readerSettings.theme.fontFamily || "serif";
+    let fontSize = this.readerSettings.theme.fontSize || 1;
 
     // Set Reader Theme
-    this.rendition.themes.select(newTheme);
+    this.rendition.themes.select(colorScheme);
 
     // Get Reader Theme
     let themeColorEl = document.querySelector("[name='theme-color']");
     let themeStyleSheet = document.querySelector("#themes").sheet;
     let themeStyleRule = Array.from(themeStyleSheet.cssRules).find(
-      (item) => item.selectorText == "." + newTheme
+      (item) => item.selectorText == "." + colorScheme
     );
 
     // Match Reader Theme
@@ -180,16 +209,37 @@ class EBookReader {
     themeColorEl.setAttribute("content", backgroundColor);
     document.body.style.backgroundColor = backgroundColor;
 
-    // Update Position Highlight Theme
+    // Set Font Family & Highlight Style
     this.rendition.getContents().forEach((item) => {
+      // Set Font Family
+      item.document.documentElement.style.setProperty(
+        "--editor-font-family",
+        fontFamily
+      );
+
+      // Set Font Size
+      item.document.documentElement.style.setProperty(
+        "--editor-font-size",
+        fontSize + "em"
+      );
+
+      // Set Highlight Style
       item.document.querySelectorAll(".highlight").forEach((el) => {
         Object.assign(el.style, {
           background: backgroundColor,
         });
       });
     });
+
+    // Save Settings (Theme)
+    this.saveSettings();
   }
 
+  /**
+   * Takes existing progressElement and applies the highlight style to it.
+   * This is nice when font size or font family changes as it can cause
+   * the position to move.
+   **/
   highlightPositionMarker() {
     if (!this.bookState.progressElement) return;
 
@@ -248,7 +298,7 @@ class EBookReader {
 
     // Local Functions
     let getCFIFromXPath = this.getCFIFromXPath.bind(this);
-    let highlightPositionMarker = this.highlightPositionMarker.bind(this);
+    let setPosition = this.setPosition.bind(this);
     let nextPage = this.nextPage.bind(this);
     let prevPage = this.prevPage.bind(this);
     let saveSettings = this.saveSettings.bind(this);
@@ -260,15 +310,6 @@ class EBookReader {
     this.rendition.hooks.render.register(function (doc, data) {
       let renderDoc = doc.document;
 
-      // Initial Font Size
-      renderDoc.documentElement.style.setProperty(
-        "--editor-font-size",
-        (readerSettings.fontSize || 1) + "em"
-      );
-      this.themes.default({
-        "*": { "font-size": "var(--editor-font-size) !important" },
-      });
-
       // ------------------------------------------------ //
       // ---------------- Wake Lock Hack ---------------- //
       // ------------------------------------------------ //
@@ -278,55 +319,6 @@ class EBookReader {
       renderDoc.addEventListener("click", wakeLockListener);
       renderDoc.addEventListener("gesturechange", wakeLockListener);
       renderDoc.addEventListener("touchstart", wakeLockListener);
-
-      // ------------------------------------------------ //
-      // ---------------- Resize Helpers ---------------- //
-      // ------------------------------------------------ //
-      let lastScale = 1;
-      let isScaling = false;
-      let timeoutID = undefined;
-      let cfiLocation = undefined;
-
-      // Gesture Listener
-      renderDoc.addEventListener(
-        "gesturechange",
-        async function (e) {
-          e.preventDefault();
-
-          isScaling = true;
-          clearTimeout(timeoutID);
-
-          if (!cfiLocation)
-            ({ cfi: cfiLocation } = await getCFIFromXPath(bookState.progress));
-
-          // Damped Scale
-          readerSettings.fontSize =
-            (readerSettings.fontSize || 1) + (e.scale - lastScale) / 5;
-          lastScale = e.scale;
-
-          // Update Font Size
-          renderDoc.documentElement.style.setProperty(
-            "--editor-font-size",
-            (readerSettings.fontSize || 1) + "em"
-          );
-
-          timeoutID = setTimeout(() => {
-            // Display Position
-            this.display(cfiLocation);
-
-            // Reset Variables
-            isScaling = false;
-            cfiLocation = undefined;
-
-            // Highlight Location
-            highlightPositionMarker();
-
-            // Save Settings (Font Size)
-            saveSettings();
-          }, 250);
-        }.bind(this),
-        true
-      );
 
       // ------------------------------------------------ //
       // --------------- Swipe Pagination --------------- //
@@ -350,7 +342,7 @@ class EBookReader {
         function (event) {
           touchEndX = event.changedTouches[0].screenX;
           touchEndY = event.changedTouches[0].screenY;
-          if (!isScaling) handleGesture(event);
+          handleGesture(event);
         },
         false
       );
@@ -447,11 +439,14 @@ class EBookReader {
 
           // "t" Key (Theme Cycle)
           if ((e.keyCode || e.which) == 84) {
-            let currentThemeIdx = THEMES.indexOf(readerSettings.theme);
-            if (THEMES.length == currentThemeIdx + 1)
-              readerSettings.theme = THEMES[0];
-            else readerSettings.theme = THEMES[currentThemeIdx + 1];
-            setTheme(readerSettings.theme);
+            let currentThemeIdx = THEMES.indexOf(
+              readerSettings.theme.colorScheme
+            );
+            let colorScheme =
+              THEMES.length == currentThemeIdx + 1
+                ? THEMES[0]
+                : THEMES[currentThemeIdx + 1];
+            setTheme({ colorScheme });
           }
         },
         false
@@ -469,6 +464,7 @@ class EBookReader {
     let nextPage = this.nextPage.bind(this);
     let prevPage = this.prevPage.bind(this);
 
+    // Keyboard Shortcuts
     document.addEventListener(
       "keyup",
       function (e) {
@@ -484,28 +480,76 @@ class EBookReader {
 
         // "t" Key (Theme Cycle)
         if ((e.keyCode || e.which) == 84) {
-          let currentThemeIdx = THEMES.indexOf(this.readerSettings.theme);
-          let newTheme =
+          let currentThemeIdx = THEMES.indexOf(
+            this.readerSettings.theme.colorScheme
+          );
+          let colorScheme =
             THEMES.length == currentThemeIdx + 1
               ? THEMES[0]
               : THEMES[currentThemeIdx + 1];
-          this.setTheme(newTheme);
+          this.setTheme({ colorScheme });
         }
       }.bind(this),
       false
     );
 
-    document.querySelectorAll(".theme").forEach(
+    // Color Scheme Switcher
+    document.querySelectorAll(".color-scheme").forEach(
       function (item) {
         item.addEventListener(
           "click",
           function (event) {
-            this.setTheme(event.target.innerText);
+            let colorScheme = event.target.innerText;
+            console.log(colorScheme);
+            this.setTheme({ colorScheme });
           }.bind(this)
         );
       }.bind(this)
     );
 
+    // Font Switcher
+    document.querySelectorAll(".font-family").forEach(
+      function (item) {
+        item.addEventListener(
+          "click",
+          async function (event) {
+            let { cfi } = await this.getCFIFromXPath(this.bookState.progress);
+
+            let fontFamily = event.target.innerText;
+            this.setTheme({ fontFamily });
+
+            this.setPosition(cfi);
+          }.bind(this)
+        );
+      }.bind(this)
+    );
+
+    // Font Size
+    document.querySelectorAll(".font-size").forEach(
+      function (item) {
+        item.addEventListener(
+          "click",
+          async function (event) {
+            // Get Initial CFI
+            let { cfi } = await this.getCFIFromXPath(this.bookState.progress);
+
+            // Modify Size
+            let currentSize = this.readerSettings.theme.fontSize || 1;
+            let direction = event.target.innerText;
+            if (direction == "-") {
+              this.setTheme({ fontSize: currentSize * 0.99 });
+            } else if (direction == "+") {
+              this.setTheme({ fontSize: currentSize * 1.01 });
+            }
+
+            // Restore CFI
+            this.setPosition(cfi);
+          }.bind(this)
+        );
+      }.bind(this)
+    );
+
+    // Close Top Bar
     document.querySelector(".close-top-bar").addEventListener("click", () => {
       topBar.classList.remove("top-0");
     });
@@ -585,6 +629,24 @@ class EBookReader {
   }
 
   /**
+   * Display @ CFI x 3 (Hack)
+   *
+   *   This is absurd. Only way to get it to consistently show the correct
+   *   page is to execute this three times. I tried the font hook,
+   *   rendition hook, relocated hook, etc. No reliable way outside of
+   *   running this three times.
+   *
+   *   Likely Bug: https://github.com/futurepress/epub.js/issues/1194
+   **/
+  async setPosition(cfi) {
+    await this.rendition.display(cfi);
+    await this.rendition.display(cfi);
+    await this.rendition.display(cfi);
+
+    this.highlightPositionMarker();
+  }
+
+  /**
    * Normalize and flush activity
    **/
   async flushActivity() {
@@ -659,6 +721,9 @@ class EBookReader {
       );
   }
 
+  /**
+   * Flush progress to the API. Called when the page changes.
+   **/
   async flushProgress() {
     console.log("Flushing Progress...");
 
@@ -833,13 +898,13 @@ class EBookReader {
     //     - [...]/text().184 = text node of parent, character offset @ 184 chars?
 
     // No XPath
-    if (!xpath || xpath == "") return;
+    if (!xpath || xpath == "") return {};
 
     // Match Document Fragment Index
     let fragMatch = xpath.match(/^\/body\/DocFragment\[(\d+)\]/);
     if (!fragMatch) {
       console.warn("No XPath Match");
-      return;
+      return {};
     }
 
     // Match Item Index
@@ -976,10 +1041,9 @@ class EBookReader {
   /**
    * Save settings to localStorage
    **/
-  saveSettings(obj) {
+  saveSettings() {
     if (!this.readerSettings) this.loadSettings();
-    let newSettings = Object.assign(this.readerSettings, obj);
-    localStorage.setItem("readerSettings", JSON.stringify(newSettings));
+    localStorage.setItem("readerSettings", JSON.stringify(this.readerSettings));
   }
 
   /**

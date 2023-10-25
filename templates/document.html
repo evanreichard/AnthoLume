@@ -3,7 +3,7 @@
 {{define "title"}}Documents{{end}}
 
 {{define "header"}}
-<a href="{{ .RelBase }}./documents">Documents</a>
+<a href="/documents">Documents</a>
 {{end}}
 
 {{define "content"}}
@@ -12,7 +12,7 @@
   <div class="h-full w-full overflow-scroll bg-white shadow-lg dark:bg-gray-700 rounded dark:text-white p-4">
     <div class="flex flex-col gap-2 float-left w-44 md:w-60 lg:w-80 mr-4 mb-2 relative">
       <label class="z-10 cursor-pointer" for="edit-cover-button">
-	<img class="rounded object-fill w-full" src="{{ .RelBase }}./documents/{{.Data.ID}}/cover"></img>
+	<img class="rounded object-fill w-full" src="/documents/{{.Data.ID}}/cover"></img>
       </label>
 
       {{ if .Data.Filepath }}
@@ -52,7 +52,7 @@
 		name="cover_file"
 	      >
 	      <button
-		class="font-medium px-2 py-1 text-white bg-gray-500 dark:bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
+		class="font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
 		type="submit"
 	      >Upload Cover</button>
 	    </form>
@@ -63,7 +63,7 @@
 	    >
 	      <input type="checkbox" checked id="remove_cover" name="remove_cover" class="hidden" />
 	      <button
-		class="font-medium px-2 py-1 text-white bg-gray-500 dark:bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
+		class="font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
 		type="submit"
 	      >Remove Cover</button>
 	    </form>
@@ -95,7 +95,7 @@
 		class="text-black dark:text-white text-sm"
 	      >
 		<button
-		  class="font-medium w-24 px-2 py-1 text-white bg-gray-500 dark:bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
+		  class="font-medium w-24 px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
 		  type="submit"
 		>Delete</button>
 	      </form>
@@ -163,7 +163,7 @@
 		  class="p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white"
 		>
 		<button
-		  class="font-medium px-2 py-1 text-white bg-gray-500 dark:bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
+		  class="font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
 		  type="submit"
 		>Identify</button>
 	      </form>
@@ -244,7 +244,7 @@
 		class="p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white"
 	      >
 	      <button
-		class="font-medium px-2 py-1 text-white bg-gray-500 dark:bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
+		class="font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
 		type="submit"
 	      >Save</button>
 	    </form>
@@ -293,7 +293,7 @@
 		class="p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white"
 	      >
 	      <button
-		class="font-medium px-2 py-1 text-white bg-gray-500 dark:bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
+		class="font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
 		type="submit"
 	      >Save</button>
 	    </form>
@@ -401,7 +401,7 @@
 	<div
 	  class="absolute h-full w-full min-h-[10em] z-30 top-1 right-0 gap-4 flex transition-all duration-200"
 	>
-	<img class="hidden md:block invisible rounded w-44 md:w-60 lg:w-80 object-fill" src="{{ .RelBase }}./documents/{{.Data.ID}}/cover"></img>
+	<img class="hidden md:block invisible rounded w-44 md:w-60 lg:w-80 object-fill" src="/documents/{{.Data.ID}}/cover"></img>
 	  <form
 	    method="POST"
 	    action="./{{ .Data.ID }}/edit"
@@ -414,7 +414,7 @@
 	      class="h-full w-full p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white"
 	    >{{ or .Data.Description "N/A" }}</textarea>
 	    <button
-	      class="font-medium px-2 py-1 text-white bg-gray-500 dark:bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
+	      class="font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
 	      type="submit"
 	    >Save</button>
 	  </form>
@@ -430,8 +430,8 @@
       <div class="text-center">
 	<h3 class="text-lg font-bold leading-6 dark:text-gray-300">No Metadata Results Found</h3>
       </div>
-      <a href="{{ .RelBase }}./documents/{{ .Data.ID }}"
-	class="w-full text-center font-medium px-2 py-1 text-white bg-gray-500 dark:bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
+      <a href="/documents/{{ .Data.ID }}"
+	class="w-full text-center font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
 	type="submit"
       >Back to Document</a>
     </div>
@@ -449,7 +449,7 @@
       <form
 	id="metadata-save"
 	method="POST"
-	action="{{ .RelBase }}./documents/{{ .Data.ID }}/edit"
+	action="/documents/{{ .Data.ID }}/edit"
 	class="text-black dark:text-white border-b dark:border-black"
       >
 	<dl>
@@ -512,13 +512,13 @@
 	</div>
       </form>
       <div class="flex justify-end gap-4 m-4">
-	<a href="{{ .RelBase }}./documents/{{ .Data.ID }}"
-	  class="w-24 text-center font-medium px-2 py-1 text-white bg-gray-500 dark:bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
+	<a href="/documents/{{ .Data.ID }}"
+	  class="w-24 text-center font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
 	  type="submit"
 	>Cancel</a>
 	<button
 	  form="metadata-save"
-	  class="w-24 font-medium px-2 py-1 text-white bg-gray-500 dark:bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
+	  class="w-24 font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
 	  type="submit"
 	>Save</button>
       </div>

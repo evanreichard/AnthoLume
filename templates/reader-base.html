@@ -12,10 +12,13 @@
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
     />
-    <link rel="manifest" href="{{ .RelBase }}./manifest.json" />
     <meta name="theme-color" content="#D2B48C" />
-    <script src="https://cdn.tailwindcss.com"></script>
+
     <title>Book Manager - {{block "title" .}}{{end}}</title>
+
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="stylesheet" href="/assets/style.css" />
+
     <style>
       html,
       body {
@@ -166,29 +169,73 @@
           <p class="text-gray-400">Theme</p>
           <div class="flex justify-around w-full gap-4 p-2 text-sm">
             <div
-              class="theme cursor-pointer rounded border border-white bg-[#fff] text-[#000] grow text-center"
+              class="color-scheme cursor-pointer rounded border border-white bg-[#fff] text-[#000] grow text-center"
             >
               light
             </div>
             <div
-              class="theme cursor-pointer rounded border border-white bg-[#d2b48c] text-[#333] grow text-center"
+              class="color-scheme cursor-pointer rounded border border-white bg-[#d2b48c] text-[#333] grow text-center"
             >
               tan
             </div>
             <div
-              class="theme cursor-pointer rounded border border-white bg-[#1f2937] text-[#fff] grow text-center"
+              class="color-scheme cursor-pointer rounded border border-white bg-[#1f2937] text-[#fff] grow text-center"
             >
               blue
             </div>
             <div
-              class="theme cursor-pointer rounded border border-white bg-[#232323] text-[#fff] grow text-center"
+              class="color-scheme cursor-pointer rounded border border-white bg-[#232323] text-[#fff] grow text-center"
             >
               gray
             </div>
             <div
-              class="theme cursor-pointer rounded border border-white bg-[#000] text-[#ccc] grow text-center"
+              class="color-scheme cursor-pointer rounded border border-white bg-[#000] text-[#ccc] grow text-center"
             >
               black
+            </div>
+          </div>
+        </div>
+        <div
+          class="items-center flex flex-col w-screen h-full flex-none snap-center p-2"
+        >
+          <p class="text-gray-400">Font</p>
+          <div class="flex justify-around w-full gap-4 p-2 text-sm">
+            <div
+              class="font-family cursor-pointer rounded border border-white grow text-center dark:text-white"
+            >
+              Serif
+            </div>
+            <div
+              class="font-family cursor-pointer rounded border border-white grow text-center dark:text-white"
+            >
+              Open Sans
+            </div>
+            <div
+              class="font-family cursor-pointer rounded border border-white grow text-center dark:text-white"
+            >
+              Arbutus Slab
+            </div>
+            <div
+              class="font-family cursor-pointer rounded border border-white grow text-center dark:text-white"
+            >
+              Lato
+            </div>
+          </div>
+        </div>
+        <div
+          class="items-center flex flex-col w-screen h-full flex-none snap-center p-2"
+        >
+          <p class="text-gray-400">Font Size</p>
+          <div class="flex justify-around w-full gap-4 p-2 text-sm">
+            <div
+              class="font-size cursor-pointer rounded border border-white grow text-center dark:text-white"
+            >
+              -
+            </div>
+            <div
+              class="font-size cursor-pointer rounded border border-white grow text-center dark:text-white"
+            >
+              +
             </div>
           </div>
         </div>
