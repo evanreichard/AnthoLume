@@ -209,7 +209,12 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 				}
 
 				// Search
-				searchResults := search.SearchBook(*sParams.Query, bType)
+				searchResults, err := search.SearchBook(*sParams.Query, bType)
+				if err != nil {
+					errorPage(c, http.StatusInternalServerError, fmt.Sprintf("Search Error: %v", err))
+					return
+				}
+
 				templateVars["Data"] = searchResults
 				templateVars["BookType"] = *sParams.BookType
 			}

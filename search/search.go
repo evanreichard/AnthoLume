@@ -38,29 +38,37 @@ type SearchItem struct {
 	UploadDate string
 }
 
-func SearchBook(query string, bookType BookType) (allEntries []SearchItem) {
-	log.Info(query)
+func SearchBook(query string, bookType BookType) ([]SearchItem, error) {
 	if bookType == BOOK_FICTION {
 		// Search Fiction
 		url := "https://libgen.is/fiction/?q=" + url.QueryEscape(query) + "&language=English&format=epub"
-		body := getPage(url)
-		allEntries = parseLibGenFiction(body)
+		body, err := getPage(url)
+		if err != nil {
+			return nil, err
+		}
+		return parseLibGenFiction(body)
 	} else if bookType == BOOK_NON_FICTION {
 		// Search NonFiction
 		url := "https://libgen.is/search.php?req=" + url.QueryEscape(query)
-		body := getPage(url)
-		allEntries = parseLibGenNonFiction(body)
+		body, err := getPage(url)
+		if err != nil {
+			return nil, err
+		}
+		return parseLibGenNonFiction(body)
+	} else {
+		return nil, errors.New("Invalid Book Type")
 	}
-
-	return
 }
 
-func GoodReadsMostRead(c Cadence) []SearchItem {
-	body := getPage("https://www.goodreads.com/book/most_read?category=all&country=US&duration=" + string(c))
+func GoodReadsMostRead(c Cadence) ([]SearchItem, error) {
+	body, err := getPage("https://www.goodreads.com/book/most_read?category=all&country=US&duration=" + string(c))
+	if err != nil {
+		return nil, err
+	}
 	return parseGoodReads(body)
 }
 
-func GetBookURL(id string, bookType BookType) string {
+func GetBookURL(id string, bookType BookType) (string, error) {
 	// Derive Info URL
 	var infoURL string
 	if bookType == BOOK_FICTION {
@@ -70,7 +78,10 @@ func GetBookURL(id string, bookType BookType) string {
 	}
 
 	// Parse & Derive Download URL
-	body := getPage(infoURL)
+	body, err := getPage(infoURL)
+	if err != nil {
+		return "", err
+	}
 
 	// downloadURL := parseLibGenDownloadURL(body)
 	return parseLibGenDownloadURL(body)
@@ -86,8 +97,15 @@ func SaveBook(id string, bookType BookType) (string, error) {
 	}
 
 	// Parse & Derive Download URL
-	body := getPage(infoURL)
-	bookURL := parseLibGenDownloadURL(body)
+	body, err := getPage(infoURL)
+	if err != nil {
+		return "", err
+	}
+	bookURL, err := parseLibGenDownloadURL(body)
+	if err != nil {
+		log.Error("[SaveBook] Parse Download URL Error: ", err)
+		return "", errors.New("Download Failure")
+	}
 
 	// Create File
 	tempFile, err := os.CreateTemp("", "book")
@@ -119,15 +137,29 @@ func SaveBook(id string, bookType BookType) (string, error) {
 	return tempFile.Name(), nil
 }
 
-func getPage(page string) io.ReadCloser {
-	resp, _ := http.Get(page)
-	return resp.Body
+func getPage(page string) (io.ReadCloser, error) {
+	// Set 10s Timeout
+	client := http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	// Get Page
+	resp, err := client.Get(page)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return Body
+	return resp.Body, err
 }
 
-func parseLibGenFiction(body io.ReadCloser) []SearchItem {
+func parseLibGenFiction(body io.ReadCloser) ([]SearchItem, error) {
 	// Parse
 	defer body.Close()
-	doc, _ := goquery.NewDocumentFromReader(body)
+	doc, err := goquery.NewDocumentFromReader(body)
+	if err != nil {
+		return nil, err
+	}
 
 	// Normalize Results
 	var allEntries []SearchItem
@@ -171,13 +203,16 @@ func parseLibGenFiction(body io.ReadCloser) []SearchItem {
 	})
 
 	// Return Results
-	return allEntries
+	return allEntries, nil
 }
 
-func parseLibGenNonFiction(body io.ReadCloser) []SearchItem {
+func parseLibGenNonFiction(body io.ReadCloser) ([]SearchItem, error) {
 	// Parse
 	defer body.Close()
-	doc, _ := goquery.NewDocumentFromReader(body)
+	doc, err := goquery.NewDocumentFromReader(body)
+	if err != nil {
+		return nil, err
+	}
 
 	// Normalize Results
 	var allEntries []SearchItem
@@ -213,25 +248,31 @@ func parseLibGenNonFiction(body io.ReadCloser) []SearchItem {
 	})
 
 	// Return Results
-	return allEntries
+	return allEntries, nil
 }
 
-func parseLibGenDownloadURL(body io.ReadCloser) string {
+func parseLibGenDownloadURL(body io.ReadCloser) (string, error) {
 	// Parse
 	defer body.Close()
 	doc, _ := goquery.NewDocumentFromReader(body)
 
 	// Return Download URL
 	// downloadURL, _ := doc.Find("#download [href*=cloudflare]").Attr("href")
-	downloadURL, _ := doc.Find("#download h2 a").Attr("href")
+	downloadURL, exists := doc.Find("#download h2 a").Attr("href")
+	if exists == false {
+		return "", errors.New("Download URL not found")
+	}
 
-	return downloadURL
+	return downloadURL, nil
 }
 
-func parseGoodReads(body io.ReadCloser) []SearchItem {
+func parseGoodReads(body io.ReadCloser) ([]SearchItem, error) {
 	// Parse
 	defer body.Close()
-	doc, _ := goquery.NewDocumentFromReader(body)
+	doc, err := goquery.NewDocumentFromReader(body)
+	if err != nil {
+		return nil, err
+	}
 
 	// Normalize Results
 	var allEntries []SearchItem
@@ -249,5 +290,5 @@ func parseGoodReads(body io.ReadCloser) []SearchItem {
 	})
 
 	// Return Results
-	return allEntries
+	return allEntries, nil
 }
