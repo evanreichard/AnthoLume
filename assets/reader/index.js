@@ -943,7 +943,7 @@ class EBookReader {
       // Replace `.0` Ending Indexes
       .replace(/\.(\d+)$/, "")
       // Remove potential trailing `text()`
-      .replace(/\/text\(\)$/, "");
+      .replace(/\/text\(\)(\[\d+\])?$/, "");
 
     // Validate Namespace
     if (namespaceURI) remainingXPath = remainingXPath.replaceAll("/", "/ns:");
