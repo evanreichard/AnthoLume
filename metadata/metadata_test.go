@@ -5,7 +5,7 @@ import (
 )
 
 func TestGetWordCount(t *testing.T) {
-	var want int64 = 30477
+	var want int64 = 30080
 	wordCount, err := countEPUBWords("../_test_files/alice.epub")
 
 	if wordCount != want {

@@ -45,9 +45,15 @@ class EBookReader {
    * Load progress and generate locations
    **/
   async setupReader() {
+    // Get Word Count (If Needed)
+    if (this.bookState.words == 0)
+      this.bookState.words = await this.countWords();
+
     // Load Progress
     let { cfi } = await this.getCFIFromXPath(this.bookState.progress);
-    if (!cfi) this.bookState.currentWord = 0;
+    this.bookState.currentWord = cfi
+      ? this.bookState.percentage * (this.bookState.words / 100)
+      : 0;
 
     let getStats = function () {
       // Start Timer
@@ -1036,6 +1042,21 @@ class EBookReader {
       CFI.segmentString(cfi.end) +
       ")"
     );
+  }
+
+  /**
+   * Count the words of the book. Useful for keeping a more accurate track
+   * of progress percentage. Implementation returns the same number as the
+   * server side implementation.
+   **/
+  countWords() {
+    // Iterate over each item in the spine, render, and count words.
+    return this.book.spine.spineItems.reduce(async (totalCount, item) => {
+      let currentCount = await totalCount;
+      let newDoc = await item.load(this.book.load.bind(this.book));
+      let itemCount = newDoc.innerText.trim().split(/\s+/).length;
+      return currentCount + itemCount;
+    }, 0);
   }
 
   /**
