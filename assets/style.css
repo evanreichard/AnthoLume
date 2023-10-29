@@ -2046,6 +2046,11 @@ video {
 }
 
 @media (min-width: 1024px) {
+  .lg\:mx-48 {
+    margin-left: 12rem;
+    margin-right: 12rem;
+  }
+
   .lg\:ml-44 {
     margin-left: 11rem;
   }

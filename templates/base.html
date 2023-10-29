@@ -14,6 +14,11 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="stylesheet" href="/assets/style.css">
 
+    <!-- Service Worker / Offline Cache Flush -->
+    <script src="/assets/lib/idb-keyval.js"></script>
+    <script src="/assets/lib/sw-helper.js"></script>
+    <script src="/assets/index.js"></script>
+
     <style>
       /* ----------------------------- */
       /* -------- PWA Styling -------- */
@@ -98,7 +103,7 @@
         transform: none;
       }
 
-      @media (min-width: 1024px) { 
+      @media (min-width: 1024px) {
         #mobile-nav-button input ~ div {
           transform: none;
         }

@@ -14,10 +14,22 @@
     />
     <meta name="theme-color" content="#D2B48C" />
 
-    <title>Book Manager - {{block "title" .}}{{end}}</title>
+    <title>Book Manager - Reader</title>
 
     <link rel="manifest" href="/manifest.json" />
     <link rel="stylesheet" href="/assets/style.css" />
+
+    <!-- Libraries -->
+    <script src="/assets/lib/platform.js"></script>
+    <script src="/assets/lib/jszip.min.js"></script>
+    <script src="/assets/lib/epub.min.js"></script>
+    <script src="/assets/lib/no-sleep.js"></script>
+    <script src="/assets/lib/idb-keyval.js"></script>
+    <script src="/assets/lib/sw-helper.js"></script>
+
+    <!-- Reader -->
+    <script src="/assets/index.js"></script>
+    <script src="/assets/reader/index.js"></script>
 
     <style>
       html,
@@ -66,7 +78,7 @@
       >
         <div class="w-full h-32 flex items-center justify-around relative">
           <div class="text-gray-500 absolute top-6 left-4 flex flex-col gap-4">
-            <a href="../{{ .Data.ID }}">
+            <a href="#">
               <svg
                 width="32"
                 height="32"
@@ -101,8 +113,11 @@
 
           <div class="flex gap-10 h-full p-4 pl-14 rounded">
             <div class="h-full my-auto relative">
-              <a href="../{{ .Data.ID }}">
-                <img class="rounded object-cover h-full" src="./cover" />
+              <a href="#">
+                <img
+                  class="rounded object-cover h-full"
+                  src="/assets/images/no-cover.jpg"
+                />
               </a>
             </div>
             <div class="flex gap-7 justify-around dark:text-white text-sm">
@@ -113,7 +128,7 @@
                     <p
                       class="font-medium whitespace-nowrap text-ellipsis overflow-hidden max-w-[50dvw]"
                     >
-                      {{ or .Data.Title "N/A" }}
+                      "N/A"
                     </p>
                   </div>
                 </div>
@@ -123,7 +138,7 @@
                     <p
                       class="font-medium whitespace-nowrap text-ellipsis overflow-hidden max-w-[50dvw]"
                     >
-                      {{ or .Data.Author "N/A" }}
+                      "N/A"
                     </p>
                   </div>
                 </div>
@@ -240,7 +255,7 @@
           </div>
         </div>
       </div>
-      {{block "content" .}}{{end}}
+      <div id="viewer" class="w-full h-full"></div>
     </main>
   </body>
 </html>

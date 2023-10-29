@@ -72,6 +72,18 @@ func (api *API) webManifest(c *gin.Context) {
 	c.File("./assets/manifest.json")
 }
 
+func (api *API) serviceWorker(c *gin.Context) {
+	c.File("./assets/sw.js")
+}
+
+func (api *API) offlineDocuments(c *gin.Context) {
+	c.File("./assets/offline/index.html")
+}
+
+func (api *API) documentReader(c *gin.Context) {
+	c.File("./assets/reader/index.html")
+}
+
 func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any) func(*gin.Context) {
 	// Merge Optional Template Data
 	var templateVarsBase = gin.H{}
@@ -245,7 +257,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 	// Handle Identified Document
 	if document.Coverfile != nil {
 		if *document.Coverfile == "UNKNOWN" {
-			c.File("./assets/no-cover.jpg")
+			c.File("./assets/images/no-cover.jpg")
 			return
 		}
 
@@ -256,7 +268,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 		_, err = os.Stat(safePath)
 		if err != nil {
 			log.Error("[getDocumentCover] File Should But Doesn't Exist:", err)
-			c.File("./assets/no-cover.jpg")
+			c.File("./assets/images/no-cover.jpg")
 			return
 		}
 
@@ -309,7 +321,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 
 	// Return Unknown Cover
 	if coverFile == "UNKNOWN" {
-		c.File("./assets/no-cover.jpg")
+		c.File("./assets/images/no-cover.jpg")
 		return
 	}
 
@@ -317,12 +329,12 @@ func (api *API) getDocumentCover(c *gin.Context) {
 	c.File(coverFilePath)
 }
 
-func (api *API) documentReader(c *gin.Context) {
+func (api *API) getDocumentProgress(c *gin.Context) {
 	rUser, _ := c.Get("AuthorizedUser")
 
 	var rDoc requestDocumentID
 	if err := c.ShouldBindUri(&rDoc); err != nil {
-		log.Error("[documentReader] Invalid URI Bind")
+		log.Error("[getDocumentProgress] Invalid URI Bind")
 		errorPage(c, http.StatusNotFound, "Invalid document.")
 		return
 	}
@@ -333,7 +345,7 @@ func (api *API) documentReader(c *gin.Context) {
 	})
 
 	if err != nil && err != sql.ErrNoRows {
-		log.Error("[documentReader] UpsertDocument DB Error:", err)
+		log.Error("[getDocumentProgress] UpsertDocument DB Error:", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
 		return
 	}
@@ -343,15 +355,18 @@ func (api *API) documentReader(c *gin.Context) {
 		DocumentID: rDoc.DocumentID,
 	})
 	if err != nil {
-		log.Error("[documentReader] GetDocumentWithStats DB Error:", err)
+		log.Error("[getDocumentProgress] GetDocumentWithStats DB Error:", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentWithStats DB Error: %v", err))
 		return
 	}
 
-	c.HTML(http.StatusOK, "reader", gin.H{
-		"SearchEnabled": api.Config.SearchEnabled,
-		"Progress":      progress.Progress,
-		"Data":          document,
+	c.JSON(http.StatusOK, gin.H{
+		"id":         document.ID,
+		"title":      document.Title,
+		"author":     document.Author,
+		"words":      document.Words,
+		"progress":   progress.Progress,
+		"percentage": document.Percentage,
 	})
 }
 

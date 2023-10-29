@@ -80,7 +80,6 @@ func (api *API) registerWebAppRoutes() {
 
 	render.AddFromFiles("error", "templates/error.html")
 	render.AddFromFilesFuncs("login", helperFuncs, "templates/login.html")
-	render.AddFromFilesFuncs("reader", helperFuncs, "templates/reader-base.html", "templates/reader.html")
 	render.AddFromFilesFuncs("home", helperFuncs, "templates/base.html", "templates/home.html")
 	render.AddFromFilesFuncs("search", helperFuncs, "templates/base.html", "templates/search.html")
 	render.AddFromFilesFuncs("settings", helperFuncs, "templates/base.html", "templates/settings.html")
@@ -90,7 +89,15 @@ func (api *API) registerWebAppRoutes() {
 
 	api.Router.HTMLRender = render
 
+	// Static Assets (Require @ Root)
 	api.Router.GET("/manifest.json", api.webManifest)
+	api.Router.GET("/sw.js", api.serviceWorker)
+
+	// Offline Static Pages (No Template)
+	api.Router.GET("/offline", api.offlineDocuments)
+	api.Router.GET("/reader", api.documentReader)
+
+	// Template App
 	api.Router.GET("/login", api.createAppResourcesRoute("login"))
 	api.Router.GET("/register", api.createAppResourcesRoute("login", gin.H{"Register": true}))
 	api.Router.GET("/logout", api.authWebAppMiddleware, api.authLogout)
@@ -104,12 +111,12 @@ func (api *API) registerWebAppRoutes() {
 	api.Router.GET("/documents", api.authWebAppMiddleware, api.createAppResourcesRoute("documents"))
 	api.Router.POST("/documents", api.authWebAppMiddleware, api.uploadNewDocument)
 	api.Router.GET("/documents/:document", api.authWebAppMiddleware, api.createAppResourcesRoute("document"))
-	api.Router.GET("/documents/:document/reader", api.authWebAppMiddleware, api.documentReader)
 	api.Router.GET("/documents/:document/file", api.authWebAppMiddleware, api.downloadDocument)
 	api.Router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.getDocumentCover)
 	api.Router.POST("/documents/:document/edit", api.authWebAppMiddleware, api.editDocument)
 	api.Router.POST("/documents/:document/identify", api.authWebAppMiddleware, api.identifyDocument)
 	api.Router.POST("/documents/:document/delete", api.authWebAppMiddleware, api.deleteDocument)
+	api.Router.GET("/documents/:document/progress", api.authWebAppMiddleware, api.getDocumentProgress)
 
 	// Behind Configuration Flag
 	if api.Config.SearchEnabled {

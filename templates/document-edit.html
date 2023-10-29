@@ -37,7 +37,7 @@
 	>
 	  <p class="font-medium w-24 pb-2">Are you sure?</p>
 	  <button class="font-medium w-full px-2 py-1 text-white bg-gray-500 dark:text-gray-800 dark:bg-gray-400 hover:bg-gray-800 dark:hover:bg-gray-100" type="submit">Delete</button>
-	</form> 
+	</form>
       </div>
       <a href="../activity?document={{ .Data.ID }}">
 	<svg
@@ -83,7 +83,7 @@
 	  <label class="font-medium" for="isbn">ISBN</label>
 	  <input class="mt-1 mb-2 p-1 bg-gray-400 text-black dark:bg-gray-700 dark:text-white" type="text" id="isbn" name="ISBN"><br>
 	  <button class="font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 dark:bg-gray-400 hover:bg-gray-800 dark:hover:bg-gray-100" type="submit">Search Metadata</button>
-	</form> 
+	</form>
       </div>
       {{ if .Data.Filepath }}
       <a href="./{{.Data.ID}}/file">
