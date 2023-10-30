@@ -27,6 +27,8 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="stylesheet" href="/assets/style.css" />
 
+    <script src="/assets/lib/jszip.min.js"></script>
+    <script src="/assets/lib/epub.min.js"></script>
     <script src="/assets/lib/idb-keyval.js"></script>
     <script src="/assets/lib/sw-helper.js"></script>
     <script src="/assets/index.js"></script>
@@ -96,7 +98,7 @@
       >
         <div
           id="online"
-          class="rounded text-white bg-white dark:bg-gray-700 text-center p-3 mb-4"
+          class="rounded text-black dark:text-white bg-white dark:bg-gray-700 text-center p-3 mb-4"
         >
           You're Online:
           <a
@@ -107,7 +109,7 @@
         </div>
 
         <div
-          id="loading"
+          id="message"
           class="rounded text-white bg-white dark:bg-gray-700 text-center p-3 mb-4"
         >
           Loading...
@@ -175,5 +177,102 @@
         </div>
       </div>
     </main>
+
+    <!-- Template HTML Elements -->
+    <div class="hidden">
+      <svg id="local-svg-template" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+	<path fill-rule="evenodd" clip-rule="evenodd" d="M14 22H10C6.22876 22 4.34315 22 3.17157 20.8284C2 19.6569 2 17.7712 2 14V10C2 6.22876 2 4.34315 3.17157 3.17157C4.34315 2 6.23869 2 10.0298 2C10.6358 2 11.1214 2 11.53 2.01666C11.5166 2.09659 11.5095 2.17813 11.5092 2.26057L11.5 5.09497C11.4999 6.19207 11.4998 7.16164 11.6049 7.94316C11.7188 8.79028 11.9803 9.63726 12.6716 10.3285C13.3628 11.0198 14.2098 11.2813 15.0569 11.3952C15.8385 11.5003 16.808 11.5002 17.9051 11.5001L18 11.5001H21.9574C22 12.0344 22 12.6901 22 13.5629V14C22 17.7712 22 19.6569 20.8284 20.8284C19.6569 22 17.7712 22 14 22Z" />
+	<path d="M19.3517 7.61665L15.3929 4.05375C14.2651 3.03868 13.7012 2.53114 13.0092 2.26562L13 5.00011C13 7.35713 13 8.53564 13.7322 9.26787C14.4645 10.0001 15.643 10.0001 18 10.0001H21.5801C21.2175 9.29588 20.5684 8.71164 19.3517 7.61665Z" />
+      </svg>
+
+      <svg id="remote-svg-template" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+	<path d="M19.3517 7.61665L15.3929 4.05375C14.2651 3.03868 13.7012 2.53114 13.0092 2.26562L13 5.00011C13 7.35713 13 8.53564 13.7322 9.26787C14.4645 10.0001 15.643 10.0001 18 10.0001H21.5801C21.2175 9.29588 20.5684 8.71164 19.3517 7.61665Z"/>
+	<path fill-rule="evenodd" clip-rule="evenodd" d="M10 22H14C17.7712 22 19.6569 22 20.8284 20.8284C22 19.6569 22 17.7712 22 14V13.5629C22 12.6901 22 12.0344 21.9574 11.5001H18L17.9051 11.5001C16.808 11.5002 15.8385 11.5003 15.0569 11.3952C14.2098 11.2813 13.3628 11.0198 12.6716 10.3285C11.9803 9.63726 11.7188 8.79028 11.6049 7.94316C11.4998 7.16164 11.4999 6.19207 11.5 5.09497L11.5092 2.26057C11.5095 2.17813 11.5166 2.09659 11.53 2.01666C11.1214 2 10.6358 2 10.0298 2C6.23869 2 4.34315 2 3.17157 3.17157C2 4.34315 2 6.22876 2 10V14C2 17.7712 2 19.6569 3.17157 20.8284C4.34315 22 6.22876 22 10 22ZM11 18C12.1046 18 13 17.2099 13 16.2353C13 15.4629 12.4375 14.8063 11.6543 14.5672C11.543 13.6855 10.6956 13 9.66667 13C8.5621 13 7.66667 13.7901 7.66667 14.7647C7.66667 14.9803 7.71047 15.1868 7.79066 15.3778C7.69662 15.3615 7.59944 15.3529 7.5 15.3529C6.67157 15.3529 6 15.9455 6 16.6765C6 17.4074 6.67157 18 7.5 18H11Z"/>
+      </svg>
+
+      <div id="item-template" class="w-full relative">
+	<div class="flex gap-4 w-full h-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded">
+	  <div class="min-w-fit my-auto h-48 relative">
+	    <a href="#">
+	      <img class="rounded object-cover h-full" src="/assets/images/no-cover.jpg"></img>
+	    </a>
+	  </div>
+	  <div class="flex flex-col justify-around dark:text-white w-full text-sm">
+	    <div class="inline-flex shrink-0 items-center">
+	      <div>
+		  <p class="text-gray-400">Title</p>
+		  <p class="font-medium">
+		    N/A
+		  </p>
+	      </div>
+	    </div>
+	    <div class="inline-flex shrink-0 items-center">
+	      <div>
+		  <p class="text-gray-400">Author</p>
+		  <p class="font-medium">
+		    N/A
+		  </p>
+	      </div>
+	    </div>
+	    <div class="inline-flex shrink-0 items-center">
+	      <div>
+		  <p class="text-gray-400">Progress</p>
+		  <p class="font-medium">
+		  0%
+		  </p>
+	      </div>
+	    </div>
+	  </div>
+	  <div class="absolute flex flex-col gap-2 right-4 bottom-4 text-gray-500 dark:text-gray-400">
+	    <div class="relative">
+	      <label for="delete-button">
+		<svg
+		  class="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
+		  viewBox="0 0 24 24"
+		  fill="currentColor"
+		  xmlns="http://www.w3.org/2000/svg"
+		>
+		  <path
+		    d="M3 6.52381C3 6.12932 3.32671 5.80952 3.72973 5.80952H8.51787C8.52437 4.9683 8.61554 3.81504 9.45037 3.01668C10.1074 2.38839 11.0081 2 12 2C12.9919 2 13.8926 2.38839 14.5496 3.01668C15.3844 3.81504 15.4756 4.9683 15.4821 5.80952H20.2703C20.6733 5.80952 21 6.12932 21 6.52381C21 6.9183 20.6733 7.2381 20.2703 7.2381H3.72973C3.32671 7.2381 3 6.9183 3 6.52381Z"
+		  />
+		  <path
+		    d="M11.6066 22H12.3935C15.101 22 16.4547 22 17.3349 21.1368C18.2151 20.2736 18.3052 18.8576 18.4853 16.0257L18.7448 11.9452C18.8425 10.4086 18.8913 9.64037 18.4498 9.15352C18.0082 8.66667 17.2625 8.66667 15.7712 8.66667H8.22884C6.7375 8.66667 5.99183 8.66667 5.55026 9.15352C5.1087 9.64037 5.15756 10.4086 5.25528 11.9452L5.51479 16.0257C5.69489 18.8576 5.78494 20.2736 6.66513 21.1368C7.54532 22 8.89906 22 11.6066 22Z"
+		  />
+		</svg>
+	      </label>
+	      <input type="checkbox" id="delete-button" class="hidden css-button"/>
+	      <div class="absolute z-30 bottom-7 right-0 p-3 transition-all duration-200 bg-gray-200 rounded shadow-lg shadow-gray-500 dark:shadow-gray-900 dark:bg-gray-600">
+		<span
+		  class="block cursor-pointer font-medium text-sm text-center w-32 px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
+		>Delete</span>
+	      </div>
+	    </div>
+
+	    <a href="#">
+	      <svg
+		width="24"
+		height="24"
+		class="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
+		viewBox="0 0 24 24"
+		fill="currentColor"
+		xmlns="http://www.w3.org/2000/svg"
+	      >
+		<path
+		  fill-rule="evenodd"
+		  clip-rule="evenodd"
+		  d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12ZM12 6.25C12.4142 6.25 12.75 6.58579 12.75 7V12.1893L14.4697 10.4697C14.7626 10.1768 15.2374 10.1768 15.5303 10.4697C15.8232 10.7626 15.8232 11.2374 15.5303 11.5303L12.5303 14.5303C12.3897 14.671 12.1989 14.75 12 14.75C11.8011 14.75 11.6103 14.671 11.4697 14.5303L8.46967 11.5303C8.17678 11.2374 8.17678 10.7626 8.46967 10.4697C8.76256 10.1768 9.23744 10.1768 9.53033 10.4697L11.25 12.1893V7C11.25 6.58579 11.5858 6.25 12 6.25ZM8 16.25C7.58579 16.25 7.25 16.5858 7.25 17C7.25 17.4142 7.58579 17.75 8 17.75H16C16.4142 17.75 16.75 17.4142 16.75 17C16.75 16.5858 16.4142 16.25 16 16.25H8Z"
+		/>
+	      </svg>
+	    </a>
+	  </div>
+	</div>
+	<div class="absolute top-0 right-0">
+	  <strong class="bg-blue-100 text-blue-700 inline-flex items-center gap-1 rounded-tr rounded-bl p-1">
+	    <div class="w-4 h-4"></div>
+	    <span class="text-xs font-medium">REMOTE</span>
+	  </strong>
+	</div>
+      </div>
+    </div>
   </body>
 </html>

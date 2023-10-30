@@ -200,7 +200,17 @@ function handleMessage(event) {
       event.source.postMessage({ id, data: cachedDocuments });
     });
   } else if (data.type === DEL_SW_CACHE) {
-    // TODO
+    let basePath = "/documents/" + data.id;
+    caches
+      .open(SW_CACHE_NAME)
+      .then((cache) =>
+        Promise.all([
+          cache.delete(basePath + "/file"),
+          cache.delete(basePath + "/progress"),
+        ])
+      )
+      .then(() => event.source.postMessage({ id, data: "SUCCESS" }))
+      .catch(() => event.source.postMessage({ id, data: "FAILURE" }));
   } else {
     event.source.postMessage({ id, data: { pong: 1 } });
   }

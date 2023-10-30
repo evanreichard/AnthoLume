@@ -1,20 +1,26 @@
 const THEMES = ["light", "tan", "blue", "gray", "black"];
 const THEME_FILE = "/assets/reader/readerThemes.css";
 
+/**
+ * Initial load handler. Gets called on DOMContentLoaded. Responsible for
+ * normalizing the documentData depending on type (REMOTE or LOCAL), and
+ * populating the metadata of the book into the DOM.
+ **/
 async function initReader() {
   let documentData;
   let filePath;
 
+  // Get Document ID & Type
   const urlParams = new URLSearchParams(window.location.hash.slice(1));
   const documentID = urlParams.get("id");
-  const localID = urlParams.get("local");
+  const documentType = urlParams.get("type");
 
-  if (documentID) {
+  if (documentType == "REMOTE") {
     // Get Server / Cached Document
     let progressResp = await fetch("/documents/" + documentID + "/progress");
     documentData = await progressResp.json();
 
-    // Update Local Cache
+    // Update With Local Cache
     let localCache = await IDB.get("PROGRESS-" + documentID);
     if (localCache) {
       documentData.progress = localCache.progress;
@@ -22,27 +28,33 @@ async function initReader() {
     }
 
     filePath = "/documents/" + documentID + "/file";
-  } else if (localID) {
-    // Get Local Document
-    // TODO:
-    //   - IDB FileID
-    //   - IDB Metadata
+  } else if (documentType == "LOCAL") {
+    documentData = await IDB.get("FILE-METADATA-" + documentID);
+    let fileBlob = await IDB.get("FILE-" + documentID);
+    filePath = URL.createObjectURL(fileBlob);
   } else {
-    throw new Error("Invalid");
+    throw new Error("Invalid Type");
   }
 
-  populateMetadata(documentData);
+  // Update Type
+  documentData.type = documentType;
+
+  // Populate Metadata & Create Reader
   window.currentReader = new EBookReader(filePath, documentData);
+  populateMetadata(documentData);
 }
 
+/**
+ * Populates metadata into the DOM. Specifically for the top "drop" down.
+ **/
 function populateMetadata(data) {
-  let documentLocation = data.id.startsWith("local-")
-    ? "/offline"
-    : "/documents/" + data.id;
+  let documentLocation =
+    data.type == "LOCAL" ? "/offline" : "/documents/" + data.id;
 
-  let documentCoverLocation = data.id.startsWith("local-")
-    ? "/assets/images/no-cover.jpg"
-    : "/documents/" + data.id + "/cover";
+  let documentCoverLocation =
+    data.type == "LOCAL"
+      ? "/assets/images/no-cover.jpg"
+      : "/documents/" + data.id + "/cover";
 
   let [backEl, coverEl] = document.querySelectorAll("a");
   backEl.setAttribute("href", documentLocation);
@@ -54,6 +66,11 @@ function populateMetadata(data) {
   authorEl.innerText = data.author;
 }
 
+/**
+ * This is the main reader class. All functionality is wrapped in this class.
+ * Responsible for handling gesture / clicks, flushing progress & activity,
+ * storing and processing themes, etc.
+ **/
 class EBookReader {
   bookState = {
     currentWord: 0,
@@ -734,7 +751,10 @@ class EBookReader {
       ],
     };
 
-    // Flush -> Offline Cache IDB
+    // Local Files
+    if (this.bookState.type == "LOCAL") return;
+
+    // Remote Flush -> Offline Cache IDB
     this.flushActivity(activityEvent).catch(async (e) => {
       console.error("[createActivity] Activity Flush Failed:", {
         error: e,
@@ -790,7 +810,18 @@ class EBookReader {
       progress: this.bookState.progress,
     };
 
-    // Flush -> Offline Cache IDB
+    // Update Local Metadata
+    if (this.bookState.type == "LOCAL") {
+      let currentMetadata = await IDB.get("FILE-METADATA-" + this.bookState.id);
+      return IDB.set("FILE-METADATA-" + this.bookState.id, {
+        ...currentMetadata,
+        progress: progressEvent.progress,
+        percentage: Math.round(progressEvent.percentage * 10000) / 100,
+        words: this.bookState.words,
+      });
+    }
+
+    // Remote Flush -> Offline Cache IDB
     this.flushProgress(progressEvent).catch(async (e) => {
       console.error("[createProgress] Progress Flush Failed:", {
         error: e,

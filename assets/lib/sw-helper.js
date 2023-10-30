@@ -12,7 +12,7 @@ const SW = (function () {
   let swInstance = null;
   let outstandingMessages = {};
 
-  navigator.serviceWorker.addEventListener("message", ({ data }) => {
+  navigator.serviceWorker?.addEventListener("message", ({ data }) => {
     let { id } = data;
     data = data.data;
 
@@ -25,6 +25,9 @@ const SW = (function () {
   });
 
   async function install() {
+    if (!navigator.serviceWorker)
+      throw new Error("Service Worker Not Supported");
+
     // Register Service Worker
     swInstance = await navigator.serviceWorker.register("/sw.js");
     swInstance.onupdatefound = (data) =>
@@ -38,9 +41,11 @@ const SW = (function () {
     await new Promise((resolve) => {
       serviceWorker.onstatechange = (data) => {
         console.log("[SW.install] State Change:", serviceWorker.state);
-        if (serviceWorker.state == "activated") resolve();
+        if (["installed", "activated"].includes(serviceWorker.state)) resolve();
       };
-      if (serviceWorker.state == "activated") resolve();
+
+      console.log("[SW.install] Current State:", serviceWorker.state);
+      if (["installed", "activated"].includes(serviceWorker.state)) resolve();
     });
   }
 
