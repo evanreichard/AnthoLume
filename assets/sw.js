@@ -35,7 +35,7 @@ const CACHE_UPDATE_ASYNC = "CACHE_UPDATE_ASYNC";
  *       Return cache if exists & update cache in background.
  **/
 const ROUTES = [
-  { route: "/offline", type: CACHE_UPDATE_ASYNC },
+  { route: "/local", type: CACHE_UPDATE_ASYNC },
   { route: "/reader", type: CACHE_UPDATE_ASYNC },
   { route: "/manifest.json", type: CACHE_UPDATE_ASYNC },
   { route: /^\/assets\//, type: CACHE_UPDATE_ASYNC },
@@ -50,7 +50,7 @@ const ROUTES = [
   {
     route: /.*/,
     type: CACHE_NEVER,
-    fallback: (event) => caches.match("/offline"),
+    fallback: (event) => caches.match("/local"),
   },
 ];
 
@@ -58,10 +58,10 @@ const ROUTES = [
  * These are assets that are cached on initial service worker installation.
  **/
 const PRECACHE_ASSETS = [
-  // Offline & Reqder Assets
-  "/offline",
+  // Offline & Reader Assets
+  "/local",
   "/reader",
-  "/assets/offline/index.js",
+  "/assets/local/index.js",
   "/assets/reader/index.js",
   "/assets/images/no-cover.jpg",
   "/assets/reader/readerThemes.css",

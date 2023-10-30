@@ -44,11 +44,21 @@ In additional to the compatible KOSync API's, we add:
 - Book metadata scraping (Thanks [OpenLibrary](https://openlibrary.org/) & [Google Books API](https://developers.google.com/books/docs/v1/getting_started))
 - Limited JavaScript use. Server-Side Rendering is used wherever possible. The main app is fully operational without any JS. JS is only required for:
   - EPUB Reader
-  - Offline Mode / Service Worker
+  - Local / Offline Mode
+  - Service Worker
 
 # Server
 
 Docker Image: `docker pull gitea.va.reichard.io/evan/bookmanager:latest`
+
+## Local / Offline Reader
+
+The Local / Offline reader allows you to use any BookManager server as a standalone offline accessible reading app! Some features:
+
+- Add local EPUB documents
+- Read both local and any cached server documents
+- Maintains progress for all types of documents (server / local)
+- Uploads any progress or activity for cached server documents once the internet is accessible
 
 ## KOSync API
 

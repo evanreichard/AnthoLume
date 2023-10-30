@@ -31,6 +31,34 @@
     <script src="/assets/lib/idb-keyval.js"></script>
     <script src="/assets/lib/sw-helper.js"></script>
     <script src="/assets/index.js"></script>
+
+    <style>
+      /* ----------------------------- */
+      /* -------- PWA Styling -------- */
+      /* ----------------------------- */
+      html,
+      body {
+        overscroll-behavior-y: none;
+        margin: 0px;
+      }
+
+      html {
+        height: calc(100% + env(safe-area-inset-bottom));
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) 0
+          env(safe-area-inset-left);
+      }
+
+      /* No Scrollbar - IE, Edge, Firefox */
+      * {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+
+      /* No Scrollbar - WebKit */
+      *::-webkit-scrollbar {
+        display: none;
+      }
+    </style>
   </head>
   <body class="bg-gray-100 dark:bg-gray-800 dark:text-white">
     <div class="flex flex-wrap w-full">
@@ -113,9 +141,8 @@
               {{end}}
             </button>
           </form>
-          {{ if .RegistrationEnabled }}
           <div class="pt-12 pb-12 text-center">
-            {{ if .Register }}
+            {{ if .RegistrationEnabled }} {{ if .Register }}
             <p>
               Trying to login?
               <a href="./login" class="font-semibold underline">
@@ -129,9 +156,13 @@
                 Register here.
               </a>
             </p>
-            {{end}}
+            {{end}} {{ end }}
+            <p class="mt-4">
+              <a href="./local" class="font-semibold underline">
+                Offline / Local Mode
+              </a>
+            </p>
           </div>
-          {{ end }}
         </div>
       </div>
       <div

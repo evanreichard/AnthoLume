@@ -12,8 +12,8 @@ async function handleLoad() {
   handleOnlineChange();
 
   // If SW Redirected
-  if (document.location.pathname !== "/offline")
-    window.history.replaceState(null, null, "/offline");
+  if (document.location.pathname !== "/local")
+    window.history.replaceState(null, null, "/local");
 
   // Create Upload Listener
   let uploadButton = document.querySelector("button");

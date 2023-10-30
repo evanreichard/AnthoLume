@@ -49,7 +49,7 @@ async function initReader() {
  **/
 function populateMetadata(data) {
   let documentLocation =
-    data.type == "LOCAL" ? "/offline" : "/documents/" + data.id;
+    data.type == "LOCAL" ? "/local" : "/documents/" + data.id;
 
   let documentCoverLocation =
     data.type == "LOCAL"

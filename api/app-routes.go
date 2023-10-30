@@ -76,8 +76,8 @@ func (api *API) serviceWorker(c *gin.Context) {
 	c.File("./assets/sw.js")
 }
 
-func (api *API) offlineDocuments(c *gin.Context) {
-	c.File("./assets/offline/index.html")
+func (api *API) localDocuments(c *gin.Context) {
+	c.File("./assets/local/index.html")
 }
 
 func (api *API) documentReader(c *gin.Context) {

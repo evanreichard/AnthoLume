@@ -2,7 +2,7 @@
 module.exports = {
   content: [
     "./templates/**/*.html",
-    "./assets/offline/*.{html,js}",
+    "./assets/local/*.{html,js}",
     "./assets/reader/*.{html,js}",
   ],
   theme: {

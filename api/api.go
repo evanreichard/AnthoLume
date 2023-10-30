@@ -93,8 +93,8 @@ func (api *API) registerWebAppRoutes() {
 	api.Router.GET("/manifest.json", api.webManifest)
 	api.Router.GET("/sw.js", api.serviceWorker)
 
-	// Offline Static Pages (No Template)
-	api.Router.GET("/offline", api.offlineDocuments)
+	// Local / Offline Static Pages (No Template)
+	api.Router.GET("/local", api.localDocuments)
 	api.Router.GET("/reader", api.documentReader)
 
 	// Template App
