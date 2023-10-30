@@ -677,6 +677,7 @@ class EBookReader {
     // Update Current Word
     let pageWords = await this.getVisibleWordCount();
     this.bookState.currentWord -= pageWords;
+    if (this.bookState.currentWord < 0) this.bookState.currentWord = 0;
 
     // Reset Read Timer
     this.bookState.pageStart = Date.now();
