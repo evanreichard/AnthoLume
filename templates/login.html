@@ -26,6 +26,11 @@
 
     <link rel="manifest" href="./manifest.json" />
     <link rel="stylesheet" href="./assets/style.css" />
+
+    <!-- Service Worker / Offline Cache Flush -->
+    <script src="/assets/lib/idb-keyval.js"></script>
+    <script src="/assets/lib/sw-helper.js"></script>
+    <script src="/assets/index.js"></script>
   </head>
   <body class="bg-gray-100 dark:bg-gray-800 dark:text-white">
     <div class="flex flex-wrap w-full">
@@ -134,19 +139,19 @@
       >
         <img
           class="w-full h-screen object-cover ease-in-out top-0 left-0"
-          src="/assets/book1.jpg"
+          src="/assets/images/book1.jpg"
         />
         <img
           class="w-full h-screen object-cover ease-in-out top-0 left-0"
-          src="/assets/book2.jpg"
+          src="/assets/images/book2.jpg"
         />
         <img
           class="w-full h-screen object-cover ease-in-out top-0 left-0"
-          src="/assets/book3.jpg"
+          src="/assets/images/book3.jpg"
         />
         <img
           class="w-full h-screen object-cover ease-in-out top-0 left-0"
-          src="/assets/book4.jpg"
+          src="/assets/images/book4.jpg"
         />
       </div>
     </div>

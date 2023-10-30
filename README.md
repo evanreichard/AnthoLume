@@ -42,8 +42,9 @@ In additional to the compatible KOSync API's, we add:
 - Additional APIs to automatically upload reading statistics
 - Upload documents to the server (can download in the "Documents" view or via OPDS)
 - Book metadata scraping (Thanks [OpenLibrary](https://openlibrary.org/) & [Google Books API](https://developers.google.com/books/docs/v1/getting_started))
-- No JavaScript for the main app! All information is generated server side with go templates.
-  - JavaScript is used for the ePub reader. Goals to make it service worker to enable a complete offline PWA reading experience.
+- Limited JavaScript use. Server-Side Rendering is used wherever possible. The main app is fully operational without any JS. JS is only required for:
+  - EPUB Reader
+  - Offline Mode / Service Worker
 
 # Server
 
@@ -76,25 +77,24 @@ The service is now accessible at: `http://localhost:8585`. I recommend registeri
 
 ## Configuration
 
-| Environment Variable | Default Value | Description                                                          |
-| -------------------- | ------------- | -------------------------------------------------------------------- |
-| DATABASE_TYPE        | SQLite        | Currently only "SQLite" is supported                                 |
-| DATABASE_NAME        | bbank         | The database name, or in SQLite's case, the filename                 |
-| DATABASE_PASSWORD    | <EMPTY>       | Currently not used. Placeholder for potential alternative DB support |
-| CONFIG_PATH          | /config       | Directory where to store SQLite's DB                                 |
-| DATA_PATH            | /data         | Directory where to store the documents and cover metadata            |
-| LISTEN_PORT          | 8585          | Port the server listens at                                           |
-| REGISTRATION_ENABLED | false         | Whether to allow registration (applies to both WebApp & KOSync API)  |
-| COOKIE_SESSION_KEY   | <EMPTY>       | Optional secret cookie session key (auto generated if not provided)  |
-| COOKIE_SECURE        | true          | Set Cookie `Secure` attribute (i.e. only works over HTTPS)           |
-| COOKIE_HTTP_ONLY     | true          | Set Cookie `HttpOnly` attribute (i.e. inacessible via JavaScript)    |
+| Environment Variable | Default Value | Description                                                         |
+| -------------------- | ------------- | ------------------------------------------------------------------- |
+| DATABASE_TYPE        | SQLite        | Currently only "SQLite" is supported                                |
+| DATABASE_NAME        | book_manager  | The database name, or in SQLite's case, the filename                |
+| CONFIG_PATH          | /config       | Directory where to store SQLite's DB                                |
+| DATA_PATH            | /data         | Directory where to store the documents and cover metadata           |
+| LISTEN_PORT          | 8585          | Port the server listens at                                          |
+| REGISTRATION_ENABLED | false         | Whether to allow registration (applies to both WebApp & KOSync API) |
+| COOKIE_SESSION_KEY   | <EMPTY>       | Optional secret cookie session key (auto generated if not provided) |
+| COOKIE_SECURE        | true          | Set Cookie `Secure` attribute (i.e. only works over HTTPS)          |
+| COOKIE_HTTP_ONLY     | true          | Set Cookie `HttpOnly` attribute (i.e. inacessible via JavaScript)   |
 
 ## Security
 
 ### Authentication
 
 - _Web App / PWA_ - Session based token (7 day expiry, refresh after 6 days)
-- _KOSync & SyncNinja API_ - Header based (KOSync compatibility)
+- _KOSync & SyncNinja API_ - Header based - `X-Auth-User` & `X-Auth-Key` (KOSync compatibility)
 - _OPDS API_ - Basic authentication (KOReader OPDS compatibility)
 
 ### Notes
@@ -119,7 +119,7 @@ go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 Run Development:
 
 ```bash
-CONFIG_PATH=./data DATA_PATH=./data go run main.go serve
+CONFIG_PATH=./data DATA_PATH=./data REGISTRATION_ENABLED=true go run main.go serve
 ```
 
 # Building
@@ -136,6 +136,16 @@ make docker_build_local
 # Build Docker & Push Latest or Dev (Linux - arm64 & amd64)
 make docker_build_release_latest
 make docker_build_release_dev
+
+# Generate Tailwind CSS
+make build_tailwind
+
+# Clean Local Build
+make clean
+
+# Tests (Unit & Integration - Google Books API)
+make tests_unit
+make tests_integration
 ```
 
 ## Notes

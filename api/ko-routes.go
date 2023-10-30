@@ -636,7 +636,7 @@ func (api *API) downloadDocument(c *gin.Context) {
 	}
 
 	// Force Download (Security)
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filepath.Base(*document.Filepath)))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(*document.Filepath)))
 	c.File(filePath)
 }
 

@@ -70,9 +70,9 @@ local STATISTICS_ACTIVITY_SINCE_QUERY = [[
 	psd.start_time AS start_time,
 	psd.duration AS duration,
 	psd.page AS current_page,
-	psd.total_pages 
+	psd.total_pages
     FROM page_stat_data AS psd
-    JOIN book AS b 
+    JOIN book AS b
     ON b.id = psd.id_book
     WHERE start_time > %d
     ORDER BY start_time ASC LIMIT 5000;
@@ -649,7 +649,7 @@ end
 function SyncNinja:checkDocuments(interactive)
     logger.dbg("SyncNinja: checkDocuments")
 
-    -- ensure document sync enabled
+    -- Ensure Document Sync Enabled
     if self.settings.sync_documents ~= true then return end
 
     -- API Request Data
@@ -723,6 +723,8 @@ function SyncNinja:downloadDocuments(doc_metadata, interactive)
     logger.dbg("SyncNinja: downloadDocuments")
 
     -- TODO
+    --   - OPDS Sufficient?
+    --   - Auto Configure OPDS?
 end
 
 function SyncNinja:uploadDocumentMetadata(doc_metadata, interactive)

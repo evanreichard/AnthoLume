@@ -1,6 +1,59 @@
 const THEMES = ["light", "tan", "blue", "gray", "black"];
 const THEME_FILE = "/assets/reader/readerThemes.css";
 
+async function initReader() {
+  let documentData;
+  let filePath;
+
+  const urlParams = new URLSearchParams(window.location.hash.slice(1));
+  const documentID = urlParams.get("id");
+  const localID = urlParams.get("local");
+
+  if (documentID) {
+    // Get Server / Cached Document
+    let progressResp = await fetch("/documents/" + documentID + "/progress");
+    documentData = await progressResp.json();
+
+    // Update Local Cache
+    let localCache = await IDB.get("PROGRESS-" + documentID);
+    if (localCache) {
+      documentData.progress = localCache.progress;
+      documentData.percentage = Math.round(localCache.percentage * 10000) / 100;
+    }
+
+    filePath = "/documents/" + documentID + "/file";
+  } else if (localID) {
+    // Get Local Document
+    // TODO:
+    //   - IDB FileID
+    //   - IDB Metadata
+  } else {
+    throw new Error("Invalid");
+  }
+
+  populateMetadata(documentData);
+  window.currentReader = new EBookReader(filePath, documentData);
+}
+
+function populateMetadata(data) {
+  let documentLocation = data.id.startsWith("local-")
+    ? "/offline"
+    : "/documents/" + data.id;
+
+  let documentCoverLocation = data.id.startsWith("local-")
+    ? "/assets/images/no-cover.jpg"
+    : "/documents/" + data.id + "/cover";
+
+  let [backEl, coverEl] = document.querySelectorAll("a");
+  backEl.setAttribute("href", documentLocation);
+  coverEl.setAttribute("href", documentLocation);
+  coverEl.firstElementChild.setAttribute("src", documentCoverLocation);
+
+  let [titleEl, authorEl] = document.querySelectorAll("#top-bar p + p");
+  titleEl.innerText = data.title;
+  authorEl.innerText = data.author;
+}
+
 class EBookReader {
   bookState = {
     currentWord: 0,
@@ -61,7 +114,7 @@ class EBookReader {
 
       // Get Stats
       let stats = this.getBookStats();
-      this.updateBookStats(stats);
+      this.updateBookStatElements(stats);
     }.bind(this);
 
     // Register Content Hook
@@ -381,25 +434,41 @@ class EBookReader {
       // ------------------------------------------------ //
       // --------------- Bottom & Top Bar --------------- //
       // ------------------------------------------------ //
-      let emSize = parseFloat(getComputedStyle(renderDoc.body).fontSize);
-      renderDoc.addEventListener("click", function (event) {
-        let barPixels = emSize * 5;
+      renderDoc.addEventListener(
+        "click",
+        function (event) {
+          // Get Window Dimensions
+          let windowWidth = window.innerWidth;
+          let windowHeight = window.innerHeight;
 
-        let top = barPixels;
-        let bottom = window.innerHeight - top;
+          // Calculate X & Y Hot Zones
+          let barPixels = windowHeight * 0.2;
+          let pagePixels = windowWidth * 0.2;
 
-        let left = barPixels / 2;
-        let right = window.innerWidth - left;
+          // Calculate Top & Bottom Thresholds
+          let top = barPixels;
+          let bottom = window.innerHeight - top;
 
-        if (event.clientY < top) handleSwipeDown();
-        else if (event.clientY > bottom) handleSwipeUp();
-        else if (event.screenX < left) prevPage();
-        else if (event.screenX > right) nextPage();
-        else {
-          bottomBar.classList.remove("bottom-0");
-          topBar.classList.remove("top-0");
-        }
-      });
+          // Calculate Left & Right Thresholds
+          let left = pagePixels;
+          let right = windowWidth - left;
+
+          // Calculate Relative Coords
+          let leftOffset = this.views().container.scrollLeft;
+          let yCoord = event.clientY;
+          let xCoord = event.clientX - leftOffset;
+
+          // Handle Event
+          if (yCoord < top) handleSwipeDown();
+          else if (yCoord > bottom) handleSwipeUp();
+          else if (xCoord < left) prevPage();
+          else if (xCoord > right) nextPage();
+          else {
+            bottomBar.classList.remove("bottom-0");
+            topBar.classList.remove("top-0");
+          }
+        }.bind(this)
+      );
 
       renderDoc.addEventListener(
         "wheel",
@@ -506,7 +575,6 @@ class EBookReader {
           "click",
           function (event) {
             let colorScheme = event.target.innerText;
-            console.log(colorScheme);
             this.setTheme({ colorScheme });
           }.bind(this)
         );
@@ -565,26 +633,8 @@ class EBookReader {
    * Progresses to the next page & monitors reading activity
    **/
   async nextPage() {
-    // Flush Activity
-    this.flushActivity();
-
-    // Get Elapsed Time
-    let elapsedTime = Date.now() - this.bookState.pageStart;
-
-    // Update Current Word
-    let pageWords = await this.getVisibleWordCount();
-    let startingWord = this.bookState.currentWord;
-    let percentRead = pageWords / this.bookState.words;
-    this.bookState.currentWord += pageWords;
-
-    // Add Read Event
-    this.bookState.readActivity.push({
-      percentRead,
-      startingWord,
-      pageWords,
-      elapsedTime,
-      startTime: this.bookState.pageStart,
-    });
+    // Create Activity
+    await this.createActivity();
 
     // Render Next Page
     await this.rendition.next();
@@ -594,24 +644,16 @@ class EBookReader {
 
     // Update Stats
     let stats = this.getBookStats();
-    this.updateBookStats(stats);
+    this.updateBookStatElements(stats);
 
-    // Update & Flush Progress
-    let currentCFI = await this.rendition.currentLocation();
-    let { element, xpath } = await this.getXPathFromCFI(currentCFI.start.cfi);
-    this.bookState.progress = xpath;
-    this.bookState.progressElement = element;
-
-    this.flushProgress();
+    // Create Progress
+    this.createProgress();
   }
 
   /**
    * Progresses to the previous page & monitors reading activity
    **/
   async prevPage() {
-    // Flush Activity
-    this.flushActivity();
-
     // Render Previous Page
     await this.rendition.prev();
 
@@ -624,14 +666,10 @@ class EBookReader {
 
     // Update Stats
     let stats = this.getBookStats();
-    this.updateBookStats(stats);
+    this.updateBookStatElements(stats);
 
-    // Update & Flush Progress
-    let currentCFI = await this.rendition.currentLocation();
-    let { element, xpath } = await this.getXPathFromCFI(currentCFI.start.cfi);
-    this.bookState.progress = xpath;
-    this.bookState.progressElement = element;
-    this.flushProgress();
+    // Create Progress
+    this.createProgress();
   }
 
   /**
@@ -652,88 +690,95 @@ class EBookReader {
     this.highlightPositionMarker();
   }
 
-  /**
-   * Normalize and flush activity
-   **/
-  async flushActivity() {
-    // Process & Reset Activity
-    let allActivity = this.bookState.readActivity;
-    this.bookState.readActivity = [];
-
+  async createActivity() {
+    // WPM MAX & MIN
     const WPM_MAX = 2000;
     const WPM_MIN = 100;
 
-    let normalizedActivity = allActivity
-      // Exclude Fast WPM
-      .filter((item) => item.pageWords / (item.elapsedTime / 60000) < WPM_MAX)
-      .map((item) => {
-        let pageWPM = item.pageWords / (item.elapsedTime / 60000);
+    // Get Elapsed Time
+    let pageStart = this.bookState.pageStart;
+    let elapsedTime = Date.now() - pageStart;
 
-        // Min WPM
-        if (pageWPM < WPM_MIN) {
-          // TODO - Exclude Event?
-          item.elapsedTime = (item.pageWords / WPM_MIN) * 60000;
-        }
+    // Update Current Word
+    let pageWords = await this.getVisibleWordCount();
+    let startingWord = this.bookState.currentWord;
+    let percentRead = pageWords / this.bookState.words;
+    this.bookState.currentWord += pageWords;
 
-        item.pages = Math.round(1 / item.percentRead);
+    let pageWPM = pageWords / (elapsedTime / 60000);
 
-        item.page = Math.round(
-          (item.startingWord * item.pages) / this.bookState.words
-        );
+    // Exclude Ridiculous WPM
+    // if (pageWPM >= WPM_MAX) return;
 
-        // Estimate Accuracy Loss (Debugging)
-        // let wordLoss = Math.abs(
-        //   item.pageWords - this.bookState.words / item.pages
-        // );
-        // console.log("Word Loss:", wordLoss);
+    // Ensure WPM Minimum
+    if (pageWPM < WPM_MIN) elapsedTime = (pageWords / WPM_MIN) * 60000;
 
-        return {
-          document: this.bookState.id,
-          duration: Math.round(item.elapsedTime / 1000),
-          start_time: Math.round(item.startTime / 1000),
-          page: item.page,
-          pages: item.pages,
-        };
-      });
+    let totalPages = Math.round(1 / percentRead);
 
-    if (normalizedActivity.length == 0) return;
-
-    console.log("Flushing Activity...");
+    let currentPage = Math.round(
+      (startingWord * totalPages) / this.bookState.words
+    );
 
     // Create Activity Event
     let activityEvent = {
       device_id: this.readerSettings.deviceID,
       device: this.readerSettings.deviceName,
-      activity: normalizedActivity,
+      activity: [
+        {
+          document: this.bookState.id,
+          duration: Math.round(elapsedTime / 1000),
+          start_time: Math.round(pageStart / 1000),
+          page: currentPage,
+          pages: totalPages,
+        },
+      ],
     };
 
-    // Flush Activity
-    fetch("/api/ko/activity", {
-      method: "POST",
-      body: JSON.stringify(activityEvent),
-    })
-      .then(async (r) =>
-        console.log("Flushed Activity:", {
-          response: r,
-          json: await r.json(),
-          data: activityEvent,
-        })
-      )
-      .catch((e) =>
-        console.error("Activity Flush Failed:", {
-          error: e,
-          data: activityEvent,
-        })
-      );
+    // Flush -> Offline Cache IDB
+    this.flushActivity(activityEvent).catch(async (e) => {
+      console.error("[createActivity] Activity Flush Failed:", {
+        error: e,
+        data: activityEvent,
+      });
+
+      // Get & Update Activity
+      let existingActivity = await IDB.get("ACTIVITY", { activity: [] });
+      existingActivity.device_id = activityEvent.device_id;
+      existingActivity.device = activityEvent.device;
+      existingActivity.activity.push(...activityEvent.activity);
+
+      // Update IDB
+      await IDB.set("ACTIVITY", existingActivity);
+    });
   }
 
   /**
-   * Flush progress to the API. Called when the page changes.
+   * Normalize and flush activity
    **/
-  async flushProgress() {
-    console.log("Flushing Progress...");
+  flushActivity(activityEvent) {
+    console.log("[flushActivity] Flushing Activity...");
 
-    // Create Progress Event
+    // Flush Activity
+    return fetch("/api/ko/activity", {
+      method: "POST",
+      body: JSON.stringify(activityEvent),
+    }).then(async (r) =>
+      console.log("[flushActivity] Flushed Activity:", {
+        response: r,
+        json: await r.json(),
+        data: activityEvent,
+      })
+    );
+  }
+
+  async createProgress() {
+    // Update Pointers
+    let currentCFI = await this.rendition.currentLocation();
+    let { element, xpath } = await this.getXPathFromCFI(currentCFI.start.cfi);
+    this.bookState.progress = xpath;
+    this.bookState.progressElement = element;
+
+    // Create Event
     let progressEvent = {
       document: this.bookState.id,
       device_id: this.readerSettings.deviceID,
@@ -745,24 +790,35 @@ class EBookReader {
       progress: this.bookState.progress,
     };
 
+    // Flush -> Offline Cache IDB
+    this.flushProgress(progressEvent).catch(async (e) => {
+      console.error("[createProgress] Progress Flush Failed:", {
+        error: e,
+        data: progressEvent,
+      });
+
+      // Update IDB
+      await IDB.set("PROGRESS-" + progressEvent.document, progressEvent);
+    });
+  }
+
+  /**
+   * Flush progress to the API. Called when the page changes.
+   **/
+  flushProgress(progressEvent) {
+    console.log("[flushProgress] Flushing Progress...");
+
     // Flush Progress
-    fetch("/api/ko/syncs/progress", {
+    return fetch("/api/ko/syncs/progress", {
       method: "PUT",
       body: JSON.stringify(progressEvent),
-    })
-      .then(async (r) =>
-        console.log("Flushed Progress:", {
-          response: r,
-          json: await r.json(),
-          data: progressEvent,
-        })
-      )
-      .catch((e) =>
-        console.error("Progress Flush Failed:", {
-          error: e,
-          data: progressEvent,
-        })
-      );
+    }).then(async (r) =>
+      console.log("[flushProgress] Flushed Progress:", {
+        response: r,
+        json: await r.json(),
+        data: progressEvent,
+      })
+    );
   }
 
   /**
@@ -770,7 +826,8 @@ class EBookReader {
    **/
   sectionProgress() {
     let visibleItems = this.rendition.manager.visible();
-    if (visibleItems.length == 0) return console.log("No Items");
+    if (visibleItems.length == 0)
+      return console.log("[sectionProgress] No Items");
     let visibleSection = visibleItems[0];
     let visibleIndex = visibleSection.index;
     let pagesPerBlock = visibleSection.layout.divisor;
@@ -812,7 +869,7 @@ class EBookReader {
   /**
    * Update elements with stats
    **/
-  updateBookStats(data) {
+  updateBookStatElements(data) {
     if (!data) return;
 
     let chapterStatus = document.querySelector("#chapter-status");
@@ -1076,3 +1133,5 @@ class EBookReader {
     );
   }
 }
+
+document.addEventListener("DOMContentLoaded", initReader);
