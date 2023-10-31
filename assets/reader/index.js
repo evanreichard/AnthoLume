@@ -724,14 +724,23 @@ class EBookReader {
     this.bookState.currentWord += pageWords;
 
     let pageWPM = pageWords / (elapsedTime / 60000);
+    console.log("[createActivity] Page WPM:", pageWPM);
 
     // Exclude Ridiculous WPM
-    // if (pageWPM >= WPM_MAX) return;
+    if (pageWPM >= WPM_MAX)
+      return console.log(
+        "[createActivity] Page WPM Exceeds Max (2000):",
+        pageWPM
+      );
 
     // Ensure WPM Minimum
     if (pageWPM < WPM_MIN) elapsedTime = (pageWords / WPM_MIN) * 60000;
 
     let totalPages = Math.round(1 / percentRead);
+
+    // Exclude 0 Pages
+    if (totalPages == 0)
+      return console.log("[createActivity] Invalid Total Pages (0)");
 
     let currentPage = Math.round(
       (startingWord * totalPages) / this.bookState.words
