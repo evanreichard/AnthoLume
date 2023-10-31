@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"database/sql"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -413,6 +414,7 @@ func (api *API) uploadNewDocument(c *gin.Context) {
 		errorPage(c, http.StatusInternalServerError, "Unable to create temp file.")
 		return
 	}
+	defer os.Remove(tempFile.Name())
 	defer tempFile.Close()
 
 	// Save Temp
@@ -474,12 +476,19 @@ func (api *API) uploadNewDocument(c *gin.Context) {
 	// Derive & Sanitize File Name
 	fileName = "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, partialMD5, fileExtension))
 
-	// Generate Storage Path
+	// Generate Storage Path & Open File
 	safePath := filepath.Join(api.Config.DataPath, "documents", fileName)
+	destFile, err := os.Create(safePath)
+	if err != nil {
+		log.Error("[uploadNewDocument] Dest File Error:", err)
+		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		return
+	}
+	defer destFile.Close()
 
-	// Move File
-	if err := os.Rename(tempFile.Name(), safePath); err != nil {
-		log.Error("[uploadNewDocument] Move Temp File Error:", err)
+	// Copy File
+	if _, err = io.Copy(destFile, tempFile); err != nil {
+		log.Error("[uploadNewDocument] Copy Temp File Error:", err)
 		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
 		return
 	}
@@ -770,12 +779,29 @@ func (api *API) saveNewDocument(c *gin.Context) {
 	// Derive & Sanitize File Name
 	fileName = "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, partialMD5, fileExtension))
 
-	// Generate Storage Path
-	safePath := filepath.Join(api.Config.DataPath, "documents", fileName)
+	// Open Source File
+	sourceFile, err := os.Open(tempFilePath)
+	if err != nil {
+		log.Error("[saveNewDocument] Source File Error:", err)
+		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		return
+	}
+	defer os.Remove(tempFilePath)
+	defer sourceFile.Close()
 
-	// Move File
-	if err := os.Rename(tempFilePath, safePath); err != nil {
-		log.Warn("[saveNewDocument] Move Temp File Error: ", err)
+	// Generate Storage Path & Open File
+	safePath := filepath.Join(api.Config.DataPath, "documents", fileName)
+	destFile, err := os.Create(safePath)
+	if err != nil {
+		log.Error("[saveNewDocument] Dest File Error:", err)
+		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		return
+	}
+	defer destFile.Close()
+
+	// Copy File
+	if _, err = io.Copy(destFile, sourceFile); err != nil {
+		log.Error("[saveNewDocument] Copy Temp File Error:", err)
 		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
 		return
 	}
