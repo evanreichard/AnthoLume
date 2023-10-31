@@ -30,6 +30,11 @@
 
 ---
 
+**TL;DR:** Show me the [demo](https://books-demo.cloud.reichard.io/)!
+
+- Username: `demo`
+- Password: `demo`
+
 This is BookManager! Will probably be renamed at some point. This repository contains:
 
 - Web App / Progressive Web App (PWA)
