@@ -21,6 +21,7 @@ type Config struct {
 	// Miscellaneous Settings
 	RegistrationEnabled bool
 	SearchEnabled       bool
+	DemoMode            bool
 
 	// Cookie Settings
 	CookieSessionKey string
@@ -37,6 +38,7 @@ func Load() *Config {
 		DataPath:            getEnv("DATA_PATH", "/data"),
 		ListenPort:          getEnv("LISTEN_PORT", "8585"),
 		RegistrationEnabled: trimLowerString(getEnv("REGISTRATION_ENABLED", "false")) == "true",
+		DemoMode:            trimLowerString(getEnv("DEMO_MODE", "false")) == "true",
 		SearchEnabled:       trimLowerString(getEnv("SEARCH_ENABLED", "false")) == "true",
 		CookieSessionKey:    trimLowerString(getEnv("COOKIE_SESSION_KEY", "")),
 		CookieSecure:        trimLowerString(getEnv("COOKIE_SECURE", "true")) == "true",

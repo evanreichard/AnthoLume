@@ -78,47 +78,57 @@ func (api *API) registerWebAppRoutes() {
 		"NiceSeconds":     niceSeconds,
 	}
 
+	// Templates
 	render.AddFromFiles("error", "templates/error.html")
-	render.AddFromFilesFuncs("login", helperFuncs, "templates/login.html")
+	render.AddFromFilesFuncs("activity", helperFuncs, "templates/base.html", "templates/activity.html")
+	render.AddFromFilesFuncs("document", helperFuncs, "templates/base.html", "templates/document.html")
+	render.AddFromFilesFuncs("documents", helperFuncs, "templates/base.html", "templates/documents.html")
 	render.AddFromFilesFuncs("home", helperFuncs, "templates/base.html", "templates/home.html")
+	render.AddFromFilesFuncs("login", helperFuncs, "templates/login.html")
 	render.AddFromFilesFuncs("search", helperFuncs, "templates/base.html", "templates/search.html")
 	render.AddFromFilesFuncs("settings", helperFuncs, "templates/base.html", "templates/settings.html")
-	render.AddFromFilesFuncs("activity", helperFuncs, "templates/base.html", "templates/activity.html")
-	render.AddFromFilesFuncs("documents", helperFuncs, "templates/base.html", "templates/documents.html")
-	render.AddFromFilesFuncs("document", helperFuncs, "templates/base.html", "templates/document.html")
 
 	api.Router.HTMLRender = render
 
-	// Static Assets (Require @ Root)
+	// Static Assets (Required @ Root)
 	api.Router.GET("/manifest.json", api.webManifest)
 	api.Router.GET("/sw.js", api.serviceWorker)
 
-	// Local / Offline Static Pages (No Template)
+	// Local / Offline Static Pages (No Template, No Auth)
 	api.Router.GET("/local", api.localDocuments)
 	api.Router.GET("/reader", api.documentReader)
 
-	// Template App
+	// Web App
+	api.Router.GET("/", api.authWebAppMiddleware, api.createAppResourcesRoute("home"))
+	api.Router.GET("/activity", api.authWebAppMiddleware, api.createAppResourcesRoute("activity"))
+	api.Router.GET("/documents", api.authWebAppMiddleware, api.createAppResourcesRoute("documents"))
+	api.Router.GET("/documents/:document", api.authWebAppMiddleware, api.createAppResourcesRoute("document"))
+	api.Router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.getDocumentCover)
+	api.Router.GET("/documents/:document/file", api.authWebAppMiddleware, api.downloadDocument)
+	api.Router.GET("/documents/:document/progress", api.authWebAppMiddleware, api.getDocumentProgress)
 	api.Router.GET("/login", api.createAppResourcesRoute("login"))
-	api.Router.GET("/register", api.createAppResourcesRoute("login", gin.H{"Register": true}))
 	api.Router.GET("/logout", api.authWebAppMiddleware, api.authLogout)
+	api.Router.GET("/register", api.createAppResourcesRoute("login", gin.H{"Register": true}))
+	api.Router.GET("/settings", api.authWebAppMiddleware, api.createAppResourcesRoute("settings"))
 	api.Router.POST("/login", api.authFormLogin)
 	api.Router.POST("/register", api.authFormRegister)
 
-	api.Router.GET("/", api.authWebAppMiddleware, api.createAppResourcesRoute("home"))
-	api.Router.GET("/settings", api.authWebAppMiddleware, api.createAppResourcesRoute("settings"))
-	api.Router.POST("/settings", api.authWebAppMiddleware, api.editSettings)
-	api.Router.GET("/activity", api.authWebAppMiddleware, api.createAppResourcesRoute("activity"))
-	api.Router.GET("/documents", api.authWebAppMiddleware, api.createAppResourcesRoute("documents"))
-	api.Router.POST("/documents", api.authWebAppMiddleware, api.uploadNewDocument)
-	api.Router.GET("/documents/:document", api.authWebAppMiddleware, api.createAppResourcesRoute("document"))
-	api.Router.GET("/documents/:document/file", api.authWebAppMiddleware, api.downloadDocument)
-	api.Router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.getDocumentCover)
-	api.Router.POST("/documents/:document/edit", api.authWebAppMiddleware, api.editDocument)
-	api.Router.POST("/documents/:document/identify", api.authWebAppMiddleware, api.identifyDocument)
-	api.Router.POST("/documents/:document/delete", api.authWebAppMiddleware, api.deleteDocument)
-	api.Router.GET("/documents/:document/progress", api.authWebAppMiddleware, api.getDocumentProgress)
+	// Demo Mode Enabled Configuration
+	if api.Config.DemoMode {
+		api.Router.POST("/documents", api.authWebAppMiddleware, api.demoModeAppError)
+		api.Router.POST("/documents/:document/delete", api.authWebAppMiddleware, api.demoModeAppError)
+		api.Router.POST("/documents/:document/edit", api.authWebAppMiddleware, api.demoModeAppError)
+		api.Router.POST("/documents/:document/identify", api.authWebAppMiddleware, api.demoModeAppError)
+		api.Router.POST("/settings", api.authWebAppMiddleware, api.demoModeAppError)
+	} else {
+		api.Router.POST("/documents", api.authWebAppMiddleware, api.uploadNewDocument)
+		api.Router.POST("/documents/:document/delete", api.authWebAppMiddleware, api.deleteDocument)
+		api.Router.POST("/documents/:document/edit", api.authWebAppMiddleware, api.editDocument)
+		api.Router.POST("/documents/:document/identify", api.authWebAppMiddleware, api.identifyDocument)
+		api.Router.POST("/settings", api.authWebAppMiddleware, api.editSettings)
+	}
 
-	// Behind Configuration Flag
+	// Search Enabled Configuration
 	if api.Config.SearchEnabled {
 		api.Router.GET("/search", api.authWebAppMiddleware, api.createAppResourcesRoute("search"))
 		api.Router.POST("/search", api.authWebAppMiddleware, api.saveNewDocument)
@@ -128,28 +138,35 @@ func (api *API) registerWebAppRoutes() {
 func (api *API) registerKOAPIRoutes(apiGroup *gin.RouterGroup) {
 	koGroup := apiGroup.Group("/ko")
 
-	koGroup.POST("/users/create", api.createUser)
-	koGroup.GET("/users/auth", api.authKOMiddleware, api.authorizeUser)
-
-	koGroup.PUT("/syncs/progress", api.authKOMiddleware, api.setProgress)
-	koGroup.GET("/syncs/progress/:document", api.authKOMiddleware, api.getProgress)
-
-	koGroup.POST("/documents", api.authKOMiddleware, api.addDocuments)
-	koGroup.POST("/syncs/documents", api.authKOMiddleware, api.checkDocumentsSync)
-	koGroup.PUT("/documents/:document/file", api.authKOMiddleware, api.uploadExistingDocument)
+	// KO Sync Routes (WebApp Uses - Progress & Activity)
 	koGroup.GET("/documents/:document/file", api.authKOMiddleware, api.downloadDocument)
-
+	koGroup.GET("/syncs/progress/:document", api.authKOMiddleware, api.getProgress)
+	koGroup.GET("/users/auth", api.authKOMiddleware, api.authorizeUser)
 	koGroup.POST("/activity", api.authKOMiddleware, api.addActivities)
 	koGroup.POST("/syncs/activity", api.authKOMiddleware, api.checkActivitySync)
+	koGroup.POST("/users/create", api.createUser)
+	koGroup.PUT("/syncs/progress", api.authKOMiddleware, api.setProgress)
+
+	// Demo Mode Enabled Configuration
+	if api.Config.DemoMode {
+		koGroup.POST("/documents", api.authKOMiddleware, api.demoModeJSONError)
+		koGroup.POST("/syncs/documents", api.authKOMiddleware, api.demoModeJSONError)
+		koGroup.PUT("/documents/:document/file", api.authKOMiddleware, api.demoModeJSONError)
+	} else {
+		koGroup.POST("/documents", api.authKOMiddleware, api.addDocuments)
+		koGroup.POST("/syncs/documents", api.authKOMiddleware, api.checkDocumentsSync)
+		koGroup.PUT("/documents/:document/file", api.authKOMiddleware, api.uploadExistingDocument)
+	}
 }
 
 func (api *API) registerOPDSRoutes(apiGroup *gin.RouterGroup) {
 	opdsGroup := apiGroup.Group("/opds")
 
+	// OPDS Routes
 	opdsGroup.GET("/", api.authOPDSMiddleware, api.opdsDocuments)
-	opdsGroup.GET("/search.xml", api.authOPDSMiddleware, api.opdsSearchDescription)
-	opdsGroup.GET("/documents/:document/file", api.authOPDSMiddleware, api.downloadDocument)
 	opdsGroup.GET("/documents/:document/cover", api.authOPDSMiddleware, api.getDocumentCover)
+	opdsGroup.GET("/documents/:document/file", api.authOPDSMiddleware, api.downloadDocument)
+	opdsGroup.GET("/search.xml", api.authOPDSMiddleware, api.opdsSearchDescription)
 }
 
 func generateToken(n int) ([]byte, error) {

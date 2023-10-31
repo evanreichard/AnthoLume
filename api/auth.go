@@ -219,6 +219,14 @@ func (api *API) authLogout(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/login")
 }
 
+func (api *API) demoModeAppError(c *gin.Context) {
+	errorPage(c, http.StatusUnauthorized, "Not Allowed in Demo Mode")
+}
+
+func (api *API) demoModeJSONError(c *gin.Context) {
+	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Not Allowed in Demo Mode"})
+}
+
 func getSession(session sessions.Session) (user string, ok bool) {
 	// Check Session
 	authorizedUser := session.Get("authorizedUser")
