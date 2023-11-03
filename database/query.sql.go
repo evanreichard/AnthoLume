@@ -7,53 +7,52 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"strings"
 )
 
 const addActivity = `-- name: AddActivity :one
-INSERT INTO raw_activity (
+INSERT INTO activity (
     user_id,
     document_id,
     device_id,
     start_time,
     duration,
-    page,
-    pages
+    start_percentage,
+    end_percentage
 )
 VALUES (?, ?, ?, ?, ?, ?, ?)
-RETURNING id, user_id, document_id, device_id, start_time, page, pages, duration, created_at
+RETURNING id, user_id, document_id, device_id, start_time, start_percentage, end_percentage, duration, created_at
 `
 
 type AddActivityParams struct {
-	UserID     string `json:"user_id"`
-	DocumentID string `json:"document_id"`
-	DeviceID   string `json:"device_id"`
-	StartTime  string `json:"start_time"`
-	Duration   int64  `json:"duration"`
-	Page       int64  `json:"page"`
-	Pages      int64  `json:"pages"`
+	UserID          string  `json:"user_id"`
+	DocumentID      string  `json:"document_id"`
+	DeviceID        string  `json:"device_id"`
+	StartTime       string  `json:"start_time"`
+	Duration        int64   `json:"duration"`
+	StartPercentage float64 `json:"start_percentage"`
+	EndPercentage   float64 `json:"end_percentage"`
 }
 
-func (q *Queries) AddActivity(ctx context.Context, arg AddActivityParams) (RawActivity, error) {
+func (q *Queries) AddActivity(ctx context.Context, arg AddActivityParams) (Activity, error) {
 	row := q.db.QueryRowContext(ctx, addActivity,
 		arg.UserID,
 		arg.DocumentID,
 		arg.DeviceID,
 		arg.StartTime,
 		arg.Duration,
-		arg.Page,
-		arg.Pages,
+		arg.StartPercentage,
+		arg.EndPercentage,
 	)
-	var i RawActivity
+	var i Activity
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.DocumentID,
 		&i.DeviceID,
 		&i.StartTime,
-		&i.Page,
-		&i.Pages,
+		&i.StartPercentage,
+		&i.EndPercentage,
 		&i.Duration,
 		&i.CreatedAt,
 	)
@@ -154,8 +153,7 @@ WITH filtered_activity AS (
         user_id,
         start_time,
         duration,
-        page,
-        pages
+        ROUND(CAST(end_percentage - start_percentage AS REAL) * 100, 2) AS read_percentage
     FROM activity
     WHERE
         activity.user_id = ?1
@@ -176,8 +174,7 @@ SELECT
     title,
     author,
     duration,
-    page,
-    pages
+    read_percentage
 FROM filtered_activity AS activity
 LEFT JOIN documents ON documents.id = activity.document_id
 LEFT JOIN users ON users.id = activity.user_id
@@ -192,13 +189,12 @@ type GetActivityParams struct {
 }
 
 type GetActivityRow struct {
-	DocumentID string  `json:"document_id"`
-	StartTime  string  `json:"start_time"`
-	Title      *string `json:"title"`
-	Author     *string `json:"author"`
-	Duration   int64   `json:"duration"`
-	Page       int64   `json:"page"`
-	Pages      int64   `json:"pages"`
+	DocumentID     string  `json:"document_id"`
+	StartTime      string  `json:"start_time"`
+	Title          *string `json:"title"`
+	Author         *string `json:"author"`
+	Duration       int64   `json:"duration"`
+	ReadPercentage float64 `json:"read_percentage"`
 }
 
 func (q *Queries) GetActivity(ctx context.Context, arg GetActivityParams) ([]GetActivityRow, error) {
@@ -222,8 +218,7 @@ func (q *Queries) GetActivity(ctx context.Context, arg GetActivityParams) ([]Get
 			&i.Title,
 			&i.Author,
 			&i.Duration,
-			&i.Page,
-			&i.Pages,
+			&i.ReadPercentage,
 		); err != nil {
 			return nil, err
 		}
@@ -249,9 +244,9 @@ WITH RECURSIVE last_30_days AS (
 ),
 filtered_activity AS (
     SELECT
-	user_id,
+        user_id,
         start_time,
-	duration
+        duration
     FROM activity
     WHERE start_time > DATE('now', '-31 days')
     AND activity.user_id = ?1
@@ -465,98 +460,6 @@ func (q *Queries) GetDocument(ctx context.Context, documentID string) (Document,
 	return i, err
 }
 
-const getDocumentDaysRead = `-- name: GetDocumentDaysRead :one
-WITH document_days AS (
-    SELECT DATE(start_time, time_offset) AS dates
-    FROM activity
-    JOIN users ON users.id = activity.user_id
-    WHERE document_id = ?1
-    AND user_id = ?2
-    GROUP BY dates
-)
-SELECT CAST(COUNT(*) AS INTEGER) AS days_read
-FROM document_days
-`
-
-type GetDocumentDaysReadParams struct {
-	DocumentID string `json:"document_id"`
-	UserID     string `json:"user_id"`
-}
-
-func (q *Queries) GetDocumentDaysRead(ctx context.Context, arg GetDocumentDaysReadParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getDocumentDaysRead, arg.DocumentID, arg.UserID)
-	var days_read int64
-	err := row.Scan(&days_read)
-	return days_read, err
-}
-
-const getDocumentReadStats = `-- name: GetDocumentReadStats :one
-SELECT
-    COUNT(DISTINCT page) AS pages_read,
-    SUM(duration) AS total_time
-FROM activity
-WHERE document_id = ?1
-AND user_id = ?2
-AND start_time >= ?3
-`
-
-type GetDocumentReadStatsParams struct {
-	DocumentID string `json:"document_id"`
-	UserID     string `json:"user_id"`
-	StartTime  string `json:"start_time"`
-}
-
-type GetDocumentReadStatsRow struct {
-	PagesRead int64           `json:"pages_read"`
-	TotalTime sql.NullFloat64 `json:"total_time"`
-}
-
-func (q *Queries) GetDocumentReadStats(ctx context.Context, arg GetDocumentReadStatsParams) (GetDocumentReadStatsRow, error) {
-	row := q.db.QueryRowContext(ctx, getDocumentReadStats, arg.DocumentID, arg.UserID, arg.StartTime)
-	var i GetDocumentReadStatsRow
-	err := row.Scan(&i.PagesRead, &i.TotalTime)
-	return i, err
-}
-
-const getDocumentReadStatsCapped = `-- name: GetDocumentReadStatsCapped :one
-WITH capped_stats AS (
-    SELECT MIN(SUM(duration), CAST(?1 AS INTEGER)) AS durations
-    FROM activity
-    WHERE document_id = ?2
-    AND user_id = ?3
-    AND start_time >= ?4
-    GROUP BY page
-)
-SELECT
-    CAST(COUNT(*) AS INTEGER) AS pages_read,
-    CAST(SUM(durations) AS INTEGER) AS total_time
-FROM capped_stats
-`
-
-type GetDocumentReadStatsCappedParams struct {
-	PageDurationCap int64  `json:"page_duration_cap"`
-	DocumentID      string `json:"document_id"`
-	UserID          string `json:"user_id"`
-	StartTime       string `json:"start_time"`
-}
-
-type GetDocumentReadStatsCappedRow struct {
-	PagesRead int64 `json:"pages_read"`
-	TotalTime int64 `json:"total_time"`
-}
-
-func (q *Queries) GetDocumentReadStatsCapped(ctx context.Context, arg GetDocumentReadStatsCappedParams) (GetDocumentReadStatsCappedRow, error) {
-	row := q.db.QueryRowContext(ctx, getDocumentReadStatsCapped,
-		arg.PageDurationCap,
-		arg.DocumentID,
-		arg.UserID,
-		arg.StartTime,
-	)
-	var i GetDocumentReadStatsCappedRow
-	err := row.Scan(&i.PagesRead, &i.TotalTime)
-	return i, err
-}
-
 const getDocumentWithStats = `-- name: GetDocumentWithStats :one
 SELECT
     docs.id,
@@ -569,23 +472,21 @@ SELECT
     docs.words,
 
     CAST(COALESCE(dus.wpm, 0.0) AS INTEGER) AS wpm,
-    COALESCE(dus.page, 0) AS page,
-    COALESCE(dus.pages, 0) AS pages,
-    COALESCE(dus.read_pages, 0) AS read_pages,
+    COALESCE(dus.read_percentage, 0) AS read_percentage,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
     STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
         AS last_read,
-    CASE
-        WHEN dus.percentage > 97.0 THEN 100.0
+    ROUND(CAST(CASE
         WHEN dus.percentage IS NULL THEN 0.0
-        ELSE dus.percentage
-    END AS percentage,
+        WHEN (dus.percentage * 100.0) > 97.0 THEN 100.0
+        ELSE dus.percentage * 100.0
+    END AS REAL), 2) AS percentage,
     CAST(CASE
         WHEN dus.total_time_seconds IS NULL THEN 0.0
         ELSE
-	    CAST(dus.total_time_seconds AS REAL)
-	    / CAST(dus.read_pages AS REAL)
-    END AS INTEGER) AS seconds_per_page
+            CAST(dus.total_time_seconds AS REAL)
+            / (dus.read_percentage * 100.0)
+    END AS INTEGER) AS seconds_per_percent
 FROM documents AS docs
 LEFT JOIN users ON users.id = ?1
 LEFT JOIN
@@ -602,22 +503,20 @@ type GetDocumentWithStatsParams struct {
 }
 
 type GetDocumentWithStatsRow struct {
-	ID               string      `json:"id"`
-	Title            *string     `json:"title"`
-	Author           *string     `json:"author"`
-	Description      *string     `json:"description"`
-	Isbn10           *string     `json:"isbn10"`
-	Isbn13           *string     `json:"isbn13"`
-	Filepath         *string     `json:"filepath"`
-	Words            *int64      `json:"words"`
-	Wpm              int64       `json:"wpm"`
-	Page             int64       `json:"page"`
-	Pages            int64       `json:"pages"`
-	ReadPages        int64       `json:"read_pages"`
-	TotalTimeSeconds int64       `json:"total_time_seconds"`
-	LastRead         interface{} `json:"last_read"`
-	Percentage       interface{} `json:"percentage"`
-	SecondsPerPage   int64       `json:"seconds_per_page"`
+	ID                string      `json:"id"`
+	Title             *string     `json:"title"`
+	Author            *string     `json:"author"`
+	Description       *string     `json:"description"`
+	Isbn10            *string     `json:"isbn10"`
+	Isbn13            *string     `json:"isbn13"`
+	Filepath          *string     `json:"filepath"`
+	Words             *int64      `json:"words"`
+	Wpm               int64       `json:"wpm"`
+	ReadPercentage    float64     `json:"read_percentage"`
+	TotalTimeSeconds  int64       `json:"total_time_seconds"`
+	LastRead          interface{} `json:"last_read"`
+	Percentage        float64     `json:"percentage"`
+	SecondsPerPercent int64       `json:"seconds_per_percent"`
 }
 
 func (q *Queries) GetDocumentWithStats(ctx context.Context, arg GetDocumentWithStatsParams) (GetDocumentWithStatsRow, error) {
@@ -633,13 +532,11 @@ func (q *Queries) GetDocumentWithStats(ctx context.Context, arg GetDocumentWithS
 		&i.Filepath,
 		&i.Words,
 		&i.Wpm,
-		&i.Page,
-		&i.Pages,
-		&i.ReadPages,
+		&i.ReadPercentage,
 		&i.TotalTimeSeconds,
 		&i.LastRead,
 		&i.Percentage,
-		&i.SecondsPerPage,
+		&i.SecondsPerPercent,
 	)
 	return i, err
 }
@@ -711,25 +608,24 @@ SELECT
     docs.words,
 
     CAST(COALESCE(dus.wpm, 0.0) AS INTEGER) AS wpm,
-    COALESCE(dus.page, 0) AS page,
-    COALESCE(dus.pages, 0) AS pages,
-    COALESCE(dus.read_pages, 0) AS read_pages,
+    COALESCE(dus.read_percentage, 0) AS read_percentage,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
     STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
         AS last_read,
-    CASE
-        WHEN dus.percentage > 97.0 THEN 100.0
+    ROUND(CAST(CASE
         WHEN dus.percentage IS NULL THEN 0.0
-        ELSE dus.percentage
-    END AS percentage,
+        WHEN (dus.percentage * 100.0) > 97.0 THEN 100.0
+        ELSE dus.percentage * 100.0
+    END AS REAL), 2) AS percentage,
+
     CASE
         WHEN dus.total_time_seconds IS NULL THEN 0.0
         ELSE
             ROUND(
                 CAST(dus.total_time_seconds AS REAL)
-                / CAST(dus.read_pages AS REAL)
+                / (dus.read_percentage * 100.0)
             )
-    END AS seconds_per_page
+    END AS seconds_per_percent
 FROM documents AS docs
 LEFT JOIN users ON users.id = ?1
 LEFT JOIN
@@ -748,22 +644,20 @@ type GetDocumentsWithStatsParams struct {
 }
 
 type GetDocumentsWithStatsRow struct {
-	ID               string      `json:"id"`
-	Title            *string     `json:"title"`
-	Author           *string     `json:"author"`
-	Description      *string     `json:"description"`
-	Isbn10           *string     `json:"isbn10"`
-	Isbn13           *string     `json:"isbn13"`
-	Filepath         *string     `json:"filepath"`
-	Words            *int64      `json:"words"`
-	Wpm              int64       `json:"wpm"`
-	Page             int64       `json:"page"`
-	Pages            int64       `json:"pages"`
-	ReadPages        int64       `json:"read_pages"`
-	TotalTimeSeconds int64       `json:"total_time_seconds"`
-	LastRead         interface{} `json:"last_read"`
-	Percentage       interface{} `json:"percentage"`
-	SecondsPerPage   interface{} `json:"seconds_per_page"`
+	ID                string      `json:"id"`
+	Title             *string     `json:"title"`
+	Author            *string     `json:"author"`
+	Description       *string     `json:"description"`
+	Isbn10            *string     `json:"isbn10"`
+	Isbn13            *string     `json:"isbn13"`
+	Filepath          *string     `json:"filepath"`
+	Words             *int64      `json:"words"`
+	Wpm               int64       `json:"wpm"`
+	ReadPercentage    float64     `json:"read_percentage"`
+	TotalTimeSeconds  int64       `json:"total_time_seconds"`
+	LastRead          interface{} `json:"last_read"`
+	Percentage        float64     `json:"percentage"`
+	SecondsPerPercent interface{} `json:"seconds_per_percent"`
 }
 
 func (q *Queries) GetDocumentsWithStats(ctx context.Context, arg GetDocumentsWithStatsParams) ([]GetDocumentsWithStatsRow, error) {
@@ -785,13 +679,11 @@ func (q *Queries) GetDocumentsWithStats(ctx context.Context, arg GetDocumentsWit
 			&i.Filepath,
 			&i.Words,
 			&i.Wpm,
-			&i.Page,
-			&i.Pages,
-			&i.ReadPages,
+			&i.ReadPercentage,
 			&i.TotalTimeSeconds,
 			&i.LastRead,
 			&i.Percentage,
-			&i.SecondsPerPage,
+			&i.SecondsPerPercent,
 		); err != nil {
 			return nil, err
 		}
@@ -987,56 +879,6 @@ func (q *Queries) GetUserStreaks(ctx context.Context, userID string) ([]UserStre
 	return items, nil
 }
 
-const getUsers = `-- name: GetUsers :many
-SELECT id, pass, admin, time_offset, created_at FROM users
-WHERE
-    users.id = ?1
-    OR ?1 IN (
-        SELECT id
-        FROM users
-        WHERE id = ?1
-        AND admin = 1
-    )
-ORDER BY created_at DESC
-LIMIT ?3
-OFFSET ?2
-`
-
-type GetUsersParams struct {
-	User   string `json:"user"`
-	Offset int64  `json:"offset"`
-	Limit  int64  `json:"limit"`
-}
-
-func (q *Queries) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, getUsers, arg.User, arg.Offset, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []User
-	for rows.Next() {
-		var i User
-		if err := rows.Scan(
-			&i.ID,
-			&i.Pass,
-			&i.Admin,
-			&i.TimeOffset,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getWPMLeaderboard = `-- name: GetWPMLeaderboard :many
 SELECT
     user_id,
@@ -1089,17 +931,14 @@ const getWantedDocuments = `-- name: GetWantedDocuments :many
 SELECT
     CAST(value AS TEXT) AS id,
     CAST((documents.filepath IS NULL) AS BOOLEAN) AS want_file,
-    CAST((IFNULL(documents.synced, false) != true) AS BOOLEAN) AS want_metadata
+    CAST((documents.id IS NULL) AS BOOLEAN) AS want_metadata
 FROM json_each(?1)
 LEFT JOIN documents
 ON value = documents.id
 WHERE (
     documents.id IS NOT NULL
     AND documents.deleted = false
-    AND (
-        documents.synced = false
-        OR documents.filepath IS NULL
-    )
+    AND documents.filepath IS NULL
 )
 OR (documents.id IS NULL)
 OR CAST(?1 AS TEXT) != CAST(?1 AS TEXT)
@@ -1132,86 +971,6 @@ func (q *Queries) GetWantedDocuments(ctx context.Context, documentIds string) ([
 		return nil, err
 	}
 	return items, nil
-}
-
-const updateDocumentDeleted = `-- name: UpdateDocumentDeleted :one
-UPDATE documents
-SET
-  deleted = ?1
-WHERE id = ?2
-RETURNING id, md5, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at
-`
-
-type UpdateDocumentDeletedParams struct {
-	Deleted bool   `json:"-"`
-	ID      string `json:"id"`
-}
-
-func (q *Queries) UpdateDocumentDeleted(ctx context.Context, arg UpdateDocumentDeletedParams) (Document, error) {
-	row := q.db.QueryRowContext(ctx, updateDocumentDeleted, arg.Deleted, arg.ID)
-	var i Document
-	err := row.Scan(
-		&i.ID,
-		&i.Md5,
-		&i.Filepath,
-		&i.Coverfile,
-		&i.Title,
-		&i.Author,
-		&i.Series,
-		&i.SeriesIndex,
-		&i.Lang,
-		&i.Description,
-		&i.Words,
-		&i.Gbid,
-		&i.Olid,
-		&i.Isbn10,
-		&i.Isbn13,
-		&i.Synced,
-		&i.Deleted,
-		&i.UpdatedAt,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const updateDocumentSync = `-- name: UpdateDocumentSync :one
-UPDATE documents
-SET
-    synced = ?1
-WHERE id = ?2
-RETURNING id, md5, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at
-`
-
-type UpdateDocumentSyncParams struct {
-	Synced bool   `json:"-"`
-	ID     string `json:"id"`
-}
-
-func (q *Queries) UpdateDocumentSync(ctx context.Context, arg UpdateDocumentSyncParams) (Document, error) {
-	row := q.db.QueryRowContext(ctx, updateDocumentSync, arg.Synced, arg.ID)
-	var i Document
-	err := row.Scan(
-		&i.ID,
-		&i.Md5,
-		&i.Filepath,
-		&i.Coverfile,
-		&i.Title,
-		&i.Author,
-		&i.Series,
-		&i.SeriesIndex,
-		&i.Lang,
-		&i.Description,
-		&i.Words,
-		&i.Gbid,
-		&i.Olid,
-		&i.Isbn10,
-		&i.Isbn13,
-		&i.Synced,
-		&i.Deleted,
-		&i.UpdatedAt,
-		&i.CreatedAt,
-	)
-	return i, err
 }
 
 const updateProgress = `-- name: UpdateProgress :one

@@ -146,7 +146,7 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			}
 
 			templateVars["Data"] = document
-			templateVars["TotalTimeLeftSeconds"] = (document.Pages - document.Page) * document.SecondsPerPage
+			templateVars["TotalTimeLeftSeconds"] = int64((100.0 - document.Percentage) * float64(document.SecondsPerPercent))
 		} else if routeName == "activity" {
 			activityFilter := database.GetActivityParams{
 				UserID: userID,
@@ -177,13 +177,13 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			log.Info("GetDatabaseInfo Performance: ", time.Since(start))
 
 			streaks, _ := api.DB.Queries.GetUserStreaks(api.DB.Ctx, userID)
-			wpn_leaderboard, _ := api.DB.Queries.GetWPMLeaderboard(api.DB.Ctx)
+			wpm_leaderboard, _ := api.DB.Queries.GetWPMLeaderboard(api.DB.Ctx)
 
 			templateVars["Data"] = gin.H{
 				"Streaks":        streaks,
 				"GraphData":      read_graph_data,
 				"DatabaseInfo":   database_info,
-				"WPMLeaderboard": wpn_leaderboard,
+				"WPMLeaderboard": wpm_leaderboard,
 			}
 		} else if routeName == "settings" {
 			user, err := api.DB.Queries.GetUser(api.DB.Ctx, userID)
@@ -456,6 +456,14 @@ func (api *API) uploadNewDocument(c *gin.Context) {
 		return
 	}
 
+	// Get Word Count
+	wordCount, err := metadata.GetWordCount(tempFile.Name())
+	if err != nil {
+		log.Error("[uploadNewDocument] Word Count Failure:", err)
+		errorPage(c, http.StatusInternalServerError, "Unable to calculate word count.")
+		return
+	}
+
 	// Derive Filename
 	var fileName string
 	if *metadataInfo.Author != "" {
@@ -499,6 +507,7 @@ func (api *API) uploadNewDocument(c *gin.Context) {
 		Title:       metadataInfo.Title,
 		Author:      metadataInfo.Author,
 		Description: metadataInfo.Description,
+		Words:       &wordCount,
 		Md5:         fileHash,
 		Filepath:    &fileName,
 	}); err != nil {
@@ -711,7 +720,7 @@ func (api *API) identifyDocument(c *gin.Context) {
 	}
 
 	templateVars["Data"] = document
-	templateVars["TotalTimeLeftSeconds"] = (document.Pages - document.Page) * document.SecondsPerPage
+	templateVars["TotalTimeLeftSeconds"] = int64((100.0 - document.Percentage) * float64(document.SecondsPerPercent))
 
 	c.HTML(http.StatusOK, "document", templateVars)
 }
@@ -814,6 +823,14 @@ func (api *API) saveNewDocument(c *gin.Context) {
 		return
 	}
 
+	// Get Word Count
+	wordCount, err := metadata.GetWordCount(safePath)
+	if err != nil {
+		log.Error("[saveNewDocument] Word Count Failure:", err)
+		errorPage(c, http.StatusInternalServerError, "Unable to calculate word count.")
+		return
+	}
+
 	// Upsert Document
 	if _, err = api.DB.Queries.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
 		ID:       partialMD5,
@@ -821,6 +838,7 @@ func (api *API) saveNewDocument(c *gin.Context) {
 		Author:   rDocAdd.Author,
 		Md5:      fileHash,
 		Filepath: &fileName,
+		Words:    &wordCount,
 	}); err != nil {
 		log.Error("[saveNewDocument] UpsertDocument DB Error:", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))

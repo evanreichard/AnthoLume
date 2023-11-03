@@ -9,14 +9,15 @@ import (
 )
 
 type Activity struct {
-	UserID     string `json:"user_id"`
-	DocumentID string `json:"document_id"`
-	DeviceID   string `json:"device_id"`
-	CreatedAt  string `json:"created_at"`
-	StartTime  string `json:"start_time"`
-	Page       int64  `json:"page"`
-	Pages      int64  `json:"pages"`
-	Duration   int64  `json:"duration"`
+	ID              int64   `json:"id"`
+	UserID          string  `json:"user_id"`
+	DocumentID      string  `json:"document_id"`
+	DeviceID        string  `json:"device_id"`
+	StartTime       string  `json:"start_time"`
+	StartPercentage float64 `json:"start_percentage"`
+	EndPercentage   float64 `json:"end_percentage"`
+	Duration        int64   `json:"duration"`
+	CreatedAt       string  `json:"created_at"`
 }
 
 type Device struct {
@@ -63,10 +64,8 @@ type DocumentUserStatistic struct {
 	DocumentID       string  `json:"document_id"`
 	UserID           string  `json:"user_id"`
 	LastRead         string  `json:"last_read"`
-	Page             int64   `json:"page"`
-	Pages            int64   `json:"pages"`
 	TotalTimeSeconds int64   `json:"total_time_seconds"`
-	ReadPages        int64   `json:"read_pages"`
+	ReadPercentage   float64 `json:"read_percentage"`
 	Percentage       float64 `json:"percentage"`
 	WordsRead        int64   `json:"words_read"`
 	Wpm              float64 `json:"wpm"`
@@ -83,18 +82,6 @@ type Metadatum struct {
 	Isbn10      *string `json:"isbn10"`
 	Isbn13      *string `json:"isbn13"`
 	CreatedAt   string  `json:"created_at"`
-}
-
-type RawActivity struct {
-	ID         int64  `json:"id"`
-	UserID     string `json:"user_id"`
-	DocumentID string `json:"document_id"`
-	DeviceID   string `json:"device_id"`
-	StartTime  string `json:"start_time"`
-	Page       int64  `json:"page"`
-	Pages      int64  `json:"pages"`
-	Duration   int64  `json:"duration"`
-	CreatedAt  string `json:"created_at"`
 }
 
 type User struct {
@@ -119,25 +106,12 @@ type UserStreak struct {
 type ViewDocumentUserStatistic struct {
 	DocumentID       string          `json:"document_id"`
 	UserID           string          `json:"user_id"`
-	LastRead         string          `json:"last_read"`
-	Page             int64           `json:"page"`
-	Pages            int64           `json:"pages"`
+	LastRead         interface{}     `json:"last_read"`
 	TotalTimeSeconds sql.NullFloat64 `json:"total_time_seconds"`
-	ReadPages        int64           `json:"read_pages"`
+	ReadPercentage   sql.NullFloat64 `json:"read_percentage"`
 	Percentage       float64         `json:"percentage"`
 	WordsRead        interface{}     `json:"words_read"`
 	Wpm              int64           `json:"wpm"`
-}
-
-type ViewRescaledActivity struct {
-	UserID     string `json:"user_id"`
-	DocumentID string `json:"document_id"`
-	DeviceID   string `json:"device_id"`
-	CreatedAt  string `json:"created_at"`
-	StartTime  string `json:"start_time"`
-	Page       int64  `json:"page"`
-	Pages      int64  `json:"pages"`
-	Duration   int64  `json:"duration"`
 }
 
 type ViewUserStreak struct {

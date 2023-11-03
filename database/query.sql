@@ -1,12 +1,12 @@
 -- name: AddActivity :one
-INSERT INTO raw_activity (
+INSERT INTO activity (
     user_id,
     document_id,
     device_id,
     start_time,
     duration,
-    page,
-    pages
+    start_percentage,
+    end_percentage
 )
 VALUES (?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
@@ -43,8 +43,7 @@ WITH filtered_activity AS (
         user_id,
         start_time,
         duration,
-        page,
-        pages
+        ROUND(CAST(end_percentage - start_percentage AS REAL) * 100, 2) AS read_percentage
     FROM activity
     WHERE
         activity.user_id = $user_id
@@ -65,8 +64,7 @@ SELECT
     title,
     author,
     duration,
-    page,
-    pages
+    read_percentage
 FROM filtered_activity AS activity
 LEFT JOIN documents ON documents.id = activity.document_id
 LEFT JOIN users ON users.id = activity.user_id;
@@ -82,9 +80,9 @@ WITH RECURSIVE last_30_days AS (
 ),
 filtered_activity AS (
     SELECT
-	user_id,
+        user_id,
         start_time,
-	duration
+        duration
     FROM activity
     WHERE start_time > DATE('now', '-31 days')
     AND activity.user_id = $user_id
@@ -142,41 +140,6 @@ ORDER BY devices.last_synced DESC;
 SELECT * FROM documents
 WHERE id = $document_id LIMIT 1;
 
--- name: GetDocumentDaysRead :one
-WITH document_days AS (
-    SELECT DATE(start_time, time_offset) AS dates
-    FROM activity
-    JOIN users ON users.id = activity.user_id
-    WHERE document_id = $document_id
-    AND user_id = $user_id
-    GROUP BY dates
-)
-SELECT CAST(COUNT(*) AS INTEGER) AS days_read
-FROM document_days;
-
--- name: GetDocumentReadStats :one
-SELECT
-    COUNT(DISTINCT page) AS pages_read,
-    SUM(duration) AS total_time
-FROM activity
-WHERE document_id = $document_id
-AND user_id = $user_id
-AND start_time >= $start_time;
-
--- name: GetDocumentReadStatsCapped :one
-WITH capped_stats AS (
-    SELECT MIN(SUM(duration), CAST($page_duration_cap AS INTEGER)) AS durations
-    FROM activity
-    WHERE document_id = $document_id
-    AND user_id = $user_id
-    AND start_time >= $start_time
-    GROUP BY page
-)
-SELECT
-    CAST(COUNT(*) AS INTEGER) AS pages_read,
-    CAST(SUM(durations) AS INTEGER) AS total_time
-FROM capped_stats;
-
 -- name: GetDocumentWithStats :one
 SELECT
     docs.id,
@@ -189,23 +152,21 @@ SELECT
     docs.words,
 
     CAST(COALESCE(dus.wpm, 0.0) AS INTEGER) AS wpm,
-    COALESCE(dus.page, 0) AS page,
-    COALESCE(dus.pages, 0) AS pages,
-    COALESCE(dus.read_pages, 0) AS read_pages,
+    COALESCE(dus.read_percentage, 0) AS read_percentage,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
     STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
         AS last_read,
-    CASE
-        WHEN dus.percentage > 97.0 THEN 100.0
+    ROUND(CAST(CASE
         WHEN dus.percentage IS NULL THEN 0.0
-        ELSE dus.percentage
-    END AS percentage,
+        WHEN (dus.percentage * 100.0) > 97.0 THEN 100.0
+        ELSE dus.percentage * 100.0
+    END AS REAL), 2) AS percentage,
     CAST(CASE
         WHEN dus.total_time_seconds IS NULL THEN 0.0
         ELSE
-	    CAST(dus.total_time_seconds AS REAL)
-	    / CAST(dus.read_pages AS REAL)
-    END AS INTEGER) AS seconds_per_page
+            CAST(dus.total_time_seconds AS REAL)
+            / (dus.read_percentage * 100.0)
+    END AS INTEGER) AS seconds_per_percent
 FROM documents AS docs
 LEFT JOIN users ON users.id = $user_id
 LEFT JOIN
@@ -233,25 +194,24 @@ SELECT
     docs.words,
 
     CAST(COALESCE(dus.wpm, 0.0) AS INTEGER) AS wpm,
-    COALESCE(dus.page, 0) AS page,
-    COALESCE(dus.pages, 0) AS pages,
-    COALESCE(dus.read_pages, 0) AS read_pages,
+    COALESCE(dus.read_percentage, 0) AS read_percentage,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
     STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
         AS last_read,
-    CASE
-        WHEN dus.percentage > 97.0 THEN 100.0
+    ROUND(CAST(CASE
         WHEN dus.percentage IS NULL THEN 0.0
-        ELSE dus.percentage
-    END AS percentage,
+        WHEN (dus.percentage * 100.0) > 97.0 THEN 100.0
+        ELSE dus.percentage * 100.0
+    END AS REAL), 2) AS percentage,
+
     CASE
         WHEN dus.total_time_seconds IS NULL THEN 0.0
         ELSE
             ROUND(
                 CAST(dus.total_time_seconds AS REAL)
-                / CAST(dus.read_pages AS REAL)
+                / (dus.read_percentage * 100.0)
             )
-    END AS seconds_per_page
+    END AS seconds_per_percent
 FROM documents AS docs
 LEFT JOIN users ON users.id = $user_id
 LEFT JOIN
@@ -298,20 +258,6 @@ WHERE id = $user_id LIMIT 1;
 SELECT * FROM user_streaks
 WHERE user_id = $user_id;
 
--- name: GetUsers :many
-SELECT * FROM users
-WHERE
-    users.id = $user
-    OR ?1 IN (
-        SELECT id
-        FROM users
-        WHERE id = $user
-        AND admin = 1
-    )
-ORDER BY created_at DESC
-LIMIT $limit
-OFFSET $offset;
-
 -- name: GetWPMLeaderboard :many
 SELECT
     user_id,
@@ -328,34 +274,17 @@ ORDER BY wpm DESC;
 SELECT
     CAST(value AS TEXT) AS id,
     CAST((documents.filepath IS NULL) AS BOOLEAN) AS want_file,
-    CAST((IFNULL(documents.synced, false) != true) AS BOOLEAN) AS want_metadata
+    CAST((documents.id IS NULL) AS BOOLEAN) AS want_metadata
 FROM json_each(?1)
 LEFT JOIN documents
 ON value = documents.id
 WHERE (
     documents.id IS NOT NULL
     AND documents.deleted = false
-    AND (
-        documents.synced = false
-        OR documents.filepath IS NULL
-    )
+    AND documents.filepath IS NULL
 )
 OR (documents.id IS NULL)
 OR CAST($document_ids AS TEXT) != CAST($document_ids AS TEXT);
-
--- name: UpdateDocumentDeleted :one
-UPDATE documents
-SET
-  deleted = $deleted
-WHERE id = $id
-RETURNING *;
-
--- name: UpdateDocumentSync :one
-UPDATE documents
-SET
-    synced = $synced
-WHERE id = $id
-RETURNING *;
 
 -- name: UpdateProgress :one
 INSERT OR REPLACE INTO document_progress (

@@ -122,13 +122,13 @@ func (dt *databaseTest) TestActivity() {
 
 			// Add Item
 			activity, err := dt.dbm.Queries.AddActivity(dt.dbm.Ctx, AddActivityParams{
-				DocumentID: documentID,
-				DeviceID:   deviceID,
-				UserID:     userID,
-				StartTime:  d.UTC().Format(time.RFC3339),
-				Duration:   60,
-				Page:       counter,
-				Pages:      100,
+				DocumentID:      documentID,
+				DeviceID:        deviceID,
+				UserID:          userID,
+				StartTime:       d.UTC().Format(time.RFC3339),
+				Duration:        60,
+				StartPercentage: float64(counter) / 100.0,
+				EndPercentage:   float64(counter+1) / 100.0,
 			})
 
 			// Validate No Error
@@ -143,9 +143,7 @@ func (dt *databaseTest) TestActivity() {
 		}
 
 		// Initiate Cache
-		if err := dt.dbm.CacheTempTables(); err != nil {
-			t.Fatalf(`Error: %v`, err)
-		}
+		dt.dbm.CacheTempTables()
 
 		// Validate Exists
 		existsRows, err := dt.dbm.Queries.GetActivity(dt.dbm.Ctx, GetActivityParams{

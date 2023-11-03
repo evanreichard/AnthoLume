@@ -326,9 +326,9 @@
 
 	  <div class="absolute z-30 top-7 right-0 p-3 transition-all duration-200 bg-gray-200 rounded shadow-lg shadow-gray-500 dark:shadow-gray-900 dark:bg-gray-600">
 	    <div class="text-xs flex">
-              <p class="text-gray-400 w-32">Seconds / Page</p>
+              <p class="text-gray-400 w-32">Seconds / Percent</p>
               <p class="font-medium dark:text-white">
-		{{ .Data.SecondsPerPage }}
+		{{ .Data.SecondsPerPercent }}
               </p>
 	    </div>
 	    <div class="text-xs flex">
@@ -352,7 +352,7 @@
       <div>
 	  <p class="text-gray-500">Progress</p>
 	  <p class="font-medium text-lg">
-	    {{ .Data.Page }} / {{ .Data.Pages }} ({{ .Data.Percentage }}%)
+	    {{ .Data.Percentage }}%
 	  </p>
       </div>
       <!--
