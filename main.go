@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"os/signal"
+	"sync"
+	"syscall"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
@@ -22,13 +24,13 @@ func main() {
 	log.SetFormatter(UTCFormatter{&log.TextFormatter{FullTimestamp: true}})
 
 	app := &cli.App{
-		Name:  "Book Bank",
+		Name:  "Book Manager",
 		Usage: "A self hosted e-book progress tracker.",
 		Commands: []*cli.Command{
 			{
 				Name:    "serve",
 				Aliases: []string{"s"},
-				Usage:   "Start Book Bank web server.",
+				Usage:   "Start Book Manager web server.",
 				Action:  cmdServer,
 			},
 		},
@@ -40,17 +42,23 @@ func main() {
 }
 
 func cmdServer(ctx *cli.Context) error {
-	log.Info("Starting Book Bank Server")
+	log.Info("Starting Book Manager Server")
+
+	// Create Channel
+	wg := sync.WaitGroup{}
+	done := make(chan struct{})
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+
+	// Start Server
 	server := server.NewServer()
-	server.StartServer()
+	server.StartServer(&wg, done)
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	<-c
+	// Wait & Close
+	<-interrupt
+	server.StopServer(&wg, done)
 
-	log.Info("Stopping Server")
-	server.StopServer()
-	log.Info("Server Stopped")
+	// Stop Server
 	os.Exit(0)
 
 	return nil

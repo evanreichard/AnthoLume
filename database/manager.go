@@ -56,6 +56,10 @@ func NewMgr(c *config.Config) *DBManager {
 	return dbm
 }
 
+func (dbm *DBManager) Shutdown() error {
+	return dbm.DB.Close()
+}
+
 func (dbm *DBManager) CacheTempTables() error {
 	if _, err := dbm.DB.ExecContext(dbm.Ctx, tsql); err != nil {
 		return err

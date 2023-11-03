@@ -1,5 +1,3 @@
-DELETE FROM activity;
-INSERT INTO activity SELECT * FROM view_rescaled_activity;
 DELETE FROM user_streaks;
 INSERT INTO user_streaks SELECT * FROM view_user_streaks;
 DELETE FROM document_user_statistics;

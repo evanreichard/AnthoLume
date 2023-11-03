@@ -91,16 +91,17 @@ CREATE TABLE IF NOT EXISTS document_progress (
     PRIMARY KEY (user_id, document_id, device_id)
 );
 
--- Raw Read Activity
-CREATE TABLE IF NOT EXISTS raw_activity (
+-- Read Activity
+CREATE TABLE IF NOT EXISTS activity (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL,
     document_id TEXT NOT NULL,
     device_id TEXT NOT NULL,
 
     start_time DATETIME NOT NULL,
-    page INTEGER NOT NULL,
-    pages INTEGER NOT NULL,
+    start_percentage REAL NOT NULL,
+    end_percentage REAL NOT NULL,
+
     duration INTEGER NOT NULL,
     created_at DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now')),
 
@@ -112,19 +113,6 @@ CREATE TABLE IF NOT EXISTS raw_activity (
 ---------------------------------------------------------------
 ----------------------- Temporary Tables ----------------------
 ---------------------------------------------------------------
-
--- Temporary Activity Table (Cached from View)
-CREATE TEMPORARY TABLE IF NOT EXISTS activity (
-    user_id TEXT NOT NULL,
-    document_id TEXT NOT NULL,
-    device_id TEXT NOT NULL,
-
-    created_at DATETIME NOT NULL,
-    start_time DATETIME NOT NULL,
-    page INTEGER NOT NULL,
-    pages INTEGER NOT NULL,
-    duration INTEGER NOT NULL
-);
 
 -- Temporary User Streaks Table (Cached from View)
 CREATE TEMPORARY TABLE IF NOT EXISTS user_streaks (
@@ -144,10 +132,8 @@ CREATE TEMPORARY TABLE IF NOT EXISTS document_user_statistics (
     document_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     last_read TEXT NOT NULL,
-    page INTEGER NOT NULL,
-    pages INTEGER NOT NULL,
     total_time_seconds INTEGER NOT NULL,
-    read_pages INTEGER NOT NULL,
+    read_percentage REAL NOT NULL,
     percentage REAL NOT NULL,
     words_read INTEGER NOT NULL,
     wpm REAL NOT NULL
@@ -158,9 +144,9 @@ CREATE TEMPORARY TABLE IF NOT EXISTS document_user_statistics (
 --------------------------- Indexes ---------------------------
 ---------------------------------------------------------------
 
-CREATE INDEX IF NOT EXISTS temp.activity_start_time ON activity (start_time);
-CREATE INDEX IF NOT EXISTS temp.activity_user_id ON activity (user_id);
-CREATE INDEX IF NOT EXISTS temp.activity_user_id_document_id ON activity (
+CREATE INDEX IF NOT EXISTS activity_start_time ON activity (start_time);
+CREATE INDEX IF NOT EXISTS activity_user_id ON activity (user_id);
+CREATE INDEX IF NOT EXISTS activity_user_id_document_id ON activity (
     user_id,
     document_id
 );
@@ -168,100 +154,6 @@ CREATE INDEX IF NOT EXISTS temp.activity_user_id_document_id ON activity (
 ---------------------------------------------------------------
 ---------------------------- Views ----------------------------
 ---------------------------------------------------------------
-
---------------------------------
-------- Rescaled Activity ------
---------------------------------
-
-CREATE VIEW IF NOT EXISTS view_rescaled_activity AS
-
-WITH RECURSIVE nums (idx) AS (
-    SELECT 1 AS idx
-    UNION ALL
-    SELECT idx + 1
-    FROM nums
-    LIMIT 1000
-),
-
-current_pages AS (
-    SELECT
-        document_id,
-        user_id,
-        pages
-    FROM raw_activity
-    GROUP BY document_id, user_id
-    HAVING MAX(start_time)
-    ORDER BY start_time DESC
-),
-
-intermediate AS (
-    SELECT
-        raw_activity.document_id,
-        raw_activity.device_id,
-        raw_activity.user_id,
-        raw_activity.created_at,
-        raw_activity.start_time,
-        raw_activity.duration,
-        raw_activity.page,
-        current_pages.pages,
-
-        -- Derive first page
-        ((raw_activity.page - 1) * current_pages.pages) / raw_activity.pages
-        + 1 AS first_page,
-
-        -- Derive last page
-        MAX(
-            ((raw_activity.page - 1) * current_pages.pages)
-            / raw_activity.pages
-            + 1,
-            (raw_activity.page * current_pages.pages) / raw_activity.pages
-        ) AS last_page
-
-    FROM raw_activity
-    INNER JOIN current_pages ON
-        current_pages.document_id = raw_activity.document_id
-        AND current_pages.user_id = raw_activity.user_id
-),
-
-num_limit AS (
-    SELECT * FROM nums
-    LIMIT (SELECT MAX(last_page - first_page + 1) FROM intermediate)
-),
-
-rescaled_raw AS (
-    SELECT
-        intermediate.document_id,
-        intermediate.device_id,
-        intermediate.user_id,
-        intermediate.created_at,
-        intermediate.start_time,
-        intermediate.last_page,
-        intermediate.pages,
-        intermediate.first_page + num_limit.idx - 1 AS page,
-        intermediate.duration / (
-            intermediate.last_page - intermediate.first_page + 1.0
-        ) AS duration
-    FROM intermediate
-    LEFT JOIN num_limit ON
-        num_limit.idx <= (intermediate.last_page - intermediate.first_page + 1)
-)
-
-SELECT
-    user_id,
-    document_id,
-    device_id,
-    created_at,
-    start_time,
-    page,
-    pages,
-
-    -- Round up if last page (maintains total duration)
-    CAST(CASE
-        WHEN page = last_page AND duration != CAST(duration AS INTEGER)
-            THEN duration + 1
-        ELSE duration
-    END AS INTEGER) AS duration
-FROM rescaled_raw;
 
 --------------------------------
 --------- User Streaks ---------
@@ -279,7 +171,7 @@ WITH document_windows AS (
             'weekday 0', '-7 day'
         ) AS weekly_read,
         DATE(activity.start_time, users.time_offset) AS daily_read
-    FROM raw_activity AS activity
+    FROM activity
     LEFT JOIN users ON users.id = activity.user_id
     GROUP BY activity.user_id, weekly_read, daily_read
 ),
@@ -387,38 +279,84 @@ LEFT JOIN current_streak ON
 
 CREATE VIEW IF NOT EXISTS view_document_user_statistics AS
 
-WITH true_progress AS (
+WITH intermediate_ga AS (
     SELECT
-        document_id,
+        ga1.id AS row_id,
+        ga1.user_id,
+        ga1.document_id,
+        ga1.duration,
+        ga1.start_time,
+        ga1.start_percentage,
+        ga1.end_percentage,
+
+        -- Find Overlapping Events (Assign Unique ID)
+        (
+            SELECT MIN(id)
+            FROM activity AS ga2
+            WHERE
+                ga1.document_id = ga2.document_id
+                AND ga1.user_id = ga2.user_id
+                AND ga1.start_percentage <= ga2.end_percentage
+                AND ga1.end_percentage >= ga2.start_percentage
+        ) AS group_leader
+    FROM activity AS ga1
+),
+
+grouped_activity AS (
+    SELECT
         user_id,
-        start_time AS last_read,
-        page,
-        pages,
-        SUM(duration) AS total_time_seconds,
+        document_id,
+        MAX(start_time) AS start_time,
+        MIN(start_percentage) AS start_percentage,
+        MAX(end_percentage) AS end_percentage,
+        MAX(end_percentage) - MIN(start_percentage) AS read_percentage,
+        SUM(duration) AS duration
+    FROM intermediate_ga
+    GROUP BY group_leader
+),
 
-        -- Determine Read Pages
-        COUNT(DISTINCT page) AS read_pages,
-
-        -- Derive Percentage of Book
-        ROUND(CAST(page AS REAL) / CAST(pages AS REAL) * 100, 2) AS percentage
-    FROM view_rescaled_activity
-    GROUP BY document_id, user_id
+current_progress AS (
+    SELECT
+        user_id,
+        document_id,
+        COALESCE((
+            SELECT percentage
+            FROM document_progress AS dp
+            WHERE
+                dp.user_id = iga.user_id
+                AND dp.document_id = iga.document_id
+        ), end_percentage) AS percentage
+    FROM intermediate_ga AS iga
+    GROUP BY user_id, document_id
     HAVING MAX(start_time)
 )
+
 SELECT
-    true_progress.*,
-    (CAST(COALESCE(documents.words, 0.0) AS REAL) / pages * read_pages)
+    ga.document_id,
+    ga.user_id,
+    MAX(start_time) AS last_read,
+    SUM(duration) AS total_time_seconds,
+    SUM(read_percentage) AS read_percentage,
+    cp.percentage,
+
+    (CAST(COALESCE(d.words, 0.0) AS REAL) * SUM(read_percentage))
         AS words_read,
-    (CAST(COALESCE(documents.words, 0.0) AS REAL) / pages * read_pages)
-    / (total_time_seconds / 60.0) AS wpm
-FROM true_progress
-INNER JOIN documents ON documents.id = true_progress.document_id
+
+    (CAST(COALESCE(d.words, 0.0) AS REAL) * SUM(read_percentage))
+    / (SUM(duration) / 60.0) AS wpm
+FROM grouped_activity AS ga
+INNER JOIN
+    current_progress AS cp
+    ON ga.user_id = cp.user_id AND ga.document_id = cp.document_id
+INNER JOIN
+    documents AS d
+    ON d.id = ga.document_id
+GROUP BY ga.document_id, ga.user_id
 ORDER BY wpm DESC;
 
 ---------------------------------------------------------------
 ------------------ Populate Temporary Tables ------------------
 ---------------------------------------------------------------
-INSERT INTO activity SELECT * FROM view_rescaled_activity;
 INSERT INTO user_streaks SELECT * FROM view_user_streaks;
 INSERT INTO document_user_statistics SELECT * FROM view_document_user_statistics;
 

@@ -19,6 +19,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"reichard.io/bbank/database"
+	"reichard.io/bbank/metadata"
 )
 
 type activityItem struct {
@@ -263,13 +264,13 @@ func (api *API) addActivities(c *gin.Context) {
 	// Add All Activity
 	for _, item := range rActivity.Activity {
 		if _, err := qtx.AddActivity(api.DB.Ctx, database.AddActivityParams{
-			UserID:     rUser.(string),
-			DocumentID: item.DocumentID,
-			DeviceID:   rActivity.DeviceID,
-			StartTime:  time.Unix(int64(item.StartTime), 0).UTC().Format(time.RFC3339),
-			Duration:   int64(item.Duration),
-			Page:       int64(item.Page),
-			Pages:      int64(item.Pages),
+			UserID:          rUser.(string),
+			DocumentID:      item.DocumentID,
+			DeviceID:        rActivity.DeviceID,
+			StartTime:       time.Unix(int64(item.StartTime), 0).UTC().Format(time.RFC3339),
+			Duration:        int64(item.Duration),
+			StartPercentage: float64(item.Page) / float64(item.Pages),
+			EndPercentage:   float64(item.Page+1) / float64(item.Pages),
 		}); err != nil {
 			log.Error("[addActivities] AddActivity DB Error:", err)
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Activity"})
@@ -283,14 +284,6 @@ func (api *API) addActivities(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Error"})
 		return
 	}
-
-	// Update Temp Tables
-	go func() {
-		log.Info("[addActivities] Caching Temp Tables")
-		if err := api.DB.CacheTempTables(); err != nil {
-			log.Warn("[addActivities] CacheTempTables Failure: ", err)
-		}
-	}()
 
 	c.JSON(http.StatusOK, gin.H{
 		"added": len(rActivity.Activity),
@@ -367,7 +360,7 @@ func (api *API) addDocuments(c *gin.Context) {
 
 	// Upsert Documents
 	for _, doc := range rNewDocs.Documents {
-		doc, err := qtx.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
+		_, err := qtx.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
 			ID:          doc.ID,
 			Title:       api.sanitizeInput(doc.Title),
 			Author:      api.sanitizeInput(doc.Author),
@@ -381,16 +374,6 @@ func (api *API) addDocuments(c *gin.Context) {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Document"})
 			return
 		}
-
-		if _, err = qtx.UpdateDocumentSync(api.DB.Ctx, database.UpdateDocumentSyncParams{
-			ID:     doc.ID,
-			Synced: true,
-		}); err != nil {
-			log.Error("[addDocuments] UpdateDocumentSync DB Error:", err)
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Document"})
-			return
-		}
-
 	}
 
 	// Commit Transaction
@@ -416,7 +399,7 @@ func (api *API) checkDocumentsSync(c *gin.Context) {
 	}
 
 	// Upsert Device
-	device, err := api.DB.Queries.UpsertDevice(api.DB.Ctx, database.UpsertDeviceParams{
+	_, err := api.DB.Queries.UpsertDevice(api.DB.Ctx, database.UpsertDeviceParams{
 		ID:         rCheckDocs.DeviceID,
 		UserID:     rUser.(string),
 		DeviceName: rCheckDocs.Device,
@@ -431,22 +414,20 @@ func (api *API) checkDocumentsSync(c *gin.Context) {
 	missingDocs := []database.Document{}
 	deletedDocIDs := []string{}
 
-	if device.Sync == true {
-		// Get Missing Documents
-		missingDocs, err = api.DB.Queries.GetMissingDocuments(api.DB.Ctx, rCheckDocs.Have)
-		if err != nil {
-			log.Error("[checkDocumentsSync] GetMissingDocuments DB Error", err)
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
-			return
-		}
+	// Get Missing Documents
+	missingDocs, err = api.DB.Queries.GetMissingDocuments(api.DB.Ctx, rCheckDocs.Have)
+	if err != nil {
+		log.Error("[checkDocumentsSync] GetMissingDocuments DB Error", err)
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		return
+	}
 
-		// Get Deleted Documents
-		deletedDocIDs, err = api.DB.Queries.GetDeletedDocuments(api.DB.Ctx, rCheckDocs.Have)
-		if err != nil {
-			log.Error("[checkDocumentsSync] GetDeletedDocuments DB Error", err)
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
-			return
-		}
+	// Get Deleted Documents
+	deletedDocIDs, err = api.DB.Queries.GetDeletedDocuments(api.DB.Ctx, rCheckDocs.Have)
+	if err != nil {
+		log.Error("[checkDocumentsSync] GetDeletedDocuments DB Error", err)
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
+		return
 	}
 
 	// Get Wanted Documents
@@ -576,24 +557,23 @@ func (api *API) uploadExistingDocument(c *gin.Context) {
 		return
 	}
 
+	// Get Word Count
+	wordCount, err := metadata.GetWordCount(safePath)
+	if err != nil {
+		log.Error("[uploadExistingDocument] Word Count Failure:", err)
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "File Error"})
+		return
+	}
+
 	// Upsert Document
 	if _, err = api.DB.Queries.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
 		ID:       document.ID,
 		Md5:      fileHash,
 		Filepath: &fileName,
+		Words:    &wordCount,
 	}); err != nil {
 		log.Error("[uploadExistingDocument] UpsertDocument DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Document Error"})
-		return
-	}
-
-	// Update Document Sync Attribute
-	if _, err = api.DB.Queries.UpdateDocumentSync(api.DB.Ctx, database.UpdateDocumentSyncParams{
-		ID:     document.ID,
-		Synced: true,
-	}); err != nil {
-		log.Error("[uploadExistingDocument] UpdateDocumentSync DB Error:", err)
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Document"})
 		return
 	}
 
