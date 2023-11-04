@@ -70,14 +70,14 @@ const PRECACHE_ASSETS = [
   "/manifest.json",
   "/assets/index.js",
   "/assets/style.css",
+  "/assets/common.js",
 
   // Library Assets
-  "/assets/lib/platform.js",
+  "/assets/lib/platform.min.js",
   "/assets/lib/jszip.min.js",
   "/assets/lib/epub.min.js",
-  "/assets/lib/no-sleep.js",
-  "/assets/lib/idb-keyval.js",
-  "/assets/lib/sw-helper.js",
+  "/assets/lib/no-sleep.min.js",
+  "/assets/lib/idb-keyval.min.js",
 ];
 
 // ------------------------------------------------------- //

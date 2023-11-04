@@ -15,8 +15,8 @@
     <link rel="stylesheet" href="/assets/style.css">
 
     <!-- Service Worker / Offline Cache Flush -->
-    <script src="/assets/lib/idb-keyval.js"></script>
-    <script src="/assets/lib/sw-helper.js"></script>
+    <script src="/assets/lib/idb-keyval.min.js"></script>
+    <script src="/assets/common.js"></script>
     <script src="/assets/index.js"></script>
 
     <style>
@@ -235,9 +235,7 @@
 	</div>
       </div>
       <h1 class="text-xl font-bold dark:text-white px-6 lg:ml-44">{{block "header" .}}{{end}}</h1>
-      <div
-	class="relative flex items-center justify-end w-full p-4 space-x-4"
-      >
+      <div class="relative flex items-center justify-end w-full p-4 space-x-4">
 	<a href="#" class="relative block">
 	  <svg
 	    width="20"
@@ -309,9 +307,7 @@
       </div>
     </div>
 
-    <main
-      class="relative overflow-hidden"
-    >
+    <main class="relative overflow-hidden">
       <div id="container" class="h-[100dvh] px-4 overflow-auto md:px-6 lg:ml-48">
         {{block "content" .}}{{end}}
       </div>

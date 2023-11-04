@@ -1,3 +1,6 @@
+/**
+ * Custom Service Worker Convenience Functions Wrapper
+ **/
 const SW = (function () {
   // Helper Function
   function randomID() {
@@ -62,4 +65,58 @@ const SW = (function () {
   }
 
   return { install, send };
+})();
+
+/**
+ * Custom IndexedDB Convenience Functions Wrapper
+ **/
+const IDB = (function () {
+  if (!idbKeyval)
+    return console.error(
+      "[IDB] idbKeyval not found - Did you load idb-keyval?"
+    );
+
+  let { get, del, entries, update, keys } = idbKeyval;
+
+  return {
+    async set(key, newValue) {
+      let changeObj = {};
+      await update(key, (oldValue) => {
+        if (oldValue != null) changeObj.oldValue = oldValue;
+        changeObj.newValue = newValue;
+        return newValue;
+      });
+      return changeObj;
+    },
+
+    get(key, defaultValue) {
+      return get(key).then((resp) => {
+        return defaultValue && resp == null ? defaultValue : resp;
+      });
+    },
+
+    del(key) {
+      return del(key);
+    },
+
+    find(keyRegExp, includeValues = false) {
+      if (!(keyRegExp instanceof RegExp)) throw new Error("Invalid RegExp");
+
+      if (!includeValues)
+        return keys().then((allKeys) =>
+          allKeys.filter((key) => keyRegExp.test(key))
+        );
+
+      return entries().then((allItems) => {
+        const matchingKeys = allItems.filter((keyVal) =>
+          keyRegExp.test(keyVal[0])
+        );
+        return matchingKeys.reduce((obj, keyVal) => {
+          const [key, val] = keyVal;
+          obj[key] = val;
+          return obj;
+        }, {});
+      });
+    },
+  };
 })();
