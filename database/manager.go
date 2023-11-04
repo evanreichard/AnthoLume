@@ -23,6 +23,9 @@ var ddl string
 //go:embed update_temp_tables.sql
 var tsql string
 
+//go:embed update_document_user_statistics.sql
+var doc_user_stat_sql string
+
 func NewMgr(c *config.Config) *DBManager {
 	// Create Manager
 	dbm := &DBManager{
@@ -58,6 +61,21 @@ func NewMgr(c *config.Config) *DBManager {
 
 func (dbm *DBManager) Shutdown() error {
 	return dbm.DB.Close()
+}
+
+func (dbm *DBManager) UpdateDocumentUserStatistic(documentID string, userID string) error {
+	// Prepare Statement
+	stmt, err := dbm.DB.PrepareContext(dbm.Ctx, doc_user_stat_sql)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	// Execute
+	if _, err := stmt.ExecContext(dbm.Ctx, documentID, userID); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (dbm *DBManager) CacheTempTables() error {

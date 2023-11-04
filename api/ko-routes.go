@@ -169,6 +169,13 @@ func (api *API) setProgress(c *gin.Context) {
 		return
 	}
 
+	// Update Statistic
+	log.Info("[setProgress] UpdateDocumentUserStatistic Running...")
+	if err := api.DB.UpdateDocumentUserStatistic(rPosition.DocumentID, rUser.(string)); err != nil {
+		log.Error("[setProgress] UpdateDocumentUserStatistic Error:", err)
+	}
+	log.Info("[setProgress] UpdateDocumentUserStatistic Complete")
+
 	c.JSON(http.StatusOK, gin.H{
 		"document":  progress.DocumentID,
 		"timestamp": progress.CreatedAt,
@@ -283,6 +290,15 @@ func (api *API) addActivities(c *gin.Context) {
 		log.Error("[addActivities] Transaction Commit DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Error"})
 		return
+	}
+
+	// Update Statistic
+	for _, doc := range allDocuments {
+		log.Info("[addActivities] UpdateDocumentUserStatistic Running...")
+		if err := api.DB.UpdateDocumentUserStatistic(doc, rUser.(string)); err != nil {
+			log.Error("[addActivities] UpdateDocumentUserStatistic Error:", err)
+		}
+		log.Info("[addActivities] UpdateDocumentUserStatistic Complete")
 	}
 
 	c.JSON(http.StatusOK, gin.H{

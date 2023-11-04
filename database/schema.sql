@@ -136,7 +136,9 @@ CREATE TEMPORARY TABLE IF NOT EXISTS document_user_statistics (
     read_percentage REAL NOT NULL,
     percentage REAL NOT NULL,
     words_read INTEGER NOT NULL,
-    wpm REAL NOT NULL
+    wpm REAL NOT NULL,
+
+    UNIQUE(document_id, user_id) ON CONFLICT REPLACE
 );
 
 
@@ -325,6 +327,8 @@ current_progress AS (
             WHERE
                 dp.user_id = iga.user_id
                 AND dp.document_id = iga.document_id
+	    ORDER BY created_at DESC
+	    LIMIT 1
         ), end_percentage) AS percentage
     FROM intermediate_ga AS iga
     GROUP BY user_id, document_id
