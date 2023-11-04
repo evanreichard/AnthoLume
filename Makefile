@@ -29,7 +29,7 @@ docker_build_release_latest: build_tailwind
 		--push .
 
 build_tailwind:
-	tailwind build -o ./assets/style.css
+	tailwind build -o ./assets/style.css --minify
 
 
 clean:
