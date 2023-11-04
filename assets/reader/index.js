@@ -120,26 +120,20 @@ class EBookReader {
     // Load Progress
     let { cfi } = await this.getCFIFromXPath(this.bookState.progress);
 
-    let getStats = async function () {
-      // Start Timer
-      this.bookState.pageStart = Date.now();
-
-      // Get Stats
-      let stats = await this.getBookStats();
-      this.updateBookStatElements(stats);
-    }.bind(this);
-
-    // Register Content Hook
-    this.rendition.hooks.content.register(getStats);
-
     // Update Position
     await this.setPosition(cfi);
 
     // Highlight Element - DOM Has Element
     let { element } = await this.getCFIFromXPath(this.bookState.progress);
 
+    // Set Progress Element & Highlight
     this.bookState.progressElement = element;
     this.highlightPositionMarker();
+
+    // Update Stats & Page Start
+    let stats = await this.getBookStats();
+    this.updateBookStatElements(stats);
+    this.bookState.pageStart = Date.now();
   }
 
   initDevice() {
