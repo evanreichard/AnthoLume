@@ -73,7 +73,6 @@ function populateMetadata(data) {
  **/
 class EBookReader {
   bookState = {
-    currentWord: 0,
     pages: 0,
     percentage: 0,
     progress: "",
@@ -115,22 +114,18 @@ class EBookReader {
    * Load progress and generate locations
    **/
   async setupReader() {
-    // Get Word Count (If Needed)
-    if (this.bookState.words == 0)
-      this.bookState.words = await this.countWords();
+    // Get Word Count
+    this.bookState.words = await this.countWords();
 
     // Load Progress
     let { cfi } = await this.getCFIFromXPath(this.bookState.progress);
-    this.bookState.currentWord = cfi
-      ? this.bookState.percentage * (this.bookState.words / 100)
-      : 0;
 
-    let getStats = function () {
+    let getStats = async function () {
       // Start Timer
       this.bookState.pageStart = Date.now();
 
       // Get Stats
-      let stats = this.getBookStats();
+      let stats = await this.getBookStats();
       this.updateBookStatElements(stats);
     }.bind(this);
 
@@ -660,7 +655,7 @@ class EBookReader {
     this.bookState.pageStart = Date.now();
 
     // Update Stats
-    let stats = this.getBookStats();
+    let stats = await this.getBookStats();
     this.updateBookStatElements(stats);
 
     // Create Progress
@@ -674,16 +669,11 @@ class EBookReader {
     // Render Previous Page
     await this.rendition.prev();
 
-    // Update Current Word
-    let pageWords = await this.getVisibleWordCount();
-    this.bookState.currentWord -= pageWords;
-    if (this.bookState.currentWord < 0) this.bookState.currentWord = 0;
-
     // Reset Read Timer
     this.bookState.pageStart = Date.now();
 
     // Update Stats
-    let stats = this.getBookStats();
+    let stats = await this.getBookStats();
     this.updateBookStatElements(stats);
 
     // Create Progress
@@ -719,9 +709,8 @@ class EBookReader {
 
     // Update Current Word
     let pageWords = await this.getVisibleWordCount();
-    let startingWord = this.bookState.currentWord;
+    let currentWord = await this.getBookWordPosition();
     let percentRead = pageWords / this.bookState.words;
-    this.bookState.currentWord += pageWords;
 
     let pageWPM = pageWords / (elapsedTime / 60000);
     console.log("[createActivity] Page WPM:", pageWPM);
@@ -740,10 +729,10 @@ class EBookReader {
 
     // Exclude 0 Pages
     if (totalPages == 0)
-      return console.log("[createActivity] Invalid Total Pages (0)");
+      return console.warn("[createActivity] Invalid Total Pages (0)");
 
     let currentPage = Math.round(
-      (startingWord * totalPages) / this.bookState.words
+      (currentWord * totalPages) / this.bookState.words
     );
 
     // Create Activity Event
@@ -805,6 +794,8 @@ class EBookReader {
     // Update Pointers
     let currentCFI = await this.rendition.currentLocation();
     let { element, xpath } = await this.getXPathFromCFI(currentCFI.start.cfi);
+    let currentWord = await this.getBookWordPosition();
+    console.log("[createProgress] Current Word:", currentWord);
     this.bookState.progress = xpath;
     this.bookState.progressElement = element;
 
@@ -814,9 +805,7 @@ class EBookReader {
       device_id: this.readerSettings.deviceID,
       device: this.readerSettings.deviceName,
       percentage:
-        Math.round(
-          (this.bookState.currentWord / this.bookState.words) * 100000
-        ) / 100000,
+        Math.round((currentWord / this.bookState.words) * 100000) / 100000,
       progress: this.bookState.progress,
     };
 
@@ -885,12 +874,13 @@ class EBookReader {
   /**
    * Get chapter pages, name and progress percentage
    **/
-  getBookStats() {
+  async getBookStats() {
     let currentProgress = this.sectionProgress();
     if (!currentProgress) return;
     let { sectionPages, sectionCurrentPage } = currentProgress;
 
     let currentLocation = this.rendition.currentLocation();
+    let currentWord = await this.getBookWordPosition();
 
     let currentTOC = this.book.navigation.toc.find(
       (item) => item.href == currentLocation.start.href
@@ -901,9 +891,7 @@ class EBookReader {
       sectionTotalPages: sectionPages,
       chapterName: currentTOC ? currentTOC.label.trim() : "N/A",
       percentage:
-        Math.round(
-          (this.bookState.currentWord / this.bookState.words) * 10000
-        ) / 100,
+        Math.round((currentWord / this.bookState.words) * 10000) / 100,
     };
   }
 
@@ -1076,6 +1064,43 @@ class EBookReader {
    * Get visible word count - used for reading stats
    **/
   async getVisibleWordCount() {
+    let visibleText = await this.getVisibleText();
+    return visibleText.trim().split(/\s+/).length;
+  }
+
+  /**
+   * Gets the word number of the whole book for the first visible word.
+   **/
+  async getBookWordPosition() {
+    // Get Contents & Spine
+    let contents = this.rendition.getContents()[0];
+    let spineItem = this.book.spine.get(contents.sectionIndex);
+
+    // Get CFI Range
+    let firstCFI = spineItem.cfiFromElement(
+      spineItem.document.body.children[0]
+    );
+    let currentLocation = await this.rendition.currentLocation();
+    let cfiRange = this.getCFIRange(firstCFI, currentLocation.start.cfi);
+
+    // Get Chapter Text (Before Current Position)
+    let textRange = await this.book.getRange(cfiRange);
+    let chapterText = textRange.toString();
+
+    // Get Chapter & Book Positions
+    let chapterWordPosition = chapterText.trim().split(/\s+/).length;
+    let preChapterWordPosition = this.book.spine.spineItems
+      .slice(0, contents.sectionIndex)
+      .reduce((totalCount, item) => totalCount + item.wordCount, 0);
+
+    // Return Current Word Pointer
+    return chapterWordPosition + preChapterWordPosition;
+  }
+
+  /**
+   * Get visible text - used for word counts
+   **/
+  async getVisibleText() {
     // Force Expand & Resize (Race Condition Issue)
     this.rendition.manager.visible().forEach((item) => item.expand());
 
@@ -1092,7 +1117,7 @@ class EBookReader {
     let visibleText = textRange.toString();
 
     // Split on Whitespace
-    return visibleText.trim().split(/\s+/).length;
+    return visibleText;
   }
 
   /**
@@ -1147,14 +1172,17 @@ class EBookReader {
    * of progress percentage. Implementation returns the same number as the
    * server side implementation.
    **/
-  countWords() {
-    // Iterate over each item in the spine, render, and count words.
-    return this.book.spine.spineItems.reduce(async (totalCount, item) => {
-      let currentCount = await totalCount;
-      let newDoc = await item.load(this.book.load.bind(this.book));
-      let itemCount = newDoc.innerText.trim().split(/\s+/).length;
-      return currentCount + itemCount;
-    }, 0);
+  async countWords() {
+    let spineWC = await Promise.all(
+      this.book.spine.spineItems.map(async (item) => {
+        let newDoc = await item.load(this.book.load.bind(this.book));
+        let spineWords = newDoc.innerText.trim().split(/\s+/).length;
+        item.wordCount = spineWords;
+        return spineWords;
+      })
+    );
+
+    return spineWC.reduce((totalCount, itemCount) => totalCount + itemCount, 0);
   }
 
   /**
