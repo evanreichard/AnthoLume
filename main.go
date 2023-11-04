@@ -24,13 +24,13 @@ func main() {
 	log.SetFormatter(UTCFormatter{&log.TextFormatter{FullTimestamp: true}})
 
 	app := &cli.App{
-		Name:  "Book Manager",
+		Name:  "AnthoLume",
 		Usage: "A self hosted e-book progress tracker.",
 		Commands: []*cli.Command{
 			{
 				Name:    "serve",
 				Aliases: []string{"s"},
-				Usage:   "Start Book Manager web server.",
+				Usage:   "Start AnthoLume web server.",
 				Action:  cmdServer,
 			},
 		},
@@ -42,7 +42,7 @@ func main() {
 }
 
 func cmdServer(ctx *cli.Context) error {
-	log.Info("Starting Book Manager Server")
+	log.Info("Starting AnthoLume Server")
 
 	// Create Channel
 	wg := sync.WaitGroup{}

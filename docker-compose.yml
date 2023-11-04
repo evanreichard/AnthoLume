@@ -1,6 +1,6 @@
 ---
 services:
-  bookmanager:
+  antholume:
     environment:
       - CONFIG_PATH=/data
       - DATA_PATH=/data

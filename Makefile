@@ -11,20 +11,20 @@ build_local: build_tailwind
 	env GOOS=darwin GOARCH=amd64 go build -o ./build/server_darwin_amd64
 
 docker_build_local: build_tailwind
-	docker build -t bookmanager:latest .
+	docker build -t antholume:latest .
 
 docker_build_release_dev: build_tailwind
 	docker buildx build \
 		--platform linux/amd64,linux/arm64 \
-		-t gitea.va.reichard.io/evan/bookmanager:dev \
+		-t gitea.va.reichard.io/evan/antholume:dev \
 		-f Dockerfile-BuildKit \
 		--push .
 
 docker_build_release_latest: build_tailwind
 	docker buildx build \
 		--platform linux/amd64,linux/arm64 \
-		-t gitea.va.reichard.io/evan/bookmanager:latest \
-		-t gitea.va.reichard.io/evan/bookmanager:`git describe --tags` \
+		-t gitea.va.reichard.io/evan/antholume:latest \
+		-t gitea.va.reichard.io/evan/antholume:`git describe --tags` \
 		-f Dockerfile-BuildKit \
 		--push .
 

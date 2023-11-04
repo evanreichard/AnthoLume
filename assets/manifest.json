@@ -1,6 +1,6 @@
 {
-  "short_name": "Book Manager",
-  "name": "Book Manager",
+  "short_name": "AnthoLume",
+  "name": "AnthoLume",
   "theme_color": "#1F2937",
   "display": "standalone",
   "scope": "/",

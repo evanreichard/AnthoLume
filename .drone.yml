@@ -24,7 +24,7 @@ steps:
   - name: publish_docker
     image: plugins/docker
     settings:
-      repo: gitea.va.reichard.io/evan/bookmanager
+      repo: gitea.va.reichard.io/evan/antholume
       registry: gitea.va.reichard.io
       tags:
         - dev

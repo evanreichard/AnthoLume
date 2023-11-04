@@ -33,7 +33,7 @@ func Load() *Config {
 	return &Config{
 		Version:             "0.0.2",
 		DBType:              trimLowerString(getEnv("DATABASE_TYPE", "SQLite")),
-		DBName:              trimLowerString(getEnv("DATABASE_NAME", "book_manager")),
+		DBName:              trimLowerString(getEnv("DATABASE_NAME", "antholume")),
 		ConfigPath:          getEnv("CONFIG_PATH", "/config"),
 		DataPath:            getEnv("DATA_PATH", "/data"),
 		ListenPort:          getEnv("LISTEN_PORT", "8585"),

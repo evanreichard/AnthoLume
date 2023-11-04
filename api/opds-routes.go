@@ -91,7 +91,7 @@ func (api *API) opdsDocuments(c *gin.Context) {
 		// TODO
 		// Links: []opds.Link{
 		// 	{
-		// 		Title:    "Search Book Manager",
+		// 		Title:    "Search AnthoLume",
 		// 		Rel:      "search",
 		// 		TypeLink: "application/opensearchdescription+xml",
 		// 		Href:     "search.xml",
@@ -105,8 +105,8 @@ func (api *API) opdsDocuments(c *gin.Context) {
 
 func (api *API) opdsSearchDescription(c *gin.Context) {
 	rawXML := `<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
-		       <ShortName>Search Book Manager</ShortName>
-		       <Description>Search Book Manager</Description>
+		       <ShortName>Search AnthoLume</ShortName>
+		       <Description>Search AnthoLume</Description>
 		       <Url type="application/atom+xml;profile=opds-catalog;kind=acquisition" template="./search?query={searchTerms}"/>
 		   </OpenSearchDescription>`
 	c.Data(http.StatusOK, "application/xml", []byte(rawXML))
