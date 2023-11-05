@@ -1,9 +1,4 @@
-<h1 align="center">AnthoLume</h1>
-<p align="center">Track and Illuminate Your Reading Journey</p>
-
-<p align="center">
-    <a href="https://gitea.va.reichard.io/evan/AnthoLume/src/branch/master/screenshots/web/README.md">Web App</a> - <a href="https://gitea.va.reichard.io/evan/AnthoLume/src/branch/master/screenshots/pwa/README.md">PWA</a>
-</p>
+<p><img align="center" src="https://gitea.va.reichard.io/evan/AnthoLume/raw/branch/master/banner.png"></p>
 
 <p align="center">
     <a href="https://gitea.va.reichard.io/evan/AnthoLume/raw/branch/master/screenshots/pwa/login.png">
@@ -23,8 +18,11 @@
     </a>
 </p>
 
-<p align="center"><strong><a href="https://antholume-demo.cloud.reichard.io/">Demo Server</a></strong></p>
-<p align="center"><strong>user:</strong> demo <strong>pass:</strong> demo</p>
+<p align="center">
+    <strong><a href="https://gitea.va.reichard.io/evan/AnthoLume/src/branch/master/screenshots">Screenshots</a></strong> • 
+    <strong><a href="https://antholume-demo.cloud.reichard.io/">Demo Server</a></strong>
+</p>
+<p align="center"><strong>user:</strong> demo • <strong>pass:</strong> demo</p>
 
 <p align="center">
     <a href="https://drone.va.reichard.io/evan/AnthoLume" target="_blank">

@@ -127,16 +127,16 @@
   <body class="bg-gray-100 dark:bg-gray-800">
     <div class="flex items-center justify-between w-full h-16">
       <div id="mobile-nav-button" class="flex flex-col z-40 relative ml-6">
-	<input type="checkbox" class="absolute lg:hidden z-50 -top-2 w-7 h-7 flex cursor-pointer opacity-0 w-12 h-12" />
+	<input type="checkbox" class="absolute lg:hidden z-50 -top-2 w-7 h-7 flex cursor-pointer opacity-0" />
 	<span class="lg:hidden bg-black w-7 h-0.5 z-40 mt-0.5 dark:bg-white"></span>
 	<span class="lg:hidden bg-black w-7 h-0.5 z-40 mt-1 dark:bg-white"></span>
 	<span class="lg:hidden bg-black w-7 h-0.5 z-40 mt-1 dark:bg-white"></span>
 
 	<div id="menu" class="fixed -ml-6 h-full w-56 lg:w-48 bg-white dark:bg-gray-700 shadow-lg">
-	  <div class="h-16 flex justify-end lg:justify-around">
-	    <p class="text-xl font-bold dark:text-white text-right my-auto pr-4 lg:pr-0">AnthoLume</p>
+          <div class="h-16 flex justify-end lg:justify-around">
+            <p class="text-xl font-bold dark:text-white text-right my-auto pr-8 lg:pr-0">AnthoLume</p>
 	  </div>
-	  <div class="mt-6">
+	  <div>
 	    <a
 	      class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "home"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
 	      href="/"

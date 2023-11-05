@@ -63,6 +63,7 @@ const PRECACHE_ASSETS = [
   "/reader",
   "/assets/local/index.js",
   "/assets/reader/index.js",
+  "/assets/icons/icon512.png",
   "/assets/images/no-cover.jpg",
   "/assets/reader/readerThemes.css",
 
