@@ -55,15 +55,30 @@ func (api *API) opdsDocuments(c *gin.Context) {
 			splitFilepath := strings.Split(*doc.Filepath, ".")
 			fileType := splitFilepath[len(splitFilepath)-1]
 
+			title := "N/A"
+			if doc.Title != nil {
+				title = *doc.Title
+			}
+
+			author := "N/A"
+			if doc.Author != nil {
+				author = *doc.Author
+			}
+
+			description := "N/A"
+			if doc.Description != nil {
+				description = *doc.Description
+			}
+
 			item := opds.Entry{
-				Title: fmt.Sprintf("[%3d%%] %s", int(doc.Percentage), *doc.Title),
+				Title: fmt.Sprintf("[%3d%%] %s", int(doc.Percentage), title),
 				Author: []opds.Author{
 					{
-						Name: *doc.Author,
+						Name: author,
 					},
 				},
 				Content: &opds.Content{
-					Content:     *doc.Description,
+					Content:     description,
 					ContentType: "text",
 				},
 				Links: []opds.Link{
