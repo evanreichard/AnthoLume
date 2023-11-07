@@ -101,9 +101,6 @@ func getSVGBezierOpposedLine(pointA SVGGraphPoint, pointB SVGGraphPoint) SVGBezi
 		Length: int(math.Sqrt(math.Pow(lengthX, 2) + math.Pow(lengthY, 2))),
 		Angle:  int(math.Atan2(lengthY, lengthX)),
 	}
-
-	// length = Math.sqrt(Math.pow(lengthX, 2) + Math.pow(lengthY, 2)),
-	// angle = Math.atan2(lengthY, lengthX)
 }
 
 func getSVGBezierControlPoint(currentPoint *SVGGraphPoint, prevPoint *SVGGraphPoint, nextPoint *SVGGraphPoint, isReverse bool) SVGGraphPoint {

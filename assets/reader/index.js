@@ -910,7 +910,7 @@ class EBookReader {
    * Get XPath from current location
    **/
   async getXPathFromCFI(cfi) {
-    // Get DocFragment (current book spline index)
+    // Get DocFragment (Spine Index)
     let startCFI = cfi.replace("epubcfi(", "");
     let docFragmentIndex =
       this.book.spine.spineItems.find((item) =>
@@ -918,58 +918,62 @@ class EBookReader {
       ).index + 1;
 
     // Base Progress
-    let newPos = "/body/DocFragment[" + docFragmentIndex + "]/body";
+    let basePos = "/body/DocFragment[" + docFragmentIndex + "]/body";
 
-    // Get first visible node
+    // Get First Node & Element Reference
     let contents = this.rendition.getContents()[0];
-    let node = contents.range(cfi).startContainer;
-    let element = null;
+    let currentNode = contents.range(cfi).startContainer;
+    let element =
+      currentNode.nodeType == Node.ELEMENT_NODE
+        ? currentNode
+        : currentNode.parentElement;
 
-    // Walk upwards and build progress until body
-    let childPos = "";
-    while (node.nodeName != "BODY") {
-      let ownValue;
+    // XPath Reference
+    let allPos = "";
 
-      switch (node.nodeType) {
-        case Node.ELEMENT_NODE:
-          // Store First Element Node
-          if (!element) element = node;
-          let relativeIndex =
-            Array.from(node.parentNode.children)
-              .filter((item) => item.nodeName == node.nodeName)
-              .indexOf(node) + 1;
+    // Walk Upwards
+    while (currentNode.nodeName != "BODY") {
+      // Get Parent
+      let parentElement = currentNode.parentElement;
 
-          ownValue = node.nodeName.toLowerCase() + "[" + relativeIndex + "]";
-          break;
-        case Node.ATTRIBUTE_NODE:
-          ownValue = "@" + node.nodeName;
-          break;
-        case Node.TEXT_NODE:
-        case Node.CDATA_SECTION_NODE:
-          ownValue = "text()";
-          break;
-        case Node.PROCESSING_INSTRUCTION_NODE:
-          ownValue = "processing-instruction()";
-          break;
-        case Node.COMMENT_NODE:
-          ownValue = "comment()";
-          break;
-        case Node.DOCUMENT_NODE:
-          ownValue = "";
-          break;
-        default:
-          ownValue = "";
-          break;
+      // Unknown Node -> Update Reference
+      if (currentNode.nodeType != Node.ELEMENT_NODE) {
+        console.log("[getXPathFromCFI] Unknown Node Type:", currentNode);
+        currentNode = parentElement;
+        continue;
       }
 
-      // Prepend childPos & Update node reference
-      childPos = "/" + ownValue + childPos;
-      node = node.parentNode;
+      /**
+       * Exclude A tags. This could potentially be all inline elements:
+       * https://github.com/koreader/crengine/blob/master/cr3gui/data/epub.css#L149
+       **/
+      while (parentElement.nodeName == "A") {
+        parentElement = parentElement.parentElement;
+      }
+
+      /**
+       * Note: This is depth / document order first, which means that this
+       * _could_ return incorrect results when dealing with nested "A" tags
+       * (dependent on how KOReader deals with nested "A" tags)
+       **/
+      let allDescendents = parentElement.querySelectorAll(currentNode.nodeName);
+      let relativeIndex = Array.from(allDescendents).indexOf(currentNode) + 1;
+
+      // Get Node Position
+      let nodePos =
+        currentNode.nodeName.toLowerCase() + "[" + relativeIndex + "]";
+
+      // Update Reference
+      currentNode = parentElement;
+
+      // Update Position
+      allPos = "/" + nodePos + allPos;
     }
 
-    let xpath = newPos + childPos;
+    // Combine XPath
+    let xpath = basePos + allPos;
 
-    // Return derived progress
+    // Return Derived Progress
     return { xpath, element };
   }
 
@@ -977,19 +981,13 @@ class EBookReader {
    * Get CFI from current location
    **/
   async getCFIFromXPath(xpath) {
-    // XPath Reference - Example: /body/DocFragment[15]/body/div[10]/text().184
-    //
-    //     - /body/DocFragment[15] = 15th item in book spline
-    //     - [...]/body/div[10] = 10th child div under body (direct descendents only)
-    //     - [...]/text().184 = text node of parent, character offset @ 184 chars?
-
     // No XPath
     if (!xpath || xpath == "") return {};
 
     // Match Document Fragment Index
     let fragMatch = xpath.match(/^\/body\/DocFragment\[(\d+)\]/);
     if (!fragMatch) {
-      console.warn("No XPath Match");
+      console.warn("[getCFIFromXPath] No XPath Match");
       return {};
     }
 
@@ -1031,10 +1029,25 @@ class EBookReader {
       // Remove potential trailing `text()`
       .replace(/\/text\(\)(\[\d+\])?$/, "");
 
-    // XPath to CSS Selector
-    let derivedSelector = remainingXPath
+    // XPath to Element
+    let derivedSelectorElement = remainingXPath
       .replace(/^\/html\/body/, "body")
-      .replace(/\/(\w+)\[(\d+)\]/g, " $1:nth-of-type($2)");
+      .split("/")
+      .reduce((el, item) => {
+        // No Match
+        if (!el) return null;
+
+        // Non Index
+        let indexMatch = item.match(/(\w+)\[(\d+)\]$/);
+        if (!indexMatch) return el.querySelector(item);
+
+        // Get @ Index
+        let tag = indexMatch[1];
+        let index = parseInt(indexMatch[2]) - 1;
+        return el.querySelectorAll(tag)[index];
+      }, docItem);
+
+    console.log("[getCFIFromXPath] Selector Element:", derivedSelectorElement);
 
     // Validate Namespace
     if (namespaceURI) remainingXPath = remainingXPath.replaceAll("/", "/ns:");
@@ -1070,9 +1083,7 @@ class EBookReader {
      **/
 
     // Get Element & CFI (XPath -> CSS Selector Fallback)
-    let element =
-      docSearch.iterateNext() || docItem.querySelector(derivedSelector);
-
+    let element = docSearch.iterateNext() || derivedSelectorElement;
     let cfi = sectionItem.cfiFromElement(element);
 
     return { cfi, element };
