@@ -853,8 +853,8 @@ function SyncNinja:getLocalDocumentMetadata()
                 docsettings:saveSetting("partial_md5_checksum", pmd5)
             end
 
-            -- Get Document Props
-            local doc_props = docsettings:readSetting("doc_props")
+            -- Get Document Props & Ensure Not Nil
+            local doc_props = docsettings:readSetting("doc_props") or {}
             local fdoc = bookinfo_books[v.file] or {}
 
             -- Update or Create
