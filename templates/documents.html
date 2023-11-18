@@ -147,6 +147,16 @@
   {{end}}
 </div>
 
+<div class="w-full flex gap-4 justify-center mt-4 text-black dark:text-white">
+  {{ if .PreviousPage }}
+  <a href="./documents?page={{ .PreviousPage }}&limit={{ .PageLimit }}" class="bg-white shadow-lg dark:bg-gray-600 hover:bg-gray-400 font-medium rounded text-sm text-center p-2 w-24 dark:hover:bg-gray-700 focus:outline-none">◄</a>
+  {{ end }}
+
+  {{ if .NextPage }}
+  <a href="./documents?page={{ .NextPage }}&limit={{ .PageLimit }}" class="bg-white shadow-lg dark:bg-gray-600 hover:bg-gray-400 font-medium rounded text-sm text-center p-2 w-24 dark:hover:bg-gray-700 focus:outline-none">►</a>
+  {{ end }}
+</div>
+
 <div class="fixed bottom-6 right-6 rounded-full flex items-center justify-center">
   <input type="checkbox" id="upload-file-button" class="hidden css-button"/>
   <div class="rounded p-4 bg-gray-800 dark:bg-gray-200 text-white dark:text-black w-72 text-sm flex flex-col gap-2">

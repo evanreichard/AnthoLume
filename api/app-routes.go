@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -130,10 +131,30 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 				return
 			}
 
+			length, err := api.DB.Queries.GetDocumentsSize(api.DB.Ctx, query)
+			if err != nil {
+				log.Error("[createAppResourcesRoute] GetDocumentsSize DB Error:", err)
+				errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsSize DB Error: %v", err))
+				return
+			}
+
 			if err = api.getDocumentsWordCount(documents); err != nil {
 				log.Error("[createAppResourcesRoute] Unable to Get Word Counts: ", err)
 			}
 
+			totalPages := int64(math.Ceil(float64(length) / float64(*qParams.Limit)))
+			nextPage := *qParams.Page + 1
+			previousPage := *qParams.Page - 1
+
+			if nextPage <= totalPages {
+				templateVars["NextPage"] = nextPage
+			}
+
+			if previousPage >= 0 {
+				templateVars["PreviousPage"] = previousPage
+			}
+
+			templateVars["PageLimit"] = *qParams.Limit
 			templateVars["Data"] = documents
 		} else if routeName == "document" {
 			var rDocID requestDocumentID
@@ -983,7 +1004,7 @@ func bindQueryParams(c *gin.Context) queryParams {
 	c.BindQuery(&qParams)
 
 	if qParams.Limit == nil {
-		var defaultValue int64 = 50
+		var defaultValue int64 = 9
 		qParams.Limit = &defaultValue
 	} else if *qParams.Limit < 0 {
 		var zeroValue int64 = 0
@@ -991,7 +1012,7 @@ func bindQueryParams(c *gin.Context) queryParams {
 	}
 
 	if qParams.Page == nil || *qParams.Page < 1 {
-		var oneValue int64 = 0
+		var oneValue int64 = 1
 		qParams.Page = &oneValue
 	}
 

@@ -596,6 +596,24 @@ func (q *Queries) GetDocuments(ctx context.Context, arg GetDocumentsParams) ([]D
 	return items, nil
 }
 
+const getDocumentsSize = `-- name: GetDocumentsSize :one
+SELECT
+    COUNT(rowid) AS length
+FROM documents AS docs
+WHERE ?1 IS NULL OR (
+    docs.title LIKE ?1 OR
+    docs.author LIKE ?1
+)
+LIMIT 1
+`
+
+func (q *Queries) GetDocumentsSize(ctx context.Context, query interface{}) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getDocumentsSize, query)
+	var length int64
+	err := row.Scan(&length)
+	return length, err
+}
+
 const getDocumentsWithStats = `-- name: GetDocumentsWithStats :many
 SELECT
     docs.id,

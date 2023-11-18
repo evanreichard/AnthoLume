@@ -182,6 +182,16 @@ ORDER BY created_at DESC
 LIMIT $limit
 OFFSET $offset;
 
+-- name: GetDocumentsSize :one
+SELECT
+    COUNT(rowid) AS length
+FROM documents AS docs
+WHERE $query IS NULL OR (
+    docs.title LIKE $query OR
+    docs.author LIKE $query
+)
+LIMIT 1;
+
 -- name: GetDocumentsWithStats :many
 SELECT
     docs.id,
