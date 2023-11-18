@@ -31,7 +31,7 @@ type Config struct {
 
 func Load() *Config {
 	return &Config{
-		Version:             "0.0.2",
+		Version:             "0.0.1",
 		DBType:              trimLowerString(getEnv("DATABASE_TYPE", "SQLite")),
 		DBName:              trimLowerString(getEnv("DATABASE_NAME", "antholume")),
 		ConfigPath:          getEnv("CONFIG_PATH", "/config"),
