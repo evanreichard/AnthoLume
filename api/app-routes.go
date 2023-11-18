@@ -26,6 +26,7 @@ import (
 type queryParams struct {
 	Page     *int64  `form:"page"`
 	Limit    *int64  `form:"limit"`
+	Search   *string `form:"search"`
 	Document *string `form:"document"`
 }
 
@@ -111,8 +112,15 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 		qParams := bindQueryParams(c)
 
 		if routeName == "documents" {
+			var query *string
+			if qParams.Search != nil && *qParams.Search != "" {
+				search := "%" + *qParams.Search + "%"
+				query = &search
+			}
+
 			documents, err := api.DB.Queries.GetDocumentsWithStats(api.DB.Ctx, database.GetDocumentsWithStatsParams{
 				UserID: userID,
+				Query:  query,
 				Offset: (*qParams.Page - 1) * *qParams.Limit,
 				Limit:  *qParams.Limit,
 			})

@@ -631,16 +631,23 @@ LEFT JOIN users ON users.id = ?1
 LEFT JOIN
     document_user_statistics AS dus
     ON dus.document_id = docs.id AND dus.user_id = ?1
-WHERE docs.deleted = false
+WHERE
+    docs.deleted = false AND (
+        ?2 IS NULL OR (
+            docs.title LIKE ?2 OR
+            docs.author LIKE ?2
+        )
+    )
 ORDER BY dus.last_read DESC, docs.created_at DESC
-LIMIT ?3
-OFFSET ?2
+LIMIT ?4
+OFFSET ?3
 `
 
 type GetDocumentsWithStatsParams struct {
-	UserID string `json:"user_id"`
-	Offset int64  `json:"offset"`
-	Limit  int64  `json:"limit"`
+	UserID string      `json:"user_id"`
+	Query  interface{} `json:"query"`
+	Offset int64       `json:"offset"`
+	Limit  int64       `json:"limit"`
 }
 
 type GetDocumentsWithStatsRow struct {
@@ -661,7 +668,12 @@ type GetDocumentsWithStatsRow struct {
 }
 
 func (q *Queries) GetDocumentsWithStats(ctx context.Context, arg GetDocumentsWithStatsParams) ([]GetDocumentsWithStatsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getDocumentsWithStats, arg.UserID, arg.Offset, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, getDocumentsWithStats,
+		arg.UserID,
+		arg.Query,
+		arg.Offset,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}

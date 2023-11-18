@@ -7,6 +7,49 @@
 {{end}}
 
 {{define "content"}}
+<div
+  class="flex flex-col gap-2 grow p-4 mb-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+>
+  <form class="flex gap-4 flex-col lg:flex-row" action="./documents" method="GET">
+    <div class="flex flex-col w-full grow">
+      <div class="flex relative">
+	<span
+	  class="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm"
+	>
+	  <svg
+	    width="15"
+	    height="15"
+	    viewBox="0 0 24 24"
+	    fill="currentColor"
+	    xmlns="http://www.w3.org/2000/svg"
+	  >
+	    <rect width="24" height="24" fill="none" />
+	    <path
+	      fill-rule="evenodd"
+	      clip-rule="evenodd"
+	      d="M10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18C11.8487 18 13.551 17.3729 14.9056 16.3199L20.2929 21.7071C20.6834 22.0976 21.3166 22.0976 21.7071 21.7071C22.0976 21.3166 22.0976 20.6834 21.7071 20.2929L16.3199 14.9056C17.3729 13.551 18 11.8487 18 10C18 5.58172 14.4183 2 10 2Z"
+	    />
+	  </svg>
+	</span>
+	<input
+	  type="text"
+	  id="search"
+	  name="search"
+	  class="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+	  placeholder="Search Author / Title"
+	/>
+      </div>
+    </div>
+
+    <button
+      type="submit"
+      class="px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2"
+    >
+      <span class="w-full">Search</span>
+    </button>
+  </form>
+</div>
+
 <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
   {{range $doc := .Data }}
   <div class="w-full relative">

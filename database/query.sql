@@ -217,7 +217,13 @@ LEFT JOIN users ON users.id = $user_id
 LEFT JOIN
     document_user_statistics AS dus
     ON dus.document_id = docs.id AND dus.user_id = $user_id
-WHERE docs.deleted = false
+WHERE
+    docs.deleted = false AND (
+        $query IS NULL OR (
+            docs.title LIKE $query OR
+            docs.author LIKE $query
+        )
+    )
 ORDER BY dus.last_read DESC, docs.created_at DESC
 LIMIT $limit
 OFFSET $offset;
