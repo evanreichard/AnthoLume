@@ -2,6 +2,7 @@ package search
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -16,8 +17,8 @@ import (
 type Cadence string
 
 const (
-	TOP_YEAR  Cadence = "y"
-	TOP_MONTH Cadence = "m"
+	CADENCE_TOP_YEAR  Cadence = "y"
+	CADENCE_TOP_MONTH Cadence = "m"
 )
 
 type BookType int
@@ -25,6 +26,14 @@ type BookType int
 const (
 	BOOK_FICTION BookType = iota
 	BOOK_NON_FICTION
+)
+
+type Source string
+
+const (
+	SOURCE_ANNAS_ARCHIVE      Source = "Annas Archive"
+	SOURCE_LIBGEN_FICTION     Source = "LibGen Fiction"
+	SOURCE_LIBGEN_NON_FICTION Source = "LibGen Non-fiction"
 )
 
 type SearchItem struct {
@@ -38,26 +47,89 @@ type SearchItem struct {
 	UploadDate string
 }
 
-func SearchBook(query string, bookType BookType) ([]SearchItem, error) {
-	if bookType == BOOK_FICTION {
-		// Search Fiction
-		url := "https://libgen.is/fiction/?q=" + url.QueryEscape(query) + "&language=English&format=epub"
-		body, err := getPage(url)
-		if err != nil {
-			return nil, err
-		}
-		return parseLibGenFiction(body)
-	} else if bookType == BOOK_NON_FICTION {
-		// Search NonFiction
-		url := "https://libgen.is/search.php?req=" + url.QueryEscape(query)
-		body, err := getPage(url)
-		if err != nil {
-			return nil, err
-		}
-		return parseLibGenNonFiction(body)
-	} else {
-		return nil, errors.New("Invalid Book Type")
+type sourceDef struct {
+	searchURL         string
+	downloadURL       string
+	parseSearchFunc   func(io.ReadCloser) ([]SearchItem, error)
+	parseDownloadFunc func(io.ReadCloser) (string, error)
+}
+
+var sourceDefs = map[Source]sourceDef{
+	SOURCE_ANNAS_ARCHIVE: {
+		searchURL:         "https://annas-archive.org/search?index=&q=%s&ext=epub&sort=&lang=en",
+		downloadURL:       "http://libgen.li/ads.php?md5=%s",
+		parseSearchFunc:   parseAnnasArchive,
+		parseDownloadFunc: parseAnnasArchiveDownloadURL,
+	},
+	SOURCE_LIBGEN_FICTION: {
+		searchURL:         "https://libgen.is/fiction/?q=%s&language=English&format=epub",
+		downloadURL:       "http://library.lol/fiction/%s",
+		parseSearchFunc:   parseLibGenFiction,
+		parseDownloadFunc: parseLibGenDownloadURL,
+	},
+	SOURCE_LIBGEN_NON_FICTION: {
+		searchURL:         "https://libgen.is/search.php?req=%s",
+		downloadURL:       "http://library.lol/main/%s",
+		parseSearchFunc:   parseLibGenNonFiction,
+		parseDownloadFunc: parseLibGenDownloadURL,
+	},
+}
+
+func SearchBook(query string, source Source) ([]SearchItem, error) {
+	def := sourceDefs[source]
+	log.Debug("[SearchBook] Source: ", def)
+	url := fmt.Sprintf(def.searchURL, url.QueryEscape(query))
+	body, err := getPage(url)
+	if err != nil {
+		return nil, err
 	}
+	return def.parseSearchFunc(body)
+}
+
+func SaveBook(id string, source Source) (string, error) {
+	def := sourceDefs[source]
+	log.Debug("[SaveBook] Source: ", def)
+	url := fmt.Sprintf(def.downloadURL, id)
+
+	body, err := getPage(url)
+	if err != nil {
+		return "", err
+	}
+
+	bookURL, err := def.parseDownloadFunc(body)
+	if err != nil {
+		log.Error("[SaveBook] Parse Download URL Error: ", err)
+		return "", errors.New("Download Failure")
+	}
+
+	// Create File
+	tempFile, err := os.CreateTemp("", "book")
+	if err != nil {
+		log.Error("[SaveBook] File Create Error: ", err)
+		return "", errors.New("File Failure")
+	}
+	defer tempFile.Close()
+
+	// Download File
+	log.Info("[SaveBook] Downloading Book: ", bookURL)
+	resp, err := http.Get(bookURL)
+	if err != nil {
+		os.Remove(tempFile.Name())
+		log.Error("[SaveBook] Cover URL API Failure")
+		return "", errors.New("API Failure")
+	}
+	defer resp.Body.Close()
+
+	// Copy File to Disk
+	log.Info("[SaveBook] Saving Book")
+	_, err = io.Copy(tempFile, resp.Body)
+	if err != nil {
+		os.Remove(tempFile.Name())
+		log.Error("[SaveBook] File Copy Error")
+		return "", errors.New("File Failure")
+	}
+
+	return tempFile.Name(), nil
 }
 
 func GoodReadsMostRead(c Cadence) ([]SearchItem, error) {
@@ -87,57 +159,9 @@ func GetBookURL(id string, bookType BookType) (string, error) {
 	return parseLibGenDownloadURL(body)
 }
 
-func SaveBook(id string, bookType BookType) (string, error) {
-	// Derive Info URL
-	var infoURL string
-	if bookType == BOOK_FICTION {
-		infoURL = "http://library.lol/fiction/" + id
-	} else if bookType == BOOK_NON_FICTION {
-		infoURL = "http://library.lol/main/" + id
-	}
-
-	// Parse & Derive Download URL
-	body, err := getPage(infoURL)
-	if err != nil {
-		return "", err
-	}
-	bookURL, err := parseLibGenDownloadURL(body)
-	if err != nil {
-		log.Error("[SaveBook] Parse Download URL Error: ", err)
-		return "", errors.New("Download Failure")
-	}
-
-	// Create File
-	tempFile, err := os.CreateTemp("", "book")
-	if err != nil {
-		log.Error("[SaveBook] File Create Error: ", err)
-		return "", errors.New("File Failure")
-	}
-	defer tempFile.Close()
-
-	// Download File
-	log.Info("[SaveBook] Downloading Book")
-	resp, err := http.Get(bookURL)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Error("[SaveBook] Cover URL API Failure")
-		return "", errors.New("API Failure")
-	}
-	defer resp.Body.Close()
-
-	// Copy File to Disk
-	log.Info("[SaveBook] Saving Book")
-	_, err = io.Copy(tempFile, resp.Body)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Error("[SaveBook] File Copy Error")
-		return "", errors.New("File Failure")
-	}
-
-	return tempFile.Name(), nil
-}
-
 func getPage(page string) (io.ReadCloser, error) {
+	log.Debug("[getPage] ", page)
+
 	// Set 10s Timeout
 	client := http.Client{
 		Timeout: 10 * time.Second,
@@ -284,6 +308,69 @@ func parseGoodReads(body io.ReadCloser) ([]SearchItem, error) {
 		item := SearchItem{
 			Title:  title,
 			Author: author,
+		}
+
+		allEntries = append(allEntries, item)
+	})
+
+	// Return Results
+	return allEntries, nil
+}
+
+func parseAnnasArchiveDownloadURL(body io.ReadCloser) (string, error) {
+	// Parse
+	defer body.Close()
+	doc, _ := goquery.NewDocumentFromReader(body)
+
+	// Return Download URL
+	downloadURL, exists := doc.Find("body > table > tbody > tr > td > a").Attr("href")
+	if exists == false {
+		return "", errors.New("Download URL not found")
+	}
+
+	return "http://libgen.li/" + downloadURL, nil
+}
+
+func parseAnnasArchive(body io.ReadCloser) ([]SearchItem, error) {
+	// Parse
+	defer body.Close()
+	doc, err := goquery.NewDocumentFromReader(body)
+	if err != nil {
+		return nil, err
+	}
+
+	// Normalize Results
+	var allEntries []SearchItem
+	doc.Find("form > div.w-full > div.w-full > div > div.justify-center").Each(func(ix int, rawBook *goquery.Selection) {
+		// Parse Details
+		details := rawBook.Find("div:nth-child(2) > div:nth-child(1)").Text()
+		detailsSplit := strings.Split(details, ", ")
+
+		// Invalid Details
+		if len(detailsSplit) < 3 {
+			return
+		}
+
+		language := detailsSplit[0]
+		fileType := detailsSplit[1]
+		fileSize := detailsSplit[2]
+
+		// Get Title & Author
+		title := rawBook.Find("h3").Text()
+		author := rawBook.Find("div:nth-child(2) > div:nth-child(4)").Text()
+
+		// Parse MD5
+		itemHref, _ := rawBook.Find("a").Attr("href")
+		hrefArray := strings.Split(itemHref, "/")
+		id := hrefArray[len(hrefArray)-1]
+
+		item := SearchItem{
+			ID:       id,
+			Title:    title,
+			Author:   author,
+			Language: language,
+			FileType: fileType,
+			FileSize: fileSize,
 		}
 
 		allEntries = append(allEntries, item)

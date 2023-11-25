@@ -88,6 +88,7 @@ The service is now accessible at: `http://localhost:8585`. I recommend registeri
 | CONFIG_PATH          | /config       | Directory where to store SQLite's DB                                |
 | DATA_PATH            | /data         | Directory where to store the documents and cover metadata           |
 | LISTEN_PORT          | 8585          | Port the server listens at                                          |
+| LOG_LEVEL            | info          | Set server log level                                                |
 | REGISTRATION_ENABLED | false         | Whether to allow registration (applies to both WebApp & KOSync API) |
 | COOKIE_SESSION_KEY   | <EMPTY>       | Optional secret cookie session key (auto generated if not provided) |
 | COOKIE_SECURE        | true          | Set Cookie `Secure` attribute (i.e. only works over HTTPS)          |

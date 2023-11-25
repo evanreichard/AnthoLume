@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Config struct {
@@ -22,6 +24,7 @@ type Config struct {
 	RegistrationEnabled bool
 	SearchEnabled       bool
 	DemoMode            bool
+	LogLevel            string
 
 	// Cookie Settings
 	CookieSessionKey string
@@ -30,7 +33,7 @@ type Config struct {
 }
 
 func Load() *Config {
-	return &Config{
+	c := &Config{
 		Version:             "0.0.1",
 		DBType:              trimLowerString(getEnv("DATABASE_TYPE", "SQLite")),
 		DBName:              trimLowerString(getEnv("DATABASE_NAME", "antholume")),
@@ -41,9 +44,19 @@ func Load() *Config {
 		DemoMode:            trimLowerString(getEnv("DEMO_MODE", "false")) == "true",
 		SearchEnabled:       trimLowerString(getEnv("SEARCH_ENABLED", "false")) == "true",
 		CookieSessionKey:    trimLowerString(getEnv("COOKIE_SESSION_KEY", "")),
+		LogLevel:            trimLowerString(getEnv("LOG_LEVEL", "info")),
 		CookieSecure:        trimLowerString(getEnv("COOKIE_SECURE", "true")) == "true",
 		CookieHTTPOnly:      trimLowerString(getEnv("COOKIE_HTTP_ONLY", "true")) == "true",
 	}
+
+	// Log Level
+	ll, err := log.ParseLevel(c.LogLevel)
+	if err != nil {
+		ll = log.InfoLevel
+	}
+	log.SetLevel(ll)
+
+	return c
 }
 
 func getEnv(key, fallback string) string {

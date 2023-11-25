@@ -163,11 +163,12 @@ func (api *API) registerOPDSRoutes(apiGroup *gin.RouterGroup) {
 	opdsGroup := apiGroup.Group("/opds")
 
 	// OPDS Routes
-	opdsGroup.GET("", api.authOPDSMiddleware, api.opdsDocuments)
-	opdsGroup.GET("/", api.authOPDSMiddleware, api.opdsDocuments)
+	opdsGroup.GET("", api.authOPDSMiddleware, api.opdsEntry)
+	opdsGroup.GET("/", api.authOPDSMiddleware, api.opdsEntry)
+	opdsGroup.GET("/search.xml", api.authOPDSMiddleware, api.opdsSearchDescription)
+	opdsGroup.GET("/documents", api.authOPDSMiddleware, api.opdsDocuments)
 	opdsGroup.GET("/documents/:document/cover", api.authOPDSMiddleware, api.getDocumentCover)
 	opdsGroup.GET("/documents/:document/file", api.authOPDSMiddleware, api.downloadDocument)
-	opdsGroup.GET("/search.xml", api.authOPDSMiddleware, api.opdsSearchDescription)
 }
 
 func generateToken(n int) ([]byte, error) {

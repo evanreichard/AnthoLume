@@ -26,6 +26,40 @@ var mimeMapping map[string]string = map[string]string{
 	"lit":  "application/x-ms-reader",
 }
 
+func (api *API) opdsEntry(c *gin.Context) {
+	// Build & Return XML
+	mainFeed := &opds.Feed{
+		Title:   "AnthoLume OPDS Server",
+		Updated: time.Now().UTC(),
+		Links: []opds.Link{
+			{
+				Title:    "Search AnthoLume",
+				Rel:      "search",
+				TypeLink: "application/opensearchdescription+xml",
+				Href:     "/api/opds/search.xml",
+			},
+		},
+
+		Entries: []opds.Entry{
+			{
+				Title: "AnthoLume - All Documents",
+				Content: &opds.Content{
+					Content:     "AnthoLume - All Documents",
+					ContentType: "text",
+				},
+				Links: []opds.Link{
+					{
+						Href:     "/api/opds/documents?limit=100",
+						TypeLink: "application/atom+xml;type=feed;profile=opds-catalog",
+					},
+				},
+			},
+		},
+	}
+
+	c.XML(http.StatusOK, mainFeed)
+}
+
 func (api *API) opdsDocuments(c *gin.Context) {
 	var userID string
 	if rUser, _ := c.Get("AuthorizedUser"); rUser != nil {
@@ -35,9 +69,17 @@ func (api *API) opdsDocuments(c *gin.Context) {
 	// Potential URL Parameters
 	qParams := bindQueryParams(c)
 
+	// Possible Query
+	var query *string
+	if qParams.Search != nil && *qParams.Search != "" {
+		search := "%" + *qParams.Search + "%"
+		query = &search
+	}
+
 	// Get Documents
 	documents, err := api.DB.Queries.GetDocumentsWithStats(api.DB.Ctx, database.GetDocumentsWithStatsParams{
 		UserID: userID,
+		Query:  query,
 		Offset: (*qParams.Page - 1) * *qParams.Limit,
 		Limit:  *qParams.Limit,
 	})
@@ -71,7 +113,7 @@ func (api *API) opdsDocuments(c *gin.Context) {
 			}
 
 			item := opds.Entry{
-				Title: fmt.Sprintf("[%3d%%] %s", int(doc.Percentage), title),
+				Title: title,
 				Author: []opds.Author{
 					{
 						Name: author,
@@ -84,12 +126,12 @@ func (api *API) opdsDocuments(c *gin.Context) {
 				Links: []opds.Link{
 					{
 						Rel:      "http://opds-spec.org/acquisition",
-						Href:     fmt.Sprintf("./documents/%s/file", doc.ID),
+						Href:     fmt.Sprintf("/api/opds/documents/%s/file", doc.ID),
 						TypeLink: mimeMapping[fileType],
 					},
 					{
 						Rel:      "http://opds-spec.org/image",
-						Href:     fmt.Sprintf("./documents/%s/cover", doc.ID),
+						Href:     fmt.Sprintf("/api/opds/documents/%s/cover", doc.ID),
 						TypeLink: "image/jpeg",
 					},
 				},
@@ -99,19 +141,15 @@ func (api *API) opdsDocuments(c *gin.Context) {
 		}
 	}
 
+	feedTitle := "All Documents"
+	if query != nil {
+		feedTitle = "Search Results"
+	}
+
 	// Build & Return XML
 	searchFeed := &opds.Feed{
-		Title:   "All Documents",
+		Title:   feedTitle,
 		Updated: time.Now().UTC(),
-		// TODO
-		// Links: []opds.Link{
-		// 	{
-		// 		Title:    "Search AnthoLume",
-		// 		Rel:      "search",
-		// 		TypeLink: "application/opensearchdescription+xml",
-		// 		Href:     "search.xml",
-		// 	},
-		// },
 		Entries: allEntries,
 	}
 
@@ -122,7 +160,7 @@ func (api *API) opdsSearchDescription(c *gin.Context) {
 	rawXML := `<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
 		       <ShortName>Search AnthoLume</ShortName>
 		       <Description>Search AnthoLume</Description>
-		       <Url type="application/atom+xml;profile=opds-catalog;kind=acquisition" template="./search?query={searchTerms}"/>
+		       <Url type="application/atom+xml;profile=opds-catalog;kind=acquisition" template="/api/opds/documents?limit=100&search={searchTerms}"/>
 		   </OpenSearchDescription>`
 	c.Data(http.StatusOK, "application/xml", []byte(rawXML))
 }

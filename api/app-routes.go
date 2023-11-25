@@ -32,8 +32,8 @@ type queryParams struct {
 }
 
 type searchParams struct {
-	Query    *string `form:"query"`
-	BookType *string `form:"book_type"`
+	Query  *string        `form:"query"`
+	Source *search.Source `form:"source"`
 }
 
 type requestDocumentUpload struct {
@@ -64,10 +64,10 @@ type requestSettingsEdit struct {
 }
 
 type requestDocumentAdd struct {
-	ID       *string `form:"id"`
-	Title    *string `form:"title"`
-	Author   *string `form:"author"`
-	BookType *string `form:"book_type"`
+	ID     string        `form:"id"`
+	Title  *string       `form:"title"`
+	Author *string       `form:"author"`
+	Source search.Source `form:"source"`
 }
 
 func (api *API) webManifest(c *gin.Context) {
@@ -240,25 +240,18 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			c.BindQuery(&sParams)
 
 			// Only Handle Query
-			if sParams.BookType != nil && !slices.Contains([]string{"NON_FICTION", "FICTION"}, *sParams.BookType) {
-				templateVars["SearchErrorMessage"] = "Invalid Book Type"
-			} else if sParams.Query != nil && *sParams.Query == "" {
-				templateVars["SearchErrorMessage"] = "Invalid Query"
-			} else if sParams.BookType != nil && sParams.Query != nil {
-				var bType search.BookType = search.BOOK_FICTION
-				if *sParams.BookType == "NON_FICTION" {
-					bType = search.BOOK_NON_FICTION
-				}
-
+			if sParams.Query != nil && sParams.Source != nil {
 				// Search
-				searchResults, err := search.SearchBook(*sParams.Query, bType)
+				searchResults, err := search.SearchBook(*sParams.Query, *sParams.Source)
 				if err != nil {
 					errorPage(c, http.StatusInternalServerError, fmt.Sprintf("Search Error: %v", err))
 					return
 				}
 
 				templateVars["Data"] = searchResults
-				templateVars["BookType"] = *sParams.BookType
+				templateVars["Source"] = *sParams.Source
+			} else if sParams.Query != nil || sParams.Source != nil {
+				templateVars["SearchErrorMessage"] = "Invalid Query"
 			}
 		} else if routeName == "login" {
 			templateVars["RegistrationEnabled"] = api.Config.RegistrationEnabled
@@ -762,23 +755,8 @@ func (api *API) saveNewDocument(c *gin.Context) {
 		return
 	}
 
-	// Validate Form Exists
-	if rDocAdd.ID == nil ||
-		rDocAdd.BookType == nil ||
-		rDocAdd.Title == nil ||
-		rDocAdd.Author == nil {
-		log.Error("[saveNewDocument] Missing Form Values")
-		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
-		return
-	}
-
-	var bType search.BookType = search.BOOK_FICTION
-	if *rDocAdd.BookType == "NON_FICTION" {
-		bType = search.BOOK_NON_FICTION
-	}
-
 	// Save Book
-	tempFilePath, err := search.SaveBook(*rDocAdd.ID, bType)
+	tempFilePath, err := search.SaveBook(rDocAdd.ID, rDocAdd.Source)
 	if err != nil {
 		log.Warn("[saveNewDocument] Temp File Error: ", err)
 		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
