@@ -493,7 +493,7 @@ function SyncNinja:userLogin(username, password, menu)
         self.settings.password = userkey
         if menu then menu:updateItems() end
         UIManager:show(InfoMessage:new{
-            text = _("Logged in to KOReader server.")
+            text = _("Logged in to AnthoLume server.")
         })
 
         self:schedulePeriodicPush(0)
@@ -532,7 +532,7 @@ function SyncNinja:userRegister(username, password, menu)
         self.settings.password = userkey
         if menu then menu:updateItems() end
         UIManager:show(InfoMessage:new{
-            text = _("Registered to KOReader server.")
+            text = _("Registered to AnthoLume server.")
         })
 
         self:schedulePeriodicPush(0)
