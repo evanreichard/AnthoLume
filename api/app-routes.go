@@ -79,6 +79,10 @@ func (api *API) serviceWorker(c *gin.Context) {
 	c.File("./assets/sw.js")
 }
 
+func (api *API) faviconIcon(c *gin.Context) {
+	c.File("./assets/icons/favicon.ico")
+}
+
 func (api *API) localDocuments(c *gin.Context) {
 	c.File("./assets/local/index.html")
 }

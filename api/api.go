@@ -92,6 +92,7 @@ func (api *API) registerWebAppRoutes() {
 
 	// Static Assets (Required @ Root)
 	api.Router.GET("/manifest.json", api.webManifest)
+	api.Router.GET("/favicon.ico", api.faviconIcon)
 	api.Router.GET("/sw.js", api.serviceWorker)
 
 	// Local / Offline Static Pages (No Template, No Auth)
