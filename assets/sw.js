@@ -44,7 +44,7 @@ const ROUTES = [
     type: CACHE_UPDATE_ASYNC,
   },
   {
-    route: /^\/documents\/[a-zA-Z0-9]{32}\/progress$/,
+    route: /^\/reader\/progress\/[a-zA-Z0-9]{32}$/,
     type: CACHE_UPDATE_SYNC,
   },
   {
@@ -74,7 +74,6 @@ const PRECACHE_ASSETS = [
   "/assets/common.js",
 
   // Library Assets
-  "/assets/lib/platform.min.js",
   "/assets/lib/jszip.min.js",
   "/assets/lib/epub.min.js",
   "/assets/lib/no-sleep.min.js",
@@ -120,7 +119,9 @@ async function handleFetch(event) {
 
   // Find Directive
   const directive = ROUTES.find(
-    (item) => url.match(item.route) || url == item.route
+    (item) =>
+      (item.route instanceof RegExp && url.match(item.route)) ||
+      url == item.route
   ) || { type: CACHE_NEVER };
 
   // Get Fallback
@@ -170,12 +171,22 @@ function handleMessage(event) {
     caches.open(SW_CACHE_NAME).then(async (cache) => {
       let allKeys = await cache.keys();
 
+      // Get Cached Resources
       let docResources = allKeys
         .map((item) => new URL(item.url).pathname)
-        .filter((item) => item.startsWith("/documents/"));
+        .filter(
+          (item) =>
+            item.startsWith("/documents/") ||
+            item.startsWith("/reader/progress/")
+        );
 
+      // Derive Unique IDs
       let documentIDs = Array.from(
-        new Set(docResources.map((item) => item.split("/")[2]))
+        new Set(
+          docResources
+            .filter((item) => item.startsWith("/documents/"))
+            .map((item) => item.split("/")[2])
+        )
       );
 
       /**
@@ -188,10 +199,10 @@ function handleMessage(event) {
           .filter(
             (id) =>
               docResources.includes("/documents/" + id + "/file") &&
-              docResources.includes("/documents/" + id + "/progress")
+              docResources.includes("/reader/progress/" + id)
           )
           .map(async (id) => {
-            let url = "/documents/" + id + "/progress";
+            let url = "/reader/progress/" + id;
             let currentCache = await caches.match(url);
             let resp = await updateCache(url).catch((e) => currentCache);
             return resp.json();
@@ -201,13 +212,12 @@ function handleMessage(event) {
       event.source.postMessage({ id, data: cachedDocuments });
     });
   } else if (data.type === DEL_SW_CACHE) {
-    let basePath = "/documents/" + data.id;
     caches
       .open(SW_CACHE_NAME)
       .then((cache) =>
         Promise.all([
-          cache.delete(basePath + "/file"),
-          cache.delete(basePath + "/progress"),
+          cache.delete("/documents/" + data.id + "/file"),
+          cache.delete("/reader/progress/" + data.id),
         ])
       )
       .then(() => event.source.postMessage({ id, data: "SUCCESS" }))

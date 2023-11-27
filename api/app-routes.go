@@ -113,10 +113,9 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 		}
 		templateVars["User"] = userID
 
-		// Potential URL Parameters
-		qParams := bindQueryParams(c)
-
 		if routeName == "documents" {
+			qParams := bindQueryParams(c, 9)
+
 			var query *string
 			if qParams.Search != nil && *qParams.Search != "" {
 				search := "%" + *qParams.Search + "%"
@@ -181,6 +180,8 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 			templateVars["Data"] = document
 			templateVars["TotalTimeLeftSeconds"] = int64((100.0 - document.Percentage) * float64(document.SecondsPerPercent))
 		} else if routeName == "activity" {
+			qParams := bindQueryParams(c, 15)
+
 			activityFilter := database.GetActivityParams{
 				UserID: userID,
 				Offset: (*qParams.Page - 1) * *qParams.Limit,
@@ -395,6 +396,20 @@ func (api *API) getDocumentProgress(c *gin.Context) {
 		"progress":   progress.Progress,
 		"percentage": document.Percentage,
 	})
+}
+
+func (api *API) getDevices(c *gin.Context) {
+	rUser, _ := c.Get("AuthorizedUser")
+
+	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, rUser.(string))
+
+	if err != nil && err != sql.ErrNoRows {
+		log.Error("[getDevices] GetDevices DB Error:", err)
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, devices)
 }
 
 func (api *API) uploadNewDocument(c *gin.Context) {
@@ -981,13 +996,12 @@ func (api *API) getDocumentsWordCount(documents []database.GetDocumentsWithStats
 	return nil
 }
 
-func bindQueryParams(c *gin.Context) queryParams {
+func bindQueryParams(c *gin.Context, defaultLimit int64) queryParams {
 	var qParams queryParams
 	c.BindQuery(&qParams)
 
 	if qParams.Limit == nil {
-		var defaultValue int64 = 9
-		qParams.Limit = &defaultValue
+		qParams.Limit = &defaultLimit
 	} else if *qParams.Limit < 0 {
 		var zeroValue int64 = 0
 		qParams.Limit = &zeroValue

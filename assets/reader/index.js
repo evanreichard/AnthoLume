@@ -17,7 +17,7 @@ async function initReader() {
 
   if (documentType == "REMOTE") {
     // Get Server / Cached Document
-    let progressResp = await fetch("/documents/" + documentID + "/progress");
+    let progressResp = await fetch("/reader/progress/" + documentID);
     documentData = await progressResp.json();
 
     // Update With Local Cache
@@ -145,14 +145,60 @@ class EBookReader {
       );
     }
 
-    this.readerSettings.deviceName =
-      this.readerSettings.deviceName ||
-      platform.os.toString() + " - " + platform.name;
+    // Device Already Set
+    if (this.readerSettings.deviceID) return;
 
-    this.readerSettings.deviceID = this.readerSettings.deviceID || randomID();
+    // Get Elements
+    let devicePopup = document.querySelector("#device-selector");
+    let devSelector = devicePopup.querySelector("select");
+    let devInput = devicePopup.querySelector("input");
+    let [assumeButton, createButton] = devicePopup.querySelectorAll("button");
 
-    // Save Settings (Device ID)
-    this.saveSettings();
+    // Set Visible
+    devicePopup.classList.remove("hidden");
+
+    // Add Devices
+    fetch("/reader/devices").then(async (r) => {
+      let data = await r.json();
+
+      data.forEach((item) => {
+        let optionEl = document.createElement("option");
+        optionEl.value = item.id;
+        optionEl.textContent = item.device_name;
+        devSelector.appendChild(optionEl);
+      });
+    });
+
+    assumeButton.addEventListener("click", () => {
+      let deviceID = devSelector.value;
+
+      if (deviceID == "") {
+        // TODO - Error Message
+        return;
+      }
+
+      let selectedOption = devSelector.children[devSelector.selectedIndex];
+      let deviceName = selectedOption.textContent;
+
+      this.readerSettings.deviceID = deviceID;
+      this.readerSettings.deviceName = deviceName;
+      this.saveSettings();
+      devicePopup.classList.add("hidden");
+    });
+
+    createButton.addEventListener("click", () => {
+      let deviceName = devInput.value.trim();
+
+      if (deviceName == "") {
+        // TODO - Error Message
+        return;
+      }
+
+      this.readerSettings.deviceID = randomID();
+      this.readerSettings.deviceName = deviceName;
+      this.saveSettings();
+      devicePopup.classList.add("hidden");
+    });
   }
 
   /**

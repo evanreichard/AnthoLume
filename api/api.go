@@ -97,7 +97,11 @@ func (api *API) registerWebAppRoutes() {
 
 	// Local / Offline Static Pages (No Template, No Auth)
 	api.Router.GET("/local", api.localDocuments)
+
+	// Reader (Reader Page, Document Progress, Devices)
 	api.Router.GET("/reader", api.documentReader)
+	api.Router.GET("/reader/devices", api.authWebAppMiddleware, api.getDevices)
+	api.Router.GET("/reader/progress/:document", api.authWebAppMiddleware, api.getDocumentProgress)
 
 	// Web App
 	api.Router.GET("/", api.authWebAppMiddleware, api.createAppResourcesRoute("home"))
@@ -106,7 +110,6 @@ func (api *API) registerWebAppRoutes() {
 	api.Router.GET("/documents/:document", api.authWebAppMiddleware, api.createAppResourcesRoute("document"))
 	api.Router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.getDocumentCover)
 	api.Router.GET("/documents/:document/file", api.authWebAppMiddleware, api.downloadDocument)
-	api.Router.GET("/documents/:document/progress", api.authWebAppMiddleware, api.getDocumentProgress)
 	api.Router.GET("/login", api.createAppResourcesRoute("login"))
 	api.Router.GET("/logout", api.authWebAppMiddleware, api.authLogout)
 	api.Router.GET("/register", api.createAppResourcesRoute("login", gin.H{"Register": true}))

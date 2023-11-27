@@ -150,9 +150,12 @@ const getActivity = `-- name: GetActivity :many
 WITH filtered_activity AS (
     SELECT
         document_id,
+        device_id,
         user_id,
         start_time,
         duration,
+        ROUND(CAST(start_percentage AS REAL) * 100, 2) AS start_percentage,
+        ROUND(CAST(end_percentage AS REAL) * 100, 2) AS end_percentage,
         ROUND(CAST(end_percentage - start_percentage AS REAL) * 100, 2) AS read_percentage
     FROM activity
     WHERE
@@ -170,10 +173,13 @@ WITH filtered_activity AS (
 
 SELECT
     document_id,
+    device_id,
     CAST(STRFTIME('%Y-%m-%d %H:%M:%S', activity.start_time, users.time_offset) AS TEXT) AS start_time,
     title,
     author,
     duration,
+    start_percentage,
+    end_percentage,
     read_percentage
 FROM filtered_activity AS activity
 LEFT JOIN documents ON documents.id = activity.document_id
@@ -189,12 +195,15 @@ type GetActivityParams struct {
 }
 
 type GetActivityRow struct {
-	DocumentID     string  `json:"document_id"`
-	StartTime      string  `json:"start_time"`
-	Title          *string `json:"title"`
-	Author         *string `json:"author"`
-	Duration       int64   `json:"duration"`
-	ReadPercentage float64 `json:"read_percentage"`
+	DocumentID      string  `json:"document_id"`
+	DeviceID        string  `json:"device_id"`
+	StartTime       string  `json:"start_time"`
+	Title           *string `json:"title"`
+	Author          *string `json:"author"`
+	Duration        int64   `json:"duration"`
+	StartPercentage float64 `json:"start_percentage"`
+	EndPercentage   float64 `json:"end_percentage"`
+	ReadPercentage  float64 `json:"read_percentage"`
 }
 
 func (q *Queries) GetActivity(ctx context.Context, arg GetActivityParams) ([]GetActivityRow, error) {
@@ -214,10 +223,13 @@ func (q *Queries) GetActivity(ctx context.Context, arg GetActivityParams) ([]Get
 		var i GetActivityRow
 		if err := rows.Scan(
 			&i.DocumentID,
+			&i.DeviceID,
 			&i.StartTime,
 			&i.Title,
 			&i.Author,
 			&i.Duration,
+			&i.StartPercentage,
+			&i.EndPercentage,
 			&i.ReadPercentage,
 		); err != nil {
 			return nil, err
@@ -390,6 +402,7 @@ func (q *Queries) GetDevice(ctx context.Context, deviceID string) (Device, error
 
 const getDevices = `-- name: GetDevices :many
 SELECT
+    devices.id,
     devices.device_name,
     CAST(STRFTIME('%Y-%m-%d %H:%M:%S', devices.created_at, users.time_offset) AS TEXT) AS created_at,
     CAST(STRFTIME('%Y-%m-%d %H:%M:%S', devices.last_synced, users.time_offset) AS TEXT) AS last_synced
@@ -400,6 +413,7 @@ ORDER BY devices.last_synced DESC
 `
 
 type GetDevicesRow struct {
+	ID         string `json:"id"`
 	DeviceName string `json:"device_name"`
 	CreatedAt  string `json:"created_at"`
 	LastSynced string `json:"last_synced"`
@@ -414,7 +428,12 @@ func (q *Queries) GetDevices(ctx context.Context, userID string) ([]GetDevicesRo
 	var items []GetDevicesRow
 	for rows.Next() {
 		var i GetDevicesRow
-		if err := rows.Scan(&i.DeviceName, &i.CreatedAt, &i.LastSynced); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.DeviceName,
+			&i.CreatedAt,
+			&i.LastSynced,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

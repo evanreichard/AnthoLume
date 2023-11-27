@@ -40,9 +40,12 @@ WHERE id = $id;
 WITH filtered_activity AS (
     SELECT
         document_id,
+        device_id,
         user_id,
         start_time,
         duration,
+        ROUND(CAST(start_percentage AS REAL) * 100, 2) AS start_percentage,
+        ROUND(CAST(end_percentage AS REAL) * 100, 2) AS end_percentage,
         ROUND(CAST(end_percentage - start_percentage AS REAL) * 100, 2) AS read_percentage
     FROM activity
     WHERE
@@ -60,10 +63,13 @@ WITH filtered_activity AS (
 
 SELECT
     document_id,
+    device_id,
     CAST(STRFTIME('%Y-%m-%d %H:%M:%S', activity.start_time, users.time_offset) AS TEXT) AS start_time,
     title,
     author,
     duration,
+    start_percentage,
+    end_percentage,
     read_percentage
 FROM filtered_activity AS activity
 LEFT JOIN documents ON documents.id = activity.document_id
@@ -128,6 +134,7 @@ WHERE id = $device_id LIMIT 1;
 
 -- name: GetDevices :many
 SELECT
+    devices.id,
     devices.device_name,
     CAST(STRFTIME('%Y-%m-%d %H:%M:%S', devices.created_at, users.time_offset) AS TEXT) AS created_at,
     CAST(STRFTIME('%Y-%m-%d %H:%M:%S', devices.last_synced, users.time_offset) AS TEXT) AS last_synced

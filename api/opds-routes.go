@@ -49,7 +49,7 @@ func (api *API) opdsEntry(c *gin.Context) {
 				},
 				Links: []opds.Link{
 					{
-						Href:     "/api/opds/documents?limit=100",
+						Href:     "/api/opds/documents",
 						TypeLink: "application/atom+xml;type=feed;profile=opds-catalog",
 					},
 				},
@@ -66,8 +66,8 @@ func (api *API) opdsDocuments(c *gin.Context) {
 		userID = rUser.(string)
 	}
 
-	// Potential URL Parameters
-	qParams := bindQueryParams(c)
+	// Potential URL Parameters (Default Pagination - 100)
+	qParams := bindQueryParams(c, 100)
 
 	// Possible Query
 	var query *string
@@ -160,7 +160,7 @@ func (api *API) opdsSearchDescription(c *gin.Context) {
 	rawXML := `<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
 		       <ShortName>Search AnthoLume</ShortName>
 		       <Description>Search AnthoLume</Description>
-		       <Url type="application/atom+xml;profile=opds-catalog;kind=acquisition" template="/api/opds/documents?limit=100&search={searchTerms}"/>
+		       <Url type="application/atom+xml;profile=opds-catalog;kind=acquisition" template="/api/opds/documents?search={searchTerms}"/>
 		   </OpenSearchDescription>`
 	c.Data(http.StatusOK, "application/xml", []byte(rawXML))
 }
