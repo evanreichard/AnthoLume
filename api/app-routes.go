@@ -72,23 +72,23 @@ type requestDocumentAdd struct {
 
 func (api *API) webManifest(c *gin.Context) {
 	c.Header("Content-Type", "application/manifest+json")
-	c.FileFromFS("./assets/manifest.json", http.FS(api.Assets))
+	c.FileFromFS("assets/manifest.json", http.FS(api.Assets))
 }
 
 func (api *API) serviceWorker(c *gin.Context) {
-	c.FileFromFS("./assets/sw.js", http.FS(api.Assets))
+	c.FileFromFS("assets/sw.js", http.FS(api.Assets))
 }
 
 func (api *API) faviconIcon(c *gin.Context) {
-	c.FileFromFS("./assets/icons/favicon.ico", http.FS(api.Assets))
+	c.FileFromFS("assets/icons/favicon.ico", http.FS(api.Assets))
 }
 
 func (api *API) localDocuments(c *gin.Context) {
-	c.FileFromFS("./assets/local/index.html", http.FS(api.Assets))
+	c.FileFromFS("assets/local/index.htm", http.FS(api.Assets))
 }
 
 func (api *API) documentReader(c *gin.Context) {
-	c.FileFromFS("./assets/reader/index.html", http.FS(api.Assets))
+	c.FileFromFS("assets/reader/index.htm", http.FS(api.Assets))
 }
 
 func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any) func(*gin.Context) {
@@ -284,7 +284,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 	// Handle Identified Document
 	if document.Coverfile != nil {
 		if *document.Coverfile == "UNKNOWN" {
-			c.FileFromFS("./assets/images/no-cover.jpg", http.FS(api.Assets))
+			c.FileFromFS("assets/images/no-cover.jpg", http.FS(api.Assets))
 			return
 		}
 
@@ -295,7 +295,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 		_, err = os.Stat(safePath)
 		if err != nil {
 			log.Error("[getDocumentCover] File Should But Doesn't Exist:", err)
-			c.FileFromFS("./assets/images/no-cover.jpg", http.FS(api.Assets))
+			c.FileFromFS("assets/images/no-cover.jpg", http.FS(api.Assets))
 			return
 		}
 
@@ -348,7 +348,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 
 	// Return Unknown Cover
 	if coverFile == "UNKNOWN" {
-		c.FileFromFS("./assets/images/no-cover.jpg", http.FS(api.Assets))
+		c.FileFromFS("assets/images/no-cover.jpg", http.FS(api.Assets))
 		return
 	}
 
