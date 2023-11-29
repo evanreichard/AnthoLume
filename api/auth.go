@@ -120,7 +120,7 @@ func (api *API) authFormLogin(c *gin.Context) {
 	rawPassword := strings.TrimSpace(c.PostForm("password"))
 
 	if username == "" || rawPassword == "" {
-		c.HTML(http.StatusUnauthorized, "login", gin.H{
+		c.HTML(http.StatusUnauthorized, "page/login", gin.H{
 			"RegistrationEnabled": api.Config.RegistrationEnabled,
 			"Error":               "Invalid Credentials",
 		})
@@ -130,7 +130,7 @@ func (api *API) authFormLogin(c *gin.Context) {
 	// MD5 - KOSync Compatiblity
 	password := fmt.Sprintf("%x", md5.Sum([]byte(rawPassword)))
 	if authorized := api.authorizeCredentials(username, password); authorized != true {
-		c.HTML(http.StatusUnauthorized, "login", gin.H{
+		c.HTML(http.StatusUnauthorized, "page/login", gin.H{
 			"RegistrationEnabled": api.Config.RegistrationEnabled,
 			"Error":               "Invalid Credentials",
 		})
@@ -140,7 +140,7 @@ func (api *API) authFormLogin(c *gin.Context) {
 	// Set Session
 	session := sessions.Default(c)
 	if err := setSession(session, username); err != nil {
-		c.HTML(http.StatusUnauthorized, "login", gin.H{
+		c.HTML(http.StatusUnauthorized, "page/login", gin.H{
 			"RegistrationEnabled": api.Config.RegistrationEnabled,
 			"Error":               "Unknown Error",
 		})
@@ -161,7 +161,7 @@ func (api *API) authFormRegister(c *gin.Context) {
 	rawPassword := strings.TrimSpace(c.PostForm("password"))
 
 	if username == "" || rawPassword == "" {
-		c.HTML(http.StatusBadRequest, "login", gin.H{
+		c.HTML(http.StatusBadRequest, "page/login", gin.H{
 			"Register": true,
 			"Error":    "Registration Disabled or User Already Exists",
 		})
@@ -171,7 +171,7 @@ func (api *API) authFormRegister(c *gin.Context) {
 
 	hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "login", gin.H{
+		c.HTML(http.StatusBadRequest, "page/login", gin.H{
 			"Register": true,
 			"Error":    "Registration Disabled or User Already Exists",
 		})
@@ -185,7 +185,7 @@ func (api *API) authFormRegister(c *gin.Context) {
 
 	// SQL Error
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "login", gin.H{
+		c.HTML(http.StatusBadRequest, "page/login", gin.H{
 			"Register": true,
 			"Error":    "Registration Disabled or User Already Exists",
 		})
@@ -194,7 +194,7 @@ func (api *API) authFormRegister(c *gin.Context) {
 
 	// User Already Exists
 	if rows == 0 {
-		c.HTML(http.StatusBadRequest, "login", gin.H{
+		c.HTML(http.StatusBadRequest, "page/login", gin.H{
 			"Register": true,
 			"Error":    "Registration Disabled or User Already Exists",
 		})
