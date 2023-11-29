@@ -3,7 +3,10 @@ package api
 import (
 	"crypto/rand"
 	"html/template"
+	"io/ioutil"
 	"net/http"
+	"path/filepath"
+	"strings"
 
 	"github.com/gin-contrib/multitemplate"
 	"github.com/gin-contrib/sessions"
@@ -70,25 +73,8 @@ func NewApi(db *database.DBManager, c *config.Config) *API {
 }
 
 func (api *API) registerWebAppRoutes() {
-	// Define Templates & Helper Functions
-	render := multitemplate.NewRenderer()
-	helperFuncs := template.FuncMap{
-		"GetSVGGraphData": getSVGGraphData,
-		"GetUTCOffsets":   getUTCOffsets,
-		"NiceSeconds":     niceSeconds,
-	}
-
-	// Templates
-	render.AddFromFiles("error", "templates/error.html")
-	render.AddFromFilesFuncs("activity", helperFuncs, "templates/base.html", "templates/activity.html")
-	render.AddFromFilesFuncs("document", helperFuncs, "templates/base.html", "templates/document.html")
-	render.AddFromFilesFuncs("documents", helperFuncs, "templates/base.html", "templates/documents.html")
-	render.AddFromFilesFuncs("home", helperFuncs, "templates/base.html", "templates/home.html")
-	render.AddFromFilesFuncs("login", helperFuncs, "templates/login.html")
-	render.AddFromFilesFuncs("search", helperFuncs, "templates/base.html", "templates/search.html")
-	render.AddFromFilesFuncs("settings", helperFuncs, "templates/base.html", "templates/settings.html")
-
-	api.Router.HTMLRender = render
+	// Generate Templates
+	api.Router.HTMLRender = *api.generateTemplates()
 
 	// Static Assets (Required @ Root)
 	api.Router.GET("/manifest.json", api.webManifest)
@@ -173,6 +159,55 @@ func (api *API) registerOPDSRoutes(apiGroup *gin.RouterGroup) {
 	opdsGroup.GET("/documents", api.authOPDSMiddleware, api.opdsDocuments)
 	opdsGroup.GET("/documents/:document/cover", api.authOPDSMiddleware, api.getDocumentCover)
 	opdsGroup.GET("/documents/:document/file", api.authOPDSMiddleware, api.downloadDocument)
+}
+
+func (api *API) generateTemplates() *multitemplate.Renderer {
+	// Define Templates & Helper Functions
+	render := multitemplate.NewRenderer()
+	helperFuncs := template.FuncMap{
+		"GetSVGGraphData": getSVGGraphData,
+		"GetUTCOffsets":   getUTCOffsets,
+		"NiceSeconds":     niceSeconds,
+		"dict":            dict,
+	}
+
+	// Load Base
+	b, _ := ioutil.ReadFile("./templates/base.html")
+	baseTemplate := template.Must(template.New("base").Funcs(helperFuncs).Parse(string(b)))
+
+	// Load SVGs
+	svgs, _ := filepath.Glob("./templates/svgs/*")
+	for _, path := range svgs {
+		basename := filepath.Base(path)
+		name := strings.TrimSuffix(basename, filepath.Ext(basename))
+
+		b, _ := ioutil.ReadFile(path)
+		baseTemplate = template.Must(baseTemplate.New("svg/" + name).Parse(string(b)))
+	}
+
+	// Load Components
+	components, _ := filepath.Glob("./templates/components/*")
+	for _, path := range components {
+		basename := filepath.Base(path)
+		name := strings.TrimSuffix(basename, filepath.Ext(basename))
+
+		b, _ := ioutil.ReadFile(path)
+		baseTemplate = template.Must(baseTemplate.New("component/" + name).Parse(string(b)))
+	}
+
+	// Load Pages
+	pages, _ := filepath.Glob("./templates/pages/*")
+	for _, path := range pages {
+		basename := filepath.Base(path)
+		name := strings.TrimSuffix(basename, filepath.Ext(basename))
+
+		// Clone Base Template
+		b, _ := ioutil.ReadFile(path)
+		pageTemplate, _ := template.Must(baseTemplate.Clone()).New("page/" + name).Parse(string(b))
+		render.Add("page/"+name, pageTemplate)
+	}
+
+	return &render
 }
 
 func generateToken(n int) ([]byte, error) {

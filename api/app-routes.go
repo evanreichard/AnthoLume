@@ -261,8 +261,7 @@ func (api *API) createAppResourcesRoute(routeName string, args ...map[string]any
 		} else if routeName == "login" {
 			templateVars["RegistrationEnabled"] = api.Config.RegistrationEnabled
 		}
-
-		c.HTML(http.StatusOK, routeName, templateVars)
+		c.HTML(http.StatusOK, "page/"+routeName, templateVars)
 	}
 }
 
@@ -763,7 +762,7 @@ func (api *API) identifyDocument(c *gin.Context) {
 	templateVars["Data"] = document
 	templateVars["TotalTimeLeftSeconds"] = int64((100.0 - document.Percentage) * float64(document.SecondsPerPercent))
 
-	c.HTML(http.StatusOK, "document", templateVars)
+	c.HTML(http.StatusOK, "page/document", templateVars)
 }
 
 func (api *API) saveNewDocument(c *gin.Context) {
@@ -954,7 +953,7 @@ func (api *API) editSettings(c *gin.Context) {
 		"SearchEnabled": api.Config.SearchEnabled,
 	}
 
-	c.HTML(http.StatusOK, "settings", templateVars)
+	c.HTML(http.StatusOK, "page/settings", templateVars)
 }
 
 func (api *API) getDocumentsWordCount(documents []database.GetDocumentsWithStatsRow) error {
@@ -1029,7 +1028,7 @@ func errorPage(c *gin.Context, errorCode int, errorMessage string) {
 		errorHuman = "You're not allowed to do that."
 	}
 
-	c.HTML(errorCode, "error", gin.H{
+	c.HTML(errorCode, "page/error", gin.H{
 		"Status":  errorCode,
 		"Error":   errorHuman,
 		"Message": errorMessage,
