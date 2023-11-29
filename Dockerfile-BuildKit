@@ -15,9 +15,7 @@ ARG TARGETARCH
 RUN --mount=target=. \
     --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg \
-    GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /opt/antholume/server; \
-    cp -a ./templates /opt/antholume/templates; \
-    cp -a ./assets /opt/antholume/assets;
+    GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /opt/antholume/server
 
 # Create Image
 FROM busybox:1.36

@@ -1,9 +1,7 @@
 build_local: build_tailwind
 	go mod download
-	rm -r ./build
+	rm -r ./build || true
 	mkdir -p ./build
-	cp -a ./templates ./build/templates
-	cp -a ./assets ./build/assets
 
 	env GOOS=linux GOARCH=amd64 go build -o ./build/server_linux_amd64
 	env GOOS=linux GOARCH=arm64 go build -o ./build/server_linux_arm64
@@ -30,7 +28,6 @@ docker_build_release_latest: build_tailwind
 
 build_tailwind:
 	tailwind build -o ./assets/style.css --minify
-
 
 clean:
 	rm -rf ./build

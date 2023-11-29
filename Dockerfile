@@ -13,9 +13,7 @@ COPY . .
 RUN mkdir -p /opt/antholume
 
 # Compile
-RUN go build -o /opt/antholume/server; \
-    cp -a ./templates /opt/antholume/templates; \
-    cp -a ./assets /opt/antholume/assets;
+RUN go build -o /opt/antholume/server
 
 # Create Image
 FROM busybox:1.36

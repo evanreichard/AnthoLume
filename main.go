@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"os"
 	"os/signal"
 	"sync"
@@ -10,6 +11,9 @@ import (
 	"github.com/urfave/cli/v2"
 	"reichard.io/bbank/server"
 )
+
+//go:embed templates/* assets/*
+var assets embed.FS
 
 type UTCFormatter struct {
 	log.Formatter
@@ -51,7 +55,7 @@ func cmdServer(ctx *cli.Context) error {
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 
 	// Start Server
-	server := server.NewServer()
+	server := server.NewServer(assets)
 	server.StartServer(&wg, done)
 
 	// Wait & Close

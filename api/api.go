@@ -2,8 +2,10 @@ package api
 
 import (
 	"crypto/rand"
+	"embed"
+	"fmt"
 	"html/template"
-	"io/ioutil"
+	"io/fs"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -23,18 +25,21 @@ type API struct {
 	Config     *config.Config
 	DB         *database.DBManager
 	HTMLPolicy *bluemonday.Policy
+	Assets     *embed.FS
 }
 
-func NewApi(db *database.DBManager, c *config.Config) *API {
+func NewApi(db *database.DBManager, c *config.Config, assets embed.FS) *API {
 	api := &API{
 		HTMLPolicy: bluemonday.StrictPolicy(),
 		Router:     gin.Default(),
 		Config:     c,
 		DB:         db,
+		Assets:     &assets,
 	}
 
 	// Assets & Web App Templates
-	api.Router.Static("/assets", "./assets")
+	assetsDir, _ := fs.Sub(assets, "assets")
+	api.Router.StaticFS("/assets", http.FS(assetsDir))
 
 	// Generate Secure Token
 	var newToken []byte
@@ -172,37 +177,40 @@ func (api *API) generateTemplates() *multitemplate.Renderer {
 	}
 
 	// Load Base
-	b, _ := ioutil.ReadFile("./templates/base.html")
+	b, _ := api.Assets.ReadFile("templates/base.html")
 	baseTemplate := template.Must(template.New("base").Funcs(helperFuncs).Parse(string(b)))
 
 	// Load SVGs
-	svgs, _ := filepath.Glob("./templates/svgs/*")
-	for _, path := range svgs {
-		basename := filepath.Base(path)
+	svgs, _ := api.Assets.ReadDir("templates/svgs")
+	for _, item := range svgs {
+		basename := item.Name()
+		path := fmt.Sprintf("templates/svgs/%s", basename)
 		name := strings.TrimSuffix(basename, filepath.Ext(basename))
 
-		b, _ := ioutil.ReadFile(path)
+		b, _ := api.Assets.ReadFile(path)
 		baseTemplate = template.Must(baseTemplate.New("svg/" + name).Parse(string(b)))
 	}
 
 	// Load Components
-	components, _ := filepath.Glob("./templates/components/*")
-	for _, path := range components {
-		basename := filepath.Base(path)
+	components, _ := api.Assets.ReadDir("templates/components")
+	for _, item := range components {
+		basename := item.Name()
+		path := fmt.Sprintf("templates/components/%s", basename)
 		name := strings.TrimSuffix(basename, filepath.Ext(basename))
 
-		b, _ := ioutil.ReadFile(path)
+		b, _ := api.Assets.ReadFile(path)
 		baseTemplate = template.Must(baseTemplate.New("component/" + name).Parse(string(b)))
 	}
 
 	// Load Pages
-	pages, _ := filepath.Glob("./templates/pages/*")
-	for _, path := range pages {
-		basename := filepath.Base(path)
+	pages, _ := api.Assets.ReadDir("templates/pages")
+	for _, item := range pages {
+		basename := item.Name()
+		path := fmt.Sprintf("templates/pages/%s", basename)
 		name := strings.TrimSuffix(basename, filepath.Ext(basename))
 
 		// Clone Base Template
-		b, _ := ioutil.ReadFile(path)
+		b, _ := api.Assets.ReadFile(path)
 		pageTemplate, _ := template.Must(baseTemplate.Clone()).New("page/" + name).Parse(string(b))
 		render.Add("page/"+name, pageTemplate)
 	}

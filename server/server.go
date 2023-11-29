@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"embed"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -22,10 +23,10 @@ type Server struct {
 	httpServer *http.Server
 }
 
-func NewServer() *Server {
+func NewServer(assets embed.FS) *Server {
 	c := config.Load()
 	db := database.NewMgr(c)
-	api := api.NewApi(db, c)
+	api := api.NewApi(db, c, assets)
 
 	// Create Paths
 	docDir := filepath.Join(c.DataPath, "documents")
