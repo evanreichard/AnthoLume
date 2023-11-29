@@ -38,6 +38,7 @@ const ROUTES = [
   { route: "/local", type: CACHE_UPDATE_ASYNC },
   { route: "/reader", type: CACHE_UPDATE_ASYNC },
   { route: "/manifest.json", type: CACHE_UPDATE_ASYNC },
+  { route: /^\/assets\/reader\/fonts\//, type: CACHE_ONLY },
   { route: /^\/assets\//, type: CACHE_UPDATE_ASYNC },
   {
     route: /^\/documents\/[a-zA-Z0-9]{32}\/(cover|file)$/,
@@ -63,9 +64,10 @@ const PRECACHE_ASSETS = [
   "/reader",
   "/assets/local/index.js",
   "/assets/reader/index.js",
+  "/assets/reader/fonts.css",
+  "/assets/reader/themes.css",
   "/assets/icons/icon512.png",
   "/assets/images/no-cover.jpg",
-  "/assets/reader/readerThemes.css",
 
   // Main App Assets
   "/manifest.json",
@@ -78,6 +80,19 @@ const PRECACHE_ASSETS = [
   "/assets/lib/epub.min.js",
   "/assets/lib/no-sleep.min.js",
   "/assets/lib/idb-keyval.min.js",
+
+  // Fonts
+  "/assets/reader/fonts/arbutus-slab-v16-latin_latin-ext-regular.woff2",
+  "/assets/reader/fonts/lato-v24-latin_latin-ext-100.woff2",
+  "/assets/reader/fonts/lato-v24-latin_latin-ext-100italic.woff2",
+  "/assets/reader/fonts/lato-v24-latin_latin-ext-700.woff2",
+  "/assets/reader/fonts/lato-v24-latin_latin-ext-700italic.woff2",
+  "/assets/reader/fonts/lato-v24-latin_latin-ext-italic.woff2",
+  "/assets/reader/fonts/lato-v24-latin_latin-ext-regular.woff2",
+  "/assets/reader/fonts/open-sans-v36-latin_latin-ext-700.woff2",
+  "/assets/reader/fonts/open-sans-v36-latin_latin-ext-700italic.woff2",
+  "/assets/reader/fonts/open-sans-v36-latin_latin-ext-italic.woff2",
+  "/assets/reader/fonts/open-sans-v36-latin_latin-ext-regular.woff2",
 ];
 
 // ------------------------------------------------------- //

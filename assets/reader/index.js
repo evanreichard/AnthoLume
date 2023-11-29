@@ -1,5 +1,5 @@
 const THEMES = ["light", "tan", "blue", "gray", "black"];
-const THEME_FILE = "/assets/reader/readerThemes.css";
+const THEME_FILE = "/assets/reader/themes.css";
 
 /**
  * Initial load handler. Gets called on DOMContentLoaded. Responsible for
@@ -267,20 +267,13 @@ class EBookReader {
         // Restore Theme
         this.setTheme();
 
-        // Set Fonts - TODO: Local
-        //   https://gwfh.mranftl.com/fonts
+        // Set Fonts
         this.rendition.getContents().forEach((c) => {
-          [
-            "https://fonts.googleapis.com/css?family=Arbutus+Slab",
-            "https://fonts.googleapis.com/css?family=Open+Sans",
-            "https://fonts.googleapis.com/css?family=Lato:400,400i,700,700i",
-          ].forEach((url) => {
-            let el = c.document.head.appendChild(
-              c.document.createElement("link")
-            );
-            el.setAttribute("rel", "stylesheet");
-            el.setAttribute("href", url);
-          });
+          let el = c.document.head.appendChild(
+            c.document.createElement("link")
+          );
+          el.setAttribute("rel", "stylesheet");
+          el.setAttribute("href", "/assets/reader/fonts.css");
         });
       }.bind(this)
     );

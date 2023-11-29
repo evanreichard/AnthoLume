@@ -1,0 +1,119 @@
+/**
+ * Lato
+ *   - Charsets: [latin,latin-ext]
+ *   - Styles: [100,700,100italic,regular,italic,700italic]
+ **/
+
+/* lato-100 - latin_latin-ext */
+@font-face {
+  font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+  font-family: "Lato";
+  font-style: normal;
+  font-weight: 100;
+  src: url("./fonts/lato-v24-latin_latin-ext-100.woff2") format("woff2"); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+}
+
+/* lato-100italic - latin_latin-ext */
+@font-face {
+  font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+  font-family: "Lato";
+  font-style: italic;
+  font-weight: 100;
+  src: url("./fonts/lato-v24-latin_latin-ext-100italic.woff2") format("woff2"); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+}
+
+/* lato-regular - latin_latin-ext */
+@font-face {
+  font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+  font-family: "Lato";
+  font-style: normal;
+  font-weight: 400;
+  src: url("./fonts/lato-v24-latin_latin-ext-regular.woff2") format("woff2"); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+}
+
+/* lato-italic - latin_latin-ext */
+@font-face {
+  font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+  font-family: "Lato";
+  font-style: italic;
+  font-weight: 400;
+  src: url("./fonts/lato-v24-latin_latin-ext-italic.woff2") format("woff2"); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+}
+
+/* lato-700 - latin_latin-ext */
+@font-face {
+  font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+  font-family: "Lato";
+  font-style: normal;
+  font-weight: 700;
+  src: url("./fonts/lato-v24-latin_latin-ext-700.woff2") format("woff2"); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+}
+
+/* lato-700italic - latin_latin-ext */
+@font-face {
+  font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+  font-family: "Lato";
+  font-style: italic;
+  font-weight: 700;
+  src: url("./fonts/lato-v24-latin_latin-ext-700italic.woff2") format("woff2"); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+}
+
+/**
+ * Open Sans
+ *   - Charsets: [latin,latin-ext]
+ *   - Styles: [700,regular,italic,700italic]
+ **/
+
+/* open-sans-regular - latin_latin-ext */
+@font-face {
+  font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+  font-family: "Open Sans";
+  font-style: normal;
+  font-weight: 400;
+  src: url("./fonts/open-sans-v36-latin_latin-ext-regular.woff2")
+    format("woff2"); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+}
+
+/* open-sans-italic - latin_latin-ext */
+@font-face {
+  font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+  font-family: "Open Sans";
+  font-style: italic;
+  font-weight: 400;
+  src: url("./fonts/open-sans-v36-latin_latin-ext-italic.woff2") format("woff2"); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+}
+
+/* open-sans-700 - latin_latin-ext */
+@font-face {
+  font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+  font-family: "Open Sans";
+  font-style: normal;
+  font-weight: 700;
+  src: url("./fonts/open-sans-v36-latin_latin-ext-700.woff2") format("woff2"); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+}
+
+/* open-sans-700italic - latin_latin-ext */
+@font-face {
+  font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+  font-family: "Open Sans";
+  font-style: italic;
+  font-weight: 700;
+  src: url("./fonts/open-sans-v36-latin_latin-ext-700italic.woff2")
+    format("woff2"); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+}
+
+/**
+ * Arbutus Slab
+ *   - Charsets: [latin,latin-ext]
+ *   - Styles: [regular]
+ **/
+
+/* arbutus-slab-regular - latin_latin-ext */
+@font-face {
+  font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+  font-family: "Arbutus Slab";
+  font-style: normal;
+  font-weight: 400;
+  src: url("./fonts/arbutus-slab-v16-latin_latin-ext-regular.woff2")
+    format("woff2"); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+}
