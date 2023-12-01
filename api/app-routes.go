@@ -773,21 +773,62 @@ func (api *API) saveNewDocument(c *gin.Context) {
 		return
 	}
 
+	// Render Initial Template
+	var userID string
+	if rUser, _ := c.Get("AuthorizedUser"); rUser != nil {
+		userID = rUser.(string)
+	}
+	templateVars := gin.H{
+		"RouteName":     "search",
+		"SearchEnabled": api.Config.SearchEnabled,
+		"User":          userID,
+	}
+	c.HTML(http.StatusOK, "page/search", templateVars)
+
+	// Create Streamer
+	stream := api.newStreamer(c)
+	defer stream.close()
+
+	// Stream Helper Function
+	sendDownloadMessage := func(msg string, args ...map[string]any) {
+		// Merge Defaults & Overrides
+		var templateVars = gin.H{
+			"Message":    msg,
+			"ButtonText": "Close",
+			"ButtonHref": "./search",
+		}
+		if len(args) > 0 {
+			for key := range args[0] {
+				templateVars[key] = args[0][key]
+			}
+		}
+
+		stream.send("component/download-progress", templateVars)
+	}
+
+	// Send Message
+	sendDownloadMessage("Downloading document...", gin.H{"Progress": 10})
+
 	// Save Book
 	tempFilePath, err := search.SaveBook(rDocAdd.ID, rDocAdd.Source)
 	if err != nil {
 		log.Warn("[saveNewDocument] Temp File Error: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		sendDownloadMessage("Unable to download file", gin.H{"Error": true})
 		return
 	}
+
+	// Send Message
+	sendDownloadMessage("Calculating partial MD5...", gin.H{"Progress": 60})
 
 	// Calculate Partial MD5 ID
 	partialMD5, err := utils.CalculatePartialMD5(tempFilePath)
 	if err != nil {
 		log.Warn("[saveNewDocument] Partial MD5 Error: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to calculate partial MD5.")
-		return
+		sendDownloadMessage("Unable to calculate partial MD5", gin.H{"Error": true})
 	}
+
+	// Send Message
+	sendDownloadMessage("Saving file...", gin.H{"Progress": 60})
 
 	// Derive Extension on MIME
 	fileMime, err := mimetype.DetectFile(tempFilePath)
@@ -817,7 +858,7 @@ func (api *API) saveNewDocument(c *gin.Context) {
 	sourceFile, err := os.Open(tempFilePath)
 	if err != nil {
 		log.Error("[saveNewDocument] Source File Error:", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		sendDownloadMessage("Unable to open file", gin.H{"Error": true})
 		return
 	}
 	defer os.Remove(tempFilePath)
@@ -828,7 +869,7 @@ func (api *API) saveNewDocument(c *gin.Context) {
 	destFile, err := os.Create(safePath)
 	if err != nil {
 		log.Error("[saveNewDocument] Dest File Error:", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		sendDownloadMessage("Unable to create file", gin.H{"Error": true})
 		return
 	}
 	defer destFile.Close()
@@ -836,25 +877,34 @@ func (api *API) saveNewDocument(c *gin.Context) {
 	// Copy File
 	if _, err = io.Copy(destFile, sourceFile); err != nil {
 		log.Error("[saveNewDocument] Copy Temp File Error:", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		sendDownloadMessage("Unable to save file", gin.H{"Error": true})
 		return
 	}
+
+	// Send Message
+	sendDownloadMessage("Calculating MD5...", gin.H{"Progress": 70})
 
 	// Get MD5 Hash
 	fileHash, err := getFileMD5(safePath)
 	if err != nil {
 		log.Error("[saveNewDocument] Hash Failure:", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to calculate MD5.")
+		sendDownloadMessage("Unable to calculate MD5", gin.H{"Error": true})
 		return
 	}
+
+	// Send Message
+	sendDownloadMessage("Calculating word count...", gin.H{"Progress": 80})
 
 	// Get Word Count
 	wordCount, err := metadata.GetWordCount(safePath)
 	if err != nil {
 		log.Error("[saveNewDocument] Word Count Failure:", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to calculate word count.")
+		sendDownloadMessage("Unable to calculate word count", gin.H{"Error": true})
 		return
 	}
+
+	// Send Message
+	sendDownloadMessage("Saving to database...", gin.H{"Progress": 90})
 
 	// Upsert Document
 	if _, err = api.DB.Queries.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
@@ -866,11 +916,16 @@ func (api *API) saveNewDocument(c *gin.Context) {
 		Words:    &wordCount,
 	}); err != nil {
 		log.Error("[saveNewDocument] UpsertDocument DB Error:", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
+		sendDownloadMessage("Unable to save to database", gin.H{"Error": true})
 		return
 	}
 
-	c.Redirect(http.StatusFound, fmt.Sprintf("./documents/%s", partialMD5))
+	// Send Message
+	sendDownloadMessage("Download Success", gin.H{
+		"Progress":   100,
+		"ButtonText": "Go to Book",
+		"ButtonHref": fmt.Sprintf("./documents/%s", partialMD5),
+	})
 }
 
 func (api *API) editSettings(c *gin.Context) {

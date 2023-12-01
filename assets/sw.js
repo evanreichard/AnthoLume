@@ -253,6 +253,13 @@ self.addEventListener("install", function (event) {
   event.waitUntil(handleInstall(event));
 });
 
-self.addEventListener("fetch", (event) =>
-  event.respondWith(handleFetch(event))
-);
+self.addEventListener("fetch", (event) => {
+  /**
+   * Weird things happen when a service worker attempts to handle a request
+   * when the server responds with chunked transfer encoding. Right now we only
+   * use chunked encoding on POSTs. So this is to avoid processing those.
+   **/
+
+  if (event.request.method != "GET") return;
+  return event.respondWith(handleFetch(event));
+});

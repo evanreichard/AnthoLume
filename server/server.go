@@ -23,7 +23,7 @@ type Server struct {
 	httpServer *http.Server
 }
 
-func NewServer(assets embed.FS) *Server {
+func NewServer(assets *embed.FS) *Server {
 	c := config.Load()
 	db := database.NewMgr(c)
 	api := api.NewApi(db, c, assets)

@@ -55,7 +55,7 @@ func cmdServer(ctx *cli.Context) error {
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 
 	// Start Server
-	server := server.NewServer(assets)
+	server := server.NewServer(&assets)
 	server.StartServer(&wg, done)
 
 	// Wait & Close

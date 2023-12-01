@@ -26,15 +26,16 @@ type API struct {
 	DB         *database.DBManager
 	HTMLPolicy *bluemonday.Policy
 	Assets     *embed.FS
+	Templates  map[string]*template.Template
 }
 
-func NewApi(db *database.DBManager, c *config.Config, assets embed.FS) *API {
+func NewApi(db *database.DBManager, c *config.Config, assets *embed.FS) *API {
 	api := &API{
 		HTMLPolicy: bluemonday.StrictPolicy(),
 		Router:     gin.Default(),
 		Config:     c,
 		DB:         db,
-		Assets:     &assets,
+		Assets:     assets,
 	}
 
 	// Assets & Web App Templates
@@ -168,6 +169,7 @@ func (api *API) registerOPDSRoutes(apiGroup *gin.RouterGroup) {
 
 func (api *API) generateTemplates() *multitemplate.Renderer {
 	// Define Templates & Helper Functions
+	templates := make(map[string]*template.Template)
 	render := multitemplate.NewRenderer()
 	helperFuncs := template.FuncMap{
 		"GetSVGGraphData": getSVGGraphData,
@@ -189,6 +191,7 @@ func (api *API) generateTemplates() *multitemplate.Renderer {
 
 		b, _ := api.Assets.ReadFile(path)
 		baseTemplate = template.Must(baseTemplate.New("svg/" + name).Parse(string(b)))
+		templates["svg/"+name] = baseTemplate
 	}
 
 	// Load Components
@@ -198,8 +201,11 @@ func (api *API) generateTemplates() *multitemplate.Renderer {
 		path := fmt.Sprintf("templates/components/%s", basename)
 		name := strings.TrimSuffix(basename, filepath.Ext(basename))
 
+		// Clone Base Template
 		b, _ := api.Assets.ReadFile(path)
 		baseTemplate = template.Must(baseTemplate.New("component/" + name).Parse(string(b)))
+		render.Add("component/"+name, baseTemplate)
+		templates["component/"+name] = baseTemplate
 	}
 
 	// Load Pages
@@ -213,7 +219,10 @@ func (api *API) generateTemplates() *multitemplate.Renderer {
 		b, _ := api.Assets.ReadFile(path)
 		pageTemplate, _ := template.Must(baseTemplate.Clone()).New("page/" + name).Parse(string(b))
 		render.Add("page/"+name, pageTemplate)
+		templates["page/"+name] = pageTemplate
 	}
+
+	api.Templates = templates
 
 	return &render
 }
