@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -14,11 +15,33 @@ func getEPUBMetadata(filepath string) (*MetadataInfo, error) {
 	}
 	rf := rc.Rootfiles[0]
 
-	return &MetadataInfo{
+	parsedMetadata := &MetadataInfo{
 		Title:       &rf.Title,
 		Author:      &rf.Creator,
 		Description: &rf.Description,
-	}, nil
+	}
+
+	// Parse Possible ISBN
+	if rf.Source != "" {
+		replaceRE := regexp.MustCompile(`[-\s]`)
+		possibleISBN := replaceRE.ReplaceAllString(rf.Source, "")
+
+		// ISBN Matches
+		isbn13RE := regexp.MustCompile(`(?P<ISBN>\d{13})`)
+		isbn10RE := regexp.MustCompile(`(?P<ISBN>\d{10})`)
+		isbn13Matches := isbn13RE.FindStringSubmatch(possibleISBN)
+		isbn10Matches := isbn10RE.FindStringSubmatch(possibleISBN)
+
+		if len(isbn13Matches) > 0 {
+			isbnIndex := isbn13RE.SubexpIndex("ISBN")
+			parsedMetadata.ISBN13 = &isbn13Matches[isbnIndex]
+		} else if len(isbn10Matches) > 0 {
+			isbnIndex := isbn10RE.SubexpIndex("ISBN")
+			parsedMetadata.ISBN10 = &isbn10Matches[isbnIndex]
+		}
+	}
+
+	return parsedMetadata, nil
 }
 
 func countEPUBWords(filepath string) (int64, error) {
