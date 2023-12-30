@@ -100,7 +100,6 @@ activity_days AS (
     FROM filtered_activity AS activity
     LEFT JOIN users ON users.id = activity.user_id
     GROUP BY day
-    LIMIT 30
 )
 SELECT
     CAST(date AS TEXT),
