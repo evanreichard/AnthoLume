@@ -478,6 +478,51 @@ func (q *Queries) GetDocument(ctx context.Context, documentID string) (Document,
 	return i, err
 }
 
+const getDocumentProgress = `-- name: GetDocumentProgress :one
+SELECT
+    document_progress.user_id, document_progress.document_id, document_progress.device_id, document_progress.percentage, document_progress.progress, document_progress.created_at,
+    devices.device_name
+FROM document_progress
+JOIN devices ON document_progress.device_id = devices.id
+WHERE
+    document_progress.user_id = ?1
+    AND document_progress.document_id = ?2
+ORDER BY
+    document_progress.created_at
+    DESC
+LIMIT 1
+`
+
+type GetDocumentProgressParams struct {
+	UserID     string `json:"user_id"`
+	DocumentID string `json:"document_id"`
+}
+
+type GetDocumentProgressRow struct {
+	UserID     string  `json:"user_id"`
+	DocumentID string  `json:"document_id"`
+	DeviceID   string  `json:"device_id"`
+	Percentage float64 `json:"percentage"`
+	Progress   string  `json:"progress"`
+	CreatedAt  string  `json:"created_at"`
+	DeviceName string  `json:"device_name"`
+}
+
+func (q *Queries) GetDocumentProgress(ctx context.Context, arg GetDocumentProgressParams) (GetDocumentProgressRow, error) {
+	row := q.db.QueryRowContext(ctx, getDocumentProgress, arg.UserID, arg.DocumentID)
+	var i GetDocumentProgressRow
+	err := row.Scan(
+		&i.UserID,
+		&i.DocumentID,
+		&i.DeviceID,
+		&i.Percentage,
+		&i.Progress,
+		&i.CreatedAt,
+		&i.DeviceName,
+	)
+	return i, err
+}
+
 const getDocumentWithStats = `-- name: GetDocumentWithStats :one
 SELECT
     docs.id,
@@ -827,49 +872,85 @@ func (q *Queries) GetMissingDocuments(ctx context.Context, documentIds []string)
 	return items, nil
 }
 
-const getProgress = `-- name: GetProgress :one
+const getProgress = `-- name: GetProgress :many
 SELECT
-    document_progress.user_id, document_progress.document_id, document_progress.device_id, document_progress.percentage, document_progress.progress, document_progress.created_at,
-    devices.device_name
-FROM document_progress
-JOIN devices ON document_progress.device_id = devices.id
+    documents.title,
+    documents.author,
+    devices.device_name,
+    ROUND(CAST(progress.percentage AS REAL) * 100, 2) AS percentage,
+    progress.document_id,
+    progress.user_id,
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', progress.created_at, users.time_offset) AS TEXT) AS created_at
+FROM document_progress AS progress
+LEFT JOIN users ON progress.user_id = users.id
+LEFT JOIN devices ON progress.device_id = devices.id
+LEFT JOIN documents ON progress.document_id = documents.id
 WHERE
-    document_progress.user_id = ?1
-    AND document_progress.document_id = ?2
-ORDER BY
-    document_progress.created_at
-    DESC
-LIMIT 1
+    progress.user_id = ?1
+    AND (
+        (
+            CAST(?2 AS BOOLEAN) = TRUE
+            AND document_id = ?3
+        ) OR ?2 = FALSE
+    )
+ORDER BY created_at DESC
+LIMIT ?5
+OFFSET ?4
 `
 
 type GetProgressParams struct {
 	UserID     string `json:"user_id"`
+	DocFilter  bool   `json:"doc_filter"`
 	DocumentID string `json:"document_id"`
+	Offset     int64  `json:"offset"`
+	Limit      int64  `json:"limit"`
 }
 
 type GetProgressRow struct {
-	UserID     string  `json:"user_id"`
-	DocumentID string  `json:"document_id"`
-	DeviceID   string  `json:"device_id"`
-	Percentage float64 `json:"percentage"`
-	Progress   string  `json:"progress"`
-	CreatedAt  string  `json:"created_at"`
+	Title      *string `json:"title"`
+	Author     *string `json:"author"`
 	DeviceName string  `json:"device_name"`
+	Percentage float64 `json:"percentage"`
+	DocumentID string  `json:"document_id"`
+	UserID     string  `json:"user_id"`
+	CreatedAt  string  `json:"created_at"`
 }
 
-func (q *Queries) GetProgress(ctx context.Context, arg GetProgressParams) (GetProgressRow, error) {
-	row := q.db.QueryRowContext(ctx, getProgress, arg.UserID, arg.DocumentID)
-	var i GetProgressRow
-	err := row.Scan(
-		&i.UserID,
-		&i.DocumentID,
-		&i.DeviceID,
-		&i.Percentage,
-		&i.Progress,
-		&i.CreatedAt,
-		&i.DeviceName,
+func (q *Queries) GetProgress(ctx context.Context, arg GetProgressParams) ([]GetProgressRow, error) {
+	rows, err := q.db.QueryContext(ctx, getProgress,
+		arg.UserID,
+		arg.DocFilter,
+		arg.DocumentID,
+		arg.Offset,
+		arg.Limit,
 	)
-	return i, err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetProgressRow
+	for rows.Next() {
+		var i GetProgressRow
+		if err := rows.Scan(
+			&i.Title,
+			&i.Author,
+			&i.DeviceName,
+			&i.Percentage,
+			&i.DocumentID,
+			&i.UserID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getUser = `-- name: GetUser :one

@@ -1272,3 +1272,14 @@ class EBookReader {
 }
 
 document.addEventListener("DOMContentLoaded", initReader);
+
+// WIP
+async function getTOC() {
+  let toc = currentReader.book.navigation.toc;
+
+  // Alternatively:
+  // let nav = await currentReader.book.loaded.navigation;
+  // let toc = nav.toc;
+
+  currentReader.rendition.display(nav.toc[10].href);
+}

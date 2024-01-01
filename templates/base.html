@@ -152,11 +152,11 @@
 	      <span class="mx-4 text-sm font-normal">Documents</span>
 	    </a>
 	    <a
-	      class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100"
-	      href="/local"
+	      class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "progress"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
+	      href="/progress"
 	    >
-	      <span class="text-left">{{ template "svg/documents" (dict "Size" 20) }}</span>
-	      <span class="mx-4 text-sm font-normal">Local</span>
+	      <span class="text-left">{{ template "svg/activity" (dict "Size" 20) }}</span>
+	      <span class="mx-4 text-sm font-normal">Progress</span>
 	    </a>
 	    <a
 	      class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "activity"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
@@ -165,7 +165,7 @@
 	      <span class="text-left">{{ template "svg/activity" (dict "Size" 20) }}</span>
 	      <span class="mx-4 text-sm font-normal">Activity</span>
 	    </a>
-	    {{ if .SearchEnabled }}
+	    {{ if .Config.SearchEnabled }}
 	    <a
 	      class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "search"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
 	      href="/search"
@@ -223,7 +223,7 @@
 	  class="transition duration-200 z-20 absolute right-4 top-16 pt-4"
 	>
 	  <div
-	    class="w-56 origin-top-right bg-white rounded-md shadow-lg dark:shadow-gray-800 dark:bg-gray-700 ring-1 ring-black ring-opacity-5"
+	    class="w-40 origin-top-right bg-white rounded-md shadow-lg dark:shadow-gray-800 dark:bg-gray-700 ring-1 ring-black ring-opacity-5"
 	  >
 	    <div
 	      class="py-1"
@@ -238,6 +238,15 @@
 	      >
 		<span class="flex flex-col">
 		  <span>Settings</span>
+		</span>
+	      </a>
+	      <a
+		href="/local"
+		class="block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600"
+		role="menuitem"
+	      >
+		<span class="flex flex-col">
+		  <span>Offline</span>
 		</span>
 	      </a>
 	      <a

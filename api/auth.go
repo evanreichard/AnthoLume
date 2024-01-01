@@ -115,35 +115,31 @@ func (api *API) authWebAppMiddleware(c *gin.Context) {
 	return
 }
 
-func (api *API) authFormLogin(c *gin.Context) {
+func (api *API) appAuthFormLogin(c *gin.Context) {
+	templateVars := api.getBaseTemplateVars("login", c)
+
 	username := strings.TrimSpace(c.PostForm("username"))
 	rawPassword := strings.TrimSpace(c.PostForm("password"))
 
 	if username == "" || rawPassword == "" {
-		c.HTML(http.StatusUnauthorized, "page/login", gin.H{
-			"RegistrationEnabled": api.Config.RegistrationEnabled,
-			"Error":               "Invalid Credentials",
-		})
+		templateVars["Error"] = "Invalid Credentials"
+		c.HTML(http.StatusUnauthorized, "page/login", templateVars)
 		return
 	}
 
 	// MD5 - KOSync Compatiblity
 	password := fmt.Sprintf("%x", md5.Sum([]byte(rawPassword)))
 	if authorized := api.authorizeCredentials(username, password); authorized != true {
-		c.HTML(http.StatusUnauthorized, "page/login", gin.H{
-			"RegistrationEnabled": api.Config.RegistrationEnabled,
-			"Error":               "Invalid Credentials",
-		})
+		templateVars["Error"] = "Invalid Credentials"
+		c.HTML(http.StatusUnauthorized, "page/login", templateVars)
 		return
 	}
 
 	// Set Session
 	session := sessions.Default(c)
 	if err := setSession(session, username); err != nil {
-		c.HTML(http.StatusUnauthorized, "page/login", gin.H{
-			"RegistrationEnabled": api.Config.RegistrationEnabled,
-			"Error":               "Unknown Error",
-		})
+		templateVars["Error"] = "Invalid Credentials"
+		c.HTML(http.StatusUnauthorized, "page/login", templateVars)
 		return
 	}
 
@@ -151,30 +147,29 @@ func (api *API) authFormLogin(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/")
 }
 
-func (api *API) authFormRegister(c *gin.Context) {
+func (api *API) appAuthFormRegister(c *gin.Context) {
 	if !api.Config.RegistrationEnabled {
 		errorPage(c, http.StatusUnauthorized, "Nice try. Registration is disabled.")
 		return
 	}
 
+	templateVars := api.getBaseTemplateVars("login", c)
+	templateVars["Register"] = true
+
 	username := strings.TrimSpace(c.PostForm("username"))
 	rawPassword := strings.TrimSpace(c.PostForm("password"))
 
 	if username == "" || rawPassword == "" {
-		c.HTML(http.StatusBadRequest, "page/login", gin.H{
-			"Register": true,
-			"Error":    "Registration Disabled or User Already Exists",
-		})
+		templateVars["Error"] = "Invalid User or Password"
+		c.HTML(http.StatusBadRequest, "page/login", templateVars)
 		return
 	}
 	password := fmt.Sprintf("%x", md5.Sum([]byte(rawPassword)))
 
 	hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "page/login", gin.H{
-			"Register": true,
-			"Error":    "Registration Disabled or User Already Exists",
-		})
+		templateVars["Error"] = "Registration Disabled or User Already Exists"
+		c.HTML(http.StatusBadRequest, "page/login", templateVars)
 		return
 	}
 
@@ -185,19 +180,17 @@ func (api *API) authFormRegister(c *gin.Context) {
 
 	// SQL Error
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "page/login", gin.H{
-			"Register": true,
-			"Error":    "Registration Disabled or User Already Exists",
-		})
+		log.Error("[appAuthFormRegister] CreateUser DB Error:", err)
+		templateVars["Error"] = "Registration Disabled or User Already Exists"
+		c.HTML(http.StatusBadRequest, "page/login", templateVars)
 		return
 	}
 
 	// User Already Exists
 	if rows == 0 {
-		c.HTML(http.StatusBadRequest, "page/login", gin.H{
-			"Register": true,
-			"Error":    "Registration Disabled or User Already Exists",
-		})
+		log.Warn("[appAuthFormRegister] User Already Exists:", username)
+		templateVars["Error"] = "Registration Disabled or User Already Exists"
+		c.HTML(http.StatusBadRequest, "page/login", templateVars)
 		return
 	}
 
@@ -212,19 +205,11 @@ func (api *API) authFormRegister(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/")
 }
 
-func (api *API) authLogout(c *gin.Context) {
+func (api *API) appAuthLogout(c *gin.Context) {
 	session := sessions.Default(c)
 	session.Clear()
 	session.Save()
 	c.Redirect(http.StatusFound, "/login")
-}
-
-func (api *API) demoModeAppError(c *gin.Context) {
-	errorPage(c, http.StatusUnauthorized, "Not Allowed in Demo Mode")
-}
-
-func (api *API) demoModeJSONError(c *gin.Context) {
-	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Not Allowed in Demo Mode"})
 }
 
 func getSession(session sessions.Session) (user string, ok bool) {

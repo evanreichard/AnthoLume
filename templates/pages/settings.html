@@ -89,14 +89,7 @@
           >
             {{ range $item := GetUTCOffsets }}
             <option
-              {{
-              if
-              (eq
-              $item.Value
-              $.Data.Settings.TimeOffset)
-              }}selected{{
-              end
-              }}
+              {{ if (eq $item.Value $.Data.TimeOffset) }}selected{{ end }}
               value="{{ $item.Value }}"
             >
               {{ $item.Name }}

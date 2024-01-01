@@ -146,6 +146,20 @@ ORDER BY devices.last_synced DESC;
 SELECT * FROM documents
 WHERE id = $document_id LIMIT 1;
 
+-- name: GetDocumentProgress :one
+SELECT
+    document_progress.*,
+    devices.device_name
+FROM document_progress
+JOIN devices ON document_progress.device_id = devices.id
+WHERE
+    document_progress.user_id = $user_id
+    AND document_progress.document_id = $document_id
+ORDER BY
+    document_progress.created_at
+    DESC
+LIMIT 1;
+
 -- name: GetDocumentWithStats :one
 SELECT
     docs.id,
@@ -258,19 +272,30 @@ WHERE
     AND documents.deleted = false
     AND documents.id NOT IN (sqlc.slice('document_ids'));
 
--- name: GetProgress :one
+-- name: GetProgress :many
 SELECT
-    document_progress.*,
-    devices.device_name
-FROM document_progress
-JOIN devices ON document_progress.device_id = devices.id
+    documents.title,
+    documents.author,
+    devices.device_name,
+    ROUND(CAST(progress.percentage AS REAL) * 100, 2) AS percentage,
+    progress.document_id,
+    progress.user_id,
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', progress.created_at, users.time_offset) AS TEXT) AS created_at
+FROM document_progress AS progress
+LEFT JOIN users ON progress.user_id = users.id
+LEFT JOIN devices ON progress.device_id = devices.id
+LEFT JOIN documents ON progress.document_id = documents.id
 WHERE
-    document_progress.user_id = $user_id
-    AND document_progress.document_id = $document_id
-ORDER BY
-    document_progress.created_at
-    DESC
-LIMIT 1;
+    progress.user_id = $user_id
+    AND (
+        (
+            CAST($doc_filter AS BOOLEAN) = TRUE
+            AND document_id = $document_id
+        ) OR $doc_filter = FALSE
+    )
+ORDER BY created_at DESC
+LIMIT $limit
+OFFSET $offset;
 
 -- name: GetUser :one
 SELECT * FROM users
