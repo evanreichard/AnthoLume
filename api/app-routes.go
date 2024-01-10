@@ -421,10 +421,10 @@ func (api *API) appPerformAdminAction(c *gin.Context) {
 			// Backup Covers & Documents
 			for _, item := range rAdminAction.BackupTypes {
 				if item == BACKUP_TYPE_COVERS {
-					filepath.WalkDir(path.Join(api.Config.ConfigPath, "covers"), exportWalker)
+					filepath.WalkDir(path.Join(api.Config.DataPath, "covers"), exportWalker)
 
 				} else if item == BACKUP_TYPE_DOCUMENTS {
-					filepath.WalkDir(path.Join(api.Config.ConfigPath, "documents"), exportWalker)
+					filepath.WalkDir(path.Join(api.Config.DataPath, "documents"), exportWalker)
 				}
 			}
 
