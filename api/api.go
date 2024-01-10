@@ -247,8 +247,26 @@ func apiLogger() gin.HandlerFunc {
 		endTime := time.Now()
 		latency := endTime.Sub(startTime).Round(time.Microsecond)
 
+		// Get Username
+		var auth authData
+		if data, _ := c.Get("Authorization"); data != nil {
+			auth = data.(authData)
+		}
+
+		username := auth.UserName
+		if username != "" {
+			username = " (" + username + ")"
+		}
+
 		// Log Result
-		log.Infof("[HTTPRouter] %-15s (%10s) %d %7s %s", c.ClientIP(), latency, c.Writer.Status(), c.Request.Method, c.Request.URL.Path)
+		log.Infof("[HTTPRouter] %-15s (%10s) %d %7s %s%s",
+			c.ClientIP(),
+			latency,
+			c.Writer.Status(),
+			c.Request.Method,
+			c.Request.URL.Path,
+			username,
+		)
 	}
 }
 
