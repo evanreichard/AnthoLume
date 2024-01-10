@@ -2,9 +2,11 @@ package config
 
 import (
 	"os"
+	"path"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/snowzach/rotatefilehook"
 )
 
 type Config struct {
@@ -32,6 +34,15 @@ type Config struct {
 	CookieHTTPOnly   bool
 }
 
+type UTCFormatter struct {
+	log.Formatter
+}
+
+func (u UTCFormatter) Format(e *log.Entry) ([]byte, error) {
+	e.Time = e.Time.UTC()
+	return u.Formatter.Format(e)
+}
+
 func Load() *Config {
 	c := &Config{
 		Version:             "0.0.1",
@@ -50,11 +61,31 @@ func Load() *Config {
 	}
 
 	// Log Level
-	ll, err := log.ParseLevel(c.LogLevel)
+	logLevel, err := log.ParseLevel(c.LogLevel)
 	if err != nil {
-		ll = log.InfoLevel
+		logLevel = log.InfoLevel
 	}
-	log.SetLevel(ll)
+
+	// Log Formatter
+	ttyLogFormatter := &UTCFormatter{&log.TextFormatter{FullTimestamp: true}}
+	fileLogFormatter := &UTCFormatter{&log.TextFormatter{FullTimestamp: true, DisableColors: true}}
+
+	// Log Rotater
+	rotateFileHook, err := rotatefilehook.NewRotateFileHook(rotatefilehook.RotateFileConfig{
+		Filename:   path.Join(c.ConfigPath, "logs/antholume.log"),
+		MaxSize:    50,
+		MaxBackups: 3,
+		MaxAge:     30,
+		Level:      logLevel,
+		Formatter:  fileLogFormatter,
+	})
+	if err != nil {
+		log.Fatal("[config.Load] Unable to initialize file rotate hook")
+	}
+
+	log.SetLevel(logLevel)
+	log.SetFormatter(ttyLogFormatter)
+	log.AddHook(rotateFileHook)
 
 	return c
 }

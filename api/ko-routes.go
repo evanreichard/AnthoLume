@@ -129,7 +129,10 @@ func (api *API) koCreateUser(c *gin.Context) {
 }
 
 func (api *API) koSetProgress(c *gin.Context) {
-	rUser, _ := c.Get("AuthorizedUser")
+	var auth authData
+	if data, _ := c.Get("Authorization"); data != nil {
+		auth = data.(authData)
+	}
 
 	var rPosition requestPosition
 	if err := c.ShouldBindJSON(&rPosition); err != nil {
@@ -141,7 +144,7 @@ func (api *API) koSetProgress(c *gin.Context) {
 	// Upsert Device
 	if _, err := api.DB.Queries.UpsertDevice(api.DB.Ctx, database.UpsertDeviceParams{
 		ID:         rPosition.DeviceID,
-		UserID:     rUser.(string),
+		UserID:     auth.UserName,
 		DeviceName: rPosition.Device,
 		LastSynced: time.Now().UTC().Format(time.RFC3339),
 	}); err != nil {
@@ -160,7 +163,7 @@ func (api *API) koSetProgress(c *gin.Context) {
 		Percentage: rPosition.Percentage,
 		DocumentID: rPosition.DocumentID,
 		DeviceID:   rPosition.DeviceID,
-		UserID:     rUser.(string),
+		UserID:     auth.UserName,
 		Progress:   rPosition.Progress,
 	})
 	if err != nil {
@@ -171,7 +174,7 @@ func (api *API) koSetProgress(c *gin.Context) {
 
 	// Update Statistic
 	log.Info("[koSetProgress] UpdateDocumentUserStatistic Running...")
-	if err := api.DB.UpdateDocumentUserStatistic(rPosition.DocumentID, rUser.(string)); err != nil {
+	if err := api.DB.UpdateDocumentUserStatistic(rPosition.DocumentID, auth.UserName); err != nil {
 		log.Error("[koSetProgress] UpdateDocumentUserStatistic Error:", err)
 	}
 	log.Info("[koSetProgress] UpdateDocumentUserStatistic Complete")
@@ -183,7 +186,10 @@ func (api *API) koSetProgress(c *gin.Context) {
 }
 
 func (api *API) koGetProgress(c *gin.Context) {
-	rUser, _ := c.Get("AuthorizedUser")
+	var auth authData
+	if data, _ := c.Get("Authorization"); data != nil {
+		auth = data.(authData)
+	}
 
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
@@ -194,7 +200,7 @@ func (api *API) koGetProgress(c *gin.Context) {
 
 	progress, err := api.DB.Queries.GetDocumentProgress(api.DB.Ctx, database.GetDocumentProgressParams{
 		DocumentID: rDocID.DocumentID,
-		UserID:     rUser.(string),
+		UserID:     auth.UserName,
 	})
 
 	if err == sql.ErrNoRows {
@@ -217,7 +223,10 @@ func (api *API) koGetProgress(c *gin.Context) {
 }
 
 func (api *API) koAddActivities(c *gin.Context) {
-	rUser, _ := c.Get("AuthorizedUser")
+	var auth authData
+	if data, _ := c.Get("Authorization"); data != nil {
+		auth = data.(authData)
+	}
 
 	var rActivity requestActivity
 	if err := c.ShouldBindJSON(&rActivity); err != nil {
@@ -259,7 +268,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 	// Upsert Device
 	if _, err = qtx.UpsertDevice(api.DB.Ctx, database.UpsertDeviceParams{
 		ID:         rActivity.DeviceID,
-		UserID:     rUser.(string),
+		UserID:     auth.UserName,
 		DeviceName: rActivity.Device,
 		LastSynced: time.Now().UTC().Format(time.RFC3339),
 	}); err != nil {
@@ -271,7 +280,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 	// Add All Activity
 	for _, item := range rActivity.Activity {
 		if _, err := qtx.AddActivity(api.DB.Ctx, database.AddActivityParams{
-			UserID:          rUser.(string),
+			UserID:          auth.UserName,
 			DocumentID:      item.DocumentID,
 			DeviceID:        rActivity.DeviceID,
 			StartTime:       time.Unix(int64(item.StartTime), 0).UTC().Format(time.RFC3339),
@@ -295,7 +304,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 	// Update Statistic
 	for _, doc := range allDocuments {
 		log.Info("[koAddActivities] UpdateDocumentUserStatistic Running...")
-		if err := api.DB.UpdateDocumentUserStatistic(doc, rUser.(string)); err != nil {
+		if err := api.DB.UpdateDocumentUserStatistic(doc, auth.UserName); err != nil {
 			log.Error("[koAddActivities] UpdateDocumentUserStatistic Error:", err)
 		}
 		log.Info("[koAddActivities] UpdateDocumentUserStatistic Complete")
@@ -307,7 +316,10 @@ func (api *API) koAddActivities(c *gin.Context) {
 }
 
 func (api *API) koCheckActivitySync(c *gin.Context) {
-	rUser, _ := c.Get("AuthorizedUser")
+	var auth authData
+	if data, _ := c.Get("Authorization"); data != nil {
+		auth = data.(authData)
+	}
 
 	var rCheckActivity requestCheckActivitySync
 	if err := c.ShouldBindJSON(&rCheckActivity); err != nil {
@@ -319,7 +331,7 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 	// Upsert Device
 	if _, err := api.DB.Queries.UpsertDevice(api.DB.Ctx, database.UpsertDeviceParams{
 		ID:         rCheckActivity.DeviceID,
-		UserID:     rUser.(string),
+		UserID:     auth.UserName,
 		DeviceName: rCheckActivity.Device,
 		LastSynced: time.Now().UTC().Format(time.RFC3339),
 	}); err != nil {
@@ -330,7 +342,7 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 
 	// Get Last Device Activity
 	lastActivity, err := api.DB.Queries.GetLastActivity(api.DB.Ctx, database.GetLastActivityParams{
-		UserID:   rUser.(string),
+		UserID:   auth.UserName,
 		DeviceID: rCheckActivity.DeviceID,
 	})
 	if err == sql.ErrNoRows {
@@ -405,7 +417,10 @@ func (api *API) koAddDocuments(c *gin.Context) {
 }
 
 func (api *API) koCheckDocumentsSync(c *gin.Context) {
-	rUser, _ := c.Get("AuthorizedUser")
+	var auth authData
+	if data, _ := c.Get("Authorization"); data != nil {
+		auth = data.(authData)
+	}
 
 	var rCheckDocs requestCheckDocumentSync
 	if err := c.ShouldBindJSON(&rCheckDocs); err != nil {
@@ -417,7 +432,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	// Upsert Device
 	_, err := api.DB.Queries.UpsertDevice(api.DB.Ctx, database.UpsertDeviceParams{
 		ID:         rCheckDocs.DeviceID,
-		UserID:     rUser.(string),
+		UserID:     auth.UserName,
 		DeviceName: rCheckDocs.Device,
 		LastSynced: time.Now().UTC().Format(time.RFC3339),
 	})

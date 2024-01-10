@@ -1,14 +1,17 @@
 package api
 
 import (
+	"archive/zip"
 	"crypto/md5"
 	"database/sql"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"mime/multipart"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -22,6 +25,29 @@ import (
 	"reichard.io/bbank/metadata"
 	"reichard.io/bbank/search"
 	"reichard.io/bbank/utils"
+)
+
+type AdminAction string
+
+const (
+	AA_IMPORT         AdminAction = "IMPORT"
+	AA_BACKUP         AdminAction = "BACKUP"
+	AA_RESTORE        AdminAction = "RESTORE"
+	AA_METADATA_MATCH AdminAction = "METADATA_MATCH"
+)
+
+type ImportType string
+
+const (
+	IMPORT_TYPE_DIRECT ImportType = "DIRECT"
+	IMPORT_TYPE_COPY   ImportType = "COPY"
+)
+
+type BackupType string
+
+const (
+	BACKUP_TYPE_COVERS    BackupType = "COVERS"
+	BACKUP_TYPE_DOCUMENTS BackupType = "DOCUMENTS"
 )
 
 type queryParams struct {
@@ -49,6 +75,20 @@ type requestDocumentEdit struct {
 	RemoveCover *string               `form:"remove_cover"`
 	CoverGBID   *string               `form:"cover_gbid"`
 	CoverFile   *multipart.FileHeader `form:"cover_file"`
+}
+
+type requestAdminAction struct {
+	Action AdminAction `form:"action"`
+
+	// Import Action
+	ImportDirectory *string     `form:"import_directory"`
+	ImportType      *ImportType `form:"import_type"`
+
+	// Backup Action
+	BackupTypes []BackupType `form:"backup_types"`
+
+	// Restore Action
+	RestoreFile *multipart.FileHeader `form:"restore_file"`
 }
 
 type requestDocumentIdentify struct {
@@ -93,7 +133,7 @@ func (api *API) appDocumentReader(c *gin.Context) {
 
 func (api *API) appGetDocuments(c *gin.Context) {
 	templateVars := api.getBaseTemplateVars("documents", c)
-	userID := templateVars["User"].(string)
+	auth := templateVars["Authorization"].(authData)
 	qParams := bindQueryParams(c, 9)
 
 	var query *string
@@ -103,7 +143,7 @@ func (api *API) appGetDocuments(c *gin.Context) {
 	}
 
 	documents, err := api.DB.Queries.GetDocumentsWithStats(api.DB.Ctx, database.GetDocumentsWithStatsParams{
-		UserID: userID,
+		UserID: auth.UserName,
 		Query:  query,
 		Offset: (*qParams.Page - 1) * *qParams.Limit,
 		Limit:  *qParams.Limit,
@@ -145,7 +185,7 @@ func (api *API) appGetDocuments(c *gin.Context) {
 
 func (api *API) appGetDocument(c *gin.Context) {
 	templateVars := api.getBaseTemplateVars("document", c)
-	userID := templateVars["User"].(string)
+	auth := templateVars["Authorization"].(authData)
 
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
@@ -155,7 +195,7 @@ func (api *API) appGetDocument(c *gin.Context) {
 	}
 
 	document, err := api.DB.Queries.GetDocumentWithStats(api.DB.Ctx, database.GetDocumentWithStatsParams{
-		UserID:     userID,
+		UserID:     auth.UserName,
 		DocumentID: rDocID.DocumentID,
 	})
 	if err != nil {
@@ -172,11 +212,12 @@ func (api *API) appGetDocument(c *gin.Context) {
 
 func (api *API) appGetProgress(c *gin.Context) {
 	templateVars := api.getBaseTemplateVars("progress", c)
-	userID := templateVars["User"].(string)
+	auth := templateVars["Authorization"].(authData)
+
 	qParams := bindQueryParams(c, 15)
 
 	progressFilter := database.GetProgressParams{
-		UserID: userID,
+		UserID: auth.UserName,
 		Offset: (*qParams.Page - 1) * *qParams.Limit,
 		Limit:  *qParams.Limit,
 	}
@@ -200,11 +241,11 @@ func (api *API) appGetProgress(c *gin.Context) {
 
 func (api *API) appGetActivity(c *gin.Context) {
 	templateVars := api.getBaseTemplateVars("activity", c)
-	userID := templateVars["User"].(string)
+	auth := templateVars["Authorization"].(authData)
 	qParams := bindQueryParams(c, 15)
 
 	activityFilter := database.GetActivityParams{
-		UserID: userID,
+		UserID: auth.UserName,
 		Offset: (*qParams.Page - 1) * *qParams.Limit,
 		Limit:  *qParams.Limit,
 	}
@@ -228,17 +269,17 @@ func (api *API) appGetActivity(c *gin.Context) {
 
 func (api *API) appGetHome(c *gin.Context) {
 	templateVars := api.getBaseTemplateVars("home", c)
-	userID := templateVars["User"].(string)
+	auth := templateVars["Authorization"].(authData)
 
 	start := time.Now()
-	graphData, _ := api.DB.Queries.GetDailyReadStats(api.DB.Ctx, userID)
-	log.Info("GetDailyReadStats Performance: ", time.Since(start))
+	graphData, _ := api.DB.Queries.GetDailyReadStats(api.DB.Ctx, auth.UserName)
+	log.Debug("[appGetHome] GetDailyReadStats Performance: ", time.Since(start))
 
 	start = time.Now()
-	databaseInfo, _ := api.DB.Queries.GetDatabaseInfo(api.DB.Ctx, userID)
-	log.Info("GetDatabaseInfo Performance: ", time.Since(start))
+	databaseInfo, _ := api.DB.Queries.GetDatabaseInfo(api.DB.Ctx, auth.UserName)
+	log.Debug("[appGetHome] GetDatabaseInfo Performance: ", time.Since(start))
 
-	streaks, _ := api.DB.Queries.GetUserStreaks(api.DB.Ctx, userID)
+	streaks, _ := api.DB.Queries.GetUserStreaks(api.DB.Ctx, auth.UserName)
 	WPMLeaderboard, _ := api.DB.Queries.GetWPMLeaderboard(api.DB.Ctx)
 
 	templateVars["Data"] = gin.H{
@@ -253,16 +294,16 @@ func (api *API) appGetHome(c *gin.Context) {
 
 func (api *API) appGetSettings(c *gin.Context) {
 	templateVars := api.getBaseTemplateVars("settings", c)
-	userID := templateVars["User"].(string)
+	auth := templateVars["Authorization"].(authData)
 
-	user, err := api.DB.Queries.GetUser(api.DB.Ctx, userID)
+	user, err := api.DB.Queries.GetUser(api.DB.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("[appGetSettings] GetUser DB Error:", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
 		return
 	}
 
-	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, userID)
+	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("[appGetSettings] GetDevices DB Error:", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
@@ -275,6 +316,126 @@ func (api *API) appGetSettings(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "page/settings", templateVars)
+}
+
+func (api *API) appGetAdmin(c *gin.Context) {
+	templateVars := api.getBaseTemplateVars("admin", c)
+
+	c.HTML(http.StatusOK, "page/admin", templateVars)
+}
+
+func (api *API) appGetAdminLogs(c *gin.Context) {
+	// Open Log File
+	logPath := path.Join(api.Config.ConfigPath, "logs/antholume.log")
+	logFile, err := os.Open(logPath)
+	if err != nil {
+		errorPage(c, http.StatusBadRequest, "Missing AnthoLume log file.")
+		return
+	}
+	defer logFile.Close()
+
+	// Write Log File
+	c.Stream(func(w io.Writer) bool {
+		_, err = io.Copy(w, logFile)
+		if err != nil {
+			return true
+		}
+		return false
+	})
+}
+
+func (api *API) appPerformAdminAction(c *gin.Context) {
+	templateVars := api.getBaseTemplateVars("admin", c)
+
+	var rAdminAction requestAdminAction
+	if err := c.ShouldBind(&rAdminAction); err != nil {
+		log.Error("[appPerformAdminAction] Invalid Form Bind")
+		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		return
+	}
+
+	switch rAdminAction.Action {
+	case AA_IMPORT:
+		// TODO
+	case AA_METADATA_MATCH:
+		// TODO
+		// 1. Documents xref most recent metadata table?
+		// 2. Select all / deselect?
+	case AA_RESTORE:
+		// TODO
+		// 1. Consume backup ZIP
+		// 2. Move existing to "backup" folder (db, wal, shm, covers, documents)
+		// 3. Extract backup zip
+		// 4. Restart server?
+	case AA_BACKUP:
+		// Get File Paths
+		fileName := fmt.Sprintf("%s.db", api.Config.DBName)
+		dbLocation := path.Join(api.Config.ConfigPath, fileName)
+
+		c.Header("Content-type", "application/octet-stream")
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"AnthoLumeExport_%s.zip\"", time.Now().Format("20060102")))
+
+		// Stream Backup ZIP Archive
+		c.Stream(func(w io.Writer) bool {
+			ar := zip.NewWriter(w)
+
+			exportWalker := func(currentPath string, f fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				if f.IsDir() {
+					return nil
+				}
+
+				// Open File on Disk
+				file, err := os.Open(currentPath)
+				if err != nil {
+					return err
+				}
+				defer file.Close()
+
+				// Derive Export Structure
+				fileName := filepath.Base(currentPath)
+				folderName := filepath.Base(filepath.Dir(currentPath))
+
+				// Create File in Export
+				newF, err := ar.Create(path.Join(folderName, fileName))
+				if err != nil {
+					return err
+				}
+
+				// Copy File in Export
+				_, err = io.Copy(newF, file)
+				if err != nil {
+					return err
+				}
+
+				return nil
+			}
+
+			// Copy Database File
+			dbFile, _ := os.Open(dbLocation)
+			newDbFile, _ := ar.Create(fileName)
+			io.Copy(newDbFile, dbFile)
+
+			// Backup Covers & Documents
+			for _, item := range rAdminAction.BackupTypes {
+				if item == BACKUP_TYPE_COVERS {
+					filepath.WalkDir(path.Join(api.Config.ConfigPath, "covers"), exportWalker)
+
+				} else if item == BACKUP_TYPE_DOCUMENTS {
+					filepath.WalkDir(path.Join(api.Config.ConfigPath, "documents"), exportWalker)
+				}
+			}
+
+			ar.Close()
+			return false
+		})
+
+		return
+	}
+
+	c.HTML(http.StatusOK, "page/admin", templateVars)
 }
 
 func (api *API) appGetSearch(c *gin.Context) {
@@ -320,7 +481,10 @@ func (api *API) appGetRegister(c *gin.Context) {
 }
 
 func (api *API) appGetDocumentProgress(c *gin.Context) {
-	rUser, _ := c.Get("AuthorizedUser")
+	var auth authData
+	if data, _ := c.Get("Authorization"); data != nil {
+		auth = data.(authData)
+	}
 
 	var rDoc requestDocumentID
 	if err := c.ShouldBindUri(&rDoc); err != nil {
@@ -331,7 +495,7 @@ func (api *API) appGetDocumentProgress(c *gin.Context) {
 
 	progress, err := api.DB.Queries.GetDocumentProgress(api.DB.Ctx, database.GetDocumentProgressParams{
 		DocumentID: rDoc.DocumentID,
-		UserID:     rUser.(string),
+		UserID:     auth.UserName,
 	})
 
 	if err != nil && err != sql.ErrNoRows {
@@ -341,7 +505,7 @@ func (api *API) appGetDocumentProgress(c *gin.Context) {
 	}
 
 	document, err := api.DB.Queries.GetDocumentWithStats(api.DB.Ctx, database.GetDocumentWithStatsParams{
-		UserID:     rUser.(string),
+		UserID:     auth.UserName,
 		DocumentID: rDoc.DocumentID,
 	})
 	if err != nil {
@@ -361,9 +525,12 @@ func (api *API) appGetDocumentProgress(c *gin.Context) {
 }
 
 func (api *API) appGetDevices(c *gin.Context) {
-	rUser, _ := c.Get("AuthorizedUser")
+	var auth authData
+	if data, _ := c.Get("Authorization"); data != nil {
+		auth = data.(authData)
+	}
 
-	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, rUser.(string))
+	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, auth.UserName)
 
 	if err != nil && err != sql.ErrNoRows {
 		log.Error("[appGetDevices] GetDevices DB Error:", err)
@@ -677,7 +844,7 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 
 	// Get Template Variables
 	templateVars := api.getBaseTemplateVars("document", c)
-	userID := templateVars["User"].(string)
+	auth := templateVars["Authorization"].(authData)
 
 	// Get Metadata
 	metadataResults, err := metadata.SearchMetadata(metadata.GBOOK, metadata.MetadataInfo{
@@ -710,7 +877,7 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 	}
 
 	document, err := api.DB.Queries.GetDocumentWithStats(api.DB.Ctx, database.GetDocumentWithStatsParams{
-		UserID:     userID,
+		UserID:     auth.UserName,
 		DocumentID: rDocID.DocumentID,
 	})
 	if err != nil {
@@ -896,17 +1063,19 @@ func (api *API) appEditSettings(c *gin.Context) {
 	}
 
 	templateVars := api.getBaseTemplateVars("settings", c)
-	userID := templateVars["User"].(string)
+	auth := templateVars["Authorization"].(authData)
 
 	newUserSettings := database.UpdateUserParams{
-		UserID: userID,
+		UserID: auth.UserName,
 	}
 
 	// Set New Password
 	if rUserSettings.Password != nil && rUserSettings.NewPassword != nil {
 		password := fmt.Sprintf("%x", md5.Sum([]byte(*rUserSettings.Password)))
-		authorized := api.authorizeCredentials(userID, password)
-		if authorized == true {
+		data := api.authorizeCredentials(auth.UserName, password)
+		if data == nil {
+			templateVars["PasswordErrorMessage"] = "Invalid Password"
+		} else {
 			password := fmt.Sprintf("%x", md5.Sum([]byte(*rUserSettings.NewPassword)))
 			hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
 			if err != nil {
@@ -915,8 +1084,6 @@ func (api *API) appEditSettings(c *gin.Context) {
 				templateVars["PasswordMessage"] = "Password Updated"
 				newUserSettings.Password = &hashedPassword
 			}
-		} else {
-			templateVars["PasswordErrorMessage"] = "Invalid Password"
 		}
 	}
 
@@ -935,7 +1102,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	}
 
 	// Get User
-	user, err := api.DB.Queries.GetUser(api.DB.Ctx, userID)
+	user, err := api.DB.Queries.GetUser(api.DB.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("[appEditSettings] GetUser DB Error:", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
@@ -943,7 +1110,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	}
 
 	// Get Devices
-	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, userID)
+	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("[appEditSettings] GetDevices DB Error:", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
@@ -1002,14 +1169,14 @@ func (api *API) getDocumentsWordCount(documents []database.GetDocumentsWithStats
 }
 
 func (api *API) getBaseTemplateVars(routeName string, c *gin.Context) gin.H {
-	var userID string
-	if rUser, _ := c.Get("AuthorizedUser"); rUser != nil {
-		userID = rUser.(string)
+	var auth authData
+	if data, _ := c.Get("Authorization"); data != nil {
+		auth = data.(authData)
 	}
 
 	return gin.H{
-		"User":      userID,
-		"RouteName": routeName,
+		"Authorization": auth,
+		"RouteName":     routeName,
 		"Config": gin.H{
 			"Version":             api.Config.Version,
 			"SearchEnabled":       api.Config.SearchEnabled,

@@ -15,18 +15,7 @@ import (
 //go:embed templates/* assets/*
 var assets embed.FS
 
-type UTCFormatter struct {
-	log.Formatter
-}
-
-func (u UTCFormatter) Format(e *log.Entry) ([]byte, error) {
-	e.Time = e.Time.UTC()
-	return u.Formatter.Format(e)
-}
-
 func main() {
-	log.SetFormatter(UTCFormatter{&log.TextFormatter{FullTimestamp: true}})
-
 	app := &cli.App{
 		Name:  "AnthoLume",
 		Usage: "A self hosted e-book progress tracker.",

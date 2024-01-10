@@ -61,9 +61,9 @@ func (api *API) opdsEntry(c *gin.Context) {
 }
 
 func (api *API) opdsDocuments(c *gin.Context) {
-	var userID string
-	if rUser, _ := c.Get("AuthorizedUser"); rUser != nil {
-		userID = rUser.(string)
+	var auth authData
+	if data, _ := c.Get("Authorization"); data != nil {
+		auth = data.(authData)
 	}
 
 	// Potential URL Parameters (Default Pagination - 100)
@@ -78,7 +78,7 @@ func (api *API) opdsDocuments(c *gin.Context) {
 
 	// Get Documents
 	documents, err := api.DB.Queries.GetDocumentsWithStats(api.DB.Ctx, database.GetDocumentsWithStatsParams{
-		UserID: userID,
+		UserID: auth.UserName,
 		Query:  query,
 		Offset: (*qParams.Page - 1) * *qParams.Limit,
 		Limit:  *qParams.Limit,

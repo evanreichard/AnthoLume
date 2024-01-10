@@ -7,7 +7,7 @@
       class="flex flex-col p-4 items-center rounded shadow-lg md:w-60 lg:w-80 bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
     >
       {{ template "svg/user" (dict "Size" 60) }}
-      <p class="text-lg">{{ .User }}</p>
+      <p class="text-lg">{{ .Authorization.UserName }}</p>
     </div>
   </div>
 

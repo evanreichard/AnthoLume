@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gin-contrib/multitemplate"
 	"github.com/gin-contrib/sessions"
@@ -32,11 +33,14 @@ type API struct {
 func NewApi(db *database.DBManager, c *config.Config, assets *embed.FS) *API {
 	api := &API{
 		HTMLPolicy: bluemonday.StrictPolicy(),
-		Router:     gin.Default(),
+		Router:     gin.New(),
 		Config:     c,
 		DB:         db,
 		Assets:     assets,
 	}
+
+	// Add Logger
+	api.Router.Use(apiLogger())
 
 	// Assets & Web App Templates
 	assetsDir, _ := fs.Sub(assets, "assets")
@@ -107,6 +111,9 @@ func (api *API) registerWebAppRoutes() {
 	api.Router.GET("/logout", api.authWebAppMiddleware, api.appAuthLogout)
 	api.Router.GET("/register", api.appGetRegister)
 	api.Router.GET("/settings", api.authWebAppMiddleware, api.appGetSettings)
+	api.Router.GET("/admin/logs", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminLogs)
+	api.Router.GET("/admin", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdmin)
+	api.Router.POST("/admin", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appPerformAdminAction)
 	api.Router.POST("/login", api.appAuthFormLogin)
 	api.Router.POST("/register", api.appAuthFormRegister)
 
@@ -226,6 +233,23 @@ func (api *API) generateTemplates() *multitemplate.Renderer {
 	api.Templates = templates
 
 	return &render
+}
+
+func apiLogger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Start Timer
+		startTime := time.Now()
+
+		// Process Request
+		c.Next()
+
+		// End Timer
+		endTime := time.Now()
+		latency := endTime.Sub(startTime).Round(time.Microsecond)
+
+		// Log Result
+		log.Infof("[HTTPRouter] %-15s (%10s) %d %7s %s", c.ClientIP(), latency, c.Writer.Status(), c.Request.Method, c.Request.URL.Path)
+	}
 }
 
 func generateToken(n int) ([]byte, error) {
