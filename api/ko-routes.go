@@ -18,8 +18,8 @@ import (
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
-	"reichard.io/bbank/database"
-	"reichard.io/bbank/metadata"
+	"reichard.io/antholume/database"
+	"reichard.io/antholume/metadata"
 )
 
 type activityItem struct {
@@ -173,11 +173,11 @@ func (api *API) koSetProgress(c *gin.Context) {
 	}
 
 	// Update Statistic
-	log.Info("[koSetProgress] UpdateDocumentUserStatistic Running...")
+	start := time.Now()
 	if err := api.DB.UpdateDocumentUserStatistic(rPosition.DocumentID, auth.UserName); err != nil {
 		log.Error("[koSetProgress] UpdateDocumentUserStatistic Error:", err)
 	}
-	log.Info("[koSetProgress] UpdateDocumentUserStatistic Complete")
+	log.Debug("[koSetProgress] UpdateDocumentUserStatistic Performance: ", time.Since(start))
 
 	c.JSON(http.StatusOK, gin.H{
 		"document":  progress.DocumentID,

@@ -21,33 +21,33 @@ import (
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
-	"reichard.io/bbank/database"
-	"reichard.io/bbank/metadata"
-	"reichard.io/bbank/search"
-	"reichard.io/bbank/utils"
+	"reichard.io/antholume/database"
+	"reichard.io/antholume/metadata"
+	"reichard.io/antholume/search"
+	"reichard.io/antholume/utils"
 )
 
-type AdminAction string
+type adminAction string
 
 const (
-	AA_IMPORT         AdminAction = "IMPORT"
-	AA_BACKUP         AdminAction = "BACKUP"
-	AA_RESTORE        AdminAction = "RESTORE"
-	AA_METADATA_MATCH AdminAction = "METADATA_MATCH"
+	adminImport        adminAction = "IMPORT"
+	adminBackup        adminAction = "BACKUP"
+	adminRestore       adminAction = "RESTORE"
+	adminMetadataMatch adminAction = "METADATA_MATCH"
 )
 
-type ImportType string
+type importType string
 
 const (
-	IMPORT_TYPE_DIRECT ImportType = "DIRECT"
-	IMPORT_TYPE_COPY   ImportType = "COPY"
+	importDirect importType = "DIRECT"
+	importCopy   importType = "COPY"
 )
 
-type BackupType string
+type backupType string
 
 const (
-	BACKUP_TYPE_COVERS    BackupType = "COVERS"
-	BACKUP_TYPE_DOCUMENTS BackupType = "DOCUMENTS"
+	backupCovers    backupType = "COVERS"
+	backupDocuments backupType = "DOCUMENTS"
 )
 
 type queryParams struct {
@@ -78,14 +78,14 @@ type requestDocumentEdit struct {
 }
 
 type requestAdminAction struct {
-	Action AdminAction `form:"action"`
+	Action adminAction `form:"action"`
 
 	// Import Action
 	ImportDirectory *string     `form:"import_directory"`
-	ImportType      *ImportType `form:"import_type"`
+	ImportType      *importType `form:"import_type"`
 
 	// Backup Action
-	BackupTypes []BackupType `form:"backup_types"`
+	BackupTypes []backupType `form:"backup_types"`
 
 	// Restore Action
 	RestoreFile *multipart.FileHeader `form:"restore_file"`
@@ -320,7 +320,6 @@ func (api *API) appGetSettings(c *gin.Context) {
 
 func (api *API) appGetAdmin(c *gin.Context) {
 	templateVars := api.getBaseTemplateVars("admin", c)
-
 	c.HTML(http.StatusOK, "page/admin", templateVars)
 }
 
@@ -355,19 +354,19 @@ func (api *API) appPerformAdminAction(c *gin.Context) {
 	}
 
 	switch rAdminAction.Action {
-	case AA_IMPORT:
+	case adminImport:
 		// TODO
-	case AA_METADATA_MATCH:
+	case adminMetadataMatch:
 		// TODO
 		// 1. Documents xref most recent metadata table?
 		// 2. Select all / deselect?
-	case AA_RESTORE:
+	case adminRestore:
 		// TODO
 		// 1. Consume backup ZIP
 		// 2. Move existing to "backup" folder (db, wal, shm, covers, documents)
 		// 3. Extract backup zip
 		// 4. Restart server?
-	case AA_BACKUP:
+	case adminBackup:
 		// Get File Paths
 		fileName := fmt.Sprintf("%s.db", api.Config.DBName)
 		dbLocation := path.Join(api.Config.ConfigPath, fileName)
@@ -420,10 +419,10 @@ func (api *API) appPerformAdminAction(c *gin.Context) {
 
 			// Backup Covers & Documents
 			for _, item := range rAdminAction.BackupTypes {
-				if item == BACKUP_TYPE_COVERS {
+				if item == backupCovers {
 					filepath.WalkDir(path.Join(api.Config.DataPath, "covers"), exportWalker)
 
-				} else if item == BACKUP_TYPE_DOCUMENTS {
+				} else if item == backupDocuments {
 					filepath.WalkDir(path.Join(api.Config.DataPath, "documents"), exportWalker)
 				}
 			}

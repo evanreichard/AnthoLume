@@ -17,8 +17,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/microcosm-cc/bluemonday"
 	log "github.com/sirupsen/logrus"
-	"reichard.io/bbank/config"
-	"reichard.io/bbank/database"
+	"reichard.io/antholume/config"
+	"reichard.io/antholume/database"
 )
 
 type API struct {

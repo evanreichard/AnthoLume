@@ -11,7 +11,7 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
-	"reichard.io/bbank/database"
+	"reichard.io/antholume/database"
 )
 
 // Authorization Data

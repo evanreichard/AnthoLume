@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"reichard.io/bbank/database"
-	"reichard.io/bbank/metadata"
+	"reichard.io/antholume/database"
+	"reichard.io/antholume/metadata"
 )
 
 func (api *API) downloadDocument(c *gin.Context) {

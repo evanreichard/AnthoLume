@@ -11,9 +11,9 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"reichard.io/bbank/api"
-	"reichard.io/bbank/config"
-	"reichard.io/bbank/database"
+	"reichard.io/antholume/api"
+	"reichard.io/antholume/config"
+	"reichard.io/antholume/database"
 )
 
 type Server struct {

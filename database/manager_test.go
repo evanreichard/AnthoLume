@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"reichard.io/bbank/config"
+	"reichard.io/antholume/config"
 )
 
 type databaseTest struct {

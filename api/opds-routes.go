@@ -8,8 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
-	"reichard.io/bbank/database"
-	"reichard.io/bbank/opds"
+	"reichard.io/antholume/database"
+	"reichard.io/antholume/opds"
 )
 
 var mimeMapping map[string]string = map[string]string{

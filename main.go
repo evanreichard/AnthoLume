@@ -9,7 +9,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
-	"reichard.io/bbank/server"
+	"reichard.io/antholume/server"
 )
 
 //go:embed templates/* assets/*

@@ -1,4 +1,4 @@
-module reichard.io/bbank
+module reichard.io/antholume
 
 go 1.19
 
@@ -11,10 +11,10 @@ require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/microcosm-cc/bluemonday v1.0.25
 	github.com/sirupsen/logrus v1.9.3
+	github.com/snowzach/rotatefilehook v0.0.0-20220211133110-53752135082d
 	github.com/taylorskalyo/goreader v0.0.0-20230626212555-e7f5644f8115
 	github.com/urfave/cli/v2 v2.25.7
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
-	golang.org/x/net v0.15.0
 	modernc.org/sqlite v1.26.0
 )
 
@@ -47,13 +47,13 @@ require (
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/snowzach/rotatefilehook v0.0.0-20220211133110-53752135082d // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	golang.org/x/arch v0.4.0 // indirect
 	golang.org/x/crypto v0.13.0 // indirect
 	golang.org/x/mod v0.12.0 // indirect
+	golang.org/x/net v0.15.0 // indirect
 	golang.org/x/sys v0.12.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/tools v0.13.0 // indirect

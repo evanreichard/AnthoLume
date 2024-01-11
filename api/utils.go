@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"math"
 
-	"reichard.io/bbank/database"
-	"reichard.io/bbank/graph"
+	"reichard.io/antholume/database"
+	"reichard.io/antholume/graph"
 )
 
 type UTCOffset struct {

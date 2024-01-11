@@ -8,7 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	_ "modernc.org/sqlite"
 	"path"
-	"reichard.io/bbank/config"
+	"reichard.io/antholume/config"
 )
 
 type DBManager struct {
