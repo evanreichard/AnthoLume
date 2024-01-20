@@ -20,8 +20,14 @@ steps:
       cron:
         - integration-test
 
-  # Publish Dev Docker Image
-  - name: publish_docker
+  # Fetch tags
+  - name: fetch tags
+    image: alpine/git
+    commands:
+      - git fetch --tags
+
+  # Publish docker image
+  - name: publish docker
     image: plugins/docker
     settings:
       repo: gitea.va.reichard.io/evan/antholume

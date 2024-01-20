@@ -5,12 +5,12 @@ RUN apk update && apk add ca-certificates
 # Build Image
 FROM golang:1.21 AS build
 
+# Create Package Directory
+RUN mkdir -p /opt/antholume
+
 # Copy Source
 WORKDIR /src
 COPY . .
-
-# Create Package Directory
-RUN mkdir -p /opt/antholume
 
 # Compile
 RUN go build \
