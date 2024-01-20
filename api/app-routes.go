@@ -2,6 +2,7 @@ package api
 
 import (
 	"archive/zip"
+	"bufio"
 	"crypto/md5"
 	"database/sql"
 	"fmt"
@@ -132,8 +133,7 @@ func (api *API) appDocumentReader(c *gin.Context) {
 }
 
 func (api *API) appGetDocuments(c *gin.Context) {
-	templateVars := api.getBaseTemplateVars("documents", c)
-	auth := templateVars["Authorization"].(authData)
+	templateVars, auth := api.getBaseTemplateVars("documents", c)
 	qParams := bindQueryParams(c, 9)
 
 	var query *string
@@ -184,8 +184,7 @@ func (api *API) appGetDocuments(c *gin.Context) {
 }
 
 func (api *API) appGetDocument(c *gin.Context) {
-	templateVars := api.getBaseTemplateVars("document", c)
-	auth := templateVars["Authorization"].(authData)
+	templateVars, auth := api.getBaseTemplateVars("document", c)
 
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
@@ -211,8 +210,7 @@ func (api *API) appGetDocument(c *gin.Context) {
 }
 
 func (api *API) appGetProgress(c *gin.Context) {
-	templateVars := api.getBaseTemplateVars("progress", c)
-	auth := templateVars["Authorization"].(authData)
+	templateVars, auth := api.getBaseTemplateVars("progress", c)
 
 	qParams := bindQueryParams(c, 15)
 
@@ -240,8 +238,7 @@ func (api *API) appGetProgress(c *gin.Context) {
 }
 
 func (api *API) appGetActivity(c *gin.Context) {
-	templateVars := api.getBaseTemplateVars("activity", c)
-	auth := templateVars["Authorization"].(authData)
+	templateVars, auth := api.getBaseTemplateVars("activity", c)
 	qParams := bindQueryParams(c, 15)
 
 	activityFilter := database.GetActivityParams{
@@ -268,8 +265,7 @@ func (api *API) appGetActivity(c *gin.Context) {
 }
 
 func (api *API) appGetHome(c *gin.Context) {
-	templateVars := api.getBaseTemplateVars("home", c)
-	auth := templateVars["Authorization"].(authData)
+	templateVars, auth := api.getBaseTemplateVars("home", c)
 
 	start := time.Now()
 	graphData, _ := api.DB.Queries.GetDailyReadStats(api.DB.Ctx, auth.UserName)
@@ -293,8 +289,7 @@ func (api *API) appGetHome(c *gin.Context) {
 }
 
 func (api *API) appGetSettings(c *gin.Context) {
-	templateVars := api.getBaseTemplateVars("settings", c)
-	auth := templateVars["Authorization"].(authData)
+	templateVars, auth := api.getBaseTemplateVars("settings", c)
 
 	user, err := api.DB.Queries.GetUser(api.DB.Ctx, auth.UserName)
 	if err != nil {
@@ -319,11 +314,13 @@ func (api *API) appGetSettings(c *gin.Context) {
 }
 
 func (api *API) appGetAdmin(c *gin.Context) {
-	templateVars := api.getBaseTemplateVars("admin", c)
+	templateVars, _ := api.getBaseTemplateVars("admin", c)
 	c.HTML(http.StatusOK, "page/admin", templateVars)
 }
 
 func (api *API) appGetAdminLogs(c *gin.Context) {
+	templateVars, _ := api.getBaseTemplateVars("admin-logs", c)
+
 	// Open Log File
 	logPath := path.Join(api.Config.ConfigPath, "logs/antholume.log")
 	logFile, err := os.Open(logPath)
@@ -333,18 +330,38 @@ func (api *API) appGetAdminLogs(c *gin.Context) {
 	}
 	defer logFile.Close()
 
-	// Write Log File
-	c.Stream(func(w io.Writer) bool {
-		_, err = io.Copy(w, logFile)
-		if err != nil {
-			return true
-		}
-		return false
-	})
+	// Log Lines
+	var logLines []string
+	scanner := bufio.NewScanner(logFile)
+	for scanner.Scan() {
+		logLines = append(logLines, scanner.Text())
+	}
+	templateVars["Data"] = logLines
+
+	c.HTML(http.StatusOK, "page/admin-logs", templateVars)
 }
 
+func (api *API) appGetAdminUsers(c *gin.Context) {
+	templateVars, _ := api.getBaseTemplateVars("admin-users", c)
+
+	users, err := api.DB.Queries.GetUsers(api.DB.Ctx)
+	if err != nil {
+		log.Error("[appGetAdminUsers] GetUsers DB Error:", err)
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUsers DB Error: %v", err))
+		return
+	}
+
+	templateVars["Data"] = users
+
+	c.HTML(http.StatusOK, "page/admin-users", templateVars)
+}
+
+// Tabs:
+//   - General (Import, Backup & Restore, Version (githash?), Stats?)
+//   - Users
+//   - Metadata
 func (api *API) appPerformAdminAction(c *gin.Context) {
-	templateVars := api.getBaseTemplateVars("admin", c)
+	templateVars, _ := api.getBaseTemplateVars("admin", c)
 
 	var rAdminAction requestAdminAction
 	if err := c.ShouldBind(&rAdminAction); err != nil {
@@ -438,7 +455,7 @@ func (api *API) appPerformAdminAction(c *gin.Context) {
 }
 
 func (api *API) appGetSearch(c *gin.Context) {
-	templateVars := api.getBaseTemplateVars("search", c)
+	templateVars, _ := api.getBaseTemplateVars("search", c)
 
 	var sParams searchParams
 	c.BindQuery(&sParams)
@@ -462,7 +479,7 @@ func (api *API) appGetSearch(c *gin.Context) {
 }
 
 func (api *API) appGetLogin(c *gin.Context) {
-	templateVars := api.getBaseTemplateVars("login", c)
+	templateVars, _ := api.getBaseTemplateVars("login", c)
 	templateVars["RegistrationEnabled"] = api.Config.RegistrationEnabled
 	c.HTML(http.StatusOK, "page/login", templateVars)
 }
@@ -473,7 +490,7 @@ func (api *API) appGetRegister(c *gin.Context) {
 		return
 	}
 
-	templateVars := api.getBaseTemplateVars("login", c)
+	templateVars, _ := api.getBaseTemplateVars("login", c)
 	templateVars["RegistrationEnabled"] = api.Config.RegistrationEnabled
 	templateVars["Register"] = true
 	c.HTML(http.StatusOK, "page/login", templateVars)
@@ -842,8 +859,7 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 	}
 
 	// Get Template Variables
-	templateVars := api.getBaseTemplateVars("document", c)
-	auth := templateVars["Authorization"].(authData)
+	templateVars, auth := api.getBaseTemplateVars("document", c)
 
 	// Get Metadata
 	metadataResults, err := metadata.SearchMetadata(metadata.GBOOK, metadata.MetadataInfo{
@@ -900,12 +916,15 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	}
 
 	// Render Initial Template
-	templateVars := api.getBaseTemplateVars("search", c)
+	templateVars, _ := api.getBaseTemplateVars("search", c)
 	c.HTML(http.StatusOK, "page/search", templateVars)
 
 	// Create Streamer
-	stream := api.newStreamer(c)
-	defer stream.close()
+	stream := api.newStreamer(c, `
+	  <div class="absolute top-0 left-0 w-full h-full z-50">
+	    <div class="fixed top-0 left-0 bg-black opacity-50 w-screen h-screen"></div>
+	    <div id="stream-main" class="relative max-h-[95%] -translate-x-2/4 top-1/2 left-1/2 w-5/6">`)
+	defer stream.close(`</div></div>`)
 
 	// Stream Helper Function
 	sendDownloadMessage := func(msg string, args ...map[string]any) {
@@ -1061,8 +1080,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 		return
 	}
 
-	templateVars := api.getBaseTemplateVars("settings", c)
-	auth := templateVars["Authorization"].(authData)
+	templateVars, auth := api.getBaseTemplateVars("settings", c)
 
 	newUserSettings := database.UpdateUserParams{
 		UserID: auth.UserName,
@@ -1167,7 +1185,7 @@ func (api *API) getDocumentsWordCount(documents []database.GetDocumentsWithStats
 	return nil
 }
 
-func (api *API) getBaseTemplateVars(routeName string, c *gin.Context) gin.H {
+func (api *API) getBaseTemplateVars(routeName string, c *gin.Context) (gin.H, authData) {
 	var auth authData
 	if data, _ := c.Get("Authorization"); data != nil {
 		auth = data.(authData)
@@ -1181,7 +1199,7 @@ func (api *API) getBaseTemplateVars(routeName string, c *gin.Context) gin.H {
 			"SearchEnabled":       api.Config.SearchEnabled,
 			"RegistrationEnabled": api.Config.RegistrationEnabled,
 		},
-	}
+	}, auth
 }
 
 func bindQueryParams(c *gin.Context, defaultLimit int64) queryParams {

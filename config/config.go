@@ -43,9 +43,12 @@ func (u UTCFormatter) Format(e *log.Entry) ([]byte, error) {
 	return u.Formatter.Format(e)
 }
 
+// Set at runtime
+var version string = "develop"
+
 func Load() *Config {
 	c := &Config{
-		Version:             "0.0.1",
+		Version:             version,
 		DBType:              trimLowerString(getEnv("DATABASE_TYPE", "SQLite")),
 		DBName:              trimLowerString(getEnv("DATABASE_NAME", "antholume")),
 		ConfigPath:          getEnv("CONFIG_PATH", "/config"),

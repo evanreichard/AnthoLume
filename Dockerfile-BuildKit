@@ -3,7 +3,7 @@ FROM alpine AS certs
 RUN apk update && apk add ca-certificates
 
 # Build Image
-FROM --platform=$BUILDPLATFORM golang:1.20 AS build
+FROM --platform=$BUILDPLATFORM golang:1.21 AS build
 
 # Create Package Directory
 WORKDIR /src
@@ -15,7 +15,9 @@ ARG TARGETARCH
 RUN --mount=target=. \
     --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg \
-    GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /opt/antholume/server
+    GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
+      -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" \
+      -o /opt/antholume/server
 
 # Create Image
 FROM busybox:1.36

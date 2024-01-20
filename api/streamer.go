@@ -17,7 +17,7 @@ type streamer struct {
 	completeCh chan struct{}
 }
 
-func (api *API) newStreamer(c *gin.Context) *streamer {
+func (api *API) newStreamer(c *gin.Context, data string) *streamer {
 	stream := &streamer{
 		templates:  api.Templates,
 		writer:     c.Writer,
@@ -32,10 +32,7 @@ func (api *API) newStreamer(c *gin.Context) *streamer {
 	stream.writer.WriteHeader(http.StatusOK)
 
 	// Send Open Element Tags
-	stream.write(`
-	  <div class="absolute top-0 left-0 w-full h-full z-50">
-	    <div class="fixed top-0 left-0 bg-black opacity-50 w-screen h-screen"></div>
-	    <div id="stream-main" class="relative max-h-[95%] -translate-x-2/4 top-1/2 left-1/2 w-5/6">`)
+	stream.write(data)
 
 	// Keep Alive
 	go func() {
@@ -70,9 +67,9 @@ func (stream *streamer) send(templateName string, templateVars gin.H) {
 	stream.write(buf.String())
 }
 
-func (stream *streamer) close() {
+func (stream *streamer) close(data string) {
 	// Send Close Element Tags
-	stream.write(`</div></div>`)
+	stream.write(data)
 
 	// Close
 	close(stream.completeCh)

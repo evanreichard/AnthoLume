@@ -112,6 +112,7 @@ func (api *API) registerWebAppRoutes() {
 	api.Router.GET("/register", api.appGetRegister)
 	api.Router.GET("/settings", api.authWebAppMiddleware, api.appGetSettings)
 	api.Router.GET("/admin/logs", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminLogs)
+	api.Router.GET("/admin/users", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminUsers)
 	api.Router.GET("/admin", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdmin)
 	api.Router.POST("/admin", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appPerformAdminAction)
 	api.Router.POST("/login", api.appAuthFormLogin)
@@ -184,6 +185,7 @@ func (api *API) generateTemplates() *multitemplate.Renderer {
 		"GetUTCOffsets":   getUTCOffsets,
 		"NiceSeconds":     niceSeconds,
 		"dict":            dict,
+		"hasPrefix":       strings.HasPrefix,
 	}
 
 	// Load Base

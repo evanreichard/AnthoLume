@@ -141,7 +141,7 @@ func (api *API) authAdminWebAppMiddleware(c *gin.Context) {
 }
 
 func (api *API) appAuthFormLogin(c *gin.Context) {
-	templateVars := api.getBaseTemplateVars("login", c)
+	templateVars, _ := api.getBaseTemplateVars("login", c)
 
 	username := strings.TrimSpace(c.PostForm("username"))
 	rawPassword := strings.TrimSpace(c.PostForm("password"))
@@ -179,7 +179,7 @@ func (api *API) appAuthFormRegister(c *gin.Context) {
 		return
 	}
 
-	templateVars := api.getBaseTemplateVars("login", c)
+	templateVars, _ := api.getBaseTemplateVars("login", c)
 	templateVars["Register"] = true
 
 	username := strings.TrimSpace(c.PostForm("username"))

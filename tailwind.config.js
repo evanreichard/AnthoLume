@@ -6,7 +6,11 @@ module.exports = {
     "./assets/reader/*.{html,htm,svg,js}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      minWidth: {
+        40: "10rem",
+      },
+    },
   },
   plugins: [],
 };

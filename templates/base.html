@@ -141,28 +141,28 @@
 	      class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "home"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
 	      href="/"
 	    >
-	      <span class="text-left">{{ template "svg/home" (dict "Size" 20) }}</span>
+	      {{ template "svg/home" (dict "Size" 20) }}
 	      <span class="mx-4 text-sm font-normal">Home</span>
 	    </a>
 	    <a
 	      class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "documents"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
 	      href="/documents"
 	    >
-	      <span class="text-left">{{ template "svg/documents" (dict "Size" 20) }}</span>
+	      {{ template "svg/documents" (dict "Size" 20) }}
 	      <span class="mx-4 text-sm font-normal">Documents</span>
 	    </a>
 	    <a
 	      class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "progress"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
 	      href="/progress"
 	    >
-	      <span class="text-left">{{ template "svg/activity" (dict "Size" 20) }}</span>
+	      {{ template "svg/activity" (dict "Size" 20) }}
 	      <span class="mx-4 text-sm font-normal">Progress</span>
 	    </a>
 	    <a
 	      class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "activity"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
 	      href="/activity"
 	    >
-	      <span class="text-left">{{ template "svg/activity" (dict "Size" 20) }}</span>
+	      {{ template "svg/activity" (dict "Size" 20) }}
 	      <span class="mx-4 text-sm font-normal">Activity</span>
 	    </a>
 	    {{ if .Config.SearchEnabled }}
@@ -170,12 +170,36 @@
 	      class="flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if eq .RouteName "search"}}border-purple-500 dark:text-white{{else}}border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}"
 	      href="/search"
 	    >
-	      <span class="text-left">{{ template "svg/search" (dict "Size" 20) }}</span>
+	      {{ template "svg/search" (dict "Size" 20) }}
 	      <span class="mx-4 text-sm font-normal">Search</span>
 	    </a>
 	    {{ end }}
+
+	    {{ if .Authorization.IsAdmin }}
+
+	    <div class="flex flex-col gap-4 p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{if hasPrefix .RouteName "admin"}}dark:text-white border-purple-500{{else}}border-transparent text-gray-400{{end}}">
+	      <a href="/admin" class="flex justify-start w-full {{if not (hasPrefix .RouteName "admin")}}text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}">
+		{{ template "svg/settings" (dict "Size" 20) }}
+	        <span class="mx-4 text-sm font-normal">Admin</span>
+	      </a>
+
+	      {{ if hasPrefix .RouteName "admin" }}
+	      <a href="/admin" style="padding-left: 1.75em;" class="flex justify-start w-full {{if not (eq .RouteName "admin")}}text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}">
+	        <span class="mx-4 text-sm font-normal">General</span>
+	      </a>
+	      <a href="/admin/users" style="padding-left: 1.75em;" class="flex justify-start w-full {{if not (eq .RouteName "admin-users")}}text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}">
+	        <span class="mx-4 text-sm font-normal">Users</span>
+	      </a>
+	      <a href="/admin/logs" style="padding-left: 1.75em;" class="flex justify-start w-full {{if not (eq .RouteName "admin-logs")}}text-gray-400 hover:text-gray-800 dark:hover:text-gray-100{{end}}">
+	        <span class="mx-4 text-sm font-normal">Logs</span>
+	      </a>
+	      {{ end }}
+
+	    </div>
+	    {{ end }}
+
 	  </div>
-	  <a class="flex justify-center items-center p-6 w-full absolute bottom-0" target="_blank" href="https://gitea.va.reichard.io/evan/AnthoLume">
+	  <a class="flex flex-col gap-2 justify-center items-center p-6 w-full absolute bottom-0 text-black dark:text-white" target="_blank" href="https://gitea.va.reichard.io/evan/AnthoLume">
 	    <svg
 	      xmlns="http://www.w3.org/2000/svg"
 	      class="text-black dark:text-white"
@@ -211,6 +235,7 @@
 		/>
 	      </g>
 	    </svg>
+	    <span class="text-xs">{{ .Config.Version }}</span>
 	  </a>
 	</div>
       </div>
@@ -231,19 +256,6 @@
 	      aria-orientation="vertical"
 	      aria-labelledby="options-menu"
 	    >
-
-	      {{ if .Authorization.IsAdmin }}
-	      <a
-		href="/admin"
-		class="block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600"
-		role="menuitem"
-	      >
-		<span class="flex flex-col">
-		  <span>Administration</span>
-		</span>
-	      </a>
-	      {{ end }}
-
 	      <a
 		href="/settings"
 		class="block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600"

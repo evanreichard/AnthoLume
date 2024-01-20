@@ -305,6 +305,9 @@ WHERE id = $user_id LIMIT 1;
 SELECT * FROM user_streaks
 WHERE user_id = $user_id;
 
+-- name: GetUsers :many
+SELECT * FROM users;
+
 -- name: GetWPMLeaderboard :many
 SELECT
     user_id,

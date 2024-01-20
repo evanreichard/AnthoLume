@@ -3,7 +3,7 @@ FROM alpine AS certs
 RUN apk update && apk add ca-certificates
 
 # Build Image
-FROM golang:1.20 AS build
+FROM golang:1.21 AS build
 
 # Copy Source
 WORKDIR /src
@@ -13,7 +13,9 @@ COPY . .
 RUN mkdir -p /opt/antholume
 
 # Compile
-RUN go build -o /opt/antholume/server
+RUN go build \
+  -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" \
+  -o /opt/antholume/server
 
 # Create Image
 FROM busybox:1.36

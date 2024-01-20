@@ -1008,6 +1008,39 @@ func (q *Queries) GetUserStreaks(ctx context.Context, userID string) ([]UserStre
 	return items, nil
 }
 
+const getUsers = `-- name: GetUsers :many
+SELECT id, pass, admin, time_offset, created_at FROM users
+`
+
+func (q *Queries) GetUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, getUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Pass,
+			&i.Admin,
+			&i.TimeOffset,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWPMLeaderboard = `-- name: GetWPMLeaderboard :many
 SELECT
     user_id,

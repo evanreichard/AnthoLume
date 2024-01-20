@@ -3,10 +3,10 @@ build_local: build_tailwind
 	rm -r ./build || true
 	mkdir -p ./build
 
-	env GOOS=linux GOARCH=amd64 go build -o ./build/server_linux_amd64
-	env GOOS=linux GOARCH=arm64 go build -o ./build/server_linux_arm64
-	env GOOS=darwin GOARCH=arm64 go build -o ./build/server_darwin_arm64
-	env GOOS=darwin GOARCH=amd64 go build -o ./build/server_darwin_amd64
+	env GOOS=linux GOARCH=amd64  go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/server_linux_amd64
+	env GOOS=linux GOARCH=arm64  go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/server_linux_arm64
+	env GOOS=darwin GOARCH=arm64 go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/server_darwin_arm64
+	env GOOS=darwin GOARCH=amd64 go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/server_darwin_amd64
 
 docker_build_local: build_tailwind
 	docker build -t antholume:latest .
