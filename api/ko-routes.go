@@ -141,6 +141,7 @@ func (api *API) koSetProgress(c *gin.Context) {
 		return
 	}
 
+	start := time.Now()
 	// Upsert Device
 	if _, err := api.DB.Queries.UpsertDevice(api.DB.Ctx, database.UpsertDeviceParams{
 		ID:         rPosition.DeviceID,
@@ -150,14 +151,18 @@ func (api *API) koSetProgress(c *gin.Context) {
 	}); err != nil {
 		log.Error("[koSetProgress] UpsertDevice DB Error:", err)
 	}
+	log.Debug("[koSetProgress] UpsertDevice Performance: ", time.Since(start))
 
+	start = time.Now()
 	// Upsert Document
 	if _, err := api.DB.Queries.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
 		ID: rPosition.DocumentID,
 	}); err != nil {
 		log.Error("[koSetProgress] UpsertDocument DB Error:", err)
 	}
+	log.Debug("[koSetProgress] UpsertDocument Performance: ", time.Since(start))
 
+	start = time.Now()
 	// Create or Replace Progress
 	progress, err := api.DB.Queries.UpdateProgress(api.DB.Ctx, database.UpdateProgressParams{
 		Percentage: rPosition.Percentage,
@@ -171,6 +176,7 @@ func (api *API) koSetProgress(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
 	}
+	log.Debug("[koSetProgress] UpdateProgress Performance: ", time.Since(start))
 
 	c.JSON(http.StatusOK, gin.H{
 		"document":  progress.DocumentID,
@@ -191,10 +197,12 @@ func (api *API) koGetProgress(c *gin.Context) {
 		return
 	}
 
+	start := time.Now()
 	progress, err := api.DB.Queries.GetDocumentProgress(api.DB.Ctx, database.GetDocumentProgressParams{
 		DocumentID: rDocID.DocumentID,
 		UserID:     auth.UserName,
 	})
+	log.Debug("[koGetProgress] GetDocumentProgress Performance: ", time.Since(start))
 
 	if err == sql.ErrNoRows {
 		// Not Found
