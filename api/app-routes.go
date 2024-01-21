@@ -35,6 +35,7 @@ const (
 	adminBackup        adminAction = "BACKUP"
 	adminRestore       adminAction = "RESTORE"
 	adminMetadataMatch adminAction = "METADATA_MATCH"
+	adminCacheTables   adminAction = "CACHE_TABLES"
 )
 
 type importType string
@@ -373,6 +374,8 @@ func (api *API) appPerformAdminAction(c *gin.Context) {
 	switch rAdminAction.Action {
 	case adminImport:
 		// TODO
+	case adminCacheTables:
+		go api.DB.CacheTempTables()
 	case adminMetadataMatch:
 		// TODO
 		// 1. Documents xref most recent metadata table?

@@ -163,15 +163,23 @@
 
           <tr>
             <td>
-              <p>Logs</p>
+              <p>Cache Tables</p>
             </td>
             <td class="py-2 float-right">
-              <a
-                href="./admin/logs"
-                class="inline-block w-40 px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2"
-              >
-                <span class="w-full">View</span>
-              </a>
+              <form action="./admin" method="POST">
+                <input
+                  type="text"
+                  name="action"
+                  value="CACHE_TABLES"
+                  class="hidden"
+                />
+                <button
+                  type="submit"
+                  class="w-40 px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2"
+                >
+                  <span class="w-full">Run</span>
+                </button>
+              </form>
             </td>
           </tr>
         </tbody>

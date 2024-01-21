@@ -78,11 +78,11 @@ func (s *Server) StartServer(wg *sync.WaitGroup, done <-chan struct{}) {
 }
 
 func (s *Server) RunScheduledTasks() {
-	log.Info("[RunScheduledTasks] Refreshing Temp Table Cache")
+	start := time.Now()
 	if err := s.API.DB.CacheTempTables(); err != nil {
 		log.Warn("[RunScheduledTasks] Refreshing Temp Table Cache Failure:", err)
 	}
-	log.Info("[RunScheduledTasks] Refreshing Temp Table Success")
+	log.Debug("[RunScheduledTasks] Completed in: ", time.Since(start))
 }
 
 func (s *Server) StopServer(wg *sync.WaitGroup, done chan<- struct{}) {

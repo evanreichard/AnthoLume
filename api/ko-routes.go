@@ -172,13 +172,6 @@ func (api *API) koSetProgress(c *gin.Context) {
 		return
 	}
 
-	// Update Statistic
-	start := time.Now()
-	if err := api.DB.UpdateDocumentUserStatistic(rPosition.DocumentID, auth.UserName); err != nil {
-		log.Error("[koSetProgress] UpdateDocumentUserStatistic Error:", err)
-	}
-	log.Debug("[koSetProgress] UpdateDocumentUserStatistic Performance: ", time.Since(start))
-
 	c.JSON(http.StatusOK, gin.H{
 		"document":  progress.DocumentID,
 		"timestamp": progress.CreatedAt,
@@ -299,15 +292,6 @@ func (api *API) koAddActivities(c *gin.Context) {
 		log.Error("[koAddActivities] Transaction Commit DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Error"})
 		return
-	}
-
-	// Update Statistic
-	for _, doc := range allDocuments {
-		log.Info("[koAddActivities] UpdateDocumentUserStatistic Running...")
-		if err := api.DB.UpdateDocumentUserStatistic(doc, auth.UserName); err != nil {
-			log.Error("[koAddActivities] UpdateDocumentUserStatistic Error:", err)
-		}
-		log.Info("[koAddActivities] UpdateDocumentUserStatistic Complete")
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"path"
+	"time"
+
 	log "github.com/sirupsen/logrus"
 	_ "modernc.org/sqlite"
-	"path"
 	"reichard.io/antholume/config"
 )
 
@@ -19,12 +21,6 @@ type DBManager struct {
 
 //go:embed schema.sql
 var ddl string
-
-//go:embed update_temp_tables.sql
-var tsql string
-
-//go:embed update_document_user_statistics.sql
-var doc_user_stat_sql string
 
 func NewMgr(c *config.Config) *DBManager {
 	// Create Manager
@@ -63,24 +59,26 @@ func (dbm *DBManager) Shutdown() error {
 	return dbm.DB.Close()
 }
 
-func (dbm *DBManager) UpdateDocumentUserStatistic(documentID string, userID string) error {
-	// Prepare Statement
-	stmt, err := dbm.DB.PrepareContext(dbm.Ctx, doc_user_stat_sql)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	// Execute
-	if _, err := stmt.ExecContext(dbm.Ctx, documentID, userID); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (dbm *DBManager) CacheTempTables() error {
-	if _, err := dbm.DB.ExecContext(dbm.Ctx, tsql); err != nil {
+	start := time.Now()
+	user_streaks_sql := `
+	  DELETE FROM user_streaks;
+	  INSERT INTO user_streaks SELECT * FROM view_user_streaks;
+	`
+	if _, err := dbm.DB.ExecContext(dbm.Ctx, user_streaks_sql); err != nil {
 		return err
 	}
+	log.Debug("[CacheTempTables] Cached 'user_streaks' in: ", time.Since(start))
+
+	start = time.Now()
+	document_statistics_sql := `
+	  DELETE FROM document_user_statistics;
+	  INSERT INTO document_user_statistics SELECT * FROM view_document_user_statistics;
+	`
+	if _, err := dbm.DB.ExecContext(dbm.Ctx, document_statistics_sql); err != nil {
+		return err
+	}
+	log.Debug("[CacheTempTables] Cached 'document_user_statistics' in: ", time.Since(start))
+
 	return nil
 }
