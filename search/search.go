@@ -1,6 +1,7 @@
 package search
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,8 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	log "github.com/sirupsen/logrus"
 )
+
+const userAgent string = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0"
 
 type Cadence string
 
@@ -112,10 +115,10 @@ func SaveBook(id string, source Source) (string, error) {
 
 	// Download File
 	log.Info("[SaveBook] Downloading Book: ", bookURL)
-	resp, err := http.Get(bookURL)
+	resp, err := downloadBook(bookURL)
 	if err != nil {
 		os.Remove(tempFile.Name())
-		log.Error("[SaveBook] Cover URL API Failure")
+		log.Error("[SaveBook] Book URL API Failure: ", err)
 		return "", errors.New("API Failure")
 	}
 	defer resp.Body.Close()
@@ -125,7 +128,7 @@ func SaveBook(id string, source Source) (string, error) {
 	_, err = io.Copy(tempFile, resp.Body)
 	if err != nil {
 		os.Remove(tempFile.Name())
-		log.Error("[SaveBook] File Copy Error")
+		log.Error("[SaveBook] File Copy Error: ", err)
 		return "", errors.New("File Failure")
 	}
 
@@ -328,7 +331,10 @@ func parseAnnasArchiveDownloadURL(body io.ReadCloser) (string, error) {
 		return "", errors.New("Download URL not found")
 	}
 
-	return "http://libgen.li/" + downloadURL, nil
+	// Possible Funky URL
+	downloadURL = strings.ReplaceAll(downloadURL, "\\", "/")
+
+	return downloadURL, nil
 }
 
 func parseAnnasArchive(body io.ReadCloser) ([]SearchItem, error) {
@@ -378,4 +384,22 @@ func parseAnnasArchive(body io.ReadCloser) ([]SearchItem, error) {
 
 	// Return Results
 	return allEntries, nil
+}
+
+func downloadBook(bookURL string) (*http.Response, error) {
+	// Allow Insecure
+	client := &http.Client{Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}}
+
+	// Start Request
+	req, err := http.NewRequest("GET", bookURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set UserAgent
+	req.Header.Set("User-Agent", userAgent)
+
+	return client.Do(req)
 }

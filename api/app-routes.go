@@ -150,14 +150,14 @@ func (api *API) appGetDocuments(c *gin.Context) {
 		Limit:  *qParams.Limit,
 	})
 	if err != nil {
-		log.Error("[appGetDocuments] GetDocumentsWithStats DB Error:", err)
+		log.Error("[appGetDocuments] GetDocumentsWithStats DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsWithStats DB Error: %v", err))
 		return
 	}
 
 	length, err := api.DB.Queries.GetDocumentsSize(api.DB.Ctx, query)
 	if err != nil {
-		log.Error("[appGetDocuments] GetDocumentsSize DB Error:", err)
+		log.Error("[appGetDocuments] GetDocumentsSize DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsSize DB Error: %v", err))
 		return
 	}
@@ -199,7 +199,7 @@ func (api *API) appGetDocument(c *gin.Context) {
 		DocumentID: rDocID.DocumentID,
 	})
 	if err != nil {
-		log.Error("[appGetDocument] GetDocumentWithStats DB Error:", err)
+		log.Error("[appGetDocument] GetDocumentWithStats DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsWithStats DB Error: %v", err))
 		return
 	}
@@ -228,7 +228,7 @@ func (api *API) appGetProgress(c *gin.Context) {
 
 	progress, err := api.DB.Queries.GetProgress(api.DB.Ctx, progressFilter)
 	if err != nil {
-		log.Error("[appGetProgress] GetProgress DB Error:", err)
+		log.Error("[appGetProgress] GetProgress DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetActivity DB Error: %v", err))
 		return
 	}
@@ -255,7 +255,7 @@ func (api *API) appGetActivity(c *gin.Context) {
 
 	activity, err := api.DB.Queries.GetActivity(api.DB.Ctx, activityFilter)
 	if err != nil {
-		log.Error("[appGetActivity] GetActivity DB Error:", err)
+		log.Error("[appGetActivity] GetActivity DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetActivity DB Error: %v", err))
 		return
 	}
@@ -294,14 +294,14 @@ func (api *API) appGetSettings(c *gin.Context) {
 
 	user, err := api.DB.Queries.GetUser(api.DB.Ctx, auth.UserName)
 	if err != nil {
-		log.Error("[appGetSettings] GetUser DB Error:", err)
+		log.Error("[appGetSettings] GetUser DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
 		return
 	}
 
 	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, auth.UserName)
 	if err != nil {
-		log.Error("[appGetSettings] GetDevices DB Error:", err)
+		log.Error("[appGetSettings] GetDevices DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
 		return
 	}
@@ -347,7 +347,7 @@ func (api *API) appGetAdminUsers(c *gin.Context) {
 
 	users, err := api.DB.Queries.GetUsers(api.DB.Ctx)
 	if err != nil {
-		log.Error("[appGetAdminUsers] GetUsers DB Error:", err)
+		log.Error("[appGetAdminUsers] GetUsers DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUsers DB Error: %v", err))
 		return
 	}
@@ -518,7 +518,7 @@ func (api *API) appGetDocumentProgress(c *gin.Context) {
 	})
 
 	if err != nil && err != sql.ErrNoRows {
-		log.Error("[appGetDocumentProgress] UpsertDocument DB Error:", err)
+		log.Error("[appGetDocumentProgress] UpsertDocument DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
 		return
 	}
@@ -528,7 +528,7 @@ func (api *API) appGetDocumentProgress(c *gin.Context) {
 		DocumentID: rDoc.DocumentID,
 	})
 	if err != nil {
-		log.Error("[appGetDocumentProgress] GetDocumentWithStats DB Error:", err)
+		log.Error("[appGetDocumentProgress] GetDocumentWithStats DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentWithStats DB Error: %v", err))
 		return
 	}
@@ -552,7 +552,7 @@ func (api *API) appGetDevices(c *gin.Context) {
 	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, auth.UserName)
 
 	if err != nil && err != sql.ErrNoRows {
-		log.Error("[appGetDevices] GetDevices DB Error:", err)
+		log.Error("[appGetDevices] GetDevices DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
 		return
 	}
@@ -640,7 +640,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	// Calculate Actual MD5
 	fileHash, err := getFileMD5(tempFile.Name())
 	if err != nil {
-		log.Error("[appUploadNewDocument] MD5 Hash Failure:", err)
+		log.Error("[appUploadNewDocument] MD5 Hash Failure: ", err)
 		errorPage(c, http.StatusInternalServerError, "Unable to calculate MD5.")
 		return
 	}
@@ -648,7 +648,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	// Get Word Count
 	wordCount, err := metadata.GetWordCount(tempFile.Name())
 	if err != nil {
-		log.Error("[appUploadNewDocument] Word Count Failure:", err)
+		log.Error("[appUploadNewDocument] Word Count Failure: ", err)
 		errorPage(c, http.StatusInternalServerError, "Unable to calculate word count.")
 		return
 	}
@@ -677,7 +677,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	safePath := filepath.Join(api.Config.DataPath, "documents", fileName)
 	destFile, err := os.Create(safePath)
 	if err != nil {
-		log.Error("[appUploadNewDocument] Dest File Error:", err)
+		log.Error("[appUploadNewDocument] Dest File Error: ", err)
 		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
 		return
 	}
@@ -685,7 +685,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 
 	// Copy File
 	if _, err = io.Copy(destFile, tempFile); err != nil {
-		log.Error("[appUploadNewDocument] Copy Temp File Error:", err)
+		log.Error("[appUploadNewDocument] Copy Temp File Error: ", err)
 		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
 		return
 	}
@@ -700,7 +700,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 		Md5:         fileHash,
 		Filepath:    &fileName,
 	}); err != nil {
-		log.Error("[appUploadNewDocument] UpsertDocument DB Error:", err)
+		log.Error("[appUploadNewDocument] UpsertDocument DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
 		return
 	}
@@ -797,7 +797,7 @@ func (api *API) appEditDocument(c *gin.Context) {
 		Isbn13:      api.sanitizeInput(rDocEdit.ISBN13),
 		Coverfile:   coverFileName,
 	}); err != nil {
-		log.Error("[appEditDocument] UpsertDocument DB Error:", err)
+		log.Error("[appEditDocument] UpsertDocument DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
 		return
 	}
@@ -885,7 +885,7 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 			Isbn10:      firstResult.ISBN10,
 			Isbn13:      firstResult.ISBN13,
 		}); err != nil {
-			log.Error("[appIdentifyDocument] AddMetadata DB Error:", err)
+			log.Error("[appIdentifyDocument] AddMetadata DB Error: ", err)
 		}
 
 		templateVars["Metadata"] = firstResult
@@ -899,7 +899,7 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 		DocumentID: rDocID.DocumentID,
 	})
 	if err != nil {
-		log.Error("[appIdentifyDocument] GetDocumentWithStats DB Error:", err)
+		log.Error("[appIdentifyDocument] GetDocumentWithStats DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentWithStats DB Error: %v", err))
 		return
 	}
@@ -997,7 +997,7 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	// Open Source File
 	sourceFile, err := os.Open(tempFilePath)
 	if err != nil {
-		log.Error("[appSaveNewDocument] Source File Error:", err)
+		log.Error("[appSaveNewDocument] Source File Error: ", err)
 		sendDownloadMessage("Unable to open file", gin.H{"Error": true})
 		return
 	}
@@ -1008,7 +1008,7 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	safePath := filepath.Join(api.Config.DataPath, "documents", fileName)
 	destFile, err := os.Create(safePath)
 	if err != nil {
-		log.Error("[appSaveNewDocument] Dest File Error:", err)
+		log.Error("[appSaveNewDocument] Dest File Error: ", err)
 		sendDownloadMessage("Unable to create file", gin.H{"Error": true})
 		return
 	}
@@ -1016,7 +1016,7 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 
 	// Copy File
 	if _, err = io.Copy(destFile, sourceFile); err != nil {
-		log.Error("[appSaveNewDocument] Copy Temp File Error:", err)
+		log.Error("[appSaveNewDocument] Copy Temp File Error: ", err)
 		sendDownloadMessage("Unable to save file", gin.H{"Error": true})
 		return
 	}
@@ -1027,7 +1027,7 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	// Get MD5 Hash
 	fileHash, err := getFileMD5(safePath)
 	if err != nil {
-		log.Error("[appSaveNewDocument] Hash Failure:", err)
+		log.Error("[appSaveNewDocument] Hash Failure: ", err)
 		sendDownloadMessage("Unable to calculate MD5", gin.H{"Error": true})
 		return
 	}
@@ -1038,7 +1038,7 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	// Get Word Count
 	wordCount, err := metadata.GetWordCount(safePath)
 	if err != nil {
-		log.Error("[appSaveNewDocument] Word Count Failure:", err)
+		log.Error("[appSaveNewDocument] Word Count Failure: ", err)
 		sendDownloadMessage("Unable to calculate word count", gin.H{"Error": true})
 		return
 	}
@@ -1055,7 +1055,7 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 		Filepath: &fileName,
 		Words:    &wordCount,
 	}); err != nil {
-		log.Error("[appSaveNewDocument] UpsertDocument DB Error:", err)
+		log.Error("[appSaveNewDocument] UpsertDocument DB Error: ", err)
 		sendDownloadMessage("Unable to save to database", gin.H{"Error": true})
 		return
 	}
@@ -1116,7 +1116,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	// Update User
 	_, err := api.DB.Queries.UpdateUser(api.DB.Ctx, newUserSettings)
 	if err != nil {
-		log.Error("[appEditSettings] UpdateUser DB Error:", err)
+		log.Error("[appEditSettings] UpdateUser DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpdateUser DB Error: %v", err))
 		return
 	}
@@ -1124,7 +1124,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	// Get User
 	user, err := api.DB.Queries.GetUser(api.DB.Ctx, auth.UserName)
 	if err != nil {
-		log.Error("[appEditSettings] GetUser DB Error:", err)
+		log.Error("[appEditSettings] GetUser DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
 		return
 	}
@@ -1132,7 +1132,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	// Get Devices
 	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, auth.UserName)
 	if err != nil {
-		log.Error("[appEditSettings] GetDevices DB Error:", err)
+		log.Error("[appEditSettings] GetDevices DB Error: ", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
 		return
 	}
@@ -1153,7 +1153,7 @@ func (api *API) getDocumentsWordCount(documents []database.GetDocumentsWithStats
 	// Do Transaction
 	tx, err := api.DB.DB.Begin()
 	if err != nil {
-		log.Error("[getDocumentsWordCount] Transaction Begin DB Error:", err)
+		log.Error("[getDocumentsWordCount] Transaction Begin DB Error: ", err)
 		return err
 	}
 
@@ -1166,13 +1166,13 @@ func (api *API) getDocumentsWordCount(documents []database.GetDocumentsWithStats
 			filePath := filepath.Join(api.Config.DataPath, "documents", *item.Filepath)
 			wordCount, err := metadata.GetWordCount(filePath)
 			if err != nil {
-				log.Warn("[getDocumentsWordCount] Word Count Error - ", err)
+				log.Warn("[getDocumentsWordCount] Word Count Error: ", err)
 			} else {
 				if _, err := qtx.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
 					ID:    item.ID,
 					Words: &wordCount,
 				}); err != nil {
-					log.Error("[getDocumentsWordCount] UpsertDocument DB Error - ", err)
+					log.Error("[getDocumentsWordCount] UpsertDocument DB Error: ", err)
 					return err
 				}
 			}
@@ -1181,7 +1181,7 @@ func (api *API) getDocumentsWordCount(documents []database.GetDocumentsWithStats
 
 	// Commit Transaction
 	if err := tx.Commit(); err != nil {
-		log.Error("[getDocumentsWordCount] Transaction Commit DB Error:", err)
+		log.Error("[getDocumentsWordCount] Transaction Commit DB Error: ", err)
 		return err
 	}
 
