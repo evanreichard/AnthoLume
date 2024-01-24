@@ -181,11 +181,13 @@ func (api *API) generateTemplates() *multitemplate.Renderer {
 	templates := make(map[string]*template.Template)
 	render := multitemplate.NewRenderer()
 	helperFuncs := template.FuncMap{
-		"GetSVGGraphData": getSVGGraphData,
-		"GetUTCOffsets":   getUTCOffsets,
-		"NiceSeconds":     niceSeconds,
 		"dict":            dict,
+		"fields":          fields,
+		"getSVGGraphData": getSVGGraphData,
+		"getUTCOffsets":   getUTCOffsets,
 		"hasPrefix":       strings.HasPrefix,
+		"niceNumbers":     niceNumbers,
+		"niceSeconds":     niceSeconds,
 	}
 
 	// Load Base

@@ -534,7 +534,7 @@ SELECT
     docs.filepath,
     docs.words,
 
-    CAST(COALESCE(dus.wpm, 0.0) AS INTEGER) AS wpm,
+    CAST(COALESCE(dus.total_wpm, 0.0) AS INTEGER) AS wpm,
     COALESCE(dus.read_percentage, 0) AS read_percentage,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
     STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
@@ -688,7 +688,7 @@ SELECT
     docs.filepath,
     docs.words,
 
-    CAST(COALESCE(dus.wpm, 0.0) AS INTEGER) AS wpm,
+    CAST(COALESCE(dus.total_wpm, 0.0) AS INTEGER) AS wpm,
     COALESCE(dus.read_percentage, 0) AS read_percentage,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
     STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
@@ -971,6 +971,89 @@ func (q *Queries) GetUser(ctx context.Context, userID string) (User, error) {
 	return i, err
 }
 
+const getUserStatistics = `-- name: GetUserStatistics :many
+SELECT
+    user_id,
+
+    CAST(SUM(total_words_read) AS INTEGER) AS total_words_read,
+    CAST(SUM(total_time_seconds) AS INTEGER) AS total_seconds,
+    ROUND(CAST(SUM(total_words_read) AS REAL) / (SUM(total_time_seconds) / 60.0), 2)
+        AS total_wpm,
+
+    CAST(SUM(yearly_words_read) AS INTEGER) AS yearly_words_read,
+    CAST(SUM(yearly_time_seconds) AS INTEGER) AS yearly_seconds,
+    ROUND(CAST(SUM(yearly_words_read) AS REAL) / (SUM(yearly_time_seconds) / 60.0), 2)
+        AS yearly_wpm,
+
+    CAST(SUM(monthly_words_read) AS INTEGER) AS monthly_words_read,
+    CAST(SUM(monthly_time_seconds) AS INTEGER) AS monthly_seconds,
+    ROUND(CAST(SUM(monthly_words_read) AS REAL) / (SUM(monthly_time_seconds) / 60.0), 2)
+        AS monthly_wpm,
+
+    CAST(SUM(weekly_words_read) AS INTEGER) AS weekly_words_read,
+    CAST(SUM(weekly_time_seconds) AS INTEGER) AS weekly_seconds,
+    ROUND(CAST(SUM(weekly_words_read) AS REAL) / (SUM(weekly_time_seconds) / 60.0), 2)
+        AS weekly_wpm
+
+FROM document_user_statistics
+WHERE total_words_read > 0
+GROUP BY user_id
+ORDER BY total_wpm DESC
+`
+
+type GetUserStatisticsRow struct {
+	UserID           string  `json:"user_id"`
+	TotalWordsRead   int64   `json:"total_words_read"`
+	TotalSeconds     int64   `json:"total_seconds"`
+	TotalWpm         float64 `json:"total_wpm"`
+	YearlyWordsRead  int64   `json:"yearly_words_read"`
+	YearlySeconds    int64   `json:"yearly_seconds"`
+	YearlyWpm        float64 `json:"yearly_wpm"`
+	MonthlyWordsRead int64   `json:"monthly_words_read"`
+	MonthlySeconds   int64   `json:"monthly_seconds"`
+	MonthlyWpm       float64 `json:"monthly_wpm"`
+	WeeklyWordsRead  int64   `json:"weekly_words_read"`
+	WeeklySeconds    int64   `json:"weekly_seconds"`
+	WeeklyWpm        float64 `json:"weekly_wpm"`
+}
+
+func (q *Queries) GetUserStatistics(ctx context.Context) ([]GetUserStatisticsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserStatistics)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserStatisticsRow
+	for rows.Next() {
+		var i GetUserStatisticsRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.TotalWordsRead,
+			&i.TotalSeconds,
+			&i.TotalWpm,
+			&i.YearlyWordsRead,
+			&i.YearlySeconds,
+			&i.YearlyWpm,
+			&i.MonthlyWordsRead,
+			&i.MonthlySeconds,
+			&i.MonthlyWpm,
+			&i.WeeklyWordsRead,
+			&i.WeeklySeconds,
+			&i.WeeklyWpm,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserStreaks = `-- name: GetUserStreaks :many
 SELECT user_id, "window", max_streak, max_streak_start_date, max_streak_end_date, current_streak, current_streak_start_date, current_streak_end_date FROM user_streaks
 WHERE user_id = ?1
@@ -1027,54 +1110,6 @@ func (q *Queries) GetUsers(ctx context.Context) ([]User, error) {
 			&i.Admin,
 			&i.TimeOffset,
 			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getWPMLeaderboard = `-- name: GetWPMLeaderboard :many
-SELECT
-    user_id,
-    CAST(SUM(words_read) AS INTEGER) AS total_words_read,
-    CAST(SUM(total_time_seconds) AS INTEGER) AS total_seconds,
-    ROUND(CAST(SUM(words_read) AS REAL) / (SUM(total_time_seconds) / 60.0), 2)
-        AS wpm
-FROM document_user_statistics
-WHERE words_read > 0
-GROUP BY user_id
-ORDER BY wpm DESC
-`
-
-type GetWPMLeaderboardRow struct {
-	UserID         string  `json:"user_id"`
-	TotalWordsRead int64   `json:"total_words_read"`
-	TotalSeconds   int64   `json:"total_seconds"`
-	Wpm            float64 `json:"wpm"`
-}
-
-func (q *Queries) GetWPMLeaderboard(ctx context.Context) ([]GetWPMLeaderboardRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWPMLeaderboard)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetWPMLeaderboardRow
-	for rows.Next() {
-		var i GetWPMLeaderboardRow
-		if err := rows.Scan(
-			&i.UserID,
-			&i.TotalWordsRead,
-			&i.TotalSeconds,
-			&i.Wpm,
 		); err != nil {
 			return nil, err
 		}

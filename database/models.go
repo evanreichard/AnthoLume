@@ -61,14 +61,23 @@ type DocumentProgress struct {
 }
 
 type DocumentUserStatistic struct {
-	DocumentID       string  `json:"document_id"`
-	UserID           string  `json:"user_id"`
-	LastRead         string  `json:"last_read"`
-	TotalTimeSeconds int64   `json:"total_time_seconds"`
-	ReadPercentage   float64 `json:"read_percentage"`
-	Percentage       float64 `json:"percentage"`
-	WordsRead        int64   `json:"words_read"`
-	Wpm              float64 `json:"wpm"`
+	DocumentID         string  `json:"document_id"`
+	UserID             string  `json:"user_id"`
+	Percentage         float64 `json:"percentage"`
+	LastRead           string  `json:"last_read"`
+	ReadPercentage     float64 `json:"read_percentage"`
+	TotalTimeSeconds   int64   `json:"total_time_seconds"`
+	TotalWordsRead     int64   `json:"total_words_read"`
+	TotalWpm           float64 `json:"total_wpm"`
+	YearlyTimeSeconds  int64   `json:"yearly_time_seconds"`
+	YearlyWordsRead    int64   `json:"yearly_words_read"`
+	YearlyWpm          float64 `json:"yearly_wpm"`
+	MonthlyTimeSeconds int64   `json:"monthly_time_seconds"`
+	MonthlyWordsRead   int64   `json:"monthly_words_read"`
+	MonthlyWpm         float64 `json:"monthly_wpm"`
+	WeeklyTimeSeconds  int64   `json:"weekly_time_seconds"`
+	WeeklyWordsRead    int64   `json:"weekly_words_read"`
+	WeeklyWpm          float64 `json:"weekly_wpm"`
 }
 
 type Metadatum struct {
@@ -104,14 +113,23 @@ type UserStreak struct {
 }
 
 type ViewDocumentUserStatistic struct {
-	DocumentID       string          `json:"document_id"`
-	UserID           string          `json:"user_id"`
-	LastRead         interface{}     `json:"last_read"`
-	TotalTimeSeconds sql.NullFloat64 `json:"total_time_seconds"`
-	ReadPercentage   sql.NullFloat64 `json:"read_percentage"`
-	Percentage       float64         `json:"percentage"`
-	WordsRead        interface{}     `json:"words_read"`
-	Wpm              int64           `json:"wpm"`
+	DocumentID         string          `json:"document_id"`
+	UserID             string          `json:"user_id"`
+	Percentage         float64         `json:"percentage"`
+	LastRead           interface{}     `json:"last_read"`
+	ReadPercentage     sql.NullFloat64 `json:"read_percentage"`
+	TotalTimeSeconds   sql.NullFloat64 `json:"total_time_seconds"`
+	TotalWordsRead     interface{}     `json:"total_words_read"`
+	TotalWpm           int64           `json:"total_wpm"`
+	YearlyTimeSeconds  sql.NullFloat64 `json:"yearly_time_seconds"`
+	YearlyWordsRead    interface{}     `json:"yearly_words_read"`
+	YearlyWpm          interface{}     `json:"yearly_wpm"`
+	MonthlyTimeSeconds sql.NullFloat64 `json:"monthly_time_seconds"`
+	MonthlyWordsRead   interface{}     `json:"monthly_words_read"`
+	MonthlyWpm         interface{}     `json:"monthly_wpm"`
+	WeeklyTimeSeconds  sql.NullFloat64 `json:"weekly_time_seconds"`
+	WeeklyWordsRead    interface{}     `json:"weekly_words_read"`
+	WeeklyWpm          interface{}     `json:"weekly_wpm"`
 }
 
 type ViewUserStreak struct {

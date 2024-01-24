@@ -171,7 +171,7 @@ SELECT
     docs.filepath,
     docs.words,
 
-    CAST(COALESCE(dus.wpm, 0.0) AS INTEGER) AS wpm,
+    CAST(COALESCE(dus.total_wpm, 0.0) AS INTEGER) AS wpm,
     COALESCE(dus.read_percentage, 0) AS read_percentage,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
     STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
@@ -223,7 +223,7 @@ SELECT
     docs.filepath,
     docs.words,
 
-    CAST(COALESCE(dus.wpm, 0.0) AS INTEGER) AS wpm,
+    CAST(COALESCE(dus.total_wpm, 0.0) AS INTEGER) AS wpm,
     COALESCE(dus.read_percentage, 0) AS read_percentage,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
     STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
@@ -308,17 +308,34 @@ WHERE user_id = $user_id;
 -- name: GetUsers :many
 SELECT * FROM users;
 
--- name: GetWPMLeaderboard :many
+-- name: GetUserStatistics :many
 SELECT
     user_id,
-    CAST(SUM(words_read) AS INTEGER) AS total_words_read,
+
+    CAST(SUM(total_words_read) AS INTEGER) AS total_words_read,
     CAST(SUM(total_time_seconds) AS INTEGER) AS total_seconds,
-    ROUND(CAST(SUM(words_read) AS REAL) / (SUM(total_time_seconds) / 60.0), 2)
-        AS wpm
+    ROUND(CAST(SUM(total_words_read) AS REAL) / (SUM(total_time_seconds) / 60.0), 2)
+        AS total_wpm,
+
+    CAST(SUM(yearly_words_read) AS INTEGER) AS yearly_words_read,
+    CAST(SUM(yearly_time_seconds) AS INTEGER) AS yearly_seconds,
+    ROUND(CAST(SUM(yearly_words_read) AS REAL) / (SUM(yearly_time_seconds) / 60.0), 2)
+        AS yearly_wpm,
+
+    CAST(SUM(monthly_words_read) AS INTEGER) AS monthly_words_read,
+    CAST(SUM(monthly_time_seconds) AS INTEGER) AS monthly_seconds,
+    ROUND(CAST(SUM(monthly_words_read) AS REAL) / (SUM(monthly_time_seconds) / 60.0), 2)
+        AS monthly_wpm,
+
+    CAST(SUM(weekly_words_read) AS INTEGER) AS weekly_words_read,
+    CAST(SUM(weekly_time_seconds) AS INTEGER) AS weekly_seconds,
+    ROUND(CAST(SUM(weekly_words_read) AS REAL) / (SUM(weekly_time_seconds) / 60.0), 2)
+        AS weekly_wpm
+
 FROM document_user_statistics
-WHERE words_read > 0
+WHERE total_words_read > 0
 GROUP BY user_id
-ORDER BY wpm DESC;
+ORDER BY total_wpm DESC;
 
 -- name: GetWantedDocuments :many
 SELECT

@@ -12,7 +12,7 @@
         Daily Read Totals
       </p>
 
-      {{ $data := (GetSVGGraphData .Data.GraphData 800 70 )}}
+      {{ $data := (getSVGGraphData .Data.GraphData 800 70 )}}
       <svg
         viewBox="26 0 755 {{ $data.Height }}"
         preserveAspectRatio="none"
@@ -160,6 +160,31 @@
   </div>
 
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+    {{ template "component/leaderboard-card" (
+      dict
+	"Name" "WPM"
+	"Data" .Data.UserStatistics.WPM
+      )
+    }}
+
+    {{ template "component/leaderboard-card" (
+      dict
+	"Name" "Duration"
+	"Data" .Data.UserStatistics.Duration
+      )
+    }}
+
+    {{ template "component/leaderboard-card" (
+      dict
+	"Name" "Words"
+	"Data" .Data.UserStatistics.Words
+      )
+    }}
+
+
+  </div>
+
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
     {{ range $item := .Data.Streaks }}
     <div class="w-full">
       <div
@@ -211,46 +236,5 @@
     </div>
     {{ end }}
 
-    <div class="w-full">
-      <div
-        class="flex flex-col justify-between h-full w-full px-4 py-6 bg-white shadow-lg dark:bg-gray-700 rounded"
-      >
-        <div>
-          <p
-            class="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500"
-          >
-            WPM Leaderboard
-          </p>
-          <div class="flex items-end my-6 space-x-2">
-            {{ $length := len .Data.WPMLeaderboard }} {{ if eq $length 0 }}
-            <p class="text-5xl font-bold text-black dark:text-white">N/A</p>
-            {{ else }}
-            <p class="text-5xl font-bold text-black dark:text-white">
-              {{ (index .Data.WPMLeaderboard 0).UserID }}
-            </p>
-            {{ end }}
-          </div>
-        </div>
-        <div class="dark:text-white">
-          {{ range $index, $item := .Data.WPMLeaderboard }} {{ if lt $index 3 }}
-          {{ if eq $index 0 }}
-          <div class="flex items-center justify-between pt-2 pb-2 text-sm">
-            {{ else }}
-            <div
-              class="flex items-center justify-between pt-2 pb-2 text-sm border-t border-gray-200"
-            >
-              {{ end }}
-              <div>
-                <p>{{ $item.UserID }}</p>
-              </div>
-              <div class="flex items-end font-bold">{{ $item.Wpm }} WPM</div>
-            </div>
-            {{ end }} {{ end }}
-          </div>
-        </div>
-      </div>
-    </div>
-
     {{end}}
-  </div>
 </div>

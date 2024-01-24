@@ -128,15 +128,29 @@ CREATE TEMPORARY TABLE IF NOT EXISTS user_streaks (
     current_streak_end_date TEXT NOT NULL
 );
 
+-- Temporary Document User Statistics Table (Cached from View)
 CREATE TEMPORARY TABLE IF NOT EXISTS document_user_statistics (
     document_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
-    last_read TEXT NOT NULL,
-    total_time_seconds INTEGER NOT NULL,
-    read_percentage REAL NOT NULL,
     percentage REAL NOT NULL,
-    words_read INTEGER NOT NULL,
-    wpm REAL NOT NULL,
+    last_read TEXT NOT NULL,
+    read_percentage REAL NOT NULL,
+
+    total_time_seconds INTEGER NOT NULL,
+    total_words_read INTEGER NOT NULL,
+    total_wpm REAL NOT NULL,
+
+    yearly_time_seconds INTEGER NOT NULL,
+    yearly_words_read INTEGER NOT NULL,
+    yearly_wpm REAL NOT NULL,
+
+    monthly_time_seconds INTEGER NOT NULL,
+    monthly_words_read INTEGER NOT NULL,
+    monthly_wpm REAL NOT NULL,
+
+    weekly_time_seconds INTEGER NOT NULL,
+    weekly_words_read INTEGER NOT NULL,
+    weekly_wpm REAL NOT NULL,
 
     UNIQUE(document_id, user_id) ON CONFLICT REPLACE
 );
@@ -177,7 +191,6 @@ WITH document_windows AS (
     LEFT JOIN users ON users.id = activity.user_id
     GROUP BY activity.user_id, weekly_read, daily_read
 ),
-
 weekly_partitions AS (
     SELECT
         user_id,
@@ -190,7 +203,6 @@ weekly_partitions AS (
     FROM document_windows
     GROUP BY user_id, weekly_read
 ),
-
 daily_partitions AS (
     SELECT
         user_id,
@@ -203,7 +215,6 @@ daily_partitions AS (
     FROM document_windows
     GROUP BY user_id, daily_read
 ),
-
 streaks AS (
     SELECT
         COUNT(*) AS streak,
@@ -327,8 +338,8 @@ current_progress AS (
             WHERE
                 dp.user_id = iga.user_id
                 AND dp.document_id = iga.document_id
-	    ORDER BY created_at DESC
-	    LIMIT 1
+            ORDER BY created_at DESC
+            LIMIT 1
         ), end_percentage) AS percentage
     FROM intermediate_ga AS iga
     GROUP BY user_id, document_id
@@ -338,25 +349,121 @@ current_progress AS (
 SELECT
     ga.document_id,
     ga.user_id,
-    MAX(start_time) AS last_read,
-    SUM(duration) AS total_time_seconds,
-    SUM(read_percentage) AS read_percentage,
     cp.percentage,
+    MAX(start_time) AS last_read,
+    SUM(read_percentage) AS read_percentage,
 
+    -- All Time WPM
+    SUM(duration) AS total_time_seconds,
     (CAST(COALESCE(d.words, 0.0) AS REAL) * SUM(read_percentage))
-        AS words_read,
+        AS total_words_read,
+    (CAST(COALESCE(d.words, 0.0) AS REAL) * SUM(read_percentage))
+    / (SUM(duration) / 60.0) AS total_wpm,
 
-    (CAST(COALESCE(d.words, 0.0) AS REAL) * SUM(read_percentage))
-    / (SUM(duration) / 60.0) AS wpm
+    -- Yearly WPM
+    SUM(CASE WHEN start_time >= DATE('now', '-1 year') THEN duration ELSE 0 END)
+        AS yearly_time_seconds,
+    (
+        CAST(COALESCE(d.words, 0.0) AS REAL)
+        * SUM(
+            CASE
+                WHEN start_time >= DATE('now', '-1 year') THEN read_percentage
+                ELSE 0
+            END
+        )
+    )
+        AS yearly_words_read,
+    COALESCE((
+        CAST(COALESCE(d.words, 0.0) AS REAL)
+        * SUM(
+            CASE
+                WHEN start_time >= DATE('now', '-1 year') THEN read_percentage
+            END
+        )
+    )
+    / (
+        SUM(
+            CASE
+                WHEN start_time >= DATE('now', '-1 year') THEN duration
+            END
+        )
+        / 60.0
+    ), 0.0)
+        AS yearly_wpm,
+
+    -- Monthly WPM
+    SUM(
+        CASE WHEN start_time >= DATE('now', '-1 month') THEN duration ELSE 0 END
+    )
+        AS monthly_time_seconds,
+    (
+        CAST(COALESCE(d.words, 0.0) AS REAL)
+        * SUM(
+            CASE
+                WHEN start_time >= DATE('now', '-1 month') THEN read_percentage
+                ELSE 0
+            END
+        )
+    )
+        AS monthly_words_read,
+    COALESCE((
+        CAST(COALESCE(d.words, 0.0) AS REAL)
+        * SUM(
+            CASE
+                WHEN start_time >= DATE('now', '-1 month') THEN read_percentage
+            END
+        )
+    )
+    / (
+        SUM(
+            CASE
+                WHEN start_time >= DATE('now', '-1 month') THEN duration
+            END
+        )
+        / 60.0
+    ), 0.0)
+        AS monthly_wpm,
+
+    -- Weekly WPM
+    SUM(CASE WHEN start_time >= DATE('now', '-7 days') THEN duration ELSE 0 END)
+        AS weekly_time_seconds,
+    (
+        CAST(COALESCE(d.words, 0.0) AS REAL)
+        * SUM(
+            CASE
+                WHEN start_time >= DATE('now', '-7 days') THEN read_percentage
+                ELSE 0
+            END
+        )
+    )
+        AS weekly_words_read,
+    COALESCE((
+        CAST(COALESCE(d.words, 0.0) AS REAL)
+        * SUM(
+            CASE
+                WHEN start_time >= DATE('now', '-7 days') THEN read_percentage
+            END
+        )
+    )
+    / (
+        SUM(
+            CASE
+                WHEN start_time >= DATE('now', '-7 days') THEN duration
+            END
+        )
+        / 60.0
+    ), 0.0)
+        AS weekly_wpm
+
 FROM grouped_activity AS ga
 INNER JOIN
     current_progress AS cp
     ON ga.user_id = cp.user_id AND ga.document_id = cp.document_id
 INNER JOIN
     documents AS d
-    ON d.id = ga.document_id
+    ON ga.document_id = d.id
 GROUP BY ga.document_id, ga.user_id
-ORDER BY wpm DESC;
+ORDER BY total_wpm DESC;
 
 ---------------------------------------------------------------
 ------------------ Populate Temporary Tables ------------------

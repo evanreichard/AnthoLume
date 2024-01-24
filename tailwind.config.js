@@ -5,6 +5,12 @@ module.exports = {
     "./assets/local/*.{html,htm,svg,js}",
     "./assets/reader/*.{html,htm,svg,js}",
   ],
+  safelist: [
+    "peer-checked/All:block",
+    "peer-checked/Year:block",
+    "peer-checked/Month:block",
+    "peer-checked/Week:block",
+  ],
   theme: {
     extend: {
       minWidth: {

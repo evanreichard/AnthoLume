@@ -14,6 +14,8 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -269,21 +271,46 @@ func (api *API) appGetHome(c *gin.Context) {
 	templateVars, auth := api.getBaseTemplateVars("home", c)
 
 	start := time.Now()
-	graphData, _ := api.DB.Queries.GetDailyReadStats(api.DB.Ctx, auth.UserName)
-	log.Debug("[appGetHome] GetDailyReadStats Performance: ", time.Since(start))
+	graphData, err := api.DB.Queries.GetDailyReadStats(api.DB.Ctx, auth.UserName)
+	if err != nil {
+		log.Error("[appGetHome] GetDailyReadStats DB Error: ", err)
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDailyReadStats DB Error: %v", err))
+		return
+	}
+	log.Debug("[appGetHome] GetDailyReadStats DB Performance: ", time.Since(start))
 
 	start = time.Now()
-	databaseInfo, _ := api.DB.Queries.GetDatabaseInfo(api.DB.Ctx, auth.UserName)
-	log.Debug("[appGetHome] GetDatabaseInfo Performance: ", time.Since(start))
+	databaseInfo, err := api.DB.Queries.GetDatabaseInfo(api.DB.Ctx, auth.UserName)
+	if err != nil {
+		log.Error("[appGetHome] GetDatabaseInfo DB Error: ", err)
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDatabaseInfo DB Error: %v", err))
+		return
+	}
+	log.Debug("[appGetHome] GetDatabaseInfo DB Performance: ", time.Since(start))
 
-	streaks, _ := api.DB.Queries.GetUserStreaks(api.DB.Ctx, auth.UserName)
-	WPMLeaderboard, _ := api.DB.Queries.GetWPMLeaderboard(api.DB.Ctx)
+	start = time.Now()
+	streaks, err := api.DB.Queries.GetUserStreaks(api.DB.Ctx, auth.UserName)
+	if err != nil {
+		log.Error("[appGetHome] GetUserStreaks DB Error: ", err)
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStreaks DB Error: %v", err))
+		return
+	}
+	log.Debug("[appGetHome] GetUserStreaks DB Performance: ", time.Since(start))
+
+	start = time.Now()
+	userStatistics, err := api.DB.Queries.GetUserStatistics(api.DB.Ctx)
+	if err != nil {
+		log.Error("[appGetHome] GetUserStatistics DB Error: ", err)
+		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStatistics DB Error: %v", err))
+		return
+	}
+	log.Debug("[appGetHome] GetUserStatistics DB Performance: ", time.Since(start))
 
 	templateVars["Data"] = gin.H{
 		"Streaks":        streaks,
 		"GraphData":      graphData,
 		"DatabaseInfo":   databaseInfo,
-		"WPMLeaderboard": WPMLeaderboard,
+		"UserStatistics": arrangeUserStatistics(userStatistics),
 	}
 
 	c.HTML(http.StatusOK, "page/home", templateVars)
@@ -385,7 +412,8 @@ func (api *API) appPerformAdminAction(c *gin.Context) {
 		// 1. Consume backup ZIP
 		// 2. Move existing to "backup" folder (db, wal, shm, covers, documents)
 		// 3. Extract backup zip
-		// 4. Restart server?
+		// 4. Invalidate cookies (see in auth.go logout)
+		// 5. Restart server?
 	case adminBackup:
 		// Get File Paths
 		fileName := fmt.Sprintf("%s.db", api.Config.DBName)
@@ -1243,4 +1271,81 @@ func errorPage(c *gin.Context, errorCode int, errorMessage string) {
 		"Error":   errorHuman,
 		"Message": errorMessage,
 	})
+}
+
+func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) gin.H {
+	// Item Sorter
+	sortItem := func(userStatistics []database.GetUserStatisticsRow, key string, less func(i int, j int) bool) []map[string]interface{} {
+		sortedData := append([]database.GetUserStatisticsRow(nil), userStatistics...)
+		sort.SliceStable(sortedData, less)
+
+		newData := make([]map[string]interface{}, 0)
+		for _, item := range sortedData {
+			v := reflect.Indirect(reflect.ValueOf(item))
+
+			var value string
+			if strings.Contains(key, "Wpm") {
+				rawVal := v.FieldByName(key).Float()
+				value = fmt.Sprintf("%.2f WPM", rawVal)
+			} else if strings.Contains(key, "Seconds") {
+				rawVal := v.FieldByName(key).Int()
+				value = niceSeconds(rawVal)
+			} else if strings.Contains(key, "Words") {
+				rawVal := v.FieldByName(key).Int()
+				value = niceNumbers(rawVal)
+			}
+
+			newData = append(newData, map[string]interface{}{
+				"UserID": item.UserID,
+				"Value":  value,
+			})
+		}
+
+		return newData
+	}
+
+	return gin.H{
+		"WPM": gin.H{
+			"All": sortItem(userStatistics, "TotalWpm", func(i, j int) bool {
+				return userStatistics[i].TotalWpm > userStatistics[j].TotalWpm
+			}),
+			"Year": sortItem(userStatistics, "YearlyWpm", func(i, j int) bool {
+				return userStatistics[i].YearlyWpm > userStatistics[j].YearlyWpm
+			}),
+			"Month": sortItem(userStatistics, "MonthlyWpm", func(i, j int) bool {
+				return userStatistics[i].MonthlyWpm > userStatistics[j].MonthlyWpm
+			}),
+			"Week": sortItem(userStatistics, "WeeklyWpm", func(i, j int) bool {
+				return userStatistics[i].WeeklyWpm > userStatistics[j].WeeklyWpm
+			}),
+		},
+		"Duration": gin.H{
+			"All": sortItem(userStatistics, "TotalSeconds", func(i, j int) bool {
+				return userStatistics[i].TotalSeconds > userStatistics[j].TotalSeconds
+			}),
+			"Year": sortItem(userStatistics, "YearlySeconds", func(i, j int) bool {
+				return userStatistics[i].YearlySeconds > userStatistics[j].YearlySeconds
+			}),
+			"Month": sortItem(userStatistics, "MonthlySeconds", func(i, j int) bool {
+				return userStatistics[i].MonthlySeconds > userStatistics[j].MonthlySeconds
+			}),
+			"Week": sortItem(userStatistics, "WeeklySeconds", func(i, j int) bool {
+				return userStatistics[i].WeeklySeconds > userStatistics[j].WeeklySeconds
+			}),
+		},
+		"Words": gin.H{
+			"All": sortItem(userStatistics, "TotalWordsRead", func(i, j int) bool {
+				return userStatistics[i].TotalWordsRead > userStatistics[j].TotalWordsRead
+			}),
+			"Year": sortItem(userStatistics, "YearlyWordsRead", func(i, j int) bool {
+				return userStatistics[i].YearlyWordsRead > userStatistics[j].YearlyWordsRead
+			}),
+			"Month": sortItem(userStatistics, "MonthlyWordsRead", func(i, j int) bool {
+				return userStatistics[i].MonthlyWordsRead > userStatistics[j].MonthlyWordsRead
+			}),
+			"Week": sortItem(userStatistics, "WeeklyWordsRead", func(i, j int) bool {
+				return userStatistics[i].WeeklyWordsRead > userStatistics[j].WeeklyWordsRead
+			}),
+		},
+	}
 }

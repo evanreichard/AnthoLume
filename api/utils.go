@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/graph"
@@ -87,6 +88,24 @@ func niceSeconds(input int64) (result string) {
 	return
 }
 
+func niceNumbers(input int64) string {
+	if input == 0 {
+		return "0"
+	}
+
+	abbreviations := []string{"", "k", "M", "B", "T"}
+	abbrevIndex := int(math.Log10(float64(input)) / 3)
+	scaledNumber := float64(input) / math.Pow(10, float64(abbrevIndex*3))
+
+	if scaledNumber >= 100 {
+		return fmt.Sprintf("%.0f%s", scaledNumber, abbreviations[abbrevIndex])
+	} else if scaledNumber >= 10 {
+		return fmt.Sprintf("%.1f%s", scaledNumber, abbreviations[abbrevIndex])
+	} else {
+		return fmt.Sprintf("%.2f%s", scaledNumber, abbreviations[abbrevIndex])
+	}
+}
+
 // Convert Database Array -> Int64 Array
 func getSVGGraphData(inputData []database.GetDailyReadStatsRow, svgWidth int, svgHeight int) graph.SVGGraphData {
 	var intData []int64
@@ -110,4 +129,18 @@ func dict(values ...interface{}) (map[string]interface{}, error) {
 		dict[key] = values[i+1]
 	}
 	return dict, nil
+}
+
+func fields(value interface{}) (map[string]interface{}, error) {
+	v := reflect.Indirect(reflect.ValueOf(value))
+	if v.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("%T is not a struct", value)
+	}
+	m := make(map[string]interface{})
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		sv := t.Field(i)
+		m[sv.Name] = v.Field(i).Interface()
+	}
+	return m, nil
 }
