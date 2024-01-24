@@ -1,6 +1,8 @@
-{{template "base" .}} {{define "title"}}Home{{end}} {{define "header"}}
-<a href="./">Home</a>
-{{end}} {{define "content"}}
+{{template "base" .}}
+{{define "title"}}Home{{end}}
+{{define "header"}}<a href="./">Home</a>{{end}}
+
+{{define "content"}}
 <div class="flex flex-col gap-4">
   <div class="w-full">
     <div
@@ -159,32 +161,7 @@
     </div>
   </div>
 
-  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-    {{ template "component/leaderboard-card" (
-      dict
-	"Name" "WPM"
-	"Data" .Data.UserStatistics.WPM
-      )
-    }}
-
-    {{ template "component/leaderboard-card" (
-      dict
-	"Name" "Duration"
-	"Data" .Data.UserStatistics.Duration
-      )
-    }}
-
-    {{ template "component/leaderboard-card" (
-      dict
-	"Name" "Words"
-	"Data" .Data.UserStatistics.Words
-      )
-    }}
-
-
-  </div>
-
-  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
     {{ range $item := .Data.Streaks }}
     <div class="w-full">
       <div
@@ -193,8 +170,11 @@
         <p
           class="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500"
         >
-          {{ if eq $item.Window "WEEK" }} Weekly Read Streak {{ else }} Daily
-          Read Streak {{ end }}
+          {{ if eq $item.Window "WEEK" }}
+	    Weekly Read Streak
+	  {{ else }}
+	    Daily Read Streak
+	  {{ end }}
         </p>
         <div class="flex items-end my-6 space-x-2">
           <p class="text-5xl font-bold text-black dark:text-white">
@@ -211,19 +191,19 @@
                 Current Daily Streak {{ end }}
               </p>
               <div class="flex items-end text-sm text-gray-400">
-                {{ $item.CurrentStreakStartDate }} ➞ {{
-                $item.CurrentStreakEndDate }}
+                {{ $item.CurrentStreakStartDate }} ➞ {{ $item.CurrentStreakEndDate }}
               </div>
             </div>
-            <div class="flex items-end font-bold">
-              {{ $item.CurrentStreak }}
-            </div>
+            <div class="flex items-end font-bold">{{ $item.CurrentStreak }}</div>
           </div>
           <div class="flex items-center justify-between pb-2 mb-2 text-sm">
             <div>
               <p>
-                {{ if eq $item.Window "WEEK" }} Best Weekly Streak {{ else }}
-                Best Daily Streak {{ end }}
+                {{ if eq $item.Window "WEEK" }}
+		  Best Weekly Streak
+		{{ else }}
+		  Best Daily Streak
+		{{ end }}
               </p>
               <div class="flex items-end text-sm text-gray-400">
                 {{ $item.MaxStreakStartDate }} ➞ {{ $item.MaxStreakEndDate }}
@@ -235,6 +215,29 @@
       </div>
     </div>
     {{ end }}
+  </div>
 
-    {{end}}
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+    {{ template "component/leaderboard-card" (
+      dict
+        "Name" "WPM"
+        "Data" .Data.UserStatistics.WPM
+      )
+    }}
+
+    {{ template "component/leaderboard-card" (
+      dict
+        "Name" "Duration"
+        "Data" .Data.UserStatistics.Duration
+      )
+    }}
+
+    {{ template "component/leaderboard-card" (
+      dict
+        "Name" "Words"
+        "Data" .Data.UserStatistics.Words
+      )
+    }}
+  </div>
 </div>
+{{end}}

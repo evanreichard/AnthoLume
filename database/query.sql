@@ -314,22 +314,22 @@ SELECT
 
     CAST(SUM(total_words_read) AS INTEGER) AS total_words_read,
     CAST(SUM(total_time_seconds) AS INTEGER) AS total_seconds,
-    ROUND(CAST(SUM(total_words_read) AS REAL) / (SUM(total_time_seconds) / 60.0), 2)
+    ROUND(COALESCE(CAST(SUM(total_words_read) AS REAL) / (SUM(total_time_seconds) / 60.0), 0.0), 2)
         AS total_wpm,
 
     CAST(SUM(yearly_words_read) AS INTEGER) AS yearly_words_read,
     CAST(SUM(yearly_time_seconds) AS INTEGER) AS yearly_seconds,
-    ROUND(CAST(SUM(yearly_words_read) AS REAL) / (SUM(yearly_time_seconds) / 60.0), 2)
+    ROUND(COALESCE(CAST(SUM(yearly_words_read) AS REAL) / (SUM(yearly_time_seconds) / 60.0), 0.0), 2)
         AS yearly_wpm,
 
     CAST(SUM(monthly_words_read) AS INTEGER) AS monthly_words_read,
     CAST(SUM(monthly_time_seconds) AS INTEGER) AS monthly_seconds,
-    ROUND(CAST(SUM(monthly_words_read) AS REAL) / (SUM(monthly_time_seconds) / 60.0), 2)
+    ROUND(COALESCE(CAST(SUM(monthly_words_read) AS REAL) / (SUM(monthly_time_seconds) / 60.0), 0.0), 2)
         AS monthly_wpm,
 
     CAST(SUM(weekly_words_read) AS INTEGER) AS weekly_words_read,
     CAST(SUM(weekly_time_seconds) AS INTEGER) AS weekly_seconds,
-    ROUND(CAST(SUM(weekly_words_read) AS REAL) / (SUM(weekly_time_seconds) / 60.0), 2)
+    ROUND(COALESCE(CAST(SUM(weekly_words_read) AS REAL) / (SUM(weekly_time_seconds) / 60.0), 0.0), 2)
         AS weekly_wpm
 
 FROM document_user_statistics
