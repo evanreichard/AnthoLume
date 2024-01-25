@@ -1,0 +1,14 @@
+{
+  "profile": "golang",
+  "indent": 2,
+  "close_void_tags": true,
+  "format_attribute_template_tags": true,
+  "format_js": true,
+  "js": {
+    "indent_size": 2
+  },
+  "format_css": true,
+  "css": {
+    "indent_size": 2
+  }
+}

@@ -191,7 +191,7 @@ func (api *API) generateTemplates() *multitemplate.Renderer {
 	}
 
 	// Load Base
-	b, _ := api.Assets.ReadFile("templates/base.html")
+	b, _ := api.Assets.ReadFile("templates/base.tmpl")
 	baseTemplate := template.Must(template.New("base").Funcs(helperFuncs).Parse(string(b)))
 
 	// Load SVGs

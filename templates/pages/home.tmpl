@@ -1,0 +1,160 @@
+{{ template "base" . }}
+{{ define "title" }}Home{{ end }}
+{{ define "header" }}<a href="./">Home</a>{{ end }}
+{{ define "content" }}
+<div class="flex flex-col gap-4">
+  <div class="w-full">
+    <div class="relative w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded">
+      <p class="absolute top-3 text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500">
+        Daily Read Totals
+      </p>
+      {{ $data := (getSVGGraphData .Data.GraphData 800 70 )}}
+      <svg viewBox="26 0 755 {{ $data.Height }}"
+           preserveAspectRatio="none"
+           width="100%"
+           height="4em">
+        <!-- Bezier Line Graph -->
+        <path fill="#316BBE" fill-opacity="0.5" stroke="none" d="{{ $data.BezierPath }} {{ $data.BezierFill }}" />
+        <path fill="none" stroke="#316BBE" d="{{ $data.BezierPath }}" />
+        {{ range $index, $item := $data.LinePoints }}
+        <line class="hover-trigger" stroke="black" stroke-opacity="0.0" stroke-width="{{ $data.Offset }}" x1="{{ $item.X }}" x2="{{ $item.X }}" y1="0" y2="{{ $data.Height }}"></line>
+        <g class="hover-item">
+        <line class="text-black dark:text-white" stroke-opacity="0.2" x1="{{ $item.X }}" x2="{{ $item.X }}" y1="30" y2="{{ $data.Height }}"></line>
+        <text class="text-black dark:text-white" alignment-baseline="middle" transform="translate({{ $item.X }}, 5) translate(-30, 8)" font-size="10">
+        {{ (index $.Data.GraphData $index).Date }}
+        </text>
+        <text class="text-black dark:text-white" alignment-baseline="middle" transform="translate({{ $item.X }}, 25) translate(-30, -2)" font-size="10">
+        {{ (index $.Data.GraphData $index).MinutesRead }} minutes
+        </text>
+        </g>
+        {{ end }}
+      </svg>
+      <style>
+        /* Interactive Hover */
+        .hover-item {
+          visibility: hidden;
+          opacity: 0;
+        }
+
+        .hover-trigger:hover+.hover-item,
+        .hover-item:hover {
+          visibility: visible;
+          opacity: 1;
+        }
+
+        /* SVG Component Styling */
+        svg text.text-black {
+          fill: black;
+        }
+
+        svg line.text-black {
+          stroke: black;
+        }
+
+        @media (prefers-color-scheme: dark) {
+          svg text.dark\:text-white {
+            fill: white;
+          }
+
+          svg line.dark\:text-white {
+            stroke: white;
+          }
+        }
+      </style>
+    </div>
+  </div>
+  <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+    <a href="./documents" class="w-full">
+      <div class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded">
+        <div class="flex flex-col justify-around dark:text-white w-full text-sm">
+          <p class="text-2xl font-bold text-black dark:text-white">{{ .Data.DatabaseInfo.DocumentsSize }}</p>
+          <p class="text-sm text-gray-400">Documents</p>
+        </div>
+      </div>
+    </a>
+    <a href="./activity" class="w-full">
+      <div class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded">
+        <div class="flex flex-col justify-around dark:text-white w-full text-sm">
+          <p class="text-2xl font-bold text-black dark:text-white">{{ .Data.DatabaseInfo.ActivitySize }}</p>
+          <p class="text-sm text-gray-400">Activity Records</p>
+        </div>
+      </div>
+    </a>
+    <a href="./progress" class="w-full">
+      <div class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded">
+        <div class="flex flex-col justify-around dark:text-white w-full text-sm">
+          <p class="text-2xl font-bold text-black dark:text-white">{{ .Data.DatabaseInfo.ProgressSize }}</p>
+          <p class="text-sm text-gray-400">Progress Records</p>
+        </div>
+      </div>
+    </a>
+    <div class="w-full">
+      <div class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded">
+        <div class="flex flex-col justify-around dark:text-white w-full text-sm">
+          <p class="text-2xl font-bold text-black dark:text-white">{{ .Data.DatabaseInfo.DevicesSize }}</p>
+          <p class="text-sm text-gray-400">Devices</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+    {{ range $item := .Data.Streaks }}
+    <div class="w-full">
+      <div class="relative w-full px-4 py-6 bg-white shadow-lg dark:bg-gray-700 rounded">
+        <p class="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500">
+          {{ if eq $item.Window "WEEK" }}
+          Weekly Read Streak
+        {{ else }}
+          Daily Read Streak
+          {{ end }}
+        </p>
+        <div class="flex items-end my-6 space-x-2">
+          <p class="text-5xl font-bold text-black dark:text-white">{{ $item.CurrentStreak }}</p>
+        </div>
+        <div class="dark:text-white">
+          <div class="flex items-center justify-between pb-2 mb-2 text-sm border-b border-gray-200">
+            <div>
+              <p>
+              {{ if eq $item.Window "WEEK" }} Current Weekly Streak {{ else }}
+                Current Daily Streak {{ end }}
+              </p>
+              <div class="flex items-end text-sm text-gray-400">
+                {{ $item.CurrentStreakStartDate }} ➞ {{ $item.CurrentStreakEndDate }}
+              </div>
+            </div>
+            <div class="flex items-end font-bold">{{ $item.CurrentStreak }}</div>
+          </div>
+          <div class="flex items-center justify-between pb-2 mb-2 text-sm">
+            <div>
+              <p>
+                {{ if eq $item.Window "WEEK" }}
+                Best Weekly Streak
+              {{ else }}
+                Best Daily Streak
+                {{ end }}
+              </p>
+              <div class="flex items-end text-sm text-gray-400">{{ $item.MaxStreakStartDate }} ➞ {{ $item.MaxStreakEndDate }}</div>
+            </div>
+            <div class="flex items-end font-bold">{{ $item.MaxStreak }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {{ end }}
+  </div>
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+    {{ template "component/leaderboard-card" (dict
+    "Name" "WPM"
+    "Data" .Data.UserStatistics.WPM
+    )}}
+    {{ template "component/leaderboard-card" (dict
+    "Name" "Duration"
+    "Data" .Data.UserStatistics.Duration
+    )}}
+    {{ template "component/leaderboard-card" (dict
+    "Name" "Words"
+    "Data" .Data.UserStatistics.Words
+    )}}
+  </div>
+</div>
+{{ end }}

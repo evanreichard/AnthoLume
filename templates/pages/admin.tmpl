@@ -1,0 +1,129 @@
+{{ template "base" . }}
+{{ define "title" }}Admin - General{{ end }}
+{{ define "header" }}<a class="whitespace-pre" href="./admin">Admin - General</a>{{ end }}
+{{ define "content" }}
+<div class="w-full flex flex-col md:flex-row gap-4">
+  <div>
+    <div class="flex flex-col p-4 items-center rounded shadow-lg md:w-60 lg:w-80 bg-white dark:bg-gray-700 text-gray-500 dark:text-white">
+      {{ template "svg/user" (dict "Size" 60) }}
+      <p class="text-lg">{{ .Authorization.UserName }}</p>
+    </div>
+  </div>
+  <div class="flex flex-col gap-4 grow">
+    <div class="flex flex-col gap-2 grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white">
+      <p class="text-lg font-semibold mb-2">Import Documents</p>
+      <form class="flex gap-4 flex-col" action="./admin" method="POST">
+        <input type="text" name="action" value="IMPORT" class="hidden" />
+        <div class="flex gap-4">
+          <div class="flex grow relative">
+            <span class="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm">
+              {{ template "svg/import" (dict "Size" 15) }}
+            </span>
+            <input type="text"
+                   name="import_directory"
+                   class="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                   placeholder="Directory" />
+          </div>
+          <div class="flex flex-col mr-4">
+            <div class="inline-flex gap-2">
+              <input checked type="radio" id="copy" name="import_type" value="COPY" />
+              <label for="copy">Copy</label>
+            </div>
+            <div class="inline-flex gap-2">
+              <input type="radio" id="direct" name="import_type" value="DIRECT" />
+              <label for="direct">Direct</label>
+            </div>
+          </div>
+        </div>
+        <button type="submit"
+                class="px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
+          <span class="w-full">Import Directory</span>
+        </button>
+      </form>
+      {{ if .PasswordErrorMessage }}
+      <span class="text-red-400 text-xs">{{ .PasswordErrorMessage }}</span>
+      {{ else if .PasswordMessage }}
+      <span class="text-green-400 text-xs">{{ .PasswordMessage }}</span>
+      {{ end }}
+    </div>
+    <div class="flex flex-col gap-2 grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white">
+      <p class="text-lg font-semibold mb-2">Backup & Restore</p>
+      <div class="flex flex-col gap-4">
+        <form class="flex justify-between" action="./admin" method="POST">
+          <input type="text" name="action" value="BACKUP" class="hidden" />
+          <div class="flex gap-8 items-center">
+            <div>
+              <input type="checkbox" id="backup_covers" name="backup_types" value="COVERS" />
+              <label for="backup_covers">Covers</label>
+            </div>
+            <div>
+              <input type="checkbox"
+                     id="backup_documents"
+                     name="backup_types"
+                     value="DOCUMENTS" />
+              <label for="backup_documents">Documents</label>
+            </div>
+          </div>
+          <button type="submit"
+                  class="w-40 px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
+            <span class="w-full">Backup</span>
+          </button>
+        </form>
+        <form method="POST"
+              enctype="multipart/form-data"
+              action="./admin"
+              class="flex justify-between grow">
+          <input type="text" name="action" value="RESTORE" class="hidden" />
+          <div class="flex items-center w-1/2">
+            <input type="file" accept=".zip" name="restore_file" class="w-full" />
+          </div>
+          <button type="submit"
+                  class="w-40 px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
+            <span class="w-full">Restore</span>
+          </button>
+        </form>
+      </div>
+      {{ if .PasswordErrorMessage }}
+      <span class="text-red-400 text-xs">{{ .PasswordErrorMessage }}</span>
+      {{ else if .PasswordMessage }}
+      <span class="text-green-400 text-xs">{{ .PasswordMessage }}</span>
+      {{ end }}
+    </div>
+    <div class="flex flex-col grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white">
+      <p class="text-lg font-semibold">Tasks</p>
+      <table class="min-w-full bg-white dark:bg-gray-700 text-sm">
+        <tbody class="text-black dark:text-white">
+          <tr>
+            <td class="pl-0">
+              <p>Metadata Matching</p>
+            </td>
+            <td class="py-2 float-right">
+              <form action="./admin" method="POST">
+                <input type="text" name="action" value="METADATA_MATCH" class="hidden" />
+                <button type="submit"
+                        class="w-40 px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
+                  <span class="w-full">Run</span>
+                </button>
+              </form>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p>Cache Tables</p>
+            </td>
+            <td class="py-2 float-right">
+              <form action="./admin" method="POST">
+                <input type="text" name="action" value="CACHE_TABLES" class="hidden" />
+                <button type="submit"
+                        class="w-40 px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
+                  <span class="w-full">Run</span>
+                </button>
+              </form>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{{ end }}

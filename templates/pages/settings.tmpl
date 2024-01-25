@@ -1,0 +1,124 @@
+{{ template "base" . }}
+{{ define "title" }}Settings{{ end }}
+{{ define "header" }}<a href="./settings">Settings</a>{{ end }}
+{{ define "content" }}
+<div class="w-full flex flex-col md:flex-row gap-4">
+  <div>
+    <div class="flex flex-col p-4 items-center rounded shadow-lg md:w-60 lg:w-80 bg-white dark:bg-gray-700 text-gray-500 dark:text-white">
+      {{ template "svg/user" (dict "Size" 60) }}
+      <p class="text-lg">{{ .Authorization.UserName }}</p>
+    </div>
+  </div>
+  <div class="flex flex-col gap-4 grow">
+    <div class="flex flex-col gap-2 grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white">
+      <p class="text-lg font-semibold mb-2">Change Password</p>
+      <form class="flex gap-4 flex-col lg:flex-row"
+            action="./settings"
+            method="POST">
+        <div class="flex flex-col grow">
+          <div class="flex relative">
+            <span class="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm">
+              {{ template "svg/password" (dict "Size" 15) }}
+            </span>
+            <input type="password"
+                   id="password"
+                   name="password"
+                   class="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                   placeholder="Password" />
+          </div>
+        </div>
+        <div class="flex flex-col grow">
+          <div class="flex relative">
+            <span class="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm">
+              {{ template "svg/password" (dict "Size" 15) }}
+            </span>
+            <input type="password"
+                   id="new_password"
+                   name="new_password"
+                   class="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                   placeholder="New Password" />
+          </div>
+        </div>
+        <button type="submit"
+                class="px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
+          <span class="w-full">Submit</span>
+        </button>
+      </form>
+      {{ if .PasswordErrorMessage }}
+      <span class="text-red-400 text-xs">{{ .PasswordErrorMessage }}</span>
+      {{ else if .PasswordMessage }}
+      <span class="text-green-400 text-xs">{{ .PasswordMessage }}</span>
+      {{ end }}
+    </div>
+    <div class="flex flex-col grow gap-2 p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white">
+      <p class="text-lg font-semibold mb-2">Change Time Offset</p>
+      <form class="flex gap-4 flex-col lg:flex-row"
+            action="./settings"
+            method="POST">
+        <div class="flex relative grow">
+          <span class="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm">
+            {{ template "svg/clock" (dict "Size" 15) }}
+          </span>
+          <select class="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  id="time_offset"
+                  name="time_offset">
+            {{ range $item := getUTCOffsets }}
+            <option {{ if (eq $item.Value $.Data.TimeOffset) }}selected{{ end }} value="{{ $item.Value }}">
+              {{ $item.Name }}
+            </option>
+            {{ end }}
+          </select>
+        </div>
+        <button type="submit"
+                class="px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
+          <span class="w-full">Submit</span>
+        </button>
+      </form>
+      {{ if .TimeOffsetErrorMessage }}
+      <span class="text-red-400 text-xs">{{ .TimeOffsetErrorMessage }}</span>
+      {{ else if .TimeOffsetMessage }}
+      <span class="text-green-400 text-xs">{{ .TimeOffsetMessage }}</span>
+      {{ end }}
+    </div>
+    <div class="flex flex-col grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white">
+      <p class="text-lg font-semibold">Devices</p>
+      <table class="min-w-full bg-white dark:bg-gray-700 text-sm">
+        <thead class="text-gray-800 dark:text-gray-400">
+          <tr>
+            <th scope="col"
+                class="p-3 pl-0 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800">
+              Name
+            </th>
+            <th scope="col"
+                class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800">
+              Last Sync
+            </th>
+            <th scope="col"
+                class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800">Created</th>
+          </tr>
+        </thead>
+        <tbody class="text-black dark:text-white">
+          {{ if not .Data.Devices }}
+          <tr>
+            <td class="text-center p-3" colspan="3">No Results</td>
+          </tr>
+          {{ end }}
+          {{ range $device := .Data.Devices }}
+          <tr>
+            <td class="p-3 pl-0">
+              <p>{{ $device.DeviceName }}</p>
+            </td>
+            <td class="p-3">
+              <p>{{ $device.LastSynced }}</p>
+            </td>
+            <td class="p-3">
+              <p>{{ $device.CreatedAt }}</p>
+            </td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{{ end }}

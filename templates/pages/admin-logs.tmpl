@@ -1,0 +1,11 @@
+{{ template "base" . }}
+{{ define "title" }}Admin - Logs{{ end }}
+{{ define "header" }}<a class="whitespace-pre" href="../admin">Admin - Logs</a>{{ end }}
+{{ define "content" }}
+<div class="flex flex-col-reverse text-black dark:text-white"
+     style="font-family: monospace">
+  {{ range $log := .Data }}
+  <span class="whitespace-pre">{{ $log }}</span>
+  {{ end }}
+</div>
+{{ end }}
