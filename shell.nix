@@ -6,4 +6,7 @@ pkgs.mkShell {
     nodePackages.tailwindcss
     python311Packages.grip
   ];
+  shellHook = ''
+    export PATH=$PATH:~/go/bin
+  '';
 }

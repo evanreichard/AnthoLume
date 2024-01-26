@@ -121,6 +121,12 @@ go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 ~/go/bin/sqlc generate
 ```
 
+Goose Migrations:
+
+```bash
+go install github.com/pressly/goose/v3/cmd/goose@latest
+```
+
 Run Development:
 
 ```bash

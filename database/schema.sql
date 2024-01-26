@@ -167,15 +167,19 @@ CREATE INDEX IF NOT EXISTS activity_user_id_document_id ON activity (
     document_id
 );
 
+
 ---------------------------------------------------------------
 ---------------------------- Views ----------------------------
 ---------------------------------------------------------------
+
+DROP VIEW IF EXISTS view_user_streaks;
+DROP VIEW IF EXISTS view_document_user_statistics;
 
 --------------------------------
 --------- User Streaks ---------
 --------------------------------
 
-CREATE VIEW IF NOT EXISTS view_user_streaks AS
+CREATE VIEW view_user_streaks AS
 
 WITH document_windows AS (
     SELECT
@@ -290,7 +294,7 @@ LEFT JOIN current_streak ON
 ------- Document Stats ---------
 --------------------------------
 
-CREATE VIEW IF NOT EXISTS view_document_user_statistics AS
+CREATE VIEW view_document_user_statistics AS
 
 WITH intermediate_ga AS (
     SELECT
@@ -465,11 +469,6 @@ INNER JOIN
 GROUP BY ga.document_id, ga.user_id
 ORDER BY total_wpm DESC;
 
----------------------------------------------------------------
------------------- Populate Temporary Tables ------------------
----------------------------------------------------------------
-INSERT INTO user_streaks SELECT * FROM view_user_streaks;
-INSERT INTO document_user_statistics SELECT * FROM view_document_user_statistics;
 
 ---------------------------------------------------------------
 --------------------------- Triggers --------------------------

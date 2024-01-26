@@ -3,11 +3,13 @@ package database
 import (
 	"context"
 	"database/sql"
+	"embed"
 	_ "embed"
 	"fmt"
 	"path"
 	"time"
 
+	"github.com/pressly/goose/v3"
 	log "github.com/sirupsen/logrus"
 	_ "modernc.org/sqlite"
 	"reichard.io/antholume/config"
@@ -21,6 +23,9 @@ type DBManager struct {
 
 //go:embed schema.sql
 var ddl string
+
+//go:embed migrations/*
+var migrations embed.FS
 
 func NewMgr(c *config.Config) *DBManager {
 	// Create Manager
@@ -38,16 +43,27 @@ func NewMgr(c *config.Config) *DBManager {
 		var err error
 		dbm.DB, err = sql.Open("sqlite", dbLocation)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("[NewMgr] Unable to open DB: %v", err)
 		}
 
 		// Single Open Connection
 		dbm.DB.SetMaxOpenConns(1)
+
+		// Execute DDL
 		if _, err := dbm.DB.Exec(ddl, nil); err != nil {
-			log.Info("Exec Error:", err)
+			log.Fatalf("[NewMgr] Error executing schema: %v", err)
 		}
+
+		// Perform Migrations
+		err = dbm.performMigrations()
+		if err != nil && err != goose.ErrNoMigrationFiles {
+			log.Fatalf("[NewMgr] Error running DB migrations: %v", err)
+		}
+
+		// Cache Tables
+		dbm.CacheTempTables()
 	} else {
-		log.Fatal("Unsupported Database")
+		log.Fatal("[NewMgr] Unsupported Database")
 	}
 
 	dbm.Queries = New(dbm.DB)
@@ -81,4 +97,14 @@ func (dbm *DBManager) CacheTempTables() error {
 	log.Debug("[CacheTempTables] Cached 'document_user_statistics' in: ", time.Since(start))
 
 	return nil
+}
+
+func (dbm *DBManager) performMigrations() error {
+	// Set DB Migration
+	goose.SetBaseFS(migrations)
+
+	// Run Migrations
+	goose.SetLogger(log.StandardLogger())
+	goose.SetDialect("sqlite")
+	return goose.Up(dbm.DB, "migrations")
 }

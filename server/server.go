@@ -63,8 +63,6 @@ func (s *Server) StartServer(wg *sync.WaitGroup, done <-chan struct{}) {
 		defer wg.Done()
 		defer ticker.Stop()
 
-		s.RunScheduledTasks()
-
 		for {
 			select {
 			case <-ticker.C:
