@@ -135,7 +135,7 @@ func (api *API) authAdminWebAppMiddleware(c *gin.Context) {
 		}
 	}
 
-	errorPage(c, http.StatusUnauthorized, "Admin Permissions Required")
+	appErrorPage(c, http.StatusUnauthorized, "Admin Permissions Required")
 	c.Abort()
 	return
 }
@@ -175,7 +175,7 @@ func (api *API) appAuthFormLogin(c *gin.Context) {
 
 func (api *API) appAuthFormRegister(c *gin.Context) {
 	if !api.Config.RegistrationEnabled {
-		errorPage(c, http.StatusUnauthorized, "Nice try. Registration is disabled.")
+		appErrorPage(c, http.StatusUnauthorized, "Nice try. Registration is disabled.")
 		return
 	}
 
@@ -236,7 +236,7 @@ func (api *API) appAuthFormRegister(c *gin.Context) {
 	}
 	session := sessions.Default(c)
 	if err := setSession(session, auth); err != nil {
-		errorPage(c, http.StatusUnauthorized, "Unauthorized.")
+		appErrorPage(c, http.StatusUnauthorized, "Unauthorized.")
 		return
 	}
 

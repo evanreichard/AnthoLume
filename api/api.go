@@ -114,8 +114,8 @@ func (api *API) registerWebAppRoutes() {
 	api.Router.GET("/progress", api.authWebAppMiddleware, api.appGetProgress)
 	api.Router.GET("/documents", api.authWebAppMiddleware, api.appGetDocuments)
 	api.Router.GET("/documents/:document", api.authWebAppMiddleware, api.appGetDocument)
-	api.Router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.getDocumentCover)
-	api.Router.GET("/documents/:document/file", api.authWebAppMiddleware, api.downloadDocument)
+	api.Router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.createGetCoverHandler(appErrorPage))
+	api.Router.GET("/documents/:document/file", api.authWebAppMiddleware, api.createDownloadDocumentHandler(appErrorPage))
 	api.Router.GET("/login", api.appGetLogin)
 	api.Router.GET("/logout", api.authWebAppMiddleware, api.appAuthLogout)
 	api.Router.GET("/register", api.appGetRegister)
@@ -153,7 +153,7 @@ func (api *API) registerKOAPIRoutes(apiGroup *gin.RouterGroup) {
 	koGroup := apiGroup.Group("/ko")
 
 	// KO Sync Routes (WebApp Uses - Progress & Activity)
-	koGroup.GET("/documents/:document/file", api.authKOMiddleware, api.downloadDocument)
+	koGroup.GET("/documents/:document/file", api.authKOMiddleware, api.createDownloadDocumentHandler(apiErrorPage))
 	koGroup.GET("/syncs/progress/:document", api.authKOMiddleware, api.koGetProgress)
 	koGroup.GET("/users/auth", api.authKOMiddleware, api.koAuthorizeUser)
 	koGroup.POST("/activity", api.authKOMiddleware, api.koAddActivities)
@@ -181,8 +181,8 @@ func (api *API) registerOPDSRoutes(apiGroup *gin.RouterGroup) {
 	opdsGroup.GET("/", api.authOPDSMiddleware, api.opdsEntry)
 	opdsGroup.GET("/search.xml", api.authOPDSMiddleware, api.opdsSearchDescription)
 	opdsGroup.GET("/documents", api.authOPDSMiddleware, api.opdsDocuments)
-	opdsGroup.GET("/documents/:document/cover", api.authOPDSMiddleware, api.getDocumentCover)
-	opdsGroup.GET("/documents/:document/file", api.authOPDSMiddleware, api.downloadDocument)
+	opdsGroup.GET("/documents/:document/cover", api.authOPDSMiddleware, api.createGetCoverHandler(apiErrorPage))
+	opdsGroup.GET("/documents/:document/file", api.authOPDSMiddleware, api.createDownloadDocumentHandler(apiErrorPage))
 }
 
 func (api *API) generateTemplates() *multitemplate.Renderer {

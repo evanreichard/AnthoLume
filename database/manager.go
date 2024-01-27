@@ -6,7 +6,7 @@ import (
 	"embed"
 	_ "embed"
 	"fmt"
-	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/pressly/goose/v3"
@@ -37,7 +37,7 @@ func NewMgr(c *config.Config) *DBManager {
 	if c.DBType == "sqlite" || c.DBType == "memory" {
 		var dbLocation string = ":memory:"
 		if c.DBType == "sqlite" {
-			dbLocation = path.Join(c.ConfigPath, fmt.Sprintf("%s.db", c.DBName))
+			dbLocation = filepath.Join(c.ConfigPath, fmt.Sprintf("%s.db", c.DBName))
 		}
 
 		var err error

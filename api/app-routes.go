@@ -13,7 +13,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -154,14 +153,14 @@ func (api *API) appGetDocuments(c *gin.Context) {
 	})
 	if err != nil {
 		log.Error("GetDocumentsWithStats DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsWithStats DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsWithStats DB Error: %v", err))
 		return
 	}
 
 	length, err := api.DB.Queries.GetDocumentsSize(api.DB.Ctx, query)
 	if err != nil {
 		log.Error("GetDocumentsSize DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsSize DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsSize DB Error: %v", err))
 		return
 	}
 
@@ -193,7 +192,7 @@ func (api *API) appGetDocument(c *gin.Context) {
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
 		log.Error("Invalid URI Bind")
-		errorPage(c, http.StatusNotFound, "Invalid document.")
+		appErrorPage(c, http.StatusNotFound, "Invalid document.")
 		return
 	}
 
@@ -203,7 +202,7 @@ func (api *API) appGetDocument(c *gin.Context) {
 	})
 	if err != nil {
 		log.Error("GetDocumentWithStats DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsWithStats DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsWithStats DB Error: %v", err))
 		return
 	}
 
@@ -232,7 +231,7 @@ func (api *API) appGetProgress(c *gin.Context) {
 	progress, err := api.DB.Queries.GetProgress(api.DB.Ctx, progressFilter)
 	if err != nil {
 		log.Error("GetProgress DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetActivity DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetActivity DB Error: %v", err))
 		return
 	}
 
@@ -259,7 +258,7 @@ func (api *API) appGetActivity(c *gin.Context) {
 	activity, err := api.DB.Queries.GetActivity(api.DB.Ctx, activityFilter)
 	if err != nil {
 		log.Error("GetActivity DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetActivity DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetActivity DB Error: %v", err))
 		return
 	}
 
@@ -275,7 +274,7 @@ func (api *API) appGetHome(c *gin.Context) {
 	graphData, err := api.DB.Queries.GetDailyReadStats(api.DB.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("GetDailyReadStats DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDailyReadStats DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDailyReadStats DB Error: %v", err))
 		return
 	}
 	log.Debug("GetDailyReadStats DB Performance: ", time.Since(start))
@@ -284,7 +283,7 @@ func (api *API) appGetHome(c *gin.Context) {
 	databaseInfo, err := api.DB.Queries.GetDatabaseInfo(api.DB.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("GetDatabaseInfo DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDatabaseInfo DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDatabaseInfo DB Error: %v", err))
 		return
 	}
 	log.Debug("GetDatabaseInfo DB Performance: ", time.Since(start))
@@ -293,7 +292,7 @@ func (api *API) appGetHome(c *gin.Context) {
 	streaks, err := api.DB.Queries.GetUserStreaks(api.DB.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("GetUserStreaks DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStreaks DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStreaks DB Error: %v", err))
 		return
 	}
 	log.Debug("GetUserStreaks DB Performance: ", time.Since(start))
@@ -302,7 +301,7 @@ func (api *API) appGetHome(c *gin.Context) {
 	userStatistics, err := api.DB.Queries.GetUserStatistics(api.DB.Ctx)
 	if err != nil {
 		log.Error("GetUserStatistics DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStatistics DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStatistics DB Error: %v", err))
 		return
 	}
 	log.Debug("GetUserStatistics DB Performance: ", time.Since(start))
@@ -323,14 +322,14 @@ func (api *API) appGetSettings(c *gin.Context) {
 	user, err := api.DB.Queries.GetUser(api.DB.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("GetUser DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
 		return
 	}
 
 	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("GetDevices DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
 		return
 	}
 
@@ -351,10 +350,10 @@ func (api *API) appGetAdminLogs(c *gin.Context) {
 	templateVars, _ := api.getBaseTemplateVars("admin-logs", c)
 
 	// Open Log File
-	logPath := path.Join(api.Config.ConfigPath, "logs/antholume.log")
+	logPath := filepath.Join(api.Config.ConfigPath, "logs/antholume.log")
 	logFile, err := os.Open(logPath)
 	if err != nil {
-		errorPage(c, http.StatusBadRequest, "Missing AnthoLume log file.")
+		appErrorPage(c, http.StatusBadRequest, "Missing AnthoLume log file.")
 		return
 	}
 	defer logFile.Close()
@@ -392,7 +391,7 @@ func (api *API) appGetAdminUsers(c *gin.Context) {
 	users, err := api.DB.Queries.GetUsers(api.DB.Ctx)
 	if err != nil {
 		log.Error("GetUsers DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUsers DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUsers DB Error: %v", err))
 		return
 	}
 
@@ -411,7 +410,7 @@ func (api *API) appPerformAdminAction(c *gin.Context) {
 	var rAdminAction requestAdminAction
 	if err := c.ShouldBind(&rAdminAction); err != nil {
 		log.Error("Invalid Form Bind: ", err)
-		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
@@ -465,7 +464,7 @@ func (api *API) appGetSearch(c *gin.Context) {
 		// Search
 		searchResults, err := search.SearchBook(*sParams.Query, *sParams.Source)
 		if err != nil {
-			errorPage(c, http.StatusInternalServerError, fmt.Sprintf("Search Error: %v", err))
+			appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Search Error: %v", err))
 			return
 		}
 
@@ -505,7 +504,7 @@ func (api *API) appGetDocumentProgress(c *gin.Context) {
 	var rDoc requestDocumentID
 	if err := c.ShouldBindUri(&rDoc); err != nil {
 		log.Error("Invalid URI Bind")
-		errorPage(c, http.StatusNotFound, "Invalid document.")
+		appErrorPage(c, http.StatusNotFound, "Invalid document.")
 		return
 	}
 
@@ -516,7 +515,7 @@ func (api *API) appGetDocumentProgress(c *gin.Context) {
 
 	if err != nil && err != sql.ErrNoRows {
 		log.Error("UpsertDocument DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
 		return
 	}
 
@@ -526,7 +525,7 @@ func (api *API) appGetDocumentProgress(c *gin.Context) {
 	})
 	if err != nil {
 		log.Error("GetDocumentWithStats DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentWithStats DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentWithStats DB Error: %v", err))
 		return
 	}
 
@@ -550,7 +549,7 @@ func (api *API) appGetDevices(c *gin.Context) {
 
 	if err != nil && err != sql.ErrNoRows {
 		log.Error("GetDevices DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
 		return
 	}
 
@@ -561,7 +560,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	var rDocUpload requestDocumentUpload
 	if err := c.ShouldBind(&rDocUpload); err != nil {
 		log.Error("Invalid Form Bind")
-		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
@@ -574,14 +573,14 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	uploadedFile, err := rDocUpload.DocumentFile.Open()
 	if err != nil {
 		log.Error("File Error: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to open file.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to open file.")
 		return
 	}
 
 	fileMime, err := mimetype.DetectReader(uploadedFile)
 	if err != nil {
 		log.Error("MIME Error")
-		errorPage(c, http.StatusInternalServerError, "Unable to detect filetype.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to detect filetype.")
 		return
 	}
 	fileExtension := fileMime.Extension()
@@ -589,7 +588,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	// Validate Extension
 	if !slices.Contains([]string{".epub"}, fileExtension) {
 		log.Error("Invalid FileType: ", fileExtension)
-		errorPage(c, http.StatusBadRequest, "Invalid filetype.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid filetype.")
 		return
 	}
 
@@ -597,7 +596,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	tempFile, err := os.CreateTemp("", "book")
 	if err != nil {
 		log.Warn("Temp File Create Error: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to create temp file.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to create temp file.")
 		return
 	}
 	defer os.Remove(tempFile.Name())
@@ -607,7 +606,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	err = c.SaveUploadedFile(rDocUpload.DocumentFile, tempFile.Name())
 	if err != nil {
 		log.Error("File Error: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to save file.")
 		return
 	}
 
@@ -615,7 +614,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	metadataInfo, err := metadata.GetMetadata(tempFile.Name())
 	if err != nil {
 		log.Warn("GetMetadata Error: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to acquire file metadata.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to acquire file metadata.")
 		return
 	}
 
@@ -623,7 +622,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	partialMD5, err := utils.CalculatePartialMD5(tempFile.Name())
 	if err != nil {
 		log.Warn("Partial MD5 Error: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to calculate partial MD5.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to calculate partial MD5.")
 		return
 	}
 
@@ -638,7 +637,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	fileHash, err := getFileMD5(tempFile.Name())
 	if err != nil {
 		log.Error("MD5 Hash Failure: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to calculate MD5.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to calculate MD5.")
 		return
 	}
 
@@ -646,7 +645,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	wordCount, err := metadata.GetWordCount(tempFile.Name())
 	if err != nil {
 		log.Error("Word Count Failure: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to calculate word count.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to calculate word count.")
 		return
 	}
 
@@ -675,7 +674,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	destFile, err := os.Create(safePath)
 	if err != nil {
 		log.Error("Dest File Error: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to save file.")
 		return
 	}
 	defer destFile.Close()
@@ -683,7 +682,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	// Copy File
 	if _, err = io.Copy(destFile, tempFile); err != nil {
 		log.Error("Copy Temp File Error: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to save file.")
 		return
 	}
 
@@ -698,7 +697,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 		Filepath:    &fileName,
 	}); err != nil {
 		log.Error("UpsertDocument DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
 		return
 	}
 
@@ -709,14 +708,14 @@ func (api *API) appEditDocument(c *gin.Context) {
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
 		log.Error("Invalid URI Bind")
-		errorPage(c, http.StatusNotFound, "Invalid document.")
+		appErrorPage(c, http.StatusNotFound, "Invalid document.")
 		return
 	}
 
 	var rDocEdit requestDocumentEdit
 	if err := c.ShouldBind(&rDocEdit); err != nil {
 		log.Error("Invalid Form Bind")
-		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
@@ -730,7 +729,7 @@ func (api *API) appEditDocument(c *gin.Context) {
 		rDocEdit.CoverGBID == nil &&
 		rDocEdit.CoverFile == nil {
 		log.Error("Missing Form Values")
-		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
@@ -744,14 +743,14 @@ func (api *API) appEditDocument(c *gin.Context) {
 		uploadedFile, err := rDocEdit.CoverFile.Open()
 		if err != nil {
 			log.Error("File Error")
-			errorPage(c, http.StatusInternalServerError, "Unable to open file.")
+			appErrorPage(c, http.StatusInternalServerError, "Unable to open file.")
 			return
 		}
 
 		fileMime, err := mimetype.DetectReader(uploadedFile)
 		if err != nil {
 			log.Error("MIME Error")
-			errorPage(c, http.StatusInternalServerError, "Unable to detect filetype.")
+			appErrorPage(c, http.StatusInternalServerError, "Unable to detect filetype.")
 			return
 		}
 		fileExtension := fileMime.Extension()
@@ -759,7 +758,7 @@ func (api *API) appEditDocument(c *gin.Context) {
 		// Validate Extension
 		if !slices.Contains([]string{".jpg", ".png"}, fileExtension) {
 			log.Error("Invalid FileType: ", fileExtension)
-			errorPage(c, http.StatusBadRequest, "Invalid filetype.")
+			appErrorPage(c, http.StatusBadRequest, "Invalid filetype.")
 			return
 		}
 
@@ -771,7 +770,7 @@ func (api *API) appEditDocument(c *gin.Context) {
 		err = c.SaveUploadedFile(rDocEdit.CoverFile, safePath)
 		if err != nil {
 			log.Error("File Error: ", err)
-			errorPage(c, http.StatusInternalServerError, "Unable to save file.")
+			appErrorPage(c, http.StatusInternalServerError, "Unable to save file.")
 			return
 		}
 
@@ -795,7 +794,7 @@ func (api *API) appEditDocument(c *gin.Context) {
 		Coverfile:   coverFileName,
 	}); err != nil {
 		log.Error("UpsertDocument DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
 		return
 	}
 
@@ -807,18 +806,18 @@ func (api *API) appDeleteDocument(c *gin.Context) {
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
 		log.Error("Invalid URI Bind")
-		errorPage(c, http.StatusNotFound, "Invalid document.")
+		appErrorPage(c, http.StatusNotFound, "Invalid document.")
 		return
 	}
 	changed, err := api.DB.Queries.DeleteDocument(api.DB.Ctx, rDocID.DocumentID)
 	if err != nil {
 		log.Error("DeleteDocument DB Error")
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("DeleteDocument DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("DeleteDocument DB Error: %v", err))
 		return
 	}
 	if changed == 0 {
 		log.Error("DeleteDocument DB Error")
-		errorPage(c, http.StatusNotFound, "Invalid document.")
+		appErrorPage(c, http.StatusNotFound, "Invalid document.")
 		return
 	}
 
@@ -829,14 +828,14 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
 		log.Error("Invalid URI Bind")
-		errorPage(c, http.StatusNotFound, "Invalid document.")
+		appErrorPage(c, http.StatusNotFound, "Invalid document.")
 		return
 	}
 
 	var rDocIdentify requestDocumentIdentify
 	if err := c.ShouldBind(&rDocIdentify); err != nil {
 		log.Error("Invalid Form Bind")
-		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
@@ -854,7 +853,7 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 	// Validate Values
 	if rDocIdentify.ISBN == nil && rDocIdentify.Title == nil && rDocIdentify.Author == nil {
 		log.Error("Invalid Form")
-		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
@@ -897,7 +896,7 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 	})
 	if err != nil {
 		log.Error("GetDocumentWithStats DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentWithStats DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentWithStats DB Error: %v", err))
 		return
 	}
 
@@ -911,7 +910,7 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	var rDocAdd requestDocumentAdd
 	if err := c.ShouldBind(&rDocAdd); err != nil {
 		log.Error("Invalid Form Bind")
-		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
@@ -1069,14 +1068,14 @@ func (api *API) appEditSettings(c *gin.Context) {
 	var rUserSettings requestSettingsEdit
 	if err := c.ShouldBind(&rUserSettings); err != nil {
 		log.Error("Invalid Form Bind")
-		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
 	// Validate Something Exists
 	if rUserSettings.Password == nil && rUserSettings.NewPassword == nil && rUserSettings.TimeOffset == nil {
 		log.Error("Missing Form Values")
-		errorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
 		return
 	}
 
@@ -1114,7 +1113,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	_, err := api.DB.Queries.UpdateUser(api.DB.Ctx, newUserSettings)
 	if err != nil {
 		log.Error("UpdateUser DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpdateUser DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpdateUser DB Error: %v", err))
 		return
 	}
 
@@ -1122,7 +1121,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	user, err := api.DB.Queries.GetUser(api.DB.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("GetUser DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
 		return
 	}
 
@@ -1130,7 +1129,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("GetDevices DB Error: ", err)
-		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
 		return
 	}
 
@@ -1143,7 +1142,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 }
 
 func (api *API) appDemoModeError(c *gin.Context) {
-	errorPage(c, http.StatusUnauthorized, "Not Allowed in Demo Mode")
+	appErrorPage(c, http.StatusUnauthorized, "Not Allowed in Demo Mode")
 }
 
 func (api *API) getDocumentsWordCount(documents []database.GetDocumentsWithStatsRow) error {
@@ -1221,7 +1220,7 @@ func bindQueryParams(c *gin.Context, defaultLimit int64) queryParams {
 	return qParams
 }
 
-func errorPage(c *gin.Context, errorCode int, errorMessage string) {
+func appErrorPage(c *gin.Context, errorCode int, errorMessage string) {
 	var errorHuman string = "We're not even sure what happened."
 
 	switch errorCode {
@@ -1324,14 +1323,14 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	uploadedFile, err := rAdminAction.RestoreFile.Open()
 	if err != nil {
 		log.Error("File Error: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to open file.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to open file.")
 		return
 	}
 
 	fileMime, err := mimetype.DetectReader(uploadedFile)
 	if err != nil {
 		log.Error("MIME Error")
-		errorPage(c, http.StatusInternalServerError, "Unable to detect filetype.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to detect filetype.")
 		return
 	}
 	fileExtension := fileMime.Extension()
@@ -1339,7 +1338,7 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	// Validate Extension
 	if !slices.Contains([]string{".zip"}, fileExtension) {
 		log.Error("Invalid FileType: ", fileExtension)
-		errorPage(c, http.StatusBadRequest, "Invalid filetype.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid filetype.")
 		return
 	}
 
@@ -1347,7 +1346,7 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	tempFile, err := os.CreateTemp("", "restore")
 	if err != nil {
 		log.Warn("Temp File Create Error: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to create temp file.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to create temp file.")
 		return
 	}
 	defer os.Remove(tempFile.Name())
@@ -1357,7 +1356,7 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	err = c.SaveUploadedFile(rAdminAction.RestoreFile, tempFile.Name())
 	if err != nil {
 		log.Error("File Error: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to save file.")
 		return
 	}
 
@@ -1365,23 +1364,23 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	fileInfo, err := tempFile.Stat()
 	if err != nil {
 		log.Error("File Error: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to read file.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to read file.")
 		return
 	}
 
 	// Create ZIP Reader
-	r, err := zip.NewReader(tempFile, fileInfo.Size())
+	zipReader, err := zip.NewReader(tempFile, fileInfo.Size())
 	if err != nil {
 		log.Error("ZIP Error: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to read zip.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to read zip.")
 		return
 	}
 
 	// Validate ZIP Contents
 	hasDBFile := false
 	hasUnknownFile := false
-	for _, f := range r.File {
-		fileName := strings.TrimPrefix(f.Name, "/")
+	for _, file := range zipReader.File {
+		fileName := strings.TrimPrefix(file.Name, "/")
 		if fileName == "antholume.db" {
 			hasDBFile = true
 			break
@@ -1394,20 +1393,20 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	// Invalid ZIP
 	if !hasDBFile {
 		log.Error("Invalid ZIP File - Missing DB")
-		errorPage(c, http.StatusInternalServerError, "Invalid Restore ZIP - Missing DB")
+		appErrorPage(c, http.StatusInternalServerError, "Invalid Restore ZIP - Missing DB")
 		return
 	} else if hasUnknownFile {
 		log.Error("Invalid ZIP File - Invalid File(s)")
-		errorPage(c, http.StatusInternalServerError, "Invalid Restore ZIP - Invalid File(s)")
+		appErrorPage(c, http.StatusInternalServerError, "Invalid Restore ZIP - Invalid File(s)")
 		return
 	}
 
 	// Create Backup File
-	backupFilePath := path.Join(api.Config.ConfigPath, fmt.Sprintf("backup/AnthoLumeBackup_%s.zip", time.Now().Format("20060102")))
+	backupFilePath := filepath.Join(api.Config.ConfigPath, fmt.Sprintf("backup/AnthoLumeBackup_%s.zip", time.Now().Format("20060102")))
 	backupFile, err := os.Create(backupFilePath)
 	if err != nil {
 		log.Error("Unable to create backup file: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to create backup file.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to create backup file.")
 		return
 	}
 	defer backupFile.Close()
@@ -1417,12 +1416,81 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	err = api.createBackup(w, []string{"covers", "documents"})
 	if err != nil {
 		log.Error("Unable to save backup file: ", err)
-		errorPage(c, http.StatusInternalServerError, "Unable to save backup file.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to save backup file.")
+		return
+	}
+
+	// Remove Data
+	err = api.removeData()
+	if err != nil {
+		appErrorPage(c, http.StatusInternalServerError, "Unable to delete data.")
+		return
+	}
+
+	// Restore Data
+	err = api.restoreData(zipReader)
+	if err != nil {
+		appErrorPage(c, http.StatusInternalServerError, "Unable to restore data.")
+
+		// Panic?
+
+		log.Panic("Oh no")
+
 		return
 	}
 
 	// TODO:
 	//   - Extract from temp directory
+}
+
+func (api *API) restoreData(zipReader *zip.Reader) error {
+	for _, file := range zipReader.File {
+		rc, err := file.Open()
+		if err != nil {
+			return err
+		}
+		defer rc.Close()
+
+		destPath := filepath.Join(api.Config.DataPath, file.Name)
+		destFile, err := os.Create(destPath)
+		if err != nil {
+			fmt.Println("Error creating destination file:", err)
+			return err
+		}
+		defer destFile.Close()
+
+		// Copy the contents from the zip file to the destination file.
+		if _, err := io.Copy(destFile, rc); err != nil {
+			fmt.Println("Error copying file contents:", err)
+			return err
+		}
+
+		fmt.Printf("Extracted: %s\n", destPath)
+	}
+
+	return nil
+}
+
+func (api *API) removeData() error {
+	allPaths := []string{
+		"covers",
+		"documents",
+		"antholume.db",
+		"antholume.db-wal",
+		"antholume.db-shm",
+	}
+
+	for _, name := range allPaths {
+		fullPath := filepath.Join(api.Config.DataPath, name)
+		err := os.RemoveAll(fullPath)
+		if err != nil {
+			log.Errorf("Unable to delete %s: %v", name, err)
+			return err
+		}
+
+	}
+
+	return nil
 }
 
 func (api *API) createBackup(w io.Writer, directories []string) error {
@@ -1448,7 +1516,7 @@ func (api *API) createBackup(w io.Writer, directories []string) error {
 		folderName := filepath.Base(filepath.Dir(currentPath))
 
 		// Create File in Export
-		newF, err := ar.Create(path.Join(folderName, fileName))
+		newF, err := ar.Create(filepath.Join(folderName, fileName))
 		if err != nil {
 			return err
 		}
@@ -1464,7 +1532,7 @@ func (api *API) createBackup(w io.Writer, directories []string) error {
 
 	// Get DB Path
 	fileName := fmt.Sprintf("%s.db", api.Config.DBName)
-	dbLocation := path.Join(api.Config.ConfigPath, fileName)
+	dbLocation := filepath.Join(api.Config.ConfigPath, fileName)
 
 	// Copy Database File
 	dbFile, err := os.Open(dbLocation)
@@ -1481,7 +1549,7 @@ func (api *API) createBackup(w io.Writer, directories []string) error {
 
 	// Backup Covers & Documents
 	for _, dir := range directories {
-		err = filepath.WalkDir(path.Join(api.Config.DataPath, dir), exportWalker)
+		err = filepath.WalkDir(filepath.Join(api.Config.DataPath, dir), exportWalker)
 		if err != nil {
 			return err
 		}
