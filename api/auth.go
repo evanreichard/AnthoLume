@@ -206,7 +206,7 @@ func (api *API) appAuthFormRegister(c *gin.Context) {
 
 	// SQL Error
 	if err != nil {
-		log.Error("[appAuthFormRegister] CreateUser DB Error:", err)
+		log.Error("CreateUser DB Error:", err)
 		templateVars["Error"] = "Registration Disabled or User Already Exists"
 		c.HTML(http.StatusBadRequest, "page/login", templateVars)
 		return
@@ -214,7 +214,7 @@ func (api *API) appAuthFormRegister(c *gin.Context) {
 
 	// User Already Exists
 	if rows == 0 {
-		log.Warn("[appAuthFormRegister] User Already Exists:", username)
+		log.Warn("User Already Exists:", username)
 		templateVars["Error"] = "Registration Disabled or User Already Exists"
 		c.HTML(http.StatusBadRequest, "page/login", templateVars)
 		return
@@ -223,7 +223,7 @@ func (api *API) appAuthFormRegister(c *gin.Context) {
 	// Get User
 	user, err := api.DB.Queries.GetUser(api.DB.Ctx, username)
 	if err != nil {
-		log.Error("[appAuthFormRegister] GetUser DB Error:", err)
+		log.Error("GetUser DB Error:", err)
 		templateVars["Error"] = "Registration Disabled or User Already Exists"
 		c.HTML(http.StatusBadRequest, "page/login", templateVars)
 		return
@@ -268,7 +268,7 @@ func getSession(session sessions.Session) (auth authData, ok bool) {
 
 	// Refresh
 	if expiresAt.(int64)-time.Now().Unix() < 60*60*24 {
-		log.Info("[getSession] Refreshing Session")
+		log.Info("Refreshing Session")
 		setSession(session, auth)
 	}
 

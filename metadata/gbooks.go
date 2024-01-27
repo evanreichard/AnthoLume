@@ -122,33 +122,33 @@ func saveGBooksCover(gbid string, coverFilePath string, overwrite bool) error {
 	// Validate File Doesn't Exists
 	_, err := os.Stat(coverFilePath)
 	if err == nil && overwrite == false {
-		log.Warn("[saveGBooksCover] File Alreads Exists")
+		log.Warn("File Alreads Exists")
 		return nil
 	}
 
 	// Create File
 	out, err := os.Create(coverFilePath)
 	if err != nil {
-		log.Error("[saveGBooksCover] File Create Error")
+		log.Error("File Create Error")
 		return errors.New("File Failure")
 	}
 	defer out.Close()
 
 	// Download File
-	log.Info("[saveGBooksCover] Downloading Cover")
+	log.Info("Downloading Cover")
 	coverURL := fmt.Sprintf(GBOOKS_GBID_COVER_URL, gbid)
 	resp, err := http.Get(coverURL)
 	if err != nil {
-		log.Error("[saveGBooksCover] Cover URL API Failure")
+		log.Error("Cover URL API Failure")
 		return errors.New("API Failure")
 	}
 	defer resp.Body.Close()
 
 	// Copy File to Disk
-	log.Info("[saveGBooksCover] Saving Cover")
+	log.Info("Saving Cover")
 	_, err = io.Copy(out, resp.Body)
 	if err != nil {
-		log.Error("[saveGBooksCover] File Copy Error")
+		log.Error("File Copy Error")
 		return errors.New("File Failure")
 	}
 
@@ -157,22 +157,22 @@ func saveGBooksCover(gbid string, coverFilePath string, overwrite bool) error {
 
 func performSearchRequest(searchQuery string) (*gBooksQueryResponse, error) {
 	apiQuery := fmt.Sprintf(GBOOKS_QUERY_URL, searchQuery)
-	log.Info("[performSearchRequest] Acquiring Metadata: ", apiQuery)
+	log.Info("Acquiring Metadata: ", apiQuery)
 	resp, err := http.Get(apiQuery)
 	if err != nil {
-		log.Error("[performSearchRequest] Google Books Query URL API Failure")
+		log.Error("Google Books Query URL API Failure")
 		return nil, errors.New("API Failure")
 	}
 
 	parsedResp := gBooksQueryResponse{}
 	err = json.NewDecoder(resp.Body).Decode(&parsedResp)
 	if err != nil {
-		log.Error("[performSearchRequest] Google Books Query API Decode Failure")
+		log.Error("Google Books Query API Decode Failure")
 		return nil, errors.New("API Failure")
 	}
 
 	if len(parsedResp.Items) == 0 {
-		log.Warn("[performSearchRequest] No Results")
+		log.Warn("No Results")
 		return nil, errors.New("No Results")
 	}
 
@@ -182,17 +182,17 @@ func performSearchRequest(searchQuery string) (*gBooksQueryResponse, error) {
 func performGBIDRequest(id string) (*gBooksQueryItem, error) {
 	apiQuery := fmt.Sprintf(GBOOKS_GBID_INFO_URL, id)
 
-	log.Info("[performGBIDRequest] Acquiring CoverID")
+	log.Info("Acquiring CoverID")
 	resp, err := http.Get(apiQuery)
 	if err != nil {
-		log.Error("[performGBIDRequest] Cover URL API Failure")
+		log.Error("Cover URL API Failure")
 		return nil, errors.New("API Failure")
 	}
 
 	parsedResp := gBooksQueryItem{}
 	err = json.NewDecoder(resp.Body).Decode(&parsedResp)
 	if err != nil {
-		log.Error("[performGBIDRequest] Google Books ID API Decode Failure")
+		log.Error("Google Books ID API Decode Failure")
 		return nil, errors.New("API Failure")
 	}
 

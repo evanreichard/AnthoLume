@@ -29,10 +29,16 @@ func NewServer(assets *embed.FS) *Server {
 	api := api.NewApi(db, c, assets)
 
 	// Create Paths
+	os.Mkdir(c.ConfigPath, 0755)
+	os.Mkdir(c.DataPath, 0755)
+
+	// Create Subpaths
 	docDir := filepath.Join(c.DataPath, "documents")
 	coversDir := filepath.Join(c.DataPath, "covers")
-	os.Mkdir(docDir, os.ModePerm)
-	os.Mkdir(coversDir, os.ModePerm)
+	backupDir := filepath.Join(c.DataPath, "backup")
+	os.Mkdir(docDir, 0755)
+	os.Mkdir(coversDir, 0755)
+	os.Mkdir(backupDir, 0755)
 
 	return &Server{
 		API:      api,
@@ -55,7 +61,7 @@ func (s *Server) StartServer(wg *sync.WaitGroup, done <-chan struct{}) {
 
 		err := s.httpServer.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
-			log.Error("Error Starting Server:", err)
+			log.Error("Error starting server:", err)
 		}
 	}()
 
@@ -68,7 +74,7 @@ func (s *Server) StartServer(wg *sync.WaitGroup, done <-chan struct{}) {
 			case <-ticker.C:
 				s.RunScheduledTasks()
 			case <-done:
-				log.Info("Stopping Task Runner...")
+				log.Info("Stopping task runner...")
 				return
 			}
 		}
@@ -78,23 +84,23 @@ func (s *Server) StartServer(wg *sync.WaitGroup, done <-chan struct{}) {
 func (s *Server) RunScheduledTasks() {
 	start := time.Now()
 	if err := s.API.DB.CacheTempTables(); err != nil {
-		log.Warn("[RunScheduledTasks] Refreshing Temp Table Cache Failure:", err)
+		log.Warn("Refreshing temp table cache failure:", err)
 	}
-	log.Debug("[RunScheduledTasks] Completed in: ", time.Since(start))
+	log.Debug("Completed in: ", time.Since(start))
 }
 
 func (s *Server) StopServer(wg *sync.WaitGroup, done chan<- struct{}) {
-	log.Info("Stopping HTTP Server...")
+	log.Info("Stopping HTTP server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := s.httpServer.Shutdown(ctx); err != nil {
-		log.Info("Shutting Error")
+		log.Info("HTTP server shutdown error: ", err)
 	}
 	s.API.DB.Shutdown()
 
 	close(done)
 	wg.Wait()
 
-	log.Info("Server Stopped")
+	log.Info("Server stopped")
 }

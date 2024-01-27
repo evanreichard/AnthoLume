@@ -1,12 +1,13 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path"
+	"runtime"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/snowzach/rotatefilehook"
 )
 
 type Config struct {
@@ -29,18 +30,23 @@ type Config struct {
 	LogLevel            string
 
 	// Cookie Settings
-	CookieSessionKey string
-	CookieSecure     bool
-	CookieHTTPOnly   bool
+	CookieAuthKey  string
+	CookieEncKey   string
+	CookieSecure   bool
+	CookieHTTPOnly bool
 }
 
-type UTCFormatter struct {
+type customFormatter struct {
 	log.Formatter
 }
 
-func (u UTCFormatter) Format(e *log.Entry) ([]byte, error) {
+// Force UTC & Set Type (app)
+func (cf customFormatter) Format(e *log.Entry) ([]byte, error) {
+	if e.Data["type"] == nil {
+		e.Data["type"] = "app"
+	}
 	e.Time = e.Time.UTC()
-	return u.Formatter.Format(e)
+	return cf.Formatter.Format(e)
 }
 
 // Set at runtime
@@ -49,15 +55,16 @@ var version string = "develop"
 func Load() *Config {
 	c := &Config{
 		Version:             version,
-		DBType:              trimLowerString(getEnv("DATABASE_TYPE", "SQLite")),
-		DBName:              trimLowerString(getEnv("DATABASE_NAME", "antholume")),
 		ConfigPath:          getEnv("CONFIG_PATH", "/config"),
 		DataPath:            getEnv("DATA_PATH", "/data"),
 		ListenPort:          getEnv("LISTEN_PORT", "8585"),
+		DBType:              trimLowerString(getEnv("DATABASE_TYPE", "SQLite")),
+		DBName:              trimLowerString(getEnv("DATABASE_NAME", "antholume")),
 		RegistrationEnabled: trimLowerString(getEnv("REGISTRATION_ENABLED", "false")) == "true",
 		DemoMode:            trimLowerString(getEnv("DEMO_MODE", "false")) == "true",
 		SearchEnabled:       trimLowerString(getEnv("SEARCH_ENABLED", "false")) == "true",
-		CookieSessionKey:    trimLowerString(getEnv("COOKIE_SESSION_KEY", "")),
+		CookieAuthKey:       trimLowerString(getEnv("COOKIE_AUTH_KEY", "")),
+		CookieEncKey:        trimLowerString(getEnv("COOKIE_ENC_KEY", "")),
 		LogLevel:            trimLowerString(getEnv("LOG_LEVEL", "info")),
 		CookieSecure:        trimLowerString(getEnv("COOKIE_SECURE", "true")) == "true",
 		CookieHTTPOnly:      trimLowerString(getEnv("COOKIE_HTTP_ONLY", "true")) == "true",
@@ -70,24 +77,29 @@ func Load() *Config {
 	}
 
 	// Log Formatter
-	ttyLogFormatter := &UTCFormatter{&log.TextFormatter{FullTimestamp: true}}
-	fileLogFormatter := &UTCFormatter{&log.TextFormatter{FullTimestamp: true, DisableColors: true}}
+	logFormatter := &customFormatter{&log.JSONFormatter{
+		CallerPrettyfier: prettyCaller,
+	}}
 
 	// Log Rotater
-	rotateFileHook, err := rotatefilehook.NewRotateFileHook(rotatefilehook.RotateFileConfig{
+	rotateFileHook, err := NewRotateFileHook(RotateFileConfig{
 		Filename:   path.Join(c.ConfigPath, "logs/antholume.log"),
 		MaxSize:    50,
 		MaxBackups: 3,
 		MaxAge:     30,
 		Level:      logLevel,
-		Formatter:  fileLogFormatter,
+		Formatter:  logFormatter,
 	})
 	if err != nil {
-		log.Fatal("[config.Load] Unable to initialize file rotate hook")
+		log.Fatal("Unable to initialize file rotate hook")
 	}
 
+	// Rotate Now
+	rotateFileHook.Rotate()
+
 	log.SetLevel(logLevel)
-	log.SetFormatter(ttyLogFormatter)
+	log.SetFormatter(logFormatter)
+	log.SetReportCaller(true)
 	log.AddHook(rotateFileHook)
 
 	return c
@@ -102,4 +114,25 @@ func getEnv(key, fallback string) string {
 
 func trimLowerString(val string) string {
 	return strings.ToLower(strings.TrimSpace(val))
+}
+
+func prettyCaller(f *runtime.Frame) (function string, file string) {
+	purgePrefix := "reichard.io/antholume/"
+
+	pathName := strings.Replace(f.Func.Name(), purgePrefix, "", 1)
+	parts := strings.Split(pathName, ".")
+
+	filepath, line := f.Func.FileLine(f.PC)
+	splitFilePath := strings.Split(filepath, "/")
+
+	fileName := fmt.Sprintf("%s/%s@%d", parts[0], splitFilePath[len(splitFilePath)-1], line)
+	functionName := strings.Replace(pathName, parts[0]+".", "", 1)
+
+	// Exclude GIN Logger
+	if functionName == "NewApi.apiLogger.func1" {
+		fileName = ""
+		functionName = ""
+	}
+
+	return functionName, fileName
 }

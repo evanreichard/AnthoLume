@@ -89,20 +89,20 @@ func (api *API) koCreateUser(c *gin.Context) {
 
 	var rUser requestUser
 	if err := c.ShouldBindJSON(&rUser); err != nil {
-		log.Error("[koCreateUser] Invalid JSON Bind")
+		log.Error("Invalid JSON Bind")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid User Data"})
 		return
 	}
 
 	if rUser.Username == "" || rUser.Password == "" {
-		log.Error("[koCreateUser] Invalid User - Empty Username or Password")
+		log.Error("Invalid User - Empty Username or Password")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid User Data"})
 		return
 	}
 
 	hashedPassword, err := argon2.CreateHash(rUser.Password, argon2.DefaultParams)
 	if err != nil {
-		log.Error("[koCreateUser] Argon2 Hash Failure:", err)
+		log.Error("Argon2 Hash Failure:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Error"})
 		return
 	}
@@ -112,7 +112,7 @@ func (api *API) koCreateUser(c *gin.Context) {
 		Pass: &hashedPassword,
 	})
 	if err != nil {
-		log.Error("[koCreateUser] CreateUser DB Error:", err)
+		log.Error("CreateUser DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid User Data"})
 		return
 	}
@@ -136,7 +136,7 @@ func (api *API) koSetProgress(c *gin.Context) {
 
 	var rPosition requestPosition
 	if err := c.ShouldBindJSON(&rPosition); err != nil {
-		log.Error("[koSetProgress] Invalid JSON Bind")
+		log.Error("Invalid JSON Bind")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Progress Data"})
 		return
 	}
@@ -148,14 +148,14 @@ func (api *API) koSetProgress(c *gin.Context) {
 		DeviceName: rPosition.Device,
 		LastSynced: time.Now().UTC().Format(time.RFC3339),
 	}); err != nil {
-		log.Error("[koSetProgress] UpsertDevice DB Error:", err)
+		log.Error("UpsertDevice DB Error:", err)
 	}
 
 	// Upsert Document
 	if _, err := api.DB.Queries.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
 		ID: rPosition.DocumentID,
 	}); err != nil {
-		log.Error("[koSetProgress] UpsertDocument DB Error:", err)
+		log.Error("UpsertDocument DB Error:", err)
 	}
 
 	// Create or Replace Progress
@@ -167,7 +167,7 @@ func (api *API) koSetProgress(c *gin.Context) {
 		Progress:   rPosition.Progress,
 	})
 	if err != nil {
-		log.Error("[koSetProgress] UpdateProgress DB Error:", err)
+		log.Error("UpdateProgress DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
 	}
@@ -186,7 +186,7 @@ func (api *API) koGetProgress(c *gin.Context) {
 
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
-		log.Error("[koGetProgress] Invalid URI Bind")
+		log.Error("Invalid URI Bind")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
 	}
@@ -201,7 +201,7 @@ func (api *API) koGetProgress(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{})
 		return
 	} else if err != nil {
-		log.Error("[koGetProgress] GetDocumentProgress DB Error:", err)
+		log.Error("GetDocumentProgress DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Document"})
 		return
 	}
@@ -223,7 +223,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 
 	var rActivity requestActivity
 	if err := c.ShouldBindJSON(&rActivity); err != nil {
-		log.Error("[koAddActivities] Invalid JSON Bind")
+		log.Error("Invalid JSON Bind")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Activity"})
 		return
 	}
@@ -231,7 +231,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 	// Do Transaction
 	tx, err := api.DB.DB.Begin()
 	if err != nil {
-		log.Error("[koAddActivities] Transaction Begin DB Error:", err)
+		log.Error("Transaction Begin DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Error"})
 		return
 	}
@@ -252,7 +252,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 		if _, err := qtx.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
 			ID: doc,
 		}); err != nil {
-			log.Error("[koAddActivities] UpsertDocument DB Error:", err)
+			log.Error("UpsertDocument DB Error:", err)
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Document"})
 			return
 		}
@@ -265,7 +265,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 		DeviceName: rActivity.Device,
 		LastSynced: time.Now().UTC().Format(time.RFC3339),
 	}); err != nil {
-		log.Error("[koAddActivities] UpsertDevice DB Error:", err)
+		log.Error("UpsertDevice DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Device"})
 		return
 	}
@@ -281,7 +281,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 			StartPercentage: float64(item.Page) / float64(item.Pages),
 			EndPercentage:   float64(item.Page+1) / float64(item.Pages),
 		}); err != nil {
-			log.Error("[koAddActivities] AddActivity DB Error:", err)
+			log.Error("AddActivity DB Error:", err)
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Activity"})
 			return
 		}
@@ -289,7 +289,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 
 	// Commit Transaction
 	if err := tx.Commit(); err != nil {
-		log.Error("[koAddActivities] Transaction Commit DB Error:", err)
+		log.Error("Transaction Commit DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Error"})
 		return
 	}
@@ -307,7 +307,7 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 
 	var rCheckActivity requestCheckActivitySync
 	if err := c.ShouldBindJSON(&rCheckActivity); err != nil {
-		log.Error("[koCheckActivitySync] Invalid JSON Bind")
+		log.Error("Invalid JSON Bind")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
 	}
@@ -319,7 +319,7 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 		DeviceName: rCheckActivity.Device,
 		LastSynced: time.Now().UTC().Format(time.RFC3339),
 	}); err != nil {
-		log.Error("[koCheckActivitySync] UpsertDevice DB Error", err)
+		log.Error("UpsertDevice DB Error", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Device"})
 		return
 	}
@@ -332,7 +332,7 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 	if err == sql.ErrNoRows {
 		lastActivity = time.UnixMilli(0).Format(time.RFC3339)
 	} else if err != nil {
-		log.Error("[koCheckActivitySync] GetLastActivity DB Error:", err)
+		log.Error("GetLastActivity DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Error"})
 		return
 	}
@@ -340,7 +340,7 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 	// Parse Time
 	parsedTime, err := time.Parse(time.RFC3339, lastActivity)
 	if err != nil {
-		log.Error("[koCheckActivitySync] Time Parse Error:", err)
+		log.Error("Time Parse Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Error"})
 		return
 	}
@@ -353,7 +353,7 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 func (api *API) koAddDocuments(c *gin.Context) {
 	var rNewDocs requestDocument
 	if err := c.ShouldBindJSON(&rNewDocs); err != nil {
-		log.Error("[koAddDocuments] Invalid JSON Bind")
+		log.Error("Invalid JSON Bind")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Document(s)"})
 		return
 	}
@@ -361,7 +361,7 @@ func (api *API) koAddDocuments(c *gin.Context) {
 	// Do Transaction
 	tx, err := api.DB.DB.Begin()
 	if err != nil {
-		log.Error("[koAddDocuments] Transaction Begin DB Error:", err)
+		log.Error("Transaction Begin DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Error"})
 		return
 	}
@@ -382,7 +382,7 @@ func (api *API) koAddDocuments(c *gin.Context) {
 			Description: api.sanitizeInput(doc.Description),
 		})
 		if err != nil {
-			log.Error("[koAddDocuments] UpsertDocument DB Error:", err)
+			log.Error("UpsertDocument DB Error:", err)
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Document"})
 			return
 		}
@@ -390,7 +390,7 @@ func (api *API) koAddDocuments(c *gin.Context) {
 
 	// Commit Transaction
 	if err := tx.Commit(); err != nil {
-		log.Error("[koAddDocuments] Transaction Commit DB Error:", err)
+		log.Error("Transaction Commit DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Error"})
 		return
 	}
@@ -408,7 +408,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 
 	var rCheckDocs requestCheckDocumentSync
 	if err := c.ShouldBindJSON(&rCheckDocs); err != nil {
-		log.Error("[koCheckDocumentsSync] Invalid JSON Bind")
+		log.Error("Invalid JSON Bind")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
 	}
@@ -421,7 +421,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 		LastSynced: time.Now().UTC().Format(time.RFC3339),
 	})
 	if err != nil {
-		log.Error("[koCheckDocumentsSync] UpsertDevice DB Error", err)
+		log.Error("UpsertDevice DB Error", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Device"})
 		return
 	}
@@ -432,7 +432,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	// Get Missing Documents
 	missingDocs, err = api.DB.Queries.GetMissingDocuments(api.DB.Ctx, rCheckDocs.Have)
 	if err != nil {
-		log.Error("[koCheckDocumentsSync] GetMissingDocuments DB Error", err)
+		log.Error("GetMissingDocuments DB Error", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
 	}
@@ -440,7 +440,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	// Get Deleted Documents
 	deletedDocIDs, err = api.DB.Queries.GetDeletedDocuments(api.DB.Ctx, rCheckDocs.Have)
 	if err != nil {
-		log.Error("[koCheckDocumentsSync] GetDeletedDocuments DB Error", err)
+		log.Error("GetDeletedDocuments DB Error", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
 	}
@@ -448,14 +448,14 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	// Get Wanted Documents
 	jsonHaves, err := json.Marshal(rCheckDocs.Have)
 	if err != nil {
-		log.Error("[koCheckDocumentsSync] JSON Marshal Error", err)
+		log.Error("JSON Marshal Error", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
 	}
 
 	wantedDocs, err := api.DB.Queries.GetWantedDocuments(api.DB.Ctx, string(jsonHaves))
 	if err != nil {
-		log.Error("[koCheckDocumentsSync] GetWantedDocuments DB Error", err)
+		log.Error("GetWantedDocuments DB Error", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
 	}
@@ -499,14 +499,14 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 func (api *API) koUploadExistingDocument(c *gin.Context) {
 	var rDoc requestDocumentID
 	if err := c.ShouldBindUri(&rDoc); err != nil {
-		log.Error("[koUploadExistingDocument] Invalid URI Bind")
+		log.Error("Invalid URI Bind")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
 	}
 
 	fileData, err := c.FormFile("file")
 	if err != nil {
-		log.Error("[koUploadExistingDocument] File Error:", err)
+		log.Error("File Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "File Error"})
 		return
 	}
@@ -517,7 +517,7 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 	fileExtension := fileMime.Extension()
 
 	if !slices.Contains([]string{".epub", ".html"}, fileExtension) {
-		log.Error("[koUploadExistingDocument] Invalid FileType:", fileExtension)
+		log.Error("Invalid FileType:", fileExtension)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Filetype"})
 		return
 	}
@@ -525,7 +525,7 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 	// Validate Document Exists in DB
 	document, err := api.DB.Queries.GetDocument(api.DB.Ctx, rDoc.DocumentID)
 	if err != nil {
-		log.Error("[koUploadExistingDocument] GetDocument DB Error:", err)
+		log.Error("GetDocument DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Document"})
 		return
 	}
@@ -558,7 +558,7 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 	if os.IsNotExist(err) {
 		err = c.SaveUploadedFile(fileData, safePath)
 		if err != nil {
-			log.Error("[koUploadExistingDocument] Save Failure:", err)
+			log.Error("Save Failure:", err)
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "File Error"})
 			return
 		}
@@ -567,7 +567,7 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 	// Get MD5 Hash
 	fileHash, err := getFileMD5(safePath)
 	if err != nil {
-		log.Error("[koUploadExistingDocument] Hash Failure:", err)
+		log.Error("Hash Failure:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "File Error"})
 		return
 	}
@@ -575,7 +575,7 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 	// Get Word Count
 	wordCount, err := metadata.GetWordCount(safePath)
 	if err != nil {
-		log.Error("[koUploadExistingDocument] Word Count Failure:", err)
+		log.Error("Word Count Failure:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "File Error"})
 		return
 	}
@@ -587,7 +587,7 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 		Filepath: &fileName,
 		Words:    &wordCount,
 	}); err != nil {
-		log.Error("[koUploadExistingDocument] UpsertDocument DB Error:", err)
+		log.Error("UpsertDocument DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Document Error"})
 		return
 	}

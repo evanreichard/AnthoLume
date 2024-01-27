@@ -43,7 +43,7 @@ func NewMgr(c *config.Config) *DBManager {
 		var err error
 		dbm.DB, err = sql.Open("sqlite", dbLocation)
 		if err != nil {
-			log.Fatalf("[NewMgr] Unable to open DB: %v", err)
+			log.Fatalf("Unable to open DB: %v", err)
 		}
 
 		// Single Open Connection
@@ -51,19 +51,19 @@ func NewMgr(c *config.Config) *DBManager {
 
 		// Execute DDL
 		if _, err := dbm.DB.Exec(ddl, nil); err != nil {
-			log.Fatalf("[NewMgr] Error executing schema: %v", err)
+			log.Fatalf("Error executing schema: %v", err)
 		}
 
 		// Perform Migrations
 		err = dbm.performMigrations()
 		if err != nil && err != goose.ErrNoMigrationFiles {
-			log.Fatalf("[NewMgr] Error running DB migrations: %v", err)
+			log.Fatalf("Error running DB migrations: %v", err)
 		}
 
 		// Cache Tables
 		dbm.CacheTempTables()
 	} else {
-		log.Fatal("[NewMgr] Unsupported Database")
+		log.Fatal("Unsupported Database")
 	}
 
 	dbm.Queries = New(dbm.DB)
@@ -84,7 +84,7 @@ func (dbm *DBManager) CacheTempTables() error {
 	if _, err := dbm.DB.ExecContext(dbm.Ctx, user_streaks_sql); err != nil {
 		return err
 	}
-	log.Debug("[CacheTempTables] Cached 'user_streaks' in: ", time.Since(start))
+	log.Debug("Cached 'user_streaks' in: ", time.Since(start))
 
 	start = time.Now()
 	document_statistics_sql := `
@@ -94,7 +94,7 @@ func (dbm *DBManager) CacheTempTables() error {
 	if _, err := dbm.DB.ExecContext(dbm.Ctx, document_statistics_sql); err != nil {
 		return err
 	}
-	log.Debug("[CacheTempTables] Cached 'document_user_statistics' in: ", time.Since(start))
+	log.Debug("Cached 'document_user_statistics' in: ", time.Since(start))
 
 	return nil
 }

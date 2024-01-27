@@ -46,23 +46,32 @@ func NewApi(db *database.DBManager, c *config.Config, assets *embed.FS) *API {
 	assetsDir, _ := fs.Sub(assets, "assets")
 	api.Router.StaticFS("/assets", http.FS(assetsDir))
 
-	// Generate Secure Token
+	// Generate Auth Token
 	var newToken []byte
 	var err error
-
-	if c.CookieSessionKey != "" {
-		log.Info("[NewApi] Utilizing Environment Cookie Session Key")
-		newToken = []byte(c.CookieSessionKey)
+	if c.CookieAuthKey != "" {
+		log.Info("Utilizing environment cookie auth key")
+		newToken = []byte(c.CookieAuthKey)
 	} else {
-		log.Info("[NewApi] Generating Cookie Session Key")
+		log.Info("Generating cookie auth key")
 		newToken, err = generateToken(64)
 		if err != nil {
-			panic("Unable to generate secure token")
+			log.Panic("Unable to generate cookie auth key")
+		}
+	}
+
+	// Set Enc Token
+	store := cookie.NewStore(newToken)
+	if c.CookieEncKey != "" {
+		if len(c.CookieEncKey) == 16 || len(c.CookieEncKey) == 32 {
+			log.Info("Utilizing environment cookie encryption key")
+			store = cookie.NewStore(newToken, []byte(c.CookieEncKey))
+		} else {
+			log.Panic("Invalid cookie encryption key (must be 16 or 32 bytes)")
 		}
 	}
 
 	// Configure Cookie Session Store
-	store := cookie.NewStore(newToken)
 	store.Options(sessions.Options{
 		MaxAge:   60 * 60 * 24 * 7,
 		Secure:   c.CookieSecure,
@@ -251,26 +260,29 @@ func apiLogger() gin.HandlerFunc {
 		endTime := time.Now()
 		latency := endTime.Sub(startTime).Round(time.Microsecond)
 
+		// Log Data
+		logData := log.Fields{
+			"type":    "access",
+			"ip":      c.ClientIP(),
+			"latency": fmt.Sprintf("%s", latency),
+			"status":  c.Writer.Status(),
+			"method":  c.Request.Method,
+			"path":    c.Request.URL.Path,
+		}
+
 		// Get Username
 		var auth authData
 		if data, _ := c.Get("Authorization"); data != nil {
 			auth = data.(authData)
 		}
 
-		username := auth.UserName
-		if username != "" {
-			username = " (" + username + ")"
+		// Log User
+		if auth.UserName != "" {
+			logData["user"] = auth.UserName
 		}
 
 		// Log Result
-		log.Infof("[HTTPRouter] %-15s (%10s) %d %7s %s%s",
-			c.ClientIP(),
-			latency,
-			c.Writer.Status(),
-			c.Request.Method,
-			c.Request.URL.Path,
-			username,
-		)
+		log.WithFields(logData).Info(fmt.Sprintf("%s %s", c.Request.Method, c.Request.URL.Path))
 	}
 }
 

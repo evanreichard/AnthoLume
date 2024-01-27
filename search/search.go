@@ -80,7 +80,7 @@ var sourceDefs = map[Source]sourceDef{
 
 func SearchBook(query string, source Source) ([]SearchItem, error) {
 	def := sourceDefs[source]
-	log.Debug("[SearchBook] Source: ", def)
+	log.Debug("Source: ", def)
 	url := fmt.Sprintf(def.searchURL, url.QueryEscape(query))
 	body, err := getPage(url)
 	if err != nil {
@@ -91,7 +91,7 @@ func SearchBook(query string, source Source) ([]SearchItem, error) {
 
 func SaveBook(id string, source Source) (string, error) {
 	def := sourceDefs[source]
-	log.Debug("[SaveBook] Source: ", def)
+	log.Debug("Source: ", def)
 	url := fmt.Sprintf(def.downloadURL, id)
 
 	body, err := getPage(url)
@@ -101,34 +101,34 @@ func SaveBook(id string, source Source) (string, error) {
 
 	bookURL, err := def.parseDownloadFunc(body)
 	if err != nil {
-		log.Error("[SaveBook] Parse Download URL Error: ", err)
+		log.Error("Parse Download URL Error: ", err)
 		return "", errors.New("Download Failure")
 	}
 
 	// Create File
 	tempFile, err := os.CreateTemp("", "book")
 	if err != nil {
-		log.Error("[SaveBook] File Create Error: ", err)
+		log.Error("File Create Error: ", err)
 		return "", errors.New("File Failure")
 	}
 	defer tempFile.Close()
 
 	// Download File
-	log.Info("[SaveBook] Downloading Book: ", bookURL)
+	log.Info("Downloading Book: ", bookURL)
 	resp, err := downloadBook(bookURL)
 	if err != nil {
 		os.Remove(tempFile.Name())
-		log.Error("[SaveBook] Book URL API Failure: ", err)
+		log.Error("Book URL API Failure: ", err)
 		return "", errors.New("API Failure")
 	}
 	defer resp.Body.Close()
 
 	// Copy File to Disk
-	log.Info("[SaveBook] Saving Book")
+	log.Info("Saving Book")
 	_, err = io.Copy(tempFile, resp.Body)
 	if err != nil {
 		os.Remove(tempFile.Name())
-		log.Error("[SaveBook] File Copy Error: ", err)
+		log.Error("File Copy Error: ", err)
 		return "", errors.New("File Failure")
 	}
 
@@ -163,7 +163,7 @@ func GetBookURL(id string, bookType BookType) (string, error) {
 }
 
 func getPage(page string) (io.ReadCloser, error) {
-	log.Debug("[getPage] ", page)
+	log.Debug("URL: ", page)
 
 	// Set 10s Timeout
 	client := http.Client{

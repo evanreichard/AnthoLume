@@ -64,6 +64,8 @@ The OPDS API endpoint is located at: `http(s)://<SERVER>/api/opds`
 
 ### Quick Start
 
+**NOTE**: If you're accessing your instance over HTTP (not HTTPS), you must set `COOKIE_SECURE=false`, otherwise you will not be able to login.
+
 ```bash
 # Make Data Directory
 mkdir -p antholume_data
@@ -71,6 +73,7 @@ mkdir -p antholume_data
 # Run Server
 docker run \
     -p 8585:8585 \
+    -e COOKIE_SECURE=false \
     -e REGISTRATION_ENABLED=true \
     -v ./antholume_data:/config \
     -v ./antholume_data:/data \
@@ -81,18 +84,19 @@ The service is now accessible at: `http://localhost:8585`. I recommend registeri
 
 ### Configuration
 
-| Environment Variable | Default Value | Description                                                         |
-| -------------------- | ------------- | ------------------------------------------------------------------- |
-| DATABASE_TYPE        | SQLite        | Currently only "SQLite" is supported                                |
-| DATABASE_NAME        | antholume     | The database name, or in SQLite's case, the filename                |
-| CONFIG_PATH          | /config       | Directory where to store SQLite's DB                                |
-| DATA_PATH            | /data         | Directory where to store the documents and cover metadata           |
-| LISTEN_PORT          | 8585          | Port the server listens at                                          |
-| LOG_LEVEL            | info          | Set server log level                                                |
-| REGISTRATION_ENABLED | false         | Whether to allow registration (applies to both WebApp & KOSync API) |
-| COOKIE_SESSION_KEY   | <EMPTY>       | Optional secret cookie session key (auto generated if not provided) |
-| COOKIE_SECURE        | true          | Set Cookie `Secure` attribute (i.e. only works over HTTPS)          |
-| COOKIE_HTTP_ONLY     | true          | Set Cookie `HttpOnly` attribute (i.e. inacessible via JavaScript)   |
+| Environment Variable | Default Value | Description                                                                |
+| -------------------- | ------------- | -------------------------------------------------------------------------- |
+| DATABASE_TYPE        | SQLite        | Currently only "SQLite" is supported                                       |
+| DATABASE_NAME        | antholume     | The database name, or in SQLite's case, the filename                       |
+| CONFIG_PATH          | /config       | Directory where to store SQLite's DB                                       |
+| DATA_PATH            | /data         | Directory where to store the documents and cover metadata                  |
+| LISTEN_PORT          | 8585          | Port the server listens at                                                 |
+| LOG_LEVEL            | info          | Set server log level                                                       |
+| REGISTRATION_ENABLED | false         | Whether to allow registration (applies to both WebApp & KOSync API)        |
+| COOKIE_AUTH_KEY      | <EMPTY>       | Optional secret cookie authentication key (auto generated if not provided) |
+| COOKIE_ENC_KEY       | <EMPTY>       | Optional secret cookie encryption key (16 or 32 bytes)                     |
+| COOKIE_SECURE        | true          | Set Cookie `Secure` attribute (i.e. only works over HTTPS)                 |
+| COOKIE_HTTP_ONLY     | true          | Set Cookie `HttpOnly` attribute (i.e. inacessible via JavaScript)          |
 
 ## Security
 

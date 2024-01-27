@@ -14,7 +14,7 @@ import (
 func (api *API) downloadDocument(c *gin.Context) {
 	var rDoc requestDocumentID
 	if err := c.ShouldBindUri(&rDoc); err != nil {
-		log.Error("[downloadDocument] Invalid URI Bind")
+		log.Error("Invalid URI Bind")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid Request"})
 		return
 	}
@@ -22,13 +22,13 @@ func (api *API) downloadDocument(c *gin.Context) {
 	// Get Document
 	document, err := api.DB.Queries.GetDocument(api.DB.Ctx, rDoc.DocumentID)
 	if err != nil {
-		log.Error("[downloadDocument] GetDocument DB Error:", err)
+		log.Error("GetDocument DB Error:", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unknown Document"})
 		return
 	}
 
 	if document.Filepath == nil {
-		log.Error("[downloadDocument] Document Doesn't Have File:", rDoc.DocumentID)
+		log.Error("Document Doesn't Have File:", rDoc.DocumentID)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Document Doesn't Exist"})
 		return
 	}
@@ -39,7 +39,7 @@ func (api *API) downloadDocument(c *gin.Context) {
 	// Validate File Exists
 	_, err = os.Stat(filePath)
 	if os.IsNotExist(err) {
-		log.Error("[downloadDocument] File Doesn't Exist:", rDoc.DocumentID)
+		log.Error("File Doesn't Exist:", rDoc.DocumentID)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Document Doesn't Exists"})
 		return
 	}
@@ -52,7 +52,7 @@ func (api *API) downloadDocument(c *gin.Context) {
 func (api *API) getDocumentCover(c *gin.Context) {
 	var rDoc requestDocumentID
 	if err := c.ShouldBindUri(&rDoc); err != nil {
-		log.Error("[getDocumentCover] Invalid URI Bind")
+		log.Error("Invalid URI Bind")
 		errorPage(c, http.StatusNotFound, "Invalid cover.")
 		return
 	}
@@ -60,7 +60,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 	// Validate Document Exists in DB
 	document, err := api.DB.Queries.GetDocument(api.DB.Ctx, rDoc.DocumentID)
 	if err != nil {
-		log.Error("[getDocumentCover] GetDocument DB Error:", err)
+		log.Error("GetDocument DB Error:", err)
 		errorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocument DB Error: %v", err))
 		return
 	}
@@ -78,7 +78,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 		// Validate File Exists
 		_, err = os.Stat(safePath)
 		if err != nil {
-			log.Error("[getDocumentCover] File Should But Doesn't Exist:", err)
+			log.Error("File Should But Doesn't Exist:", err)
 			c.FileFromFS("assets/images/no-cover.jpg", http.FS(api.Assets))
 			return
 		}
@@ -117,7 +117,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 			Isbn10:      firstResult.ISBN10,
 			Isbn13:      firstResult.ISBN13,
 		}); err != nil {
-			log.Error("[getDocumentCover] AddMetadata DB Error:", err)
+			log.Error("AddMetadata DB Error:", err)
 		}
 	}
 
@@ -126,7 +126,7 @@ func (api *API) getDocumentCover(c *gin.Context) {
 		ID:        document.ID,
 		Coverfile: &coverFile,
 	}); err != nil {
-		log.Warn("[getDocumentCover] UpsertDocument DB Error:", err)
+		log.Warn("UpsertDocument DB Error:", err)
 	}
 
 	// Return Unknown Cover

@@ -12,10 +12,10 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.26
 	github.com/pressly/goose/v3 v3.17.0
 	github.com/sirupsen/logrus v1.9.3
-	github.com/snowzach/rotatefilehook v0.0.0-20220211133110-53752135082d
 	github.com/taylorskalyo/goreader v0.0.0-20230626212555-e7f5644f8115
 	github.com/urfave/cli/v2 v2.27.1
 	golang.org/x/exp v0.0.0-20240119083558-1b970713d09a
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	modernc.org/sqlite v1.28.0
 )
 
@@ -61,7 +61,6 @@ require (
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.17.0 // indirect
 	google.golang.org/protobuf v1.32.0 // indirect
-	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/uint128 v1.3.0 // indirect
 	modernc.org/cc/v3 v3.41.0 // indirect

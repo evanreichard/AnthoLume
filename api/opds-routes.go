@@ -84,7 +84,7 @@ func (api *API) opdsDocuments(c *gin.Context) {
 		Limit:  *qParams.Limit,
 	})
 	if err != nil {
-		log.Error("[opdsDocuments] GetDocumentsWithStats DB Error:", err)
+		log.Error("GetDocumentsWithStats DB Error:", err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}

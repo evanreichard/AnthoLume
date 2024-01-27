@@ -32,24 +32,24 @@ const OLIB_ISBN_LINK_URL string = "https://openlibrary.org/isbn/%s"
 
 func GetCoverOLIDs(title *string, author *string) ([]string, error) {
 	if title == nil || author == nil {
-		log.Error("[metadata] Invalid Search Query")
+		log.Error("Invalid Search Query")
 		return nil, errors.New("Invalid Query")
 	}
 
 	searchQuery := url.QueryEscape(fmt.Sprintf("%s %s", *title, *author))
 	apiQuery := fmt.Sprintf(OLIB_QUERY_URL, searchQuery)
 
-	log.Info("[metadata] Acquiring CoverID")
+	log.Info("Acquiring CoverID")
 	resp, err := http.Get(apiQuery)
 	if err != nil {
-		log.Error("[metadata] Cover URL API Failure")
+		log.Error("Cover URL API Failure")
 		return nil, errors.New("API Failure")
 	}
 
 	target := oLibQueryResponse{}
 	err = json.NewDecoder(resp.Body).Decode(&target)
 	if err != nil {
-		log.Error("[metadata] Cover URL API Decode Failure")
+		log.Error("Cover URL API Decode Failure")
 		return nil, errors.New("API Failure")
 	}
 
@@ -73,24 +73,24 @@ func DownloadAndSaveCover(coverID string, dirPath string) (*string, error) {
 	// Validate File Doesn't Exists
 	_, err := os.Stat(safePath)
 	if err == nil {
-		log.Warn("[metadata] File Alreads Exists")
+		log.Warn("File Alreads Exists")
 		return &safePath, nil
 	}
 
 	// Create File
 	out, err := os.Create(safePath)
 	if err != nil {
-		log.Error("[metadata] File Create Error")
+		log.Error("File Create Error")
 		return nil, errors.New("File Failure")
 	}
 	defer out.Close()
 
 	// Download File
-	log.Info("[metadata] Downloading Cover")
+	log.Info("Downloading Cover")
 	coverURL := fmt.Sprintf(OLIB_OLID_COVER_URL, coverID)
 	resp, err := http.Get(coverURL)
 	if err != nil {
-		log.Error("[metadata] Cover URL API Failure")
+		log.Error("Cover URL API Failure")
 		return nil, errors.New("API Failure")
 	}
 	defer resp.Body.Close()
@@ -98,7 +98,7 @@ func DownloadAndSaveCover(coverID string, dirPath string) (*string, error) {
 	// Copy File to Disk
 	_, err = io.Copy(out, resp.Body)
 	if err != nil {
-		log.Error("[metadata] File Copy Error")
+		log.Error("File Copy Error")
 		return nil, errors.New("File Failure")
 	}
 
