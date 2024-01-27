@@ -82,7 +82,7 @@ func (api *API) koAuthorizeUser(c *gin.Context) {
 }
 
 func (api *API) koCreateUser(c *gin.Context) {
-	if !api.Config.RegistrationEnabled {
+	if !api.cfg.RegistrationEnabled {
 		c.AbortWithStatus(http.StatusConflict)
 		return
 	}
@@ -107,7 +107,7 @@ func (api *API) koCreateUser(c *gin.Context) {
 		return
 	}
 
-	rows, err := api.DB.Queries.CreateUser(api.DB.Ctx, database.CreateUserParams{
+	rows, err := api.db.Queries.CreateUser(api.db.Ctx, database.CreateUserParams{
 		ID:   rUser.Username,
 		Pass: &hashedPassword,
 	})
@@ -143,7 +143,7 @@ func (api *API) koSetProgress(c *gin.Context) {
 	}
 
 	// Upsert Device
-	if _, err := api.DB.Queries.UpsertDevice(api.DB.Ctx, database.UpsertDeviceParams{
+	if _, err := api.db.Queries.UpsertDevice(api.db.Ctx, database.UpsertDeviceParams{
 		ID:         rPosition.DeviceID,
 		UserID:     auth.UserName,
 		DeviceName: rPosition.Device,
@@ -153,14 +153,14 @@ func (api *API) koSetProgress(c *gin.Context) {
 	}
 
 	// Upsert Document
-	if _, err := api.DB.Queries.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
+	if _, err := api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
 		ID: rPosition.DocumentID,
 	}); err != nil {
 		log.Error("UpsertDocument DB Error:", err)
 	}
 
 	// Create or Replace Progress
-	progress, err := api.DB.Queries.UpdateProgress(api.DB.Ctx, database.UpdateProgressParams{
+	progress, err := api.db.Queries.UpdateProgress(api.db.Ctx, database.UpdateProgressParams{
 		Percentage: rPosition.Percentage,
 		DocumentID: rPosition.DocumentID,
 		DeviceID:   rPosition.DeviceID,
@@ -192,7 +192,7 @@ func (api *API) koGetProgress(c *gin.Context) {
 		return
 	}
 
-	progress, err := api.DB.Queries.GetDocumentProgress(api.DB.Ctx, database.GetDocumentProgressParams{
+	progress, err := api.db.Queries.GetDocumentProgress(api.db.Ctx, database.GetDocumentProgressParams{
 		DocumentID: rDocID.DocumentID,
 		UserID:     auth.UserName,
 	})
@@ -230,7 +230,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 	}
 
 	// Do Transaction
-	tx, err := api.DB.DB.Begin()
+	tx, err := api.db.DB.Begin()
 	if err != nil {
 		log.Error("Transaction Begin DB Error:", err)
 		apiErrorPage(c, http.StatusBadRequest, "Unknown Error")
@@ -246,11 +246,11 @@ func (api *API) koAddActivities(c *gin.Context) {
 
 	// Defer & Start Transaction
 	defer tx.Rollback()
-	qtx := api.DB.Queries.WithTx(tx)
+	qtx := api.db.Queries.WithTx(tx)
 
 	// Upsert Documents
 	for _, doc := range allDocuments {
-		if _, err := qtx.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
+		if _, err := qtx.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
 			ID: doc,
 		}); err != nil {
 			log.Error("UpsertDocument DB Error:", err)
@@ -260,7 +260,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 	}
 
 	// Upsert Device
-	if _, err = qtx.UpsertDevice(api.DB.Ctx, database.UpsertDeviceParams{
+	if _, err = qtx.UpsertDevice(api.db.Ctx, database.UpsertDeviceParams{
 		ID:         rActivity.DeviceID,
 		UserID:     auth.UserName,
 		DeviceName: rActivity.Device,
@@ -273,7 +273,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 
 	// Add All Activity
 	for _, item := range rActivity.Activity {
-		if _, err := qtx.AddActivity(api.DB.Ctx, database.AddActivityParams{
+		if _, err := qtx.AddActivity(api.db.Ctx, database.AddActivityParams{
 			UserID:          auth.UserName,
 			DocumentID:      item.DocumentID,
 			DeviceID:        rActivity.DeviceID,
@@ -314,7 +314,7 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 	}
 
 	// Upsert Device
-	if _, err := api.DB.Queries.UpsertDevice(api.DB.Ctx, database.UpsertDeviceParams{
+	if _, err := api.db.Queries.UpsertDevice(api.db.Ctx, database.UpsertDeviceParams{
 		ID:         rCheckActivity.DeviceID,
 		UserID:     auth.UserName,
 		DeviceName: rCheckActivity.Device,
@@ -326,7 +326,7 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 	}
 
 	// Get Last Device Activity
-	lastActivity, err := api.DB.Queries.GetLastActivity(api.DB.Ctx, database.GetLastActivityParams{
+	lastActivity, err := api.db.Queries.GetLastActivity(api.db.Ctx, database.GetLastActivityParams{
 		UserID:   auth.UserName,
 		DeviceID: rCheckActivity.DeviceID,
 	})
@@ -360,7 +360,7 @@ func (api *API) koAddDocuments(c *gin.Context) {
 	}
 
 	// Do Transaction
-	tx, err := api.DB.DB.Begin()
+	tx, err := api.db.DB.Begin()
 	if err != nil {
 		log.Error("Transaction Begin DB Error:", err)
 		apiErrorPage(c, http.StatusBadRequest, "Unknown Error")
@@ -369,11 +369,11 @@ func (api *API) koAddDocuments(c *gin.Context) {
 
 	// Defer & Start Transaction
 	defer tx.Rollback()
-	qtx := api.DB.Queries.WithTx(tx)
+	qtx := api.db.Queries.WithTx(tx)
 
 	// Upsert Documents
 	for _, doc := range rNewDocs.Documents {
-		_, err := qtx.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
+		_, err := qtx.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
 			ID:          doc.ID,
 			Title:       api.sanitizeInput(doc.Title),
 			Author:      api.sanitizeInput(doc.Author),
@@ -415,7 +415,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	}
 
 	// Upsert Device
-	_, err := api.DB.Queries.UpsertDevice(api.DB.Ctx, database.UpsertDeviceParams{
+	_, err := api.db.Queries.UpsertDevice(api.db.Ctx, database.UpsertDeviceParams{
 		ID:         rCheckDocs.DeviceID,
 		UserID:     auth.UserName,
 		DeviceName: rCheckDocs.Device,
@@ -431,7 +431,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	deletedDocIDs := []string{}
 
 	// Get Missing Documents
-	missingDocs, err = api.DB.Queries.GetMissingDocuments(api.DB.Ctx, rCheckDocs.Have)
+	missingDocs, err = api.db.Queries.GetMissingDocuments(api.db.Ctx, rCheckDocs.Have)
 	if err != nil {
 		log.Error("GetMissingDocuments DB Error", err)
 		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
@@ -439,7 +439,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	}
 
 	// Get Deleted Documents
-	deletedDocIDs, err = api.DB.Queries.GetDeletedDocuments(api.DB.Ctx, rCheckDocs.Have)
+	deletedDocIDs, err = api.db.Queries.GetDeletedDocuments(api.db.Ctx, rCheckDocs.Have)
 	if err != nil {
 		log.Error("GetDeletedDocuments DB Error", err)
 		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
@@ -454,7 +454,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 		return
 	}
 
-	wantedDocs, err := api.DB.Queries.GetWantedDocuments(api.DB.Ctx, string(jsonHaves))
+	wantedDocs, err := api.db.Queries.GetWantedDocuments(api.db.Ctx, string(jsonHaves))
 	if err != nil {
 		log.Error("GetWantedDocuments DB Error", err)
 		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
@@ -524,7 +524,7 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 	}
 
 	// Validate Document Exists in DB
-	document, err := api.DB.Queries.GetDocument(api.DB.Ctx, rDoc.DocumentID)
+	document, err := api.db.Queries.GetDocument(api.db.Ctx, rDoc.DocumentID)
 	if err != nil {
 		log.Error("GetDocument DB Error:", err)
 		apiErrorPage(c, http.StatusBadRequest, "Unknown Document")
@@ -552,7 +552,7 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 	fileName = "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, document.ID, fileExtension))
 
 	// Generate Storage Path
-	safePath := filepath.Join(api.Config.DataPath, "documents", fileName)
+	safePath := filepath.Join(api.cfg.DataPath, "documents", fileName)
 
 	// Save & Prevent Overwrites
 	_, err = os.Stat(safePath)
@@ -582,7 +582,7 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 	}
 
 	// Upsert Document
-	if _, err = api.DB.Queries.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
+	if _, err = api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
 		ID:       document.ID,
 		Md5:      fileHash,
 		Filepath: &fileName,
@@ -610,12 +610,12 @@ func (api *API) sanitizeInput(val any) *string {
 	switch v := val.(type) {
 	case *string:
 		if v != nil {
-			newString := html.UnescapeString(api.HTMLPolicy.Sanitize(string(*v)))
+			newString := html.UnescapeString(htmlPolicy.Sanitize(string(*v)))
 			return &newString
 		}
 	case string:
 		if v != "" {
-			newString := html.UnescapeString(api.HTMLPolicy.Sanitize(string(v)))
+			newString := html.UnescapeString(htmlPolicy.Sanitize(string(v)))
 			return &newString
 		}
 	}

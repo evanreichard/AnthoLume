@@ -4,7 +4,6 @@ import (
 	"embed"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
 	log "github.com/sirupsen/logrus"
@@ -38,18 +37,16 @@ func cmdServer(ctx *cli.Context) error {
 	log.Info("Starting AnthoLume Server")
 
 	// Create Channel
-	wg := sync.WaitGroup{}
-	done := make(chan struct{})
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
 	// Start Server
-	server := server.NewServer(&assets)
-	server.StartServer(&wg, done)
+	s := server.New(&assets)
+	s.Start()
 
 	// Wait & Close
-	<-interrupt
-	server.StopServer(&wg, done)
+	<-signals
+	s.Stop()
 
 	// Stop Server
 	os.Exit(0)

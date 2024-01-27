@@ -19,6 +19,7 @@ type DBManager struct {
 	DB      *sql.DB
 	Ctx     context.Context
 	Queries *Queries
+	cfg     *config.Config
 }
 
 //go:embed schema.sql
@@ -27,17 +28,25 @@ var ddl string
 //go:embed migrations/*
 var migrations embed.FS
 
+// Returns an initialized manager
 func NewMgr(c *config.Config) *DBManager {
 	// Create Manager
 	dbm := &DBManager{
 		Ctx: context.Background(),
+		cfg: c,
 	}
 
-	// Create Database
-	if c.DBType == "sqlite" || c.DBType == "memory" {
+	dbm.init()
+
+	return dbm
+}
+
+// Init manager
+func (dbm *DBManager) init() {
+	if dbm.cfg.DBType == "sqlite" || dbm.cfg.DBType == "memory" {
 		var dbLocation string = ":memory:"
-		if c.DBType == "sqlite" {
-			dbLocation = filepath.Join(c.ConfigPath, fmt.Sprintf("%s.db", c.DBName))
+		if dbm.cfg.DBType == "sqlite" {
+			dbLocation = filepath.Join(dbm.cfg.ConfigPath, fmt.Sprintf("%s.db", dbm.cfg.DBName))
 		}
 
 		var err error
@@ -67,12 +76,20 @@ func NewMgr(c *config.Config) *DBManager {
 	}
 
 	dbm.Queries = New(dbm.DB)
-
-	return dbm
 }
 
-func (dbm *DBManager) Shutdown() error {
-	return dbm.DB.Close()
+// Reload manager (close DB & reinit)
+func (dbm *DBManager) Reload() error {
+	// Close handle
+	err := dbm.DB.Close()
+	if err != nil {
+		return err
+	}
+
+	// Reinit DB
+	dbm.init()
+
+	return nil
 }
 
 func (dbm *DBManager) CacheTempTables() error {

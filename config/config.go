@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -40,7 +41,7 @@ type customFormatter struct {
 	log.Formatter
 }
 
-// Force UTC & Set Type (app)
+// Force UTC & Set type (app)
 func (cf customFormatter) Format(e *log.Entry) ([]byte, error) {
 	if e.Data["type"] == nil {
 		e.Data["type"] = "app"
@@ -70,18 +71,18 @@ func Load() *Config {
 		CookieHTTPOnly:      trimLowerString(getEnv("COOKIE_HTTP_ONLY", "true")) == "true",
 	}
 
-	// Log Level
+	// Parse log level
 	logLevel, err := log.ParseLevel(c.LogLevel)
 	if err != nil {
 		logLevel = log.InfoLevel
 	}
 
-	// Log Formatter
+	// Create custom formatter
 	logFormatter := &customFormatter{&log.JSONFormatter{
 		CallerPrettyfier: prettyCaller,
 	}}
 
-	// Log Rotater
+	// Create log rotator
 	rotateFileHook, err := NewRotateFileHook(RotateFileConfig{
 		Filename:   path.Join(c.ConfigPath, "logs/antholume.log"),
 		MaxSize:    50,
@@ -94,15 +95,32 @@ func Load() *Config {
 		log.Fatal("Unable to initialize file rotate hook")
 	}
 
-	// Rotate Now
+	// Rotate now
 	rotateFileHook.Rotate()
 
+	// Set logger settings
 	log.SetLevel(logLevel)
 	log.SetFormatter(logFormatter)
 	log.SetReportCaller(true)
 	log.AddHook(rotateFileHook)
 
+	// Ensure directories exist
+	c.EnsureDirectories()
+
 	return c
+}
+
+// Ensures needed directories exist
+func (c *Config) EnsureDirectories() {
+	os.Mkdir(c.ConfigPath, 0755)
+	os.Mkdir(c.DataPath, 0755)
+
+	docDir := filepath.Join(c.DataPath, "documents")
+	coversDir := filepath.Join(c.DataPath, "covers")
+	backupDir := filepath.Join(c.DataPath, "backups")
+	os.Mkdir(docDir, 0755)
+	os.Mkdir(coversDir, 0755)
+	os.Mkdir(backupDir, 0755)
 }
 
 func getEnv(key, fallback string) string {

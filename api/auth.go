@@ -32,7 +32,7 @@ type authOPDSHeader struct {
 }
 
 func (api *API) authorizeCredentials(username string, password string) (auth *authData) {
-	user, err := api.DB.Queries.GetUser(api.DB.Ctx, username)
+	user, err := api.db.Queries.GetUser(api.db.Ctx, username)
 	if err != nil {
 		return
 	}
@@ -174,7 +174,7 @@ func (api *API) appAuthFormLogin(c *gin.Context) {
 }
 
 func (api *API) appAuthFormRegister(c *gin.Context) {
-	if !api.Config.RegistrationEnabled {
+	if !api.cfg.RegistrationEnabled {
 		appErrorPage(c, http.StatusUnauthorized, "Nice try. Registration is disabled.")
 		return
 	}
@@ -199,7 +199,7 @@ func (api *API) appAuthFormRegister(c *gin.Context) {
 		return
 	}
 
-	rows, err := api.DB.Queries.CreateUser(api.DB.Ctx, database.CreateUserParams{
+	rows, err := api.db.Queries.CreateUser(api.db.Ctx, database.CreateUserParams{
 		ID:   username,
 		Pass: &hashedPassword,
 	})
@@ -221,7 +221,7 @@ func (api *API) appAuthFormRegister(c *gin.Context) {
 	}
 
 	// Get User
-	user, err := api.DB.Queries.GetUser(api.DB.Ctx, username)
+	user, err := api.db.Queries.GetUser(api.db.Ctx, username)
 	if err != nil {
 		log.Error("GetUser DB Error:", err)
 		templateVars["Error"] = "Registration Disabled or User Already Exists"

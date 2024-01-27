@@ -1,11 +1,8 @@
 package server
 
 import (
-	"context"
 	"embed"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -16,91 +13,79 @@ import (
 	"reichard.io/antholume/database"
 )
 
-type Server struct {
-	API        *api.API
-	Config     *config.Config
-	Database   *database.DBManager
-	httpServer *http.Server
+type server struct {
+	db   *database.DBManager
+	api  *api.API
+	done chan int
+	wg   sync.WaitGroup
 }
 
-func NewServer(assets *embed.FS) *Server {
+// Create new server
+func New(assets *embed.FS) *server {
 	c := config.Load()
 	db := database.NewMgr(c)
 	api := api.NewApi(db, c, assets)
 
-	// Create Paths
-	os.Mkdir(c.ConfigPath, 0755)
-	os.Mkdir(c.DataPath, 0755)
-
-	// Create Subpaths
-	docDir := filepath.Join(c.DataPath, "documents")
-	coversDir := filepath.Join(c.DataPath, "covers")
-	backupDir := filepath.Join(c.DataPath, "backup")
-	os.Mkdir(docDir, 0755)
-	os.Mkdir(coversDir, 0755)
-	os.Mkdir(backupDir, 0755)
-
-	return &Server{
-		API:      api,
-		Config:   c,
-		Database: db,
-		httpServer: &http.Server{
-			Handler: api.Router,
-			Addr:    (":" + c.ListenPort),
-		},
+	return &server{
+		db:   db,
+		api:  api,
+		done: make(chan int),
 	}
 }
 
-func (s *Server) StartServer(wg *sync.WaitGroup, done <-chan struct{}) {
-	ticker := time.NewTicker(15 * time.Minute)
-
-	wg.Add(2)
+// Start server
+func (s *server) Start() {
+	log.Info("Starting server...")
+	s.wg.Add(2)
 
 	go func() {
-		defer wg.Done()
+		defer s.wg.Done()
 
-		err := s.httpServer.ListenAndServe()
+		err := s.api.Start()
 		if err != nil && err != http.ErrServerClosed {
-			log.Error("Error starting server:", err)
+			log.Error("Starting server failed: ", err)
 		}
 	}()
 
 	go func() {
-		defer wg.Done()
+		defer s.wg.Done()
+
+		ticker := time.NewTicker(15 * time.Minute)
 		defer ticker.Stop()
 
 		for {
 			select {
 			case <-ticker.C:
-				s.RunScheduledTasks()
-			case <-done:
+				s.runScheduledTasks()
+			case <-s.done:
 				log.Info("Stopping task runner...")
 				return
 			}
 		}
 	}()
+
+	log.Info("Server started")
 }
 
-func (s *Server) RunScheduledTasks() {
-	start := time.Now()
-	if err := s.API.DB.CacheTempTables(); err != nil {
-		log.Warn("Refreshing temp table cache failure:", err)
+// Stop server
+func (s *server) Stop() {
+	log.Info("Stopping server...")
+
+	if err := s.api.Stop(); err != nil {
+		log.Error("HTTP server stop failed: ", err)
 	}
-	log.Debug("Completed in: ", time.Since(start))
-}
 
-func (s *Server) StopServer(wg *sync.WaitGroup, done chan<- struct{}) {
-	log.Info("Stopping HTTP server...")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := s.httpServer.Shutdown(ctx); err != nil {
-		log.Info("HTTP server shutdown error: ", err)
-	}
-	s.API.DB.Shutdown()
-
-	close(done)
-	wg.Wait()
+	close(s.done)
+	s.wg.Wait()
 
 	log.Info("Server stopped")
+}
+
+// Run normal scheduled tasks
+func (s *server) runScheduledTasks() {
+	start := time.Now()
+	if err := s.db.CacheTempTables(); err != nil {
+		log.Warn("Refreshing temp table cache failed: ", err)
+	}
+	log.Debug("Completed in: ", time.Since(start))
 }

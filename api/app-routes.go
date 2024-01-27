@@ -116,23 +116,23 @@ type requestDocumentAdd struct {
 
 func (api *API) appWebManifest(c *gin.Context) {
 	c.Header("Content-Type", "application/manifest+json")
-	c.FileFromFS("assets/manifest.json", http.FS(api.Assets))
+	c.FileFromFS("assets/manifest.json", http.FS(api.assets))
 }
 
 func (api *API) appServiceWorker(c *gin.Context) {
-	c.FileFromFS("assets/sw.js", http.FS(api.Assets))
+	c.FileFromFS("assets/sw.js", http.FS(api.assets))
 }
 
 func (api *API) appFaviconIcon(c *gin.Context) {
-	c.FileFromFS("assets/icons/favicon.ico", http.FS(api.Assets))
+	c.FileFromFS("assets/icons/favicon.ico", http.FS(api.assets))
 }
 
 func (api *API) appLocalDocuments(c *gin.Context) {
-	c.FileFromFS("assets/local/index.htm", http.FS(api.Assets))
+	c.FileFromFS("assets/local/index.htm", http.FS(api.assets))
 }
 
 func (api *API) appDocumentReader(c *gin.Context) {
-	c.FileFromFS("assets/reader/index.htm", http.FS(api.Assets))
+	c.FileFromFS("assets/reader/index.htm", http.FS(api.assets))
 }
 
 func (api *API) appGetDocuments(c *gin.Context) {
@@ -145,7 +145,7 @@ func (api *API) appGetDocuments(c *gin.Context) {
 		query = &search
 	}
 
-	documents, err := api.DB.Queries.GetDocumentsWithStats(api.DB.Ctx, database.GetDocumentsWithStatsParams{
+	documents, err := api.db.Queries.GetDocumentsWithStats(api.db.Ctx, database.GetDocumentsWithStatsParams{
 		UserID: auth.UserName,
 		Query:  query,
 		Offset: (*qParams.Page - 1) * *qParams.Limit,
@@ -157,7 +157,7 @@ func (api *API) appGetDocuments(c *gin.Context) {
 		return
 	}
 
-	length, err := api.DB.Queries.GetDocumentsSize(api.DB.Ctx, query)
+	length, err := api.db.Queries.GetDocumentsSize(api.db.Ctx, query)
 	if err != nil {
 		log.Error("GetDocumentsSize DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsSize DB Error: %v", err))
@@ -196,7 +196,7 @@ func (api *API) appGetDocument(c *gin.Context) {
 		return
 	}
 
-	document, err := api.DB.Queries.GetDocumentWithStats(api.DB.Ctx, database.GetDocumentWithStatsParams{
+	document, err := api.db.Queries.GetDocumentWithStats(api.db.Ctx, database.GetDocumentWithStatsParams{
 		UserID:     auth.UserName,
 		DocumentID: rDocID.DocumentID,
 	})
@@ -228,7 +228,7 @@ func (api *API) appGetProgress(c *gin.Context) {
 		progressFilter.DocumentID = *qParams.Document
 	}
 
-	progress, err := api.DB.Queries.GetProgress(api.DB.Ctx, progressFilter)
+	progress, err := api.db.Queries.GetProgress(api.db.Ctx, progressFilter)
 	if err != nil {
 		log.Error("GetProgress DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetActivity DB Error: %v", err))
@@ -255,7 +255,7 @@ func (api *API) appGetActivity(c *gin.Context) {
 		activityFilter.DocumentID = *qParams.Document
 	}
 
-	activity, err := api.DB.Queries.GetActivity(api.DB.Ctx, activityFilter)
+	activity, err := api.db.Queries.GetActivity(api.db.Ctx, activityFilter)
 	if err != nil {
 		log.Error("GetActivity DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetActivity DB Error: %v", err))
@@ -271,7 +271,7 @@ func (api *API) appGetHome(c *gin.Context) {
 	templateVars, auth := api.getBaseTemplateVars("home", c)
 
 	start := time.Now()
-	graphData, err := api.DB.Queries.GetDailyReadStats(api.DB.Ctx, auth.UserName)
+	graphData, err := api.db.Queries.GetDailyReadStats(api.db.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("GetDailyReadStats DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDailyReadStats DB Error: %v", err))
@@ -280,7 +280,7 @@ func (api *API) appGetHome(c *gin.Context) {
 	log.Debug("GetDailyReadStats DB Performance: ", time.Since(start))
 
 	start = time.Now()
-	databaseInfo, err := api.DB.Queries.GetDatabaseInfo(api.DB.Ctx, auth.UserName)
+	databaseInfo, err := api.db.Queries.GetDatabaseInfo(api.db.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("GetDatabaseInfo DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDatabaseInfo DB Error: %v", err))
@@ -289,7 +289,7 @@ func (api *API) appGetHome(c *gin.Context) {
 	log.Debug("GetDatabaseInfo DB Performance: ", time.Since(start))
 
 	start = time.Now()
-	streaks, err := api.DB.Queries.GetUserStreaks(api.DB.Ctx, auth.UserName)
+	streaks, err := api.db.Queries.GetUserStreaks(api.db.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("GetUserStreaks DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStreaks DB Error: %v", err))
@@ -298,7 +298,7 @@ func (api *API) appGetHome(c *gin.Context) {
 	log.Debug("GetUserStreaks DB Performance: ", time.Since(start))
 
 	start = time.Now()
-	userStatistics, err := api.DB.Queries.GetUserStatistics(api.DB.Ctx)
+	userStatistics, err := api.db.Queries.GetUserStatistics(api.db.Ctx)
 	if err != nil {
 		log.Error("GetUserStatistics DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStatistics DB Error: %v", err))
@@ -319,14 +319,14 @@ func (api *API) appGetHome(c *gin.Context) {
 func (api *API) appGetSettings(c *gin.Context) {
 	templateVars, auth := api.getBaseTemplateVars("settings", c)
 
-	user, err := api.DB.Queries.GetUser(api.DB.Ctx, auth.UserName)
+	user, err := api.db.Queries.GetUser(api.db.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("GetUser DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
 		return
 	}
 
-	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, auth.UserName)
+	devices, err := api.db.Queries.GetDevices(api.db.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("GetDevices DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
@@ -350,7 +350,7 @@ func (api *API) appGetAdminLogs(c *gin.Context) {
 	templateVars, _ := api.getBaseTemplateVars("admin-logs", c)
 
 	// Open Log File
-	logPath := filepath.Join(api.Config.ConfigPath, "logs/antholume.log")
+	logPath := filepath.Join(api.cfg.ConfigPath, "logs/antholume.log")
 	logFile, err := os.Open(logPath)
 	if err != nil {
 		appErrorPage(c, http.StatusBadRequest, "Missing AnthoLume log file.")
@@ -388,7 +388,7 @@ func (api *API) appGetAdminLogs(c *gin.Context) {
 func (api *API) appGetAdminUsers(c *gin.Context) {
 	templateVars, _ := api.getBaseTemplateVars("admin-users", c)
 
-	users, err := api.DB.Queries.GetUsers(api.DB.Ctx)
+	users, err := api.db.Queries.GetUsers(api.db.Ctx)
 	if err != nil {
 		log.Error("GetUsers DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUsers DB Error: %v", err))
@@ -422,12 +422,21 @@ func (api *API) appPerformAdminAction(c *gin.Context) {
 		// 1. Documents xref most recent metadata table?
 		// 2. Select all / deselect?
 	case adminCacheTables:
-		go api.DB.CacheTempTables()
+		go api.db.CacheTempTables()
 	case adminRestore:
 		api.processRestoreFile(rAdminAction, c)
 	case adminBackup:
+		// Vacuum
+		_, err := api.db.DB.ExecContext(api.db.Ctx, "VACUUM;")
+		if err != nil {
+			log.Error("Unable to vacuum DB: ", err)
+			appErrorPage(c, http.StatusInternalServerError, "Unable to vacuum database.")
+			return
+		}
+
+		// Set Headers
 		c.Header("Content-type", "application/octet-stream")
-		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"AnthoLumeBackup_%s.zip\"", time.Now().Format("20060102")))
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"AnthoLumeBackup_%s.zip\"", time.Now().Format("20060102150405")))
 
 		// Stream Backup ZIP Archive
 		c.Stream(func(w io.Writer) bool {
@@ -479,18 +488,18 @@ func (api *API) appGetSearch(c *gin.Context) {
 
 func (api *API) appGetLogin(c *gin.Context) {
 	templateVars, _ := api.getBaseTemplateVars("login", c)
-	templateVars["RegistrationEnabled"] = api.Config.RegistrationEnabled
+	templateVars["RegistrationEnabled"] = api.cfg.RegistrationEnabled
 	c.HTML(http.StatusOK, "page/login", templateVars)
 }
 
 func (api *API) appGetRegister(c *gin.Context) {
-	if !api.Config.RegistrationEnabled {
+	if !api.cfg.RegistrationEnabled {
 		c.Redirect(http.StatusFound, "/login")
 		return
 	}
 
 	templateVars, _ := api.getBaseTemplateVars("login", c)
-	templateVars["RegistrationEnabled"] = api.Config.RegistrationEnabled
+	templateVars["RegistrationEnabled"] = api.cfg.RegistrationEnabled
 	templateVars["Register"] = true
 	c.HTML(http.StatusOK, "page/login", templateVars)
 }
@@ -508,7 +517,7 @@ func (api *API) appGetDocumentProgress(c *gin.Context) {
 		return
 	}
 
-	progress, err := api.DB.Queries.GetDocumentProgress(api.DB.Ctx, database.GetDocumentProgressParams{
+	progress, err := api.db.Queries.GetDocumentProgress(api.db.Ctx, database.GetDocumentProgressParams{
 		DocumentID: rDoc.DocumentID,
 		UserID:     auth.UserName,
 	})
@@ -519,7 +528,7 @@ func (api *API) appGetDocumentProgress(c *gin.Context) {
 		return
 	}
 
-	document, err := api.DB.Queries.GetDocumentWithStats(api.DB.Ctx, database.GetDocumentWithStatsParams{
+	document, err := api.db.Queries.GetDocumentWithStats(api.db.Ctx, database.GetDocumentWithStatsParams{
 		UserID:     auth.UserName,
 		DocumentID: rDoc.DocumentID,
 	})
@@ -545,7 +554,7 @@ func (api *API) appGetDevices(c *gin.Context) {
 		auth = data.(authData)
 	}
 
-	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, auth.UserName)
+	devices, err := api.db.Queries.GetDevices(api.db.Ctx, auth.UserName)
 
 	if err != nil && err != sql.ErrNoRows {
 		log.Error("GetDevices DB Error: ", err)
@@ -627,7 +636,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	}
 
 	// Check Exists
-	_, err = api.DB.Queries.GetDocument(api.DB.Ctx, partialMD5)
+	_, err = api.db.Queries.GetDocument(api.db.Ctx, partialMD5)
 	if err == nil {
 		c.Redirect(http.StatusFound, fmt.Sprintf("./documents/%s", partialMD5))
 		return
@@ -670,7 +679,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	fileName = "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, partialMD5, fileExtension))
 
 	// Generate Storage Path & Open File
-	safePath := filepath.Join(api.Config.DataPath, "documents", fileName)
+	safePath := filepath.Join(api.cfg.DataPath, "documents", fileName)
 	destFile, err := os.Create(safePath)
 	if err != nil {
 		log.Error("Dest File Error: ", err)
@@ -687,7 +696,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	}
 
 	// Upsert Document
-	if _, err = api.DB.Queries.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
+	if _, err = api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
 		ID:          partialMD5,
 		Title:       metadataInfo.Title,
 		Author:      metadataInfo.Author,
@@ -764,7 +773,7 @@ func (api *API) appEditDocument(c *gin.Context) {
 
 		// Generate Storage Path
 		fileName := fmt.Sprintf("%s%s", rDocID.DocumentID, fileExtension)
-		safePath := filepath.Join(api.Config.DataPath, "covers", fileName)
+		safePath := filepath.Join(api.cfg.DataPath, "covers", fileName)
 
 		// Save
 		err = c.SaveUploadedFile(rDocEdit.CoverFile, safePath)
@@ -776,7 +785,7 @@ func (api *API) appEditDocument(c *gin.Context) {
 
 		coverFileName = &fileName
 	} else if rDocEdit.CoverGBID != nil {
-		var coverDir string = filepath.Join(api.Config.DataPath, "covers")
+		var coverDir string = filepath.Join(api.cfg.DataPath, "covers")
 		fileName, err := metadata.CacheCover(*rDocEdit.CoverGBID, coverDir, rDocID.DocumentID, true)
 		if err == nil {
 			coverFileName = fileName
@@ -784,7 +793,7 @@ func (api *API) appEditDocument(c *gin.Context) {
 	}
 
 	// Update Document
-	if _, err := api.DB.Queries.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
+	if _, err := api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
 		ID:          rDocID.DocumentID,
 		Title:       api.sanitizeInput(rDocEdit.Title),
 		Author:      api.sanitizeInput(rDocEdit.Author),
@@ -809,7 +818,7 @@ func (api *API) appDeleteDocument(c *gin.Context) {
 		appErrorPage(c, http.StatusNotFound, "Invalid document.")
 		return
 	}
-	changed, err := api.DB.Queries.DeleteDocument(api.DB.Ctx, rDocID.DocumentID)
+	changed, err := api.db.Queries.DeleteDocument(api.db.Ctx, rDocID.DocumentID)
 	if err != nil {
 		log.Error("DeleteDocument DB Error")
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("DeleteDocument DB Error: %v", err))
@@ -871,7 +880,7 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 		firstResult := metadataResults[0]
 
 		// Store First Metadata Result
-		if _, err = api.DB.Queries.AddMetadata(api.DB.Ctx, database.AddMetadataParams{
+		if _, err = api.db.Queries.AddMetadata(api.db.Ctx, database.AddMetadataParams{
 			DocumentID:  rDocID.DocumentID,
 			Title:       firstResult.Title,
 			Author:      firstResult.Author,
@@ -890,7 +899,7 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 		templateVars["MetadataError"] = "No Metadata Found"
 	}
 
-	document, err := api.DB.Queries.GetDocumentWithStats(api.DB.Ctx, database.GetDocumentWithStatsParams{
+	document, err := api.db.Queries.GetDocumentWithStats(api.db.Ctx, database.GetDocumentWithStatsParams{
 		UserID:     auth.UserName,
 		DocumentID: rDocID.DocumentID,
 	})
@@ -1001,7 +1010,7 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	defer sourceFile.Close()
 
 	// Generate Storage Path & Open File
-	safePath := filepath.Join(api.Config.DataPath, "documents", fileName)
+	safePath := filepath.Join(api.cfg.DataPath, "documents", fileName)
 	destFile, err := os.Create(safePath)
 	if err != nil {
 		log.Error("Dest File Error: ", err)
@@ -1043,7 +1052,7 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	sendDownloadMessage("Saving to database...", gin.H{"Progress": 90})
 
 	// Upsert Document
-	if _, err = api.DB.Queries.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
+	if _, err = api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
 		ID:       partialMD5,
 		Title:    rDocAdd.Title,
 		Author:   rDocAdd.Author,
@@ -1110,7 +1119,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	}
 
 	// Update User
-	_, err := api.DB.Queries.UpdateUser(api.DB.Ctx, newUserSettings)
+	_, err := api.db.Queries.UpdateUser(api.db.Ctx, newUserSettings)
 	if err != nil {
 		log.Error("UpdateUser DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpdateUser DB Error: %v", err))
@@ -1118,7 +1127,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	}
 
 	// Get User
-	user, err := api.DB.Queries.GetUser(api.DB.Ctx, auth.UserName)
+	user, err := api.db.Queries.GetUser(api.db.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("GetUser DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
@@ -1126,7 +1135,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	}
 
 	// Get Devices
-	devices, err := api.DB.Queries.GetDevices(api.DB.Ctx, auth.UserName)
+	devices, err := api.db.Queries.GetDevices(api.db.Ctx, auth.UserName)
 	if err != nil {
 		log.Error("GetDevices DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
@@ -1147,7 +1156,7 @@ func (api *API) appDemoModeError(c *gin.Context) {
 
 func (api *API) getDocumentsWordCount(documents []database.GetDocumentsWithStatsRow) error {
 	// Do Transaction
-	tx, err := api.DB.DB.Begin()
+	tx, err := api.db.DB.Begin()
 	if err != nil {
 		log.Error("Transaction Begin DB Error: ", err)
 		return err
@@ -1155,16 +1164,16 @@ func (api *API) getDocumentsWordCount(documents []database.GetDocumentsWithStats
 
 	// Defer & Start Transaction
 	defer tx.Rollback()
-	qtx := api.DB.Queries.WithTx(tx)
+	qtx := api.db.Queries.WithTx(tx)
 
 	for _, item := range documents {
 		if item.Words == nil && item.Filepath != nil {
-			filePath := filepath.Join(api.Config.DataPath, "documents", *item.Filepath)
+			filePath := filepath.Join(api.cfg.DataPath, "documents", *item.Filepath)
 			wordCount, err := metadata.GetWordCount(filePath)
 			if err != nil {
 				log.Warn("Word Count Error: ", err)
 			} else {
-				if _, err := qtx.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
+				if _, err := qtx.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
 					ID:    item.ID,
 					Words: &wordCount,
 				}); err != nil {
@@ -1194,9 +1203,9 @@ func (api *API) getBaseTemplateVars(routeName string, c *gin.Context) (gin.H, au
 		"Authorization": auth,
 		"RouteName":     routeName,
 		"Config": gin.H{
-			"Version":             api.Config.Version,
-			"SearchEnabled":       api.Config.SearchEnabled,
-			"RegistrationEnabled": api.Config.RegistrationEnabled,
+			"Version":             api.cfg.Version,
+			"SearchEnabled":       api.cfg.SearchEnabled,
+			"RegistrationEnabled": api.cfg.RegistrationEnabled,
 		},
 	}, auth
 }
@@ -1402,7 +1411,7 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	}
 
 	// Create Backup File
-	backupFilePath := filepath.Join(api.Config.ConfigPath, fmt.Sprintf("backup/AnthoLumeBackup_%s.zip", time.Now().Format("20060102")))
+	backupFilePath := filepath.Join(api.cfg.ConfigPath, fmt.Sprintf("backups/AnthoLumeBackup_%s.zip", time.Now().Format("20060102150405")))
 	backupFile, err := os.Create(backupFilePath)
 	if err != nil {
 		log.Error("Unable to create backup file: ", err)
@@ -1410,6 +1419,14 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 		return
 	}
 	defer backupFile.Close()
+
+	// Vacuum DB
+	_, err = api.db.DB.ExecContext(api.db.Ctx, "VACUUM;")
+	if err != nil {
+		log.Error("Unable to vacuum DB: ", err)
+		appErrorPage(c, http.StatusInternalServerError, "Unable to vacuum database.")
+		return
+	}
 
 	// Save Backup File
 	w := bufio.NewWriter(backupFile)
@@ -1423,6 +1440,7 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	// Remove Data
 	err = api.removeData()
 	if err != nil {
+		log.Error("Unable to delete data: ", err)
 		appErrorPage(c, http.StatusInternalServerError, "Unable to delete data.")
 		return
 	}
@@ -1431,19 +1449,26 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	err = api.restoreData(zipReader)
 	if err != nil {
 		appErrorPage(c, http.StatusInternalServerError, "Unable to restore data.")
-
-		// Panic?
-
-		log.Panic("Oh no")
-
+		log.Panic("Unable to restore data: ", err)
 		return
 	}
 
-	// TODO:
-	//   - Extract from temp directory
+	// Close DB
+	err = api.db.DB.Close()
+	if err != nil {
+		appErrorPage(c, http.StatusInternalServerError, "Unable to close DB.")
+		log.Panic("Unable to close DB: ", err)
+	}
+
+	// Reinit DB
+	api.db.Reload()
 }
 
 func (api *API) restoreData(zipReader *zip.Reader) error {
+	// Ensure Directories
+	api.cfg.EnsureDirectories()
+
+	// Restore Data
 	for _, file := range zipReader.File {
 		rc, err := file.Open()
 		if err != nil {
@@ -1451,7 +1476,7 @@ func (api *API) restoreData(zipReader *zip.Reader) error {
 		}
 		defer rc.Close()
 
-		destPath := filepath.Join(api.Config.DataPath, file.Name)
+		destPath := filepath.Join(api.cfg.DataPath, file.Name)
 		destFile, err := os.Create(destPath)
 		if err != nil {
 			fmt.Println("Error creating destination file:", err)
@@ -1481,7 +1506,7 @@ func (api *API) removeData() error {
 	}
 
 	for _, name := range allPaths {
-		fullPath := filepath.Join(api.Config.DataPath, name)
+		fullPath := filepath.Join(api.cfg.DataPath, name)
 		err := os.RemoveAll(fullPath)
 		if err != nil {
 			log.Errorf("Unable to delete %s: %v", name, err)
@@ -1531,8 +1556,8 @@ func (api *API) createBackup(w io.Writer, directories []string) error {
 	}
 
 	// Get DB Path
-	fileName := fmt.Sprintf("%s.db", api.Config.DBName)
-	dbLocation := filepath.Join(api.Config.ConfigPath, fileName)
+	fileName := fmt.Sprintf("%s.db", api.cfg.DBName)
+	dbLocation := filepath.Join(api.cfg.ConfigPath, fileName)
 
 	// Copy Database File
 	dbFile, err := os.Open(dbLocation)
@@ -1549,7 +1574,7 @@ func (api *API) createBackup(w io.Writer, directories []string) error {
 
 	// Backup Covers & Documents
 	for _, dir := range directories {
-		err = filepath.WalkDir(filepath.Join(api.Config.DataPath, dir), exportWalker)
+		err = filepath.WalkDir(filepath.Join(api.cfg.DataPath, dir), exportWalker)
 		if err != nil {
 			return err
 		}

@@ -77,7 +77,7 @@ func (api *API) opdsDocuments(c *gin.Context) {
 	}
 
 	// Get Documents
-	documents, err := api.DB.Queries.GetDocumentsWithStats(api.DB.Ctx, database.GetDocumentsWithStatsParams{
+	documents, err := api.db.Queries.GetDocumentsWithStats(api.db.Ctx, database.GetDocumentsWithStatsParams{
 		UserID: auth.UserName,
 		Query:  query,
 		Offset: (*qParams.Page - 1) * *qParams.Limit,

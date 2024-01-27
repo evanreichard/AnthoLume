@@ -21,7 +21,7 @@ func (api *API) createDownloadDocumentHandler(errorFunc func(*gin.Context, int, 
 		}
 
 		// Get Document
-		document, err := api.DB.Queries.GetDocument(api.DB.Ctx, rDoc.DocumentID)
+		document, err := api.db.Queries.GetDocument(api.db.Ctx, rDoc.DocumentID)
 		if err != nil {
 			log.Error("GetDocument DB Error:", err)
 			errorFunc(c, http.StatusBadRequest, "Unknown Document")
@@ -35,12 +35,12 @@ func (api *API) createDownloadDocumentHandler(errorFunc func(*gin.Context, int, 
 		}
 
 		// Derive Storage Location
-		filePath := filepath.Join(api.Config.DataPath, "documents", *document.Filepath)
+		filePath := filepath.Join(api.cfg.DataPath, "documents", *document.Filepath)
 
 		// Validate File Exists
 		_, err = os.Stat(filePath)
 		if os.IsNotExist(err) {
-			log.Error("File Doesn't Exist:", rDoc.DocumentID)
+			log.Error("File should but doesn't exist: ", err)
 			errorFunc(c, http.StatusBadRequest, "Document Doesn't Exist")
 			return
 		}
@@ -61,7 +61,7 @@ func (api *API) createGetCoverHandler(errorFunc func(*gin.Context, int, string))
 		}
 
 		// Validate Document Exists in DB
-		document, err := api.DB.Queries.GetDocument(api.DB.Ctx, rDoc.DocumentID)
+		document, err := api.db.Queries.GetDocument(api.db.Ctx, rDoc.DocumentID)
 		if err != nil {
 			log.Error("GetDocument DB Error:", err)
 			errorFunc(c, http.StatusInternalServerError, fmt.Sprintf("GetDocument DB Error: %v", err))
@@ -71,18 +71,18 @@ func (api *API) createGetCoverHandler(errorFunc func(*gin.Context, int, string))
 		// Handle Identified Document
 		if document.Coverfile != nil {
 			if *document.Coverfile == "UNKNOWN" {
-				c.FileFromFS("assets/images/no-cover.jpg", http.FS(api.Assets))
+				c.FileFromFS("assets/images/no-cover.jpg", http.FS(api.assets))
 				return
 			}
 
 			// Derive Path
-			safePath := filepath.Join(api.Config.DataPath, "covers", *document.Coverfile)
+			safePath := filepath.Join(api.cfg.DataPath, "covers", *document.Coverfile)
 
 			// Validate File Exists
 			_, err = os.Stat(safePath)
 			if err != nil {
-				log.Error("File Should But Doesn't Exist:", err)
-				c.FileFromFS("assets/images/no-cover.jpg", http.FS(api.Assets))
+				log.Error("File should but doesn't exist: ", err)
+				c.FileFromFS("assets/images/no-cover.jpg", http.FS(api.assets))
 				return
 			}
 
@@ -91,7 +91,7 @@ func (api *API) createGetCoverHandler(errorFunc func(*gin.Context, int, string))
 		}
 
 		// Attempt Metadata
-		var coverDir string = filepath.Join(api.Config.DataPath, "covers")
+		var coverDir string = filepath.Join(api.cfg.DataPath, "covers")
 		var coverFile string = "UNKNOWN"
 
 		// Identify Documents & Save Covers
@@ -110,7 +110,7 @@ func (api *API) createGetCoverHandler(errorFunc func(*gin.Context, int, string))
 			}
 
 			// Store First Metadata Result
-			if _, err = api.DB.Queries.AddMetadata(api.DB.Ctx, database.AddMetadataParams{
+			if _, err = api.db.Queries.AddMetadata(api.db.Ctx, database.AddMetadataParams{
 				DocumentID:  document.ID,
 				Title:       firstResult.Title,
 				Author:      firstResult.Author,
@@ -125,7 +125,7 @@ func (api *API) createGetCoverHandler(errorFunc func(*gin.Context, int, string))
 		}
 
 		// Upsert Document
-		if _, err = api.DB.Queries.UpsertDocument(api.DB.Ctx, database.UpsertDocumentParams{
+		if _, err = api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
 			ID:        document.ID,
 			Coverfile: &coverFile,
 		}); err != nil {
@@ -134,7 +134,7 @@ func (api *API) createGetCoverHandler(errorFunc func(*gin.Context, int, string))
 
 		// Return Unknown Cover
 		if coverFile == "UNKNOWN" {
-			c.FileFromFS("assets/images/no-cover.jpg", http.FS(api.Assets))
+			c.FileFromFS("assets/images/no-cover.jpg", http.FS(api.assets))
 			return
 		}
 

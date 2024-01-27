@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/rand"
 	"embed"
 	"fmt"
@@ -22,29 +23,37 @@ import (
 )
 
 type API struct {
-	Router     *gin.Engine
-	Config     *config.Config
-	DB         *database.DBManager
-	HTMLPolicy *bluemonday.Policy
-	Assets     *embed.FS
-	Templates  map[string]*template.Template
+	db         *database.DBManager
+	cfg        *config.Config
+	assets     *embed.FS
+	templates  map[string]*template.Template
+	httpServer *http.Server
 }
+
+var htmlPolicy = bluemonday.StrictPolicy()
 
 func NewApi(db *database.DBManager, c *config.Config, assets *embed.FS) *API {
 	api := &API{
-		HTMLPolicy: bluemonday.StrictPolicy(),
-		Router:     gin.New(),
-		Config:     c,
-		DB:         db,
-		Assets:     assets,
+		db:     db,
+		cfg:    c,
+		assets: assets,
+	}
+
+	// Create Router
+	router := gin.New()
+
+	// Add Server
+	api.httpServer = &http.Server{
+		Handler: router,
+		Addr:    (":" + c.ListenPort),
 	}
 
 	// Add Logger
-	api.Router.Use(apiLogger())
+	router.Use(apiLogger())
 
 	// Assets & Web App Templates
 	assetsDir, _ := fs.Sub(assets, "assets")
-	api.Router.StaticFS("/assets", http.FS(assetsDir))
+	router.StaticFS("/assets", http.FS(assetsDir))
 
 	// Generate Auth Token
 	var newToken []byte
@@ -78,74 +87,92 @@ func NewApi(db *database.DBManager, c *config.Config, assets *embed.FS) *API {
 		HttpOnly: c.CookieHTTPOnly,
 		SameSite: http.SameSiteStrictMode,
 	})
-	api.Router.Use(sessions.Sessions("token", store))
+	router.Use(sessions.Sessions("token", store))
 
 	// Register Web App Route
-	api.registerWebAppRoutes()
+	api.registerWebAppRoutes(router)
 
 	// Register API Routes
-	apiGroup := api.Router.Group("/api")
+	apiGroup := router.Group("/api")
 	api.registerKOAPIRoutes(apiGroup)
 	api.registerOPDSRoutes(apiGroup)
 
 	return api
 }
 
-func (api *API) registerWebAppRoutes() {
+func (api *API) Start() error {
+	return api.httpServer.ListenAndServe()
+
+}
+func (api *API) Stop() error {
+	// Stop Server
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := api.httpServer.Shutdown(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Close DB
+	return api.db.DB.Close()
+
+}
+
+func (api *API) registerWebAppRoutes(router *gin.Engine) {
 	// Generate Templates
-	api.Router.HTMLRender = *api.generateTemplates()
+	router.HTMLRender = *api.generateTemplates()
 
 	// Static Assets (Required @ Root)
-	api.Router.GET("/manifest.json", api.appWebManifest)
-	api.Router.GET("/favicon.ico", api.appFaviconIcon)
-	api.Router.GET("/sw.js", api.appServiceWorker)
+	router.GET("/manifest.json", api.appWebManifest)
+	router.GET("/favicon.ico", api.appFaviconIcon)
+	router.GET("/sw.js", api.appServiceWorker)
 
 	// Local / Offline Static Pages (No Template, No Auth)
-	api.Router.GET("/local", api.appLocalDocuments)
+	router.GET("/local", api.appLocalDocuments)
 
 	// Reader (Reader Page, Document Progress, Devices)
-	api.Router.GET("/reader", api.appDocumentReader)
-	api.Router.GET("/reader/devices", api.authWebAppMiddleware, api.appGetDevices)
-	api.Router.GET("/reader/progress/:document", api.authWebAppMiddleware, api.appGetDocumentProgress)
+	router.GET("/reader", api.appDocumentReader)
+	router.GET("/reader/devices", api.authWebAppMiddleware, api.appGetDevices)
+	router.GET("/reader/progress/:document", api.authWebAppMiddleware, api.appGetDocumentProgress)
 
 	// Web App
-	api.Router.GET("/", api.authWebAppMiddleware, api.appGetHome)
-	api.Router.GET("/activity", api.authWebAppMiddleware, api.appGetActivity)
-	api.Router.GET("/progress", api.authWebAppMiddleware, api.appGetProgress)
-	api.Router.GET("/documents", api.authWebAppMiddleware, api.appGetDocuments)
-	api.Router.GET("/documents/:document", api.authWebAppMiddleware, api.appGetDocument)
-	api.Router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.createGetCoverHandler(appErrorPage))
-	api.Router.GET("/documents/:document/file", api.authWebAppMiddleware, api.createDownloadDocumentHandler(appErrorPage))
-	api.Router.GET("/login", api.appGetLogin)
-	api.Router.GET("/logout", api.authWebAppMiddleware, api.appAuthLogout)
-	api.Router.GET("/register", api.appGetRegister)
-	api.Router.GET("/settings", api.authWebAppMiddleware, api.appGetSettings)
-	api.Router.GET("/admin/logs", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminLogs)
-	api.Router.GET("/admin/users", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminUsers)
-	api.Router.GET("/admin", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdmin)
-	api.Router.POST("/admin", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appPerformAdminAction)
-	api.Router.POST("/login", api.appAuthFormLogin)
-	api.Router.POST("/register", api.appAuthFormRegister)
+	router.GET("/", api.authWebAppMiddleware, api.appGetHome)
+	router.GET("/activity", api.authWebAppMiddleware, api.appGetActivity)
+	router.GET("/progress", api.authWebAppMiddleware, api.appGetProgress)
+	router.GET("/documents", api.authWebAppMiddleware, api.appGetDocuments)
+	router.GET("/documents/:document", api.authWebAppMiddleware, api.appGetDocument)
+	router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.createGetCoverHandler(appErrorPage))
+	router.GET("/documents/:document/file", api.authWebAppMiddleware, api.createDownloadDocumentHandler(appErrorPage))
+	router.GET("/login", api.appGetLogin)
+	router.GET("/logout", api.authWebAppMiddleware, api.appAuthLogout)
+	router.GET("/register", api.appGetRegister)
+	router.GET("/settings", api.authWebAppMiddleware, api.appGetSettings)
+	router.GET("/admin/logs", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminLogs)
+	router.GET("/admin/users", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminUsers)
+	router.GET("/admin", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdmin)
+	router.POST("/admin", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appPerformAdminAction)
+	router.POST("/login", api.appAuthFormLogin)
+	router.POST("/register", api.appAuthFormRegister)
 
 	// Demo Mode Enabled Configuration
-	if api.Config.DemoMode {
-		api.Router.POST("/documents", api.authWebAppMiddleware, api.appDemoModeError)
-		api.Router.POST("/documents/:document/delete", api.authWebAppMiddleware, api.appDemoModeError)
-		api.Router.POST("/documents/:document/edit", api.authWebAppMiddleware, api.appDemoModeError)
-		api.Router.POST("/documents/:document/identify", api.authWebAppMiddleware, api.appDemoModeError)
-		api.Router.POST("/settings", api.authWebAppMiddleware, api.appDemoModeError)
+	if api.cfg.DemoMode {
+		router.POST("/documents", api.authWebAppMiddleware, api.appDemoModeError)
+		router.POST("/documents/:document/delete", api.authWebAppMiddleware, api.appDemoModeError)
+		router.POST("/documents/:document/edit", api.authWebAppMiddleware, api.appDemoModeError)
+		router.POST("/documents/:document/identify", api.authWebAppMiddleware, api.appDemoModeError)
+		router.POST("/settings", api.authWebAppMiddleware, api.appDemoModeError)
 	} else {
-		api.Router.POST("/documents", api.authWebAppMiddleware, api.appUploadNewDocument)
-		api.Router.POST("/documents/:document/delete", api.authWebAppMiddleware, api.appDeleteDocument)
-		api.Router.POST("/documents/:document/edit", api.authWebAppMiddleware, api.appEditDocument)
-		api.Router.POST("/documents/:document/identify", api.authWebAppMiddleware, api.appIdentifyDocument)
-		api.Router.POST("/settings", api.authWebAppMiddleware, api.appEditSettings)
+		router.POST("/documents", api.authWebAppMiddleware, api.appUploadNewDocument)
+		router.POST("/documents/:document/delete", api.authWebAppMiddleware, api.appDeleteDocument)
+		router.POST("/documents/:document/edit", api.authWebAppMiddleware, api.appEditDocument)
+		router.POST("/documents/:document/identify", api.authWebAppMiddleware, api.appIdentifyDocument)
+		router.POST("/settings", api.authWebAppMiddleware, api.appEditSettings)
 	}
 
 	// Search Enabled Configuration
-	if api.Config.SearchEnabled {
-		api.Router.GET("/search", api.authWebAppMiddleware, api.appGetSearch)
-		api.Router.POST("/search", api.authWebAppMiddleware, api.appSaveNewDocument)
+	if api.cfg.SearchEnabled {
+		router.GET("/search", api.authWebAppMiddleware, api.appGetSearch)
+		router.POST("/search", api.authWebAppMiddleware, api.appSaveNewDocument)
 	}
 }
 
@@ -162,7 +189,7 @@ func (api *API) registerKOAPIRoutes(apiGroup *gin.RouterGroup) {
 	koGroup.PUT("/syncs/progress", api.authKOMiddleware, api.koSetProgress)
 
 	// Demo Mode Enabled Configuration
-	if api.Config.DemoMode {
+	if api.cfg.DemoMode {
 		koGroup.POST("/documents", api.authKOMiddleware, api.koDemoModeJSONError)
 		koGroup.POST("/syncs/documents", api.authKOMiddleware, api.koDemoModeJSONError)
 		koGroup.PUT("/documents/:document/file", api.authKOMiddleware, api.koDemoModeJSONError)
@@ -200,50 +227,50 @@ func (api *API) generateTemplates() *multitemplate.Renderer {
 	}
 
 	// Load Base
-	b, _ := api.Assets.ReadFile("templates/base.tmpl")
+	b, _ := api.assets.ReadFile("templates/base.tmpl")
 	baseTemplate := template.Must(template.New("base").Funcs(helperFuncs).Parse(string(b)))
 
 	// Load SVGs
-	svgs, _ := api.Assets.ReadDir("templates/svgs")
+	svgs, _ := api.assets.ReadDir("templates/svgs")
 	for _, item := range svgs {
 		basename := item.Name()
 		path := fmt.Sprintf("templates/svgs/%s", basename)
 		name := strings.TrimSuffix(basename, filepath.Ext(basename))
 
-		b, _ := api.Assets.ReadFile(path)
+		b, _ := api.assets.ReadFile(path)
 		baseTemplate = template.Must(baseTemplate.New("svg/" + name).Parse(string(b)))
 		templates["svg/"+name] = baseTemplate
 	}
 
 	// Load Components
-	components, _ := api.Assets.ReadDir("templates/components")
+	components, _ := api.assets.ReadDir("templates/components")
 	for _, item := range components {
 		basename := item.Name()
 		path := fmt.Sprintf("templates/components/%s", basename)
 		name := strings.TrimSuffix(basename, filepath.Ext(basename))
 
 		// Clone Base Template
-		b, _ := api.Assets.ReadFile(path)
+		b, _ := api.assets.ReadFile(path)
 		baseTemplate = template.Must(baseTemplate.New("component/" + name).Parse(string(b)))
 		render.Add("component/"+name, baseTemplate)
 		templates["component/"+name] = baseTemplate
 	}
 
 	// Load Pages
-	pages, _ := api.Assets.ReadDir("templates/pages")
+	pages, _ := api.assets.ReadDir("templates/pages")
 	for _, item := range pages {
 		basename := item.Name()
 		path := fmt.Sprintf("templates/pages/%s", basename)
 		name := strings.TrimSuffix(basename, filepath.Ext(basename))
 
 		// Clone Base Template
-		b, _ := api.Assets.ReadFile(path)
+		b, _ := api.assets.ReadFile(path)
 		pageTemplate, _ := template.Must(baseTemplate.Clone()).New("page/" + name).Parse(string(b))
 		render.Add("page/"+name, pageTemplate)
 		templates["page/"+name] = pageTemplate
 	}
 
-	api.Templates = templates
+	api.templates = templates
 
 	return &render
 }
