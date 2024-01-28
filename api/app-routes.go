@@ -1457,6 +1457,11 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	if err := api.db.Reload(); err != nil {
 		log.Panicf("Unable to reload DB: %v", err)
 	}
+
+	// Rotate Auth Hashes
+	if err := api.rotateAllAuthHashes(); err != nil {
+		log.Panicf("Unable to rotate auth hashes: %v", err)
+	}
 }
 
 func (api *API) restoreData(zipReader *zip.Reader) error {

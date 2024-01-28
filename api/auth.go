@@ -340,13 +340,62 @@ func (api *API) rotateUserAuthHash(username string) error {
 	}
 
 	// Update User
-	_, err = api.db.Queries.UpdateUser(api.db.Ctx, database.UpdateUserParams{
+	if _, err = api.db.Queries.UpdateUser(api.db.Ctx, database.UpdateUserParams{
 		UserID:   username,
 		AuthHash: fmt.Sprintf("%x", rawAuthHash),
-	})
+	}); err != nil {
+		log.Error("UpdateUser DB Error: ", err)
+		return err
+	}
 
 	// Update Cache
 	api.userAuthCache[username] = fmt.Sprintf("%x", rawAuthHash)
+
+	return nil
+}
+
+func (api *API) rotateAllAuthHashes() error {
+	// Do Transaction
+	tx, err := api.db.DB.Begin()
+	if err != nil {
+		log.Error("Transaction Begin DB Error: ", err)
+		return err
+	}
+
+	// Defer & Start Transaction
+	defer tx.Rollback()
+	qtx := api.db.Queries.WithTx(tx)
+
+	users, err := qtx.GetUsers(api.db.Ctx)
+	if err != nil {
+		return err
+	}
+
+	// Update users
+	for _, user := range users {
+		// Generate Auth Hash
+		rawAuthHash, err := utils.GenerateToken(64)
+		if err != nil {
+			return err
+		}
+
+		// Update User
+		if _, err = qtx.UpdateUser(api.db.Ctx, database.UpdateUserParams{
+			UserID:   user.ID,
+			AuthHash: fmt.Sprintf("%x", rawAuthHash),
+		}); err != nil {
+			return err
+		}
+
+		// Update Cache
+		api.userAuthCache[user.ID] = fmt.Sprintf("%x", rawAuthHash)
+	}
+
+	// Commit Transaction
+	if err := tx.Commit(); err != nil {
+		log.Error("Transaction Commit DB Error: ", err)
+		return err
+	}
 
 	return nil
 }
