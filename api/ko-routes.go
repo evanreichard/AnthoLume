@@ -20,6 +20,7 @@ import (
 	"golang.org/x/exp/slices"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
+	"reichard.io/antholume/utils"
 )
 
 type activityItem struct {
@@ -107,9 +108,18 @@ func (api *API) koCreateUser(c *gin.Context) {
 		return
 	}
 
+	// Generate Auth Hash
+	rawAuthHash, err := utils.GenerateToken(64)
+	if err != nil {
+		log.Error("Failed to generate user token: ", err)
+		apiErrorPage(c, http.StatusBadRequest, "Unknown Error")
+		return
+	}
+
 	rows, err := api.db.Queries.CreateUser(api.db.Ctx, database.CreateUserParams{
-		ID:   rUser.Username,
-		Pass: &hashedPassword,
+		ID:       rUser.Username,
+		Pass:     &hashedPassword,
+		AuthHash: fmt.Sprintf("%x", rawAuthHash),
 	})
 	if err != nil {
 		log.Error("CreateUser DB Error:", err)

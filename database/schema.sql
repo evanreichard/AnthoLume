@@ -1,6 +1,3 @@
-PRAGMA foreign_keys = ON;
-PRAGMA journal_mode = WAL;
-
 ---------------------------------------------------------------
 ------------------------ Normal Tables ------------------------
 ---------------------------------------------------------------
@@ -10,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     id TEXT NOT NULL PRIMARY KEY,
 
     pass TEXT NOT NULL,
+    auth_hash TEXT NOT NULL,
     admin BOOLEAN NOT NULL DEFAULT 0 CHECK (admin IN (0, 1)),
     time_offset TEXT NOT NULL DEFAULT '0 hours',
 

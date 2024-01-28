@@ -26,8 +26,8 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: CreateUser :execrows
-INSERT INTO users (id, pass)
-VALUES (?, ?)
+INSERT INTO users (id, pass, auth_hash)
+VALUES (?, ?, ?)
 ON CONFLICT DO NOTHING;
 
 -- name: DeleteDocument :execrows
@@ -368,6 +368,7 @@ RETURNING *;
 UPDATE users
 SET
     pass = COALESCE($password, pass),
+    auth_hash = COALESCE($auth_hash, auth_hash),
     time_offset = COALESCE($time_offset, time_offset)
 WHERE id = $user_id
 RETURNING *;

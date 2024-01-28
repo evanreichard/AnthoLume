@@ -12,12 +12,14 @@ import (
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/database"
+	"reichard.io/antholume/utils"
 )
 
 // Authorization Data
 type authData struct {
 	UserName string
 	IsAdmin  bool
+	AuthHash string
 }
 
 // KOSync API Auth Headers
@@ -41,9 +43,13 @@ func (api *API) authorizeCredentials(username string, password string) (auth *au
 		return
 	}
 
+	// Update Auth Cache
+	api.userAuthCache[user.ID] = user.AuthHash
+
 	return &authData{
 		UserName: user.ID,
 		IsAdmin:  user.Admin,
+		AuthHash: user.AuthHash,
 	}
 }
 
@@ -51,7 +57,7 @@ func (api *API) authKOMiddleware(c *gin.Context) {
 	session := sessions.Default(c)
 
 	// Check Session First
-	if auth, ok := getSession(session); ok == true {
+	if auth, ok := api.getSession(session); ok == true {
 		c.Set("Authorization", auth)
 		c.Header("Cache-Control", "private")
 		c.Next()
@@ -76,7 +82,7 @@ func (api *API) authKOMiddleware(c *gin.Context) {
 		return
 	}
 
-	if err := setSession(session, *authData); err != nil {
+	if err := api.setSession(session, *authData); err != nil {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
@@ -114,7 +120,7 @@ func (api *API) authWebAppMiddleware(c *gin.Context) {
 	session := sessions.Default(c)
 
 	// Check Session
-	if auth, ok := getSession(session); ok == true {
+	if auth, ok := api.getSession(session); ok == true {
 		c.Set("Authorization", auth)
 		c.Header("Cache-Control", "private")
 		c.Next()
@@ -163,7 +169,7 @@ func (api *API) appAuthFormLogin(c *gin.Context) {
 
 	// Set Session
 	session := sessions.Default(c)
-	if err := setSession(session, *authData); err != nil {
+	if err := api.setSession(session, *authData); err != nil {
 		templateVars["Error"] = "Invalid Credentials"
 		c.HTML(http.StatusUnauthorized, "page/login", templateVars)
 		return
@@ -199,9 +205,20 @@ func (api *API) appAuthFormRegister(c *gin.Context) {
 		return
 	}
 
+	// Generate Auth Hash
+	rawAuthHash, err := utils.GenerateToken(64)
+	if err != nil {
+		log.Error("Failed to generate user token: ", err)
+		templateVars["Error"] = "Failed to Create User"
+		c.HTML(http.StatusBadRequest, "page/login", templateVars)
+		return
+	}
+
+	// Create User in DB
 	rows, err := api.db.Queries.CreateUser(api.db.Ctx, database.CreateUserParams{
-		ID:   username,
-		Pass: &hashedPassword,
+		ID:       username,
+		Pass:     &hashedPassword,
+		AuthHash: fmt.Sprintf("%x", rawAuthHash),
 	})
 
 	// SQL Error
@@ -233,9 +250,10 @@ func (api *API) appAuthFormRegister(c *gin.Context) {
 	auth := authData{
 		UserName: user.ID,
 		IsAdmin:  user.Admin,
+		AuthHash: user.AuthHash,
 	}
 	session := sessions.Default(c)
-	if err := setSession(session, auth); err != nil {
+	if err := api.setSession(session, auth); err != nil {
 		appErrorPage(c, http.StatusUnauthorized, "Unauthorized.")
 		return
 	}
@@ -251,12 +269,13 @@ func (api *API) appAuthLogout(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/login")
 }
 
-func getSession(session sessions.Session) (auth authData, ok bool) {
-	// Check Session
+func (api *API) getSession(session sessions.Session) (auth authData, ok bool) {
+	// Get Session
 	authorizedUser := session.Get("authorizedUser")
 	isAdmin := session.Get("isAdmin")
 	expiresAt := session.Get("expiresAt")
-	if authorizedUser == nil || isAdmin == nil || expiresAt == nil {
+	authHash := session.Get("authHash")
+	if authorizedUser == nil || isAdmin == nil || expiresAt == nil || authHash == nil {
 		return
 	}
 
@@ -264,22 +283,70 @@ func getSession(session sessions.Session) (auth authData, ok bool) {
 	auth = authData{
 		UserName: authorizedUser.(string),
 		IsAdmin:  isAdmin.(bool),
+		AuthHash: authHash.(string),
+	}
+
+	// Validate Auth Hash
+	correctAuthHash, err := api.getUserAuthHash(auth.UserName)
+	if err != nil || correctAuthHash != auth.AuthHash {
+		return
 	}
 
 	// Refresh
 	if expiresAt.(int64)-time.Now().Unix() < 60*60*24 {
 		log.Info("Refreshing Session")
-		setSession(session, auth)
+		api.setSession(session, auth)
 	}
 
 	// Authorized
 	return auth, true
 }
 
-func setSession(session sessions.Session, auth authData) error {
+func (api *API) setSession(session sessions.Session, auth authData) error {
 	// Set Session Cookie
 	session.Set("authorizedUser", auth.UserName)
 	session.Set("isAdmin", auth.IsAdmin)
 	session.Set("expiresAt", time.Now().Unix()+(60*60*24*7))
+	session.Set("authHash", auth.AuthHash)
+
 	return session.Save()
+}
+
+func (api *API) getUserAuthHash(username string) (string, error) {
+	// Return Cache
+	if api.userAuthCache[username] != "" {
+		return api.userAuthCache[username], nil
+	}
+
+	// Get DB
+	user, err := api.db.Queries.GetUser(api.db.Ctx, username)
+	if err != nil {
+		log.Error("GetUser DB Error:", err)
+		return "", err
+	}
+
+	// Update Cache
+	api.userAuthCache[username] = user.AuthHash
+
+	return api.userAuthCache[username], nil
+}
+
+func (api *API) rotateUserAuthHash(username string) error {
+	// Generate Auth Hash
+	rawAuthHash, err := utils.GenerateToken(64)
+	if err != nil {
+		log.Error("Failed to generate user token: ", err)
+		return err
+	}
+
+	// Update User
+	_, err = api.db.Queries.UpdateUser(api.db.Ctx, database.UpdateUserParams{
+		UserID:   username,
+		AuthHash: fmt.Sprintf("%x", rawAuthHash),
+	})
+
+	// Update Cache
+	api.userAuthCache[username] = fmt.Sprintf("%x", rawAuthHash)
+
+	return nil
 }

@@ -1,10 +1,12 @@
 package database
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"reichard.io/antholume/config"
+	"reichard.io/antholume/utils"
 )
 
 type databaseTest struct {
@@ -42,9 +44,16 @@ func TestNewMgr(t *testing.T) {
 
 func (dt *databaseTest) TestUser() {
 	dt.Run("User", func(t *testing.T) {
+		// Generate Auth Hash
+		rawAuthHash, err := utils.GenerateToken(64)
+		if err != nil {
+			t.Fatalf(`Expected: %v, Got: %v, Error: %v`, nil, err, err)
+		}
+
 		changed, err := dt.dbm.Queries.CreateUser(dt.dbm.Ctx, CreateUserParams{
-			ID:   userID,
-			Pass: &userPass,
+			ID:       userID,
+			Pass:     &userPass,
+			AuthHash: fmt.Sprintf("%x", rawAuthHash),
 		})
 
 		if err != nil || changed != 1 {

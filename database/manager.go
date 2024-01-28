@@ -13,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	_ "modernc.org/sqlite"
 	"reichard.io/antholume/config"
+	_ "reichard.io/antholume/database/migrations"
 )
 
 type DBManager struct {
@@ -36,13 +37,15 @@ func NewMgr(c *config.Config) *DBManager {
 		cfg: c,
 	}
 
-	dbm.init()
+	if err := dbm.init(); err != nil {
+		log.Panic("Unable to init DB")
+	}
 
 	return dbm
 }
 
 // Init manager
-func (dbm *DBManager) init() {
+func (dbm *DBManager) init() error {
 	if dbm.cfg.DBType == "sqlite" || dbm.cfg.DBType == "memory" {
 		var dbLocation string = ":memory:"
 		if dbm.cfg.DBType == "sqlite" {
@@ -52,7 +55,8 @@ func (dbm *DBManager) init() {
 		var err error
 		dbm.DB, err = sql.Open("sqlite", dbLocation)
 		if err != nil {
-			log.Fatalf("Unable to open DB: %v", err)
+			log.Errorf("Unable to open DB: %v", err)
+			return err
 		}
 
 		// Single Open Connection
@@ -60,22 +64,36 @@ func (dbm *DBManager) init() {
 
 		// Execute DDL
 		if _, err := dbm.DB.Exec(ddl, nil); err != nil {
-			log.Fatalf("Error executing schema: %v", err)
+			log.Errorf("Error executing schema: %v", err)
+			return err
 		}
 
 		// Perform Migrations
 		err = dbm.performMigrations()
 		if err != nil && err != goose.ErrNoMigrationFiles {
-			log.Fatalf("Error running DB migrations: %v", err)
+			log.Errorf("Error running DB migrations: %v", err)
+			return err
+		}
+
+		// Set SQLite Settings (After Migrations)
+		pragmaQuery := `
+		  PRAGMA foreign_keys = ON;
+		  PRAGMA journal_mode = WAL;
+		`
+		if _, err := dbm.DB.Exec(pragmaQuery, nil); err != nil {
+			log.Errorf("Error executing pragma: %v", err)
+			return err
 		}
 
 		// Cache Tables
 		dbm.CacheTempTables()
 	} else {
-		log.Fatal("Unsupported Database")
+		return fmt.Errorf("unsupported database")
 	}
 
 	dbm.Queries = New(dbm.DB)
+
+	return nil
 }
 
 // Reload manager (close DB & reinit)
@@ -87,7 +105,9 @@ func (dbm *DBManager) Reload() error {
 	}
 
 	// Reinit DB
-	dbm.init()
+	if err := dbm.init(); err != nil {
+		return err
+	}
 
 	return nil
 }

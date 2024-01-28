@@ -1453,15 +1453,10 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 		return
 	}
 
-	// Close DB
-	err = api.db.DB.Close()
-	if err != nil {
-		appErrorPage(c, http.StatusInternalServerError, "Unable to close DB.")
-		log.Panic("Unable to close DB: ", err)
-	}
-
 	// Reinit DB
-	api.db.Reload()
+	if err := api.db.Reload(); err != nil {
+		log.Panicf("Unable to reload DB: %v", err)
+	}
 }
 
 func (api *API) restoreData(zipReader *zip.Reader) error {

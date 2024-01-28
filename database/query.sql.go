@@ -113,18 +113,19 @@ func (q *Queries) AddMetadata(ctx context.Context, arg AddMetadataParams) (Metad
 }
 
 const createUser = `-- name: CreateUser :execrows
-INSERT INTO users (id, pass)
-VALUES (?, ?)
+INSERT INTO users (id, pass, auth_hash)
+VALUES (?, ?, ?)
 ON CONFLICT DO NOTHING
 `
 
 type CreateUserParams struct {
-	ID   string  `json:"id"`
-	Pass *string `json:"-"`
+	ID       string  `json:"id"`
+	Pass     *string `json:"-"`
+	AuthHash string  `json:"auth_hash"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, createUser, arg.ID, arg.Pass)
+	result, err := q.db.ExecContext(ctx, createUser, arg.ID, arg.Pass, arg.AuthHash)
 	if err != nil {
 		return 0, err
 	}
@@ -954,7 +955,7 @@ func (q *Queries) GetProgress(ctx context.Context, arg GetProgressParams) ([]Get
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, pass, admin, time_offset, created_at FROM users
+SELECT id, pass, auth_hash, admin, time_offset, created_at FROM users
 WHERE id = ?1 LIMIT 1
 `
 
@@ -964,6 +965,7 @@ func (q *Queries) GetUser(ctx context.Context, userID string) (User, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.Pass,
+		&i.AuthHash,
 		&i.Admin,
 		&i.TimeOffset,
 		&i.CreatedAt,
@@ -1092,7 +1094,7 @@ func (q *Queries) GetUserStreaks(ctx context.Context, userID string) ([]UserStre
 }
 
 const getUsers = `-- name: GetUsers :many
-SELECT id, pass, admin, time_offset, created_at FROM users
+SELECT id, pass, auth_hash, admin, time_offset, created_at FROM users
 `
 
 func (q *Queries) GetUsers(ctx context.Context) ([]User, error) {
@@ -1107,6 +1109,7 @@ func (q *Queries) GetUsers(ctx context.Context) ([]User, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.Pass,
+			&i.AuthHash,
 			&i.Admin,
 			&i.TimeOffset,
 			&i.CreatedAt,
@@ -1214,23 +1217,31 @@ const updateUser = `-- name: UpdateUser :one
 UPDATE users
 SET
     pass = COALESCE(?1, pass),
-    time_offset = COALESCE(?2, time_offset)
-WHERE id = ?3
-RETURNING id, pass, admin, time_offset, created_at
+    auth_hash = COALESCE(?2, auth_hash),
+    time_offset = COALESCE(?3, time_offset)
+WHERE id = ?4
+RETURNING id, pass, auth_hash, admin, time_offset, created_at
 `
 
 type UpdateUserParams struct {
 	Password   *string `json:"-"`
+	AuthHash   string  `json:"auth_hash"`
 	TimeOffset *string `json:"time_offset"`
 	UserID     string  `json:"user_id"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, updateUser, arg.Password, arg.TimeOffset, arg.UserID)
+	row := q.db.QueryRowContext(ctx, updateUser,
+		arg.Password,
+		arg.AuthHash,
+		arg.TimeOffset,
+		arg.UserID,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Pass,
+		&i.AuthHash,
 		&i.Admin,
 		&i.TimeOffset,
 		&i.CreatedAt,

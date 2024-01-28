@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"crypto/rand"
 	"embed"
 	"fmt"
 	"html/template"
@@ -20,23 +19,26 @@ import (
 	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/config"
 	"reichard.io/antholume/database"
+	"reichard.io/antholume/utils"
 )
 
 type API struct {
-	db         *database.DBManager
-	cfg        *config.Config
-	assets     *embed.FS
-	templates  map[string]*template.Template
-	httpServer *http.Server
+	db            *database.DBManager
+	cfg           *config.Config
+	assets        *embed.FS
+	httpServer    *http.Server
+	templates     map[string]*template.Template
+	userAuthCache map[string]string
 }
 
 var htmlPolicy = bluemonday.StrictPolicy()
 
 func NewApi(db *database.DBManager, c *config.Config, assets *embed.FS) *API {
 	api := &API{
-		db:     db,
-		cfg:    c,
-		assets: assets,
+		db:            db,
+		cfg:           c,
+		assets:        assets,
+		userAuthCache: make(map[string]string),
 	}
 
 	// Create Router
@@ -63,7 +65,7 @@ func NewApi(db *database.DBManager, c *config.Config, assets *embed.FS) *API {
 		newToken = []byte(c.CookieAuthKey)
 	} else {
 		log.Info("Generating cookie auth key")
-		newToken, err = generateToken(64)
+		newToken, err = utils.GenerateToken(64)
 		if err != nil {
 			log.Panic("Unable to generate cookie auth key")
 		}
@@ -102,8 +104,8 @@ func NewApi(db *database.DBManager, c *config.Config, assets *embed.FS) *API {
 
 func (api *API) Start() error {
 	return api.httpServer.ListenAndServe()
-
 }
+
 func (api *API) Stop() error {
 	// Stop Server
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -115,7 +117,6 @@ func (api *API) Stop() error {
 
 	// Close DB
 	return api.db.DB.Close()
-
 }
 
 func (api *API) registerWebAppRoutes(router *gin.Engine) {
@@ -311,13 +312,4 @@ func apiLogger() gin.HandlerFunc {
 		// Log Result
 		log.WithFields(logData).Info(fmt.Sprintf("%s %s", c.Request.Method, c.Request.URL.Path))
 	}
-}
-
-func generateToken(n int) ([]byte, error) {
-	b := make([]byte, n)
-	_, err := rand.Read(b)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
 }

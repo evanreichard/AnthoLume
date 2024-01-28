@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"crypto/md5"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"os"
@@ -41,4 +42,14 @@ func CalculatePartialMD5(filePath string) (string, error) {
 
 	allBytes := buf.Bytes()
 	return fmt.Sprintf("%x", md5.Sum(allBytes)), nil
+}
+
+// Creates a token of n size
+func GenerateToken(n int) ([]byte, error) {
+	b := make([]byte, n)
+	_, err := rand.Read(b)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
 }
