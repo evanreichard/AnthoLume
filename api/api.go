@@ -149,11 +149,13 @@ func (api *API) registerWebAppRoutes(router *gin.Engine) {
 	router.GET("/register", api.appGetRegister)
 	router.GET("/settings", api.authWebAppMiddleware, api.appGetSettings)
 	router.GET("/admin/logs", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminLogs)
+	router.GET("/admin/import", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminImport)
+	router.POST("/admin/import", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appPerformAdminImport)
 	router.GET("/admin/users", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminUsers)
 	router.GET("/admin", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdmin)
 	router.POST("/admin", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appPerformAdminAction)
-	router.POST("/login", api.appAuthFormLogin)
-	router.POST("/register", api.appAuthFormRegister)
+	router.POST("/login", api.appAuthLogin)
+	router.POST("/register", api.appAuthRegister)
 
 	// Demo Mode Enabled Configuration
 	if api.cfg.DemoMode {
@@ -186,7 +188,7 @@ func (api *API) registerKOAPIRoutes(apiGroup *gin.RouterGroup) {
 	koGroup.GET("/users/auth", api.authKOMiddleware, api.koAuthorizeUser)
 	koGroup.POST("/activity", api.authKOMiddleware, api.koAddActivities)
 	koGroup.POST("/syncs/activity", api.authKOMiddleware, api.koCheckActivitySync)
-	koGroup.POST("/users/create", api.koCreateUser)
+	koGroup.POST("/users/create", api.koAuthRegister)
 	koGroup.PUT("/syncs/progress", api.authKOMiddleware, api.koSetProgress)
 
 	// Demo Mode Enabled Configuration

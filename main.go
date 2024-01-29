@@ -16,8 +16,9 @@ var assets embed.FS
 
 func main() {
 	app := &cli.App{
-		Name:  "AnthoLume",
-		Usage: "A self hosted e-book progress tracker.",
+		Name:                 "AnthoLume",
+		Usage:                "A self hosted e-book progress tracker.",
+		EnableBashCompletion: true,
 		Commands: []*cli.Command{
 			{
 				Name:    "serve",

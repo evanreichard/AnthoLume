@@ -13,14 +13,12 @@ import (
 	"strings"
 	"time"
 
-	argon2 "github.com/alexedwards/argon2id"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
-	"reichard.io/antholume/utils"
 )
 
 type activityItem struct {
@@ -79,63 +77,6 @@ type requestDocumentID struct {
 func (api *API) koAuthorizeUser(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"authorized": "OK",
-	})
-}
-
-func (api *API) koCreateUser(c *gin.Context) {
-	if !api.cfg.RegistrationEnabled {
-		c.AbortWithStatus(http.StatusConflict)
-		return
-	}
-
-	var rUser requestUser
-	if err := c.ShouldBindJSON(&rUser); err != nil {
-		log.Error("Invalid JSON Bind")
-		apiErrorPage(c, http.StatusBadRequest, "Invalid User Data")
-		return
-	}
-
-	if rUser.Username == "" || rUser.Password == "" {
-		log.Error("Invalid User - Empty Username or Password")
-		apiErrorPage(c, http.StatusBadRequest, "Invalid User Data")
-		return
-	}
-
-	hashedPassword, err := argon2.CreateHash(rUser.Password, argon2.DefaultParams)
-	if err != nil {
-		log.Error("Argon2 Hash Failure:", err)
-		apiErrorPage(c, http.StatusBadRequest, "Unknown Error")
-		return
-	}
-
-	// Generate Auth Hash
-	rawAuthHash, err := utils.GenerateToken(64)
-	if err != nil {
-		log.Error("Failed to generate user token: ", err)
-		apiErrorPage(c, http.StatusBadRequest, "Unknown Error")
-		return
-	}
-
-	rows, err := api.db.Queries.CreateUser(api.db.Ctx, database.CreateUserParams{
-		ID:       rUser.Username,
-		Pass:     &hashedPassword,
-		AuthHash: fmt.Sprintf("%x", rawAuthHash),
-	})
-	if err != nil {
-		log.Error("CreateUser DB Error:", err)
-		apiErrorPage(c, http.StatusBadRequest, "Invalid User Data")
-		return
-	}
-
-	// User Exists
-	if rows == 0 {
-		log.Error("User Already Exists:", rUser.Username)
-		apiErrorPage(c, http.StatusBadRequest, "User Already Exists")
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"username": rUser.Username,
 	})
 }
 

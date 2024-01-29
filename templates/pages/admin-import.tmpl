@@ -1,0 +1,76 @@
+{{ template "base" . }}
+{{ define "title" }}Admin - Import{{ end }}
+{{ define "header" }}<a class="whitespace-pre" href="../admin">Admin - Import</a>{{ end }}
+{{ define "content" }}
+<div class="overflow-x-auto">
+  <div class="inline-block min-w-full overflow-hidden rounded shadow">
+    {{ if .SelectedDirectory }}
+    <div class="flex flex-col grow gap-2 p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white">
+      <p class="text-lg font-semibold text-gray-500">Selected Import Directory</p>
+      <form class="flex gap-4 flex-col" action="./import" method="POST">
+        <input type="text" name="directory" value="{{ .SelectedDirectory }}" class="hidden" />
+        <div class="flex justify-between gap-4 w-full">
+          <div class="flex gap-4 items-center">
+            <span>{{ template "svg/import" }}</span>
+            <p class="font-medium text-lg break-all">{{ .SelectedDirectory }}</p>
+          </div>
+          <div class="flex flex-col justify-around gap-2 mr-4">
+            <div class="inline-flex gap-2 items-center">
+              <input checked type="radio" id="copy" name="type" value="COPY" />
+              <label for="copy">Copy</label>
+            </div>
+            <div class="inline-flex gap-2 items-center">
+              <input type="radio" id="direct" name="type" value="DIRECT" />
+              <label for="direct">Direct</label>
+            </div>
+          </div>
+        </div>
+        <button type="submit"
+                class="px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
+          <span class="w-full">Import Directory</span>
+        </button>
+      </form>
+    </div>
+    {{ end }}
+    {{ if not .SelectedDirectory }}
+    <table class="min-w-full leading-normal bg-white dark:bg-gray-700 text-sm">
+      <thead class="text-gray-800 dark:text-gray-400">
+        <tr>
+          <th class="p-3 font-normal text-left border-b border-gray-200 dark:border-gray-800 w-12"></th>
+          <th class="p-3 font-normal text-left border-b border-gray-200 dark:border-gray-800 break-all">{{ .CurrentPath }}</th>
+        </tr>
+      </thead>
+      <tbody class="text-black dark:text-white">
+        {{ if not (eq .CurrentPath "/") }}
+        <tr>
+          <td class="p-3 border-b border-gray-200 text-gray-800 dark:text-gray-400"></td>
+          <td class="p-3 border-b border-gray-200">
+            <a href="./import?directory={{$.CurrentPath}}/../">
+              <p>../</p>
+            </a>
+          </td>
+        </tr>
+        {{ end }}
+        {{ if not .Data }}
+        <tr>
+          <td class="text-center p-3" colspan="2">No Folder</td>
+        </tr>
+        {{ end }}
+        {{ range $item := .Data }}
+        <tr>
+          <td class="p-3 border-b border-gray-200 text-gray-800 dark:text-gray-400">
+            <a href="./import?select={{ $.CurrentPath }}/{{ $item }}">{{ template "svg/import" }}</a>
+          </td>
+          <td class="p-3 border-b border-gray-200">
+            <a href="./import?directory={{ $.CurrentPath }}/{{ $item }}">
+              <p>{{ $item }}</p>
+            </a>
+          </td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+    {{ end }}
+  </div>
+</div>
+{{ end }}

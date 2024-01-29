@@ -146,7 +146,7 @@ func (api *API) authAdminWebAppMiddleware(c *gin.Context) {
 	return
 }
 
-func (api *API) appAuthFormLogin(c *gin.Context) {
+func (api *API) appAuthLogin(c *gin.Context) {
 	templateVars, _ := api.getBaseTemplateVars("login", c)
 
 	username := strings.TrimSpace(c.PostForm("username"))
@@ -179,7 +179,7 @@ func (api *API) appAuthFormLogin(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/")
 }
 
-func (api *API) appAuthFormRegister(c *gin.Context) {
+func (api *API) appAuthRegister(c *gin.Context) {
 	if !api.cfg.RegistrationEnabled {
 		appErrorPage(c, http.StatusUnauthorized, "Nice try. Registration is disabled.")
 		return
@@ -267,6 +267,63 @@ func (api *API) appAuthLogout(c *gin.Context) {
 	session.Clear()
 	session.Save()
 	c.Redirect(http.StatusFound, "/login")
+}
+
+func (api *API) koAuthRegister(c *gin.Context) {
+	if !api.cfg.RegistrationEnabled {
+		c.AbortWithStatus(http.StatusConflict)
+		return
+	}
+
+	var rUser requestUser
+	if err := c.ShouldBindJSON(&rUser); err != nil {
+		log.Error("Invalid JSON Bind")
+		apiErrorPage(c, http.StatusBadRequest, "Invalid User Data")
+		return
+	}
+
+	if rUser.Username == "" || rUser.Password == "" {
+		log.Error("Invalid User - Empty Username or Password")
+		apiErrorPage(c, http.StatusBadRequest, "Invalid User Data")
+		return
+	}
+
+	hashedPassword, err := argon2.CreateHash(rUser.Password, argon2.DefaultParams)
+	if err != nil {
+		log.Error("Argon2 Hash Failure:", err)
+		apiErrorPage(c, http.StatusBadRequest, "Unknown Error")
+		return
+	}
+
+	// Generate Auth Hash
+	rawAuthHash, err := utils.GenerateToken(64)
+	if err != nil {
+		log.Error("Failed to generate user token: ", err)
+		apiErrorPage(c, http.StatusBadRequest, "Unknown Error")
+		return
+	}
+
+	rows, err := api.db.Queries.CreateUser(api.db.Ctx, database.CreateUserParams{
+		ID:       rUser.Username,
+		Pass:     &hashedPassword,
+		AuthHash: fmt.Sprintf("%x", rawAuthHash),
+	})
+	if err != nil {
+		log.Error("CreateUser DB Error:", err)
+		apiErrorPage(c, http.StatusBadRequest, "Invalid User Data")
+		return
+	}
+
+	// User Exists
+	if rows == 0 {
+		log.Error("User Already Exists:", rUser.Username)
+		apiErrorPage(c, http.StatusBadRequest, "User Already Exists")
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"username": rUser.Username,
+	})
 }
 
 func (api *API) getSession(session sessions.Session) (auth authData, ok bool) {
