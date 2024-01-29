@@ -44,12 +44,12 @@ func (api *API) authorizeCredentials(username string, password string) (auth *au
 	}
 
 	// Update Auth Cache
-	api.userAuthCache[user.ID] = user.AuthHash
+	api.userAuthCache[user.ID] = *user.AuthHash
 
 	return &authData{
 		UserName: user.ID,
 		IsAdmin:  user.Admin,
-		AuthHash: user.AuthHash,
+		AuthHash: *user.AuthHash,
 	}
 }
 
@@ -215,10 +215,11 @@ func (api *API) appAuthRegister(c *gin.Context) {
 	}
 
 	// Create User in DB
+	authHash := fmt.Sprintf("%x", rawAuthHash)
 	rows, err := api.db.Queries.CreateUser(api.db.Ctx, database.CreateUserParams{
 		ID:       username,
 		Pass:     &hashedPassword,
-		AuthHash: fmt.Sprintf("%x", rawAuthHash),
+		AuthHash: &authHash,
 	})
 
 	// SQL Error
@@ -250,7 +251,7 @@ func (api *API) appAuthRegister(c *gin.Context) {
 	auth := authData{
 		UserName: user.ID,
 		IsAdmin:  user.Admin,
-		AuthHash: user.AuthHash,
+		AuthHash: *user.AuthHash,
 	}
 	session := sessions.Default(c)
 	if err := api.setSession(session, auth); err != nil {
@@ -303,10 +304,11 @@ func (api *API) koAuthRegister(c *gin.Context) {
 		return
 	}
 
+	authHash := fmt.Sprintf("%x", rawAuthHash)
 	rows, err := api.db.Queries.CreateUser(api.db.Ctx, database.CreateUserParams{
 		ID:       rUser.Username,
 		Pass:     &hashedPassword,
-		AuthHash: fmt.Sprintf("%x", rawAuthHash),
+		AuthHash: &authHash,
 	})
 	if err != nil {
 		log.Error("CreateUser DB Error:", err)
@@ -383,7 +385,7 @@ func (api *API) getUserAuthHash(username string) (string, error) {
 	}
 
 	// Update Cache
-	api.userAuthCache[username] = user.AuthHash
+	api.userAuthCache[username] = *user.AuthHash
 
 	return api.userAuthCache[username], nil
 }
@@ -397,9 +399,10 @@ func (api *API) rotateUserAuthHash(username string) error {
 	}
 
 	// Update User
+	authHash := fmt.Sprintf("%x", rawAuthHash)
 	if _, err = api.db.Queries.UpdateUser(api.db.Ctx, database.UpdateUserParams{
 		UserID:   username,
-		AuthHash: fmt.Sprintf("%x", rawAuthHash),
+		AuthHash: &authHash,
 	}); err != nil {
 		log.Error("UpdateUser DB Error: ", err)
 		return err
@@ -437,9 +440,10 @@ func (api *API) rotateAllAuthHashes() error {
 		}
 
 		// Update User
+		authHash := fmt.Sprintf("%x", rawAuthHash)
 		if _, err = qtx.UpdateUser(api.db.Ctx, database.UpdateUserParams{
 			UserID:   user.ID,
-			AuthHash: fmt.Sprintf("%x", rawAuthHash),
+			AuthHash: &authHash,
 		}); err != nil {
 			return err
 		}

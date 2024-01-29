@@ -121,7 +121,7 @@ ON CONFLICT DO NOTHING
 type CreateUserParams struct {
 	ID       string  `json:"id"`
 	Pass     *string `json:"-"`
-	AuthHash string  `json:"auth_hash"`
+	AuthHash *string `json:"auth_hash"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (int64, error) {
@@ -1225,7 +1225,7 @@ RETURNING id, pass, auth_hash, admin, time_offset, created_at
 
 type UpdateUserParams struct {
 	Password   *string `json:"-"`
-	AuthHash   string  `json:"auth_hash"`
+	AuthHash   *string `json:"auth_hash"`
 	TimeOffset *string `json:"time_offset"`
 	UserID     string  `json:"user_id"`
 }

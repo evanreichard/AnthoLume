@@ -123,6 +123,10 @@ sql:
             go_type:
               type: "string"
               pointer: true
+          - column: "users.auth_hash"
+            go_type:
+              type: "string"
+              pointer: true
 
           # Override Time
           - db_type: "DATETIME"

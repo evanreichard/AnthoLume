@@ -50,10 +50,11 @@ func (dt *databaseTest) TestUser() {
 			t.Fatalf(`Expected: %v, Got: %v, Error: %v`, nil, err, err)
 		}
 
+		authHash := fmt.Sprintf("%x", rawAuthHash)
 		changed, err := dt.dbm.Queries.CreateUser(dt.dbm.Ctx, CreateUserParams{
 			ID:       userID,
 			Pass:     &userPass,
-			AuthHash: fmt.Sprintf("%x", rawAuthHash),
+			AuthHash: &authHash,
 		})
 
 		if err != nil || changed != 1 {
