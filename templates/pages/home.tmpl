@@ -4,63 +4,40 @@
 {{ define "content" }}
 <div class="flex flex-col gap-4">
   <div class="w-full">
-    <div class="relative w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded">
-      <p class="absolute top-3 text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500">
+    <div class="relative w-full bg-white shadow-lg dark:bg-gray-700 rounded">
+      <p class="absolute top-3 left-5 text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500">
         Daily Read Totals
       </p>
       {{ $data := (getSVGGraphData .Data.GraphData 800 70 )}}
-      <svg viewBox="26 0 755 {{ $data.Height }}"
-           preserveAspectRatio="none"
-           width="100%"
-           height="4em">
-        <!-- Bezier Line Graph -->
-        <path fill="#316BBE" fill-opacity="0.5" stroke="none" d="{{ $data.BezierPath }} {{ $data.BezierFill }}" />
-        <path fill="none" stroke="#316BBE" d="{{ $data.BezierPath }}" />
-        {{ range $index, $item := $data.LinePoints }}
-        <line class="hover-trigger" stroke="black" stroke-opacity="0.0" stroke-width="{{ $data.Offset }}" x1="{{ $item.X }}" x2="{{ $item.X }}" y1="0" y2="{{ $data.Height }}"></line>
-        <g class="hover-item">
-        <line class="text-black dark:text-white" stroke-opacity="0.2" x1="{{ $item.X }}" x2="{{ $item.X }}" y1="30" y2="{{ $data.Height }}"></line>
-        <text class="text-black dark:text-white" alignment-baseline="middle" transform="translate({{ $item.X }}, 5) translate(-30, 8)" font-size="10">
-        {{ (index $.Data.GraphData $index).Date }}
-        </text>
-        <text class="text-black dark:text-white" alignment-baseline="middle" transform="translate({{ $item.X }}, 25) translate(-30, -2)" font-size="10">
-        {{ (index $.Data.GraphData $index).MinutesRead }} minutes
-        </text>
-        </g>
-        {{ end }}
-      </svg>
-      <style>
-        /* Interactive Hover */
-        .hover-item {
-          visibility: hidden;
-          opacity: 0;
-        }
-
-        .hover-trigger:hover+.hover-item,
-        .hover-item:hover {
-          visibility: visible;
-          opacity: 1;
-        }
-
-        /* SVG Component Styling */
-        svg text.text-black {
-          fill: black;
-        }
-
-        svg line.text-black {
-          stroke: black;
-        }
-
-        @media (prefers-color-scheme: dark) {
-          svg text.dark\:text-white {
-            fill: white;
-          }
-
-          svg line.dark\:text-white {
-            stroke: white;
-          }
-        }
-      </style>
+      <div class="relative">
+        <svg viewBox="26 0 755 {{ $data.Height }}"
+             preserveAspectRatio="none"
+             width="100%"
+             height="6em">
+          <!-- Bezier Line Graph -->
+          <path fill="#316BBE" fill-opacity="0.5" stroke="none" d="{{ $data.BezierPath }} {{ $data.BezierFill }}" />
+          <path fill="none" stroke="#316BBE" d="{{ $data.BezierPath }}" />
+        </svg>
+        <div class="flex absolute w-full h-full top-0"
+             style="width: calc(100%*31/30);
+                    transform: translateX(-50%);
+                    left: 50%">
+          {{ range $index, $item := $data.LinePoints }}
+          <!-- Required for iOS "Hover" Events (onclick) -->
+          <div onclick
+               class="opacity-0 hover:opacity-100 w-full"
+               style="background: linear-gradient(rgba(128, 128, 128, 0.5), rgba(128, 128, 128, 0.5)) no-repeat center/2px 100%">
+            <div class="flex flex-col items-center p-2 rounded absolute top-3 dark:text-white text-xs pointer-events-none"
+                 style="transform: translateX(-50%);
+                        background-color: rgba(128, 128, 128, 0.2);
+                        left: 50%">
+              <span>{{ (index $.Data.GraphData $index).Date }}</span>
+              <span>{{ (index $.Data.GraphData $index).MinutesRead }} minutes</span>
+            </div>
+          </div>
+          {{ end }}
+        </div>
+      </div>
     </div>
   </div>
   <div class="grid grid-cols-2 gap-4 md:grid-cols-4">

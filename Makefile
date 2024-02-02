@@ -29,6 +29,16 @@ docker_build_release_latest: build_tailwind
 build_tailwind:
 	tailwind build -o ./assets/style.css --minify
 
+dev: build_tailwind
+	GIN_MODE=release \
+	CONFIG_PATH=./data \
+	DATA_PATH=./data \
+	SEARCH_ENABLED=true \
+	REGISTRATION_ENABLED=true \
+	COOKIE_SECURE=false \
+	COOKIE_AUTH_KEY=1234 \
+	LOG_LEVEL=debug go run main.go serve
+
 clean:
 	rm -rf ./build
 
