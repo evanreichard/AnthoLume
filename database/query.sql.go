@@ -1213,6 +1213,33 @@ func (q *Queries) UpdateProgress(ctx context.Context, arg UpdateProgressParams) 
 	return i, err
 }
 
+const updateSettings = `-- name: UpdateSettings :one
+INSERT INTO settings (name, value)
+VALUES (?, ?)
+ON CONFLICT DO UPDATE
+SET
+    name = COALESCE(excluded.name, name),
+    value = COALESCE(excluded.value, value)
+RETURNING id, name, value, created_at
+`
+
+type UpdateSettingsParams struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+func (q *Queries) UpdateSettings(ctx context.Context, arg UpdateSettingsParams) (Setting, error) {
+	row := q.db.QueryRowContext(ctx, updateSettings, arg.Name, arg.Value)
+	var i Setting
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Value,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const updateUser = `-- name: UpdateUser :one
 UPDATE users
 SET

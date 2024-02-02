@@ -93,6 +93,13 @@ type Metadatum struct {
 	CreatedAt   string  `json:"created_at"`
 }
 
+type Setting struct {
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	Value     string `json:"value"`
+	CreatedAt string `json:"created_at"`
+}
+
 type User struct {
 	ID         string  `json:"id"`
 	Pass       *string `json:"-"`

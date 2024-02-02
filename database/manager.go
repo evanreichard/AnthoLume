@@ -46,52 +46,59 @@ func NewMgr(c *config.Config) *DBManager {
 
 // Init manager
 func (dbm *DBManager) init() error {
-	if dbm.cfg.DBType == "sqlite" || dbm.cfg.DBType == "memory" {
-		var dbLocation string = ":memory:"
-		if dbm.cfg.DBType == "sqlite" {
-			dbLocation = filepath.Join(dbm.cfg.ConfigPath, fmt.Sprintf("%s.db", dbm.cfg.DBName))
-		}
-
-		var err error
-		dbm.DB, err = sql.Open("sqlite", dbLocation)
-		if err != nil {
-			log.Errorf("Unable to open DB: %v", err)
-			return err
-		}
-
-		// Single Open Connection
-		dbm.DB.SetMaxOpenConns(1)
-
-		// Execute DDL
-		if _, err := dbm.DB.Exec(ddl, nil); err != nil {
-			log.Errorf("Error executing schema: %v", err)
-			return err
-		}
-
-		// Perform Migrations
-		err = dbm.performMigrations()
-		if err != nil && err != goose.ErrNoMigrationFiles {
-			log.Errorf("Error running DB migrations: %v", err)
-			return err
-		}
-
-		// Set SQLite Settings (After Migrations)
-		pragmaQuery := `
-		  PRAGMA foreign_keys = ON;
-		  PRAGMA journal_mode = WAL;
-		`
-		if _, err := dbm.DB.Exec(pragmaQuery, nil); err != nil {
-			log.Errorf("Error executing pragma: %v", err)
-			return err
-		}
-
-		// Cache Tables
-		dbm.CacheTempTables()
-	} else {
+	// Build DB Location
+	var dbLocation string
+	switch dbm.cfg.DBType {
+	case "sqlite":
+		dbLocation = filepath.Join(dbm.cfg.ConfigPath, fmt.Sprintf("%s.db", dbm.cfg.DBName))
+	case "memory":
+		dbLocation = ":memory:"
+	default:
 		return fmt.Errorf("unsupported database")
 	}
 
+	var err error
+	dbm.DB, err = sql.Open("sqlite", dbLocation)
+	if err != nil {
+		log.Panicf("Unable to open DB: %v", err)
+		return err
+	}
+
+	// Single open connection
+	dbm.DB.SetMaxOpenConns(1)
+
+	// Check if DB is new
+	isNew, err := isEmpty(dbm.DB)
+	if err != nil {
+		log.Panicf("Unable to determine db info: %v", err)
+		return err
+	}
+
+	// Init SQLc
 	dbm.Queries = New(dbm.DB)
+
+	// Execute schema
+	if _, err := dbm.DB.Exec(ddl, nil); err != nil {
+		log.Panicf("Error executing schema: %v", err)
+		return err
+	}
+
+	// Perform migrations
+	err = dbm.performMigrations(isNew)
+	if err != nil && err != goose.ErrNoMigrationFiles {
+		log.Panicf("Error running DB migrations: %v", err)
+		return err
+	}
+
+	// Update settings
+	err = dbm.updateSettings()
+	if err != nil {
+		log.Panicf("Error running DB settings update: %v", err)
+		return err
+	}
+
+	// Cache tables
+	go dbm.CacheTempTables()
 
 	return nil
 }
@@ -136,12 +143,50 @@ func (dbm *DBManager) CacheTempTables() error {
 	return nil
 }
 
-func (dbm *DBManager) performMigrations() error {
-	// Set DB Migration
+func (dbm *DBManager) updateSettings() error {
+	// Set SQLite PRAGMA Settings
+	pragmaQuery := `
+		  PRAGMA foreign_keys = ON;
+		  PRAGMA journal_mode = WAL;
+		`
+	if _, err := dbm.DB.Exec(pragmaQuery, nil); err != nil {
+		log.Errorf("Error executing pragma: %v", err)
+		return err
+	}
+
+	// Update Antholume Version in DB
+	if _, err := dbm.Queries.UpdateSettings(dbm.Ctx, UpdateSettingsParams{
+		Name:  "version",
+		Value: dbm.cfg.Version,
+	}); err != nil {
+		log.Errorf("Error updating DB settings: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+func (dbm *DBManager) performMigrations(isNew bool) error {
+	// Create context
+	ctx := context.WithValue(context.Background(), "isNew", isNew)
+
+	// Set DB migration
 	goose.SetBaseFS(migrations)
 
-	// Run Migrations
+	// Run migrations
 	goose.SetLogger(log.StandardLogger())
-	goose.SetDialect("sqlite")
-	return goose.Up(dbm.DB, "migrations")
+	if err := goose.SetDialect("sqlite"); err != nil {
+		return err
+	}
+
+	return goose.UpContext(ctx, dbm.DB, "migrations")
+}
+
+func isEmpty(db *sql.DB) (bool, error) {
+	var tableCount int
+	err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table';").Scan(&tableCount)
+	if err != nil {
+		return false, err
+	}
+	return tableCount == 0, nil
 }

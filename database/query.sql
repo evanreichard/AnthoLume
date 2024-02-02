@@ -373,6 +373,15 @@ SET
 WHERE id = $user_id
 RETURNING *;
 
+-- name: UpdateSettings :one
+INSERT INTO settings (name, value)
+VALUES (?, ?)
+ON CONFLICT DO UPDATE
+SET
+    name = COALESCE(excluded.name, name),
+    value = COALESCE(excluded.value, value)
+RETURNING *;
+
 -- name: UpsertDevice :one
 INSERT INTO devices (id, user_id, last_synced, device_name)
 VALUES (?, ?, ?, ?)

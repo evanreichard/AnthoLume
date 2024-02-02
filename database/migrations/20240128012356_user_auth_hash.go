@@ -14,16 +14,14 @@ func init() {
 }
 
 func upUserAuthHash(ctx context.Context, tx *sql.Tx) error {
-	// Validate column doesn't already exist
-	hasCol, err := hasColumn(tx, "users", "auth_hash")
-	if err != nil {
-		return err
-	} else if hasCol {
+	// Determine if we have a new DB or not
+	isNew := ctx.Value("isNew").(bool)
+	if isNew {
 		return nil
 	}
 
 	// Copy table & create column
-	_, err = tx.Exec(`
+	_, err := tx.Exec(`
 	  -- Create Copy Table
 	  CREATE TABLE temp_users AS SELECT * FROM users;
 	  ALTER TABLE temp_users ADD COLUMN auth_hash TEXT;

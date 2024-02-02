@@ -77,6 +77,7 @@ func (api *API) appPerformAdminAction(c *gin.Context) {
 		go api.db.CacheTempTables()
 	case adminRestore:
 		api.processRestoreFile(rAdminAction, c)
+		return
 	case adminBackup:
 		// Vacuum
 		_, err := api.db.DB.ExecContext(api.db.Ctx, "VACUUM;")
@@ -202,7 +203,7 @@ func (api *API) appGetAdminLogs(c *gin.Context) {
 	}
 
 	templateVars["Data"] = logLines
-	templateVars["Filter"] = strings.TrimSpace(rAdminLogs.Filter)
+	templateVars["Filter"] = rAdminLogs.Filter
 
 	c.HTML(http.StatusOK, "page/admin-logs", templateVars)
 }
@@ -414,18 +415,22 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	if err != nil {
 		appErrorPage(c, http.StatusInternalServerError, "Unable to restore data.")
 		log.Panic("Unable to restore data: ", err)
-		return
 	}
 
 	// Reinit DB
 	if err := api.db.Reload(); err != nil {
+		appErrorPage(c, http.StatusInternalServerError, "Unable to reload DB.")
 		log.Panicf("Unable to reload DB: %v", err)
 	}
 
 	// Rotate Auth Hashes
 	if err := api.rotateAllAuthHashes(); err != nil {
+		appErrorPage(c, http.StatusInternalServerError, "Unable to rotate hashes.")
 		log.Panicf("Unable to rotate auth hashes: %v", err)
 	}
+
+	// Redirect to login page
+	c.Redirect(http.StatusFound, "/login")
 }
 
 func (api *API) restoreData(zipReader *zip.Reader) error {
@@ -453,8 +458,6 @@ func (api *API) restoreData(zipReader *zip.Reader) error {
 			fmt.Println("Error copying file contents:", err)
 			return err
 		}
-
-		fmt.Printf("Extracted: %s\n", destPath)
 	}
 
 	return nil

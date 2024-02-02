@@ -141,7 +141,7 @@ class EBookReader {
       return "00000000000000000000000000000000".replace(/[018]/g, (c) =>
         (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4))))
           .toString(16)
-          .toUpperCase()
+          .toUpperCase(),
       );
     }
 
@@ -244,7 +244,7 @@ class EBookReader {
   initThemes() {
     // Register Themes
     THEMES.forEach((theme) =>
-      this.rendition.themes.register(theme, THEME_FILE)
+      this.rendition.themes.register(theme, THEME_FILE),
     );
 
     let themeLinkEl = document.createElement("link");
@@ -270,12 +270,12 @@ class EBookReader {
         // Set Fonts
         this.rendition.getContents().forEach((c) => {
           let el = c.document.head.appendChild(
-            c.document.createElement("link")
+            c.document.createElement("link"),
           );
           el.setAttribute("rel", "stylesheet");
           el.setAttribute("href", "/assets/reader/fonts.css");
         });
-      }.bind(this)
+      }.bind(this),
     );
   }
 
@@ -304,7 +304,7 @@ class EBookReader {
     let themeColorEl = document.querySelector("[name='theme-color']");
     let themeStyleSheet = document.querySelector("#themes").sheet;
     let themeStyleRule = Array.from(themeStyleSheet.cssRules).find(
-      (item) => item.selectorText == "." + colorScheme
+      (item) => item.selectorText == "." + colorScheme,
     );
 
     // Match Reader Theme
@@ -318,13 +318,13 @@ class EBookReader {
       // Set Font Family
       item.document.documentElement.style.setProperty(
         "--editor-font-family",
-        fontFamily
+        fontFamily,
       );
 
       // Set Font Size
       item.document.documentElement.style.setProperty(
         "--editor-font-size",
-        fontSize + "em"
+        fontSize + "em",
       );
 
       // Set Highlight Style
@@ -357,7 +357,7 @@ class EBookReader {
 
     // Compute Style
     let backgroundColor = getComputedStyle(
-      this.bookState.progressElement.ownerDocument.body
+      this.bookState.progressElement.ownerDocument.body,
     ).backgroundColor;
 
     // Set Style
@@ -438,7 +438,7 @@ class EBookReader {
           touchStartX = event.changedTouches[0].screenX;
           touchStartY = event.changedTouches[0].screenY;
         },
-        false
+        false,
       );
 
       renderDoc.addEventListener(
@@ -448,7 +448,7 @@ class EBookReader {
           touchEndY = event.changedTouches[0].screenY;
           handleGesture(event);
         },
-        false
+        false,
       );
 
       function handleGesture(event) {
@@ -512,7 +512,7 @@ class EBookReader {
             bottomBar.classList.remove("bottom-0");
             topBar.classList.remove("top-0");
           }
-        }.bind(this)
+        }.bind(this),
       );
 
       renderDoc.addEventListener(
@@ -526,7 +526,7 @@ class EBookReader {
             handleSwipeDown();
             return true;
           }
-        }, 400)
+        }, 400),
       );
 
       function handleSwipeDown() {
@@ -560,7 +560,7 @@ class EBookReader {
           // "t" Key (Theme Cycle)
           if ((e.keyCode || e.which) == 84) {
             let currentThemeIdx = THEMES.indexOf(
-              readerSettings.theme.colorScheme
+              readerSettings.theme.colorScheme,
             );
             let colorScheme =
               THEMES.length == currentThemeIdx + 1
@@ -569,7 +569,7 @@ class EBookReader {
             setTheme({ colorScheme });
           }
         },
-        false
+        false,
       );
     });
   }
@@ -601,7 +601,7 @@ class EBookReader {
         // "t" Key (Theme Cycle)
         if ((e.keyCode || e.which) == 84) {
           let currentThemeIdx = THEMES.indexOf(
-            this.readerSettings.theme.colorScheme
+            this.readerSettings.theme.colorScheme,
           );
           let colorScheme =
             THEMES.length == currentThemeIdx + 1
@@ -610,7 +610,7 @@ class EBookReader {
           this.setTheme({ colorScheme });
         }
       }.bind(this),
-      false
+      false,
     );
 
     // Color Scheme Switcher
@@ -621,9 +621,9 @@ class EBookReader {
           function (event) {
             let colorScheme = event.target.innerText;
             this.setTheme({ colorScheme });
-          }.bind(this)
+          }.bind(this),
         );
-      }.bind(this)
+      }.bind(this),
     );
 
     // Font Switcher
@@ -638,9 +638,9 @@ class EBookReader {
             this.setTheme({ fontFamily });
 
             this.setPosition(cfi);
-          }.bind(this)
+          }.bind(this),
         );
-      }.bind(this)
+      }.bind(this),
     );
 
     // Font Size
@@ -663,9 +663,9 @@ class EBookReader {
 
             // Restore CFI
             this.setPosition(cfi);
-          }.bind(this)
+          }.bind(this),
         );
-      }.bind(this)
+      }.bind(this),
     );
 
     // Close Top Bar
@@ -752,7 +752,7 @@ class EBookReader {
     if (pageWPM >= WPM_MAX)
       return console.log(
         "[createActivity] Page WPM Exceeds Max (2000):",
-        pageWPM
+        pageWPM,
       );
 
     // Ensure WPM Minimum
@@ -765,7 +765,7 @@ class EBookReader {
       return console.warn("[createActivity] Invalid Total Pages (0)");
 
     let currentPage = Math.round(
-      (currentWord * totalPages) / this.bookState.words
+      (currentWord * totalPages) / this.bookState.words,
     );
 
     // Create Activity Event
@@ -819,7 +819,7 @@ class EBookReader {
         response: r,
         json: await r.json(),
         data: activityEvent,
-      })
+      }),
     );
   }
 
@@ -880,7 +880,7 @@ class EBookReader {
         response: r,
         json: await r.json(),
         data: progressEvent,
-      })
+      }),
     );
   }
 
@@ -916,7 +916,7 @@ class EBookReader {
     let currentWord = await this.getBookWordPosition();
 
     let currentTOC = this.book.navigation.toc.find(
-      (item) => item.href == currentLocation.start.href
+      (item) => item.href == currentLocation.start.href,
     );
 
     return {
@@ -953,7 +953,7 @@ class EBookReader {
     let startCFI = cfi.replace("epubcfi(", "");
     let docFragmentIndex =
       this.book.spine.spineItems.find((item) =>
-        startCFI.startsWith(item.cfiBase)
+        startCFI.startsWith(item.cfiBase),
       ).index + 1;
 
     // Base Progress
@@ -1101,7 +1101,7 @@ class EBookReader {
         } else {
           return null;
         }
-      }
+      },
     );
 
     /**
@@ -1146,7 +1146,7 @@ class EBookReader {
 
     // Get CFI Range
     let firstCFI = spineItem.cfiFromElement(
-      spineItem.document.body.children[0]
+      spineItem.document.body.children[0],
     );
     let currentLocation = await this.rendition.currentLocation();
     let cfiRange = this.getCFIRange(firstCFI, currentLocation.start.cfi);
@@ -1247,7 +1247,7 @@ class EBookReader {
         let spineWords = newDoc.innerText.trim().split(/\s+/).length;
         item.wordCount = spineWords;
         return spineWords;
-      })
+      }),
     );
 
     return spineWC.reduce((totalCount, itemCount) => totalCount + itemCount, 0);
@@ -1266,7 +1266,7 @@ class EBookReader {
    **/
   loadSettings() {
     this.readerSettings = JSON.parse(
-      localStorage.getItem("readerSettings") || "{}"
+      localStorage.getItem("readerSettings") || "{}",
     );
   }
 }

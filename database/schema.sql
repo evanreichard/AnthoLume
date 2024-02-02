@@ -44,7 +44,6 @@ CREATE TABLE IF NOT EXISTS documents (
 -- Metadata
 CREATE TABLE IF NOT EXISTS metadata (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-
     document_id TEXT NOT NULL,
 
     title TEXT,
@@ -106,6 +105,16 @@ CREATE TABLE IF NOT EXISTS activity (
     FOREIGN KEY (user_id) REFERENCES users (id),
     FOREIGN KEY (document_id) REFERENCES documents (id),
     FOREIGN KEY (device_id) REFERENCES devices (id)
+);
+
+-- Settings
+CREATE TABLE IF NOT EXISTS settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    name TEXT NOT NULL,
+    value TEXT NOT NULL,
+
+    created_at DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
 ---------------------------------------------------------------
