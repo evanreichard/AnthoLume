@@ -97,16 +97,18 @@ class EBookReader {
       flow: "paginated",
       width: "100%",
       height: "100%",
+      allowScriptedContent: true,
     });
 
     // Setup Reader
     this.book.ready.then(this.setupReader.bind(this));
 
     // Initialize
+    this.initCSP();
     this.initDevice();
     this.initWakeLock();
     this.initThemes();
-    this.initRenditionListeners();
+    this.initViewerListeners();
     this.initDocumentListeners();
   }
 
@@ -280,6 +282,36 @@ class EBookReader {
   }
 
   /**
+   * EpubJS will set iframe sandbox when settings "allowScriptedContent: false".
+   * However, Safari completely blocks us from attaching listeners to the iframe
+   * document. So instead we just inject a restrictive CSP rule.
+   *
+   * This effectively blocks all script content within the iframe while still
+   * allowing us to attach listeners to the iframe document.
+   **/
+  initCSP() {
+    // Derive CSP Host
+    var protocol = document.location.protocol;
+    var host = document.location.host;
+    var cspURL = `${protocol}//${host}`;
+
+    // Add CSP Policy
+    this.book.spine.hooks.content.register((output, section) => {
+      let cspWrapper = document.createElement("div");
+      cspWrapper.innerHTML = `
+	<meta
+	  http-equiv="Content-Security-Policy"
+	  content="require-trusted-types-for 'script';
+		   style-src 'self' blob: 'unsafe-inline' ${cspURL};
+		   object-src 'none';
+		   script-src 'none';"
+	>`;
+      let cspMeta = cspWrapper.children[0];
+      output.head.append(cspMeta);
+    });
+  }
+
+  /**
    * Set theme & meta theme color
    **/
   setTheme(newTheme) {
@@ -371,9 +403,9 @@ class EBookReader {
   }
 
   /**
-   * Rendition hooks
+   * Viewer Listeners
    **/
-  initRenditionListeners() {
+  initViewerListeners() {
     /**
      * Initiate the debounce when the given function returns true.
      * Don't run it again until the timeout lapses.
@@ -401,15 +433,52 @@ class EBookReader {
     let bottomBar = document.querySelector("#bottom-bar");
 
     // Local Functions
-    let getCFIFromXPath = this.getCFIFromXPath.bind(this);
-    let setPosition = this.setPosition.bind(this);
     let nextPage = this.nextPage.bind(this);
     let prevPage = this.prevPage.bind(this);
-    let saveSettings = this.saveSettings.bind(this);
 
-    // Local Vars
-    let readerSettings = this.readerSettings;
-    let bookState = this.bookState;
+    // ------------------------------------------------ //
+    // ----------------- Swipe Helpers ---------------- //
+    // ------------------------------------------------ //
+    let touchStartX,
+      touchStartY,
+      touchEndX,
+      touchEndY = undefined;
+
+    function handleGesture(event) {
+      let drasticity = 75;
+
+      // Swipe Down
+      if (touchEndY - drasticity > touchStartY) {
+        return handleSwipeDown();
+      }
+
+      // Swipe Up
+      if (touchEndY + drasticity < touchStartY) {
+        // Prioritize Down & Up Swipes
+        return handleSwipeUp();
+      }
+
+      // Swipe Left
+      if (touchEndX + drasticity < touchStartX) {
+        nextPage();
+      }
+
+      // Swipe Right
+      if (touchEndX - drasticity > touchStartX) {
+        prevPage();
+      }
+    }
+
+    function handleSwipeDown() {
+      if (bottomBar.classList.contains("bottom-0"))
+        bottomBar.classList.remove("bottom-0");
+      else topBar.classList.add("top-0");
+    }
+
+    function handleSwipeUp() {
+      if (topBar.classList.contains("top-0")) topBar.classList.remove("top-0");
+      else bottomBar.classList.add("bottom-0");
+    }
 
     this.rendition.hooks.render.register(function (doc, data) {
       let renderDoc = doc.document;
@@ -418,66 +487,14 @@ class EBookReader {
       // ---------------- Wake Lock Hack ---------------- //
       // ------------------------------------------------ //
       let wakeLockListener = function () {
-        doc.window.parent.document.dispatchEvent(new CustomEvent("wakelock"));
+        renderDoc.dispatchEvent(new CustomEvent("wakelock"));
       };
       renderDoc.addEventListener("click", wakeLockListener);
       renderDoc.addEventListener("gesturechange", wakeLockListener);
       renderDoc.addEventListener("touchstart", wakeLockListener);
 
       // ------------------------------------------------ //
-      // --------------- Swipe Pagination --------------- //
-      // ------------------------------------------------ //
-      let touchStartX,
-        touchStartY,
-        touchEndX,
-        touchEndY = undefined;
-
-      renderDoc.addEventListener(
-        "touchstart",
-        function (event) {
-          touchStartX = event.changedTouches[0].screenX;
-          touchStartY = event.changedTouches[0].screenY;
-        },
-        false,
-      );
-
-      renderDoc.addEventListener(
-        "touchend",
-        function (event) {
-          touchEndX = event.changedTouches[0].screenX;
-          touchEndY = event.changedTouches[0].screenY;
-          handleGesture(event);
-        },
-        false,
-      );
-
-      function handleGesture(event) {
-        let drasticity = 75;
-
-        // Swipe Down
-        if (touchEndY - drasticity > touchStartY) {
-          return handleSwipeDown();
-        }
-
-        // Swipe Up
-        if (touchEndY + drasticity < touchStartY) {
-          // Prioritize Down & Up Swipes
-          return handleSwipeUp();
-        }
-
-        // Swipe Left
-        if (touchEndX + drasticity < touchStartX) {
-          nextPage();
-        }
-
-        // Swipe Right
-        if (touchEndX - drasticity > touchStartX) {
-          prevPage();
-        }
-      }
-
-      // ------------------------------------------------ //
-      // --------------- Bottom & Top Bar --------------- //
+      // --------------- Bars & Page Turn --------------- //
       // ------------------------------------------------ //
       renderDoc.addEventListener(
         "click",
@@ -529,45 +546,25 @@ class EBookReader {
         }, 400),
       );
 
-      function handleSwipeDown() {
-        if (bottomBar.classList.contains("bottom-0"))
-          bottomBar.classList.remove("bottom-0");
-        else topBar.classList.add("top-0");
-      }
-
-      function handleSwipeUp() {
-        if (topBar.classList.contains("top-0"))
-          topBar.classList.remove("top-0");
-        else bottomBar.classList.add("bottom-0");
-      }
-
       // ------------------------------------------------ //
-      // -------------- Keyboard Shortcuts -------------- //
+      // ------------------- Gestures ------------------- //
       // ------------------------------------------------ //
+
       renderDoc.addEventListener(
-        "keyup",
-        function (e) {
-          // Left Key (Previous Page)
-          if ((e.keyCode || e.which) == 37) {
-            prevPage();
-          }
+        "touchstart",
+        function (event) {
+          touchStartX = event.changedTouches[0].screenX;
+          touchStartY = event.changedTouches[0].screenY;
+        },
+        false,
+      );
 
-          // Right Key (Next Page)
-          if ((e.keyCode || e.which) == 39) {
-            nextPage();
-          }
-
-          // "t" Key (Theme Cycle)
-          if ((e.keyCode || e.which) == 84) {
-            let currentThemeIdx = THEMES.indexOf(
-              readerSettings.theme.colorScheme,
-            );
-            let colorScheme =
-              THEMES.length == currentThemeIdx + 1
-                ? THEMES[0]
-                : THEMES[currentThemeIdx + 1];
-            setTheme({ colorScheme });
-          }
+      renderDoc.addEventListener(
+        "touchend",
+        function (event) {
+          touchEndX = event.changedTouches[0].screenX;
+          touchEndY = event.changedTouches[0].screenY;
+          handleGesture(event);
         },
         false,
       );
@@ -584,7 +581,9 @@ class EBookReader {
     let nextPage = this.nextPage.bind(this);
     let prevPage = this.prevPage.bind(this);
 
-    // Keyboard Shortcuts
+    // ------------------------------------------------ //
+    // -------------- Keyboard Shortcuts -------------- //
+    // ------------------------------------------------ //
     document.addEventListener(
       "keyup",
       function (e) {
