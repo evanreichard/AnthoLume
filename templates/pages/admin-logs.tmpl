@@ -23,7 +23,9 @@
     </button>
   </form>
 </div>
-<div class="flex flex-col-reverse text-black dark:text-white"
+<!-- Required for iOS "Hover" Events (onclick) -->
+<div onclick
+     class="flex flex-col-reverse text-black dark:text-white w-full overflow-scroll"
      style="font-family: monospace">
   {{ range $log := .Data }}
   <span class="whitespace-nowrap hover:whitespace-pre">{{ $log }}</span>
