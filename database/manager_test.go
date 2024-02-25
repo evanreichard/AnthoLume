@@ -29,7 +29,7 @@ func TestNewMgr(t *testing.T) {
 	}
 
 	dbm := NewMgr(&cfg)
-	assert.NotNil(t, dbm, "should not be nil dbm")
+	assert.NotNil(t, dbm, "should not have nil dbm")
 
 	t.Run("Database", func(t *testing.T) {
 		dt := databaseTest{t, dbm}
@@ -45,7 +45,7 @@ func (dt *databaseTest) TestUser() {
 	dt.Run("User", func(t *testing.T) {
 		// Generate Auth Hash
 		rawAuthHash, err := utils.GenerateToken(64)
-		assert.Nil(t, err, "should be nil err")
+		assert.Nil(t, err, "should have nil err")
 
 		authHash := fmt.Sprintf("%x", rawAuthHash)
 		changed, err := dt.dbm.Queries.CreateUser(dt.dbm.Ctx, CreateUserParams{
@@ -54,12 +54,12 @@ func (dt *databaseTest) TestUser() {
 			AuthHash: &authHash,
 		})
 
-		assert.Nil(t, err, "should be nil err")
+		assert.Nil(t, err, "should have nil err")
 		assert.Equal(t, int64(1), changed)
 
 		user, err := dt.dbm.Queries.GetUser(dt.dbm.Ctx, userID)
 
-		assert.Nil(t, err, "should be nil err")
+		assert.Nil(t, err, "should have nil err")
 		assert.Equal(t, userPass, *user.Pass)
 	})
 }
@@ -72,21 +72,10 @@ func (dt *databaseTest) TestDocument() {
 			Author: &documentAuthor,
 		})
 
-		if err != nil {
-			t.Fatalf(`Expected: Document, Got: %v, Error: %v`, doc, err)
-		}
-
-		if doc.ID != documentID {
-			t.Fatalf(`Expected: %v, Got: %v`, documentID, doc.ID)
-		}
-
-		if *doc.Title != documentTitle {
-			t.Fatalf(`Expected: %v, Got: %v`, documentTitle, *doc.Title)
-		}
-
-		if *doc.Author != documentAuthor {
-			t.Fatalf(`Expected: %v, Got: %v`, documentAuthor, *doc.Author)
-		}
+		assert.Nil(t, err, "should have nil err")
+		assert.Equal(t, documentID, doc.ID, "should have document id")
+		assert.Equal(t, documentTitle, *doc.Title, "should have document title")
+		assert.Equal(t, documentAuthor, *doc.Author, "should have document author")
 	})
 }
 
@@ -98,21 +87,10 @@ func (dt *databaseTest) TestDevice() {
 			DeviceName: deviceName,
 		})
 
-		if err != nil {
-			t.Fatalf(`Expected: Device, Got: %v, Error: %v`, device, err)
-		}
-
-		if device.ID != deviceID {
-			t.Fatalf(`Expected: %v, Got: %v`, deviceID, device.ID)
-		}
-
-		if device.UserID != userID {
-			t.Fatalf(`Expected: %v, Got: %v`, userID, device.UserID)
-		}
-
-		if device.DeviceName != deviceName {
-			t.Fatalf(`Expected: %v, Got: %v`, deviceName, device.DeviceName)
-		}
+		assert.Nil(t, err, "should have nil err")
+		assert.Equal(t, deviceID, device.ID, "should have device id")
+		assert.Equal(t, userID, device.UserID, "should have user id")
+		assert.Equal(t, deviceName, device.DeviceName, "should have device name")
 	})
 }
 
@@ -137,15 +115,8 @@ func (dt *databaseTest) TestActivity() {
 				EndPercentage:   float64(counter+1) / 100.0,
 			})
 
-			// Validate No Error
-			if err != nil {
-				t.Fatalf(`expected: rawactivity, got: %v, error: %v`, activity, err)
-			}
-
-			// Validate Auto Increment Working
-			if activity.ID != counter {
-				t.Fatalf(`Expected: %v, Got: %v`, counter, activity.ID)
-			}
+			assert.Nil(t, err, fmt.Sprintf("[%d] should have nil err for add activity", counter))
+			assert.Equal(t, counter, activity.ID, fmt.Sprintf("[%d] should have correct id for add activity", counter))
 		}
 
 		// Initiate Cache
@@ -158,13 +129,8 @@ func (dt *databaseTest) TestActivity() {
 			Limit:  50,
 		})
 
-		if err != nil {
-			t.Fatalf(`Expected: []GetActivityRow, Got: %v, Error: %v`, existsRows, err)
-		}
-
-		if len(existsRows) != 10 {
-			t.Fatalf(`Expected: %v, Got: %v`, 10, len(existsRows))
-		}
+		assert.Nil(t, err, "should have nil err for get activity")
+		assert.Len(t, existsRows, 10, "should have correct number of rows get activity")
 
 		// Validate Doesn't Exist
 		doesntExistsRows, err := dt.dbm.Queries.GetActivity(dt.dbm.Ctx, GetActivityParams{
@@ -175,13 +141,8 @@ func (dt *databaseTest) TestActivity() {
 			Limit:      50,
 		})
 
-		if err != nil {
-			t.Fatalf(`Expected: []GetActivityRow, Got: %v, Error: %v`, doesntExistsRows, err)
-		}
-
-		if len(doesntExistsRows) != 0 {
-			t.Fatalf(`Expected: %v, Got: %v`, 0, len(doesntExistsRows))
-		}
+		assert.Nil(t, err, "should have nil err for get activity")
+		assert.Len(t, doesntExistsRows, 0, "should have no rows")
 	})
 }
 
@@ -189,29 +150,19 @@ func (dt *databaseTest) TestDailyReadStats() {
 	dt.Run("DailyReadStats", func(t *testing.T) {
 		readStats, err := dt.dbm.Queries.GetDailyReadStats(dt.dbm.Ctx, userID)
 
-		if err != nil {
-			t.Fatalf(`Expected: []GetDailyReadStatsRow, Got: %v, Error: %v`, readStats, err)
-		}
-
-		// Validate 30 Days Stats
-		if len(readStats) != 30 {
-			t.Fatalf(`Expected: %v, Got: %v`, 30, len(readStats))
-		}
+		assert.Nil(t, err, "should have nil err")
+		assert.Len(t, readStats, 30, "should have length of 30")
 
 		// Validate 1 Minute / Day - Last 10 Days
 		for i := 0; i < 10; i++ {
 			stat := readStats[i]
-			if stat.MinutesRead != 1 {
-				t.Fatalf(`Day: %v, Expected: %v, Got: %v`, stat.Date, 1, stat.MinutesRead)
-			}
+			assert.Equal(t, int64(1), stat.MinutesRead, "should have one minute read")
 		}
 
 		// Validate 0 Minute / Day - Remaining 20 Days
 		for i := 10; i < 30; i++ {
 			stat := readStats[i]
-			if stat.MinutesRead != 0 {
-				t.Fatalf(`Day: %v, Expected: %v, Got: %v`, stat.Date, 0, stat.MinutesRead)
-			}
+			assert.Equal(t, int64(0), stat.MinutesRead, "should have zero minutes read")
 		}
 	})
 }
