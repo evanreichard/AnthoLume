@@ -1,7 +1,7 @@
 package server
 
 import (
-	"embed"
+	"io/fs"
 	"net/http"
 	"sync"
 	"time"
@@ -21,8 +21,7 @@ type server struct {
 }
 
 // Create new server
-func New(assets *embed.FS) *server {
-	c := config.Load()
+func New(c *config.Config, assets fs.FS) *server {
 	db := database.NewMgr(c)
 	api := api.NewApi(db, c, assets)
 

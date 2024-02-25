@@ -19,8 +19,8 @@ type streamer struct {
 
 func (api *API) newStreamer(c *gin.Context, data string) *streamer {
 	stream := &streamer{
-		templates:  api.templates,
 		writer:     c.Writer,
+		templates:  api.templates,
 		completeCh: make(chan struct{}),
 	}
 

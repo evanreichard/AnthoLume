@@ -14,10 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// const GBOOKS_QUERY_URL string = "https://www.googleapis.com/books/v1/volumes?q=%s"
-// const GBOOKS_GBID_INFO_URL string = "https://www.googleapis.com/books/v1/volumes/%s"
-// const GBOOKS_GBID_COVER_URL string = "https://books.google.com/books/content/images/frontcover/%s?fife=w480-h690"
-
 //go:embed _test_files/gbooks_id_response.json
 var idResp string
 

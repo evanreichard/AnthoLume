@@ -2,17 +2,19 @@ package main
 
 import (
 	"embed"
+	"io/fs"
 	"os"
 	"os/signal"
 	"syscall"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
+	"reichard.io/antholume/config"
 	"reichard.io/antholume/server"
 )
 
 //go:embed templates/* assets/*
-var assets embed.FS
+var embeddedAssets embed.FS
 
 func main() {
 	app := &cli.App{
@@ -35,21 +37,29 @@ func main() {
 }
 
 func cmdServer(ctx *cli.Context) error {
+	var assets fs.FS = embeddedAssets
+
+	// Load config
+	c := config.Load()
+	if c.Version == "develop" {
+		assets = os.DirFS("./")
+	}
+
 	log.Info("Starting AnthoLume Server")
 
-	// Create Channel
+	// Create notify channel
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
-	// Start Server
-	s := server.New(&assets)
+	// Start server
+	s := server.New(c, assets)
 	s.Start()
 
-	// Wait & Close
+	// Wait & close
 	<-signals
 	s.Stop()
 
-	// Stop Server
+	// Stop server
 	os.Exit(0)
 
 	return nil

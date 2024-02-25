@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"embed"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -25,7 +24,7 @@ import (
 type API struct {
 	db            *database.DBManager
 	cfg           *config.Config
-	assets        *embed.FS
+	assets        fs.FS
 	httpServer    *http.Server
 	templates     map[string]*template.Template
 	userAuthCache map[string]string
@@ -33,7 +32,7 @@ type API struct {
 
 var htmlPolicy = bluemonday.StrictPolicy()
 
-func NewApi(db *database.DBManager, c *config.Config, assets *embed.FS) *API {
+func NewApi(db *database.DBManager, c *config.Config, assets fs.FS) *API {
 	api := &API{
 		db:            db,
 		cfg:           c,
@@ -41,48 +40,54 @@ func NewApi(db *database.DBManager, c *config.Config, assets *embed.FS) *API {
 		userAuthCache: make(map[string]string),
 	}
 
-	// Create Router
+	// Create router
 	router := gin.New()
 
-	// Add Server
+	// Add server
 	api.httpServer = &http.Server{
 		Handler: router,
 		Addr:    (":" + c.ListenPort),
 	}
 
-	// Add Logger
-	router.Use(apiLogger())
+	// Add global logging middleware
+	router.Use(loggingMiddleware)
 
-	// Assets & Web App Templates
+	// Add global template loader middleware (develop)
+	if c.Version == "develop" {
+		log.Info("utilizing debug template loader")
+		router.Use(api.templateMiddleware(router))
+	}
+
+	// Assets & web app templates
 	assetsDir, _ := fs.Sub(assets, "assets")
 	router.StaticFS("/assets", http.FS(assetsDir))
 
-	// Generate Auth Token
+	// Generate auth token
 	var newToken []byte
 	var err error
 	if c.CookieAuthKey != "" {
-		log.Info("Utilizing environment cookie auth key")
+		log.Info("utilizing environment cookie auth key")
 		newToken = []byte(c.CookieAuthKey)
 	} else {
-		log.Info("Generating cookie auth key")
+		log.Info("generating cookie auth key")
 		newToken, err = utils.GenerateToken(64)
 		if err != nil {
-			log.Panic("Unable to generate cookie auth key")
+			log.Panic("unable to generate cookie auth key")
 		}
 	}
 
-	// Set Enc Token
+	// Set enc token
 	store := cookie.NewStore(newToken)
 	if c.CookieEncKey != "" {
 		if len(c.CookieEncKey) == 16 || len(c.CookieEncKey) == 32 {
-			log.Info("Utilizing environment cookie encryption key")
+			log.Info("utilizing environment cookie encryption key")
 			store = cookie.NewStore(newToken, []byte(c.CookieEncKey))
 		} else {
-			log.Panic("Invalid cookie encryption key (must be 16 or 32 bytes)")
+			log.Panic("invalid cookie encryption key (must be 16 or 32 bytes)")
 		}
 	}
 
-	// Configure Cookie Session Store
+	// Configure cookie session store
 	store.Options(sessions.Options{
 		MaxAge:   60 * 60 * 24 * 7,
 		Secure:   c.CookieSecure,
@@ -91,10 +96,10 @@ func NewApi(db *database.DBManager, c *config.Config, assets *embed.FS) *API {
 	})
 	router.Use(sessions.Sessions("token", store))
 
-	// Register Web App Route
+	// Register web app route
 	api.registerWebAppRoutes(router)
 
-	// Register API Routes
+	// Register API routes
 	apiGroup := router.Group("/api")
 	api.registerKOAPIRoutes(apiGroup)
 	api.registerOPDSRoutes(apiGroup)
@@ -107,7 +112,7 @@ func (api *API) Start() error {
 }
 
 func (api *API) Stop() error {
-	// Stop Server
+	// Stop server
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	err := api.httpServer.Shutdown(ctx)
@@ -120,23 +125,23 @@ func (api *API) Stop() error {
 }
 
 func (api *API) registerWebAppRoutes(router *gin.Engine) {
-	// Generate Templates
+	// Generate templates
 	router.HTMLRender = *api.generateTemplates()
 
-	// Static Assets (Required @ Root)
+	// Static assets (required @ root)
 	router.GET("/manifest.json", api.appWebManifest)
 	router.GET("/favicon.ico", api.appFaviconIcon)
 	router.GET("/sw.js", api.appServiceWorker)
 
-	// Local / Offline Static Pages (No Template, No Auth)
+	// Local / offline static pages (no template, no auth)
 	router.GET("/local", api.appLocalDocuments)
 
-	// Reader (Reader Page, Document Progress, Devices)
+	// Reader (reader page, document progress, devices)
 	router.GET("/reader", api.appDocumentReader)
 	router.GET("/reader/devices", api.authWebAppMiddleware, api.appGetDevices)
 	router.GET("/reader/progress/:document", api.authWebAppMiddleware, api.appGetDocumentProgress)
 
-	// Web App
+	// Web app
 	router.GET("/", api.authWebAppMiddleware, api.appGetHome)
 	router.GET("/activity", api.authWebAppMiddleware, api.appGetActivity)
 	router.GET("/progress", api.authWebAppMiddleware, api.appGetProgress)
@@ -157,7 +162,7 @@ func (api *API) registerWebAppRoutes(router *gin.Engine) {
 	router.POST("/login", api.appAuthLogin)
 	router.POST("/register", api.appAuthRegister)
 
-	// Demo Mode Enabled Configuration
+	// Demo mode enabled configuration
 	if api.cfg.DemoMode {
 		router.POST("/documents", api.authWebAppMiddleware, api.appDemoModeError)
 		router.POST("/documents/:document/delete", api.authWebAppMiddleware, api.appDemoModeError)
@@ -172,7 +177,7 @@ func (api *API) registerWebAppRoutes(router *gin.Engine) {
 		router.POST("/settings", api.authWebAppMiddleware, api.appEditSettings)
 	}
 
-	// Search Enabled Configuration
+	// Search enabled configuration
 	if api.cfg.SearchEnabled {
 		router.GET("/search", api.authWebAppMiddleware, api.appGetSearch)
 		router.POST("/search", api.authWebAppMiddleware, api.appSaveNewDocument)
@@ -182,7 +187,7 @@ func (api *API) registerWebAppRoutes(router *gin.Engine) {
 func (api *API) registerKOAPIRoutes(apiGroup *gin.RouterGroup) {
 	koGroup := apiGroup.Group("/ko")
 
-	// KO Sync Routes (WebApp Uses - Progress & Activity)
+	// KO sync routes (webapp uses - progress & activity)
 	koGroup.GET("/documents/:document/file", api.authKOMiddleware, api.createDownloadDocumentHandler(apiErrorPage))
 	koGroup.GET("/syncs/progress/:document", api.authKOMiddleware, api.koGetProgress)
 	koGroup.GET("/users/auth", api.authKOMiddleware, api.koAuthorizeUser)
@@ -191,7 +196,7 @@ func (api *API) registerKOAPIRoutes(apiGroup *gin.RouterGroup) {
 	koGroup.POST("/users/create", api.koAuthRegister)
 	koGroup.PUT("/syncs/progress", api.authKOMiddleware, api.koSetProgress)
 
-	// Demo Mode Enabled Configuration
+	// Demo mode enabled configuration
 	if api.cfg.DemoMode {
 		koGroup.POST("/documents", api.authKOMiddleware, api.koDemoModeJSONError)
 		koGroup.POST("/syncs/documents", api.authKOMiddleware, api.koDemoModeJSONError)
@@ -206,7 +211,7 @@ func (api *API) registerKOAPIRoutes(apiGroup *gin.RouterGroup) {
 func (api *API) registerOPDSRoutes(apiGroup *gin.RouterGroup) {
 	opdsGroup := apiGroup.Group("/opds")
 
-	// OPDS Routes
+	// OPDS routes
 	opdsGroup.GET("", api.authOPDSMiddleware, api.opdsEntry)
 	opdsGroup.GET("/", api.authOPDSMiddleware, api.opdsEntry)
 	opdsGroup.GET("/search.xml", api.authOPDSMiddleware, api.opdsSearchDescription)
@@ -216,7 +221,7 @@ func (api *API) registerOPDSRoutes(apiGroup *gin.RouterGroup) {
 }
 
 func (api *API) generateTemplates() *multitemplate.Renderer {
-	// Define Templates & Helper Functions
+	// Define templates & helper functions
 	templates := make(map[string]*template.Template)
 	render := multitemplate.NewRenderer()
 	helperFuncs := template.FuncMap{
@@ -229,45 +234,45 @@ func (api *API) generateTemplates() *multitemplate.Renderer {
 		"niceSeconds":     niceSeconds,
 	}
 
-	// Load Base
-	b, _ := api.assets.ReadFile("templates/base.tmpl")
+	// Load base
+	b, _ := fs.ReadFile(api.assets, "templates/base.tmpl")
 	baseTemplate := template.Must(template.New("base").Funcs(helperFuncs).Parse(string(b)))
 
 	// Load SVGs
-	svgs, _ := api.assets.ReadDir("templates/svgs")
+	svgs, _ := fs.ReadDir(api.assets, "templates/svgs")
 	for _, item := range svgs {
 		basename := item.Name()
 		path := fmt.Sprintf("templates/svgs/%s", basename)
 		name := strings.TrimSuffix(basename, filepath.Ext(basename))
 
-		b, _ := api.assets.ReadFile(path)
+		b, _ := fs.ReadFile(api.assets, path)
 		baseTemplate = template.Must(baseTemplate.New("svg/" + name).Parse(string(b)))
 		templates["svg/"+name] = baseTemplate
 	}
 
-	// Load Components
-	components, _ := api.assets.ReadDir("templates/components")
+	// Load components
+	components, _ := fs.ReadDir(api.assets, "templates/components")
 	for _, item := range components {
 		basename := item.Name()
 		path := fmt.Sprintf("templates/components/%s", basename)
 		name := strings.TrimSuffix(basename, filepath.Ext(basename))
 
 		// Clone Base Template
-		b, _ := api.assets.ReadFile(path)
+		b, _ := fs.ReadFile(api.assets, path)
 		baseTemplate = template.Must(baseTemplate.New("component/" + name).Parse(string(b)))
 		render.Add("component/"+name, baseTemplate)
 		templates["component/"+name] = baseTemplate
 	}
 
-	// Load Pages
-	pages, _ := api.assets.ReadDir("templates/pages")
+	// Load pages
+	pages, _ := fs.ReadDir(api.assets, "templates/pages")
 	for _, item := range pages {
 		basename := item.Name()
 		path := fmt.Sprintf("templates/pages/%s", basename)
 		name := strings.TrimSuffix(basename, filepath.Ext(basename))
 
 		// Clone Base Template
-		b, _ := api.assets.ReadFile(path)
+		b, _ := fs.ReadFile(api.assets, path)
 		pageTemplate, _ := template.Must(baseTemplate.Clone()).New("page/" + name).Parse(string(b))
 		render.Add("page/"+name, pageTemplate)
 		templates["page/"+name] = pageTemplate
@@ -278,40 +283,45 @@ func (api *API) generateTemplates() *multitemplate.Renderer {
 	return &render
 }
 
-func apiLogger() gin.HandlerFunc {
+func loggingMiddleware(c *gin.Context) {
+	// Start timer
+	startTime := time.Now()
+
+	// Process request
+	c.Next()
+
+	// End timer
+	endTime := time.Now()
+	latency := endTime.Sub(startTime).Round(time.Microsecond)
+
+	// Log data
+	logData := log.Fields{
+		"type":    "access",
+		"ip":      c.ClientIP(),
+		"latency": fmt.Sprintf("%s", latency),
+		"status":  c.Writer.Status(),
+		"method":  c.Request.Method,
+		"path":    c.Request.URL.Path,
+	}
+
+	// Get username
+	var auth authData
+	if data, _ := c.Get("Authorization"); data != nil {
+		auth = data.(authData)
+	}
+
+	// Log user
+	if auth.UserName != "" {
+		logData["user"] = auth.UserName
+	}
+
+	// Log result
+	log.WithFields(logData).Info(fmt.Sprintf("%s %s", c.Request.Method, c.Request.URL.Path))
+}
+
+func (api *API) templateMiddleware(router *gin.Engine) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Start Timer
-		startTime := time.Now()
-
-		// Process Request
+		router.HTMLRender = *api.generateTemplates()
 		c.Next()
-
-		// End Timer
-		endTime := time.Now()
-		latency := endTime.Sub(startTime).Round(time.Microsecond)
-
-		// Log Data
-		logData := log.Fields{
-			"type":    "access",
-			"ip":      c.ClientIP(),
-			"latency": fmt.Sprintf("%s", latency),
-			"status":  c.Writer.Status(),
-			"method":  c.Request.Method,
-			"path":    c.Request.URL.Path,
-		}
-
-		// Get Username
-		var auth authData
-		if data, _ := c.Get("Authorization"); data != nil {
-			auth = data.(authData)
-		}
-
-		// Log User
-		if auth.UserName != "" {
-			logData["user"] = auth.UserName
-		}
-
-		// Log Result
-		log.WithFields(logData).Info(fmt.Sprintf("%s %s", c.Request.Method, c.Request.URL.Path))
 	}
 }
