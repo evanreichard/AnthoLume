@@ -4,10 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"path/filepath"
 	"reflect"
+	"strings"
 
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/graph"
+	"reichard.io/antholume/metadata"
 )
 
 type UTCOffset struct {
@@ -143,4 +146,23 @@ func fields(value interface{}) (map[string]interface{}, error) {
 		m[sv.Name] = v.Field(i).Interface()
 	}
 	return m, nil
+}
+
+func deriveBaseFileName(metadataInfo *metadata.MetadataInfo) string {
+	// Derive New FileName
+	var newFileName string
+	if *metadataInfo.Author != "" {
+		newFileName = newFileName + *metadataInfo.Author
+	} else {
+		newFileName = newFileName + "Unknown"
+	}
+	if *metadataInfo.Title != "" {
+		newFileName = newFileName + " - " + *metadataInfo.Title
+	} else {
+		newFileName = newFileName + " - Unknown"
+	}
+
+	// Remove Slashes
+	fileName := strings.ReplaceAll(newFileName, "/", "")
+	return "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, *metadataInfo.PartialMD5, metadataInfo.Type))
 }

@@ -16,6 +16,7 @@ func getEPUBMetadata(filepath string) (*MetadataInfo, error) {
 	rf := rc.Rootfiles[0]
 
 	parsedMetadata := &MetadataInfo{
+		Type:        TYPE_EPUB,
 		Title:       &rf.Title,
 		Author:      &rf.Creator,
 		Description: &rf.Description,

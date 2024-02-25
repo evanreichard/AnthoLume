@@ -118,6 +118,7 @@ func (c *Config) EnsureDirectories() {
 	docDir := filepath.Join(c.DataPath, "documents")
 	coversDir := filepath.Join(c.DataPath, "covers")
 	backupDir := filepath.Join(c.DataPath, "backups")
+
 	os.Mkdir(docDir, 0755)
 	os.Mkdir(coversDir, 0755)
 	os.Mkdir(backupDir, 0755)

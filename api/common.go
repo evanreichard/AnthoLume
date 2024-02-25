@@ -95,7 +95,7 @@ func (api *API) createGetCoverHandler(errorFunc func(*gin.Context, int, string))
 		var coverFile string = "UNKNOWN"
 
 		// Identify Documents & Save Covers
-		metadataResults, err := metadata.SearchMetadata(metadata.GBOOK, metadata.MetadataInfo{
+		metadataResults, err := metadata.SearchMetadata(metadata.SOURCE_GBOOK, metadata.MetadataInfo{
 			Title:  document.Title,
 			Author: document.Author,
 		})

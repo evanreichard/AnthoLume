@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"reichard.io/antholume/config"
 	"reichard.io/antholume/utils"
 )
@@ -28,9 +29,7 @@ func TestNewMgr(t *testing.T) {
 	}
 
 	dbm := NewMgr(&cfg)
-	if dbm == nil {
-		t.Fatalf(`Expected: *DBManager, Got: nil`)
-	}
+	assert.NotNil(t, dbm, "should not be nil dbm")
 
 	t.Run("Database", func(t *testing.T) {
 		dt := databaseTest{t, dbm}
@@ -46,9 +45,7 @@ func (dt *databaseTest) TestUser() {
 	dt.Run("User", func(t *testing.T) {
 		// Generate Auth Hash
 		rawAuthHash, err := utils.GenerateToken(64)
-		if err != nil {
-			t.Fatalf(`Expected: %v, Got: %v, Error: %v`, nil, err, err)
-		}
+		assert.Nil(t, err, "should be nil err")
 
 		authHash := fmt.Sprintf("%x", rawAuthHash)
 		changed, err := dt.dbm.Queries.CreateUser(dt.dbm.Ctx, CreateUserParams{
@@ -57,14 +54,13 @@ func (dt *databaseTest) TestUser() {
 			AuthHash: &authHash,
 		})
 
-		if err != nil || changed != 1 {
-			t.Fatalf(`Expected: %v, Got: %v, Error: %v`, 1, changed, err)
-		}
+		assert.Nil(t, err, "should be nil err")
+		assert.Equal(t, int64(1), changed)
 
 		user, err := dt.dbm.Queries.GetUser(dt.dbm.Ctx, userID)
-		if err != nil || *user.Pass != userPass {
-			t.Fatalf(`Expected: %v, Got: %v, Error: %v`, userPass, *user.Pass, err)
-		}
+
+		assert.Nil(t, err, "should be nil err")
+		assert.Equal(t, userPass, *user.Pass)
 	})
 }
 

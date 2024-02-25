@@ -2,16 +2,13 @@ package search
 
 import (
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
-	"github.com/PuerkitoBio/goquery"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -102,14 +99,14 @@ func SaveBook(id string, source Source) (string, error) {
 	bookURL, err := def.parseDownloadFunc(body)
 	if err != nil {
 		log.Error("Parse Download URL Error: ", err)
-		return "", errors.New("Download Failure")
+		return "", fmt.Errorf("Download Failure")
 	}
 
 	// Create File
 	tempFile, err := os.CreateTemp("", "book")
 	if err != nil {
 		log.Error("File Create Error: ", err)
-		return "", errors.New("File Failure")
+		return "", fmt.Errorf("File Failure")
 	}
 	defer tempFile.Close()
 
@@ -119,7 +116,7 @@ func SaveBook(id string, source Source) (string, error) {
 	if err != nil {
 		os.Remove(tempFile.Name())
 		log.Error("Book URL API Failure: ", err)
-		return "", errors.New("API Failure")
+		return "", fmt.Errorf("API Failure")
 	}
 	defer resp.Body.Close()
 
@@ -129,18 +126,10 @@ func SaveBook(id string, source Source) (string, error) {
 	if err != nil {
 		os.Remove(tempFile.Name())
 		log.Error("File Copy Error: ", err)
-		return "", errors.New("File Failure")
+		return "", fmt.Errorf("File Failure")
 	}
 
 	return tempFile.Name(), nil
-}
-
-func GoodReadsMostRead(c Cadence) ([]SearchItem, error) {
-	body, err := getPage("https://www.goodreads.com/book/most_read?category=all&country=US&duration=" + string(c))
-	if err != nil {
-		return nil, err
-	}
-	return parseGoodReads(body)
 }
 
 func GetBookURL(id string, bookType BookType) (string, error) {
@@ -178,212 +167,6 @@ func getPage(page string) (io.ReadCloser, error) {
 
 	// Return Body
 	return resp.Body, err
-}
-
-func parseLibGenFiction(body io.ReadCloser) ([]SearchItem, error) {
-	// Parse
-	defer body.Close()
-	doc, err := goquery.NewDocumentFromReader(body)
-	if err != nil {
-		return nil, err
-	}
-
-	// Normalize Results
-	var allEntries []SearchItem
-	doc.Find("table.catalog tbody > tr").Each(func(ix int, rawBook *goquery.Selection) {
-
-		// Parse File Details
-		fileItem := rawBook.Find("td:nth-child(5)")
-		fileDesc := fileItem.Text()
-		fileDescSplit := strings.Split(fileDesc, "/")
-		fileType := strings.ToLower(strings.TrimSpace(fileDescSplit[0]))
-		fileSize := strings.TrimSpace(fileDescSplit[1])
-
-		// Parse Upload Date
-		uploadedRaw, _ := fileItem.Attr("title")
-		uploadedDateRaw := strings.Split(uploadedRaw, "Uploaded at ")[1]
-		uploadDate, _ := time.Parse("2006-01-02 15:04:05", uploadedDateRaw)
-
-		// Parse MD5
-		editHref, _ := rawBook.Find("td:nth-child(7) a").Attr("href")
-		hrefArray := strings.Split(editHref, "/")
-		id := hrefArray[len(hrefArray)-1]
-
-		// Parse Other Details
-		title := rawBook.Find("td:nth-child(3) p a").Text()
-		author := rawBook.Find(".catalog_authors li a").Text()
-		language := rawBook.Find("td:nth-child(4)").Text()
-		series := rawBook.Find("td:nth-child(2)").Text()
-
-		item := SearchItem{
-			ID:         id,
-			Title:      title,
-			Author:     author,
-			Series:     series,
-			Language:   language,
-			FileType:   fileType,
-			FileSize:   fileSize,
-			UploadDate: uploadDate.Format(time.RFC3339),
-		}
-
-		allEntries = append(allEntries, item)
-	})
-
-	// Return Results
-	return allEntries, nil
-}
-
-func parseLibGenNonFiction(body io.ReadCloser) ([]SearchItem, error) {
-	// Parse
-	defer body.Close()
-	doc, err := goquery.NewDocumentFromReader(body)
-	if err != nil {
-		return nil, err
-	}
-
-	// Normalize Results
-	var allEntries []SearchItem
-	doc.Find("table.c tbody > tr:nth-child(n + 2)").Each(func(ix int, rawBook *goquery.Selection) {
-
-		// Parse Type & Size
-		fileSize := strings.ToLower(strings.TrimSpace(rawBook.Find("td:nth-child(8)").Text()))
-		fileType := strings.ToLower(strings.TrimSpace(rawBook.Find("td:nth-child(9)").Text()))
-
-		// Parse MD5
-		titleRaw := rawBook.Find("td:nth-child(3) [id]")
-		editHref, _ := titleRaw.Attr("href")
-		hrefArray := strings.Split(editHref, "?md5=")
-		id := hrefArray[1]
-
-		// Parse Other Details
-		title := titleRaw.Text()
-		author := rawBook.Find("td:nth-child(2)").Text()
-		language := rawBook.Find("td:nth-child(7)").Text()
-		series := rawBook.Find("td:nth-child(3) [href*='column=series']").Text()
-
-		item := SearchItem{
-			ID:       id,
-			Title:    title,
-			Author:   author,
-			Series:   series,
-			Language: language,
-			FileType: fileType,
-			FileSize: fileSize,
-		}
-
-		allEntries = append(allEntries, item)
-	})
-
-	// Return Results
-	return allEntries, nil
-}
-
-func parseLibGenDownloadURL(body io.ReadCloser) (string, error) {
-	// Parse
-	defer body.Close()
-	doc, _ := goquery.NewDocumentFromReader(body)
-
-	// Return Download URL
-	// downloadURL, _ := doc.Find("#download [href*=cloudflare]").Attr("href")
-	downloadURL, exists := doc.Find("#download h2 a").Attr("href")
-	if exists == false {
-		return "", errors.New("Download URL not found")
-	}
-
-	return downloadURL, nil
-}
-
-func parseGoodReads(body io.ReadCloser) ([]SearchItem, error) {
-	// Parse
-	defer body.Close()
-	doc, err := goquery.NewDocumentFromReader(body)
-	if err != nil {
-		return nil, err
-	}
-
-	// Normalize Results
-	var allEntries []SearchItem
-
-	doc.Find("[itemtype=\"http://schema.org/Book\"]").Each(func(ix int, rawBook *goquery.Selection) {
-		title := rawBook.Find(".bookTitle span").Text()
-		author := rawBook.Find(".authorName span").Text()
-
-		item := SearchItem{
-			Title:  title,
-			Author: author,
-		}
-
-		allEntries = append(allEntries, item)
-	})
-
-	// Return Results
-	return allEntries, nil
-}
-
-func parseAnnasArchiveDownloadURL(body io.ReadCloser) (string, error) {
-	// Parse
-	defer body.Close()
-	doc, _ := goquery.NewDocumentFromReader(body)
-
-	// Return Download URL
-	downloadURL, exists := doc.Find("body > table > tbody > tr > td > a").Attr("href")
-	if exists == false {
-		return "", errors.New("Download URL not found")
-	}
-
-	// Possible Funky URL
-	downloadURL = strings.ReplaceAll(downloadURL, "\\", "/")
-
-	return downloadURL, nil
-}
-
-func parseAnnasArchive(body io.ReadCloser) ([]SearchItem, error) {
-	// Parse
-	defer body.Close()
-	doc, err := goquery.NewDocumentFromReader(body)
-	if err != nil {
-		return nil, err
-	}
-
-	// Normalize Results
-	var allEntries []SearchItem
-	doc.Find("form > div.w-full > div.w-full > div > div.justify-center").Each(func(ix int, rawBook *goquery.Selection) {
-		// Parse Details
-		details := rawBook.Find("div:nth-child(2) > div:nth-child(1)").Text()
-		detailsSplit := strings.Split(details, ", ")
-
-		// Invalid Details
-		if len(detailsSplit) < 3 {
-			return
-		}
-
-		language := detailsSplit[0]
-		fileType := detailsSplit[1]
-		fileSize := detailsSplit[2]
-
-		// Get Title & Author
-		title := rawBook.Find("h3").Text()
-		author := rawBook.Find("div:nth-child(2) > div:nth-child(4)").Text()
-
-		// Parse MD5
-		itemHref, _ := rawBook.Find("a").Attr("href")
-		hrefArray := strings.Split(itemHref, "/")
-		id := hrefArray[len(hrefArray)-1]
-
-		item := SearchItem{
-			ID:       id,
-			Title:    title,
-			Author:   author,
-			Language: language,
-			FileType: fileType,
-			FileSize: fileSize,
-		}
-
-		allEntries = append(allEntries, item)
-	})
-
-	// Return Results
-	return allEntries, nil
 }
 
 func downloadBook(bookURL string) (*http.Response, error) {

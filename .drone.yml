@@ -4,21 +4,10 @@ name: default
 
 steps:
   # Unit Tests
-  - name: unit test
+  - name: tests
     image: golang
     commands:
-      - make tests_unit
-
-  # Integration Tests (Every Month)
-  - name: integration test
-    image: golang
-    commands:
-      - make tests_integration
-    when:
-      event:
-        - cron
-      cron:
-        - integration-test
+      - make tests
 
   # Fetch tags
   - name: fetch tags

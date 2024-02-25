@@ -42,8 +42,7 @@ dev: build_tailwind
 clean:
 	rm -rf ./build
 
-tests_integration:
-	go test -v -tags=integration -coverpkg=./... ./metadata
-
-tests_unit:
-	SET_TEST=set_val go test -v -coverpkg=./... ./...
+tests:
+	SET_TEST=set_val go test -coverpkg=./... ./... -coverprofile=./cover.out
+	go tool cover -html=./cover.out -o ./cover.html
+	rm ./cover.out

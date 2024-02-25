@@ -1,36 +1,46 @@
 package metadata
 
 import (
+	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetWordCount(t *testing.T) {
-	var want int64 = 30080
-	wordCount, err := countEPUBWords("../_test_files/alice.epub")
+	var desiredCount int64 = 30080
+	actualCount, err := countEPUBWords("../_test_files/alice.epub")
 
-	if wordCount != want {
-		t.Fatalf(`Expected: %v, Got: %v, Error: %v`, want, wordCount, err)
-	}
+	assert.Nil(t, err, "should have no error")
+	assert.Equal(t, desiredCount, actualCount, "should be correct word count")
+
 }
 
 func TestGetMetadata(t *testing.T) {
-	metadataInfo, err := getEPUBMetadata("../_test_files/alice.epub")
-	if err != nil {
-		t.Fatalf(`Expected: *MetadataInfo, Got: nil, Error: %v`, err)
-	}
+	desiredTitle := "Alice's Adventures in Wonderland / Illustrated by Arthur Rackham. With a Proem by Austin Dobson"
+	desiredAuthor := "Lewis Carroll"
+	desiredDescription := ""
 
-	want := "Alice's Adventures in Wonderland / Illustrated by Arthur Rackham. With a Proem by Austin Dobson"
-	if *metadataInfo.Title != want {
-		t.Fatalf(`Expected: %v, Got: %v, Error: %v`, want, *metadataInfo.Title, err)
-	}
+	metadataInfo, err := GetMetadata("../_test_files/alice.epub")
 
-	want = "Lewis Carroll"
-	if *metadataInfo.Author != want {
-		t.Fatalf(`Expected: %v, Got: %v, Error: %v`, want, *metadataInfo.Author, err)
-	}
+	assert.Nil(t, err, "should have no error")
+	assert.Equal(t, desiredTitle, *metadataInfo.Title, "should be correct title")
+	assert.Equal(t, desiredAuthor, *metadataInfo.Author, "should be correct author")
+	assert.Equal(t, desiredDescription, *metadataInfo.Description, "should be correct author")
+	assert.Equal(t, TYPE_EPUB, metadataInfo.Type, "should be correct type")
+}
 
-	want = ""
-	if *metadataInfo.Description != want {
-		t.Fatalf(`Expected: %v, Got: %v, Error: %v`, want, *metadataInfo.Description, err)
-	}
+func TestGetExtension(t *testing.T) {
+	docType, err := GetDocumentType("../_test_files/alice.epub")
+
+	assert.Nil(t, err, "should have no error")
+	assert.Equal(t, TYPE_EPUB, *docType)
+}
+
+func TestGetExtensionReader(t *testing.T) {
+	file, _ := os.Open("../_test_files/alice.epub")
+	docType, err := GetDocumentTypeReader(file)
+
+	assert.Nil(t, err, "should have no error")
+	assert.Equal(t, TYPE_EPUB, *docType)
 }

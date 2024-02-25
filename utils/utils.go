@@ -10,10 +10,10 @@ import (
 )
 
 // Reimplemented KOReader Partial MD5 Calculation
-func CalculatePartialMD5(filePath string) (string, error) {
+func CalculatePartialMD5(filePath string) (*string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	defer file.Close()
@@ -41,7 +41,8 @@ func CalculatePartialMD5(filePath string) (string, error) {
 	}
 
 	allBytes := buf.Bytes()
-	return fmt.Sprintf("%x", md5.Sum(allBytes)), nil
+	fileHash := fmt.Sprintf("%x", md5.Sum(allBytes))
+	return &fileHash, nil
 }
 
 // Creates a token of n size
@@ -52,4 +53,24 @@ func GenerateToken(n int) ([]byte, error) {
 		return nil, err
 	}
 	return b, nil
+}
+
+// Calculate MD5 of a file
+func CalculateMD5(filePath string) (*string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	defer file.Close()
+
+	hash := md5.New()
+	_, err = io.Copy(hash, file)
+	if err != nil {
+		return nil, err
+	}
+
+	fileHash := fmt.Sprintf("%x", hash.Sum(nil))
+
+	return &fileHash, nil
 }

@@ -157,7 +157,7 @@ func (api *API) appGetDocument(c *gin.Context) {
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
 		log.Error("Invalid URI Bind")
-		appErrorPage(c, http.StatusNotFound, "Invalid document.")
+		appErrorPage(c, http.StatusNotFound, "Invalid document")
 		return
 	}
 
@@ -361,7 +361,7 @@ func (api *API) appGetDocumentProgress(c *gin.Context) {
 	var rDoc requestDocumentID
 	if err := c.ShouldBindUri(&rDoc); err != nil {
 		log.Error("Invalid URI Bind")
-		appErrorPage(c, http.StatusNotFound, "Invalid document.")
+		appErrorPage(c, http.StatusNotFound, "Invalid document")
 		return
 	}
 
@@ -417,7 +417,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	var rDocUpload requestDocumentUpload
 	if err := c.ShouldBind(&rDocUpload); err != nil {
 		log.Error("Invalid Form Bind")
-		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
 		return
 	}
 
@@ -426,153 +426,92 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 		return
 	}
 
-	// Validate Type & Derive Extension on MIME
-	uploadedFile, err := rDocUpload.DocumentFile.Open()
-	if err != nil {
-		log.Error("File Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, "Unable to open file.")
-		return
-	}
-
-	fileMime, err := mimetype.DetectReader(uploadedFile)
-	if err != nil {
-		log.Error("MIME Error")
-		appErrorPage(c, http.StatusInternalServerError, "Unable to detect filetype.")
-		return
-	}
-	fileExtension := fileMime.Extension()
-
-	// Validate Extension
-	if !slices.Contains([]string{".epub"}, fileExtension) {
-		log.Error("Invalid FileType: ", fileExtension)
-		appErrorPage(c, http.StatusBadRequest, "Invalid filetype.")
-		return
-	}
-
 	// Create Temp File
 	tempFile, err := os.CreateTemp("", "book")
 	if err != nil {
 		log.Warn("Temp File Create Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, "Unable to create temp file.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to create temp file")
 		return
 	}
 	defer os.Remove(tempFile.Name())
 	defer tempFile.Close()
 
-	// Save Temp
+	// Save Temp File
 	err = c.SaveUploadedFile(rDocUpload.DocumentFile, tempFile.Name())
 	if err != nil {
 		log.Error("File Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		appErrorPage(c, http.StatusInternalServerError, "Unable to save file")
 		return
 	}
 
 	// Get Metadata
 	metadataInfo, err := metadata.GetMetadata(tempFile.Name())
 	if err != nil {
-		log.Warn("GetMetadata Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, "Unable to acquire file metadata.")
+		log.Errorf("unable to acquire metadata: %v", err)
+		appErrorPage(c, http.StatusInternalServerError, "Unable to acquire metadata")
 		return
 	}
 
-	// Calculate Partial MD5 ID
-	partialMD5, err := utils.CalculatePartialMD5(tempFile.Name())
-	if err != nil {
-		log.Warn("Partial MD5 Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, "Unable to calculate partial MD5.")
-		return
-	}
-
-	// Check Exists
-	_, err = api.db.Queries.GetDocument(api.db.Ctx, partialMD5)
+	// Check Already Exists
+	_, err = api.db.Queries.GetDocument(api.db.Ctx, *metadataInfo.PartialMD5)
 	if err == nil {
-		c.Redirect(http.StatusFound, fmt.Sprintf("./documents/%s", partialMD5))
-		return
+		log.Warnf("document already exists: %s", *metadataInfo.PartialMD5)
+		c.Redirect(http.StatusFound, fmt.Sprintf("./documents/%s", *metadataInfo.PartialMD5))
 	}
-
-	// Calculate Actual MD5
-	fileHash, err := getFileMD5(tempFile.Name())
-	if err != nil {
-		log.Error("MD5 Hash Failure: ", err)
-		appErrorPage(c, http.StatusInternalServerError, "Unable to calculate MD5.")
-		return
-	}
-
-	// Get Word Count
-	wordCount, err := metadata.GetWordCount(tempFile.Name())
-	if err != nil {
-		log.Error("Word Count Failure: ", err)
-		appErrorPage(c, http.StatusInternalServerError, "Unable to calculate word count.")
-		return
-	}
-
-	// Derive Filename
-	var fileName string
-	if *metadataInfo.Author != "" {
-		fileName = fileName + *metadataInfo.Author
-	} else {
-		fileName = fileName + "Unknown"
-	}
-
-	if *metadataInfo.Title != "" {
-		fileName = fileName + " - " + *metadataInfo.Title
-	} else {
-		fileName = fileName + " - Unknown"
-	}
-
-	// Remove Slashes
-	fileName = strings.ReplaceAll(fileName, "/", "")
 
 	// Derive & Sanitize File Name
-	fileName = "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, partialMD5, fileExtension))
-
-	// Generate Storage Path & Open File
+	fileName := deriveBaseFileName(metadataInfo)
 	safePath := filepath.Join(api.cfg.DataPath, "documents", fileName)
+
+	// Open Destination File
 	destFile, err := os.Create(safePath)
 	if err != nil {
-		log.Error("Dest File Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		log.Errorf("unable to open destination file: %v", err)
+		appErrorPage(c, http.StatusInternalServerError, "Unable to open destination file")
 		return
 	}
 	defer destFile.Close()
 
 	// Copy File
 	if _, err = io.Copy(destFile, tempFile); err != nil {
-		log.Error("Copy Temp File Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, "Unable to save file.")
+		log.Errorf("unable to save file: %v", err)
+		appErrorPage(c, http.StatusInternalServerError, "Unable to save file")
 		return
 	}
 
 	// Upsert Document
 	if _, err = api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
-		ID:          partialMD5,
+		ID:          *metadataInfo.PartialMD5,
 		Title:       metadataInfo.Title,
 		Author:      metadataInfo.Author,
 		Description: metadataInfo.Description,
-		Words:       &wordCount,
-		Md5:         fileHash,
+		Md5:         metadataInfo.MD5,
+		Words:       metadataInfo.WordCount,
 		Filepath:    &fileName,
+
+		// TODO (BasePath):
+		//   - Should be current config directory
 	}); err != nil {
-		log.Error("UpsertDocument DB Error: ", err)
+		log.Errorf("UpsertDocument DB Error: %v", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
 		return
 	}
 
-	c.Redirect(http.StatusFound, fmt.Sprintf("./documents/%s", partialMD5))
+	c.Redirect(http.StatusFound, fmt.Sprintf("./documents/%s", *metadataInfo.PartialMD5))
 }
 
 func (api *API) appEditDocument(c *gin.Context) {
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
 		log.Error("Invalid URI Bind")
-		appErrorPage(c, http.StatusNotFound, "Invalid document.")
+		appErrorPage(c, http.StatusNotFound, "Invalid document")
 		return
 	}
 
 	var rDocEdit requestDocumentEdit
 	if err := c.ShouldBind(&rDocEdit); err != nil {
 		log.Error("Invalid Form Bind")
-		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
 		return
 	}
 
@@ -586,7 +525,7 @@ func (api *API) appEditDocument(c *gin.Context) {
 		rDocEdit.CoverGBID == nil &&
 		rDocEdit.CoverFile == nil {
 		log.Error("Missing Form Values")
-		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
 		return
 	}
 
@@ -600,14 +539,14 @@ func (api *API) appEditDocument(c *gin.Context) {
 		uploadedFile, err := rDocEdit.CoverFile.Open()
 		if err != nil {
 			log.Error("File Error")
-			appErrorPage(c, http.StatusInternalServerError, "Unable to open file.")
+			appErrorPage(c, http.StatusInternalServerError, "Unable to open file")
 			return
 		}
 
 		fileMime, err := mimetype.DetectReader(uploadedFile)
 		if err != nil {
 			log.Error("MIME Error")
-			appErrorPage(c, http.StatusInternalServerError, "Unable to detect filetype.")
+			appErrorPage(c, http.StatusInternalServerError, "Unable to detect filetype")
 			return
 		}
 		fileExtension := fileMime.Extension()
@@ -615,7 +554,7 @@ func (api *API) appEditDocument(c *gin.Context) {
 		// Validate Extension
 		if !slices.Contains([]string{".jpg", ".png"}, fileExtension) {
 			log.Error("Invalid FileType: ", fileExtension)
-			appErrorPage(c, http.StatusBadRequest, "Invalid filetype.")
+			appErrorPage(c, http.StatusBadRequest, "Invalid filetype")
 			return
 		}
 
@@ -627,7 +566,7 @@ func (api *API) appEditDocument(c *gin.Context) {
 		err = c.SaveUploadedFile(rDocEdit.CoverFile, safePath)
 		if err != nil {
 			log.Error("File Error: ", err)
-			appErrorPage(c, http.StatusInternalServerError, "Unable to save file.")
+			appErrorPage(c, http.StatusInternalServerError, "Unable to save file")
 			return
 		}
 
@@ -663,7 +602,7 @@ func (api *API) appDeleteDocument(c *gin.Context) {
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
 		log.Error("Invalid URI Bind")
-		appErrorPage(c, http.StatusNotFound, "Invalid document.")
+		appErrorPage(c, http.StatusNotFound, "Invalid document")
 		return
 	}
 	changed, err := api.db.Queries.DeleteDocument(api.db.Ctx, rDocID.DocumentID)
@@ -674,7 +613,7 @@ func (api *API) appDeleteDocument(c *gin.Context) {
 	}
 	if changed == 0 {
 		log.Error("DeleteDocument DB Error")
-		appErrorPage(c, http.StatusNotFound, "Invalid document.")
+		appErrorPage(c, http.StatusNotFound, "Invalid document")
 		return
 	}
 
@@ -685,14 +624,14 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
 		log.Error("Invalid URI Bind")
-		appErrorPage(c, http.StatusNotFound, "Invalid document.")
+		appErrorPage(c, http.StatusNotFound, "Invalid document")
 		return
 	}
 
 	var rDocIdentify requestDocumentIdentify
 	if err := c.ShouldBind(&rDocIdentify); err != nil {
 		log.Error("Invalid Form Bind")
-		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
 		return
 	}
 
@@ -710,7 +649,7 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 	// Validate Values
 	if rDocIdentify.ISBN == nil && rDocIdentify.Title == nil && rDocIdentify.Author == nil {
 		log.Error("Invalid Form")
-		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
 		return
 	}
 
@@ -718,7 +657,7 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 	templateVars, auth := api.getBaseTemplateVars("document", c)
 
 	// Get Metadata
-	metadataResults, err := metadata.SearchMetadata(metadata.GBOOK, metadata.MetadataInfo{
+	metadataResults, err := metadata.SearchMetadata(metadata.SOURCE_GBOOK, metadata.MetadataInfo{
 		Title:  rDocIdentify.Title,
 		Author: rDocIdentify.Author,
 		ISBN10: rDocIdentify.ISBN,
@@ -767,7 +706,7 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	var rDocAdd requestDocumentAdd
 	if err := c.ShouldBind(&rDocAdd); err != nil {
 		log.Error("Invalid Form Bind")
-		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
 		return
 	}
 
@@ -845,7 +784,7 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	fileName = strings.ReplaceAll(fileName, "/", "")
 
 	// Derive & Sanitize File Name
-	fileName = "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, partialMD5, fileExtension))
+	fileName = "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, *partialMD5, fileExtension))
 
 	// Open Source File
 	sourceFile, err := os.Open(tempFilePath)
@@ -901,12 +840,12 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 
 	// Upsert Document
 	if _, err = api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
-		ID:       partialMD5,
+		ID:       *partialMD5,
 		Title:    rDocAdd.Title,
 		Author:   rDocAdd.Author,
 		Md5:      fileHash,
 		Filepath: &fileName,
-		Words:    &wordCount,
+		Words:    wordCount,
 	}); err != nil {
 		log.Error("UpsertDocument DB Error: ", err)
 		sendDownloadMessage("Unable to save to database", gin.H{"Error": true})
@@ -917,7 +856,7 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	sendDownloadMessage("Download Success", gin.H{
 		"Progress":   100,
 		"ButtonText": "Go to Book",
-		"ButtonHref": fmt.Sprintf("./documents/%s", partialMD5),
+		"ButtonHref": fmt.Sprintf("./documents/%s", *partialMD5),
 	})
 }
 
@@ -925,14 +864,14 @@ func (api *API) appEditSettings(c *gin.Context) {
 	var rUserSettings requestSettingsEdit
 	if err := c.ShouldBind(&rUserSettings); err != nil {
 		log.Error("Invalid Form Bind")
-		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
 		return
 	}
 
 	// Validate Something Exists
 	if rUserSettings.Password == nil && rUserSettings.NewPassword == nil && rUserSettings.TimeOffset == nil {
 		log.Error("Missing Form Values")
-		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values.")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
 		return
 	}
 
@@ -1023,7 +962,7 @@ func (api *API) getDocumentsWordCount(documents []database.GetDocumentsWithStats
 			} else {
 				if _, err := qtx.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
 					ID:    item.ID,
-					Words: &wordCount,
+					Words: wordCount,
 				}); err != nil {
 					log.Error("UpsertDocument DB Error: ", err)
 					return err

@@ -1,0 +1,105 @@
+{
+  "kind": "books#volumes",
+  "totalItems": 1,
+  "items": [
+    {
+      "kind": "books#volume",
+      "id": "ZxwpakTv_MIC",
+      "etag": "F2eR9VV6VwQ",
+      "selfLink": "https://www.googleapis.com/books/v1/volumes/ZxwpakTv_MIC",
+      "volumeInfo": {
+        "title": "Alice in Wonderland",
+        "authors": [
+          "Lewis Carroll"
+        ],
+        "publisher": "The Floating Press",
+        "publishedDate": "2009-01-01",
+        "description": "Alice in Wonderland (also known as Alice's Adventures in Wonderland), from 1865, is the peculiar and imaginative tale of a girl who falls down a rabbit-hole into a bizarre world of eccentric and unusual creatures. Lewis Carroll's prominent example of the genre of \"literary nonsense\" has endured in popularity with its clever way of playing with logic and a narrative structure that has influence generations of fiction writing.",
+        "industryIdentifiers": [
+          {
+            "type": "ISBN_13",
+            "identifier": "9781877527814"
+          },
+          {
+            "type": "ISBN_10",
+            "identifier": "1877527815"
+          }
+        ],
+        "readingModes": {
+          "text": true,
+          "image": false
+        },
+        "pageCount": 104,
+        "printType": "BOOK",
+        "categories": [
+          "Fiction"
+        ],
+        "averageRating": 5,
+        "ratingsCount": 1,
+        "maturityRating": "NOT_MATURE",
+        "allowAnonLogging": true,
+        "contentVersion": "0.2.3.0.preview.2",
+        "panelizationSummary": {
+          "containsEpubBubbles": false,
+          "containsImageBubbles": false
+        },
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=ZxwpakTv_MIC&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+          "thumbnail": "http://books.google.com/books/content?id=ZxwpakTv_MIC&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+        },
+        "language": "en",
+        "previewLink": "http://books.google.com/books?id=ZxwpakTv_MIC&printsec=frontcover&dq=isbn:1877527815&hl=&cd=1&source=gbs_api",
+        "infoLink": "https://play.google.com/store/books/details?id=ZxwpakTv_MIC&source=gbs_api",
+        "canonicalVolumeLink": "https://play.google.com/store/books/details?id=ZxwpakTv_MIC"
+      },
+      "saleInfo": {
+        "country": "US",
+        "saleability": "FOR_SALE",
+        "isEbook": true,
+        "listPrice": {
+          "amount": 3.99,
+          "currencyCode": "USD"
+        },
+        "retailPrice": {
+          "amount": 3.99,
+          "currencyCode": "USD"
+        },
+        "buyLink": "https://play.google.com/store/books/details?id=ZxwpakTv_MIC&rdid=book-ZxwpakTv_MIC&rdot=1&source=gbs_api",
+        "offers": [
+          {
+            "finskyOfferType": 1,
+            "listPrice": {
+              "amountInMicros": 3990000,
+              "currencyCode": "USD"
+            },
+            "retailPrice": {
+              "amountInMicros": 3990000,
+              "currencyCode": "USD"
+            },
+            "giftable": true
+          }
+        ]
+      },
+      "accessInfo": {
+        "country": "US",
+        "viewability": "PARTIAL",
+        "embeddable": true,
+        "publicDomain": false,
+        "textToSpeechPermission": "ALLOWED",
+        "epub": {
+          "isAvailable": true,
+          "acsTokenLink": "http://books.google.com/books/download/Alice_in_Wonderland-sample-epub.acsm?id=ZxwpakTv_MIC&format=epub&output=acs4_fulfillment_token&dl_type=sample&source=gbs_api"
+        },
+        "pdf": {
+          "isAvailable": false
+        },
+        "webReaderLink": "http://play.google.com/books/reader?id=ZxwpakTv_MIC&hl=&source=gbs_api",
+        "accessViewStatus": "SAMPLE",
+        "quoteSharingAllowed": false
+      },
+      "searchInfo": {
+        "textSnippet": "Alice in Wonderland (also known as Alice&#39;s Adventures in Wonderland), from 1865, is the peculiar and imaginative tale of a girl who falls down a rabbit-hole into a bizarre world of eccentric and unusual creatures."
+      }
+    }
+  ]
+}

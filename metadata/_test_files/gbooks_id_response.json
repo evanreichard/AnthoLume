@@ -1,0 +1,110 @@
+{
+  "kind": "books#volume",
+  "id": "ZxwpakTv_MIC",
+  "etag": "mhqr3GsebaQ",
+  "selfLink": "https://www.googleapis.com/books/v1/volumes/ZxwpakTv_MIC",
+  "volumeInfo": {
+    "title": "Alice in Wonderland",
+    "authors": [
+      "Lewis Carroll"
+    ],
+    "publisher": "The Floating Press",
+    "publishedDate": "2009-01-01",
+    "description": "Alice in Wonderland (also known as Alice's Adventures in Wonderland), from 1865, is the peculiar and imaginative tale of a girl who falls down a rabbit-hole into a bizarre world of eccentric and unusual creatures. Lewis Carroll's prominent example of the genre of \"literary nonsense\" has endured in popularity with its clever way of playing with logic and a narrative structure that has influence generations of fiction writing.",
+    "industryIdentifiers": [
+      {
+        "type": "ISBN_10",
+        "identifier": "1877527815"
+      },
+      {
+        "type": "ISBN_13",
+        "identifier": "9781877527814"
+      }
+    ],
+    "readingModes": {
+      "text": true,
+      "image": false
+    },
+    "pageCount": 104,
+    "printedPageCount": 112,
+    "printType": "BOOK",
+    "categories": [
+      "Fiction / Classics",
+      "Juvenile Fiction / General"
+    ],
+    "averageRating": 5,
+    "ratingsCount": 1,
+    "maturityRating": "NOT_MATURE",
+    "allowAnonLogging": true,
+    "contentVersion": "0.2.3.0.preview.2",
+    "panelizationSummary": {
+      "containsEpubBubbles": false,
+      "containsImageBubbles": false
+    },
+    "imageLinks": {
+      "smallThumbnail": "http://books.google.com/books/content?id=ZxwpakTv_MIC&printsec=frontcover&img=1&zoom=5&edge=curl&imgtk=AFLRE71e5b-TeAKTiPSvXNUPeUi8rItzur2xSzwH8QU3qjKH0A2opmoq1o5I9RqJFt1BtcCCqILhnYRcB2aFLJmEvom11gx3Qn3PNN1iBLj2H5y2JHjM8wIwGT7iWFQmEn0Od7s6sOdk&source=gbs_api",
+      "thumbnail": "http://books.google.com/books/content?id=ZxwpakTv_MIC&printsec=frontcover&img=1&zoom=1&edge=curl&imgtk=AFLRE70QORt9J_DmKJgfyf9UEjQkdDMZ0qAu0GP315a1Q4CRS3snEjKnJJO2fYFdxjMwsSpmHoXDFPZbsy4gw-kMvF7lL8LtwxGbJGlfETHw_jbQBKBlKTrneK4XFvvV-EXNrZRgylxj&source=gbs_api",
+      "small": "http://books.google.com/books/content?id=ZxwpakTv_MIC&printsec=frontcover&img=1&zoom=2&edge=curl&imgtk=AFLRE70r1pAUt6VhuEEW8vXFhu8LvKln3yj0mdlaWPO4ZQuODLFQnH0fTebKMMX4ANR5i4PtC0oaI48XkwF-EdzlEM1WmUcR5383N4kRMXcta_i9nmb2y38dnh3hObwQW5VoAxbc9psn&source=gbs_api",
+      "medium": "http://books.google.com/books/content?id=ZxwpakTv_MIC&printsec=frontcover&img=1&zoom=3&edge=curl&imgtk=AFLRE7019EVuXvhzbhmtbz1QFh-ajB6kTKRHGhqijFf8big_GPRMMdpCdKlklFbkCfXvy8F64t5NKlThUHb3tFP-51bbDXkrVErFbCqKGzGnDSSm8cewqT8HiYDNHqn0hXYnuYvN4vYf&source=gbs_api",
+      "large": "http://books.google.com/books/content?id=ZxwpakTv_MIC&printsec=frontcover&img=1&zoom=4&edge=curl&imgtk=AFLRE72I15XZqp_8c8BAj4EskxkdC6nQz8F0Fs6VJhkykwIqfjzwuM34tUSQa3UnMGbx-UYjZjSLmCNFlePS8aR7yy-0UP9BRnYD-h5Qbesnnt_xdOb3u7Wdiobi6VbciNCBwUwbCyeH&source=gbs_api",
+      "extraLarge": "http://books.google.com/books/content?id=ZxwpakTv_MIC&printsec=frontcover&img=1&zoom=6&edge=curl&imgtk=AFLRE70rC6ktY6U0K_hqG1HxPl_9hMjpKb10p9DryVIwQgUjoJfWQOjpNA3EQ-5yk167yYDlO27gylqNAdJBYWu7ZHr3GuqkjTDpXjDvzBBppVyWaVNxKwhOz3gfJ-gzM6cC4kLHP26R&source=gbs_api"
+    },
+    "language": "en",
+    "previewLink": "http://books.google.com/books?id=ZxwpakTv_MIC&hl=&source=gbs_api",
+    "infoLink": "https://play.google.com/store/books/details?id=ZxwpakTv_MIC&source=gbs_api",
+    "canonicalVolumeLink": "https://play.google.com/store/books/details?id=ZxwpakTv_MIC"
+  },
+  "layerInfo": {
+    "layers": [
+      {
+        "layerId": "geo",
+        "volumeAnnotationsVersion": "2"
+      }
+    ]
+  },
+  "saleInfo": {
+    "country": "US",
+    "saleability": "FOR_SALE",
+    "isEbook": true,
+    "listPrice": {
+      "amount": 3.99,
+      "currencyCode": "USD"
+    },
+    "retailPrice": {
+      "amount": 3.99,
+      "currencyCode": "USD"
+    },
+    "buyLink": "https://play.google.com/store/books/details?id=ZxwpakTv_MIC&rdid=book-ZxwpakTv_MIC&rdot=1&source=gbs_api",
+    "offers": [
+      {
+        "finskyOfferType": 1,
+        "listPrice": {
+          "amountInMicros": 3990000,
+          "currencyCode": "USD"
+        },
+        "retailPrice": {
+          "amountInMicros": 3990000,
+          "currencyCode": "USD"
+        },
+        "giftable": true
+      }
+    ]
+  },
+  "accessInfo": {
+    "country": "US",
+    "viewability": "PARTIAL",
+    "embeddable": true,
+    "publicDomain": false,
+    "textToSpeechPermission": "ALLOWED",
+    "epub": {
+      "isAvailable": true,
+      "acsTokenLink": "http://books.google.com/books/download/Alice_in_Wonderland-sample-epub.acsm?id=ZxwpakTv_MIC&format=epub&output=acs4_fulfillment_token&dl_type=sample&source=gbs_api"
+    },
+    "pdf": {
+      "isAvailable": false
+    },
+    "webReaderLink": "http://play.google.com/books/reader?id=ZxwpakTv_MIC&hl=&source=gbs_api",
+    "accessViewStatus": "SAMPLE",
+    "quoteSharingAllowed": false
+  }
+}

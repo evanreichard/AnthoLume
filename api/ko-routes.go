@@ -10,13 +10,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
-	"github.com/gabriel-vasile/mimetype"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
 )
@@ -456,21 +453,11 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 		return
 	}
 
+	// Open Form File
 	fileData, err := c.FormFile("file")
 	if err != nil {
 		log.Error("File Error:", err)
-		apiErrorPage(c, http.StatusBadRequest, "File Error")
-		return
-	}
-
-	// Validate Type & Derive Extension on MIME
-	uploadedFile, err := fileData.Open()
-	fileMime, err := mimetype.DetectReader(uploadedFile)
-	fileExtension := fileMime.Extension()
-
-	if !slices.Contains([]string{".epub", ".html"}, fileExtension) {
-		log.Error("Invalid FileType:", fileExtension)
-		apiErrorPage(c, http.StatusBadRequest, "Invalid Filetype")
+		apiErrorPage(c, http.StatusBadRequest, "File error")
 		return
 	}
 
@@ -482,25 +469,29 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 		return
 	}
 
+	// Open File
+	uploadedFile, err := fileData.Open()
+	if err != nil {
+		log.Error("Unable to open file")
+		apiErrorPage(c, http.StatusBadRequest, "Unable to open file")
+		return
+	}
+
+	// Check Support
+	docType, err := metadata.GetDocumentTypeReader(uploadedFile)
+	if err != nil {
+		log.Error("Unsupported file")
+		apiErrorPage(c, http.StatusBadRequest, "Unsupported file")
+		return
+	}
+
 	// Derive Filename
-	var fileName string
-	if document.Author != nil {
-		fileName = fileName + *document.Author
-	} else {
-		fileName = fileName + "Unknown"
-	}
-
-	if document.Title != nil {
-		fileName = fileName + " - " + *document.Title
-	} else {
-		fileName = fileName + " - Unknown"
-	}
-
-	// Remove Slashes
-	fileName = strings.ReplaceAll(fileName, "/", "")
-
-	// Derive & Sanitize File Name
-	fileName = "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, document.ID, fileExtension))
+	fileName := deriveBaseFileName(&metadata.MetadataInfo{
+		Type:       *docType,
+		PartialMD5: &document.ID,
+		Title:      document.Title,
+		Author:     document.Author,
+	})
 
 	// Generate Storage Path
 	safePath := filepath.Join(api.cfg.DataPath, "documents", fileName)
@@ -516,28 +507,20 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 		}
 	}
 
-	// Get MD5 Hash
-	fileHash, err := getFileMD5(safePath)
+	// Acquire Metadata
+	metadataInfo, err := metadata.GetMetadata(safePath)
 	if err != nil {
-		log.Error("Hash Failure:", err)
-		apiErrorPage(c, http.StatusBadRequest, "File Error")
-		return
-	}
-
-	// Get Word Count
-	wordCount, err := metadata.GetWordCount(safePath)
-	if err != nil {
-		log.Error("Word Count Failure:", err)
-		apiErrorPage(c, http.StatusBadRequest, "File Error")
+		log.Errorf("Unable to acquire metadata: %v", err)
+		apiErrorPage(c, http.StatusBadRequest, "Unable to acquire metadata")
 		return
 	}
 
 	// Upsert Document
 	if _, err = api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
 		ID:       document.ID,
-		Md5:      fileHash,
+		Md5:      metadataInfo.MD5,
+		Words:    metadataInfo.WordCount,
 		Filepath: &fileName,
-		Words:    &wordCount,
 	}); err != nil {
 		log.Error("UpsertDocument DB Error:", err)
 		apiErrorPage(c, http.StatusBadRequest, "Document Error")
