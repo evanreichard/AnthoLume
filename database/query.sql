@@ -26,8 +26,8 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: CreateUser :execrows
-INSERT INTO users (id, pass, auth_hash)
-VALUES (?, ?, ?)
+INSERT INTO users (id, pass, auth_hash, admin)
+VALUES (?, ?, ?, ?)
 ON CONFLICT DO NOTHING;
 
 -- name: DeleteDocument :execrows

@@ -113,8 +113,8 @@ func (q *Queries) AddMetadata(ctx context.Context, arg AddMetadataParams) (Metad
 }
 
 const createUser = `-- name: CreateUser :execrows
-INSERT INTO users (id, pass, auth_hash)
-VALUES (?, ?, ?)
+INSERT INTO users (id, pass, auth_hash, admin)
+VALUES (?, ?, ?, ?)
 ON CONFLICT DO NOTHING
 `
 
@@ -122,10 +122,16 @@ type CreateUserParams struct {
 	ID       string  `json:"id"`
 	Pass     *string `json:"-"`
 	AuthHash *string `json:"auth_hash"`
+	Admin    bool    `json:"-"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, createUser, arg.ID, arg.Pass, arg.AuthHash)
+	result, err := q.db.ExecContext(ctx, createUser,
+		arg.ID,
+		arg.Pass,
+		arg.AuthHash,
+		arg.Admin,
+	)
 	if err != nil {
 		return 0, err
 	}

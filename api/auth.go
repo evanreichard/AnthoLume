@@ -205,7 +205,7 @@ func (api *API) appAuthRegister(c *gin.Context) {
 		return
 	}
 
-	// Generate Auth Hash
+	// Generate auth hash
 	rawAuthHash, err := utils.GenerateToken(64)
 	if err != nil {
 		log.Error("Failed to generate user token: ", err)
@@ -214,31 +214,41 @@ func (api *API) appAuthRegister(c *gin.Context) {
 		return
 	}
 
-	// Create User in DB
-	authHash := fmt.Sprintf("%x", rawAuthHash)
-	rows, err := api.db.Queries.CreateUser(api.db.Ctx, database.CreateUserParams{
-		ID:       username,
-		Pass:     &hashedPassword,
-		AuthHash: &authHash,
-	})
-
-	// SQL Error
+	// Get current users
+	currentUsers, err := api.db.Queries.GetUsers(api.db.Ctx)
 	if err != nil {
-		log.Error("CreateUser DB Error:", err)
-		templateVars["Error"] = "Registration Disabled or User Already Exists"
+		log.Error("Failed to check all users: ", err)
+		templateVars["Error"] = "Failed to Create User"
 		c.HTML(http.StatusBadRequest, "page/login", templateVars)
 		return
 	}
 
-	// User Already Exists
-	if rows == 0 {
+	// Determine if we should be admin
+	isAdmin := false
+	if len(currentUsers) == 0 {
+		isAdmin = true
+	}
+
+	// Create user in DB
+	authHash := fmt.Sprintf("%x", rawAuthHash)
+	if rows, err := api.db.Queries.CreateUser(api.db.Ctx, database.CreateUserParams{
+		ID:       username,
+		Pass:     &hashedPassword,
+		AuthHash: &authHash,
+		Admin:    isAdmin,
+	}); err != nil {
+		log.Error("CreateUser DB Error:", err)
+		templateVars["Error"] = "Registration Disabled or User Already Exists"
+		c.HTML(http.StatusBadRequest, "page/login", templateVars)
+		return
+	} else if rows == 0 {
 		log.Warn("User Already Exists:", username)
 		templateVars["Error"] = "Registration Disabled or User Already Exists"
 		c.HTML(http.StatusBadRequest, "page/login", templateVars)
 		return
 	}
 
-	// Get User
+	// Get user
 	user, err := api.db.Queries.GetUser(api.db.Ctx, username)
 	if err != nil {
 		log.Error("GetUser DB Error:", err)
@@ -247,7 +257,7 @@ func (api *API) appAuthRegister(c *gin.Context) {
 		return
 	}
 
-	// Set Session
+	// Set session
 	auth := authData{
 		UserName: user.ID,
 		IsAdmin:  user.Admin,
@@ -289,6 +299,7 @@ func (api *API) koAuthRegister(c *gin.Context) {
 		return
 	}
 
+	// Generate password hash
 	hashedPassword, err := argon2.CreateHash(rUser.Password, argon2.DefaultParams)
 	if err != nil {
 		log.Error("Argon2 Hash Failure:", err)
@@ -296,7 +307,7 @@ func (api *API) koAuthRegister(c *gin.Context) {
 		return
 	}
 
-	// Generate Auth Hash
+	// Generate auth hash
 	rawAuthHash, err := utils.GenerateToken(64)
 	if err != nil {
 		log.Error("Failed to generate user token: ", err)
@@ -304,20 +315,32 @@ func (api *API) koAuthRegister(c *gin.Context) {
 		return
 	}
 
-	authHash := fmt.Sprintf("%x", rawAuthHash)
-	rows, err := api.db.Queries.CreateUser(api.db.Ctx, database.CreateUserParams{
-		ID:       rUser.Username,
-		Pass:     &hashedPassword,
-		AuthHash: &authHash,
-	})
+	// Get current users
+	currentUsers, err := api.db.Queries.GetUsers(api.db.Ctx)
 	if err != nil {
-		log.Error("CreateUser DB Error:", err)
-		apiErrorPage(c, http.StatusBadRequest, "Invalid User Data")
+		log.Error("Failed to check all users: ", err)
+		apiErrorPage(c, http.StatusBadRequest, "Failed to Create User")
 		return
 	}
 
-	// User Exists
-	if rows == 0 {
+	// Determine if we should be admin
+	isAdmin := false
+	if len(currentUsers) == 0 {
+		isAdmin = true
+	}
+
+	// Create user
+	authHash := fmt.Sprintf("%x", rawAuthHash)
+	if rows, err := api.db.Queries.CreateUser(api.db.Ctx, database.CreateUserParams{
+		ID:       rUser.Username,
+		Pass:     &hashedPassword,
+		AuthHash: &authHash,
+		Admin:    isAdmin,
+	}); err != nil {
+		log.Error("CreateUser DB Error:", err)
+		apiErrorPage(c, http.StatusBadRequest, "Invalid User Data")
+		return
+	} else if rows == 0 {
 		log.Error("User Already Exists:", rUser.Username)
 		apiErrorPage(c, http.StatusBadRequest, "User Already Exists")
 		return
