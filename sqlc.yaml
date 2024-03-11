@@ -120,7 +120,7 @@ sql:
             go_type:
               type: "string"
               pointer: true
-          - column: "users.time_offset"
+          - column: "users.timezone"
             go_type:
               type: "string"
               pointer: true

@@ -181,7 +181,7 @@ WITH filtered_activity AS (
 SELECT
     document_id,
     device_id,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', activity.start_time, users.time_offset) AS TEXT) AS start_time,
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(activity.start_time, users.timezone)) AS TEXT) AS start_time,
     title,
     author,
     duration,
@@ -254,7 +254,7 @@ func (q *Queries) GetActivity(ctx context.Context, arg GetActivityParams) ([]Get
 
 const getDailyReadStats = `-- name: GetDailyReadStats :many
 WITH RECURSIVE last_30_days AS (
-    SELECT DATE('now', time_offset) AS date
+    SELECT DATE(LOCAL_TIME(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), timezone)) AS date
     FROM users WHERE users.id = ?1
     UNION ALL
     SELECT DATE(date, '-1 days')
@@ -273,7 +273,7 @@ filtered_activity AS (
 activity_days AS (
     SELECT
         SUM(duration) AS seconds_read,
-        DATE(start_time, time_offset) AS day
+        DATE(LOCAL_TIME(start_time, timezone)) AS day
     FROM filtered_activity AS activity
     LEFT JOIN users ON users.id = activity.user_id
     GROUP BY day
@@ -410,8 +410,8 @@ const getDevices = `-- name: GetDevices :many
 SELECT
     devices.id,
     devices.device_name,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', devices.created_at, users.time_offset) AS TEXT) AS created_at,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', devices.last_synced, users.time_offset) AS TEXT) AS last_synced
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(devices.created_at, users.timezone)) AS TEXT) AS created_at,
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(devices.last_synced, users.timezone)) AS TEXT) AS last_synced
 FROM devices
 JOIN users ON users.id = devices.user_id
 WHERE users.id = ?1
@@ -544,7 +544,7 @@ SELECT
     CAST(COALESCE(dus.total_wpm, 0.0) AS INTEGER) AS wpm,
     COALESCE(dus.read_percentage, 0) AS read_percentage,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
-    STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
+    STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), LOCAL_TIME(users.timezone))
         AS last_read,
     ROUND(CAST(CASE
         WHEN dus.percentage IS NULL THEN 0.0
@@ -698,7 +698,9 @@ SELECT
     CAST(COALESCE(dus.total_wpm, 0.0) AS INTEGER) AS wpm,
     COALESCE(dus.read_percentage, 0) AS read_percentage,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
-    STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
+
+    -- LOCAL_TIME(STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01")), users.timezone)
+    STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"))
         AS last_read,
     ROUND(CAST(CASE
         WHEN dus.percentage IS NULL THEN 0.0
@@ -887,7 +889,7 @@ SELECT
     ROUND(CAST(progress.percentage AS REAL) * 100, 2) AS percentage,
     progress.document_id,
     progress.user_id,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', progress.created_at, users.time_offset) AS TEXT) AS created_at
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', progress.created_at, LOCAL_TIME(users.timezone)) AS TEXT) AS created_at
 FROM document_progress AS progress
 LEFT JOIN users ON progress.user_id = users.id
 LEFT JOIN devices ON progress.device_id = devices.id
@@ -961,7 +963,7 @@ func (q *Queries) GetProgress(ctx context.Context, arg GetProgressParams) ([]Get
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, pass, auth_hash, admin, time_offset, created_at FROM users
+SELECT id, pass, auth_hash, admin, timezone, created_at FROM users
 WHERE id = ?1 LIMIT 1
 `
 
@@ -973,7 +975,7 @@ func (q *Queries) GetUser(ctx context.Context, userID string) (User, error) {
 		&i.Pass,
 		&i.AuthHash,
 		&i.Admin,
-		&i.TimeOffset,
+		&i.Timezone,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -1100,7 +1102,7 @@ func (q *Queries) GetUserStreaks(ctx context.Context, userID string) ([]UserStre
 }
 
 const getUsers = `-- name: GetUsers :many
-SELECT id, pass, auth_hash, admin, time_offset, created_at FROM users
+SELECT id, pass, auth_hash, admin, timezone, created_at FROM users
 `
 
 func (q *Queries) GetUsers(ctx context.Context) ([]User, error) {
@@ -1117,7 +1119,7 @@ func (q *Queries) GetUsers(ctx context.Context) ([]User, error) {
 			&i.Pass,
 			&i.AuthHash,
 			&i.Admin,
-			&i.TimeOffset,
+			&i.Timezone,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -1251,25 +1253,25 @@ UPDATE users
 SET
     pass = COALESCE(?1, pass),
     auth_hash = COALESCE(?2, auth_hash),
-    time_offset = COALESCE(?3, time_offset),
+    timezone = COALESCE(?3, timezone),
     admin = COALESCE(?4, admin)
 WHERE id = ?5
-RETURNING id, pass, auth_hash, admin, time_offset, created_at
+RETURNING id, pass, auth_hash, admin, timezone, created_at
 `
 
 type UpdateUserParams struct {
-	Password   *string `json:"-"`
-	AuthHash   *string `json:"auth_hash"`
-	TimeOffset *string `json:"time_offset"`
-	Admin      bool    `json:"-"`
-	UserID     string  `json:"user_id"`
+	Password *string `json:"-"`
+	AuthHash *string `json:"auth_hash"`
+	Timezone *string `json:"timezone"`
+	Admin    bool    `json:"-"`
+	UserID   string  `json:"user_id"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, updateUser,
 		arg.Password,
 		arg.AuthHash,
-		arg.TimeOffset,
+		arg.Timezone,
 		arg.Admin,
 		arg.UserID,
 	)
@@ -1279,7 +1281,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Pass,
 		&i.AuthHash,
 		&i.Admin,
-		&i.TimeOffset,
+		&i.Timezone,
 		&i.CreatedAt,
 	)
 	return i, err

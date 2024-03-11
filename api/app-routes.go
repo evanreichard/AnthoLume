@@ -69,7 +69,7 @@ type requestDocumentIdentify struct {
 type requestSettingsEdit struct {
 	Password    *string `form:"password"`
 	NewPassword *string `form:"new_password"`
-	TimeOffset  *string `form:"time_offset"`
+	Timezone    *string `form:"timezone"`
 }
 
 type requestDocumentAdd struct {
@@ -299,8 +299,8 @@ func (api *API) appGetSettings(c *gin.Context) {
 	}
 
 	templateVars["Data"] = gin.H{
-		"TimeOffset": *user.TimeOffset,
-		"Devices":    devices,
+		"Timezone": *user.Timezone,
+		"Devices":  devices,
 	}
 
 	c.HTML(http.StatusOK, "page/settings", templateVars)
@@ -869,7 +869,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	}
 
 	// Validate Something Exists
-	if rUserSettings.Password == nil && rUserSettings.NewPassword == nil && rUserSettings.TimeOffset == nil {
+	if rUserSettings.Password == nil && rUserSettings.NewPassword == nil && rUserSettings.Timezone == nil {
 		log.Error("Missing Form Values")
 		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
 		return
@@ -901,9 +901,9 @@ func (api *API) appEditSettings(c *gin.Context) {
 	}
 
 	// Set Time Offset
-	if rUserSettings.TimeOffset != nil {
+	if rUserSettings.Timezone != nil {
 		templateVars["TimeOffsetMessage"] = "Time Offset Updated"
-		newUserSettings.TimeOffset = rUserSettings.TimeOffset
+		newUserSettings.Timezone = rUserSettings.Timezone
 	}
 
 	// Update User
@@ -931,8 +931,8 @@ func (api *API) appEditSettings(c *gin.Context) {
 	}
 
 	templateVars["Data"] = gin.H{
-		"TimeOffset": *user.TimeOffset,
-		"Devices":    devices,
+		"Timezone": *user.Timezone,
+		"Devices":  devices,
 	}
 
 	c.HTML(http.StatusOK, "page/settings", templateVars)

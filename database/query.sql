@@ -64,7 +64,7 @@ WITH filtered_activity AS (
 SELECT
     document_id,
     device_id,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', activity.start_time, users.time_offset) AS TEXT) AS start_time,
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(activity.start_time, users.timezone)) AS TEXT) AS start_time,
     title,
     author,
     duration,
@@ -77,7 +77,7 @@ LEFT JOIN users ON users.id = activity.user_id;
 
 -- name: GetDailyReadStats :many
 WITH RECURSIVE last_30_days AS (
-    SELECT DATE('now', time_offset) AS date
+    SELECT DATE(LOCAL_TIME(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), timezone)) AS date
     FROM users WHERE users.id = $user_id
     UNION ALL
     SELECT DATE(date, '-1 days')
@@ -96,7 +96,7 @@ filtered_activity AS (
 activity_days AS (
     SELECT
         SUM(duration) AS seconds_read,
-        DATE(start_time, time_offset) AS day
+        DATE(LOCAL_TIME(start_time, timezone)) AS day
     FROM filtered_activity AS activity
     LEFT JOIN users ON users.id = activity.user_id
     GROUP BY day
@@ -135,8 +135,8 @@ WHERE id = $device_id LIMIT 1;
 SELECT
     devices.id,
     devices.device_name,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', devices.created_at, users.time_offset) AS TEXT) AS created_at,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', devices.last_synced, users.time_offset) AS TEXT) AS last_synced
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(devices.created_at, users.timezone)) AS TEXT) AS created_at,
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(devices.last_synced, users.timezone)) AS TEXT) AS last_synced
 FROM devices
 JOIN users ON users.id = devices.user_id
 WHERE users.id = $user_id
@@ -174,7 +174,7 @@ SELECT
     CAST(COALESCE(dus.total_wpm, 0.0) AS INTEGER) AS wpm,
     COALESCE(dus.read_percentage, 0) AS read_percentage,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
-    STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
+    STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), LOCAL_TIME(users.timezone))
         AS last_read,
     ROUND(CAST(CASE
         WHEN dus.percentage IS NULL THEN 0.0
@@ -226,7 +226,7 @@ SELECT
     CAST(COALESCE(dus.total_wpm, 0.0) AS INTEGER) AS wpm,
     COALESCE(dus.read_percentage, 0) AS read_percentage,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
-    STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), users.time_offset)
+    STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(COALESCE(dus.last_read, "1970-01-01"), users.timezone))
         AS last_read,
     ROUND(CAST(CASE
         WHEN dus.percentage IS NULL THEN 0.0
@@ -280,7 +280,7 @@ SELECT
     ROUND(CAST(progress.percentage AS REAL) * 100, 2) AS percentage,
     progress.document_id,
     progress.user_id,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', progress.created_at, users.time_offset) AS TEXT) AS created_at
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', progress.created_at, LOCAL_TIME(users.timezone)) AS TEXT) AS created_at
 FROM document_progress AS progress
 LEFT JOIN users ON progress.user_id = users.id
 LEFT JOIN devices ON progress.device_id = devices.id
@@ -369,7 +369,7 @@ UPDATE users
 SET
     pass = COALESCE($password, pass),
     auth_hash = COALESCE($auth_hash, auth_hash),
-    time_offset = COALESCE($time_offset, time_offset),
+    timezone = COALESCE($timezone, timezone),
     admin = COALESCE($admin, admin)
 WHERE id = $user_id
 RETURNING *;

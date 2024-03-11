@@ -3,15 +3,17 @@ package database
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"embed"
 	_ "embed"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
 
 	"github.com/pressly/goose/v3"
 	log "github.com/sirupsen/logrus"
-	_ "modernc.org/sqlite"
+	sqlite "modernc.org/sqlite"
 	"reichard.io/antholume/config"
 	_ "reichard.io/antholume/database/migrations"
 )
@@ -26,8 +28,20 @@ type DBManager struct {
 //go:embed schema.sql
 var ddl string
 
+//go:embed views.sql
+var views string
+
 //go:embed migrations/*
 var migrations embed.FS
+
+// Register scalar sqlite function on init
+func init() {
+	sqlite.MustRegisterFunction("LOCAL_TIME", &sqlite.FunctionImpl{
+		NArgs:         2,
+		Deterministic: true,
+		Scalar:        localTime,
+	})
+}
 
 // Returns an initialized manager
 func NewMgr(c *config.Config) *DBManager {
@@ -87,6 +101,12 @@ func (dbm *DBManager) init() error {
 	err = dbm.performMigrations(isNew)
 	if err != nil && err != goose.ErrNoMigrationFiles {
 		log.Panicf("Error running DB migrations: %v", err)
+		return err
+	}
+
+	// Execute views
+	if _, err := dbm.DB.Exec(views, nil); err != nil {
+		log.Panicf("Error executing views: %v", err)
 		return err
 	}
 
@@ -182,6 +202,7 @@ func (dbm *DBManager) performMigrations(isNew bool) error {
 	return goose.UpContext(ctx, dbm.DB, "migrations")
 }
 
+// Determines whether the database is empty
 func isEmpty(db *sql.DB) (bool, error) {
 	var tableCount int
 	err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table';").Scan(&tableCount)
@@ -189,4 +210,29 @@ func isEmpty(db *sql.DB) (bool, error) {
 		return false, err
 	}
 	return tableCount == 0, nil
+}
+
+// LOCAL_TIME custom SQL function
+func localTime(ctx *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+	timeStr, ok := args[0].(string)
+	if !ok {
+		return nil, errors.New("both arguments to TZTime must be strings")
+	}
+
+	timeZoneStr, ok := args[1].(string)
+	if !ok {
+		return nil, errors.New("both arguments to TZTime must be strings")
+	}
+
+	timeZone, err := time.LoadLocation(timeZoneStr)
+	if err != nil {
+		return nil, errors.New("unable to parse timezone")
+	}
+
+	formattedTime, err := time.ParseInLocation(time.RFC3339, timeStr, time.UTC)
+	if err != nil {
+		return nil, errors.New("unable to parse time")
+	}
+
+	return formattedTime.In(timeZone).Format("2006-01-02 15:04:05.000"), nil
 }

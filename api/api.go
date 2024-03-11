@@ -228,7 +228,7 @@ func (api *API) generateTemplates() *multitemplate.Renderer {
 		"dict":            dict,
 		"fields":          fields,
 		"getSVGGraphData": getSVGGraphData,
-		"getUTCOffsets":   getUTCOffsets,
+		"getTimeZones":    getTimeZones,
 		"hasPrefix":       strings.HasPrefix,
 		"niceNumbers":     niceNumbers,
 		"niceSeconds":     niceSeconds,

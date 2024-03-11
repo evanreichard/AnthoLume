@@ -99,12 +99,12 @@ type Setting struct {
 }
 
 type User struct {
-	ID         string  `json:"id"`
-	Pass       *string `json:"-"`
-	AuthHash   *string `json:"auth_hash"`
-	Admin      bool    `json:"-"`
-	TimeOffset *string `json:"time_offset"`
-	CreatedAt  string  `json:"created_at"`
+	ID        string  `json:"id"`
+	Pass      *string `json:"-"`
+	AuthHash  *string `json:"auth_hash"`
+	Admin     bool    `json:"-"`
+	Timezone  *string `json:"timezone"`
+	CreatedAt string  `json:"created_at"`
 }
 
 type UserStreak struct {
@@ -116,35 +116,4 @@ type UserStreak struct {
 	CurrentStreak          int64  `json:"current_streak"`
 	CurrentStreakStartDate string `json:"current_streak_start_date"`
 	CurrentStreakEndDate   string `json:"current_streak_end_date"`
-}
-
-type ViewDocumentUserStatistic struct {
-	DocumentID         string      `json:"document_id"`
-	UserID             string      `json:"user_id"`
-	Percentage         float64     `json:"percentage"`
-	LastRead           interface{} `json:"last_read"`
-	ReadPercentage     *float64    `json:"read_percentage"`
-	TotalTimeSeconds   *float64    `json:"total_time_seconds"`
-	TotalWordsRead     interface{} `json:"total_words_read"`
-	TotalWpm           int64       `json:"total_wpm"`
-	YearlyTimeSeconds  *float64    `json:"yearly_time_seconds"`
-	YearlyWordsRead    interface{} `json:"yearly_words_read"`
-	YearlyWpm          interface{} `json:"yearly_wpm"`
-	MonthlyTimeSeconds *float64    `json:"monthly_time_seconds"`
-	MonthlyWordsRead   interface{} `json:"monthly_words_read"`
-	MonthlyWpm         interface{} `json:"monthly_wpm"`
-	WeeklyTimeSeconds  *float64    `json:"weekly_time_seconds"`
-	WeeklyWordsRead    interface{} `json:"weekly_words_read"`
-	WeeklyWpm          interface{} `json:"weekly_wpm"`
-}
-
-type ViewUserStreak struct {
-	UserID                 string      `json:"user_id"`
-	Window                 string      `json:"window"`
-	MaxStreak              interface{} `json:"max_streak"`
-	MaxStreakStartDate     interface{} `json:"max_streak_start_date"`
-	MaxStreakEndDate       interface{} `json:"max_streak_end_date"`
-	CurrentStreak          interface{} `json:"current_streak"`
-	CurrentStreakStartDate interface{} `json:"current_streak_start_date"`
-	CurrentStreakEndDate   interface{} `json:"current_streak_end_date"`
 }
