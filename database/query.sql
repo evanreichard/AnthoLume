@@ -369,7 +369,8 @@ UPDATE users
 SET
     pass = COALESCE($password, pass),
     auth_hash = COALESCE($auth_hash, auth_hash),
-    time_offset = COALESCE($time_offset, time_offset)
+    time_offset = COALESCE($time_offset, time_offset),
+    admin = COALESCE($admin, admin)
 WHERE id = $user_id
 RETURNING *;
 

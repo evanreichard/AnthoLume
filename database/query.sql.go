@@ -1251,8 +1251,9 @@ UPDATE users
 SET
     pass = COALESCE(?1, pass),
     auth_hash = COALESCE(?2, auth_hash),
-    time_offset = COALESCE(?3, time_offset)
-WHERE id = ?4
+    time_offset = COALESCE(?3, time_offset),
+    admin = COALESCE(?4, admin)
+WHERE id = ?5
 RETURNING id, pass, auth_hash, admin, time_offset, created_at
 `
 
@@ -1260,6 +1261,7 @@ type UpdateUserParams struct {
 	Password   *string `json:"-"`
 	AuthHash   *string `json:"auth_hash"`
 	TimeOffset *string `json:"time_offset"`
+	Admin      bool    `json:"-"`
 	UserID     string  `json:"user_id"`
 }
 
@@ -1268,6 +1270,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		arg.Password,
 		arg.AuthHash,
 		arg.TimeOffset,
+		arg.Admin,
 		arg.UserID,
 	)
 	var i User

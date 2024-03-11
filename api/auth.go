@@ -43,7 +43,7 @@ func (api *API) authorizeCredentials(username string, password string) (auth *au
 		return
 	}
 
-	// Update Auth Cache
+	// Update auth cache
 	api.userAuthCache[user.ID] = *user.AuthHash
 
 	return &authData{
@@ -413,30 +413,6 @@ func (api *API) getUserAuthHash(username string) (string, error) {
 	return api.userAuthCache[username], nil
 }
 
-func (api *API) rotateUserAuthHash(username string) error {
-	// Generate Auth Hash
-	rawAuthHash, err := utils.GenerateToken(64)
-	if err != nil {
-		log.Error("Failed to generate user token: ", err)
-		return err
-	}
-
-	// Update User
-	authHash := fmt.Sprintf("%x", rawAuthHash)
-	if _, err = api.db.Queries.UpdateUser(api.db.Ctx, database.UpdateUserParams{
-		UserID:   username,
-		AuthHash: &authHash,
-	}); err != nil {
-		log.Error("UpdateUser DB Error: ", err)
-		return err
-	}
-
-	// Update Cache
-	api.userAuthCache[username] = fmt.Sprintf("%x", rawAuthHash)
-
-	return nil
-}
-
 func (api *API) rotateAllAuthHashes() error {
 	// Do Transaction
 	tx, err := api.db.DB.Begin()
@@ -467,6 +443,7 @@ func (api *API) rotateAllAuthHashes() error {
 		if _, err = qtx.UpdateUser(api.db.Ctx, database.UpdateUserParams{
 			UserID:   user.ID,
 			AuthHash: &authHash,
+			Admin:    user.Admin,
 		}); err != nil {
 			return err
 		}

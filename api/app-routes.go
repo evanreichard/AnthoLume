@@ -879,6 +879,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 
 	newUserSettings := database.UpdateUserParams{
 		UserID: auth.UserName,
+		Admin:  auth.IsAdmin,
 	}
 
 	// Set New Password
