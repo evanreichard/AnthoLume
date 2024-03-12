@@ -9,8 +9,13 @@
           action="./users"
           class="flex flex-col gap-2 text-black dark:text-white text-sm">
       <input type="text"
-             id="username"
-             name="username"
+             id="operation"
+             name="operation"
+             value="CREATE"
+             class="hidden" />
+      <input type="text"
+             id="user"
+             name="user"
              placeholder="User"
              class="p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white" />
       <input type="password"

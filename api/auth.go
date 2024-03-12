@@ -460,3 +460,55 @@ func (api *API) rotateAllAuthHashes() error {
 
 	return nil
 }
+
+func (api *API) createUser(username string, rawPassword string) error {
+	password := fmt.Sprintf("%x", md5.Sum([]byte(rawPassword)))
+
+	if username == "" {
+		return fmt.Errorf("username can't be empty")
+	}
+
+	if rawPassword == "" {
+		return fmt.Errorf("password can't be empty")
+	}
+
+	hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
+	if err != nil {
+		return fmt.Errorf("unable to create hashed password")
+	}
+
+	// Generate auth hash
+	rawAuthHash, err := utils.GenerateToken(64)
+	if err != nil {
+		return fmt.Errorf("unable to create token for user")
+	}
+
+	// Get current users
+	currentUsers, err := api.db.Queries.GetUsers(api.db.Ctx)
+	if err != nil {
+		return fmt.Errorf("unable to get current users")
+	}
+
+	// Determine if we should be admin
+	isAdmin := false
+	if len(currentUsers) == 0 {
+		isAdmin = true
+	}
+
+	// Create user in DB
+	authHash := fmt.Sprintf("%x", rawAuthHash)
+	if rows, err := api.db.Queries.CreateUser(api.db.Ctx, database.CreateUserParams{
+		ID:       username,
+		Pass:     &hashedPassword,
+		AuthHash: &authHash,
+		Admin:    isAdmin,
+	}); err != nil {
+		log.Error("CreateUser DB Error:", err)
+		return fmt.Errorf("unable to create user")
+	} else if rows == 0 {
+		log.Warn("User Already Exists:", username)
+		return fmt.Errorf("user already exists")
+	}
+
+	return nil
+}

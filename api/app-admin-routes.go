@@ -54,6 +54,20 @@ type requestAdminImport struct {
 	Type      importType `form:"type"`
 }
 
+type operationType string
+
+const (
+	opUpdate operationType = "UPDATE"
+	opCreate operationType = "CREATE"
+)
+
+type requestAdminUpdateUser struct {
+	User      string        `form:"user"`
+	Password  string        `form:"password"`
+	isAdmin   bool          `form:"is_admin"`
+	Operation operationType `form:"operation"`
+}
+
 type requestAdminLogs struct {
 	Filter string `form:"filter"`
 }
@@ -212,6 +226,45 @@ func (api *API) appGetAdminLogs(c *gin.Context) {
 
 func (api *API) appGetAdminUsers(c *gin.Context) {
 	templateVars, _ := api.getBaseTemplateVars("admin-users", c)
+
+	users, err := api.db.Queries.GetUsers(api.db.Ctx)
+	if err != nil {
+		log.Error("GetUsers DB Error: ", err)
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUsers DB Error: %v", err))
+		return
+	}
+
+	templateVars["Data"] = users
+
+	c.HTML(http.StatusOK, "page/admin-users", templateVars)
+}
+
+func (api *API) appUpdateAdminUsers(c *gin.Context) {
+	templateVars, _ := api.getBaseTemplateVars("admin-users", c)
+
+	var rAdminUserUpdate requestAdminUpdateUser
+	if err := c.ShouldBind(&rAdminUserUpdate); err != nil {
+		log.Error("Invalid URI Bind")
+		appErrorPage(c, http.StatusNotFound, "Invalid user update")
+		return
+	}
+
+	var err error
+	switch rAdminUserUpdate.Operation {
+	case opCreate:
+		err = api.createUser(rAdminUserUpdate.User, rAdminUserUpdate.Password)
+	case opUpdate:
+		err = fmt.Errorf("unimplemented")
+	default:
+		appErrorPage(c, http.StatusNotFound, "Unknown user operation")
+		return
+
+	}
+
+	if err != nil {
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Unable to create user: %v", err))
+		return
+	}
 
 	users, err := api.db.Queries.GetUsers(api.db.Ctx)
 	if err != nil {
