@@ -1,6 +1,6 @@
-# Certificate Store
-FROM alpine AS certs
-RUN apk update && apk add ca-certificates
+# Certificates & Timezones
+FROM alpine AS alpine
+RUN apk update && apk add --no-cache ca-certificates tzdata
 
 # Build Image
 FROM golang:1.21 AS build
@@ -19,7 +19,8 @@ RUN go build \
 
 # Create Image
 FROM busybox:1.36
-COPY --from=certs /etc/ssl/certs /etc/ssl/certs
+COPY --from=alpine /etc/ssl/certs /etc/ssl/certs
+COPY --from=alpine /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=build /opt/antholume /opt/antholume
 WORKDIR /opt/antholume
 EXPOSE 8585
