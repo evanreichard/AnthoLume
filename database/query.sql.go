@@ -544,7 +544,7 @@ SELECT
     CAST(COALESCE(dus.total_wpm, 0.0) AS INTEGER) AS wpm,
     COALESCE(dus.read_percentage, 0) AS read_percentage,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
-    STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"), LOCAL_TIME(users.timezone))
+    STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(COALESCE(dus.last_read, STRFTIME('%Y-%m-%dT%H:%M:%SZ', 0, 'unixepoch')), users.timezone))
         AS last_read,
     ROUND(CAST(CASE
         WHEN dus.percentage IS NULL THEN 0.0
@@ -698,9 +698,7 @@ SELECT
     CAST(COALESCE(dus.total_wpm, 0.0) AS INTEGER) AS wpm,
     COALESCE(dus.read_percentage, 0) AS read_percentage,
     COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
-
-    -- LOCAL_TIME(STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01")), users.timezone)
-    STRFTIME('%Y-%m-%d %H:%M:%S', COALESCE(dus.last_read, "1970-01-01"))
+    STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(COALESCE(dus.last_read, STRFTIME('%Y-%m-%dT%H:%M:%SZ', 0, 'unixepoch')), users.timezone))
         AS last_read,
     ROUND(CAST(CASE
         WHEN dus.percentage IS NULL THEN 0.0
@@ -889,7 +887,7 @@ SELECT
     ROUND(CAST(progress.percentage AS REAL) * 100, 2) AS percentage,
     progress.document_id,
     progress.user_id,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', progress.created_at, LOCAL_TIME(users.timezone)) AS TEXT) AS created_at
+    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(progress.created_at, users.timezone)) AS TEXT) AS created_at
 FROM document_progress AS progress
 LEFT JOIN users ON progress.user_id = users.id
 LEFT JOIN devices ON progress.device_id = devices.id
