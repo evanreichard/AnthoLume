@@ -19,6 +19,10 @@ sql:
             go_type:
               type: "string"
               pointer: true
+          - column: "documents.basepath"
+            go_type:
+              type: "string"
+              pointer: true
           - column: "documents.coverfile"
             go_type:
               type: "string"

@@ -193,7 +193,11 @@ func (api *API) koAddActivities(c *gin.Context) {
 	allDocuments := getKeys(allDocumentsMap)
 
 	// Defer & Start Transaction
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			log.Error("DB Rollback Error:", err)
+		}
+	}()
 	qtx := api.db.Queries.WithTx(tx)
 
 	// Upsert Documents
@@ -316,7 +320,11 @@ func (api *API) koAddDocuments(c *gin.Context) {
 	}
 
 	// Defer & Start Transaction
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			log.Error("DB Rollback Error:", err)
+		}
+	}()
 	qtx := api.db.Queries.WithTx(tx)
 
 	// Upsert Documents
@@ -375,11 +383,8 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 		return
 	}
 
-	missingDocs := []database.Document{}
-	deletedDocIDs := []string{}
-
 	// Get Missing Documents
-	missingDocs, err = api.db.Queries.GetMissingDocuments(api.db.Ctx, rCheckDocs.Have)
+	missingDocs, err := api.db.Queries.GetMissingDocuments(api.db.Ctx, rCheckDocs.Have)
 	if err != nil {
 		log.Error("GetMissingDocuments DB Error", err)
 		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
@@ -387,7 +392,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	}
 
 	// Get Deleted Documents
-	deletedDocIDs, err = api.db.Queries.GetDeletedDocuments(api.db.Ctx, rCheckDocs.Have)
+	deletedDocIDs, err := api.db.Queries.GetDeletedDocuments(api.db.Ctx, rCheckDocs.Have)
 	if err != nil {
 		log.Error("GetDeletedDocuments DB Error", err)
 		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
@@ -494,7 +499,8 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 	})
 
 	// Generate Storage Path
-	safePath := filepath.Join(api.cfg.DataPath, "documents", fileName)
+	basePath := filepath.Join(api.cfg.DataPath, "documents")
+	safePath := filepath.Join(basePath, fileName)
 
 	// Save & Prevent Overwrites
 	_, err = os.Stat(safePath)
@@ -521,6 +527,7 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 		Md5:      metadataInfo.MD5,
 		Words:    metadataInfo.WordCount,
 		Filepath: &fileName,
+		Basepath: &basePath,
 	}); err != nil {
 		log.Error("UpsertDocument DB Error:", err)
 		apiErrorPage(c, http.StatusBadRequest, "Document Error")

@@ -28,18 +28,13 @@ type authKOHeader struct {
 	AuthKey  string `header:"x-auth-key"`
 }
 
-// OPDS Auth Headers
-type authOPDSHeader struct {
-	Authorization string `header:"authorization"`
-}
-
 func (api *API) authorizeCredentials(username string, password string) (auth *authData) {
 	user, err := api.db.Queries.GetUser(api.db.Ctx, username)
 	if err != nil {
 		return
 	}
 
-	if match, err := argon2.ComparePasswordAndHash(password, *user.Pass); err != nil || match != true {
+	if match, err := argon2.ComparePasswordAndHash(password, *user.Pass); err != nil || !match {
 		return
 	}
 
@@ -57,7 +52,7 @@ func (api *API) authKOMiddleware(c *gin.Context) {
 	session := sessions.Default(c)
 
 	// Check Session First
-	if auth, ok := api.getSession(session); ok == true {
+	if auth, ok := api.getSession(session); ok {
 		c.Set("Authorization", auth)
 		c.Header("Cache-Control", "private")
 		c.Next()
@@ -98,7 +93,7 @@ func (api *API) authOPDSMiddleware(c *gin.Context) {
 	user, rawPassword, hasAuth := c.Request.BasicAuth()
 
 	// Validate Auth Fields
-	if hasAuth != true || user == "" || rawPassword == "" {
+	if !hasAuth || user == "" || rawPassword == "" {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization Headers"})
 		return
 	}
@@ -120,7 +115,7 @@ func (api *API) authWebAppMiddleware(c *gin.Context) {
 	session := sessions.Default(c)
 
 	// Check Session
-	if auth, ok := api.getSession(session); ok == true {
+	if auth, ok := api.getSession(session); ok {
 		c.Set("Authorization", auth)
 		c.Header("Cache-Control", "private")
 		c.Next()
@@ -129,13 +124,12 @@ func (api *API) authWebAppMiddleware(c *gin.Context) {
 
 	c.Redirect(http.StatusFound, "/login")
 	c.Abort()
-	return
 }
 
 func (api *API) authAdminWebAppMiddleware(c *gin.Context) {
 	if data, _ := c.Get("Authorization"); data != nil {
 		auth := data.(authData)
-		if auth.IsAdmin == true {
+		if auth.IsAdmin {
 			c.Next()
 			return
 		}
@@ -143,7 +137,6 @@ func (api *API) authAdminWebAppMiddleware(c *gin.Context) {
 
 	appErrorPage(c, http.StatusUnauthorized, "Admin Permissions Required")
 	c.Abort()
-	return
 }
 
 func (api *API) appAuthLogin(c *gin.Context) {
@@ -276,7 +269,10 @@ func (api *API) appAuthRegister(c *gin.Context) {
 func (api *API) appAuthLogout(c *gin.Context) {
 	session := sessions.Default(c)
 	session.Clear()
-	session.Save()
+	if err := session.Save(); err != nil {
+		log.Error("unable to save session")
+	}
+
 	c.Redirect(http.StatusFound, "/login")
 }
 
@@ -377,7 +373,10 @@ func (api *API) getSession(session sessions.Session) (auth authData, ok bool) {
 	// Refresh
 	if expiresAt.(int64)-time.Now().Unix() < 60*60*24 {
 		log.Info("Refreshing Session")
-		api.setSession(session, auth)
+		if err := api.setSession(session, auth); err != nil {
+			log.Error("unable to get session")
+			return
+		}
 	}
 
 	// Authorized
@@ -422,7 +421,11 @@ func (api *API) rotateAllAuthHashes() error {
 	}
 
 	// Defer & Start Transaction
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			log.Error("DB Rollback Error:", err)
+		}
+	}()
 	qtx := api.db.Queries.WithTx(tx)
 
 	users, err := qtx.GetUsers(api.db.Ctx)
@@ -430,7 +433,8 @@ func (api *API) rotateAllAuthHashes() error {
 		return err
 	}
 
-	// Update users
+	// Update Users
+	newAuthHashCache := make(map[string]string, 0)
 	for _, user := range users {
 		// Generate Auth Hash
 		rawAuthHash, err := utils.GenerateToken(64)
@@ -448,8 +452,8 @@ func (api *API) rotateAllAuthHashes() error {
 			return err
 		}
 
-		// Update Cache
-		api.userAuthCache[user.ID] = fmt.Sprintf("%x", rawAuthHash)
+		// Save New Hash Cache
+		newAuthHashCache[user.ID] = fmt.Sprintf("%x", rawAuthHash)
 	}
 
 	// Commit Transaction
@@ -458,56 +462,9 @@ func (api *API) rotateAllAuthHashes() error {
 		return err
 	}
 
-	return nil
-}
-
-func (api *API) createUser(username string, rawPassword string) error {
-	password := fmt.Sprintf("%x", md5.Sum([]byte(rawPassword)))
-
-	if username == "" {
-		return fmt.Errorf("username can't be empty")
-	}
-
-	if rawPassword == "" {
-		return fmt.Errorf("password can't be empty")
-	}
-
-	hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
-	if err != nil {
-		return fmt.Errorf("unable to create hashed password")
-	}
-
-	// Generate auth hash
-	rawAuthHash, err := utils.GenerateToken(64)
-	if err != nil {
-		return fmt.Errorf("unable to create token for user")
-	}
-
-	// Get current users
-	currentUsers, err := api.db.Queries.GetUsers(api.db.Ctx)
-	if err != nil {
-		return fmt.Errorf("unable to get current users")
-	}
-
-	// Determine if we should be admin
-	isAdmin := false
-	if len(currentUsers) == 0 {
-		isAdmin = true
-	}
-
-	// Create user in DB
-	authHash := fmt.Sprintf("%x", rawAuthHash)
-	if rows, err := api.db.Queries.CreateUser(api.db.Ctx, database.CreateUserParams{
-		ID:       username,
-		Pass:     &hashedPassword,
-		AuthHash: &authHash,
-		Admin:    isAdmin,
-	}); err != nil {
-		log.Error("CreateUser DB Error:", err)
-		return fmt.Errorf("unable to create user")
-	} else if rows == 0 {
-		log.Warn("User Already Exists:", username)
-		return fmt.Errorf("user already exists")
+	// Transaction Succeeded -> Update Cache
+	for user, hash := range newAuthHashCache {
+		api.userAuthCache[user] = hash
 	}
 
 	return nil

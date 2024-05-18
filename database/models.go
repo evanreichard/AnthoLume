@@ -30,6 +30,7 @@ type Device struct {
 type Document struct {
 	ID          string  `json:"id"`
 	Md5         *string `json:"md5"`
+	Basepath    *string `json:"basepath"`
 	Filepath    *string `json:"filepath"`
 	Coverfile   *string `json:"coverfile"`
 	Title       *string `json:"title"`

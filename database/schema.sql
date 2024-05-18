@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS documents (
     id TEXT NOT NULL PRIMARY KEY,
 
     md5 TEXT,
+    basepath TEXT,
     filepath TEXT,
     coverfile TEXT,
     title TEXT,

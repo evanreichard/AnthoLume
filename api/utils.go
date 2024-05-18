@@ -155,3 +155,14 @@ func deriveBaseFileName(metadataInfo *metadata.MetadataInfo) string {
 	fileName := strings.ReplaceAll(newFileName, "/", "")
 	return "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, *metadataInfo.PartialMD5, metadataInfo.Type))
 }
+
+func importStatusPriority(status importStatus) int {
+	switch status {
+	case importFailed:
+		return 1
+	case importExists:
+		return 2
+	default:
+		return 3
+	}
+}

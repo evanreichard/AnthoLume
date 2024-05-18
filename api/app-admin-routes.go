@@ -3,6 +3,7 @@ package api
 import (
 	"archive/zip"
 	"bufio"
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,14 +13,19 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
+	argon2 "github.com/alexedwards/argon2id"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/gin-gonic/gin"
 	"github.com/itchyny/gojq"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
+	"reichard.io/antholume/utils"
 )
 
 type adminAction string
@@ -59,17 +65,34 @@ type operationType string
 const (
 	opUpdate operationType = "UPDATE"
 	opCreate operationType = "CREATE"
+	opDelete operationType = "DELETE"
 )
 
 type requestAdminUpdateUser struct {
 	User      string        `form:"user"`
-	Password  string        `form:"password"`
-	isAdmin   bool          `form:"is_admin"`
+	Password  *string       `form:"password"`
+	isAdmin   *bool         `form:"is_admin"`
 	Operation operationType `form:"operation"`
 }
 
 type requestAdminLogs struct {
 	Filter string `form:"filter"`
+}
+
+type importStatus string
+
+const (
+	importFailed  importStatus = "FAILED"
+	importSuccess importStatus = "SUCCESS"
+	importExists  importStatus = "EXISTS"
+)
+
+type importResult struct {
+	ID     string
+	Name   string
+	Path   string
+	Status importStatus
+	Error  error
 }
 
 func (api *API) appPerformAdminAction(c *gin.Context) {
@@ -82,15 +105,18 @@ func (api *API) appPerformAdminAction(c *gin.Context) {
 		return
 	}
 
-	// TODO - Messages
 	switch rAdminAction.Action {
 	case adminMetadataMatch:
 		// TODO
 		// 1. Documents xref most recent metadata table?
 		// 2. Select all / deselect?
 	case adminCacheTables:
-		go api.db.CacheTempTables()
-		// TODO - Message
+		go func() {
+			err := api.db.CacheTempTables()
+			if err != nil {
+				log.Error("Unable to cache temp tables: ", err)
+			}
+		}()
 	case adminRestore:
 		api.processRestoreFile(rAdminAction, c)
 		return
@@ -252,17 +278,18 @@ func (api *API) appUpdateAdminUsers(c *gin.Context) {
 	var err error
 	switch rAdminUserUpdate.Operation {
 	case opCreate:
-		err = api.createUser(rAdminUserUpdate.User, rAdminUserUpdate.Password)
+		err = api.createUser(rAdminUserUpdate)
 	case opUpdate:
-		err = fmt.Errorf("unimplemented")
+		err = api.updateUser(rAdminUserUpdate)
+	case opDelete:
+		err = api.deleteUser(rAdminUserUpdate)
 	default:
 		appErrorPage(c, http.StatusNotFound, "Unknown user operation")
 		return
-
 	}
 
 	if err != nil {
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Unable to create user: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Unable to create or update user: %v", err))
 		return
 	}
 
@@ -338,46 +365,157 @@ func (api *API) appPerformAdminImport(c *gin.Context) {
 		return
 	}
 
-	// TODO - Store results for approval?
-
-	// Walk import directory & copy or import files
+	// Get import directory
 	importDirectory := filepath.Clean(rAdminImport.Directory)
-	_ = filepath.WalkDir(importDirectory, func(currentPath string, f fs.DirEntry, err error) error {
+
+	// Get data directory
+	absoluteDataPath, _ := filepath.Abs(filepath.Join(api.cfg.DataPath, "documents"))
+
+	// Validate different path
+	if absoluteDataPath == importDirectory {
+		appErrorPage(c, http.StatusBadRequest, "Directory is the same as data path")
+		return
+	}
+
+	// Do Transaction
+	tx, err := api.db.DB.Begin()
+	if err != nil {
+		log.Error("Transaction Begin DB Error:", err)
+		apiErrorPage(c, http.StatusBadRequest, "Unknown error")
+		return
+	}
+
+	// Defer & Start Transaction
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			log.Error("DB Rollback Error:", err)
+		}
+	}()
+	qtx := api.db.Queries.WithTx(tx)
+
+	// Track imports
+	importResults := make([]importResult, 0)
+
+	// Walk Directory & Import
+	err = filepath.WalkDir(importDirectory, func(importPath string, f fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if f.IsDir() {
 			return nil
 		}
 
-		// Get metadata
-		fileMeta, err := metadata.GetMetadata(currentPath)
+		// Get relative path
+		basePath := importDirectory
+		relFilePath, err := filepath.Rel(importDirectory, importPath)
 		if err != nil {
-			fmt.Printf("metadata error: %v\n", err)
+			log.Warnf("path error: %v", err)
 			return nil
 		}
 
-		// Only needed if copying
-		newName := deriveBaseFileName(fileMeta)
+		// Track imports
+		iResult := importResult{
+			Path:   relFilePath,
+			Status: importFailed,
+		}
+		defer func() {
+			importResults = append(importResults, iResult)
+		}()
 
-		// Open File on Disk
-		// file, err := os.Open(currentPath)
-		// if err != nil {
-		// 	return err
-		// }
-		// defer file.Close()
+		// Get metadata
+		fileMeta, err := metadata.GetMetadata(importPath)
+		if err != nil {
+			log.Errorf("metadata error: %v", err)
+			iResult.Error = err
+			return nil
+		}
+		iResult.ID = *fileMeta.PartialMD5
+		iResult.Name = fmt.Sprintf("%s - %s", *fileMeta.Author, *fileMeta.Title)
 
-		// TODO - BasePath in DB
-		// TODO - Copy / Import
+		// Check already exists
+		_, err = qtx.GetDocument(api.db.Ctx, *fileMeta.PartialMD5)
+		if err == nil {
+			log.Warnf("document already exists: %s", *fileMeta.PartialMD5)
+			iResult.Status = importExists
+			return nil
+		}
 
-		fmt.Printf("New File Metadata: %s\n", newName)
+		// Import Copy
+		if rAdminImport.Type == importCopy {
+			// Derive & Sanitize File Name
+			relFilePath = deriveBaseFileName(fileMeta)
+			safePath := filepath.Join(api.cfg.DataPath, "documents", relFilePath)
 
+			// Open Source File
+			srcFile, err := os.Open(importPath)
+			if err != nil {
+				log.Errorf("unable to open current file: %v", err)
+				iResult.Error = err
+				return nil
+			}
+			defer srcFile.Close()
+
+			// Open Destination File
+			destFile, err := os.Create(safePath)
+			if err != nil {
+				log.Errorf("unable to open destination file: %v", err)
+				iResult.Error = err
+				return nil
+			}
+			defer destFile.Close()
+
+			// Copy File
+			if _, err = io.Copy(destFile, srcFile); err != nil {
+				log.Errorf("unable to save file: %v", err)
+				iResult.Error = err
+				return nil
+			}
+
+			// Update Base & Path
+			basePath = filepath.Join(api.cfg.DataPath, "documents")
+			iResult.Path = relFilePath
+		}
+
+		// Upsert document
+		if _, err = qtx.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
+			ID:          *fileMeta.PartialMD5,
+			Title:       fileMeta.Title,
+			Author:      fileMeta.Author,
+			Description: fileMeta.Description,
+			Md5:         fileMeta.MD5,
+			Words:       fileMeta.WordCount,
+			Filepath:    &relFilePath,
+			Basepath:    &basePath,
+		}); err != nil {
+			log.Errorf("UpsertDocument DB Error: %v", err)
+			iResult.Error = err
+			return nil
+		}
+
+		iResult.Status = importSuccess
 		return nil
 	})
+	if err != nil {
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Import Failed: %v", err))
+		return
+	}
 
-	templateVars["CurrentPath"] = filepath.Clean(rAdminImport.Directory)
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		log.Error("Transaction Commit DB Error: ", err)
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Import DB Error: %v", err))
+		return
+	}
 
-	c.HTML(http.StatusOK, "page/admin-import", templateVars)
+	// Sort import results
+	sort.Slice(importResults, func(i int, j int) bool {
+		return importStatusPriority(importResults[i].Status) <
+			importStatusPriority(importResults[j].Status)
+	})
+
+	templateVars["Data"] = importResults
+	c.HTML(http.StatusOK, "page/admin-import-results", templateVars)
 }
 
 func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Context) {
@@ -521,7 +659,6 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	c.Redirect(http.StatusFound, "/login")
 }
 
-// Restore all data
 func (api *API) restoreData(zipReader *zip.Reader) error {
 	// Ensure Directories
 	api.cfg.EnsureDirectories()
@@ -552,7 +689,6 @@ func (api *API) restoreData(zipReader *zip.Reader) error {
 	return nil
 }
 
-// Remove all data
 func (api *API) removeData() error {
 	allPaths := []string{
 		"covers",
@@ -575,7 +711,6 @@ func (api *API) removeData() error {
 	return nil
 }
 
-// Backup all data
 func (api *API) createBackup(w io.Writer, directories []string) error {
 	ar := zip.NewWriter(w)
 
@@ -628,7 +763,11 @@ func (api *API) createBackup(w io.Writer, directories []string) error {
 	if err != nil {
 		return err
 	}
-	io.Copy(newDbFile, dbFile)
+
+	_, err = io.Copy(newDbFile, dbFile)
+	if err != nil {
+		return err
+	}
 
 	// Backup Covers & Documents
 	for _, dir := range directories {
@@ -640,4 +779,119 @@ func (api *API) createBackup(w io.Writer, directories []string) error {
 
 	ar.Close()
 	return nil
+}
+
+func (api *API) createUser(createRequest requestAdminUpdateUser) error {
+	// Validate Necessary Parameters
+	if createRequest.User == "" {
+		return fmt.Errorf("username can't be empty")
+	}
+	if createRequest.Password == nil || *createRequest.Password == "" {
+		return fmt.Errorf("password can't be empty")
+	}
+
+	// Base Params
+	createParams := database.CreateUserParams{
+		ID: createRequest.User,
+	}
+
+	// Handle Admin (Explicit or False)
+	if createRequest.isAdmin != nil {
+		createParams.Admin = *createRequest.isAdmin
+	} else {
+		createParams.Admin = false
+	}
+
+	// Parse Password
+	password := fmt.Sprintf("%x", md5.Sum([]byte(*createRequest.Password)))
+	hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
+	if err != nil {
+		return fmt.Errorf("unable to create hashed password")
+	}
+	createParams.Pass = &hashedPassword
+
+	// Generate Auth Hash
+	rawAuthHash, err := utils.GenerateToken(64)
+	if err != nil {
+		return fmt.Errorf("unable to create token for user")
+	}
+	authHash := fmt.Sprintf("%x", rawAuthHash)
+	createParams.AuthHash = &authHash
+
+	// Create user in DB
+	if rows, err := api.db.Queries.CreateUser(api.db.Ctx, createParams); err != nil {
+		log.Error("CreateUser DB Error:", err)
+		return fmt.Errorf("unable to create user")
+	} else if rows == 0 {
+		log.Warn("User Already Exists:", createParams.ID)
+		return fmt.Errorf("user already exists")
+	}
+
+	return nil
+}
+
+func (api *API) updateUser(updateRequest requestAdminUpdateUser) error {
+	// Validate Necessary Parameters
+	if updateRequest.User == "" {
+		return fmt.Errorf("username can't be empty")
+	}
+	if updateRequest.Password == nil && updateRequest.isAdmin == nil {
+		return fmt.Errorf("nothing to update")
+	}
+
+	// Base Params
+	updateParams := database.UpdateUserParams{
+		UserID: updateRequest.User,
+	}
+
+	// Handle Admin (Update or Existing)
+	if updateRequest.isAdmin != nil {
+		updateParams.Admin = *updateRequest.isAdmin
+	} else {
+		user, err := api.db.Queries.GetUser(api.db.Ctx, updateRequest.User)
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("GetUser DB Error: %v", err))
+		}
+		updateParams.Admin = user.Admin
+	}
+
+	// TODO:
+	//   - Validate Not Last Admin
+
+	// Handle Password
+	if updateRequest.Password != nil {
+		if *updateRequest.Password == "" {
+			return fmt.Errorf("password can't be empty")
+		}
+
+		// Parse Password
+		password := fmt.Sprintf("%x", md5.Sum([]byte(*updateRequest.Password)))
+		hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
+		if err != nil {
+			return fmt.Errorf("unable to create hashed password")
+		}
+		updateParams.Password = &hashedPassword
+
+		// Generate Auth Hash
+		rawAuthHash, err := utils.GenerateToken(64)
+		if err != nil {
+			return fmt.Errorf("unable to create token for user")
+		}
+		authHash := fmt.Sprintf("%x", rawAuthHash)
+		updateParams.AuthHash = &authHash
+	}
+
+	// Update User
+	_, err := api.db.Queries.UpdateUser(api.db.Ctx, updateParams)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("UpdateUser DB Error: %v", err))
+	}
+
+	return nil
+}
+
+func (api *API) deleteUser(updateRequest requestAdminUpdateUser) error {
+	// TODO:
+	//   - Validate Not Last Admin
+	return errors.New("unimplemented")
 }

@@ -294,5 +294,3 @@ INNER JOIN
     ON ga.document_id = d.id
 GROUP BY ga.document_id, ga.user_id
 ORDER BY total_wpm DESC;
-
-

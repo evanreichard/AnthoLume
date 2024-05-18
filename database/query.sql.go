@@ -454,7 +454,7 @@ func (q *Queries) GetDevices(ctx context.Context, userID string) ([]GetDevicesRo
 }
 
 const getDocument = `-- name: GetDocument :one
-SELECT id, md5, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at FROM documents
+SELECT id, md5, basepath, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at FROM documents
 WHERE id = ?1 LIMIT 1
 `
 
@@ -464,6 +464,7 @@ func (q *Queries) GetDocument(ctx context.Context, documentID string) (Document,
 	err := row.Scan(
 		&i.ID,
 		&i.Md5,
+		&i.Basepath,
 		&i.Filepath,
 		&i.Coverfile,
 		&i.Title,
@@ -612,7 +613,7 @@ func (q *Queries) GetDocumentWithStats(ctx context.Context, arg GetDocumentWithS
 }
 
 const getDocuments = `-- name: GetDocuments :many
-SELECT id, md5, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at FROM documents
+SELECT id, md5, basepath, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at FROM documents
 ORDER BY created_at DESC
 LIMIT ?2
 OFFSET ?1
@@ -635,6 +636,7 @@ func (q *Queries) GetDocuments(ctx context.Context, arg GetDocumentsParams) ([]D
 		if err := rows.Scan(
 			&i.ID,
 			&i.Md5,
+			&i.Basepath,
 			&i.Filepath,
 			&i.Coverfile,
 			&i.Title,
@@ -819,7 +821,7 @@ func (q *Queries) GetLastActivity(ctx context.Context, arg GetLastActivityParams
 }
 
 const getMissingDocuments = `-- name: GetMissingDocuments :many
-SELECT documents.id, documents.md5, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.words, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at FROM documents
+SELECT documents.id, documents.md5, documents.basepath, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.words, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at FROM documents
 WHERE
     documents.filepath IS NOT NULL
     AND documents.deleted = false
@@ -848,6 +850,7 @@ func (q *Queries) GetMissingDocuments(ctx context.Context, documentIds []string)
 		if err := rows.Scan(
 			&i.ID,
 			&i.Md5,
+			&i.Basepath,
 			&i.Filepath,
 			&i.Coverfile,
 			&i.Title,
@@ -1325,6 +1328,7 @@ const upsertDocument = `-- name: UpsertDocument :one
 INSERT INTO documents (
     id,
     md5,
+    basepath,
     filepath,
     coverfile,
     title,
@@ -1339,10 +1343,11 @@ INSERT INTO documents (
     isbn10,
     isbn13
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT DO UPDATE
 SET
     md5 =           COALESCE(excluded.md5, md5),
+    basepath =      COALESCE(excluded.basepath, basepath),
     filepath =      COALESCE(excluded.filepath, filepath),
     coverfile =     COALESCE(excluded.coverfile, coverfile),
     title =         COALESCE(excluded.title, title),
@@ -1356,12 +1361,13 @@ SET
     gbid =          COALESCE(excluded.gbid, gbid),
     isbn10 =        COALESCE(excluded.isbn10, isbn10),
     isbn13 =        COALESCE(excluded.isbn13, isbn13)
-RETURNING id, md5, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at
+RETURNING id, md5, basepath, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at
 `
 
 type UpsertDocumentParams struct {
 	ID          string  `json:"id"`
 	Md5         *string `json:"md5"`
+	Basepath    *string `json:"basepath"`
 	Filepath    *string `json:"filepath"`
 	Coverfile   *string `json:"coverfile"`
 	Title       *string `json:"title"`
@@ -1381,6 +1387,7 @@ func (q *Queries) UpsertDocument(ctx context.Context, arg UpsertDocumentParams) 
 	row := q.db.QueryRowContext(ctx, upsertDocument,
 		arg.ID,
 		arg.Md5,
+		arg.Basepath,
 		arg.Filepath,
 		arg.Coverfile,
 		arg.Title,
@@ -1399,6 +1406,7 @@ func (q *Queries) UpsertDocument(ctx context.Context, arg UpsertDocumentParams) 
 	err := row.Scan(
 		&i.ID,
 		&i.Md5,
+		&i.Basepath,
 		&i.Filepath,
 		&i.Coverfile,
 		&i.Title,

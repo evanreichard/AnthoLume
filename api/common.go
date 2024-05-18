@@ -2,11 +2,12 @@ package api
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
-	log "github.com/sirupsen/logrus"
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/gin-gonic/gin"
+	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
 )
@@ -34,8 +35,14 @@ func (api *API) createDownloadDocumentHandler(errorFunc func(*gin.Context, int, 
 			return
 		}
 
+		// Derive Basepath
+		basepath := filepath.Join(api.cfg.DataPath, "documents")
+		if document.Basepath != nil && *document.Basepath != "" {
+			basepath = *document.Basepath
+		}
+
 		// Derive Storage Location
-		filePath := filepath.Join(api.cfg.DataPath, "documents", *document.Filepath)
+		filePath := filepath.Join(basepath, *document.Filepath)
 
 		// Validate File Exists
 		_, err = os.Stat(filePath)

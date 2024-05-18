@@ -1,0 +1,46 @@
+{{ template "base" . }}
+{{ define "title" }}Admin - Import Results{{ end }}
+{{ define "header" }}<a class="whitespace-pre" href="../admin">Admin - Import Results</a>{{ end }}
+{{ define "content" }}
+<div class="overflow-x-auto">
+  <div class="inline-block min-w-full overflow-hidden rounded shadow">
+    <table class="min-w-full leading-normal bg-white dark:bg-gray-700 text-sm">
+      <thead class="text-gray-800 dark:text-gray-400">
+        <tr>
+          <th class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800">Document</th>
+          <th class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800">Status</th>
+          <th class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800">Error</th>
+        </tr>
+      </thead>
+      <tbody class="text-black dark:text-white">
+        {{ if not .Data }}
+        <tr>
+          <td class="text-center p-3" colspan="4">No Results</td>
+        </tr>
+        {{ end }}
+        {{ range $result := .Data }}
+        <tr>
+          <td class="p-3 border-b border-gray-200 grid"
+              style="grid-template-columns: 4rem auto">
+            <span class="text-gray-800 dark:text-gray-400">Name:</span>
+            {{ if (eq $result.ID "") }}
+            <span>N/A</span>
+          {{ else }}
+            <a href="../documents/{{ $result.ID }}">{{ $result.Name }}</a>
+            {{ end }}
+            <span class="text-gray-800 dark:text-gray-400">File:</span>
+            <span>{{ $result.Path }}</span>
+          </td>
+          <td class="p-3 border-b border-gray-200">
+            <p>{{ $result.Status }}</p>
+          </td>
+          <td class="p-3 border-b border-gray-200">
+            <p>{{ $result.Error }}</p>
+          </td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{ end }}

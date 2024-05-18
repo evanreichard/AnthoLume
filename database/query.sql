@@ -396,6 +396,7 @@ RETURNING *;
 INSERT INTO documents (
     id,
     md5,
+    basepath,
     filepath,
     coverfile,
     title,
@@ -410,10 +411,11 @@ INSERT INTO documents (
     isbn10,
     isbn13
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT DO UPDATE
 SET
     md5 =           COALESCE(excluded.md5, md5),
+    basepath =      COALESCE(excluded.basepath, basepath),
     filepath =      COALESCE(excluded.filepath, filepath),
     coverfile =     COALESCE(excluded.coverfile, coverfile),
     title =         COALESCE(excluded.title, title),

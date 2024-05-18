@@ -314,7 +314,11 @@ func (api *API) appGetSearch(c *gin.Context) {
 	templateVars, _ := api.getBaseTemplateVars("search", c)
 
 	var sParams searchParams
-	c.BindQuery(&sParams)
+	err := c.BindQuery(&sParams)
+	if err != nil {
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Invalid Form Bind: %v", err))
+		return
+	}
 
 	// Only Handle Query
 	if sParams.Query != nil && sParams.Source != nil {
@@ -369,10 +373,9 @@ func (api *API) appGetDocumentProgress(c *gin.Context) {
 		DocumentID: rDoc.DocumentID,
 		UserID:     auth.UserName,
 	})
-
 	if err != nil && err != sql.ErrNoRows {
-		log.Error("UpsertDocument DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
+		log.Error("GetDocumentProgress DB Error: ", err)
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentProgress DB Error: %v", err))
 		return
 	}
 
@@ -461,7 +464,8 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 
 	// Derive & Sanitize File Name
 	fileName := deriveBaseFileName(metadataInfo)
-	safePath := filepath.Join(api.cfg.DataPath, "documents", fileName)
+	basePath := filepath.Join(api.cfg.DataPath, "documents")
+	safePath := filepath.Join(basePath, fileName)
 
 	// Open Destination File
 	destFile, err := os.Create(safePath)
@@ -488,9 +492,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 		Md5:         metadataInfo.MD5,
 		Words:       metadataInfo.WordCount,
 		Filepath:    &fileName,
-
-		// TODO (BasePath):
-		//   - Should be current config directory
+		Basepath:    &basePath,
 	}); err != nil {
 		log.Errorf("UpsertDocument DB Error: %v", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
@@ -595,7 +597,6 @@ func (api *API) appEditDocument(c *gin.Context) {
 	}
 
 	c.Redirect(http.StatusFound, "./")
-	return
 }
 
 func (api *API) appDeleteDocument(c *gin.Context) {
@@ -764,6 +765,11 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 
 	// Derive Extension on MIME
 	fileMime, err := mimetype.DetectFile(tempFilePath)
+	if err != nil {
+		log.Warn("MIME Detect Error: ", err)
+		sendDownloadMessage("Unable to download file", gin.H{"Error": true})
+		return
+	}
 	fileExtension := fileMime.Extension()
 
 	// Derive Filename
@@ -797,7 +803,9 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	defer sourceFile.Close()
 
 	// Generate Storage Path & Open File
-	safePath := filepath.Join(api.cfg.DataPath, "documents", fileName)
+	basePath := filepath.Join(api.cfg.DataPath, "documents")
+	safePath := filepath.Join(basePath, fileName)
+
 	destFile, err := os.Create(safePath)
 	if err != nil {
 		log.Error("Dest File Error: ", err)
@@ -844,8 +852,9 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 		Title:    rDocAdd.Title,
 		Author:   rDocAdd.Author,
 		Md5:      fileHash,
-		Filepath: &fileName,
 		Words:    wordCount,
+		Filepath: &fileName,
+		Basepath: &basePath,
 	}); err != nil {
 		log.Error("UpsertDocument DB Error: ", err)
 		sendDownloadMessage("Unable to save to database", gin.H{"Error": true})
@@ -951,7 +960,11 @@ func (api *API) getDocumentsWordCount(documents []database.GetDocumentsWithStats
 	}
 
 	// Defer & Start Transaction
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			log.Error("DB Rollback Error:", err)
+		}
+	}()
 	qtx := api.db.Queries.WithTx(tx)
 
 	for _, item := range documents {
@@ -1000,7 +1013,11 @@ func (api *API) getBaseTemplateVars(routeName string, c *gin.Context) (gin.H, au
 
 func bindQueryParams(c *gin.Context, defaultLimit int64) queryParams {
 	var qParams queryParams
-	c.BindQuery(&qParams)
+	err := c.BindQuery(&qParams)
+	if err != nil {
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Invalid Form Bind: %v", err))
+		return qParams
+	}
 
 	if qParams.Limit == nil {
 		qParams.Limit = &defaultLimit
