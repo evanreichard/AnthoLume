@@ -1,0 +1,102 @@
+{{ if .Error }}
+<div class="absolute top-0 left-0 w-full h-full z-50">
+  <div class="fixed top-0 left-0 bg-black opacity-50 w-screen h-screen"></div>
+  <div class="relative flex flex-col gap-4 p-4 max-h-[95%] bg-white dark:bg-gray-800 overflow-scroll -translate-x-2/4 -translate-y-2/4 top-1/2 left-1/2 w-5/6 overflow-hidden shadow rounded">
+    <div class="text-center">
+      <h3 class="text-lg font-bold leading-6 dark:text-gray-300">No Metadata Results Found</h3>
+    </div>
+    {{ template "component/button" (dict
+    "Title" "Back to Document"
+    "Type" "Link"
+    "URL" (printf "/documents/%s" .ID)
+    )}}
+  </div>
+</div>
+{{ end }}
+{{ if .Metadata }}
+<div class="absolute top-0 left-0 w-full h-full z-50">
+  <div class="fixed top-0 left-0 bg-black opacity-50 w-screen h-screen"></div>
+  <div class="relative max-h-[95%] bg-white dark:bg-gray-800 overflow-scroll -translate-x-2/4 -translate-y-2/4 top-1/2 left-1/2 w-5/6 overflow-hidden shadow rounded">
+    <div class="py-5 text-center">
+      <h3 class="text-lg font-bold leading-6 dark:text-gray-300">Metadata Results</h3>
+    </div>
+    <form id="metadata-save"
+          method="POST"
+          action="/documents/{{ .ID }}/edit"
+          class="text-black dark:text-white border-b dark:border-black">
+      <dl>
+        <div class="p-3 bg-gray-100 dark:bg-gray-900 grid grid-cols-3 gap-4 sm:px-6">
+          <dt class="my-auto font-medium text-gray-500">Cover</dt>
+          <dd class="mt-1 text-sm sm:mt-0 sm:col-span-2">
+            <img class="rounded object-fill h-32"
+                 src="https://books.google.com/books/content/images/frontcover/{{ .Metadata.ID }}?fife=w480-h690" />
+          </dd>
+        </div>
+        <div class="p-3 bg-white dark:bg-gray-800 grid grid-cols-3 gap-4 sm:px-6">
+          <dt class="my-auto font-medium text-gray-500">Title</dt>
+          <dd class="mt-1 text-sm sm:mt-0 sm:col-span-2">
+            {{ or .Metadata.Title "N/A" }}
+          </dd>
+        </div>
+        <div class="p-3 bg-gray-100 dark:bg-gray-900 grid grid-cols-3 gap-4 sm:px-6">
+          <dt class="my-auto font-medium text-gray-500">Author</dt>
+          <dd class="mt-1 text-sm sm:mt-0 sm:col-span-2">
+            {{ or .Metadata.Author "N/A" }}
+          </dd>
+        </div>
+        <div class="p-3 bg-white dark:bg-gray-800 grid grid-cols-3 gap-4 sm:px-6">
+          <dt class="my-auto font-medium text-gray-500">ISBN 10</dt>
+          <dd class="mt-1 text-sm sm:mt-0 sm:col-span-2">
+            {{ or .Metadata.ISBN10 "N/A" }}
+          </dd>
+        </div>
+        <div class="p-3 bg-gray-100 dark:bg-gray-900 grid grid-cols-3 gap-4 sm:px-6">
+          <dt class="my-auto font-medium text-gray-500">ISBN 13</dt>
+          <dd class="mt-1 text-sm sm:mt-0 sm:col-span-2">
+            {{ or .Metadata.ISBN13 "N/A" }}
+          </dd>
+        </div>
+        <div class="p-3 bg-white dark:bg-gray-800 sm:grid sm:grid-cols-3 sm:gap-4 px-6">
+          <dt class="my-auto font-medium text-gray-500">Description</dt>
+          <dd class="max-h-[10em] overflow-scroll mt-1 sm:mt-0 sm:col-span-2">
+            {{ or .Metadata.Description "N/A" }}
+          </dd>
+        </div>
+      </dl>
+      <div class="hidden">
+        <input type="text" id="title" name="title" value="{{ .Metadata.Title }}" />
+        <input type="text" id="author" name="author" value="{{ .Metadata.Author }}" />
+        <input type="text"
+               id="description"
+               name="description"
+               value="{{ .Metadata.Description }}" />
+        <input type="text"
+               id="isbn_10"
+               name="isbn_10"
+               value="{{ .Metadata.ISBN10 }}" />
+        <input type="text"
+               id="isbn_13"
+               name="isbn_13"
+               value="{{ .Metadata.ISBN13 }}" />
+        <input type="text"
+               id="cover_gbid"
+               name="cover_gbid"
+               value="{{ .Metadata.ID }}" />
+      </div>
+    </form>
+    <div class="flex justify-end">
+      <div class="flex gap-4 m-4 w-48">
+        {{ template "component/button" (dict
+        "Title" "Cancel"
+        "Type" "Link"
+        "URL" (printf "/documents/%s" .ID)
+        )}}
+        {{ template "component/button" (dict
+        "Title" "Save"
+        "FormName" "metadata-save"
+        )}}
+      </div>
+    </div>
+  </div>
+</div>
+{{ end }}

@@ -41,82 +41,29 @@
     </div>
   </div>
   <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-    <a href="./documents" class="w-full">
-      <div class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded">
-        <div class="flex flex-col justify-around dark:text-white w-full text-sm">
-          <p class="text-2xl font-bold text-black dark:text-white">{{ .Data.DatabaseInfo.DocumentsSize }}</p>
-          <p class="text-sm text-gray-400">Documents</p>
-        </div>
-      </div>
-    </a>
-    <a href="./activity" class="w-full">
-      <div class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded">
-        <div class="flex flex-col justify-around dark:text-white w-full text-sm">
-          <p class="text-2xl font-bold text-black dark:text-white">{{ .Data.DatabaseInfo.ActivitySize }}</p>
-          <p class="text-sm text-gray-400">Activity Records</p>
-        </div>
-      </div>
-    </a>
-    <a href="./progress" class="w-full">
-      <div class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded">
-        <div class="flex flex-col justify-around dark:text-white w-full text-sm">
-          <p class="text-2xl font-bold text-black dark:text-white">{{ .Data.DatabaseInfo.ProgressSize }}</p>
-          <p class="text-sm text-gray-400">Progress Records</p>
-        </div>
-      </div>
-    </a>
-    <div class="w-full">
-      <div class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded">
-        <div class="flex flex-col justify-around dark:text-white w-full text-sm">
-          <p class="text-2xl font-bold text-black dark:text-white">{{ .Data.DatabaseInfo.DevicesSize }}</p>
-          <p class="text-sm text-gray-400">Devices</p>
-        </div>
-      </div>
-    </div>
+    {{ template "component/info-card" (dict
+    "Title" "Documents"
+    "Size" .Data.DatabaseInfo.DocumentsSize
+    "Link" "./documents"
+    )}}
+    {{ template "component/info-card" (dict
+    "Title" "Activity Records"
+    "Size" .Data.DatabaseInfo.ActivitySize
+    "Link" "./activity"
+    )}}
+    {{ template "component/info-card" (dict
+    "Title" "Progress Records"
+    "Size" .Data.DatabaseInfo.ProgressSize
+    "Link" "./progress"
+    )}}
+    {{ template "component/info-card" (dict
+    "Title" "Devices"
+    "Size" .Data.DatabaseInfo.DevicesSize
+    )}}
   </div>
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
     {{ range $item := .Data.Streaks }}
-    <div class="w-full">
-      <div class="relative w-full px-4 py-6 bg-white shadow-lg dark:bg-gray-700 rounded">
-        <p class="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500">
-          {{ if eq $item.Window "WEEK" }}
-          Weekly Read Streak
-        {{ else }}
-          Daily Read Streak
-          {{ end }}
-        </p>
-        <div class="flex items-end my-6 space-x-2">
-          <p class="text-5xl font-bold text-black dark:text-white">{{ $item.CurrentStreak }}</p>
-        </div>
-        <div class="dark:text-white">
-          <div class="flex items-center justify-between pb-2 mb-2 text-sm border-b border-gray-200">
-            <div>
-              <p>
-              {{ if eq $item.Window "WEEK" }} Current Weekly Streak {{ else }}
-                Current Daily Streak {{ end }}
-              </p>
-              <div class="flex items-end text-sm text-gray-400">
-                {{ $item.CurrentStreakStartDate }} ➞ {{ $item.CurrentStreakEndDate }}
-              </div>
-            </div>
-            <div class="flex items-end font-bold">{{ $item.CurrentStreak }}</div>
-          </div>
-          <div class="flex items-center justify-between pb-2 mb-2 text-sm">
-            <div>
-              <p>
-                {{ if eq $item.Window "WEEK" }}
-                Best Weekly Streak
-              {{ else }}
-                Best Daily Streak
-                {{ end }}
-              </p>
-              <div class="flex items-end text-sm text-gray-400">{{ $item.MaxStreakStartDate }} ➞ {{ $item.MaxStreakEndDate }}</div>
-            </div>
-            <div class="flex items-end font-bold">{{ $item.MaxStreak }}</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    {{ template "component/streak-card" $item }}
     {{ end }}
   </div>
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">

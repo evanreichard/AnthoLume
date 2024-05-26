@@ -33,8 +33,7 @@
                   action="./{{ .Data.ID }}/edit"
                   class="flex flex-col gap-2 w-72 text-black dark:text-white text-sm">
               <input type="file" id="cover_file" name="cover_file">
-              <button class="font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
-                      type="submit">Upload Cover</button>
+	      {{ template "component/button" (dict "Title" "Upload Cover") }}
             </form>
             <form method="POST"
                   action="./{{ .Data.ID }}/edit"
@@ -44,8 +43,7 @@
                      id="remove_cover"
                      name="remove_cover"
                      class="hidden" />
-              <button class="font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
-                      type="submit">Remove Cover</button>
+	      {{ template "component/button" (dict "Title" "Remove Cover") }}
             </form>
           </div>
           <div class="relative">
@@ -54,9 +52,8 @@
             <div class="absolute z-30 bottom-7 left-5 p-3 transition-all duration-200 bg-gray-200 rounded shadow-lg shadow-gray-500 dark:shadow-gray-900 dark:bg-gray-600">
               <form method="POST"
                     action="./{{ .Data.ID }}/delete"
-                    class="text-black dark:text-white text-sm">
-                <button class="font-medium w-24 px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
-                        type="submit">Delete</button>
+                    class="text-black dark:text-white text-sm w-24">
+		{{ template "component/button" (dict "Title" "Delete") }}
               </form>
             </div>
           </div>
@@ -86,8 +83,7 @@
                        placeholder="ISBN 10 / ISBN 13"
                        value="{{ or .Data.Isbn13 (or .Data.Isbn10 nil) }}"
                        class="p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white">
-                <button class="font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
-                        type="submit">Identify</button>
+		{{ template "component/button" (dict "Title" "Identify") }}
               </form>
             </div>
           </div>
@@ -100,40 +96,18 @@
       </div>
     </div>
     <div class="grid sm:grid-cols-2 justify-between gap-4 pb-4">
-      <div class="relative">
-        <div class="text-gray-500 inline-flex gap-2 relative">
-          <p>Title</p>
-          <label class="my-auto" for="edit-title-button">{{ template "svg/edit" (dict "Size" 18) }}</label>
-          <input type="checkbox" id="edit-title-button" class="hidden css-button" />
-          <div class="absolute z-30 top-7 right-0 p-3 transition-all duration-200 bg-gray-200 rounded shadow-lg shadow-gray-500 dark:shadow-gray-900 dark:bg-gray-600">
-            <form method="POST"
-                  action="./{{ .Data.ID }}/edit"
-                  class="flex flex-col gap-2 text-black dark:text-white text-sm">
-              <input type="text" id="title" name="title" value="{{ or .Data.Title "N/A" }}" class="p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white">
-              <button class="font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
-                      type="submit">Save</button>
-            </form>
-          </div>
-        </div>
-        <p class="font-medium text-lg">{{ or .Data.Title "N/A" }}</p>
-      </div>
-      <div class="relative">
-        <div class="text-gray-500 inline-flex gap-2 relative">
-          <p>Author</p>
-          <label class="my-auto" for="edit-author-button">{{ template "svg/edit" (dict "Size" 18) }}</label>
-          <input type="checkbox" id="edit-author-button" class="hidden css-button" />
-          <div class="absolute z-30 top-7 right-0 p-3 transition-all duration-200 bg-gray-200 rounded shadow-lg shadow-gray-500 dark:shadow-gray-900 dark:bg-gray-600">
-            <form method="POST"
-                  action="./{{ .Data.ID }}/edit"
-                  class="flex flex-col gap-2 text-black dark:text-white text-sm">
-              <input type="text" id="author" name="author" value="{{ or .Data.Author "N/A" }}" class="p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white">
-              <button class="font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
-                      type="submit">Save</button>
-            </form>
-          </div>
-        </div>
-        <p class="font-medium text-lg">{{ or .Data.Author "N/A" }}</p>
-      </div>
+      {{ template "component/key-val-edit" (dict
+      "Title" "Title"
+      "Value" .Data.Title
+      "URL" (printf "./%s/edit" .Data.ID)
+      "FormValue" "title"
+      )}}
+      {{ template "component/key-val-edit" (dict
+      "Title" "Author"
+      "Value" .Data.Author
+      "URL" (printf "./%s/edit" .Data.ID)
+      "FormValue" "author"
+      )}}
       <div class="relative">
         <div class="text-gray-500 inline-flex gap-2 relative">
           <p>Time Read</p>
@@ -181,119 +155,16 @@
                     id="description"
                     name="description"
                     class="h-full w-full p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white">{{ or .Data.Description "N/A" }}</textarea>
-          <button class="font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
-                  type="submit">Save</button>
+	  {{ template "component/button" (dict "Title" "Save") }}
         </form>
       </div>
       <p>{{ or .Data.Description "N/A" }}</p>
     </div>
   </div>
-  {{ if .MetadataError }}
-  <div class="absolute top-0 left-0 w-full h-full z-50">
-    <div class="fixed top-0 left-0 bg-black opacity-50 w-screen h-screen"></div>
-    <div class="relative flex flex-col gap-4 p-4 max-h-[95%] bg-white dark:bg-gray-800 overflow-scroll -translate-x-2/4 -translate-y-2/4 top-1/2 left-1/2 w-5/6 overflow-hidden shadow rounded">
-      <div class="text-center">
-        <h3 class="text-lg font-bold leading-6 dark:text-gray-300">No Metadata Results Found</h3>
-      </div>
-      <a href="/documents/{{ .Data.ID }}"
-         class="w-full text-center font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
-         type="submit">Back to Document</a>
-    </div>
-  </div>
-  {{ end }}
-  <!-- Metadata Info -->
-  {{ if .Metadata }}
-  <div class="absolute top-0 left-0 w-full h-full z-50">
-    <div class="fixed top-0 left-0 bg-black opacity-50 w-screen h-screen"></div>
-    <div class="relative max-h-[95%] bg-white dark:bg-gray-800 overflow-scroll -translate-x-2/4 -translate-y-2/4 top-1/2 left-1/2 w-5/6 overflow-hidden shadow rounded">
-      <div class="py-5 text-center">
-        <h3 class="text-lg font-bold leading-6 dark:text-gray-300">Metadata Results</h3>
-      </div>
-      <form id="metadata-save"
-            method="POST"
-            action="/documents/{{ .Data.ID }}/edit"
-            class="text-black dark:text-white border-b dark:border-black">
-        <dl>
-          <div class="p-3 bg-gray-100 dark:bg-gray-900 grid grid-cols-3 gap-4 sm:px-6">
-            <dt class="my-auto font-medium text-gray-500">Cover</dt>
-            <dd class="mt-1 text-sm sm:mt-0 sm:col-span-2">
-              <img class="rounded object-fill h-32"
-                   src="https://books.google.com/books/content/images/frontcover/{{ .Metadata.ID }}?fife=w480-h690" />
-            </dd>
-          </div>
-          <div class="p-3 bg-white dark:bg-gray-800 grid grid-cols-3 gap-4 sm:px-6">
-            <dt class="my-auto font-medium text-gray-500">Title</dt>
-            <dd class="mt-1 text-sm sm:mt-0 sm:col-span-2">
-              {{ or .Metadata.Title "N/A" }}
-            </dd>
-          </div>
-          <div class="p-3 bg-gray-100 dark:bg-gray-900 grid grid-cols-3 gap-4 sm:px-6">
-            <dt class="my-auto font-medium text-gray-500">Author</dt>
-            <dd class="mt-1 text-sm sm:mt-0 sm:col-span-2">
-              {{ or .Metadata.Author "N/A" }}
-            </dd>
-          </div>
-          <div class="p-3 bg-white dark:bg-gray-800 grid grid-cols-3 gap-4 sm:px-6">
-            <dt class="my-auto font-medium text-gray-500">ISBN 10</dt>
-            <dd class="mt-1 text-sm sm:mt-0 sm:col-span-2">
-              {{ or .Metadata.ISBN10 "N/A" }}
-            </dd>
-          </div>
-          <div class="p-3 bg-gray-100 dark:bg-gray-900 grid grid-cols-3 gap-4 sm:px-6">
-            <dt class="my-auto font-medium text-gray-500">ISBN 13</dt>
-            <dd class="mt-1 text-sm sm:mt-0 sm:col-span-2">
-              {{ or .Metadata.ISBN13 "N/A" }}
-            </dd>
-          </div>
-          <div class="p-3 bg-white dark:bg-gray-800 sm:grid sm:grid-cols-3 sm:gap-4 px-6">
-            <dt class="my-auto font-medium text-gray-500">Description</dt>
-            <dd class="max-h-[10em] overflow-scroll mt-1 sm:mt-0 sm:col-span-2">
-              {{ or .Metadata.Description "N/A" }}
-            </dd>
-          </div>
-        </dl>
-        <div class="hidden">
-          <input type="text" id="title" name="title" value="{{ .Metadata.Title }}">
-          <input type="text" id="author" name="author" value="{{ .Metadata.Author }}">
-          <input type="text"
-                 id="description"
-                 name="description"
-                 value="{{ .Metadata.Description }}">
-          <input type="text"
-                 id="isbn_10"
-                 name="isbn_10"
-                 value="{{ .Metadata.ISBN10 }}">
-          <input type="text"
-                 id="isbn_13"
-                 name="isbn_13"
-                 value="{{ .Metadata.ISBN13 }}">
-          <input type="text"
-                 id="cover_gbid"
-                 name="cover_gbid"
-                 value="{{ .Metadata.ID }}">
-        </div>
-      </form>
-      <div class="flex justify-end gap-4 m-4">
-        <a href="/documents/{{ .Data.ID }}"
-           class="w-24 text-center font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
-           type="submit">Cancel</a>
-        <button form="metadata-save"
-                class="w-24 font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
-                type="submit">Save</button>
-      </div>
-    </div>
-  </div>
-  {{ end }}
+  {{ template "component/metadata" (dict
+  "ID" .Data.ID
+  "Metadata" .Metadata
+  "Error" .MetadataError
+  )}}
 </div>
-<style>
-  .css-button:checked+div {
-    visibility: visible;
-    opacity: 1;
-  }
-
-  .css-button+div {
-    visibility: hidden;
-    opacity: 0;
-  }
-</style>
 {{ end }}

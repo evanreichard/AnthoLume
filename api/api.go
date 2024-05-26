@@ -227,6 +227,7 @@ func (api *API) generateTemplates() *multitemplate.Renderer {
 	render := multitemplate.NewRenderer()
 	helperFuncs := template.FuncMap{
 		"dict":            dict,
+		"slice":           slice,
 		"fields":          fields,
 		"getSVGGraphData": getSVGGraphData,
 		"getTimeZones":    getTimeZones,

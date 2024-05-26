@@ -108,11 +108,11 @@ func getSVGGraphData(inputData []database.GetDailyReadStatsRow, svgWidth int, sv
 	return graph.GetSVGGraphData(intData, svgWidth, svgHeight)
 }
 
-func dict(values ...interface{}) (map[string]interface{}, error) {
+func dict(values ...any) (map[string]any, error) {
 	if len(values)%2 != 0 {
 		return nil, errors.New("invalid dict call")
 	}
-	dict := make(map[string]interface{}, len(values)/2)
+	dict := make(map[string]any, len(values)/2)
 	for i := 0; i < len(values); i += 2 {
 		key, ok := values[i].(string)
 		if !ok {
@@ -123,18 +123,22 @@ func dict(values ...interface{}) (map[string]interface{}, error) {
 	return dict, nil
 }
 
-func fields(value interface{}) (map[string]interface{}, error) {
+func fields(value any) (map[string]any, error) {
 	v := reflect.Indirect(reflect.ValueOf(value))
 	if v.Kind() != reflect.Struct {
 		return nil, fmt.Errorf("%T is not a struct", value)
 	}
-	m := make(map[string]interface{})
+	m := make(map[string]any)
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		sv := t.Field(i)
 		m[sv.Name] = v.Field(i).Interface()
 	}
 	return m, nil
+}
+
+func slice(elements ...any) []any {
+	return elements
 }
 
 func deriveBaseFileName(metadataInfo *metadata.MetadataInfo) string {

@@ -21,10 +21,12 @@
             <label for="backup_documents">Documents</label>
           </div>
         </div>
-        <button type="submit"
-                class="w-40 px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
-          <span class="w-full">Backup</span>
-        </button>
+        <div class="w-40 h-10">
+          {{ template "component/button" (dict
+          "Title" "Backup"
+          "Variant" "Secondary"
+          ) }}
+        </div>
       </form>
       <form method="POST"
             enctype="multipart/form-data"
@@ -34,10 +36,12 @@
         <div class="flex items-center w-1/2">
           <input type="file" accept=".zip" name="restore_file" class="w-full" />
         </div>
-        <button type="submit"
-                class="w-40 px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
-          <span class="w-full">Restore</span>
-        </button>
+        <div class="w-40 h-10">
+          {{ template "component/button" (dict
+          "Title" "Restore"
+          "Variant" "Secondary"
+          ) }}
+        </div>
       </form>
     </div>
     {{ if .PasswordErrorMessage }}
@@ -57,10 +61,12 @@
           <td class="py-2 float-right">
             <form action="./admin" method="POST">
               <input type="text" name="action" value="METADATA_MATCH" class="hidden" />
-              <button type="submit"
-                      class="w-40 px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
-                <span class="w-full">Run</span>
-              </button>
+              <div class="w-40 h-10 text-base">
+                {{ template "component/button" (dict
+                "Title" "Run"
+                "Variant" "Secondary"
+                ) }}
+              </div>
             </form>
           </td>
         </tr>
@@ -71,10 +77,12 @@
           <td class="py-2 float-right">
             <form action="./admin" method="POST">
               <input type="text" name="action" value="CACHE_TABLES" class="hidden" />
-              <button type="submit"
-                      class="w-40 px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
-                <span class="w-full">Run</span>
-              </button>
+              <div class="w-40 h-10 text-base">
+                {{ template "component/button" (dict
+                "Title" "Run"
+                "Variant" "Secondary"
+                ) }}
+              </div>
             </form>
           </td>
         </tr>

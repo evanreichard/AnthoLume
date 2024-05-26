@@ -1,0 +1,14 @@
+<!-- Variant -->
+{{ $baseClass := "transition duration-100 ease-in font-medium w-full h-full px-2 py-1 text-white" }}
+{{ if eq .Variant "Secondary" }}
+{{ $baseClass = printf "bg-black shadow-md hover:text-black hover:bg-white %s" $baseClass }}
+{{ else }}
+{{ $baseClass = printf "bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100 %s" $baseClass }}
+{{ end }}
+<!-- Type -->
+{{ if eq .Type "Link" }}
+<a href="{{ .URL }}" class="text-center {{ $baseClass }}" type="submit">{{ .Title }}</a>
+{{ else }}
+<button class="{{ $baseClass }}" type="submit" {{ if .FormName }} form="{{ .FormName}}" {{ end }}>{{ .Title }}
+</button>
+{{ end }}

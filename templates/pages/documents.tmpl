@@ -18,58 +18,17 @@
                placeholder="Search Author / Title" />
       </div>
     </div>
-    <button type="submit"
-            class="px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
-      <span class="w-full">Search</span>
-    </button>
+    <div class="lg:w-60">
+      {{ template "component/button" (dict
+      "Title" "Search"
+      "Variant" "Secondary"
+      ) }}
+    </div>
   </form>
 </div>
 <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
   {{ range $doc := .Data }}
-  <div class="w-full relative">
-    <div class="flex gap-4 w-full h-full p-4 shadow-lg bg-white dark:bg-gray-700 rounded">
-      <div class="min-w-fit my-auto h-48 relative">
-        <a href="./documents/{{$doc.ID}}">
-          <img class="rounded object-cover h-full"
-               src="./documents/{{$doc.ID}}/cover" />
-        </a>
-      </div>
-      <div class="flex flex-col justify-around dark:text-white w-full text-sm">
-        <div class="inline-flex shrink-0 items-center">
-          <div>
-            <p class="text-gray-400">Title</p>
-            <p class="font-medium">{{ or $doc.Title "Unknown" }}</p>
-          </div>
-        </div>
-        <div class="inline-flex shrink-0 items-center">
-          <div>
-            <p class="text-gray-400">Author</p>
-            <p class="font-medium">{{ or $doc.Author "Unknown" }}</p>
-          </div>
-        </div>
-        <div class="inline-flex shrink-0 items-center">
-          <div>
-            <p class="text-gray-400">Progress</p>
-            <p class="font-medium">{{ $doc.Percentage }}%</p>
-          </div>
-        </div>
-        <div class="inline-flex shrink-0 items-center">
-          <div>
-            <p class="text-gray-400">Time Read</p>
-            <p class="font-medium">{{ niceSeconds $doc.TotalTimeSeconds }}</p>
-          </div>
-        </div>
-      </div>
-      <div class="absolute flex flex-col gap-2 right-4 bottom-4 text-gray-500 dark:text-gray-400">
-        <a href="./activity?document={{ $doc.ID }}">{{ template "svg/activity" }}</a>
-        {{ if $doc.Filepath }}
-        <a href="./documents/{{$doc.ID}}/file">{{ template "svg/download" }}</a>
-      {{ else }}
-        {{ template "svg/download" (dict "Disabled" true) }}
-        {{ end }}
-      </div>
-    </div>
-  </div>
+  {{ template "component/document-card" $doc }}
   {{ end }}
 </div>
 <div class="w-full flex gap-4 justify-center mt-4 text-black dark:text-white">

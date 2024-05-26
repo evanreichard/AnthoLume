@@ -30,10 +30,12 @@
             <option value="LibGen Non-fiction">LibGen Non-fiction</option>
           </select>
         </div>
-        <button type="submit"
-                class="px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
-          <span class="w-full">Search</span>
-        </button>
+        <div class="lg:w-60">
+          {{ template "component/button" (dict
+          "Title" "Search"
+          "Variant" "Secondary"
+          ) }}
+        </div>
       </form>
       {{ if .SearchErrorMessage }}
       <span class="text-red-400 text-xs">{{ .SearchErrorMessage }}</span>

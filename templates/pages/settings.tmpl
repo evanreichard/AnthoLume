@@ -39,10 +39,12 @@
                    placeholder="New Password" />
           </div>
         </div>
-        <button type="submit"
-                class="px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
-          <span class="w-full">Submit</span>
-        </button>
+        <div class="lg:w-60">
+          {{ template "component/button" (dict
+          "Title" "Submit"
+          "Variant" "Secondary"
+          ) }}
+        </div>
       </form>
       {{ if .PasswordErrorMessage }}
       <span class="text-red-400 text-xs">{{ .PasswordErrorMessage }}</span>
@@ -69,10 +71,12 @@
             {{ end }}
           </select>
         </div>
-        <button type="submit"
-                class="px-10 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2">
-          <span class="w-full">Submit</span>
-        </button>
+        <div class="lg:w-60">
+          {{ template "component/button" (dict
+          "Title" "Submit"
+          "Variant" "Secondary"
+          ) }}
+        </div>
       </form>
       {{ if .TimeOffsetErrorMessage }}
       <span class="text-red-400 text-xs">{{ .TimeOffsetErrorMessage }}</span>

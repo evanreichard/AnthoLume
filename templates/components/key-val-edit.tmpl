@@ -1,0 +1,20 @@
+<div class="relative">
+  <div class="text-gray-500 inline-flex gap-2 relative">
+    <p>{{ .Title }}</p>
+    <label class="my-auto cursor-pointer" for="edit-{{ .FormValue }}-button">
+      {{ template "svg/edit" (dict "Size" 18) }}
+    </label>
+    <input type="checkbox"
+           id="edit-{{ .FormValue }}-button"
+           class="hidden css-button" />
+    <div class="absolute z-30 top-7 right-0 p-3 transition-all duration-200 bg-gray-200 rounded shadow-lg shadow-gray-500 dark:shadow-gray-900 dark:bg-gray-600">
+      <form method="POST"
+            action="{{ .URL }}"
+            class="flex flex-col gap-2 text-black dark:text-white text-sm">
+        <input type="text" id="{{ .FormValue }}" name="{{ .FormValue }}" value="{{ or .Value "N/A" }}" class="p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white" />
+        {{ template "component/button" (dict "Title" "Save") }}
+      </form>
+    </div>
+  </div>
+  <p class="font-medium text-lg">{{ or .Value "N/A" }}</p>
+</div>

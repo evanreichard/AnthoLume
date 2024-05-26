@@ -39,6 +39,13 @@
       {{ end }}
     </tbody>
   </table>
+  <!--
+  {{ template "component/table" (dict
+  "Columns" (slice "Author" "Title" "Device Name" "Percentage" "Created At")
+  "Keys" (slice "Author" "Title" "DeviceName" "Percentage" "CreatedAt")
+  "Rows" .Data
+  )}}
+  -->
 </div>
 </div>
 {{ end }}
