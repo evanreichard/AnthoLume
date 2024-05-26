@@ -71,7 +71,7 @@ const (
 type requestAdminUpdateUser struct {
 	User      string        `form:"user"`
 	Password  *string       `form:"password"`
-	isAdmin   *bool         `form:"is_admin"`
+	IsAdmin   *string       `form:"is_admin"`
 	Operation operationType `form:"operation"`
 }
 
@@ -674,14 +674,14 @@ func (api *API) restoreData(zipReader *zip.Reader) error {
 		destPath := filepath.Join(api.cfg.DataPath, file.Name)
 		destFile, err := os.Create(destPath)
 		if err != nil {
-			fmt.Println("Error creating destination file:", err)
+			log.Errorf("error creating destination file: %v", err)
 			return err
 		}
 		defer destFile.Close()
 
 		// Copy the contents from the zip file to the destination file.
 		if _, err := io.Copy(destFile, rc); err != nil {
-			fmt.Println("Error copying file contents:", err)
+			log.Errorf("Error copying file contents: %v", err)
 			return err
 		}
 	}
@@ -796,8 +796,8 @@ func (api *API) createUser(createRequest requestAdminUpdateUser) error {
 	}
 
 	// Handle Admin (Explicit or False)
-	if createRequest.isAdmin != nil {
-		createParams.Admin = *createRequest.isAdmin
+	if createRequest.IsAdmin != nil {
+		createParams.Admin = *createRequest.IsAdmin == "true"
 	} else {
 		createParams.Admin = false
 	}
@@ -835,7 +835,7 @@ func (api *API) updateUser(updateRequest requestAdminUpdateUser) error {
 	if updateRequest.User == "" {
 		return fmt.Errorf("username can't be empty")
 	}
-	if updateRequest.Password == nil && updateRequest.isAdmin == nil {
+	if updateRequest.Password == nil && updateRequest.IsAdmin == nil {
 		return fmt.Errorf("nothing to update")
 	}
 
@@ -845,8 +845,8 @@ func (api *API) updateUser(updateRequest requestAdminUpdateUser) error {
 	}
 
 	// Handle Admin (Update or Existing)
-	if updateRequest.isAdmin != nil {
-		updateParams.Admin = *updateRequest.isAdmin
+	if updateRequest.IsAdmin != nil {
+		updateParams.Admin = *updateRequest.IsAdmin == "true"
 	} else {
 		user, err := api.db.Queries.GetUser(api.db.Ctx, updateRequest.User)
 		if err != nil {
@@ -855,8 +855,12 @@ func (api *API) updateUser(updateRequest requestAdminUpdateUser) error {
 		updateParams.Admin = user.Admin
 	}
 
-	// TODO:
-	//   - Validate Not Last Admin
+	// Check Admins
+	if isLast, err := api.isLastAdmin(updateRequest.User); err != nil {
+		return err
+	} else if isLast {
+		return fmt.Errorf("unable to demote %s - last admin", updateRequest.User)
+	}
 
 	// Handle Password
 	if updateRequest.Password != nil {
@@ -891,7 +895,31 @@ func (api *API) updateUser(updateRequest requestAdminUpdateUser) error {
 }
 
 func (api *API) deleteUser(updateRequest requestAdminUpdateUser) error {
-	// TODO:
-	//   - Validate Not Last Admin
+	// Check Admins
+	if isLast, err := api.isLastAdmin(updateRequest.User); err != nil {
+		return err
+	} else if isLast {
+		return fmt.Errorf("unable to demote %s - last admin", updateRequest.User)
+	}
+
+	// TODO - Implementation
+
 	return errors.New("unimplemented")
+}
+
+func (api *API) isLastAdmin(userID string) (bool, error) {
+	allUsers, err := api.db.Queries.GetUsers(api.db.Ctx)
+	if err != nil {
+		return false, errors.Wrap(err, fmt.Sprintf("GetUsers DB Error: %v", err))
+	}
+
+	hasAdmin := false
+	for _, user := range allUsers {
+		if user.Admin && user.ID != userID {
+			hasAdmin = true
+			break
+		}
+	}
+
+	return !hasAdmin, nil
 }

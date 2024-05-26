@@ -68,11 +68,8 @@
               <form method="POST"
                     action="./users"
                     class="flex flex gap-2 text-black dark:text-white text-sm">
-                <input type="text"
-                       id="operation"
-                       name="operation"
-                       value="UPDATE"
-                       class="hidden" />
+                <input type="hidden" id="operation" name="operation" value="UPDATE" />
+                <input type="hidden" id="user" name="user" value="{{ $user.ID }}" />
                 <input type="password"
                        id="password"
                        name="password"
@@ -83,17 +80,37 @@
               </form>
             </div>
           </td>
-          <td class="p-3 border-b border-gray-200 text-center min-w-40">
-            <span class="px-2 py-1 rounded-md text-white dark:text-black {{ if $user.Admin }}bg-gray-800 dark:bg-gray-100{{ else }}bg-gray-400 dark:bg-gray-600 cursor-pointer{{ end }}">admin</span>
-            <span class="px-2 py-1 rounded-md text-white dark:text-black {{ if $user.Admin }}bg-gray-400 dark:bg-gray-600 cursor-pointer{{ else }}bg-gray-800 dark:bg-gray-100{{ end }}">user</span>
-          </td>
-          <td class="p-3 border-b border-gray-200">
-            <p>{{ $user.CreatedAt }}</p>
-          </td>
-        </tr>
-        {{ end }}
-      </tbody>
-    </table>
-  </div>
+          <td class="flex gap-2 justify-center p-3 border-b border-gray-200 text-center min-w-40">
+            <!-- Set Admin & User Styles -->
+            {{ $adminStyle := "bg-gray-400 dark:bg-gray-600 cursor-pointer" }}
+            {{ $userStyle := "bg-gray-400 dark:bg-gray-600 cursor-pointer" }}
+            {{ if $user.Admin }}{{ $adminStyle = "bg-gray-800 dark:bg-gray-100 cursor-default" }}{{ end }}
+            {{ if not $user.Admin }}{{ $userStyle = "bg-gray-800 dark:bg-gray-100 cursor-default" }}{{ end }}
+            <form method="POST"
+                  action="./users"
+                  class="flex flex gap-2 text-black dark:text-white text-sm">
+              <input type="hidden" id="operation" name="operation" value="UPDATE" />
+              <input type="hidden" id="user" name="user" value="{{ $user.ID }}" />
+              <input type="hidden" id="is_admin" name="is_admin" value="true" />
+            <button {{ if $user.Admin }}type="button"{{ else }}type="submit"{{ end }} class="px-2 py-1 rounded-md text-white dark:text-black {{ $adminStyle }}">admin
+            </button>
+          </form>
+          <form method="POST"
+                action="./users"
+                class="flex flex gap-2 text-black dark:text-white text-sm">
+            <input type="hidden" id="operation" name="operation" value="UPDATE" />
+            <input type="hidden" id="user" name="user" value="{{ $user.ID }}" />
+            <input type="hidden" id="is_admin" name="is_admin" value="false" />
+          <button {{ if $user.Admin }}type="submit"{{ else }}type="button"{{ end }} class="px-2 py-1 rounded-md text-white dark:text-black {{ $userStyle }}">user
+          </form>
+        </td>
+        <td class="p-3 border-b border-gray-200">
+          <p>{{ $user.CreatedAt }}</p>
+        </td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
 </div>
 {{ end }}
