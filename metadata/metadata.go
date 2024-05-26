@@ -109,6 +109,9 @@ func GetMetadata(filepath string) (*MetadataInfo, error) {
 
 	// Acquire Metadata
 	metadataInfo, err := handler(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to acquire metadata")
+	}
 
 	// Calculate MD5 & Partial MD5
 	partialMD5, err := utils.CalculatePartialMD5(filepath)

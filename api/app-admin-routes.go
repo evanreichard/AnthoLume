@@ -206,7 +206,7 @@ func (api *API) appGetAdminLogs(c *gin.Context) {
 		rawLog := scanner.Text()
 
 		// Attempt JSON Pretty
-		var jsonMap map[string]interface{}
+		var jsonMap map[string]any
 		err := json.Unmarshal([]byte(rawLog), &jsonMap)
 		if err != nil {
 			logLines = append(logLines, scanner.Text())

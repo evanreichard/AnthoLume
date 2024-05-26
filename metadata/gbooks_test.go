@@ -49,8 +49,8 @@ func hookAPI() *details {
 		}
 
 		// Convert to JSON Response
-		var responseData map[string]interface{}
-		json.Unmarshal([]byte(rawResp), &responseData)
+		var responseData map[string]any
+		_ = json.Unmarshal([]byte(rawResp), &responseData)
 
 		// Return Response
 		return httpmock.NewJsonResponse(200, responseData)

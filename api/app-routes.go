@@ -1057,11 +1057,11 @@ func appErrorPage(c *gin.Context, errorCode int, errorMessage string) {
 
 func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) gin.H {
 	// Item Sorter
-	sortItem := func(userStatistics []database.GetUserStatisticsRow, key string, less func(i int, j int) bool) []map[string]interface{} {
+	sortItem := func(userStatistics []database.GetUserStatisticsRow, key string, less func(i int, j int) bool) []map[string]any {
 		sortedData := append([]database.GetUserStatisticsRow(nil), userStatistics...)
 		sort.SliceStable(sortedData, less)
 
-		newData := make([]map[string]interface{}, 0)
+		newData := make([]map[string]any, 0)
 		for _, item := range sortedData {
 			v := reflect.Indirect(reflect.ValueOf(item))
 
@@ -1077,7 +1077,7 @@ func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) gin.H
 				value = niceNumbers(rawVal)
 			}
 
-			newData = append(newData, map[string]interface{}{
+			newData = append(newData, map[string]any{
 				"UserID": item.UserID,
 				"Value":  value,
 			})

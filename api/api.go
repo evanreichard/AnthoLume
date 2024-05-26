@@ -300,7 +300,7 @@ func loggingMiddleware(c *gin.Context) {
 	logData := log.Fields{
 		"type":    "access",
 		"ip":      c.ClientIP(),
-		"latency": fmt.Sprintf("%s", latency),
+		"latency": latency.String(),
 		"status":  c.Writer.Status(),
 		"method":  c.Request.Method,
 		"path":    c.Request.URL.Path,

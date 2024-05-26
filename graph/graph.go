@@ -115,7 +115,7 @@ func getSVGBezierControlPoint(currentPoint *SVGGraphPoint, prevPoint *SVGGraphPo
 	// Modifiers
 	var smoothingRatio float64 = 0.2
 	var directionModifier float64 = 0
-	if isReverse == true {
+	if isReverse {
 		directionModifier = math.Pi
 	}
 

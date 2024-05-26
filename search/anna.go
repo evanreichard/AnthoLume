@@ -15,7 +15,7 @@ func parseAnnasArchiveDownloadURL(body io.ReadCloser) (string, error) {
 
 	// Return Download URL
 	downloadURL, exists := doc.Find("body > table > tbody > tr > td > a").Attr("href")
-	if exists == false {
+	if !exists {
 		return "", fmt.Errorf("Download URL not found")
 	}
 

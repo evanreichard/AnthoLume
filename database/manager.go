@@ -118,7 +118,9 @@ func (dbm *DBManager) init() error {
 	}
 
 	// Cache tables
-	go dbm.CacheTempTables()
+	if err := dbm.CacheTempTables(); err != nil {
+		log.Warn("Refreshing temp table cache failed: ", err)
+	}
 
 	return nil
 }
@@ -188,7 +190,7 @@ func (dbm *DBManager) updateSettings() error {
 
 func (dbm *DBManager) performMigrations(isNew bool) error {
 	// Create context
-	ctx := context.WithValue(context.Background(), "isNew", isNew)
+	ctx := context.WithValue(context.Background(), "isNew", isNew) // nolint
 
 	// Set DB migration
 	goose.SetBaseFS(migrations)

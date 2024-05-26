@@ -121,7 +121,7 @@ func getGBooksMetadata(metadataSearch MetadataInfo) ([]MetadataInfo, error) {
 func saveGBooksCover(gbid string, coverFilePath string, overwrite bool) error {
 	// Validate File Doesn't Exists
 	_, err := os.Stat(coverFilePath)
-	if err == nil && overwrite == false {
+	if err == nil && !overwrite {
 		log.Warn("File Alreads Exists")
 		return nil
 	}

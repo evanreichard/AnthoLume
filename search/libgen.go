@@ -115,7 +115,7 @@ func parseLibGenDownloadURL(body io.ReadCloser) (string, error) {
 	// Return Download URL
 	// downloadURL, _ := doc.Find("#download [href*=cloudflare]").Attr("href")
 	downloadURL, exists := doc.Find("#download h2 a").Attr("href")
-	if exists == false {
+	if !exists {
 		return "", fmt.Errorf("Download URL not found")
 	}
 
