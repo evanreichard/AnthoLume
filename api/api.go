@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io/fs"
 	"net/http"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/config"
 	"reichard.io/antholume/database"
@@ -37,6 +39,7 @@ func NewApi(db *database.DBManager, c *config.Config, assets fs.FS) *API {
 		db:            db,
 		cfg:           c,
 		assets:        assets,
+		templates:     make(map[string]*template.Template),
 		userAuthCache: make(map[string]string),
 	}
 
@@ -223,8 +226,8 @@ func (api *API) registerOPDSRoutes(apiGroup *gin.RouterGroup) {
 
 func (api *API) generateTemplates() *multitemplate.Renderer {
 	// Define templates & helper functions
-	templates := make(map[string]*template.Template)
 	render := multitemplate.NewRenderer()
+	templates := make(map[string]*template.Template)
 	helperFuncs := template.FuncMap{
 		"dict":            dict,
 		"slice":           slice,
@@ -236,53 +239,90 @@ func (api *API) generateTemplates() *multitemplate.Renderer {
 		"niceSeconds":     niceSeconds,
 	}
 
-	// Load base
-	b, _ := fs.ReadFile(api.assets, "templates/base.tmpl")
-	baseTemplate := template.Must(template.New("base").Funcs(helperFuncs).Parse(string(b)))
+	// Load Base
+	b, err := fs.ReadFile(api.assets, "templates/base.tmpl")
+	if err != nil {
+		log.Errorf("error reading base template: %v", err)
+		return &render
+	}
+
+	// Parse Base
+	baseTemplate, err := template.New("base").Funcs(helperFuncs).Parse(string(b))
+	if err != nil {
+		log.Errorf("error parsing base template: %v", err)
+		return &render
+	}
 
 	// Load SVGs
-	svgs, _ := fs.ReadDir(api.assets, "templates/svgs")
-	for _, item := range svgs {
-		basename := item.Name()
-		path := fmt.Sprintf("templates/svgs/%s", basename)
-		name := strings.TrimSuffix(basename, filepath.Ext(basename))
-
-		b, _ := fs.ReadFile(api.assets, path)
-		baseTemplate = template.Must(baseTemplate.New("svg/" + name).Parse(string(b)))
-		templates["svg/"+name] = baseTemplate
+	err = api.loadTemplates("svg", baseTemplate, templates, false)
+	if err != nil {
+		log.Errorf("error loading svg templates: %v", err)
+		return &render
 	}
 
-	// Load components
-	components, _ := fs.ReadDir(api.assets, "templates/components")
-	for _, item := range components {
-		basename := item.Name()
-		path := fmt.Sprintf("templates/components/%s", basename)
-		name := strings.TrimSuffix(basename, filepath.Ext(basename))
-
-		// Clone Base Template
-		b, _ := fs.ReadFile(api.assets, path)
-		baseTemplate = template.Must(baseTemplate.New("component/" + name).Parse(string(b)))
-		render.Add("component/"+name, baseTemplate)
-		templates["component/"+name] = baseTemplate
+	// Load Components
+	err = api.loadTemplates("component", baseTemplate, templates, false)
+	if err != nil {
+		log.Errorf("error loading component templates: %v", err)
+		return &render
 	}
 
-	// Load pages
-	pages, _ := fs.ReadDir(api.assets, "templates/pages")
-	for _, item := range pages {
-		basename := item.Name()
-		path := fmt.Sprintf("templates/pages/%s", basename)
-		name := strings.TrimSuffix(basename, filepath.Ext(basename))
-
-		// Clone Base Template
-		b, _ := fs.ReadFile(api.assets, path)
-		pageTemplate, _ := template.Must(baseTemplate.Clone()).New("page/" + name).Parse(string(b))
-		render.Add("page/"+name, pageTemplate)
-		templates["page/"+name] = pageTemplate
+	// Load Pages
+	err = api.loadTemplates("page", baseTemplate, templates, true)
+	if err != nil {
+		log.Errorf("error loading page templates: %v", err)
+		return &render
 	}
 
+	// Populate Renderer
 	api.templates = templates
+	for templateName, templateValue := range templates {
+		render.Add(templateName, templateValue)
+	}
 
 	return &render
+}
+
+func (api *API) loadTemplates(
+	basePath string,
+	baseTemplate *template.Template,
+	allTemplates map[string]*template.Template,
+	cloneBase bool,
+) error {
+	// Load Templates (Pluralize)
+	templateDirectory := fmt.Sprintf("templates/%ss", basePath)
+	allFiles, err := fs.ReadDir(api.assets, templateDirectory)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("unable to read template dir: %s", templateDirectory))
+	}
+
+	// Generate Templates
+	for _, item := range allFiles {
+		templateFile := item.Name()
+		templatePath := path.Join(templateDirectory, templateFile)
+		templateName := fmt.Sprintf("%s/%s", basePath, strings.TrimSuffix(templateFile, filepath.Ext(templateFile)))
+
+		// Read Template
+		b, err := fs.ReadFile(api.assets, templatePath)
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("unable to read template: %s", templateName))
+		}
+
+		// Clone? (Pages - Don't Stomp)
+		if cloneBase {
+			baseTemplate = template.Must(baseTemplate.Clone())
+		}
+
+		// Parse Template
+		baseTemplate, err = baseTemplate.New(templateName).Parse(string(b))
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("unable to parse template: %s", templateName))
+		}
+
+		allTemplates[templateName] = baseTemplate
+	}
+
+	return nil
 }
 
 func loggingMiddleware(c *gin.Context) {
