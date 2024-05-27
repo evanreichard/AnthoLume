@@ -153,6 +153,18 @@ func (q *Queries) DeleteDocument(ctx context.Context, id string) (int64, error) 
 	return result.RowsAffected()
 }
 
+const deleteUser = `-- name: DeleteUser :execrows
+DELETE FROM users WHERE id = ?1
+`
+
+func (q *Queries) DeleteUser(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteUser, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getActivity = `-- name: GetActivity :many
 WITH filtered_activity AS (
     SELECT

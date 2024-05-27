@@ -30,6 +30,9 @@ INSERT INTO users (id, pass, auth_hash, admin)
 VALUES (?, ?, ?, ?)
 ON CONFLICT DO NOTHING;
 
+-- name: DeleteUser :execrows
+DELETE FROM users WHERE id = $id;
+
 -- name: DeleteDocument :execrows
 UPDATE documents
 SET

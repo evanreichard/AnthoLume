@@ -71,7 +71,7 @@ const (
 type requestAdminUpdateUser struct {
 	User      string        `form:"user"`
 	Password  *string       `form:"password"`
-	IsAdmin   *string       `form:"is_admin"`
+	IsAdmin   *bool         `form:"is_admin"`
 	Operation operationType `form:"operation"`
 }
 
@@ -268,21 +268,27 @@ func (api *API) appGetAdminUsers(c *gin.Context) {
 func (api *API) appUpdateAdminUsers(c *gin.Context) {
 	templateVars, _ := api.getBaseTemplateVars("admin-users", c)
 
-	var rAdminUserUpdate requestAdminUpdateUser
-	if err := c.ShouldBind(&rAdminUserUpdate); err != nil {
+	var rUpdate requestAdminUpdateUser
+	if err := c.ShouldBind(&rUpdate); err != nil {
 		log.Error("Invalid URI Bind")
-		appErrorPage(c, http.StatusNotFound, "Invalid user update")
+		appErrorPage(c, http.StatusNotFound, "Invalid user parameters")
+		return
+	}
+
+	// Ensure Username
+	if rUpdate.User == "" {
+		appErrorPage(c, http.StatusInternalServerError, "User cannot be empty")
 		return
 	}
 
 	var err error
-	switch rAdminUserUpdate.Operation {
+	switch rUpdate.Operation {
 	case opCreate:
-		err = api.createUser(rAdminUserUpdate)
+		err = api.createUser(rUpdate.User, rUpdate.Password, rUpdate.IsAdmin)
 	case opUpdate:
-		err = api.updateUser(rAdminUserUpdate)
+		err = api.updateUser(rUpdate.User, rUpdate.Password, rUpdate.IsAdmin)
 	case opDelete:
-		err = api.deleteUser(rAdminUserUpdate)
+		err = api.deleteUser(rUpdate.User)
 	default:
 		appErrorPage(c, http.StatusNotFound, "Unknown user operation")
 		return
@@ -611,14 +617,6 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	}
 	defer backupFile.Close()
 
-	// Vacuum DB
-	_, err = api.db.DB.ExecContext(api.db.Ctx, "VACUUM;")
-	if err != nil {
-		log.Error("Unable to vacuum DB: ", err)
-		appErrorPage(c, http.StatusInternalServerError, "Unable to vacuum database")
-		return
-	}
-
 	// Save Backup File
 	w := bufio.NewWriter(backupFile)
 	err = api.createBackup(w, []string{"covers", "documents"})
@@ -712,8 +710,13 @@ func (api *API) removeData() error {
 }
 
 func (api *API) createBackup(w io.Writer, directories []string) error {
-	ar := zip.NewWriter(w)
+	// Vacuum DB
+	_, err := api.db.DB.ExecContext(api.db.Ctx, "VACUUM;")
+	if err != nil {
+		return errors.Wrap(err, "Unable to vacuum database")
+	}
 
+	ar := zip.NewWriter(w)
 	exportWalker := func(currentPath string, f fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -781,29 +784,43 @@ func (api *API) createBackup(w io.Writer, directories []string) error {
 	return nil
 }
 
-func (api *API) createUser(createRequest requestAdminUpdateUser) error {
-	// Validate Necessary Parameters
-	if createRequest.User == "" {
-		return fmt.Errorf("username can't be empty")
+func (api *API) isLastAdmin(userID string) (bool, error) {
+	allUsers, err := api.db.Queries.GetUsers(api.db.Ctx)
+	if err != nil {
+		return false, errors.Wrap(err, fmt.Sprintf("GetUsers DB Error: %v", err))
 	}
-	if createRequest.Password == nil || *createRequest.Password == "" {
+
+	hasAdmin := false
+	for _, user := range allUsers {
+		if user.Admin && user.ID != userID {
+			hasAdmin = true
+			break
+		}
+	}
+
+	return !hasAdmin, nil
+}
+
+func (api *API) createUser(user string, rawPassword *string, isAdmin *bool) error {
+	// Validate Necessary Parameters
+	if rawPassword == nil || *rawPassword == "" {
 		return fmt.Errorf("password can't be empty")
 	}
 
 	// Base Params
 	createParams := database.CreateUserParams{
-		ID: createRequest.User,
+		ID: user,
 	}
 
 	// Handle Admin (Explicit or False)
-	if createRequest.IsAdmin != nil {
-		createParams.Admin = *createRequest.IsAdmin == "true"
+	if isAdmin != nil {
+		createParams.Admin = *isAdmin
 	} else {
 		createParams.Admin = false
 	}
 
 	// Parse Password
-	password := fmt.Sprintf("%x", md5.Sum([]byte(*createRequest.Password)))
+	password := fmt.Sprintf("%x", md5.Sum([]byte(*rawPassword)))
 	hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
 	if err != nil {
 		return fmt.Errorf("unable to create hashed password")
@@ -830,25 +847,22 @@ func (api *API) createUser(createRequest requestAdminUpdateUser) error {
 	return nil
 }
 
-func (api *API) updateUser(updateRequest requestAdminUpdateUser) error {
+func (api *API) updateUser(user string, rawPassword *string, isAdmin *bool) error {
 	// Validate Necessary Parameters
-	if updateRequest.User == "" {
-		return fmt.Errorf("username can't be empty")
-	}
-	if updateRequest.Password == nil && updateRequest.IsAdmin == nil {
+	if rawPassword == nil && isAdmin == nil {
 		return fmt.Errorf("nothing to update")
 	}
 
 	// Base Params
 	updateParams := database.UpdateUserParams{
-		UserID: updateRequest.User,
+		UserID: user,
 	}
 
 	// Handle Admin (Update or Existing)
-	if updateRequest.IsAdmin != nil {
-		updateParams.Admin = *updateRequest.IsAdmin == "true"
+	if isAdmin != nil {
+		updateParams.Admin = *isAdmin
 	} else {
-		user, err := api.db.Queries.GetUser(api.db.Ctx, updateRequest.User)
+		user, err := api.db.Queries.GetUser(api.db.Ctx, user)
 		if err != nil {
 			return errors.Wrap(err, fmt.Sprintf("GetUser DB Error: %v", err))
 		}
@@ -856,20 +870,20 @@ func (api *API) updateUser(updateRequest requestAdminUpdateUser) error {
 	}
 
 	// Check Admins
-	if isLast, err := api.isLastAdmin(updateRequest.User); err != nil {
+	if isLast, err := api.isLastAdmin(user); err != nil {
 		return err
 	} else if isLast {
-		return fmt.Errorf("unable to demote %s - last admin", updateRequest.User)
+		return fmt.Errorf("unable to demote %s - last admin", user)
 	}
 
 	// Handle Password
-	if updateRequest.Password != nil {
-		if *updateRequest.Password == "" {
+	if rawPassword != nil {
+		if *rawPassword == "" {
 			return fmt.Errorf("password can't be empty")
 		}
 
 		// Parse Password
-		password := fmt.Sprintf("%x", md5.Sum([]byte(*updateRequest.Password)))
+		password := fmt.Sprintf("%x", md5.Sum([]byte(*rawPassword)))
 		hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
 		if err != nil {
 			return fmt.Errorf("unable to create hashed password")
@@ -894,32 +908,34 @@ func (api *API) updateUser(updateRequest requestAdminUpdateUser) error {
 	return nil
 }
 
-func (api *API) deleteUser(updateRequest requestAdminUpdateUser) error {
+func (api *API) deleteUser(user string) error {
 	// Check Admins
-	if isLast, err := api.isLastAdmin(updateRequest.User); err != nil {
+	if isLast, err := api.isLastAdmin(user); err != nil {
 		return err
 	} else if isLast {
-		return fmt.Errorf("unable to demote %s - last admin", updateRequest.User)
+		return fmt.Errorf("unable to delete %s - last admin", user)
 	}
 
-	// TODO - Implementation
-
-	return errors.New("unimplemented")
-}
-
-func (api *API) isLastAdmin(userID string) (bool, error) {
-	allUsers, err := api.db.Queries.GetUsers(api.db.Ctx)
+	// Create Backup File
+	backupFilePath := filepath.Join(api.cfg.ConfigPath, fmt.Sprintf("backups/AnthoLumeBackup_%s.zip", time.Now().Format("20060102150405")))
+	backupFile, err := os.Create(backupFilePath)
 	if err != nil {
-		return false, errors.Wrap(err, fmt.Sprintf("GetUsers DB Error: %v", err))
+		return err
+	}
+	defer backupFile.Close()
+
+	// Save Backup File (DB Only)
+	w := bufio.NewWriter(backupFile)
+	err = api.createBackup(w, []string{})
+	if err != nil {
+		return err
 	}
 
-	hasAdmin := false
-	for _, user := range allUsers {
-		if user.Admin && user.ID != userID {
-			hasAdmin = true
-			break
-		}
+	// Delete User
+	_, err = api.db.Queries.DeleteUser(api.db.Ctx, user)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("DeleteUser DB Error: %v", err))
 	}
 
-	return !hasAdmin, nil
+	return nil
 }

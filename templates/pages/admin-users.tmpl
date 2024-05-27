@@ -27,7 +27,7 @@
               type="submit">Create</button>
     </form>
   </div>
-  <div class="min-w-full overflow-hidden rounded shadow">
+  <div class="min-w-full overflow-scroll rounded shadow">
     <table class="min-w-full leading-normal bg-white dark:bg-gray-700 text-sm">
       <thead class="text-gray-800 dark:text-gray-400">
         <tr>
@@ -50,12 +50,27 @@
         {{ end }}
         {{ range $user := .Data }}
         <tr>
-          <td class="p-3 border-b border-gray-200 text-gray-800 dark:text-gray-400 cursor-pointer">
-            {{ template "svg/delete" }}
+          <!-- User Deletion -->
+          <td class="p-3 border-b border-gray-200 text-gray-800 dark:text-gray-400 cursor-pointer relative">
+            <label for="delete-{{ $user.ID }}-button" class="cursor-pointer">{{ template "svg/delete" }}</label>
+            <input type="checkbox"
+                   id="delete-{{ $user.ID }}-button"
+                   class="hidden css-button" />
+            <div class="absolute z-30 top-1.5 left-10 p-1.5 transition-all duration-200 bg-gray-200 rounded shadow-lg shadow-gray-500 dark:shadow-gray-900 dark:bg-gray-600">
+              <form method="POST"
+                    action="./users"
+                    class="text-black dark:text-white text-sm w-40">
+                <input type="hidden" id="operation" name="operation" value="DELETE" />
+                <input type="hidden" id="user" name="user" value="{{ $user.ID }}" />
+                {{ template "component/button" (dict "Title" (printf "Delete (%s)" $user.ID )) }}
+              </form>
+            </div>
           </td>
+          <!-- User ID -->
           <td class="p-3 border-b border-gray-200">
             <p>{{ $user.ID }}</p>
           </td>
+          <!-- User Password Change -->
           <td class="border-b border-gray-200 relative px-3">
             <label for="edit-{{ $user.ID }}-button" class="cursor-pointer">
               <span class="font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
@@ -64,7 +79,7 @@
             <input type="checkbox"
                    id="edit-{{ $user.ID }}-button"
                    class="hidden css-button" />
-            <div class="absolute z-30 -bottom-1.5 left-16 p-3 transition-all duration-200 bg-gray-200 rounded shadow-lg shadow-gray-500 dark:shadow-gray-900 dark:bg-gray-600">
+            <div class="absolute z-30 top-1 left-16 ml-2 p-1.5 transition-all duration-200 bg-gray-200 rounded shadow-lg shadow-gray-500 dark:shadow-gray-900 dark:bg-gray-600">
               <form method="POST"
                     action="./users"
                     class="flex flex gap-2 text-black dark:text-white text-sm">
@@ -73,13 +88,14 @@
                 <input type="password"
                        id="password"
                        name="password"
-                       placeholder="Password"
-                       class="p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white" />
+                       placeholder="{{ printf "Password (%s)" $user.ID }}"
+                       class="p-1.5 bg-gray-300 text-black dark:bg-gray-700 dark:text-white" />
                 <button class="font-medium px-2 py-1 text-white bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100"
                         type="submit">Change</button>
               </form>
             </div>
           </td>
+          <!-- User Role -->
           <td class="flex gap-2 justify-center p-3 border-b border-gray-200 text-center min-w-40">
             <!-- Set Admin & User Styles -->
             {{ $adminStyle := "bg-gray-400 dark:bg-gray-600 cursor-pointer" }}

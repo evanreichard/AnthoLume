@@ -189,3 +189,11 @@ UPDATE documents
 SET updated_at = STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now')
 WHERE id = old.id;
 END;
+
+-- Delete User
+CREATE TRIGGER IF NOT EXISTS user_deleted
+BEFORE DELETE ON users BEGIN
+DELETE FROM activity WHERE activity.user_id=OLD.id;
+DELETE FROM devices WHERE devices.user_id=OLD.id;
+DELETE FROM document_progress WHERE document_progress.user_id=OLD.id;
+END;
