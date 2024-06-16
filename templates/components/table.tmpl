@@ -5,22 +5,28 @@
   <thead class="text-gray-800 dark:text-gray-400">
     <tr>
       {{ range $col := $cols }}
-      <th class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800">{{ $col }}</th>
+        <th
+          class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+        >
+          {{ $col }}
+        </th>
       {{ end }}
     </tr>
   </thead>
   <tbody class="text-black dark:text-white">
     {{ if not $rows }}
-    <tr>
-      <td class="text-center p-3" colspan="4">No Results</td>
-    </tr>
+      <tr>
+        <td class="text-center p-3" colspan="4">No Results</td>
+      </tr>
     {{ end }}
     {{ range $row := $rows }}
-    <tr>
-      {{ range $key := $keys }}
-      <td class="p-3 border-b border-gray-200">{{ template "table-cell" (dict "Data" $row "Name" $key )}}</td>
-      {{ end }}
-    </tr>
+      <tr>
+        {{ range $key := $keys }}
+          <td class="p-3 border-b border-gray-200">
+            {{ template "table-cell" (dict "Data" $row "Name" $key ) }}
+          </td>
+        {{ end }}
+      </tr>
     {{ end }}
   </tbody>
 </table>

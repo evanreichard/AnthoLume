@@ -1,93 +1,127 @@
 {{ template "base" . }}
 {{ define "title" }}Admin - General{{ end }}
-{{ define "header" }}<a class="whitespace-pre" href="./admin">Admin - General</a>{{ end }}
+{{ define "header" }}
+  <a class="whitespace-pre" href="./admin">Admin - General</a>
+{{ end }}
 {{ define "content" }}
-<div class="w-full flex flex-col gap-4 grow">
-  <div class="flex flex-col gap-2 grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white">
-    <p class="text-lg font-semibold mb-2">Backup & Restore</p>
-    <div class="flex flex-col gap-4">
-      <form class="flex justify-between" action="./admin" method="POST">
-        <input type="text" name="action" value="BACKUP" class="hidden" />
-        <div class="flex gap-8 items-center">
-          <div>
-            <input type="checkbox" id="backup_covers" name="backup_types" value="COVERS" />
-            <label for="backup_covers">Covers</label>
+  <div class="w-full flex flex-col gap-4 grow">
+    <div
+      class="flex flex-col gap-2 grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+    >
+      <p class="text-lg font-semibold mb-2">Backup & Restore</p>
+      <div class="flex flex-col gap-4">
+        <form class="flex justify-between" action="./admin" method="POST">
+          <input type="text" name="action" value="BACKUP" class="hidden" />
+          <div class="flex gap-8 items-center">
+            <div>
+              <input
+                type="checkbox"
+                id="backup_covers"
+                name="backup_types"
+                value="COVERS"
+              />
+              <label for="backup_covers">Covers</label>
+            </div>
+            <div>
+              <input
+                type="checkbox"
+                id="backup_documents"
+                name="backup_types"
+                value="DOCUMENTS"
+              />
+              <label for="backup_documents">Documents</label>
+            </div>
           </div>
-          <div>
-            <input type="checkbox"
-                   id="backup_documents"
-                   name="backup_types"
-                   value="DOCUMENTS" />
-            <label for="backup_documents">Documents</label>
+          <div class="w-40 h-10">
+            {{ template "component/button" (dict
+              "Title" "Backup"
+              "Variant" "Secondary"
+              )
+            }}
           </div>
-        </div>
-        <div class="w-40 h-10">
-          {{ template "component/button" (dict
-          "Title" "Backup"
-          "Variant" "Secondary"
-          ) }}
-        </div>
-      </form>
-      <form method="POST"
-            enctype="multipart/form-data"
-            action="./admin"
-            class="flex justify-between grow">
-        <input type="text" name="action" value="RESTORE" class="hidden" />
-        <div class="flex items-center w-1/2">
-          <input type="file" accept=".zip" name="restore_file" class="w-full" />
-        </div>
-        <div class="w-40 h-10">
-          {{ template "component/button" (dict
-          "Title" "Restore"
-          "Variant" "Secondary"
-          ) }}
-        </div>
-      </form>
+        </form>
+        <form
+          method="POST"
+          enctype="multipart/form-data"
+          action="./admin"
+          class="flex justify-between grow"
+        >
+          <input type="text" name="action" value="RESTORE" class="hidden" />
+          <div class="flex items-center w-1/2">
+            <input
+              type="file"
+              accept=".zip"
+              name="restore_file"
+              class="w-full"
+            />
+          </div>
+          <div class="w-40 h-10">
+            {{ template "component/button" (dict
+              "Title" "Restore"
+              "Variant" "Secondary"
+              )
+            }}
+          </div>
+        </form>
+      </div>
+      {{ if .PasswordErrorMessage }}
+        <span class="text-red-400 text-xs">{{ .PasswordErrorMessage }}</span>
+      {{ else if .PasswordMessage }}
+        <span class="text-green-400 text-xs">{{ .PasswordMessage }}</span>
+      {{ end }}
     </div>
-    {{ if .PasswordErrorMessage }}
-    <span class="text-red-400 text-xs">{{ .PasswordErrorMessage }}</span>
-    {{ else if .PasswordMessage }}
-    <span class="text-green-400 text-xs">{{ .PasswordMessage }}</span>
-    {{ end }}
+    <div
+      class="flex flex-col grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+    >
+      <p class="text-lg font-semibold">Tasks</p>
+      <table class="min-w-full bg-white dark:bg-gray-700 text-sm">
+        <tbody class="text-black dark:text-white">
+          <tr>
+            <td class="pl-0">
+              <p>Metadata Matching</p>
+            </td>
+            <td class="py-2 float-right">
+              <form action="./admin" method="POST">
+                <input
+                  type="text"
+                  name="action"
+                  value="METADATA_MATCH"
+                  class="hidden"
+                />
+                <div class="w-40 h-10 text-base">
+                  {{ template "component/button" (dict
+                    "Title" "Run"
+                    "Variant" "Secondary"
+                    )
+                  }}
+                </div>
+              </form>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p>Cache Tables</p>
+            </td>
+            <td class="py-2 float-right">
+              <form action="./admin" method="POST">
+                <input
+                  type="text"
+                  name="action"
+                  value="CACHE_TABLES"
+                  class="hidden"
+                />
+                <div class="w-40 h-10 text-base">
+                  {{ template "component/button" (dict
+                    "Title" "Run"
+                    "Variant" "Secondary"
+                    )
+                  }}
+                </div>
+              </form>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
-  <div class="flex flex-col grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white">
-    <p class="text-lg font-semibold">Tasks</p>
-    <table class="min-w-full bg-white dark:bg-gray-700 text-sm">
-      <tbody class="text-black dark:text-white">
-        <tr>
-          <td class="pl-0">
-            <p>Metadata Matching</p>
-          </td>
-          <td class="py-2 float-right">
-            <form action="./admin" method="POST">
-              <input type="text" name="action" value="METADATA_MATCH" class="hidden" />
-              <div class="w-40 h-10 text-base">
-                {{ template "component/button" (dict
-                "Title" "Run"
-                "Variant" "Secondary"
-                ) }}
-              </div>
-            </form>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <p>Cache Tables</p>
-          </td>
-          <td class="py-2 float-right">
-            <form action="./admin" method="POST">
-              <input type="text" name="action" value="CACHE_TABLES" class="hidden" />
-              <div class="w-40 h-10 text-base">
-                {{ template "component/button" (dict
-                "Title" "Run"
-                "Variant" "Secondary"
-                ) }}
-              </div>
-            </form>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>
 {{ end }}

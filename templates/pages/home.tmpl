@@ -2,83 +2,108 @@
 {{ define "title" }}Home{{ end }}
 {{ define "header" }}<a href="./">Home</a>{{ end }}
 {{ define "content" }}
-<div class="flex flex-col gap-4">
-  <div class="w-full">
-    <div class="relative w-full bg-white shadow-lg dark:bg-gray-700 rounded">
-      <p class="absolute top-3 left-5 text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500">
-        Daily Read Totals
-      </p>
-      {{ $data := (getSVGGraphData .Data.GraphData 800 70 )}}
-      <div class="relative">
-        <svg viewBox="26 0 755 {{ $data.Height }}"
-             preserveAspectRatio="none"
-             width="100%"
-             height="6em">
-          <!-- Bezier Line Graph -->
-          <path fill="#316BBE" fill-opacity="0.5" stroke="none" d="{{ $data.BezierPath }} {{ $data.BezierFill }}" />
-          <path fill="none" stroke="#316BBE" d="{{ $data.BezierPath }}" />
-        </svg>
-        <div class="flex absolute w-full h-full top-0"
-             style="width: calc(100%*31/30);
+  <div class="flex flex-col gap-4">
+    <div class="w-full">
+      <div class="relative w-full bg-white shadow-lg dark:bg-gray-700 rounded">
+        <p
+          class="absolute top-3 left-5 text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500"
+        >
+          Daily Read Totals
+        </p>
+        {{ $data := (getSVGGraphData .Data.GraphData 800 70 ) }}
+        <div class="relative">
+          <svg
+            viewBox="26 0 755 {{ $data.Height }}"
+            preserveAspectRatio="none"
+            width="100%"
+            height="6em"
+          >
+            <!-- Bezier Line Graph -->
+            <path
+              fill="#316BBE"
+              fill-opacity="0.5"
+              stroke="none"
+              d="{{ $data.BezierPath }} {{ $data.BezierFill }}"
+            />
+            <path fill="none" stroke="#316BBE" d="{{ $data.BezierPath }}" />
+          </svg>
+          <div
+            class="flex absolute w-full h-full top-0"
+            style="width: calc(100%*31/30);
                     transform: translateX(-50%);
-                    left: 50%">
-          {{ range $index, $item := $data.LinePoints }}
-          <!-- Required for iOS "Hover" Events (onclick) -->
-          <div onclick
-               class="opacity-0 hover:opacity-100 w-full"
-               style="background: linear-gradient(rgba(128, 128, 128, 0.5), rgba(128, 128, 128, 0.5)) no-repeat center/2px 100%">
-            <div class="flex flex-col items-center p-2 rounded absolute top-3 dark:text-white text-xs pointer-events-none"
-                 style="transform: translateX(-50%);
+                    left: 50%"
+          >
+            {{ range $index, $item := $data.LinePoints }}
+              <!-- Required for iOS "Hover" Events (onclick) -->
+              <div
+                onclick
+                class="opacity-0 hover:opacity-100 w-full"
+                style="background: linear-gradient(rgba(128, 128, 128, 0.5), rgba(128, 128, 128, 0.5)) no-repeat center/2px 100%"
+              >
+                <div
+                  class="flex flex-col items-center p-2 rounded absolute top-3 dark:text-white text-xs pointer-events-none"
+                  style="transform: translateX(-50%);
                         background-color: rgba(128, 128, 128, 0.2);
-                        left: 50%">
-              <span>{{ (index $.Data.GraphData $index).Date }}</span>
-              <span>{{ (index $.Data.GraphData $index).MinutesRead }} minutes</span>
-            </div>
+                        left: 50%"
+                >
+                  <span>{{ (index $.Data.GraphData $index).Date }}</span>
+                  <span
+                    >{{ (index $.Data.GraphData $index).MinutesRead }}
+                    minutes</span
+                  >
+                </div>
+              </div>
+            {{ end }}
           </div>
-          {{ end }}
         </div>
       </div>
     </div>
+    <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+      {{ template "component/info-card" (dict
+        "Title" "Documents"
+        "Size" .Data.DatabaseInfo.DocumentsSize
+        "Link" "./documents"
+        )
+      }}
+      {{ template "component/info-card" (dict
+        "Title" "Activity Records"
+        "Size" .Data.DatabaseInfo.ActivitySize
+        "Link" "./activity"
+        )
+      }}
+      {{ template "component/info-card" (dict
+        "Title" "Progress Records"
+        "Size" .Data.DatabaseInfo.ProgressSize
+        "Link" "./progress"
+        )
+      }}
+      {{ template "component/info-card" (dict
+        "Title" "Devices"
+        "Size" .Data.DatabaseInfo.DevicesSize
+        )
+      }}
+    </div>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+      {{ range $item := .Data.Streaks }}
+        {{ template "component/streak-card" $item }}
+      {{ end }}
+    </div>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {{ template "component/leaderboard-card" (dict
+        "Name" "WPM"
+        "Data" .Data.UserStatistics.WPM
+        )
+      }}
+      {{ template "component/leaderboard-card" (dict
+        "Name" "Duration"
+        "Data" .Data.UserStatistics.Duration
+        )
+      }}
+      {{ template "component/leaderboard-card" (dict
+        "Name" "Words"
+        "Data" .Data.UserStatistics.Words
+        )
+      }}
+    </div>
   </div>
-  <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-    {{ template "component/info-card" (dict
-    "Title" "Documents"
-    "Size" .Data.DatabaseInfo.DocumentsSize
-    "Link" "./documents"
-    )}}
-    {{ template "component/info-card" (dict
-    "Title" "Activity Records"
-    "Size" .Data.DatabaseInfo.ActivitySize
-    "Link" "./activity"
-    )}}
-    {{ template "component/info-card" (dict
-    "Title" "Progress Records"
-    "Size" .Data.DatabaseInfo.ProgressSize
-    "Link" "./progress"
-    )}}
-    {{ template "component/info-card" (dict
-    "Title" "Devices"
-    "Size" .Data.DatabaseInfo.DevicesSize
-    )}}
-  </div>
-  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-    {{ range $item := .Data.Streaks }}
-    {{ template "component/streak-card" $item }}
-    {{ end }}
-  </div>
-  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-    {{ template "component/leaderboard-card" (dict
-    "Name" "WPM"
-    "Data" .Data.UserStatistics.WPM
-    )}}
-    {{ template "component/leaderboard-card" (dict
-    "Name" "Duration"
-    "Data" .Data.UserStatistics.Duration
-    )}}
-    {{ template "component/leaderboard-card" (dict
-    "Name" "Words"
-    "Data" .Data.UserStatistics.Words
-    )}}
-  </div>
-</div>
 {{ end }}
