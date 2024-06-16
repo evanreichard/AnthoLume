@@ -18,9 +18,7 @@
     {{ range $row := $rows }}
     <tr>
       {{ range $key := $keys }}
-      <td class="p-3 border-b border-gray-200">
-        <p>{{ index (fields $row) $key }}</p>
-      </td>
+      <td class="p-3 border-b border-gray-200">{{ template "table-cell" (dict "Data" $row "Name" $key )}}</td>
       {{ end }}
     </tr>
     {{ end }}

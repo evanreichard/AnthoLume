@@ -1,0 +1,7 @@
+{
+  "name": "antholume",
+  "version": "1.0.0",
+  "devDependencies": {
+    "prettier-plugin-go-template": "^0.0.15"
+  }
+}

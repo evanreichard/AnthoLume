@@ -4,48 +4,22 @@
 {{ define "content" }}
 <div class="overflow-x-auto">
   <div class="inline-block min-w-full overflow-hidden rounded shadow">
-    <table class="min-w-full leading-normal bg-white dark:bg-gray-700 text-sm">
-      <thead class="text-gray-800 dark:text-gray-400">
-        <tr>
-          <th class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800">Document</th>
-          <th class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800">Device</th>
-          <th class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800">Percent</th>
-          <th class="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800">Time</th>
-        </tr>
-      </thead>
-      <tbody class="text-black dark:text-white">
-        {{ if not .Data }}
-        <tr>
-          <td class="text-center p-3" colspan="4">No Results</td>
-        </tr>
-        {{ end }}
-        {{ range $progress := .Data }}
-        <tr>
-          <td class="p-3 border-b border-gray-200">
-            <a href="./documents/{{ $progress.DocumentID }}">{{ $progress.Author }} - {{ $progress.Title }}
-            </p>
-          </a>
-        </td>
-        <td class="p-3 border-b border-gray-200">
-          <p>{{ $progress.DeviceName }}</p>
-        </td>
-        <td class="p-3 border-b border-gray-200">
-          <p>{{ $progress.Percentage }}%</p>
-        </td>
-        <td class="p-3 border-b border-gray-200">
-          <p>{{ $progress.CreatedAt }}</p>
-        </td>
-      </tr>
-      {{ end }}
-    </tbody>
-  </table>
-  <!--
-  {{ template "component/table" (dict
-  "Columns" (slice "Author" "Title" "Device Name" "Percentage" "Created At")
-  "Keys" (slice "Author" "Title" "DeviceName" "Percentage" "CreatedAt")
-  "Rows" .Data
-  )}}
-  -->
+    <!-- Table Component - Utilizes Template "table-cell" -->
+    {{ template "component/table" (dict
+    "Columns" (slice "Document" "Device Name" "Percentage" "Created At")
+    "Keys" (slice "Document" "DeviceName" "Percentage" "CreatedAt")
+    "Rows" .Data
+    )}}
+  </div>
 </div>
-</div>
+{{ end }}
+<!-- Table Cell Definition -->
+{{ define "table-cell" }}
+{{ if eq .Name "Document" }}
+<a href="./documents/{{ .Data.DocumentID }}">{{ .Data.Author }} - {{ .Data.Title }}</a>
+{{ else if eq .Name "Percentage" }}
+{{ index (fields .Data) .Name }}%
+{{ else }}
+{{ index (fields .Data) .Name }}
+{{ end }}
 {{ end }}
