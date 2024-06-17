@@ -13,6 +13,7 @@ import (
 	"reichard.io/antholume/metadata"
 )
 
+// getTimeZones returns a string slice of IANA timezones.
 func getTimeZones() []string {
 	return []string{
 		"Africa/Cairo",
@@ -52,6 +53,8 @@ func getTimeZones() []string {
 	}
 }
 
+// niceSeconds takes in an int (in seconds) and returns a string readable
+// representation. For example 1928371 -> "22d 7h 39m 31s".
 func niceSeconds(input int64) (result string) {
 	if input == 0 {
 		return "N/A"
@@ -80,6 +83,8 @@ func niceSeconds(input int64) (result string) {
 	return
 }
 
+// niceNumbers takes in an int and returns a string representation. For example
+// 19823 -> "19.8k".
 func niceNumbers(input int64) string {
 	if input == 0 {
 		return "0"
@@ -98,7 +103,8 @@ func niceNumbers(input int64) string {
 	}
 }
 
-// Convert Database Array -> Int64 Array
+// getSVGGraphData builds SVGGraphData from the provided stats, width and height.
+// It is used exclusively in templates to generate the daily read stats graph.
 func getSVGGraphData(inputData []database.GetDailyReadStatsRow, svgWidth int, svgHeight int) graph.SVGGraphData {
 	var intData []int64
 	for _, item := range inputData {
@@ -108,6 +114,8 @@ func getSVGGraphData(inputData []database.GetDailyReadStatsRow, svgWidth int, sv
 	return graph.GetSVGGraphData(intData, svgWidth, svgHeight)
 }
 
+// dict returns a map[string]any dict. Each pair of two is a key & value
+// respectively. It's primarily utilized in templates.
 func dict(values ...any) (map[string]any, error) {
 	if len(values)%2 != 0 {
 		return nil, errors.New("invalid dict call")
@@ -123,6 +131,8 @@ func dict(values ...any) (map[string]any, error) {
 	return dict, nil
 }
 
+// fields returns a map[string]any of the provided struct. It's primarily
+// utilized in templates.
 func fields(value any) (map[string]any, error) {
 	v := reflect.Indirect(reflect.ValueOf(value))
 	if v.Kind() != reflect.Struct {
@@ -137,10 +147,13 @@ func fields(value any) (map[string]any, error) {
 	return m, nil
 }
 
+// slice returns a slice of the provided arguments. It's primarily utilized in
+// templates.
 func slice(elements ...any) []any {
 	return elements
 }
 
+// deriveBaseFileName builds the base filename for a given MetadataInfo object.
 func deriveBaseFileName(metadataInfo *metadata.MetadataInfo) string {
 	// Derive New FileName
 	var newFileName string
@@ -160,6 +173,7 @@ func deriveBaseFileName(metadataInfo *metadata.MetadataInfo) string {
 	return "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, *metadataInfo.PartialMD5, metadataInfo.Type))
 }
 
+// importStatusPriority returns the order priority for import status in the UI.
 func importStatusPriority(status importStatus) int {
 	switch status {
 	case importFailed:

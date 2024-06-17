@@ -5,164 +5,191 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
+
 	"reichard.io/antholume/config"
 	"reichard.io/antholume/utils"
 )
 
-type databaseTest struct {
-	*testing.T
+var (
+	userID         string = "testUser"
+	userPass       string = "testPass"
+	deviceID       string = "testDevice"
+	deviceName     string = "testDeviceName"
+	documentID     string = "testDocument"
+	documentTitle  string = "testTitle"
+	documentAuthor string = "testAuthor"
+	documentWords  int64  = 5000
+)
+
+type DatabaseTestSuite struct {
+	suite.Suite
 	dbm *DBManager
 }
 
-var userID string = "testUser"
-var userPass string = "testPass"
-var deviceID string = "testDevice"
-var deviceName string = "testDeviceName"
-var documentID string = "testDocument"
-var documentTitle string = "testTitle"
-var documentAuthor string = "testAuthor"
+func TestDatabase(t *testing.T) {
+	suite.Run(t, new(DatabaseTestSuite))
+}
 
-func TestNewMgr(t *testing.T) {
+// PROGRESS - TODO:
+// 	- 󰊕  (q *Queries) GetProgress
+// 	- 󰊕  (q *Queries) UpdateProgress
+
+func (suite *DatabaseTestSuite) SetupTest() {
 	cfg := config.Config{
 		DBType: "memory",
 	}
 
-	dbm := NewMgr(&cfg)
-	assert.NotNil(t, dbm, "should not have nil dbm")
+	suite.dbm = NewMgr(&cfg)
 
-	t.Run("Database", func(t *testing.T) {
-		dt := databaseTest{t, dbm}
-		dt.TestUser()
-		dt.TestDocument()
-		dt.TestDevice()
-		dt.TestActivity()
-		dt.TestDailyReadStats()
+	// Create User
+	rawAuthHash, _ := utils.GenerateToken(64)
+	authHash := fmt.Sprintf("%x", rawAuthHash)
+	_, err := suite.dbm.Queries.CreateUser(suite.dbm.Ctx, CreateUserParams{
+		ID:       userID,
+		Pass:     &userPass,
+		AuthHash: &authHash,
 	})
-}
+	suite.NoError(err)
 
-func (dt *databaseTest) TestUser() {
-	dt.Run("User", func(t *testing.T) {
-		// Generate Auth Hash
-		rawAuthHash, err := utils.GenerateToken(64)
-		assert.Nil(t, err, "should have nil err")
+	// Create Document
+	_, err = suite.dbm.Queries.UpsertDocument(suite.dbm.Ctx, UpsertDocumentParams{
+		ID:     documentID,
+		Title:  &documentTitle,
+		Author: &documentAuthor,
+		Words:  &documentWords,
+	})
+	suite.NoError(err)
 
-		authHash := fmt.Sprintf("%x", rawAuthHash)
-		changed, err := dt.dbm.Queries.CreateUser(dt.dbm.Ctx, CreateUserParams{
-			ID:       userID,
-			Pass:     &userPass,
-			AuthHash: &authHash,
+	// Create Device
+	_, err = suite.dbm.Queries.UpsertDevice(suite.dbm.Ctx, UpsertDeviceParams{
+		ID:         deviceID,
+		UserID:     userID,
+		DeviceName: deviceName,
+	})
+	suite.NoError(err)
+
+	// Create Activity
+	end := time.Now()
+	start := end.AddDate(0, 0, -9)
+	var counter int64 = 0
+
+	for d := start; d.After(end) == false; d = d.AddDate(0, 0, 1) {
+		counter += 1
+
+		// Add Item
+		activity, err := suite.dbm.Queries.AddActivity(suite.dbm.Ctx, AddActivityParams{
+			DocumentID:      documentID,
+			DeviceID:        deviceID,
+			UserID:          userID,
+			StartTime:       d.UTC().Format(time.RFC3339),
+			Duration:        60,
+			StartPercentage: float64(counter) / 100.0,
+			EndPercentage:   float64(counter+1) / 100.0,
 		})
 
-		assert.Nil(t, err, "should have nil err")
-		assert.Equal(t, int64(1), changed)
+		suite.Nil(err, fmt.Sprintf("[%d] should have nil err for add activity", counter))
+		suite.Equal(counter, activity.ID, fmt.Sprintf("[%d] should have correct id for add activity", counter))
+	}
 
-		user, err := dt.dbm.Queries.GetUser(dt.dbm.Ctx, userID)
-
-		assert.Nil(t, err, "should have nil err")
-		assert.Equal(t, userPass, *user.Pass)
-	})
+	// Initiate Cache
+	err = suite.dbm.CacheTempTables()
+	suite.NoError(err)
 }
 
-func (dt *databaseTest) TestDocument() {
-	dt.Run("Document", func(t *testing.T) {
-		doc, err := dt.dbm.Queries.UpsertDocument(dt.dbm.Ctx, UpsertDocumentParams{
-			ID:     documentID,
-			Title:  &documentTitle,
-			Author: &documentAuthor,
-		})
+// DOCUMENT - TODO:
+//   - 󰊕  (q *Queries) DeleteDocument
+//   - 󰊕  (q *Queries) GetDeletedDocuments
+//   - 󰊕  (q *Queries) GetDocument
+//   - 󰊕  (q *Queries) GetDocumentProgress
+//   - 󰊕  (q *Queries) GetDocumentWithStats
+//   - 󰊕  (q *Queries) GetDocuments
+//   - 󰊕  (q *Queries) GetDocumentsSize
+//   - 󰊕  (q *Queries) GetDocumentsWithStats
+//   - 󰊕  (q *Queries) GetMissingDocuments
+//   - 󰊕  (q *Queries) GetWantedDocuments
+//   - 󰊕  (q *Queries) UpsertDocument
+func (suite *DatabaseTestSuite) TestDocument() {
+	testDocID := "docid1"
 
-		assert.Nil(t, err, "should have nil err")
-		assert.Equal(t, documentID, doc.ID, "should have document id")
-		assert.Equal(t, documentTitle, *doc.Title, "should have document title")
-		assert.Equal(t, documentAuthor, *doc.Author, "should have document author")
+	doc, err := suite.dbm.Queries.UpsertDocument(suite.dbm.Ctx, UpsertDocumentParams{
+		ID:     testDocID,
+		Title:  &documentTitle,
+		Author: &documentAuthor,
 	})
+
+	suite.Nil(err, "should have nil err")
+	suite.Equal(testDocID, doc.ID, "should have document id")
+	suite.Equal(documentTitle, *doc.Title, "should have document title")
+	suite.Equal(documentAuthor, *doc.Author, "should have document author")
 }
 
-func (dt *databaseTest) TestDevice() {
-	dt.Run("Device", func(t *testing.T) {
-		device, err := dt.dbm.Queries.UpsertDevice(dt.dbm.Ctx, UpsertDeviceParams{
-			ID:         deviceID,
-			UserID:     userID,
-			DeviceName: deviceName,
-		})
-
-		assert.Nil(t, err, "should have nil err")
-		assert.Equal(t, deviceID, device.ID, "should have device id")
-		assert.Equal(t, userID, device.UserID, "should have user id")
-		assert.Equal(t, deviceName, device.DeviceName, "should have device name")
+// DEVICES - TODO:
+//   - 󰊕  (q *Queries) GetDevice
+//   - 󰊕  (q *Queries) GetDevices
+//   - 󰊕  (q *Queries) UpsertDevice
+func (suite *DatabaseTestSuite) TestDevice() {
+	testDevice := "dev123"
+	device, err := suite.dbm.Queries.UpsertDevice(suite.dbm.Ctx, UpsertDeviceParams{
+		ID:         testDevice,
+		UserID:     userID,
+		DeviceName: deviceName,
 	})
+
+	suite.Nil(err, "should have nil err")
+	suite.Equal(testDevice, device.ID, "should have device id")
+	suite.Equal(userID, device.UserID, "should have user id")
+	suite.Equal(deviceName, device.DeviceName, "should have device name")
 }
 
-func (dt *databaseTest) TestActivity() {
-	dt.Run("Progress", func(t *testing.T) {
-		// 10 Activities, 10 Days
-		end := time.Now()
-		start := end.AddDate(0, 0, -9)
-		var counter int64 = 0
-
-		for d := start; d.After(end) == false; d = d.AddDate(0, 0, 1) {
-			counter += 1
-
-			// Add Item
-			activity, err := dt.dbm.Queries.AddActivity(dt.dbm.Ctx, AddActivityParams{
-				DocumentID:      documentID,
-				DeviceID:        deviceID,
-				UserID:          userID,
-				StartTime:       d.UTC().Format(time.RFC3339),
-				Duration:        60,
-				StartPercentage: float64(counter) / 100.0,
-				EndPercentage:   float64(counter+1) / 100.0,
-			})
-
-			assert.Nil(t, err, fmt.Sprintf("[%d] should have nil err for add activity", counter))
-			assert.Equal(t, counter, activity.ID, fmt.Sprintf("[%d] should have correct id for add activity", counter))
-		}
-
-		// Initiate Cache
-		dt.dbm.CacheTempTables()
-
-		// Validate Exists
-		existsRows, err := dt.dbm.Queries.GetActivity(dt.dbm.Ctx, GetActivityParams{
-			UserID: userID,
-			Offset: 0,
-			Limit:  50,
-		})
-
-		assert.Nil(t, err, "should have nil err for get activity")
-		assert.Len(t, existsRows, 10, "should have correct number of rows get activity")
-
-		// Validate Doesn't Exist
-		doesntExistsRows, err := dt.dbm.Queries.GetActivity(dt.dbm.Ctx, GetActivityParams{
-			UserID:     userID,
-			DocumentID: "unknownDoc",
-			DocFilter:  true,
-			Offset:     0,
-			Limit:      50,
-		})
-
-		assert.Nil(t, err, "should have nil err for get activity")
-		assert.Len(t, doesntExistsRows, 0, "should have no rows")
+// ACTIVITY - TODO:
+//   - 󰊕  (q *Queries) AddActivity
+//   - 󰊕  (q *Queries) GetActivity
+//   - 󰊕  (q *Queries) GetLastActivity
+func (suite *DatabaseTestSuite) TestActivity() {
+	// Validate Exists
+	existsRows, err := suite.dbm.Queries.GetActivity(suite.dbm.Ctx, GetActivityParams{
+		UserID: userID,
+		Offset: 0,
+		Limit:  50,
 	})
+
+	suite.Nil(err, "should have nil err for get activity")
+	suite.Len(existsRows, 10, "should have correct number of rows get activity")
+
+	// Validate Doesn't Exist
+	doesntExistsRows, err := suite.dbm.Queries.GetActivity(suite.dbm.Ctx, GetActivityParams{
+		UserID:     userID,
+		DocumentID: "unknownDoc",
+		DocFilter:  true,
+		Offset:     0,
+		Limit:      50,
+	})
+
+	suite.Nil(err, "should have nil err for get activity")
+	suite.Len(doesntExistsRows, 0, "should have no rows")
 }
 
-func (dt *databaseTest) TestDailyReadStats() {
-	dt.Run("DailyReadStats", func(t *testing.T) {
-		readStats, err := dt.dbm.Queries.GetDailyReadStats(dt.dbm.Ctx, userID)
+// MISC - TODO:
+//   - 󰊕  (q *Queries) AddMetadata
+//   - 󰊕  (q *Queries) GetDailyReadStats
+//   - 󰊕  (q *Queries) GetDatabaseInfo
+//   - 󰊕  (q *Queries) UpdateSettings
+func (suite *DatabaseTestSuite) TestGetDailyReadStats() {
+	readStats, err := suite.dbm.Queries.GetDailyReadStats(suite.dbm.Ctx, userID)
 
-		assert.Nil(t, err, "should have nil err")
-		assert.Len(t, readStats, 30, "should have length of 30")
+	suite.Nil(err, "should have nil err")
+	suite.Len(readStats, 30, "should have length of 30")
 
-		// Validate 1 Minute / Day - Last 10 Days
-		for i := 0; i < 10; i++ {
-			stat := readStats[i]
-			assert.Equal(t, int64(1), stat.MinutesRead, "should have one minute read")
-		}
+	// Validate 1 Minute / Day - Last 10 Days
+	for i := 0; i < 10; i++ {
+		stat := readStats[i]
+		suite.Equal(int64(1), stat.MinutesRead, "should have one minute read")
+	}
 
-		// Validate 0 Minute / Day - Remaining 20 Days
-		for i := 10; i < 30; i++ {
-			stat := readStats[i]
-			assert.Equal(t, int64(0), stat.MinutesRead, "should have zero minutes read")
-		}
-	})
+	// Validate 0 Minute / Day - Remaining 20 Days
+	for i := 10; i < 30; i++ {
+		stat := readStats[i]
+		suite.Equal(int64(0), stat.MinutesRead, "should have zero minutes read")
+	}
 }

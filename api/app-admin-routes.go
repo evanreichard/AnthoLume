@@ -869,10 +869,10 @@ func (api *API) updateUser(user string, rawPassword *string, isAdmin *bool) erro
 		updateParams.Admin = user.Admin
 	}
 
-	// Check Admins
+	// Check Admins - Disallow Demotion
 	if isLast, err := api.isLastAdmin(user); err != nil {
 		return err
-	} else if isLast {
+	} else if isLast && !updateParams.Admin {
 		return fmt.Errorf("unable to demote %s - last admin", user)
 	}
 

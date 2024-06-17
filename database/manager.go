@@ -43,7 +43,7 @@ func init() {
 	})
 }
 
-// Returns an initialized manager
+// NewMgr Returns an initialized manager
 func NewMgr(c *config.Config) *DBManager {
 	// Create Manager
 	dbm := &DBManager{
@@ -58,7 +58,7 @@ func NewMgr(c *config.Config) *DBManager {
 	return dbm
 }
 
-// Init manager
+// init loads the DB manager
 func (dbm *DBManager) init() error {
 	// Build DB Location
 	var dbLocation string
@@ -125,7 +125,7 @@ func (dbm *DBManager) init() error {
 	return nil
 }
 
-// Reload manager (close DB & reinit)
+// Reload closes the DB & reinits
 func (dbm *DBManager) Reload() error {
 	// Close handle
 	err := dbm.DB.Close()
@@ -141,6 +141,7 @@ func (dbm *DBManager) Reload() error {
 	return nil
 }
 
+// CacheTempTables clears existing statistics and recalculates
 func (dbm *DBManager) CacheTempTables() error {
 	start := time.Now()
 	user_streaks_sql := `
@@ -165,6 +166,8 @@ func (dbm *DBManager) CacheTempTables() error {
 	return nil
 }
 
+// updateSettings ensures that we're enforcing foreign keys and enable journal
+// mode.
 func (dbm *DBManager) updateSettings() error {
 	// Set SQLite PRAGMA Settings
 	pragmaQuery := `
@@ -188,6 +191,7 @@ func (dbm *DBManager) updateSettings() error {
 	return nil
 }
 
+// performMigrations runs all migrations
 func (dbm *DBManager) performMigrations(isNew bool) error {
 	// Create context
 	ctx := context.WithValue(context.Background(), "isNew", isNew) // nolint
@@ -204,7 +208,7 @@ func (dbm *DBManager) performMigrations(isNew bool) error {
 	return goose.UpContext(ctx, dbm.DB, "migrations")
 }
 
-// Determines whether the database is empty
+// isEmpty determines whether the database is empty
 func isEmpty(db *sql.DB) (bool, error) {
 	var tableCount int
 	err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table';").Scan(&tableCount)
@@ -214,7 +218,7 @@ func isEmpty(db *sql.DB) (bool, error) {
 	return tableCount == 0, nil
 }
 
-// LOCAL_TIME custom SQL function
+// localTime is a custom SQL function that is registered as LOCAL_TIME in the init function
 func localTime(ctx *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
 	timeStr, ok := args[0].(string)
 	if !ok {
