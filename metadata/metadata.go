@@ -65,9 +65,9 @@ func SearchMetadata(s Source, metadataSearch MetadataInfo) ([]MetadataInfo, erro
 	case SOURCE_GBOOK:
 		return getGBooksMetadata(metadataSearch)
 	case SOURCE_OLIB:
-		return nil, errors.New("Not implemented")
+		return nil, errors.New("not implemented")
 	default:
-		return nil, errors.New("Not implemented")
+		return nil, errors.New("not implemented")
 
 	}
 }

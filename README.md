@@ -118,7 +118,7 @@ See documentation in the `client` subfolder: [SyncNinja](https://gitea.va.reicha
 
 ## Development
 
-SQLC Generation (v1.21.0):
+SQLC Generation (v1.26.0):
 
 ```bash
 go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest

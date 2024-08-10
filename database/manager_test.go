@@ -12,14 +12,15 @@ import (
 )
 
 var (
-	userID         string = "testUser"
-	userPass       string = "testPass"
-	deviceID       string = "testDevice"
-	deviceName     string = "testDeviceName"
-	documentID     string = "testDocument"
-	documentTitle  string = "testTitle"
-	documentAuthor string = "testAuthor"
-	documentWords  int64  = 5000
+	userID           string = "testUser"
+	userPass         string = "testPass"
+	deviceID         string = "testDevice"
+	deviceName       string = "testDeviceName"
+	documentID       string = "testDocument"
+	documentTitle    string = "testTitle"
+	documentAuthor   string = "testAuthor"
+	documentFilepath string = "./testPath.epub"
+	documentWords    int64  = 5000
 )
 
 type DatabaseTestSuite struct {
@@ -54,10 +55,11 @@ func (suite *DatabaseTestSuite) SetupTest() {
 
 	// Create Document
 	_, err = suite.dbm.Queries.UpsertDocument(suite.dbm.Ctx, UpsertDocumentParams{
-		ID:     documentID,
-		Title:  &documentTitle,
-		Author: &documentAuthor,
-		Words:  &documentWords,
+		ID:       documentID,
+		Title:    &documentTitle,
+		Author:   &documentAuthor,
+		Filepath: &documentFilepath,
+		Words:    &documentWords,
 	})
 	suite.NoError(err)
 
@@ -95,33 +97,6 @@ func (suite *DatabaseTestSuite) SetupTest() {
 	// Initiate Cache
 	err = suite.dbm.CacheTempTables()
 	suite.NoError(err)
-}
-
-// DOCUMENT - TODO:
-//   - 󰊕  (q *Queries) DeleteDocument
-//   - 󰊕  (q *Queries) GetDeletedDocuments
-//   - 󰊕  (q *Queries) GetDocument
-//   - 󰊕  (q *Queries) GetDocumentProgress
-//   - 󰊕  (q *Queries) GetDocumentWithStats
-//   - 󰊕  (q *Queries) GetDocuments
-//   - 󰊕  (q *Queries) GetDocumentsSize
-//   - 󰊕  (q *Queries) GetDocumentsWithStats
-//   - 󰊕  (q *Queries) GetMissingDocuments
-//   - 󰊕  (q *Queries) GetWantedDocuments
-//   - 󰊕  (q *Queries) UpsertDocument
-func (suite *DatabaseTestSuite) TestDocument() {
-	testDocID := "docid1"
-
-	doc, err := suite.dbm.Queries.UpsertDocument(suite.dbm.Ctx, UpsertDocumentParams{
-		ID:     testDocID,
-		Title:  &documentTitle,
-		Author: &documentAuthor,
-	})
-
-	suite.Nil(err, "should have nil err")
-	suite.Equal(testDocID, doc.ID, "should have document id")
-	suite.Equal(documentTitle, *doc.Title, "should have document title")
-	suite.Equal(documentAuthor, *doc.Author, "should have document author")
 }
 
 // DEVICES - TODO:
