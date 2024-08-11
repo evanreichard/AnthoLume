@@ -57,9 +57,9 @@ type sourceDef struct {
 var sourceDefs = map[Source]sourceDef{
 	SOURCE_ANNAS_ARCHIVE: {
 		searchURL:         "https://annas-archive.org/search?index=&q=%s&ext=epub&sort=&lang=en",
-		downloadURL:       "http://libgen.li/ads.php?md5=%s",
+		downloadURL:       "http://library.lol/fiction/%s",
 		parseSearchFunc:   parseAnnasArchive,
-		parseDownloadFunc: parseAnnasArchiveDownloadURL,
+		parseDownloadFunc: parseLibGenDownloadURL,
 	},
 	SOURCE_LIBGEN_FICTION: {
 		searchURL:         "https://libgen.is/fiction/?q=%s&language=English&format=epub",
