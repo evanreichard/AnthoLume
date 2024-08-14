@@ -12,7 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const userAgent string = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0"
+const userAgent string = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:127.0) Gecko/20100101 Firefox/127.0"
 
 type Cadence string
 
@@ -57,21 +57,21 @@ type sourceDef struct {
 var sourceDefs = map[Source]sourceDef{
 	SOURCE_ANNAS_ARCHIVE: {
 		searchURL:         "https://annas-archive.org/search?index=&q=%s&ext=epub&sort=&lang=en",
-		downloadURL:       "http://library.lol/fiction/%s",
+		downloadURL:       "http://libgen.li/ads.php?md5=%s",
 		parseSearchFunc:   parseAnnasArchive,
-		parseDownloadFunc: parseLibGenDownloadURL,
+		parseDownloadFunc: parseAnnasArchiveDownloadURL,
 	},
 	SOURCE_LIBGEN_FICTION: {
 		searchURL:         "https://libgen.is/fiction/?q=%s&language=English&format=epub",
-		downloadURL:       "http://library.lol/fiction/%s",
+		downloadURL:       "http://libgen.li/ads.php?md5=%s",
 		parseSearchFunc:   parseLibGenFiction,
-		parseDownloadFunc: parseLibGenDownloadURL,
+		parseDownloadFunc: parseAnnasArchiveDownloadURL,
 	},
 	SOURCE_LIBGEN_NON_FICTION: {
 		searchURL:         "https://libgen.is/search.php?req=%s",
-		downloadURL:       "http://library.lol/main/%s",
+		downloadURL:       "http://libgen.li/ads.php?md5=%s",
 		parseSearchFunc:   parseLibGenNonFiction,
-		parseDownloadFunc: parseLibGenDownloadURL,
+		parseDownloadFunc: parseAnnasArchiveDownloadURL,
 	},
 }
 
@@ -155,12 +155,19 @@ func getPage(page string) (io.ReadCloser, error) {
 	log.Debug("URL: ", page)
 
 	// Set 10s Timeout
-	client := http.Client{
-		Timeout: 10 * time.Second,
+	client := http.Client{Timeout: 10 * time.Second}
+
+	// Start Request
+	req, err := http.NewRequest("GET", page, nil)
+	if err != nil {
+		return nil, err
 	}
 
-	// Get Page
-	resp, err := client.Get(page)
+	// Set User-Agent
+	req.Header.Set("User-Agent", userAgent)
+
+	// Do Request
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -170,10 +177,14 @@ func getPage(page string) (io.ReadCloser, error) {
 }
 
 func downloadBook(bookURL string) (*http.Response, error) {
+	log.Debug("URL: ", bookURL)
+
 	// Allow Insecure
-	client := &http.Client{Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}}
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
 
 	// Start Request
 	req, err := http.NewRequest("GET", bookURL, nil)
@@ -181,7 +192,7 @@ func downloadBook(bookURL string) (*http.Response, error) {
 		return nil, err
 	}
 
-	// Set UserAgent
+	// Set User-Agent
 	req.Header.Set("User-Agent", userAgent)
 
 	return client.Do(req)

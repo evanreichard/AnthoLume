@@ -17,15 +17,15 @@ func parseAnnasArchiveDownloadURL(body io.ReadCloser) (string, error) {
 	doc, _ := goquery.NewDocumentFromReader(body)
 
 	// Return Download URL
-	downloadURL, exists := doc.Find("body > table > tbody > tr > td > a").Attr("href")
+	downloadPath, exists := doc.Find("body > table > tbody > tr > td > a").Attr("href")
 	if !exists {
 		return "", fmt.Errorf("Download URL not found")
 	}
 
 	// Possible Funky URL
-	downloadURL = strings.ReplaceAll(downloadURL, "\\", "/")
+	downloadPath = strings.ReplaceAll(downloadPath, "\\", "/")
 
-	return downloadURL, nil
+	return fmt.Sprintf("http://libgen.li/%s", downloadPath), nil
 }
 
 // getAnnasArchiveBookSelection parses potentially commented out HTML. For some reason
