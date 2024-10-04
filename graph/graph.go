@@ -5,10 +5,16 @@ import (
 	"math"
 )
 
+type SVGRawData struct {
+	Value int
+	Label string
+}
+
 type SVGGraphPoint struct {
 	X    int
 	Y    int
 	Size int
+	Data SVGRawData
 }
 
 type SVGGraphData struct {
@@ -26,12 +32,12 @@ type SVGBezierOpposedLine struct {
 	Angle  int
 }
 
-func GetSVGGraphData(inputData []int64, svgWidth int, svgHeight int) SVGGraphData {
+func GetSVGGraphData(inputData []SVGRawData, svgWidth int, svgHeight int) SVGGraphData {
 	// Derive Height
 	var maxHeight int = 0
 	for _, item := range inputData {
-		if int(item) > maxHeight {
-			maxHeight = int(item)
+		if int(item.Value) > maxHeight {
+			maxHeight = int(item.Value)
 		}
 	}
 
@@ -52,20 +58,22 @@ func GetSVGGraphData(inputData []int64, svgWidth int, svgHeight int) SVGGraphDat
 	var maxBX int = 0
 	var maxBY int = 0
 	var minBX int = 0
-	for idx, item := range inputData {
-		itemSize := int(float32(item) * sizeRatio)
+	for idx, datum := range inputData {
+		itemSize := int(float32(datum.Value) * sizeRatio)
 		itemY := svgHeight - itemSize
 		lineX := (idx + 1) * blockOffset
 		barPoints = append(barPoints, SVGGraphPoint{
 			X:    lineX - (blockOffset / 2),
 			Y:    itemY,
 			Size: itemSize,
+			Data: datum,
 		})
 
 		linePoints = append(linePoints, SVGGraphPoint{
 			X:    lineX,
 			Y:    itemY,
 			Size: itemSize,
+			Data: datum,
 		})
 
 		if lineX > maxBX {

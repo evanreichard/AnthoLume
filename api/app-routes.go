@@ -20,8 +20,11 @@ import (
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+	"reichard.io/antholume/api/renderer"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
+	"reichard.io/antholume/ngtemplates/common"
+	"reichard.io/antholume/ngtemplates/pages"
 	"reichard.io/antholume/search"
 )
 
@@ -231,7 +234,7 @@ func (api *API) appGetActivity(c *gin.Context) {
 	c.HTML(http.StatusOK, "page/activity", templateVars)
 }
 
-func (api *API) appGetHome(c *gin.Context) {
+func (api *API) appGetHomeOld(c *gin.Context) {
 	templateVars, auth := api.getBaseTemplateVars("home", c)
 
 	start := time.Now()
@@ -278,6 +281,60 @@ func (api *API) appGetHome(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "page/home", templateVars)
+}
+
+func (api *API) appGetHome(c *gin.Context) {
+	settings, auth := api.getBaseTemplateVarsNew(common.RouteHome, c)
+
+	start := time.Now()
+	graphData, err := api.db.Queries.GetDailyReadStats(api.db.Ctx, auth.UserName)
+	if err != nil {
+		log.Error("GetDailyReadStats DB Error: ", err)
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDailyReadStats DB Error: %v", err))
+		return
+	}
+	log.Debug("GetDailyReadStats DB Performance: ", time.Since(start))
+
+	start = time.Now()
+	databaseInfo, err := api.db.Queries.GetDatabaseInfo(api.db.Ctx, auth.UserName)
+	if err != nil {
+		log.Error("GetDatabaseInfo DB Error: ", err)
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDatabaseInfo DB Error: %v", err))
+		return
+	}
+	log.Debug("GetDatabaseInfo DB Performance: ", time.Since(start))
+
+	start = time.Now()
+	streaks, err := api.db.Queries.GetUserStreaks(api.db.Ctx, auth.UserName)
+	if err != nil {
+		log.Error("GetUserStreaks DB Error: ", err)
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStreaks DB Error: %v", err))
+		return
+	}
+	log.Debug("GetUserStreaks DB Performance: ", time.Since(start))
+
+	start = time.Now()
+	userStatistics, err := api.db.Queries.GetUserStatistics(api.db.Ctx)
+	if err != nil {
+		log.Error("GetUserStatistics DB Error: ", err)
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStatistics DB Error: %v", err))
+		return
+	}
+	log.Debug("GetUserStatistics DB Performance: ", time.Since(start))
+
+	r := renderer.New(c.Request.Context(), http.StatusOK, pages.Home(
+		settings,
+		getSVGGraphData(graphData, 800, 70),
+		streaks,
+		arrangeUserStatistics(userStatistics),
+		pages.UserMetadata{
+			DocumentCount: int(databaseInfo.DocumentsSize),
+			ActivityCount: int(databaseInfo.ActivitySize),
+			ProgressCount: int(databaseInfo.ProgressSize),
+			DeviceCount:   int(databaseInfo.DevicesSize),
+		},
+	))
+	c.Render(http.StatusOK, r)
 }
 
 func (api *API) appGetSettings(c *gin.Context) {
@@ -981,6 +1038,21 @@ func (api *API) getBaseTemplateVars(routeName string, c *gin.Context) (gin.H, au
 	}, auth
 }
 
+func (api *API) getBaseTemplateVarsNew(route common.Route, c *gin.Context) (common.Settings, authData) {
+	var auth authData
+	if data, _ := c.Get("Authorization"); data != nil {
+		auth = data.(authData)
+	}
+
+	return common.Settings{
+		Route:         route,
+		User:          auth.UserName,
+		IsAdmin:       auth.IsAdmin,
+		SearchEnabled: api.cfg.SearchEnabled,
+		Version:       api.cfg.Version,
+	}, auth
+}
+
 func bindQueryParams(c *gin.Context, defaultLimit int64) queryParams {
 	var qParams queryParams
 	err := c.BindQuery(&qParams)
@@ -1025,13 +1097,13 @@ func appErrorPage(c *gin.Context, errorCode int, errorMessage string) {
 	})
 }
 
-func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) gin.H {
+func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) pages.UserStatistics {
 	// Item Sorter
-	sortItem := func(userStatistics []database.GetUserStatisticsRow, key string, less func(i int, j int) bool) []map[string]any {
+	sortItem := func(userStatistics []database.GetUserStatisticsRow, key string, less func(i int, j int) bool) []pages.UserStatisticEntry {
 		sortedData := append([]database.GetUserStatisticsRow(nil), userStatistics...)
 		sort.SliceStable(sortedData, less)
 
-		newData := make([]map[string]any, 0)
+		newData := make([]pages.UserStatisticEntry, 0)
 		for _, item := range sortedData {
 			v := reflect.Indirect(reflect.ValueOf(item))
 
@@ -1047,17 +1119,17 @@ func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) gin.H
 				value = niceNumbers(rawVal)
 			}
 
-			newData = append(newData, map[string]any{
-				"UserID": item.UserID,
-				"Value":  value,
+			newData = append(newData, pages.UserStatisticEntry{
+				UserID: item.UserID,
+				Value:  value,
 			})
 		}
 
 		return newData
 	}
 
-	return gin.H{
-		"WPM": gin.H{
+	return pages.UserStatistics{
+		WPM: map[string][]pages.UserStatisticEntry{
 			"All": sortItem(userStatistics, "TotalWpm", func(i, j int) bool {
 				return userStatistics[i].TotalWpm > userStatistics[j].TotalWpm
 			}),
@@ -1071,7 +1143,7 @@ func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) gin.H
 				return userStatistics[i].WeeklyWpm > userStatistics[j].WeeklyWpm
 			}),
 		},
-		"Duration": gin.H{
+		Duration: map[string][]pages.UserStatisticEntry{
 			"All": sortItem(userStatistics, "TotalSeconds", func(i, j int) bool {
 				return userStatistics[i].TotalSeconds > userStatistics[j].TotalSeconds
 			}),
@@ -1085,7 +1157,7 @@ func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) gin.H
 				return userStatistics[i].WeeklySeconds > userStatistics[j].WeeklySeconds
 			}),
 		},
-		"Words": gin.H{
+		Words: map[string][]pages.UserStatisticEntry{
 			"All": sortItem(userStatistics, "TotalWordsRead", func(i, j int) bool {
 				return userStatistics[i].TotalWordsRead > userStatistics[j].TotalWordsRead
 			}),
