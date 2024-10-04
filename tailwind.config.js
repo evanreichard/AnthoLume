@@ -1,6 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
+    "./ngtemplates/**/*.templ",
     "./templates/**/*.{tmpl,html,htm,svg}",
     "./assets/local/*.{html,htm,svg,js}",
     "./assets/reader/*.{html,htm,svg,js}",

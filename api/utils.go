@@ -106,9 +106,12 @@ func niceNumbers(input int64) string {
 // getSVGGraphData builds SVGGraphData from the provided stats, width and height.
 // It is used exclusively in templates to generate the daily read stats graph.
 func getSVGGraphData(inputData []database.GetDailyReadStatsRow, svgWidth int, svgHeight int) graph.SVGGraphData {
-	var intData []int64
+	var intData []graph.SVGRawData
 	for _, item := range inputData {
-		intData = append(intData, item.MinutesRead)
+		intData = append(intData, graph.SVGRawData{
+			Value: int(item.MinutesRead),
+			Label: item.Date,
+		})
 	}
 
 	return graph.GetSVGGraphData(intData, svgWidth, svgHeight)
