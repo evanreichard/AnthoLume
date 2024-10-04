@@ -18,6 +18,7 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"reichard.io/antholume/api/renderer"
 	"reichard.io/antholume/config"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/utils"
@@ -45,6 +46,10 @@ func NewApi(db *database.DBManager, c *config.Config, assets fs.FS) *API {
 
 	// Create router
 	router := gin.New()
+
+	// Override renderer
+	ginRenderer := router.HTMLRender
+	router.HTMLRender = &renderer.HTMLTemplRenderer{FallbackHtmlRenderer: ginRenderer}
 
 	// Add server
 	api.httpServer = &http.Server{

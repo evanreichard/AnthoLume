@@ -5,6 +5,7 @@ pkgs.mkShell {
     go
     nodejs
     nodePackages.tailwindcss
+    templ
     python311Packages.grip
   ];
   shellHook = ''

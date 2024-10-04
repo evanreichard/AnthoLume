@@ -1,0 +1,375 @@
+package pages
+
+import (
+	"fmt"
+	"reichard.io/antholume/ngtemplates/components"
+	"reichard.io/antholume/ngtemplates/common"
+)
+
+func getNavigationLinkClass(isActive bool) string {
+	defaultClass := "flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4"
+	if isActive {
+		return fmt.Sprintf("%s border-purple-500 dark:text-white", defaultClass)
+	} else {
+		return fmt.Sprintf("%s border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100", defaultClass)
+	}
+}
+
+templ navigation(settings common.Settings) {
+	<div class="flex items-center justify-between w-full h-16">
+		<div id="mobile-nav-button" class="flex flex-col z-40 relative ml-6">
+			<input
+				type="checkbox"
+				class="absolute lg:hidden z-50 -top-2 w-7 h-7 flex cursor-pointer opacity-0"
+			/>
+			<span
+				class="lg:hidden bg-black w-7 h-0.5 z-40 mt-0.5 dark:bg-white"
+			></span>
+			<span
+				class="lg:hidden bg-black w-7 h-0.5 z-40 mt-1 dark:bg-white"
+			></span>
+			<span
+				class="lg:hidden bg-black w-7 h-0.5 z-40 mt-1 dark:bg-white"
+			></span>
+			<div
+				id="menu"
+				class="fixed -ml-6 h-full w-56 lg:w-48 bg-white dark:bg-gray-700 shadow-lg"
+			>
+				<div class="h-16 flex justify-end lg:justify-around">
+					<p class="text-xl font-bold dark:text-white text-right my-auto pr-8 lg:pr-0">
+						AnthoLume
+					</p>
+				</div>
+				<div>
+					<a href="/" class={ getNavigationLinkClass(settings.Route == common.RouteHome) }>
+						@components.HomeSVG("size-5")
+						<span class="mx-4 text-sm font-normal">Home</span>
+					</a>
+					<a href="/documents" class={ getNavigationLinkClass(settings.Route == common.RouteDocuments) }>
+						@components.DocumentSVG("size-5")
+						<span class="mx-4 text-sm font-normal">Documents</span>
+					</a>
+					<a href="/progress" class={ getNavigationLinkClass(settings.Route == common.RouteProgress) }>
+						@components.ActivitySVG("size-5")
+						<span class="mx-4 text-sm font-normal">Progress</span>
+					</a>
+					<a href="/activity" class={ getNavigationLinkClass(settings.Route == common.RouteActivity) }>
+						@components.ActivitySVG("size-5")
+						<span class="mx-4 text-sm font-normal">Activity</span>
+					</a>
+					if settings.SearchEnabled {
+						<a href="/search" class={ getNavigationLinkClass(settings.Route == common.RouteSearch) }>
+							@components.SearchSVG("size-5")
+							<span class="mx-4 text-sm font-normal">Search</span>
+						</a>
+					}
+					if settings.IsAdmin {
+						<div
+							class={
+								"flex flex-col gap-4 p-2 pl-6 my-2 transition-colors duration-200 border-l-4",
+								templ.KV("dark:text-white border-purple-500", settings.Route.IsAdmin()),
+								templ.KV("border-transparent text-gray-400", !settings.Route.IsAdmin()),
+							}
+						>
+							<a
+								href="/admin"
+								class={
+									"flex justify-start w-full",
+									templ.KV("text-gray-400 hover:text-gray-800 dark:hover:text-gray-100", !settings.Route.IsAdmin()),
+								}
+							>
+								@components.SettingsSVG("size-5")
+								<span class="mx-4 text-sm font-normal">Admin</span>
+							</a>
+							if settings.Route.IsAdmin() {
+								<a
+									href="/admin"
+									style="padding-left: 1.75em"
+									class={
+										"flex justify-start w-full",
+										templ.KV("text-gray-400 hover:text-gray-800 dark:hover:text-gray-100", settings.Route != common.RouteAdmin),
+									}
+								>
+									<span class="mx-4 text-sm font-normal">General</span>
+								</a>
+								<a
+									href="/admin/import"
+									style="padding-left: 1.75em"
+									class={
+										"flex justify-start w-full",
+										templ.KV("text-gray-400 hover:text-gray-800 dark:hover:text-gray-100", settings.Route != common.RouteAdminImport),
+									}
+								>
+									<span class="mx-4 text-sm font-normal">Import</span>
+								</a>
+								<a
+									href="/admin/users"
+									style="padding-left: 1.75em"
+									class={
+										"flex justify-start w-full",
+										templ.KV("text-gray-400 hover:text-gray-800 dark:hover:text-gray-100", settings.Route != common.RouteAdminUsers),
+									}
+								>
+									<span class="mx-4 text-sm font-normal">Users</span>
+								</a>
+								<a
+									href="/admin/logs"
+									style="padding-left: 1.75em"
+									class={
+										"flex justify-start w-full",
+										templ.KV("text-gray-400 hover:text-gray-800 dark:hover:text-gray-100", settings.Route != common.RouteAdminLogs),
+									}
+								>
+									<span class="mx-4 text-sm font-normal">Logs</span>
+								</a>
+							}
+						</div>
+					}
+				</div>
+				<a
+					class="flex flex-col gap-2 justify-center items-center p-6 w-full absolute bottom-0 text-black dark:text-white"
+					target="_blank"
+					href="https://gitea.va.reichard.io/evan/AnthoLume"
+				>
+					@components.GitSVG("h-5 text-black dark:text-white")
+					<span class="text-xs">{ settings.Version }</span>
+				</a>
+			</div>
+		</div>
+		<h1 class="text-xl font-bold dark:text-white px-6 lg:ml-44">
+			{ settings.Route.Name() }
+		</h1>
+		<div class="relative flex items-center justify-end w-full p-4 space-x-4">
+			<a href="#" class="relative block text-gray-800 dark:text-gray-200">
+				@components.UserSVG("size-5")
+			</a>
+			<input type="checkbox" id="user-dropdown-button" class="hidden"/>
+			<div
+				id="user-dropdown"
+				class="transition duration-200 z-20 absolute right-4 top-16 pt-4"
+			>
+				<div
+					class="w-40 origin-top-right bg-white rounded-md shadow-lg dark:shadow-gray-800 dark:bg-gray-700 ring-1 ring-black ring-opacity-5"
+				>
+					<div
+						class="py-1"
+						role="menu"
+						aria-orientation="vertical"
+						aria-labelledby="options-menu"
+					>
+						<a
+							href="/settings"
+							class="block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600"
+							role="menuitem"
+						>
+							<span class="flex flex-col">
+								<span>Settings</span>
+							</span>
+						</a>
+						<a
+							href="/local"
+							class="block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600"
+							role="menuitem"
+						>
+							<span class="flex flex-col">
+								<span>Offline</span>
+							</span>
+						</a>
+						<a
+							href="/logout"
+							class="block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600"
+							role="menuitem"
+						>
+							<span class="flex flex-col">
+								<span>Logout</span>
+							</span>
+						</a>
+					</div>
+				</div>
+			</div>
+			<label for="user-dropdown-button">
+				<div
+					class="flex items-center gap-2 text-gray-500 dark:text-white text-md py-4 cursor-pointer"
+				>
+					<span>{ settings.User }</span>
+					<span class="text-gray-800 dark:text-gray-200">
+						@components.DropdownSVG("size-5")
+					</span>
+				</div>
+			</label>
+		</div>
+	</div>
+}
+
+templ layout(settings common.Settings, title string) {
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta
+				name="viewport"
+				content="width=device-width, initial-scale=0.90, user-scalable=no, viewport-fit=cover"
+			/>
+			<meta name="apple-mobile-web-app-capable" content="yes"/>
+			<meta
+				name="apple-mobile-web-app-status-bar-style"
+				content="black-translucent"
+			/>
+			<meta
+				name="theme-color"
+				content="#F3F4F6"
+				media="(prefers-color-scheme: light)"
+			/>
+			<meta
+				name="theme-color"
+				content="#1F2937"
+				media="(prefers-color-scheme: dark)"
+			/>
+			<title>AnthoLume - { title }</title>
+			<link rel="manifest" href="/manifest.json"/>
+			<link rel="stylesheet" href="/assets/style.css"/>
+			<!-- Service Worker / Offline Cache Flush -->
+			<script src="/assets/lib/idb-keyval.min.js"></script>
+			<script src="/assets/common.js"></script>
+			<script src="/assets/index.js"></script>
+			<style>
+	/* ----------------------------- */
+	/* -------- PWA Styling -------- */
+	/* ----------------------------- */
+	html,
+	body {
+	  overscroll-behavior-y: none;
+	  margin: 0px;
+	}
+
+	html {
+	  height: calc(100% + env(safe-area-inset-bottom));
+	  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0
+	    env(safe-area-inset-left);
+	}
+
+	main {
+	  height: calc(100dvh - 4rem - env(safe-area-inset-top));
+	}
+
+	#container {
+	  padding-bottom: calc(5em + env(safe-area-inset-bottom) * 2);
+	}
+
+	/* No Scrollbar - IE, Edge, Firefox */
+	* {
+	  -ms-overflow-style: none;
+	  scrollbar-width: none;
+	}
+
+	/* No Scrollbar - WebKit */
+	*::-webkit-scrollbar {
+	  display: none;
+	}
+
+	/* ----------------------------- */
+	/* -------- CSS Button  -------- */
+	/* ----------------------------- */
+	.css-button:checked + div {
+	  visibility: visible;
+	  opacity: 1;
+	}
+
+	.css-button + div {
+	  visibility: hidden;
+	  opacity: 0;
+	}
+
+	/* ----------------------------- */
+	/* ------- User Dropdown ------- */
+	/* ----------------------------- */
+	#user-dropdown-button:checked + #user-dropdown {
+	  visibility: visible;
+	  opacity: 1;
+	}
+
+	#user-dropdown {
+	  visibility: hidden;
+	  opacity: 0;
+	}
+
+	/* ----------------------------- */
+	/* ----- Mobile Navigation ----- */
+	/* ----------------------------- */
+	#mobile-nav-button span {
+	  transform-origin: 5px 0px;
+	  transition:
+	    transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1),
+	    background 0.5s cubic-bezier(0.77, 0.2, 0.05, 1),
+	    opacity 0.55s ease;
+	}
+
+	#mobile-nav-button span:first-child {
+	  transform-origin: 0% 0%;
+	}
+
+	#mobile-nav-button span:nth-last-child(2) {
+	  transform-origin: 0% 100%;
+	}
+
+	#mobile-nav-button input:checked ~ span {
+	  opacity: 1;
+	  transform: rotate(45deg) translate(2px, -2px);
+	}
+
+	#mobile-nav-button input:checked ~ span:nth-last-child(3) {
+	  opacity: 0;
+	  transform: rotate(0deg) scale(0.2, 0.2);
+	}
+
+	#mobile-nav-button input:checked ~ span:nth-last-child(2) {
+	  transform: rotate(-45deg) translate(0, 6px);
+	}
+
+	#mobile-nav-button input:checked ~ div {
+	  transform: none;
+	}
+
+	@media (min-width: 1024px) {
+	  #mobile-nav-button input ~ div {
+	    transform: none;
+	  }
+	}
+
+	#menu {
+	  top: 0;
+	  padding-top: env(safe-area-inset-top);
+	  transform-origin: 0% 0%;
+	  transform: translate(-100%, 0);
+	  transition: transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1);
+	}
+
+	@media (orientation: landscape) {
+	  #menu {
+	    transform: translate(
+	      calc(-1 * (env(safe-area-inset-left) + 100%)),
+	      0
+	    );
+	  }
+	}
+      </style>
+		</head>
+		<body class="bg-gray-100 dark:bg-gray-800">
+			@navigation(settings)
+			<main class="relative overflow-hidden">
+				<div
+					id="container"
+					class="h-[100dvh] px-4 overflow-auto md:px-6 lg:ml-48"
+				>
+					{ children... }
+				</div>
+			</main>
+			<div class="absolute right-4 bottom-4">
+				<!--
+	<div class="w-72 p-4 bg-red-500 rounded-xl">
+	  <span>User Deleted</span>
+	</div>
+	-->
+			</div>
+		</body>
+	</html>
+}
