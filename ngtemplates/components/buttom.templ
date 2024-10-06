@@ -1,0 +1,48 @@
+package components
+
+import (
+	"fmt"
+)
+
+type ButtonVariant string
+
+const (
+	ButtonVariantPrimary   ButtonVariant = "PRIMARY"
+	ButtonVariantSecondary ButtonVariant = "SECONDAY"
+
+	baseClass string = "transition duration-100 ease-in font-medium w-full h-full px-2 py-1 text-white"
+)
+
+func (v ButtonVariant) getClass() string {
+	variantClass, ok := variantClassMap[v]
+	if !ok {
+		variantClass = variantClassMap[ButtonVariantPrimary]
+	}
+
+	return fmt.Sprintf("%s %s", variantClass, baseClass)
+}
+
+var variantClassMap = map[ButtonVariant]string{
+	ButtonVariantPrimary:   "bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100",
+	ButtonVariantSecondary: "bg-black shadow-md hover:text-black hover:bg-white",
+}
+
+templ ButtonForm(title, formName string, variant ButtonVariant) {
+	<button
+		class={ variant.getClass() }
+		type="submit"
+		if formName != "" {
+			form={ formName }
+		}
+	>
+		{ title }
+	</button>
+}
+
+templ Button(title string, variant ButtonVariant) {
+	@ButtonForm(title, "", variant)
+}
+
+templ ButtonLink(title, url string, variant ButtonVariant) {
+	<a href={ templ.SafeURL(url) } class={ "text-center", variant.getClass() } type="submit">{ title }</a>
+}

@@ -1,0 +1,47 @@
+package components
+
+import (
+	"fmt"
+	"reichard.io/antholume/graph"
+)
+
+templ DailyReadChart(dailyReadSVG graph.SVGGraphData) {
+	<div class="relative w-full bg-white shadow-lg dark:bg-gray-700 rounded">
+		<p class="absolute top-3 left-5 text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500">
+			Daily Read Totals
+		</p>
+		<div class="relative">
+			<svg viewBox={ fmt.Sprintf("26 0 755 %d", dailyReadSVG.Height) } preserveAspectRatio="none" width="100%" height="6em">
+				<!-- Bezier Line Graph -->
+				<path
+					fill="#316BBE"
+					fill-opacity="0.5"
+					stroke="none"
+					d={ fmt.Sprintf("%s %s", dailyReadSVG.BezierPath, dailyReadSVG.BezierFill) }
+				></path>
+				<path fill="none" stroke="#316BBE" d={ dailyReadSVG.BezierPath }></path>
+			</svg>
+			<div
+				class="flex absolute w-full h-full top-0"
+				style="width: calc(100%*31/30); transform: translateX(-50%); left: 50%"
+			>
+				<!-- Required for iOS "Hover" Events (onclick) -->
+				for _, item := range dailyReadSVG.LinePoints {
+					<div
+						onclick
+						class="opacity-0 hover:opacity-100 w-full"
+						style="background: linear-gradient(rgba(128, 128, 128, 0.5), rgba(128, 128, 128, 0.5)) no-repeat center/2px 100%"
+					>
+						<div
+							class="flex flex-col items-center p-2 rounded absolute top-3 dark:text-white text-xs pointer-events-none"
+							style="transform: translateX(-50%); background-color: rgba(128, 128, 128, 0.2); left: 50%"
+						>
+							<span>{ item.Data.Label }</span>
+							<span>{ fmt.Sprint(item.Data.Value) } minutes</span>
+						</div>
+					</div>
+				}
+			</div>
+		</div>
+	</div>
+}
