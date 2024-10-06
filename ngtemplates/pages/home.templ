@@ -1,256 +1,40 @@
 package pages
 
 import (
-	"fmt"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/graph"
 	"reichard.io/antholume/ngtemplates/common"
+	"reichard.io/antholume/ngtemplates/components"
 )
-
-type UserMetadata struct {
-	DocumentCount int
-	ActivityCount int
-	ProgressCount int
-	DeviceCount   int
-}
-
-type UserStatistics struct {
-	WPM      map[string][]UserStatisticEntry
-	Duration map[string][]UserStatisticEntry
-	Words    map[string][]UserStatisticEntry
-}
-
-type UserStatisticEntry struct {
-	UserID string
-	Value  string
-}
 
 templ Home(
 	settings common.Settings,
 	dailyReadSVG graph.SVGGraphData,
 	userStreaks []database.UserStreak,
-	userStatistics UserStatistics,
-	userMetadata UserMetadata,
+	userStatistics common.UserStatistics,
+	userMetadata common.UserMetadata,
 ) {
-	@layout(settings, "Home WAT") {
+	@layout(settings, "Home") {
 		<div class="flex flex-col gap-4">
 			<div class="w-full">
-				@DailyReadChart(dailyReadSVG)
+				@components.DailyReadChart(dailyReadSVG)
 			</div>
 			<div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-				@InfoCard("Documents", userMetadata.DocumentCount, "./documents")
-				@InfoCard("Activity Records", userMetadata.ActivityCount, "./activity")
-				@InfoCard("Progress Records", userMetadata.ProgressCount, "./progress")
-				@InfoCard("Devices", userMetadata.DeviceCount, "")
+				@components.InfoCardLink("Documents", userMetadata.DocumentCount, "./documents")
+				@components.InfoCardLink("Activity Records", userMetadata.ActivityCount, "./activity")
+				@components.InfoCardLink("Progress Records", userMetadata.ProgressCount, "./progress")
+				@components.InfoCard("Devices", userMetadata.DeviceCount)
 			</div>
 			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 				for _, item := range userStreaks {
-					@StreakCard(item)
+					@components.StreakCard(item)
 				}
 			</div>
 			<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-				@LeaderboardCard("WPM", userStatistics.WPM)
-				@LeaderboardCard("Duration", userStatistics.Duration)
-				@LeaderboardCard("Words", userStatistics.Words)
+				@components.LeaderboardCard("WPM", userStatistics.WPM)
+				@components.LeaderboardCard("Duration", userStatistics.Duration)
+				@components.LeaderboardCard("Words", userStatistics.Words)
 			</div>
 		</div>
 	}
-}
-
-templ infoCardInner(name string, metric int) {
-	<div class="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded">
-		<div class="flex flex-col justify-around dark:text-white w-full text-sm">
-			<p class="text-2xl font-bold text-black dark:text-white">{ fmt.Sprint(metric) }</p>
-			<p class="text-sm text-gray-400">{ name }</p>
-		</div>
-	</div>
-}
-
-templ InfoCard(name string, metric int, link string) {
-	if link != "" {
-		<a href={ templ.SafeURL(link) } class="w-full">
-			@infoCardInner(name, metric)
-		</a>
-	} else {
-		<div class="w-full">
-			@infoCardInner(name, metric)
-		</div>
-	}
-}
-
-templ LeaderboardCard(name string, stats map[string][]UserStatisticEntry) {
-	<div class="w-full">
-		<div class="flex flex-col justify-between h-full w-full px-4 py-6 bg-white shadow-lg dark:bg-gray-700 rounded">
-			<div>
-				<div class="flex justify-between">
-					<p class="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500">
-						{ name } Leaderboard
-					</p>
-					<div class="flex gap-2 text-xs text-gray-400 items-center">
-						<label
-							for={ fmt.Sprintf("all-%s", name) }
-							class="cursor-pointer hover:text-black dark:hover:text-white"
-						>all</label>
-						<label
-							for={ fmt.Sprintf("year-%s", name) }
-							class="cursor-pointer hover:text-black dark:hover:text-white"
-						>year</label>
-						<label
-							for={ fmt.Sprintf("month-%s", name) }
-							class="cursor-pointer hover:text-black dark:hover:text-white"
-						>month</label>
-						<label
-							for={ fmt.Sprintf("week-%s", name) }
-							class="cursor-pointer hover:text-black dark:hover:text-white"
-						>week</label>
-					</div>
-				</div>
-			</div>
-			<input
-				type="radio"
-				name={ fmt.Sprintf("options-%s", name) }
-				id={ fmt.Sprintf("all-%s", name) }
-				class="hidden peer/All"
-				checked
-			/>
-			<input
-				type="radio"
-				name={ fmt.Sprintf("options-%s", name) }
-				id={ fmt.Sprintf("year-%s", name) }
-				class="hidden peer/Year"
-			/>
-			<input
-				type="radio"
-				name={ fmt.Sprintf("options-%s", name) }
-				id={ fmt.Sprintf("month-%s", name) }
-				class="hidden peer/Month"
-			/>
-			<input
-				type="radio"
-				name={ fmt.Sprintf("options-%s", name) }
-				id={ fmt.Sprintf("week-%s", name) }
-				class="hidden peer/Week"
-			/>
-			for name, data := range stats {
-				<div class={ "flex items-end my-6 space-x-2 hidden", fmt.Sprintf("peer-checked/%s:block", name) }>
-					if len(data) == 0 {
-						<p class="text-5xl font-bold text-black dark:text-white">N/A</p>
-					} else {
-						<p class="text-5xl font-bold text-black dark:text-white">{ data[0].UserID }</p>
-					}
-				</div>
-				<div class={ "hidden dark:text-white", fmt.Sprintf("peer-checked/%s:block", name) }>
-					for idx, item := range data {
-						if idx == 0 {
-							<div class="flex items-center justify-between pt-2 pb-2 text-sm">
-								<div>
-									<p>{ item.UserID }</p>
-								</div>
-								<div class="flex items-end font-bold">{ item.Value }</div>
-							</div>
-						} else if idx < 3 {
-							<div class="flex items-center justify-between pt-2 pb-2 text-sm border-t border-gray-200">
-								<div>
-									<p>{ item.UserID }</p>
-								</div>
-								<div class="flex items-end font-bold">{ item.Value }</div>
-							</div>
-						}
-					}
-				</div>
-			}
-		</div>
-	</div>
-}
-
-templ StreakCard(streak database.UserStreak) {
-	<div class="w-full">
-		<div class="relative w-full px-4 py-6 bg-white shadow-lg dark:bg-gray-700 rounded">
-			<p class="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500">
-				if streak.Window == "WEEK" {
-					Weekly Read Streak
-				} else {
-					Daily Read Streak
-				}
-			</p>
-			<div class="flex items-end my-6 space-x-2">
-				<p class="text-5xl font-bold text-black dark:text-white">
-					{ fmt.Sprint(streak.CurrentStreak) }
-				</p>
-			</div>
-			<div class="dark:text-white">
-				<div class="flex items-center justify-between pb-2 mb-2 text-sm border-b border-gray-200">
-					<div>
-						<p>
-							if streak.Window == "WEEK" {
-								Current Read Streak
-							} else {
-								Current Read Streak
-							}
-						</p>
-						<div class="flex items-end text-sm text-gray-400">
-							{ streak.CurrentStreakStartDate } ➞ { streak.CurrentStreakEndDate }
-						</div>
-					</div>
-					<div class="flex items-end font-bold">{ fmt.Sprint(streak.CurrentStreak) }</div>
-				</div>
-				<div class="flex items-center justify-between pb-2 mb-2 text-sm">
-					<div>
-						<p>
-							if streak.Window == "WEEK" {
-								Best Weekly Streak
-							} else {
-								Best Daily Streak
-							}
-						</p>
-						<div class="flex items-end text-sm text-gray-400">
-							{ streak.MaxStreakStartDate } ➞ { streak.MaxStreakEndDate }
-						</div>
-					</div>
-					<div class="flex items-end font-bold">{ fmt.Sprint(streak.MaxStreak) }</div>
-				</div>
-			</div>
-		</div>
-	</div>
-}
-
-templ DailyReadChart(dailyReadSVG graph.SVGGraphData) {
-	<div class="relative w-full bg-white shadow-lg dark:bg-gray-700 rounded">
-		<p class="absolute top-3 left-5 text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500">
-			Daily Read Totals
-		</p>
-		<div class="relative">
-			<svg viewBox={ fmt.Sprintf("26 0 755 %d", dailyReadSVG.Height) } preserveAspectRatio="none" width="100%" height="6em">
-				<!-- Bezier Line Graph -->
-				<path
-					fill="#316BBE"
-					fill-opacity="0.5"
-					stroke="none"
-					d={ fmt.Sprintf("%s %s", dailyReadSVG.BezierPath, dailyReadSVG.BezierFill) }
-				></path>
-				<path fill="none" stroke="#316BBE" d={ dailyReadSVG.BezierPath }></path>
-			</svg>
-			<div
-				class="flex absolute w-full h-full top-0"
-				style="width: calc(100%*31/30); transform: translateX(-50%); left: 50%"
-			>
-				<!-- Required for iOS "Hover" Events (onclick) -->
-				for _, item := range dailyReadSVG.LinePoints {
-					<div
-						onclick
-						class="opacity-0 hover:opacity-100 w-full"
-						style="background: linear-gradient(rgba(128, 128, 128, 0.5), rgba(128, 128, 128, 0.5)) no-repeat center/2px 100%"
-					>
-						<div
-							class="flex flex-col items-center p-2 rounded absolute top-3 dark:text-white text-xs pointer-events-none"
-							style="transform: translateX(-50%); background-color: rgba(128, 128, 128, 0.2); left: 50%"
-						>
-							<span>{ item.Data.Label }</span>
-							<span>{ fmt.Sprint(item.Data.Value) } minutes</span>
-						</div>
-					</div>
-				}
-			</div>
-		</div>
-	</div>
 }

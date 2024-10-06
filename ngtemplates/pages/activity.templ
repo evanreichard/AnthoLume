@@ -1,0 +1,51 @@
+package pages
+
+import (
+	"fmt"
+	"reichard.io/antholume/database"
+	"reichard.io/antholume/ngtemplates/common"
+	"reichard.io/antholume/ngtemplates/components"
+)
+
+var columns = []components.TableColumn[database.GetActivityRow]{
+	{
+		Name:      "Document",
+		Formatter: documentFormatter,
+	},
+	{
+		Name: "Time",
+		Getter: func(r database.GetActivityRow) string {
+			return r.StartTime
+		},
+	},
+	{
+		Name: "Duration",
+		Getter: func(r database.GetActivityRow) string {
+			return fmt.Sprint(r.Duration)
+		},
+	},
+	{
+		Name:      "Percent",
+		Formatter: percentageFormatter,
+	},
+}
+
+templ documentFormatter(row database.GetActivityRow) {
+	<a href={ templ.SafeURL(fmt.Sprintf("./documents/%s", row.DocumentID)) }>
+		{ fmt.Sprintf("%s - %s", *row.Author, *row.Title) }
+	</a>
+}
+
+templ percentageFormatter(row database.GetActivityRow) {
+	{ fmt.Sprintf("%.2f%%", row.EndPercentage) }
+}
+
+templ Activity(settings common.Settings, rows []database.GetActivityRow) {
+	@layout(settings, "Activity") {
+		<div class="overflow-x-auto">
+			<div class="inline-block min-w-full overflow-hidden rounded shadow">
+				@components.Table(columns, rows)
+			</div>
+		</div>
+	}
+}
