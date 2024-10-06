@@ -1,0 +1,91 @@
+package components
+
+import (
+	"fmt"
+	"reichard.io/antholume/ngtemplates/common"
+)
+
+templ LeaderboardCard(name string, stats map[string][]common.UserStatisticEntry) {
+	<div class="w-full">
+		<div class="flex flex-col justify-between h-full w-full px-4 py-6 bg-white shadow-lg dark:bg-gray-700 rounded">
+			<div>
+				<div class="flex justify-between">
+					<p class="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500">
+						{ name } Leaderboard
+					</p>
+					<div class="flex gap-2 text-xs text-gray-400 items-center">
+						<label
+							for={ fmt.Sprintf("all-%s", name) }
+							class="cursor-pointer hover:text-black dark:hover:text-white"
+						>all</label>
+						<label
+							for={ fmt.Sprintf("year-%s", name) }
+							class="cursor-pointer hover:text-black dark:hover:text-white"
+						>year</label>
+						<label
+							for={ fmt.Sprintf("month-%s", name) }
+							class="cursor-pointer hover:text-black dark:hover:text-white"
+						>month</label>
+						<label
+							for={ fmt.Sprintf("week-%s", name) }
+							class="cursor-pointer hover:text-black dark:hover:text-white"
+						>week</label>
+					</div>
+				</div>
+			</div>
+			<input
+				type="radio"
+				name={ fmt.Sprintf("options-%s", name) }
+				id={ fmt.Sprintf("all-%s", name) }
+				class="hidden peer/All"
+				checked
+			/>
+			<input
+				type="radio"
+				name={ fmt.Sprintf("options-%s", name) }
+				id={ fmt.Sprintf("year-%s", name) }
+				class="hidden peer/Year"
+			/>
+			<input
+				type="radio"
+				name={ fmt.Sprintf("options-%s", name) }
+				id={ fmt.Sprintf("month-%s", name) }
+				class="hidden peer/Month"
+			/>
+			<input
+				type="radio"
+				name={ fmt.Sprintf("options-%s", name) }
+				id={ fmt.Sprintf("week-%s", name) }
+				class="hidden peer/Week"
+			/>
+			for name, data := range stats {
+				<div class={ "flex items-end my-6 space-x-2 hidden", fmt.Sprintf("peer-checked/%s:block", name) }>
+					if len(data) == 0 {
+						<p class="text-5xl font-bold text-black dark:text-white">N/A</p>
+					} else {
+						<p class="text-5xl font-bold text-black dark:text-white">{ data[0].UserID }</p>
+					}
+				</div>
+				<div class={ "hidden dark:text-white", fmt.Sprintf("peer-checked/%s:block", name) }>
+					for idx, item := range data {
+						if idx == 0 {
+							<div class="flex items-center justify-between pt-2 pb-2 text-sm">
+								<div>
+									<p>{ item.UserID }</p>
+								</div>
+								<div class="flex items-end font-bold">{ item.Value }</div>
+							</div>
+						} else if idx < 3 {
+							<div class="flex items-center justify-between pt-2 pb-2 text-sm border-t border-gray-200">
+								<div>
+									<p>{ item.UserID }</p>
+								</div>
+								<div class="flex items-end font-bold">{ item.Value }</div>
+							</div>
+						}
+					}
+				</div>
+			}
+		</div>
+	</div>
+}

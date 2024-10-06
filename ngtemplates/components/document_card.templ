@@ -1,0 +1,81 @@
+package components
+
+import (
+	"fmt"
+	"reichard.io/antholume/database"
+	"reichard.io/antholume/ngtemplates/common"
+)
+
+func FirstNonZero[T comparable](all ...T) T {
+	var zeroT T
+	for _, item := range all {
+		if item != zeroT {
+			return item
+		}
+	}
+	return zeroT
+}
+
+func orUnknown(val *string) string {
+	if val == nil {
+		return "Unknown"
+	}
+	return *val
+}
+
+templ DocumentCard(document database.GetDocumentsWithStatsRow) {
+	<div class="w-full relative">
+		<div
+			class="flex gap-4 w-full h-full p-4 shadow-lg bg-white dark:bg-gray-700 rounded"
+		>
+			<div class="min-w-fit my-auto h-48 relative">
+				<a href={ templ.SafeURL(fmt.Sprintf("./documents/%s", document.ID)) }>
+					<img
+						class="rounded object-cover h-full"
+						src={ fmt.Sprintf("./documents/%s/cover", document.ID) }
+					/>
+				</a>
+			</div>
+			<div class="flex flex-col justify-around dark:text-white w-full text-sm">
+				<div class="inline-flex shrink-0 items-center">
+					<div>
+						<p class="text-gray-400">Title</p>
+						<p class="font-medium">{ orUnknown(document.Title) }</p>
+					</div>
+				</div>
+				<div class="inline-flex shrink-0 items-center">
+					<div>
+						<p class="text-gray-400">Author</p>
+						<p class="font-medium">{ orUnknown(document.Author) }</p>
+					</div>
+				</div>
+				<div class="inline-flex shrink-0 items-center">
+					<div>
+						<p class="text-gray-400">Progress</p>
+						<p class="font-medium">{ fmt.Sprintf("%.2f%%", document.Percentage) }</p>
+					</div>
+				</div>
+				<div class="inline-flex shrink-0 items-center">
+					<div>
+						<p class="text-gray-400">Time Read</p>
+						<p class="font-medium">{ common.NiceSeconds(document.TotalTimeSeconds) }</p>
+					</div>
+				</div>
+			</div>
+			<div
+				class="absolute flex flex-col gap-2 right-4 bottom-4 text-gray-500 dark:text-gray-400"
+			>
+				<a href="./activity?document={{ .ID }}">
+					@ActivitySVG("")
+				</a>
+				if document.Filepath != nil && *document.Filepath != "" {
+					<a href={ templ.SafeURL(fmt.Sprintf("./documents/%s/file", document.ID)) }>
+						@DownloadSVG("")
+					</a>
+				} else {
+					@DownloadSVG("text-gray-200 dark:text-gray-600")
+				}
+			</div>
+		</div>
+	</div>
+}

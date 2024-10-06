@@ -1,0 +1,57 @@
+package components
+
+import (
+	"fmt"
+	"reichard.io/antholume/database"
+)
+
+templ StreakCard(streak database.UserStreak) {
+	<div class="w-full">
+		<div class="relative w-full px-4 py-6 bg-white shadow-lg dark:bg-gray-700 rounded">
+			<p class="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500">
+				if streak.Window == "WEEK" {
+					Weekly Read Streak
+				} else {
+					Daily Read Streak
+				}
+			</p>
+			<div class="flex items-end my-6 space-x-2">
+				<p class="text-5xl font-bold text-black dark:text-white">
+					{ fmt.Sprint(streak.CurrentStreak) }
+				</p>
+			</div>
+			<div class="dark:text-white">
+				<div class="flex items-center justify-between pb-2 mb-2 text-sm border-b border-gray-200">
+					<div>
+						<p>
+							if streak.Window == "WEEK" {
+								Current Read Streak
+							} else {
+								Current Read Streak
+							}
+						</p>
+						<div class="flex items-end text-sm text-gray-400">
+							{ streak.CurrentStreakStartDate } ➞ { streak.CurrentStreakEndDate }
+						</div>
+					</div>
+					<div class="flex items-end font-bold">{ fmt.Sprint(streak.CurrentStreak) }</div>
+				</div>
+				<div class="flex items-center justify-between pb-2 mb-2 text-sm">
+					<div>
+						<p>
+							if streak.Window == "WEEK" {
+								Best Weekly Streak
+							} else {
+								Best Daily Streak
+							}
+						</p>
+						<div class="flex items-end text-sm text-gray-400">
+							{ streak.MaxStreakStartDate } ➞ { streak.MaxStreakEndDate }
+						</div>
+					</div>
+					<div class="flex items-end font-bold">{ fmt.Sprint(streak.MaxStreak) }</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}

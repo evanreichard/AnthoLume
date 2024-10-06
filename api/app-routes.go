@@ -103,7 +103,7 @@ func (api *API) appDocumentReader(c *gin.Context) {
 }
 
 func (api *API) appGetDocuments(c *gin.Context) {
-	templateVars, auth := api.getBaseTemplateVars("documents", c)
+	settings, auth := api.getBaseTemplateVarsNew(common.RouteDocuments, c)
 	qParams := bindQueryParams(c, 9)
 
 	var query *string
@@ -139,18 +139,15 @@ func (api *API) appGetDocuments(c *gin.Context) {
 	nextPage := *qParams.Page + 1
 	previousPage := *qParams.Page - 1
 
-	if nextPage <= totalPages {
-		templateVars["NextPage"] = nextPage
-	}
-
-	if previousPage >= 0 {
-		templateVars["PreviousPage"] = previousPage
-	}
-
-	templateVars["PageLimit"] = *qParams.Limit
-	templateVars["Data"] = documents
-
-	c.HTML(http.StatusOK, "page/documents", templateVars)
+	r := renderer.New(c.Request.Context(), http.StatusOK, pages.Documents(
+		settings,
+		documents,
+		nextPage,
+		previousPage,
+		totalPages,
+		*qParams.Limit,
+	))
+	c.Render(http.StatusOK, r)
 }
 
 func (api *API) appGetDocument(c *gin.Context) {
@@ -208,7 +205,7 @@ func (api *API) appGetProgress(c *gin.Context) {
 }
 
 func (api *API) appGetActivity(c *gin.Context) {
-	templateVars, auth := api.getBaseTemplateVars("activity", c)
+	settings, auth := api.getBaseTemplateVarsNew(common.RouteActivity, c)
 	qParams := bindQueryParams(c, 15)
 
 	activityFilter := database.GetActivityParams{
@@ -229,58 +226,11 @@ func (api *API) appGetActivity(c *gin.Context) {
 		return
 	}
 
-	templateVars["Data"] = activity
-
-	c.HTML(http.StatusOK, "page/activity", templateVars)
-}
-
-func (api *API) appGetHomeOld(c *gin.Context) {
-	templateVars, auth := api.getBaseTemplateVars("home", c)
-
-	start := time.Now()
-	graphData, err := api.db.Queries.GetDailyReadStats(api.db.Ctx, auth.UserName)
-	if err != nil {
-		log.Error("GetDailyReadStats DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDailyReadStats DB Error: %v", err))
-		return
-	}
-	log.Debug("GetDailyReadStats DB Performance: ", time.Since(start))
-
-	start = time.Now()
-	databaseInfo, err := api.db.Queries.GetDatabaseInfo(api.db.Ctx, auth.UserName)
-	if err != nil {
-		log.Error("GetDatabaseInfo DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDatabaseInfo DB Error: %v", err))
-		return
-	}
-	log.Debug("GetDatabaseInfo DB Performance: ", time.Since(start))
-
-	start = time.Now()
-	streaks, err := api.db.Queries.GetUserStreaks(api.db.Ctx, auth.UserName)
-	if err != nil {
-		log.Error("GetUserStreaks DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStreaks DB Error: %v", err))
-		return
-	}
-	log.Debug("GetUserStreaks DB Performance: ", time.Since(start))
-
-	start = time.Now()
-	userStatistics, err := api.db.Queries.GetUserStatistics(api.db.Ctx)
-	if err != nil {
-		log.Error("GetUserStatistics DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStatistics DB Error: %v", err))
-		return
-	}
-	log.Debug("GetUserStatistics DB Performance: ", time.Since(start))
-
-	templateVars["Data"] = gin.H{
-		"Streaks":        streaks,
-		"GraphData":      graphData,
-		"DatabaseInfo":   databaseInfo,
-		"UserStatistics": arrangeUserStatistics(userStatistics),
-	}
-
-	c.HTML(http.StatusOK, "page/home", templateVars)
+	r := renderer.New(c.Request.Context(), http.StatusOK, pages.Activity(
+		settings,
+		activity,
+	))
+	c.Render(http.StatusOK, r)
 }
 
 func (api *API) appGetHome(c *gin.Context) {
@@ -327,7 +277,7 @@ func (api *API) appGetHome(c *gin.Context) {
 		getSVGGraphData(graphData, 800, 70),
 		streaks,
 		arrangeUserStatistics(userStatistics),
-		pages.UserMetadata{
+		common.UserMetadata{
 			DocumentCount: int(databaseInfo.DocumentsSize),
 			ActivityCount: int(databaseInfo.ActivitySize),
 			ProgressCount: int(databaseInfo.ProgressSize),
@@ -1097,13 +1047,13 @@ func appErrorPage(c *gin.Context, errorCode int, errorMessage string) {
 	})
 }
 
-func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) pages.UserStatistics {
+func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) common.UserStatistics {
 	// Item Sorter
-	sortItem := func(userStatistics []database.GetUserStatisticsRow, key string, less func(i int, j int) bool) []pages.UserStatisticEntry {
+	sortItem := func(userStatistics []database.GetUserStatisticsRow, key string, less func(i int, j int) bool) []common.UserStatisticEntry {
 		sortedData := append([]database.GetUserStatisticsRow(nil), userStatistics...)
 		sort.SliceStable(sortedData, less)
 
-		newData := make([]pages.UserStatisticEntry, 0)
+		newData := make([]common.UserStatisticEntry, 0)
 		for _, item := range sortedData {
 			v := reflect.Indirect(reflect.ValueOf(item))
 
@@ -1119,7 +1069,7 @@ func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) pages
 				value = niceNumbers(rawVal)
 			}
 
-			newData = append(newData, pages.UserStatisticEntry{
+			newData = append(newData, common.UserStatisticEntry{
 				UserID: item.UserID,
 				Value:  value,
 			})
@@ -1128,8 +1078,8 @@ func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) pages
 		return newData
 	}
 
-	return pages.UserStatistics{
-		WPM: map[string][]pages.UserStatisticEntry{
+	return common.UserStatistics{
+		WPM: map[string][]common.UserStatisticEntry{
 			"All": sortItem(userStatistics, "TotalWpm", func(i, j int) bool {
 				return userStatistics[i].TotalWpm > userStatistics[j].TotalWpm
 			}),
@@ -1143,7 +1093,7 @@ func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) pages
 				return userStatistics[i].WeeklyWpm > userStatistics[j].WeeklyWpm
 			}),
 		},
-		Duration: map[string][]pages.UserStatisticEntry{
+		Duration: map[string][]common.UserStatisticEntry{
 			"All": sortItem(userStatistics, "TotalSeconds", func(i, j int) bool {
 				return userStatistics[i].TotalSeconds > userStatistics[j].TotalSeconds
 			}),
@@ -1157,7 +1107,7 @@ func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) pages
 				return userStatistics[i].WeeklySeconds > userStatistics[j].WeeklySeconds
 			}),
 		},
-		Words: map[string][]pages.UserStatisticEntry{
+		Words: map[string][]common.UserStatisticEntry{
 			"All": sortItem(userStatistics, "TotalWordsRead", func(i, j int) bool {
 				return userStatistics[i].TotalWordsRead > userStatistics[j].TotalWordsRead
 			}),
