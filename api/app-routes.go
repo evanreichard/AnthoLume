@@ -23,7 +23,6 @@ import (
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
 	"reichard.io/antholume/search"
-	"reichard.io/antholume/utils"
 )
 
 type backupType string
@@ -740,57 +739,50 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	}
 
 	// Send Message
-	sendDownloadMessage("Downloading document...", gin.H{"Progress": 10})
+	sendDownloadMessage("Downloading document...", gin.H{"Progress": 1})
+
+	// Scaled Download Function
+	lastTime := time.Now()
+	downloadFunc := func(p float32) {
+		nowTime := time.Now()
+		if nowTime.Before(lastTime.Add(time.Millisecond * 500)) {
+			return
+		}
+		scaledProgress := int((p * 95 / 100) + 2)
+		sendDownloadMessage("Downloading document...", gin.H{"Progress": scaledProgress})
+		lastTime = nowTime
+	}
 
 	// Save Book
-	tempFilePath, err := search.SaveBook(rDocAdd.ID, rDocAdd.Source)
+	tempFilePath, metadata, err := search.SaveBook(rDocAdd.ID, rDocAdd.Source, downloadFunc)
 	if err != nil {
-		log.Warn("Temp File Error: ", err)
+		log.Warn("Save Book Error: ", err)
 		sendDownloadMessage("Unable to download file", gin.H{"Error": true})
 		return
 	}
 
 	// Send Message
-	sendDownloadMessage("Calculating partial MD5...", gin.H{"Progress": 60})
+	sendDownloadMessage("Saving document...", gin.H{"Progress": 98})
 
-	// Calculate Partial MD5 ID
-	partialMD5, err := utils.CalculatePartialMD5(tempFilePath)
-	if err != nil {
-		log.Warn("Partial MD5 Error: ", err)
-		sendDownloadMessage("Unable to calculate partial MD5", gin.H{"Error": true})
+	// Derive Author / Title
+	docAuthor := "Unknown"
+	if *metadata.Author != "" {
+		docAuthor = *metadata.Author
+	} else if *rDocAdd.Author != "" {
+		docAuthor = *rDocAdd.Author
 	}
 
-	// Send Message
-	sendDownloadMessage("Saving file...", gin.H{"Progress": 60})
-
-	// Derive Extension on MIME
-	fileMime, err := mimetype.DetectFile(tempFilePath)
-	if err != nil {
-		log.Warn("MIME Detect Error: ", err)
-		sendDownloadMessage("Unable to download file", gin.H{"Error": true})
-		return
-	}
-	fileExtension := fileMime.Extension()
-
-	// Derive Filename
-	var fileName string
-	if *rDocAdd.Author != "" {
-		fileName = fileName + *rDocAdd.Author
-	} else {
-		fileName = fileName + "Unknown"
+	docTitle := "Unknown"
+	if *metadata.Title != "" {
+		docTitle = *metadata.Title
+	} else if *rDocAdd.Title != "" {
+		docTitle = *rDocAdd.Title
 	}
 
-	if *rDocAdd.Title != "" {
-		fileName = fileName + " - " + *rDocAdd.Title
-	} else {
-		fileName = fileName + " - Unknown"
-	}
-
-	// Remove Slashes
+	// Remove Slashes & Sanitize File Name
+	fileName := fmt.Sprintf("%s - %s", docAuthor, docTitle)
 	fileName = strings.ReplaceAll(fileName, "/", "")
-
-	// Derive & Sanitize File Name
-	fileName = "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, *partialMD5, fileExtension))
+	fileName = "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, *metadata.PartialMD5, metadata.Type))
 
 	// Open Source File
 	sourceFile, err := os.Open(tempFilePath)
@@ -822,37 +814,15 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	}
 
 	// Send Message
-	sendDownloadMessage("Calculating MD5...", gin.H{"Progress": 70})
-
-	// Get MD5 Hash
-	fileHash, err := getFileMD5(safePath)
-	if err != nil {
-		log.Error("Hash Failure: ", err)
-		sendDownloadMessage("Unable to calculate MD5", gin.H{"Error": true})
-		return
-	}
-
-	// Send Message
-	sendDownloadMessage("Calculating word count...", gin.H{"Progress": 80})
-
-	// Get Word Count
-	wordCount, err := metadata.GetWordCount(safePath)
-	if err != nil {
-		log.Error("Word Count Failure: ", err)
-		sendDownloadMessage("Unable to calculate word count", gin.H{"Error": true})
-		return
-	}
-
-	// Send Message
-	sendDownloadMessage("Saving to database...", gin.H{"Progress": 90})
+	sendDownloadMessage("Saving to database...", gin.H{"Progress": 99})
 
 	// Upsert Document
 	if _, err = api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
-		ID:       *partialMD5,
-		Title:    rDocAdd.Title,
-		Author:   rDocAdd.Author,
-		Md5:      fileHash,
-		Words:    wordCount,
+		ID:       *metadata.PartialMD5,
+		Title:    &docTitle,
+		Author:   &docAuthor,
+		Md5:      metadata.MD5,
+		Words:    metadata.WordCount,
 		Filepath: &fileName,
 		Basepath: &basePath,
 	}); err != nil {
@@ -865,7 +835,7 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	sendDownloadMessage("Download Success", gin.H{
 		"Progress":   100,
 		"ButtonText": "Go to Book",
-		"ButtonHref": fmt.Sprintf("./documents/%s", *partialMD5),
+		"ButtonHref": fmt.Sprintf("./documents/%s", *metadata.PartialMD5),
 	})
 }
 

@@ -2,30 +2,24 @@ package search
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"reichard.io/antholume/metadata"
 )
 
-const userAgent string = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:127.0) Gecko/20100101 Firefox/127.0"
+const userAgent string = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
 type Cadence string
 
 const (
 	CADENCE_TOP_YEAR  Cadence = "y"
 	CADENCE_TOP_MONTH Cadence = "m"
-)
-
-type BookType int
-
-const (
-	BOOK_FICTION BookType = iota
-	BOOK_NON_FICTION
 )
 
 type Source string
@@ -47,108 +41,58 @@ type SearchItem struct {
 	UploadDate string
 }
 
-type sourceDef struct {
-	searchURL         string
-	downloadURL       string
-	parseSearchFunc   func(io.ReadCloser) ([]SearchItem, error)
-	parseDownloadFunc func(io.ReadCloser) (string, error)
+type searchFunc func(query string) (searchResults []SearchItem, err error)
+type downloadFunc func(md5 string, source Source) (downloadURL []string, err error)
+
+var searchDefs = map[Source]searchFunc{
+	SOURCE_ANNAS_ARCHIVE:      searchAnnasArchive,
+	SOURCE_LIBGEN_FICTION:     searchLibGenFiction,
+	SOURCE_LIBGEN_NON_FICTION: searchLibGenNonFiction,
 }
 
-var sourceDefs = map[Source]sourceDef{
-	SOURCE_ANNAS_ARCHIVE: {
-		searchURL:         "https://annas-archive.org/search?index=&q=%s&ext=epub&sort=&lang=en",
-		downloadURL:       "http://libgen.li/ads.php?md5=%s",
-		parseSearchFunc:   parseAnnasArchive,
-		parseDownloadFunc: parseAnnasArchiveDownloadURL,
-	},
-	SOURCE_LIBGEN_FICTION: {
-		searchURL:         "https://libgen.is/fiction/?q=%s&language=English&format=epub",
-		downloadURL:       "http://libgen.li/ads.php?md5=%s",
-		parseSearchFunc:   parseLibGenFiction,
-		parseDownloadFunc: parseAnnasArchiveDownloadURL,
-	},
-	SOURCE_LIBGEN_NON_FICTION: {
-		searchURL:         "https://libgen.is/search.php?req=%s",
-		downloadURL:       "http://libgen.li/ads.php?md5=%s",
-		parseSearchFunc:   parseLibGenNonFiction,
-		parseDownloadFunc: parseAnnasArchiveDownloadURL,
-	},
+var downloadFuncs = []downloadFunc{
+	getLibGenDownloadURL,
+	getLibraryDownloadURL,
 }
 
 func SearchBook(query string, source Source) ([]SearchItem, error) {
-	def := sourceDefs[source]
-	log.Debug("Source: ", def)
-	url := fmt.Sprintf(def.searchURL, url.QueryEscape(query))
-	body, err := getPage(url)
-	if err != nil {
-		return nil, err
+	searchFunc, found := searchDefs[source]
+	if !found {
+		return nil, fmt.Errorf("invalid source: %s", source)
 	}
-	return def.parseSearchFunc(body)
+	log.Debug("Source: ", source)
+	return searchFunc(query)
 }
 
-func SaveBook(id string, source Source) (string, error) {
-	def := sourceDefs[source]
-	log.Debug("Source: ", def)
-	url := fmt.Sprintf(def.downloadURL, id)
+func SaveBook(md5 string, source Source, progressFunc func(float32)) (string, *metadata.MetadataInfo, error) {
+	for _, f := range downloadFuncs {
+		downloadURLs, err := f(md5, source)
+		if err != nil {
+			log.Error("failed to acquire download urls")
+			continue
+		}
 
-	body, err := getPage(url)
-	if err != nil {
-		return "", err
+		for _, bookURL := range downloadURLs {
+			// Download File
+			log.Info("Downloading Book: ", bookURL)
+			fileName, err := downloadBook(bookURL, progressFunc)
+			if err != nil {
+				log.Error("Book URL API Failure: ", err)
+				continue
+			}
+
+			// Get Metadata
+			metadata, err := metadata.GetMetadata(fileName)
+			if err != nil {
+				log.Error("Book Metadata Failure: ", err)
+				continue
+			}
+
+			return fileName, metadata, nil
+		}
 	}
 
-	bookURL, err := def.parseDownloadFunc(body)
-	if err != nil {
-		log.Error("Parse Download URL Error: ", err)
-		return "", fmt.Errorf("Download Failure")
-	}
-
-	// Create File
-	tempFile, err := os.CreateTemp("", "book")
-	if err != nil {
-		log.Error("File Create Error: ", err)
-		return "", fmt.Errorf("File Failure")
-	}
-	defer tempFile.Close()
-
-	// Download File
-	log.Info("Downloading Book: ", bookURL)
-	resp, err := downloadBook(bookURL)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Error("Book URL API Failure: ", err)
-		return "", fmt.Errorf("API Failure")
-	}
-	defer resp.Body.Close()
-
-	// Copy File to Disk
-	log.Info("Saving Book")
-	_, err = io.Copy(tempFile, resp.Body)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Error("File Copy Error: ", err)
-		return "", fmt.Errorf("File Failure")
-	}
-
-	return tempFile.Name(), nil
-}
-
-func GetBookURL(id string, bookType BookType) (string, error) {
-	// Derive Info URL
-	var infoURL string
-	if bookType == BOOK_FICTION {
-		infoURL = "http://library.lol/fiction/" + id
-	} else if bookType == BOOK_NON_FICTION {
-		infoURL = "http://library.lol/main/" + id
-	}
-
-	// Parse & Derive Download URL
-	body, err := getPage(infoURL)
-	if err != nil {
-		return "", err
-	}
-
-	// downloadURL := parseLibGenDownloadURL(body)
-	return parseLibGenDownloadURL(body)
+	return "", nil, errors.New("failed to download book")
 }
 
 func getPage(page string) (io.ReadCloser, error) {
@@ -162,8 +106,6 @@ func getPage(page string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// Set User-Agent
 	req.Header.Set("User-Agent", userAgent)
 
 	// Do Request
@@ -176,7 +118,7 @@ func getPage(page string) (io.ReadCloser, error) {
 	return resp.Body, err
 }
 
-func downloadBook(bookURL string) (*http.Response, error) {
+func downloadBook(bookURL string, progressFunc func(float32)) (string, error) {
 	log.Debug("URL: ", bookURL)
 
 	// Allow Insecure
@@ -189,11 +131,33 @@ func downloadBook(bookURL string) (*http.Response, error) {
 	// Start Request
 	req, err := http.NewRequest("GET", bookURL, nil)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-
-	// Set User-Agent
 	req.Header.Set("User-Agent", userAgent)
 
-	return client.Do(req)
+	// Perform API Request
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+
+	// Create File
+	tempFile, err := os.CreateTemp("", "book")
+	if err != nil {
+		log.Error("File Create Error: ", err)
+		return "", fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer tempFile.Close()
+
+	// Copy File to Disk
+	log.Info("Saving Book")
+	counter := &writeCounter{Total: resp.ContentLength, ProgressFunction: progressFunc}
+	_, err = io.Copy(tempFile, io.TeeReader(resp.Body, counter))
+	if err != nil {
+		os.Remove(tempFile.Name())
+		log.Error("File Copy Error: ", err)
+		return "", fmt.Errorf("failed to copy response to temp file: %w", err)
+	}
+
+	return tempFile.Name(), nil
 }

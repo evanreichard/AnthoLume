@@ -3,11 +3,22 @@ package search
 import (
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
 )
+
+func searchLibGenFiction(query string) ([]SearchItem, error) {
+	searchURL := "https://libgen.is/fiction/?q=%s&language=English&format=epub"
+	url := fmt.Sprintf(searchURL, url.QueryEscape(query))
+	body, err := getPage(url)
+	if err != nil {
+		return nil, err
+	}
+	return parseLibGenFiction(body)
+}
 
 func parseLibGenFiction(body io.ReadCloser) ([]SearchItem, error) {
 	// Parse
@@ -62,6 +73,16 @@ func parseLibGenFiction(body io.ReadCloser) ([]SearchItem, error) {
 	return allEntries, nil
 }
 
+func searchLibGenNonFiction(query string) ([]SearchItem, error) {
+	searchURL := "https://libgen.is/search.php?req=%s"
+	url := fmt.Sprintf(searchURL, url.QueryEscape(query))
+	body, err := getPage(url)
+	if err != nil {
+		return nil, err
+	}
+	return parseLibGenNonFiction(body)
+}
+
 func parseLibGenNonFiction(body io.ReadCloser) ([]SearchItem, error) {
 	// Parse
 	defer body.Close()
@@ -105,19 +126,4 @@ func parseLibGenNonFiction(body io.ReadCloser) ([]SearchItem, error) {
 
 	// Return Results
 	return allEntries, nil
-}
-
-func parseLibGenDownloadURL(body io.ReadCloser) (string, error) {
-	// Parse
-	defer body.Close()
-	doc, _ := goquery.NewDocumentFromReader(body)
-
-	// Return Download URL
-	// downloadURL, _ := doc.Find("#download [href*=cloudflare]").Attr("href")
-	downloadURL, exists := doc.Find("#download h2 a").Attr("href")
-	if !exists {
-		return "", fmt.Errorf("Download URL not found")
-	}
-
-	return downloadURL, nil
 }

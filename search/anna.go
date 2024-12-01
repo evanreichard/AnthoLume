@@ -3,6 +3,7 @@ package search
 import (
 	"fmt"
 	"io"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -11,50 +12,14 @@ import (
 
 var commentRE = regexp.MustCompile(`(?s)<!--(.*?)-->`)
 
-func parseAnnasArchiveDownloadURL(body io.ReadCloser) (string, error) {
-	// Parse
-	defer body.Close()
-	doc, _ := goquery.NewDocumentFromReader(body)
-
-	// Return Download URL
-	downloadPath, exists := doc.Find("body > table > tbody > tr > td > a").Attr("href")
-	if !exists {
-		return "", fmt.Errorf("Download URL not found")
-	}
-
-	// Possible Funky URL
-	downloadPath = strings.ReplaceAll(downloadPath, "\\", "/")
-
-	return fmt.Sprintf("http://libgen.li/%s", downloadPath), nil
-}
-
-// getAnnasArchiveBookSelection parses potentially commented out HTML. For some reason
-// Annas Archive comments out blocks "below the fold". They aren't rendered until you
-// scroll. This attempts to parse the commented out HTML.
-func getAnnasArchiveBookSelection(rawBook *goquery.Selection) *goquery.Selection {
-	rawHTML, err := rawBook.Html()
+func searchAnnasArchive(query string) ([]SearchItem, error) {
+	searchURL := "https://annas-archive.org/search?index=&q=%s&ext=epub&sort=&lang=en"
+	url := fmt.Sprintf(searchURL, url.QueryEscape(query))
+	body, err := getPage(url)
 	if err != nil {
-		return rawBook
+		return nil, err
 	}
-
-	strippedHTML := strings.TrimSpace(rawHTML)
-	if !strings.HasPrefix(strippedHTML, "<!--") || !strings.HasSuffix(strippedHTML, "-->") {
-		return rawBook
-	}
-
-	allMatches := commentRE.FindAllStringSubmatch(strippedHTML, -1)
-	if len(allMatches) != 1 || len(allMatches[0]) != 2 {
-		return rawBook
-	}
-
-	captureGroup := allMatches[0][1]
-	docReader := strings.NewReader(captureGroup)
-	doc, err := goquery.NewDocumentFromReader(docReader)
-	if err != nil {
-		return rawBook
-	}
-
-	return doc.Selection
+	return parseAnnasArchive(body)
 }
 
 func parseAnnasArchive(body io.ReadCloser) ([]SearchItem, error) {
@@ -106,4 +71,33 @@ func parseAnnasArchive(body io.ReadCloser) ([]SearchItem, error) {
 
 	// Return Results
 	return allEntries, nil
+}
+
+// getAnnasArchiveBookSelection parses potentially commented out HTML. For some reason
+// Annas Archive comments out blocks "below the fold". They aren't rendered until you
+// scroll. This attempts to parse the commented out HTML.
+func getAnnasArchiveBookSelection(rawBook *goquery.Selection) *goquery.Selection {
+	rawHTML, err := rawBook.Html()
+	if err != nil {
+		return rawBook
+	}
+
+	strippedHTML := strings.TrimSpace(rawHTML)
+	if !strings.HasPrefix(strippedHTML, "<!--") || !strings.HasSuffix(strippedHTML, "-->") {
+		return rawBook
+	}
+
+	allMatches := commentRE.FindAllStringSubmatch(strippedHTML, -1)
+	if len(allMatches) != 1 || len(allMatches[0]) != 2 {
+		return rawBook
+	}
+
+	captureGroup := allMatches[0][1]
+	docReader := strings.NewReader(captureGroup)
+	doc, err := goquery.NewDocumentFromReader(docReader)
+	if err != nil {
+		return rawBook
+	}
+
+	return doc.Selection
 }
