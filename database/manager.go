@@ -28,8 +28,11 @@ type DBManager struct {
 //go:embed schema.sql
 var ddl string
 
-//go:embed views.sql
-var views string
+//go:embed user_streaks.sql
+var user_streaks_view string
+
+//go:embed document_user_statistics.sql
+var document_user_statistics string
 
 //go:embed migrations/*
 var migrations embed.FS
@@ -105,7 +108,7 @@ func (dbm *DBManager) init() error {
 	}
 
 	// Execute views
-	if _, err := dbm.DB.Exec(views, nil); err != nil {
+	if _, err := dbm.DB.Exec(user_streaks_view, nil); err != nil {
 		log.Panicf("Error executing views: %v", err)
 		return err
 	}
@@ -154,11 +157,7 @@ func (dbm *DBManager) CacheTempTables() error {
 	log.Debug("Cached 'user_streaks' in: ", time.Since(start))
 
 	start = time.Now()
-	document_statistics_sql := `
-	  DELETE FROM document_user_statistics;
-	  INSERT INTO document_user_statistics SELECT * FROM view_document_user_statistics;
-	`
-	if _, err := dbm.DB.ExecContext(dbm.Ctx, document_statistics_sql); err != nil {
+	if _, err := dbm.DB.ExecContext(dbm.Ctx, document_user_statistics); err != nil {
 		return err
 	}
 	log.Debug("Cached 'document_user_statistics' in: ", time.Since(start))

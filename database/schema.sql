@@ -118,30 +118,13 @@ CREATE TABLE IF NOT EXISTS settings (
     created_at DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
----------------------------------------------------------------
------------------------ Temporary Tables ----------------------
----------------------------------------------------------------
-
--- Temporary User Streaks Table (Cached from View)
-CREATE TEMPORARY TABLE IF NOT EXISTS user_streaks (
-    user_id TEXT NOT NULL,
-    window TEXT NOT NULL,
-
-    max_streak INTEGER NOT NULL,
-    max_streak_start_date TEXT NOT NULL,
-    max_streak_end_date TEXT NOT NULL,
-
-    current_streak INTEGER NOT NULL,
-    current_streak_start_date TEXT NOT NULL,
-    current_streak_end_date TEXT NOT NULL
-);
-
--- Temporary Document User Statistics Table (Cached from View)
-CREATE TEMPORARY TABLE IF NOT EXISTS document_user_statistics (
+-- Document User Statistics Table
+CREATE TABLE IF NOT EXISTS document_user_statistics (
     document_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     percentage REAL NOT NULL,
-    last_read TEXT NOT NULL,
+    last_read DATETIME NOT NULL,
+    last_seen DATETIME NOT NULL,
     read_percentage REAL NOT NULL,
 
     total_time_seconds INTEGER NOT NULL,
@@ -163,6 +146,23 @@ CREATE TEMPORARY TABLE IF NOT EXISTS document_user_statistics (
     UNIQUE(document_id, user_id) ON CONFLICT REPLACE
 );
 
+---------------------------------------------------------------
+----------------------- Temporary Tables ----------------------
+---------------------------------------------------------------
+
+-- Temporary User Streaks Table (Cached from View)
+CREATE TEMPORARY TABLE IF NOT EXISTS user_streaks (
+    user_id TEXT NOT NULL,
+    window TEXT NOT NULL,
+
+    max_streak INTEGER NOT NULL,
+    max_streak_start_date TEXT NOT NULL,
+    max_streak_end_date TEXT NOT NULL,
+
+    current_streak INTEGER NOT NULL,
+    current_streak_start_date TEXT NOT NULL,
+    current_streak_end_date TEXT NOT NULL
+);
 
 ---------------------------------------------------------------
 --------------------------- Indexes ---------------------------
@@ -176,7 +176,6 @@ CREATE INDEX IF NOT EXISTS activity_user_id_document_id ON activity (
 );
 
 DROP VIEW IF EXISTS view_user_streaks;
-DROP VIEW IF EXISTS view_document_user_statistics;
 
 ---------------------------------------------------------------
 --------------------------- Triggers --------------------------
