@@ -146,12 +146,8 @@ CREATE TABLE IF NOT EXISTS document_user_statistics (
     UNIQUE(document_id, user_id) ON CONFLICT REPLACE
 );
 
----------------------------------------------------------------
------------------------ Temporary Tables ----------------------
----------------------------------------------------------------
-
--- Temporary User Streaks Table (Cached from View)
-CREATE TEMPORARY TABLE IF NOT EXISTS user_streaks (
+-- User Streaks Table
+CREATE TABLE IF NOT EXISTS user_streaks (
     user_id TEXT NOT NULL,
     window TEXT NOT NULL,
 
@@ -161,7 +157,13 @@ CREATE TEMPORARY TABLE IF NOT EXISTS user_streaks (
 
     current_streak INTEGER NOT NULL,
     current_streak_start_date TEXT NOT NULL,
-    current_streak_end_date TEXT NOT NULL
+    current_streak_end_date TEXT NOT NULL,
+
+    last_timezone TEXT NOT NULL,
+    last_seen TEXT NOT NULL,
+    last_calculated TEXT NOT NULL,
+
+    UNIQUE(user_id, window) ON CONFLICT REPLACE
 );
 
 ---------------------------------------------------------------
@@ -174,8 +176,6 @@ CREATE INDEX IF NOT EXISTS activity_user_id_document_id ON activity (
     user_id,
     document_id
 );
-
-DROP VIEW IF EXISTS view_user_streaks;
 
 ---------------------------------------------------------------
 --------------------------- Triggers --------------------------
