@@ -44,6 +44,11 @@ func init() {
 		Deterministic: true,
 		Scalar:        localTime,
 	})
+	sqlite.MustRegisterFunction("LOCAL_DATE", &sqlite.FunctionImpl{
+		NArgs:         2,
+		Deterministic: true,
+		Scalar:        localDate,
+	})
 }
 
 // NewMgr Returns an initialized manager
@@ -229,5 +234,30 @@ func localTime(ctx *sqlite.FunctionContext, args []driver.Value) (driver.Value, 
 		return nil, errors.New("unable to parse time")
 	}
 
-	return formattedTime.In(timeZone).Format("2006-01-02 15:04:05.000"), nil
+	return formattedTime.In(timeZone).Format(time.RFC3339), nil
+}
+
+// localDate is a custom SQL function that is registered as LOCAL_DATE in the init function
+func localDate(ctx *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+	timeStr, ok := args[0].(string)
+	if !ok {
+		return nil, errors.New("both arguments to TZTime must be strings")
+	}
+
+	timeZoneStr, ok := args[1].(string)
+	if !ok {
+		return nil, errors.New("both arguments to TZTime must be strings")
+	}
+
+	timeZone, err := time.LoadLocation(timeZoneStr)
+	if err != nil {
+		return nil, errors.New("unable to parse timezone")
+	}
+
+	formattedTime, err := time.ParseInLocation(time.RFC3339, timeStr, time.UTC)
+	if err != nil {
+		return nil, errors.New("unable to parse time")
+	}
+
+	return formattedTime.In(timeZone).Format("2006-01-02"), nil
 }

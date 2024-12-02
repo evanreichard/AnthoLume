@@ -147,6 +147,7 @@ CREATE TABLE IF NOT EXISTS document_user_statistics (
 );
 
 -- User Streaks Table
+DROP TABLE IF EXISTS user_streaks;
 CREATE TABLE IF NOT EXISTS user_streaks (
     user_id TEXT NOT NULL,
     window TEXT NOT NULL,
@@ -161,6 +162,7 @@ CREATE TABLE IF NOT EXISTS user_streaks (
 
     last_timezone TEXT NOT NULL,
     last_seen TEXT NOT NULL,
+    last_record TEXT NOT NULL,
     last_calculated TEXT NOT NULL,
 
     UNIQUE(user_id, window) ON CONFLICT REPLACE
@@ -171,6 +173,7 @@ CREATE TABLE IF NOT EXISTS user_streaks (
 ---------------------------------------------------------------
 
 CREATE INDEX IF NOT EXISTS activity_start_time ON activity (start_time);
+CREATE INDEX IF NOT EXISTS activity_created_at ON activity (created_at);
 CREATE INDEX IF NOT EXISTS activity_user_id ON activity (user_id);
 CREATE INDEX IF NOT EXISTS activity_user_id_document_id ON activity (
     user_id,

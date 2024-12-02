@@ -193,7 +193,7 @@ WITH filtered_activity AS (
 SELECT
     document_id,
     device_id,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(activity.start_time, users.timezone)) AS TEXT) AS start_time,
+    LOCAL_TIME(activity.start_time, users.timezone) AS start_time,
     title,
     author,
     duration,
@@ -214,15 +214,15 @@ type GetActivityParams struct {
 }
 
 type GetActivityRow struct {
-	DocumentID      string  `json:"document_id"`
-	DeviceID        string  `json:"device_id"`
-	StartTime       string  `json:"start_time"`
-	Title           *string `json:"title"`
-	Author          *string `json:"author"`
-	Duration        int64   `json:"duration"`
-	StartPercentage float64 `json:"start_percentage"`
-	EndPercentage   float64 `json:"end_percentage"`
-	ReadPercentage  float64 `json:"read_percentage"`
+	DocumentID      string      `json:"document_id"`
+	DeviceID        string      `json:"device_id"`
+	StartTime       interface{} `json:"start_time"`
+	Title           *string     `json:"title"`
+	Author          *string     `json:"author"`
+	Duration        int64       `json:"duration"`
+	StartPercentage float64     `json:"start_percentage"`
+	EndPercentage   float64     `json:"end_percentage"`
+	ReadPercentage  float64     `json:"read_percentage"`
 }
 
 func (q *Queries) GetActivity(ctx context.Context, arg GetActivityParams) ([]GetActivityRow, error) {
@@ -266,7 +266,7 @@ func (q *Queries) GetActivity(ctx context.Context, arg GetActivityParams) ([]Get
 
 const getDailyReadStats = `-- name: GetDailyReadStats :many
 WITH RECURSIVE last_30_days AS (
-    SELECT DATE(LOCAL_TIME(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), timezone)) AS date
+    SELECT LOCAL_DATE(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), timezone) AS date
     FROM users WHERE users.id = ?1
     UNION ALL
     SELECT DATE(date, '-1 days')
@@ -285,7 +285,7 @@ filtered_activity AS (
 activity_days AS (
     SELECT
         SUM(duration) AS seconds_read,
-        DATE(LOCAL_TIME(start_time, timezone)) AS day
+        LOCAL_DATE(start_time, timezone) AS day
     FROM filtered_activity AS activity
     LEFT JOIN users ON users.id = activity.user_id
     GROUP BY day
@@ -422,8 +422,8 @@ const getDevices = `-- name: GetDevices :many
 SELECT
     devices.id,
     devices.device_name,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(devices.created_at, users.timezone)) AS TEXT) AS created_at,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(devices.last_synced, users.timezone)) AS TEXT) AS last_synced
+    LOCAL_TIME(devices.created_at, users.timezone) AS created_at,
+    LOCAL_TIME(devices.last_synced, users.timezone) AS last_synced
 FROM devices
 JOIN users ON users.id = devices.user_id
 WHERE users.id = ?1
@@ -431,10 +431,10 @@ ORDER BY devices.last_synced DESC
 `
 
 type GetDevicesRow struct {
-	ID         string `json:"id"`
-	DeviceName string `json:"device_name"`
-	CreatedAt  string `json:"created_at"`
-	LastSynced string `json:"last_synced"`
+	ID         string      `json:"id"`
+	DeviceName string      `json:"device_name"`
+	CreatedAt  interface{} `json:"created_at"`
+	LastSynced interface{} `json:"last_synced"`
 }
 
 func (q *Queries) GetDevices(ctx context.Context, userID string) ([]GetDevicesRow, error) {
@@ -902,7 +902,7 @@ SELECT
     ROUND(CAST(progress.percentage AS REAL) * 100, 2) AS percentage,
     progress.document_id,
     progress.user_id,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(progress.created_at, users.timezone)) AS TEXT) AS created_at
+    LOCAL_TIME(progress.created_at, users.timezone) AS created_at
 FROM document_progress AS progress
 LEFT JOIN users ON progress.user_id = users.id
 LEFT JOIN devices ON progress.device_id = devices.id
@@ -929,13 +929,13 @@ type GetProgressParams struct {
 }
 
 type GetProgressRow struct {
-	Title      *string `json:"title"`
-	Author     *string `json:"author"`
-	DeviceName string  `json:"device_name"`
-	Percentage float64 `json:"percentage"`
-	DocumentID string  `json:"document_id"`
-	UserID     string  `json:"user_id"`
-	CreatedAt  string  `json:"created_at"`
+	Title      *string     `json:"title"`
+	Author     *string     `json:"author"`
+	DeviceName string      `json:"device_name"`
+	Percentage float64     `json:"percentage"`
+	DocumentID string      `json:"document_id"`
+	UserID     string      `json:"user_id"`
+	CreatedAt  interface{} `json:"created_at"`
 }
 
 func (q *Queries) GetProgress(ctx context.Context, arg GetProgressParams) ([]GetProgressRow, error) {
@@ -1078,7 +1078,7 @@ func (q *Queries) GetUserStatistics(ctx context.Context) ([]GetUserStatisticsRow
 }
 
 const getUserStreaks = `-- name: GetUserStreaks :many
-SELECT user_id, "window", max_streak, max_streak_start_date, max_streak_end_date, current_streak, current_streak_start_date, current_streak_end_date FROM user_streaks
+SELECT user_id, "window", max_streak, max_streak_start_date, max_streak_end_date, current_streak, current_streak_start_date, current_streak_end_date, last_timezone, last_seen, last_record, last_calculated FROM user_streaks
 WHERE user_id = ?1
 `
 
@@ -1100,6 +1100,10 @@ func (q *Queries) GetUserStreaks(ctx context.Context, userID string) ([]UserStre
 			&i.CurrentStreak,
 			&i.CurrentStreakStartDate,
 			&i.CurrentStreakEndDate,
+			&i.LastTimezone,
+			&i.LastSeen,
+			&i.LastRecord,
+			&i.LastCalculated,
 		); err != nil {
 			return nil, err
 		}

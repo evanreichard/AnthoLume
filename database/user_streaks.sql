@@ -1,20 +1,35 @@
-WITH outdated_users AS (
+WITH updated_users AS (
+    SELECT a.user_id
+    FROM activity AS a
+    LEFT JOIN users AS u ON u.id = a.user_id
+    LEFT JOIN user_streaks AS s ON a.user_id = s.user_id AND s.window = 'DAY'
+    WHERE
+        a.created_at > COALESCE(s.last_seen, '1970-01-01')
+        AND LOCAL_DATE(s.last_record, u.timezone) != LOCAL_DATE(a.start_time, u.timezone)
+    GROUP BY a.user_id
+),
+
+outdated_users AS (
     SELECT
         a.user_id,
         u.timezone AS last_timezone,
-        DATE(LOCAL_TIME(MAX(a.created_at), u.timezone)) AS last_seen,
-        DATE(LOCAL_TIME(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), u.timezone))
-            AS last_calculated
+        MAX(a.created_at) AS last_seen,
+        MAX(a.start_time) AS last_record,
+        STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now') AS last_calculated
     FROM activity AS a
     LEFT JOIN users AS u ON u.id = a.user_id
-    LEFT JOIN user_streaks AS s ON a.user_id = s.user_id
+    LEFT JOIN user_streaks AS s ON a.user_id = s.user_id AND s.window = 'DAY'
     GROUP BY a.user_id
     HAVING
+        -- User Changed Timezones
         s.last_timezone != u.timezone
-        OR DATE(LOCAL_TIME(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), u.timezone))
-        != COALESCE(s.last_calculated, '1970-01-01')
-        OR DATE(LOCAL_TIME(MAX(a.created_at), u.timezone))
-        != COALESCE(s.last_seen, '1970-01-01')
+
+        -- Users Date Changed
+        OR LOCAL_DATE(COALESCE(s.last_calculated, '1970-01-01T00:00:00Z'), u.timezone) !=
+            LOCAL_DATE(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), u.timezone)
+
+        -- User Added New Data
+        OR a.user_id IN updated_users
 ),
 
 document_windows AS (
@@ -22,10 +37,10 @@ document_windows AS (
         activity.user_id,
         users.timezone,
         DATE(
-            LOCAL_TIME(activity.start_time, users.timezone),
+            LOCAL_DATE(activity.start_time, users.timezone),
             'weekday 0', '-7 day'
         ) AS weekly_read,
-        DATE(LOCAL_TIME(activity.start_time, users.timezone)) AS daily_read
+        LOCAL_DATE(activity.start_time, users.timezone) AS daily_read
     FROM activity
     INNER JOIN outdated_users ON outdated_users.user_id = activity.user_id
     LEFT JOIN users ON users.id = activity.user_id
@@ -109,11 +124,11 @@ current_streak AS (
     FROM streaks
     WHERE CASE
       WHEN window = "WEEK" THEN
-          DATE(LOCAL_TIME(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), timezone), 'weekday 0', '-14 day') = current_streak_end_date
-          OR DATE(LOCAL_TIME(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), timezone), 'weekday 0', '-7 day') = current_streak_end_date
+          DATE(LOCAL_DATE(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), timezone), 'weekday 0', '-14 day') = current_streak_end_date
+          OR DATE(LOCAL_DATE(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), timezone), 'weekday 0', '-7 day') = current_streak_end_date
       WHEN window = "DAY" THEN
-          DATE(LOCAL_TIME(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), timezone), '-1 day') = current_streak_end_date
-          OR DATE(LOCAL_TIME(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), timezone)) = current_streak_end_date
+          DATE(LOCAL_DATE(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), timezone), '-1 day') = current_streak_end_date
+          OR DATE(LOCAL_DATE(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), timezone)) = current_streak_end_date
     END
     GROUP BY user_id, window
 )
@@ -130,6 +145,7 @@ SELECT
     IFNULL(current_streak.current_streak_end_date, "N/A") AS current_streak_end_date,
     outdated_users.last_timezone AS last_timezone,
     outdated_users.last_seen AS last_seen,
+    outdated_users.last_record AS last_record,
     outdated_users.last_calculated AS last_calculated
 FROM max_streak
 JOIN outdated_users ON max_streak.user_id = outdated_users.user_id

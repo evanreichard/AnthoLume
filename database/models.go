@@ -116,4 +116,8 @@ type UserStreak struct {
 	CurrentStreak          int64  `json:"current_streak"`
 	CurrentStreakStartDate string `json:"current_streak_start_date"`
 	CurrentStreakEndDate   string `json:"current_streak_end_date"`
+	LastTimezone           string `json:"last_timezone"`
+	LastSeen               string `json:"last_seen"`
+	LastRecord             string `json:"last_record"`
+	LastCalculated         string `json:"last_calculated"`
 }
