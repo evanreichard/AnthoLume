@@ -67,7 +67,7 @@ WITH filtered_activity AS (
 SELECT
     document_id,
     device_id,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(activity.start_time, users.timezone)) AS TEXT) AS start_time,
+    LOCAL_TIME(activity.start_time, users.timezone) AS start_time,
     title,
     author,
     duration,
@@ -80,7 +80,7 @@ LEFT JOIN users ON users.id = activity.user_id;
 
 -- name: GetDailyReadStats :many
 WITH RECURSIVE last_30_days AS (
-    SELECT DATE(LOCAL_TIME(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), timezone)) AS date
+    SELECT LOCAL_DATE(STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), timezone) AS date
     FROM users WHERE users.id = $user_id
     UNION ALL
     SELECT DATE(date, '-1 days')
@@ -99,7 +99,7 @@ filtered_activity AS (
 activity_days AS (
     SELECT
         SUM(duration) AS seconds_read,
-        DATE(LOCAL_TIME(start_time, timezone)) AS day
+        LOCAL_DATE(start_time, timezone) AS day
     FROM filtered_activity AS activity
     LEFT JOIN users ON users.id = activity.user_id
     GROUP BY day
@@ -138,8 +138,8 @@ WHERE id = $device_id LIMIT 1;
 SELECT
     devices.id,
     devices.device_name,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(devices.created_at, users.timezone)) AS TEXT) AS created_at,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(devices.last_synced, users.timezone)) AS TEXT) AS last_synced
+    LOCAL_TIME(devices.created_at, users.timezone) AS created_at,
+    LOCAL_TIME(devices.last_synced, users.timezone) AS last_synced
 FROM devices
 JOIN users ON users.id = devices.user_id
 WHERE users.id = $user_id
@@ -283,7 +283,7 @@ SELECT
     ROUND(CAST(progress.percentage AS REAL) * 100, 2) AS percentage,
     progress.document_id,
     progress.user_id,
-    CAST(STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(progress.created_at, users.timezone)) AS TEXT) AS created_at
+    LOCAL_TIME(progress.created_at, users.timezone) AS created_at
 FROM document_progress AS progress
 LEFT JOIN users ON progress.user_id = users.id
 LEFT JOIN devices ON progress.device_id = devices.id
