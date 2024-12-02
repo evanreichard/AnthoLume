@@ -174,7 +174,10 @@ func (api *API) appGetAdminLogs(c *gin.Context) {
 	rAdminLogs.Filter = strings.TrimSpace(rAdminLogs.Filter)
 
 	var jqFilter *gojq.Code
-	if rAdminLogs.Filter != "" {
+	var basicFilter string
+	if strings.HasPrefix(rAdminLogs.Filter, "\"") && strings.HasSuffix(rAdminLogs.Filter, "\"") {
+		basicFilter = rAdminLogs.Filter[1 : len(rAdminLogs.Filter)-1]
+	} else if rAdminLogs.Filter != "" {
 		parsed, err := gojq.Parse(rAdminLogs.Filter)
 		if err != nil {
 			log.Error("Unable to parse JQ filter")
@@ -220,9 +223,14 @@ func (api *API) appGetAdminLogs(c *gin.Context) {
 			continue
 		}
 
-		// No Filter
-		if jqFilter == nil {
+		// Basic Filter
+		if basicFilter != "" && strings.Contains(string(rawData), basicFilter) {
 			logLines = append(logLines, string(rawData))
+			continue
+		}
+
+		// No JQ Filter
+		if jqFilter == nil {
 			continue
 		}
 
