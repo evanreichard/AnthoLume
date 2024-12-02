@@ -147,6 +147,7 @@ CREATE TABLE IF NOT EXISTS document_user_statistics (
 );
 
 -- User Streaks Table
+DROP TABLE IF EXISTS user_streaks;
 CREATE TABLE IF NOT EXISTS user_streaks (
     user_id TEXT NOT NULL,
     window TEXT NOT NULL,
