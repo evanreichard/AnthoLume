@@ -15,7 +15,7 @@ var columns = []components.TableColumn[database.GetActivityRow]{
 	{
 		Name: "Time",
 		Getter: func(r database.GetActivityRow) string {
-			return r.StartTime
+			return fmt.Sprint(r.StartTime)
 		},
 	},
 	{
