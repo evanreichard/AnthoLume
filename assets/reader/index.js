@@ -67,6 +67,56 @@ function populateMetadata(data) {
 }
 
 /**
+ * Populate the Table of Contents
+ **/
+function populateTOC() {
+  if (!currentReader.book.navigation.toc) {
+    console.warn("[populateTOC] No TOC");
+    return;
+  }
+
+  let tocEl = document.querySelector("#toc");
+  if (!tocEl) {
+    console.warn("[populateTOC] No TOC Element");
+    return;
+  }
+
+  // Parse the Table of Contents
+  let parsedTOC = currentReader.book.navigation.toc.reduce((agg, item) => {
+    let sectionTitle = item.label.trim();
+    agg.push({ title: sectionTitle, href: item.href });
+    if (item.subitems.length == 0) {
+      return agg;
+    }
+
+    let allSubSections = item.subitems.map(item => {
+      let itemTitle = item.label.trim();
+      if (sectionTitle != "") {
+	itemTitle = sectionTitle + " - " + item.label.trim();
+      }
+      return { title: itemTitle, href: item.href };
+    });
+    agg.push(...allSubSections);
+
+    return agg;
+  }, [])
+
+  // Add Table of Contents to DOM
+  let listEl = document.createElement("ul");
+  listEl.classList.add("m-4")
+  parsedTOC.forEach(item => {
+    let listItem = document.createElement("li");
+    listItem.style.cursor = "pointer";
+    listItem.addEventListener("click", () => {
+      currentReader.rendition.display(item.href);
+    });
+    listItem.textContent = item.title;
+    listEl.appendChild(listItem);
+  });
+  tocEl.appendChild(listEl);
+}
+
+/**
  * This is the main reader class. All functionality is wrapped in this class.
  * Responsible for handling gesture / clicks, flushing progress & activity,
  * storing and processing themes, etc.
@@ -439,6 +489,7 @@ class EBookReader {
     // ------------------------------------------------ //
     // ----------------- Swipe Helpers ---------------- //
     // ------------------------------------------------ //
+    let disablePagination = false;
     let touchStartX,
       touchStartY,
       touchEndX,
@@ -459,25 +510,38 @@ class EBookReader {
       }
 
       // Swipe Left
-      if (touchEndX + drasticity < touchStartX) {
+      if (!disablePagination && touchEndX + drasticity < touchStartX) {
         nextPage();
       }
 
       // Swipe Right
-      if (touchEndX - drasticity > touchStartX) {
+      if (!disablePagination && touchEndX - drasticity > touchStartX) {
         prevPage();
       }
     }
 
     function handleSwipeDown() {
-      if (bottomBar.classList.contains("bottom-0"))
+      if (bottomBar.classList.contains("bottom-0")) {
         bottomBar.classList.remove("bottom-0");
-      else topBar.classList.add("top-0");
+	disablePagination = false;
+      } else {
+	topBar.classList.add("top-0");
+	populateTOC()
+	disablePagination = true;
+      }
     }
 
     function handleSwipeUp() {
-      if (topBar.classList.contains("top-0")) topBar.classList.remove("top-0");
-      else bottomBar.classList.add("bottom-0");
+      if (topBar.classList.contains("top-0")) {
+	topBar.classList.remove("top-0");
+	disablePagination = false;
+
+	const tocEl = document.querySelector("#toc");
+	if (tocEl) tocEl.innerHTML = "";
+      } else {
+	bottomBar.classList.add("bottom-0");
+	disablePagination = true;
+      }
     }
 
     this.rendition.hooks.render.register(function (doc, data) {
@@ -523,8 +587,8 @@ class EBookReader {
           // Handle Event
           if (yCoord < top) handleSwipeDown();
           else if (yCoord > bottom) handleSwipeUp();
-          else if (xCoord < left) prevPage();
-          else if (xCoord > right) nextPage();
+          else if (!disablePagination && xCoord < left) prevPage();
+          else if (!disablePagination && xCoord > right) nextPage();
           else {
             bottomBar.classList.remove("bottom-0");
             topBar.classList.remove("top-0");
@@ -670,6 +734,9 @@ class EBookReader {
     // Close Top Bar
     document.querySelector(".close-top-bar").addEventListener("click", () => {
       topBar.classList.remove("top-0");
+
+      const tocEl = document.querySelector("#toc");
+      if (tocEl) tocEl.innerHTML = "";
     });
   }
 
@@ -949,10 +1016,16 @@ class EBookReader {
    **/
   async getXPathFromCFI(cfi) {
     // Get DocFragment (Spine Index)
-    let startCFI = cfi.replace("epubcfi(", "");
+    let cfiBaseMatch = cfi.match(/\(([^!]+)/);
+    if (!cfiBaseMatch) {
+      console.error("[getXPathFromCFI] No CFI Match");
+      return {};
+    }
+    let startCFI = cfiBaseMatch[1];
+
     let docFragmentIndex =
       this.book.spine.spineItems.find((item) =>
-        startCFI.startsWith(item.cfiBase),
+        item.cfiBase == startCFI
       ).index + 1;
 
     // Base Progress
@@ -1028,10 +1101,6 @@ class EBookReader {
       console.warn("[getCFIFromXPath] No XPath Match");
       return {};
     }
-
-    // Match Item Index
-    let indexMatch = xpath.match(/\.(\d+)$/);
-    let itemIndex = indexMatch ? parseInt(indexMatch[1]) : 0;
 
     // Get Spine Item
     let spinePosition = parseInt(fragMatch[1]) - 1;
@@ -1123,6 +1192,11 @@ class EBookReader {
     // Get Element & CFI (XPath -> CSS Selector Fallback)
     let element = docSearch.iterateNext() || derivedSelectorElement;
     let cfi = sectionItem.cfiFromElement(element);
+
+    // Hack - epub.js crashes sometimes when its a bare section with no element
+    // so just return the first.
+    if (cfi.endsWith("!/)"))
+      cfi = cfi.slice(0, -1) + "0)"
 
     return { cfi, element };
   }
@@ -1271,14 +1345,3 @@ class EBookReader {
 }
 
 document.addEventListener("DOMContentLoaded", initReader);
-
-// WIP
-async function getTOC() {
-  let toc = currentReader.book.navigation.toc;
-
-  // Alternatively:
-  // let nav = await currentReader.book.loaded.navigation;
-  // let toc = nav.toc;
-
-  currentReader.rendition.display(nav.toc[10].href);
-}
