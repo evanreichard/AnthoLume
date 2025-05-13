@@ -325,6 +325,13 @@ func (api *API) loadTemplates(
 	return nil
 }
 
+func (api *API) templateMiddleware(router *gin.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		router.HTMLRender = *api.generateTemplates()
+		c.Next()
+	}
+}
+
 func loggingMiddleware(c *gin.Context) {
 	// Start timer
 	startTime := time.Now()
@@ -359,11 +366,4 @@ func loggingMiddleware(c *gin.Context) {
 
 	// Log result
 	log.WithFields(logData).Info(fmt.Sprintf("%s %s", c.Request.Method, c.Request.URL.Path))
-}
-
-func (api *API) templateMiddleware(router *gin.Engine) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		router.HTMLRender = *api.generateTemplates()
-		c.Next()
-	}
 }

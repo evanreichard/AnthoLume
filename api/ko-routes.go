@@ -72,7 +72,7 @@ type requestDocumentID struct {
 }
 
 func (api *API) koAuthorizeUser(c *gin.Context) {
-	c.JSON(200, gin.H{
+	koJSON(c, 200, gin.H{
 		"authorized": "OK",
 	})
 }
@@ -121,7 +121,7 @@ func (api *API) koSetProgress(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	koJSON(c, http.StatusOK, gin.H{
 		"document":  progress.DocumentID,
 		"timestamp": progress.CreatedAt,
 	})
@@ -147,7 +147,7 @@ func (api *API) koGetProgress(c *gin.Context) {
 
 	if err == sql.ErrNoRows {
 		// Not Found
-		c.JSON(http.StatusOK, gin.H{})
+		koJSON(c, http.StatusOK, gin.H{})
 		return
 	} else if err != nil {
 		log.Error("GetDocumentProgress DB Error:", err)
@@ -155,7 +155,7 @@ func (api *API) koGetProgress(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	koJSON(c, http.StatusOK, gin.H{
 		"document":   progress.DocumentID,
 		"percentage": progress.Percentage,
 		"progress":   progress.Progress,
@@ -247,7 +247,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	koJSON(c, http.StatusOK, gin.H{
 		"added": len(rActivity.Activity),
 	})
 }
@@ -298,7 +298,7 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	koJSON(c, http.StatusOK, gin.H{
 		"last_sync": parsedTime.Unix(),
 	})
 }
@@ -352,7 +352,7 @@ func (api *API) koAddDocuments(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	koJSON(c, http.StatusOK, gin.H{
 		"changed": len(rNewDocs.Documents),
 	})
 }
@@ -447,7 +447,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 		rCheckDocSync.Delete = deletedDocIDs
 	}
 
-	c.JSON(http.StatusOK, rCheckDocSync)
+	koJSON(c, http.StatusOK, rCheckDocSync)
 }
 
 func (api *API) koUploadExistingDocument(c *gin.Context) {
@@ -534,7 +534,7 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	koJSON(c, http.StatusOK, gin.H{
 		"status": "ok",
 	})
 }
@@ -588,4 +588,11 @@ func getFileMD5(filePath string) (*string, error) {
 	fileHash := fmt.Sprintf("%x", hash.Sum(nil))
 
 	return &fileHash, nil
+}
+
+// koJSON forces koJSON Content-Type to only return `application/json`. This is addressing
+// the following issue: https://github.com/koreader/koreader/issues/13629
+func koJSON(c *gin.Context, code int, obj any) {
+	c.Header("Content-Type", "application/json")
+	c.JSON(code, obj)
 }
