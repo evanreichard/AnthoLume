@@ -25,7 +25,7 @@ func getLibGenDownloadURL(md5 string, _ Source) ([]string, error) {
 	// Return Download URL
 	downloadPath, exists := doc.Find("body > table > tbody > tr > td > a").Attr("href")
 	if !exists {
-		return nil, fmt.Errorf("Download URL not found")
+		return nil, fmt.Errorf("download URL not found")
 	}
 
 	// Possible Funky URL
@@ -37,10 +37,10 @@ func getLibraryDownloadURL(md5 string, source Source) ([]string, error) {
 	// Derive Info URL
 	var infoURL string
 	switch source {
-	case SOURCE_LIBGEN_FICTION, SOURCE_ANNAS_ARCHIVE:
+	case SOURCE_LIBGEN, SOURCE_ANNAS_ARCHIVE:
 		infoURL = "http://library.lol/fiction/" + md5
-	case SOURCE_LIBGEN_NON_FICTION:
-		infoURL = "http://library.lol/main/" + md5
+	// case SOURCE_LIBGEN_NON_FICTION:
+	// 	infoURL = "http://library.lol/main/" + md5
 	default:
 		return nil, errors.New("invalid source")
 	}
@@ -62,7 +62,7 @@ func getLibraryDownloadURL(md5 string, source Source) ([]string, error) {
 	// downloadURL, _ := doc.Find("#download [href*=cloudflare]").Attr("href")
 	downloadURL, exists := doc.Find("#download h2 a").Attr("href")
 	if !exists {
-		return nil, errors.New("Download URL not found")
+		return nil, errors.New("download URL not found")
 	}
 
 	return []string{downloadURL}, nil

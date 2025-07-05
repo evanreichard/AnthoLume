@@ -32,7 +32,7 @@ func parseAnnasArchive(body io.ReadCloser) ([]SearchItem, error) {
 
 	// Normalize Results
 	var allEntries []SearchItem
-	doc.Find("form > div.w-full > div.w-full > div > div.justify-center").Each(func(ix int, rawBook *goquery.Selection) {
+	doc.Find("#aarecord-list > div.justify-center").Each(func(ix int, rawBook *goquery.Selection) {
 		rawBook = getAnnasArchiveBookSelection(rawBook)
 
 		// Parse Details
@@ -44,29 +44,19 @@ func parseAnnasArchive(body io.ReadCloser) ([]SearchItem, error) {
 			return
 		}
 
-		language := detailsSplit[0]
-		fileType := detailsSplit[1]
-		fileSize := detailsSplit[3]
-
-		// Get Title & Author
-		title := rawBook.Find("h3").Text()
-		author := rawBook.Find("div:nth-child(2) > div:nth-child(4)").Text()
-
 		// Parse MD5
 		itemHref, _ := rawBook.Find("a").Attr("href")
 		hrefArray := strings.Split(itemHref, "/")
 		id := hrefArray[len(hrefArray)-1]
 
-		item := SearchItem{
+		allEntries = append(allEntries, SearchItem{
 			ID:       id,
-			Title:    title,
-			Author:   author,
-			Language: language,
-			FileType: fileType,
-			FileSize: fileSize,
-		}
-
-		allEntries = append(allEntries, item)
+			Title:    rawBook.Find("h3").First().Text(),
+			Author:   rawBook.Find("div:nth-child(2) > div:nth-child(4)").First().Text(),
+			Language: detailsSplit[0],
+			FileType: detailsSplit[1],
+			FileSize: detailsSplit[3],
+		})
 	})
 
 	// Return Results

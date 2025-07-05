@@ -35,9 +35,8 @@
               id="source"
               name="source"
             >
+              <option value="LibGen">Library Genesis</option>
               <option value="Annas Archive">Annas Archive</option>
-              <option value="LibGen Fiction">LibGen Fiction</option>
-              <option value="LibGen Non-fiction">LibGen Non-fiction</option>
             </select>
           </div>
           <div class="lg:w-60">
@@ -133,7 +132,8 @@
                   </form>
                 </td>
                 <td class="p-3 border-b border-gray-200">
-                  {{ $item.Author }} - {{ $item.Title }}
+                  {{ $item.Author }} -
+                  {{ $item.Title }}
                 </td>
                 <td class="p-3 border-b border-gray-200">
                   <p>{{ or $item.Series "N/A" }}</p>

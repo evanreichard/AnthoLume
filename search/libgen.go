@@ -1,89 +1,44 @@
 package search
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/PuerkitoBio/goquery"
 )
 
-func searchLibGenFiction(query string) ([]SearchItem, error) {
-	searchURL := "https://libgen.is/fiction/?q=%s&language=English&format=epub"
-	url := fmt.Sprintf(searchURL, url.QueryEscape(query))
-	body, err := getPage(url)
-	if err != nil {
-		return nil, err
-	}
-	return parseLibGenFiction(body)
+const LIBGEN_SEARCH_URL = "https://%s/index.php?req=ext:epub+%s&gmode=on"
+
+var libgenDomains []string = []string{
+	"libgen.vg",
+	"libgen.is",
 }
 
-func parseLibGenFiction(body io.ReadCloser) ([]SearchItem, error) {
-	// Parse
-	defer body.Close()
-	doc, err := goquery.NewDocumentFromReader(body)
-	if err != nil {
-		return nil, err
-	}
+func searchLibGen(query string) ([]SearchItem, error) {
+	var allErrors []error
 
-	// Normalize Results
-	var allEntries []SearchItem
-	doc.Find("table.catalog tbody > tr").Each(func(ix int, rawBook *goquery.Selection) {
-
-		// Parse File Details
-		fileItem := rawBook.Find("td:nth-child(5)")
-		fileDesc := fileItem.Text()
-		fileDescSplit := strings.Split(fileDesc, "/")
-		fileType := strings.ToLower(strings.TrimSpace(fileDescSplit[0]))
-		fileSize := strings.TrimSpace(fileDescSplit[1])
-
-		// Parse Upload Date
-		uploadedRaw, _ := fileItem.Attr("title")
-		uploadedDateRaw := strings.Split(uploadedRaw, "Uploaded at ")[1]
-		uploadDate, _ := time.Parse("2006-01-02 15:04:05", uploadedDateRaw)
-
-		// Parse MD5
-		editHref, _ := rawBook.Find("td:nth-child(7) a").Attr("href")
-		hrefArray := strings.Split(editHref, "/")
-		id := hrefArray[len(hrefArray)-1]
-
-		// Parse Other Details
-		title := rawBook.Find("td:nth-child(3) p a").Text()
-		author := rawBook.Find(".catalog_authors li a").Text()
-		language := rawBook.Find("td:nth-child(4)").Text()
-		series := rawBook.Find("td:nth-child(2)").Text()
-
-		item := SearchItem{
-			ID:         id,
-			Title:      title,
-			Author:     author,
-			Series:     series,
-			Language:   language,
-			FileType:   fileType,
-			FileSize:   fileSize,
-			UploadDate: uploadDate.Format(time.RFC3339),
+	for _, domain := range libgenDomains {
+		url := fmt.Sprintf(LIBGEN_SEARCH_URL, domain, url.QueryEscape(query))
+		body, err := getPage(url)
+		if err != nil {
+			allErrors = append(allErrors, err)
+			continue
 		}
-
-		allEntries = append(allEntries, item)
-	})
-
-	// Return Results
-	return allEntries, nil
-}
-
-func searchLibGenNonFiction(query string) ([]SearchItem, error) {
-	searchURL := "https://libgen.is/search.php?req=%s"
-	url := fmt.Sprintf(searchURL, url.QueryEscape(query))
-	body, err := getPage(url)
-	if err != nil {
-		return nil, err
+		results, err := parseLibGen(body)
+		if err != nil {
+			allErrors = append(allErrors, err)
+			continue
+		}
+		return results, nil
 	}
-	return parseLibGenNonFiction(body)
+
+	return nil, fmt.Errorf("could not query libgen: %w", errors.Join(allErrors...))
 }
 
-func parseLibGenNonFiction(body io.ReadCloser) ([]SearchItem, error) {
+func parseLibGen(body io.ReadCloser) ([]SearchItem, error) {
 	// Parse
 	defer body.Close()
 	doc, err := goquery.NewDocumentFromReader(body)
@@ -93,35 +48,25 @@ func parseLibGenNonFiction(body io.ReadCloser) ([]SearchItem, error) {
 
 	// Normalize Results
 	var allEntries []SearchItem
-	doc.Find("table.c tbody > tr:nth-child(n + 2)").Each(func(ix int, rawBook *goquery.Selection) {
-
-		// Parse Type & Size
-		fileSize := strings.ToLower(strings.TrimSpace(rawBook.Find("td:nth-child(8)").Text()))
-		fileType := strings.ToLower(strings.TrimSpace(rawBook.Find("td:nth-child(9)").Text()))
-
+	doc.Find("#tablelibgen tbody > tr").Each(func(ix int, rawBook *goquery.Selection) {
 		// Parse MD5
-		titleRaw := rawBook.Find("td:nth-child(3) [id]")
-		editHref, _ := titleRaw.Attr("href")
-		hrefArray := strings.Split(editHref, "?md5=")
+		linksRaw := rawBook.Find("td:nth-child(9) a")
+		linksHref, _ := linksRaw.Attr("href")
+		hrefArray := strings.Split(linksHref, "?md5=")
+		if len(hrefArray) == 0 {
+			return
+		}
 		id := hrefArray[1]
 
-		// Parse Other Details
-		title := titleRaw.Text()
-		author := rawBook.Find("td:nth-child(2)").Text()
-		language := rawBook.Find("td:nth-child(7)").Text()
-		series := rawBook.Find("td:nth-child(3) [href*='column=series']").Text()
-
-		item := SearchItem{
+		allEntries = append(allEntries, SearchItem{
 			ID:       id,
-			Title:    title,
-			Author:   author,
-			Series:   series,
-			Language: language,
-			FileType: fileType,
-			FileSize: fileSize,
-		}
-
-		allEntries = append(allEntries, item)
+			Title:    rawBook.Find("td:nth-child(1) > a").First().Text(),
+			Author:   rawBook.Find("td:nth-child(2)").Text(),
+			Series:   rawBook.Find("td:nth-child(1) > b").Text(),
+			Language: rawBook.Find("td:nth-child(5)").Text(),
+			FileType: strings.ToLower(strings.TrimSpace(rawBook.Find("td:nth-child(8)").Text())),
+			FileSize: strings.ToLower(strings.TrimSpace(rawBook.Find("td:nth-child(7)").Text())),
+		})
 	})
 
 	// Return Results

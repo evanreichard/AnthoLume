@@ -25,9 +25,8 @@ const (
 type Source string
 
 const (
-	SOURCE_ANNAS_ARCHIVE      Source = "Annas Archive"
-	SOURCE_LIBGEN_FICTION     Source = "LibGen Fiction"
-	SOURCE_LIBGEN_NON_FICTION Source = "LibGen Non-fiction"
+	SOURCE_ANNAS_ARCHIVE Source = "Annas Archive"
+	SOURCE_LIBGEN        Source = "LibGen"
 )
 
 type SearchItem struct {
@@ -45,9 +44,8 @@ type searchFunc func(query string) (searchResults []SearchItem, err error)
 type downloadFunc func(md5 string, source Source) (downloadURL []string, err error)
 
 var searchDefs = map[Source]searchFunc{
-	SOURCE_ANNAS_ARCHIVE:      searchAnnasArchive,
-	SOURCE_LIBGEN_FICTION:     searchLibGenFiction,
-	SOURCE_LIBGEN_NON_FICTION: searchLibGenNonFiction,
+	SOURCE_ANNAS_ARCHIVE: searchAnnasArchive,
+	SOURCE_LIBGEN:        searchLibGen,
 }
 
 var downloadFuncs = []downloadFunc{
