@@ -27,6 +27,8 @@ steps:
       registry: gitea.va.reichard.io
       tags:
         - dev
+      custom_dns:
+        - 8.8.8.8
       username:
         from_secret: docker_username
       password:
