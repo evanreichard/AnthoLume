@@ -27,7 +27,7 @@ docker_build_release_latest: build_tailwind
 		--push .
 
 build_tailwind:
-	tailwind build -o ./assets/style.css --minify
+	tailwindcss build -o ./assets/style.css --minify
 
 dev: build_tailwind
 	GIN_MODE=release \
