@@ -3,7 +3,7 @@ FROM alpine AS alpine
 RUN apk update && apk add --no-cache ca-certificates tzdata
 
 # Build Image
-FROM golang:1.21 AS build
+FROM golang:1.24 AS build
 
 # Create Package Directory
 RUN mkdir -p /opt/antholume
