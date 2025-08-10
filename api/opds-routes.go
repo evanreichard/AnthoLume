@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/opds"
+	"reichard.io/antholume/pkg/ptr"
 )
 
 var mimeMapping map[string]string = map[string]string{
@@ -77,11 +78,12 @@ func (api *API) opdsDocuments(c *gin.Context) {
 	}
 
 	// Get Documents
-	documents, err := api.db.Queries.GetDocumentsWithStats(api.db.Ctx, database.GetDocumentsWithStatsParams{
-		UserID: auth.UserName,
-		Query:  query,
-		Offset: (*qParams.Page - 1) * *qParams.Limit,
-		Limit:  *qParams.Limit,
+	documents, err := api.db.Queries.GetDocumentsWithStats(c, database.GetDocumentsWithStatsParams{
+		UserID:  auth.UserName,
+		Query:   query,
+		Deleted: ptr.Of(false),
+		Offset:  (*qParams.Page - 1) * *qParams.Limit,
+		Limit:   *qParams.Limit,
 	})
 	if err != nil {
 		log.Error("GetDocumentsWithStats DB Error:", err)

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"io/fs"
 	"net/http"
 	"sync"
@@ -52,12 +53,14 @@ func (s *server) Start() {
 		ticker := time.NewTicker(15 * time.Minute)
 		defer ticker.Stop()
 
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(5*time.Minute))
 		for {
 			select {
 			case <-ticker.C:
-				s.runScheduledTasks()
+				s.runScheduledTasks(ctx)
 			case <-s.done:
 				log.Info("Stopping task runner...")
+				cancel()
 				return
 			}
 		}
@@ -81,9 +84,9 @@ func (s *server) Stop() {
 }
 
 // Run normal scheduled tasks
-func (s *server) runScheduledTasks() {
+func (s *server) runScheduledTasks(ctx context.Context) {
 	start := time.Now()
-	if err := s.db.CacheTempTables(); err != nil {
+	if err := s.db.CacheTempTables(ctx); err != nil {
 		log.Warn("Refreshing temp table cache failed: ", err)
 	}
 	log.Debug("Completed in: ", time.Since(start))

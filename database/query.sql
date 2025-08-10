@@ -163,42 +163,6 @@ ORDER BY
     DESC
 LIMIT 1;
 
--- name: GetDocumentWithStats :one
-SELECT
-    docs.id,
-    docs.title,
-    docs.author,
-    docs.description,
-    docs.isbn10,
-    docs.isbn13,
-    docs.filepath,
-    docs.words,
-
-    CAST(COALESCE(dus.total_wpm, 0.0) AS INTEGER) AS wpm,
-    COALESCE(dus.read_percentage, 0) AS read_percentage,
-    COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
-    STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(COALESCE(dus.last_read, STRFTIME('%Y-%m-%dT%H:%M:%SZ', 0, 'unixepoch')), users.timezone))
-        AS last_read,
-    ROUND(CAST(CASE
-        WHEN dus.percentage IS NULL THEN 0.0
-        WHEN (dus.percentage * 100.0) > 97.0 THEN 100.0
-        ELSE dus.percentage * 100.0
-    END AS REAL), 2) AS percentage,
-    CAST(CASE
-        WHEN dus.total_time_seconds IS NULL THEN 0.0
-        ELSE
-            CAST(dus.total_time_seconds AS REAL)
-            / (dus.read_percentage * 100.0)
-    END AS INTEGER) AS seconds_per_percent
-FROM documents AS docs
-LEFT JOIN users ON users.id = $user_id
-LEFT JOIN
-    document_user_statistics AS dus
-    ON dus.document_id = docs.id AND dus.user_id = $user_id
-WHERE users.id = $user_id
-AND docs.id = $document_id
-LIMIT 1;
-
 -- name: GetDocuments :many
 SELECT * FROM documents
 ORDER BY created_at DESC
@@ -236,26 +200,25 @@ SELECT
         WHEN (dus.percentage * 100.0) > 97.0 THEN 100.0
         ELSE dus.percentage * 100.0
     END AS REAL), 2) AS percentage,
-
-    CASE
+    CAST(CASE
         WHEN dus.total_time_seconds IS NULL THEN 0.0
         ELSE
-            ROUND(
-                CAST(dus.total_time_seconds AS REAL)
-                / (dus.read_percentage * 100.0)
-            )
-    END AS seconds_per_percent
+            CAST(dus.total_time_seconds AS REAL)
+            / (dus.read_percentage * 100.0)
+    END AS INTEGER) AS seconds_per_percent
 FROM documents AS docs
 LEFT JOIN users ON users.id = $user_id
 LEFT JOIN
     document_user_statistics AS dus
     ON dus.document_id = docs.id AND dus.user_id = $user_id
 WHERE
-    docs.deleted = false AND (
-        $query IS NULL OR (
-            docs.title LIKE $query OR
+    (docs.id = sqlc.narg('id') OR $id IS NULL)
+    AND (docs.deleted = sqlc.narg(deleted) OR $deleted IS NULL)
+    AND (
+        (
+            docs.title LIKE sqlc.narg('query') OR
             docs.author LIKE $query
-        )
+        ) OR $query IS NULL
     )
 ORDER BY dus.last_read DESC, docs.created_at DESC
 LIMIT $limit

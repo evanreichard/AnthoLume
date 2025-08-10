@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"embed"
-	_ "embed"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -20,7 +19,6 @@ import (
 
 type DBManager struct {
 	DB      *sql.DB
-	Ctx     context.Context
 	Queries *Queries
 	cfg     *config.Config
 }
@@ -54,12 +52,9 @@ func init() {
 // NewMgr Returns an initialized manager
 func NewMgr(c *config.Config) *DBManager {
 	// Create Manager
-	dbm := &DBManager{
-		Ctx: context.Background(),
-		cfg: c,
-	}
+	dbm := &DBManager{cfg: c}
 
-	if err := dbm.init(); err != nil {
+	if err := dbm.init(context.Background()); err != nil {
 		log.Panic("Unable to init DB")
 	}
 
@@ -67,7 +62,7 @@ func NewMgr(c *config.Config) *DBManager {
 }
 
 // init loads the DB manager
-func (dbm *DBManager) init() error {
+func (dbm *DBManager) init(ctx context.Context) error {
 	// Build DB Location
 	var dbLocation string
 	switch dbm.cfg.DBType {
@@ -113,14 +108,14 @@ func (dbm *DBManager) init() error {
 	}
 
 	// Update settings
-	err = dbm.updateSettings()
+	err = dbm.updateSettings(ctx)
 	if err != nil {
 		log.Panicf("Error running DB settings update: %v", err)
 		return err
 	}
 
 	// Cache tables
-	if err := dbm.CacheTempTables(); err != nil {
+	if err := dbm.CacheTempTables(ctx); err != nil {
 		log.Warn("Refreshing temp table cache failed: ", err)
 	}
 
@@ -128,7 +123,7 @@ func (dbm *DBManager) init() error {
 }
 
 // Reload closes the DB & reinits
-func (dbm *DBManager) Reload() error {
+func (dbm *DBManager) Reload(ctx context.Context) error {
 	// Close handle
 	err := dbm.DB.Close()
 	if err != nil {
@@ -136,7 +131,7 @@ func (dbm *DBManager) Reload() error {
 	}
 
 	// Reinit DB
-	if err := dbm.init(); err != nil {
+	if err := dbm.init(ctx); err != nil {
 		return err
 	}
 
@@ -144,15 +139,15 @@ func (dbm *DBManager) Reload() error {
 }
 
 // CacheTempTables clears existing statistics and recalculates
-func (dbm *DBManager) CacheTempTables() error {
+func (dbm *DBManager) CacheTempTables(ctx context.Context) error {
 	start := time.Now()
-	if _, err := dbm.DB.ExecContext(dbm.Ctx, user_streaks); err != nil {
+	if _, err := dbm.DB.ExecContext(ctx, user_streaks); err != nil {
 		return err
 	}
 	log.Debug("Cached 'user_streaks' in: ", time.Since(start))
 
 	start = time.Now()
-	if _, err := dbm.DB.ExecContext(dbm.Ctx, document_user_statistics); err != nil {
+	if _, err := dbm.DB.ExecContext(ctx, document_user_statistics); err != nil {
 		return err
 	}
 	log.Debug("Cached 'document_user_statistics' in: ", time.Since(start))
@@ -162,7 +157,7 @@ func (dbm *DBManager) CacheTempTables() error {
 
 // updateSettings ensures that we're enforcing foreign keys and enable journal
 // mode.
-func (dbm *DBManager) updateSettings() error {
+func (dbm *DBManager) updateSettings(ctx context.Context) error {
 	// Set SQLite PRAGMA Settings
 	pragmaQuery := `
 		  PRAGMA foreign_keys = ON;
@@ -174,7 +169,7 @@ func (dbm *DBManager) updateSettings() error {
 	}
 
 	// Update Antholume Version in DB
-	if _, err := dbm.Queries.UpdateSettings(dbm.Ctx, UpdateSettingsParams{
+	if _, err := dbm.Queries.UpdateSettings(ctx, UpdateSettingsParams{
 		Name:  "version",
 		Value: dbm.cfg.Version,
 	}); err != nil {

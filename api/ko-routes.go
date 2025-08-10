@@ -91,7 +91,7 @@ func (api *API) koSetProgress(c *gin.Context) {
 	}
 
 	// Upsert Device
-	if _, err := api.db.Queries.UpsertDevice(api.db.Ctx, database.UpsertDeviceParams{
+	if _, err := api.db.Queries.UpsertDevice(c, database.UpsertDeviceParams{
 		ID:         rPosition.DeviceID,
 		UserID:     auth.UserName,
 		DeviceName: rPosition.Device,
@@ -101,14 +101,14 @@ func (api *API) koSetProgress(c *gin.Context) {
 	}
 
 	// Upsert Document
-	if _, err := api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
+	if _, err := api.db.Queries.UpsertDocument(c, database.UpsertDocumentParams{
 		ID: rPosition.DocumentID,
 	}); err != nil {
 		log.Error("UpsertDocument DB Error:", err)
 	}
 
 	// Create or Replace Progress
-	progress, err := api.db.Queries.UpdateProgress(api.db.Ctx, database.UpdateProgressParams{
+	progress, err := api.db.Queries.UpdateProgress(c, database.UpdateProgressParams{
 		Percentage: rPosition.Percentage,
 		DocumentID: rPosition.DocumentID,
 		DeviceID:   rPosition.DeviceID,
@@ -140,7 +140,7 @@ func (api *API) koGetProgress(c *gin.Context) {
 		return
 	}
 
-	progress, err := api.db.Queries.GetDocumentProgress(api.db.Ctx, database.GetDocumentProgressParams{
+	progress, err := api.db.Queries.GetDocumentProgress(c, database.GetDocumentProgressParams{
 		DocumentID: rDocID.DocumentID,
 		UserID:     auth.UserName,
 	})
@@ -202,7 +202,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 
 	// Upsert Documents
 	for _, doc := range allDocuments {
-		if _, err := qtx.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
+		if _, err := qtx.UpsertDocument(c, database.UpsertDocumentParams{
 			ID: doc,
 		}); err != nil {
 			log.Error("UpsertDocument DB Error:", err)
@@ -212,7 +212,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 	}
 
 	// Upsert Device
-	if _, err = qtx.UpsertDevice(api.db.Ctx, database.UpsertDeviceParams{
+	if _, err = qtx.UpsertDevice(c, database.UpsertDeviceParams{
 		ID:         rActivity.DeviceID,
 		UserID:     auth.UserName,
 		DeviceName: rActivity.Device,
@@ -225,7 +225,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 
 	// Add All Activity
 	for _, item := range rActivity.Activity {
-		if _, err := qtx.AddActivity(api.db.Ctx, database.AddActivityParams{
+		if _, err := qtx.AddActivity(c, database.AddActivityParams{
 			UserID:          auth.UserName,
 			DocumentID:      item.DocumentID,
 			DeviceID:        rActivity.DeviceID,
@@ -266,7 +266,7 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 	}
 
 	// Upsert Device
-	if _, err := api.db.Queries.UpsertDevice(api.db.Ctx, database.UpsertDeviceParams{
+	if _, err := api.db.Queries.UpsertDevice(c, database.UpsertDeviceParams{
 		ID:         rCheckActivity.DeviceID,
 		UserID:     auth.UserName,
 		DeviceName: rCheckActivity.Device,
@@ -278,7 +278,7 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 	}
 
 	// Get Last Device Activity
-	lastActivity, err := api.db.Queries.GetLastActivity(api.db.Ctx, database.GetLastActivityParams{
+	lastActivity, err := api.db.Queries.GetLastActivity(c, database.GetLastActivityParams{
 		UserID:   auth.UserName,
 		DeviceID: rCheckActivity.DeviceID,
 	})
@@ -329,7 +329,7 @@ func (api *API) koAddDocuments(c *gin.Context) {
 
 	// Upsert Documents
 	for _, doc := range rNewDocs.Documents {
-		_, err := qtx.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
+		_, err := qtx.UpsertDocument(c, database.UpsertDocumentParams{
 			ID:          doc.ID,
 			Title:       api.sanitizeInput(doc.Title),
 			Author:      api.sanitizeInput(doc.Author),
@@ -371,7 +371,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	}
 
 	// Upsert Device
-	_, err := api.db.Queries.UpsertDevice(api.db.Ctx, database.UpsertDeviceParams{
+	_, err := api.db.Queries.UpsertDevice(c, database.UpsertDeviceParams{
 		ID:         rCheckDocs.DeviceID,
 		UserID:     auth.UserName,
 		DeviceName: rCheckDocs.Device,
@@ -384,7 +384,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	}
 
 	// Get Missing Documents
-	missingDocs, err := api.db.Queries.GetMissingDocuments(api.db.Ctx, rCheckDocs.Have)
+	missingDocs, err := api.db.Queries.GetMissingDocuments(c, rCheckDocs.Have)
 	if err != nil {
 		log.Error("GetMissingDocuments DB Error", err)
 		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
@@ -392,7 +392,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	}
 
 	// Get Deleted Documents
-	deletedDocIDs, err := api.db.Queries.GetDeletedDocuments(api.db.Ctx, rCheckDocs.Have)
+	deletedDocIDs, err := api.db.Queries.GetDeletedDocuments(c, rCheckDocs.Have)
 	if err != nil {
 		log.Error("GetDeletedDocuments DB Error", err)
 		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
@@ -407,7 +407,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 		return
 	}
 
-	wantedDocs, err := api.db.Queries.GetWantedDocuments(api.db.Ctx, string(jsonHaves))
+	wantedDocs, err := api.db.Queries.GetWantedDocuments(c, string(jsonHaves))
 	if err != nil {
 		log.Error("GetWantedDocuments DB Error", err)
 		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
@@ -467,7 +467,7 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 	}
 
 	// Validate Document Exists in DB
-	document, err := api.db.Queries.GetDocument(api.db.Ctx, rDoc.DocumentID)
+	document, err := api.db.Queries.GetDocument(c, rDoc.DocumentID)
 	if err != nil {
 		log.Error("GetDocument DB Error:", err)
 		apiErrorPage(c, http.StatusBadRequest, "Unknown Document")
@@ -522,7 +522,7 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 	}
 
 	// Upsert Document
-	if _, err = api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
+	if _, err = api.db.Queries.UpsertDocument(c, database.UpsertDocumentParams{
 		ID:       document.ID,
 		Md5:      metadataInfo.MD5,
 		Words:    metadataInfo.WordCount,

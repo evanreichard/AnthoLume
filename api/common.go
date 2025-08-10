@@ -22,7 +22,7 @@ func (api *API) createDownloadDocumentHandler(errorFunc func(*gin.Context, int, 
 		}
 
 		// Get Document
-		document, err := api.db.Queries.GetDocument(api.db.Ctx, rDoc.DocumentID)
+		document, err := api.db.Queries.GetDocument(c, rDoc.DocumentID)
 		if err != nil {
 			log.Error("GetDocument DB Error:", err)
 			errorFunc(c, http.StatusBadRequest, "Unknown Document")
@@ -68,7 +68,7 @@ func (api *API) createGetCoverHandler(errorFunc func(*gin.Context, int, string))
 		}
 
 		// Validate Document Exists in DB
-		document, err := api.db.Queries.GetDocument(api.db.Ctx, rDoc.DocumentID)
+		document, err := api.db.Queries.GetDocument(c, rDoc.DocumentID)
 		if err != nil {
 			log.Error("GetDocument DB Error:", err)
 			errorFunc(c, http.StatusInternalServerError, fmt.Sprintf("GetDocument DB Error: %v", err))
@@ -117,7 +117,7 @@ func (api *API) createGetCoverHandler(errorFunc func(*gin.Context, int, string))
 			}
 
 			// Store First Metadata Result
-			if _, err = api.db.Queries.AddMetadata(api.db.Ctx, database.AddMetadataParams{
+			if _, err = api.db.Queries.AddMetadata(c, database.AddMetadataParams{
 				DocumentID:  document.ID,
 				Title:       firstResult.Title,
 				Author:      firstResult.Author,
@@ -132,7 +132,7 @@ func (api *API) createGetCoverHandler(errorFunc func(*gin.Context, int, string))
 		}
 
 		// Upsert Document
-		if _, err = api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
+		if _, err = api.db.Queries.UpsertDocument(c, database.UpsertDocumentParams{
 			ID:        document.ID,
 			Coverfile: &coverFile,
 		}); err != nil {

@@ -543,87 +543,6 @@ func (q *Queries) GetDocumentProgress(ctx context.Context, arg GetDocumentProgre
 	return i, err
 }
 
-const getDocumentWithStats = `-- name: GetDocumentWithStats :one
-SELECT
-    docs.id,
-    docs.title,
-    docs.author,
-    docs.description,
-    docs.isbn10,
-    docs.isbn13,
-    docs.filepath,
-    docs.words,
-
-    CAST(COALESCE(dus.total_wpm, 0.0) AS INTEGER) AS wpm,
-    COALESCE(dus.read_percentage, 0) AS read_percentage,
-    COALESCE(dus.total_time_seconds, 0) AS total_time_seconds,
-    STRFTIME('%Y-%m-%d %H:%M:%S', LOCAL_TIME(COALESCE(dus.last_read, STRFTIME('%Y-%m-%dT%H:%M:%SZ', 0, 'unixepoch')), users.timezone))
-        AS last_read,
-    ROUND(CAST(CASE
-        WHEN dus.percentage IS NULL THEN 0.0
-        WHEN (dus.percentage * 100.0) > 97.0 THEN 100.0
-        ELSE dus.percentage * 100.0
-    END AS REAL), 2) AS percentage,
-    CAST(CASE
-        WHEN dus.total_time_seconds IS NULL THEN 0.0
-        ELSE
-            CAST(dus.total_time_seconds AS REAL)
-            / (dus.read_percentage * 100.0)
-    END AS INTEGER) AS seconds_per_percent
-FROM documents AS docs
-LEFT JOIN users ON users.id = ?1
-LEFT JOIN
-    document_user_statistics AS dus
-    ON dus.document_id = docs.id AND dus.user_id = ?1
-WHERE users.id = ?1
-AND docs.id = ?2
-LIMIT 1
-`
-
-type GetDocumentWithStatsParams struct {
-	UserID     string `json:"user_id"`
-	DocumentID string `json:"document_id"`
-}
-
-type GetDocumentWithStatsRow struct {
-	ID                string      `json:"id"`
-	Title             *string     `json:"title"`
-	Author            *string     `json:"author"`
-	Description       *string     `json:"description"`
-	Isbn10            *string     `json:"isbn10"`
-	Isbn13            *string     `json:"isbn13"`
-	Filepath          *string     `json:"filepath"`
-	Words             *int64      `json:"words"`
-	Wpm               int64       `json:"wpm"`
-	ReadPercentage    float64     `json:"read_percentage"`
-	TotalTimeSeconds  int64       `json:"total_time_seconds"`
-	LastRead          interface{} `json:"last_read"`
-	Percentage        float64     `json:"percentage"`
-	SecondsPerPercent int64       `json:"seconds_per_percent"`
-}
-
-func (q *Queries) GetDocumentWithStats(ctx context.Context, arg GetDocumentWithStatsParams) (GetDocumentWithStatsRow, error) {
-	row := q.db.QueryRowContext(ctx, getDocumentWithStats, arg.UserID, arg.DocumentID)
-	var i GetDocumentWithStatsRow
-	err := row.Scan(
-		&i.ID,
-		&i.Title,
-		&i.Author,
-		&i.Description,
-		&i.Isbn10,
-		&i.Isbn13,
-		&i.Filepath,
-		&i.Words,
-		&i.Wpm,
-		&i.ReadPercentage,
-		&i.TotalTimeSeconds,
-		&i.LastRead,
-		&i.Percentage,
-		&i.SecondsPerPercent,
-	)
-	return i, err
-}
-
 const getDocuments = `-- name: GetDocuments :many
 SELECT id, md5, basepath, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at FROM documents
 ORDER BY created_at DESC
@@ -719,37 +638,38 @@ SELECT
         WHEN (dus.percentage * 100.0) > 97.0 THEN 100.0
         ELSE dus.percentage * 100.0
     END AS REAL), 2) AS percentage,
-
-    CASE
+    CAST(CASE
         WHEN dus.total_time_seconds IS NULL THEN 0.0
         ELSE
-            ROUND(
-                CAST(dus.total_time_seconds AS REAL)
-                / (dus.read_percentage * 100.0)
-            )
-    END AS seconds_per_percent
+            CAST(dus.total_time_seconds AS REAL)
+            / (dus.read_percentage * 100.0)
+    END AS INTEGER) AS seconds_per_percent
 FROM documents AS docs
 LEFT JOIN users ON users.id = ?1
 LEFT JOIN
     document_user_statistics AS dus
     ON dus.document_id = docs.id AND dus.user_id = ?1
 WHERE
-    docs.deleted = false AND (
-        ?2 IS NULL OR (
-            docs.title LIKE ?2 OR
-            docs.author LIKE ?2
-        )
+    (docs.id = ?2 OR ?2 IS NULL)
+    AND (docs.deleted = ?3 OR ?3 IS NULL)
+    AND (
+        (
+            docs.title LIKE ?4 OR
+            docs.author LIKE ?4
+        ) OR ?4 IS NULL
     )
 ORDER BY dus.last_read DESC, docs.created_at DESC
-LIMIT ?4
-OFFSET ?3
+LIMIT ?6
+OFFSET ?5
 `
 
 type GetDocumentsWithStatsParams struct {
-	UserID string      `json:"user_id"`
-	Query  interface{} `json:"query"`
-	Offset int64       `json:"offset"`
-	Limit  int64       `json:"limit"`
+	UserID  string  `json:"user_id"`
+	ID      *string `json:"id"`
+	Deleted *bool   `json:"-"`
+	Query   *string `json:"query"`
+	Offset  int64   `json:"offset"`
+	Limit   int64   `json:"limit"`
 }
 
 type GetDocumentsWithStatsRow struct {
@@ -766,12 +686,14 @@ type GetDocumentsWithStatsRow struct {
 	TotalTimeSeconds  int64       `json:"total_time_seconds"`
 	LastRead          interface{} `json:"last_read"`
 	Percentage        float64     `json:"percentage"`
-	SecondsPerPercent interface{} `json:"seconds_per_percent"`
+	SecondsPerPercent int64       `json:"seconds_per_percent"`
 }
 
 func (q *Queries) GetDocumentsWithStats(ctx context.Context, arg GetDocumentsWithStatsParams) ([]GetDocumentsWithStatsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getDocumentsWithStats,
 		arg.UserID,
+		arg.ID,
+		arg.Deleted,
 		arg.Query,
 		arg.Offset,
 		arg.Limit,

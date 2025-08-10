@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -46,7 +47,7 @@ func (suite *DatabaseTestSuite) SetupTest() {
 	// Create User
 	rawAuthHash, _ := utils.GenerateToken(64)
 	authHash := fmt.Sprintf("%x", rawAuthHash)
-	_, err := suite.dbm.Queries.CreateUser(suite.dbm.Ctx, CreateUserParams{
+	_, err := suite.dbm.Queries.CreateUser(context.Background(), CreateUserParams{
 		ID:       userID,
 		Pass:     &userPass,
 		AuthHash: &authHash,
@@ -54,7 +55,7 @@ func (suite *DatabaseTestSuite) SetupTest() {
 	suite.NoError(err)
 
 	// Create Document
-	_, err = suite.dbm.Queries.UpsertDocument(suite.dbm.Ctx, UpsertDocumentParams{
+	_, err = suite.dbm.Queries.UpsertDocument(context.Background(), UpsertDocumentParams{
 		ID:       documentID,
 		Title:    &documentTitle,
 		Author:   &documentAuthor,
@@ -64,7 +65,7 @@ func (suite *DatabaseTestSuite) SetupTest() {
 	suite.NoError(err)
 
 	// Create Device
-	_, err = suite.dbm.Queries.UpsertDevice(suite.dbm.Ctx, UpsertDeviceParams{
+	_, err = suite.dbm.Queries.UpsertDevice(context.Background(), UpsertDeviceParams{
 		ID:         deviceID,
 		UserID:     userID,
 		DeviceName: deviceName,
@@ -80,7 +81,7 @@ func (suite *DatabaseTestSuite) SetupTest() {
 		counter += 1
 
 		// Add Item
-		activity, err := suite.dbm.Queries.AddActivity(suite.dbm.Ctx, AddActivityParams{
+		activity, err := suite.dbm.Queries.AddActivity(context.Background(), AddActivityParams{
 			DocumentID:      documentID,
 			DeviceID:        deviceID,
 			UserID:          userID,
@@ -95,7 +96,7 @@ func (suite *DatabaseTestSuite) SetupTest() {
 	}
 
 	// Initiate Cache
-	err = suite.dbm.CacheTempTables()
+	err = suite.dbm.CacheTempTables(context.Background())
 	suite.NoError(err)
 }
 
@@ -105,7 +106,7 @@ func (suite *DatabaseTestSuite) SetupTest() {
 //   - 󰊕  (q *Queries) UpsertDevice
 func (suite *DatabaseTestSuite) TestDevice() {
 	testDevice := "dev123"
-	device, err := suite.dbm.Queries.UpsertDevice(suite.dbm.Ctx, UpsertDeviceParams{
+	device, err := suite.dbm.Queries.UpsertDevice(context.Background(), UpsertDeviceParams{
 		ID:         testDevice,
 		UserID:     userID,
 		DeviceName: deviceName,
@@ -123,7 +124,7 @@ func (suite *DatabaseTestSuite) TestDevice() {
 //   - 󰊕  (q *Queries) GetLastActivity
 func (suite *DatabaseTestSuite) TestActivity() {
 	// Validate Exists
-	existsRows, err := suite.dbm.Queries.GetActivity(suite.dbm.Ctx, GetActivityParams{
+	existsRows, err := suite.dbm.Queries.GetActivity(context.Background(), GetActivityParams{
 		UserID: userID,
 		Offset: 0,
 		Limit:  50,
@@ -133,7 +134,7 @@ func (suite *DatabaseTestSuite) TestActivity() {
 	suite.Len(existsRows, 10, "should have correct number of rows get activity")
 
 	// Validate Doesn't Exist
-	doesntExistsRows, err := suite.dbm.Queries.GetActivity(suite.dbm.Ctx, GetActivityParams{
+	doesntExistsRows, err := suite.dbm.Queries.GetActivity(context.Background(), GetActivityParams{
 		UserID:     userID,
 		DocumentID: "unknownDoc",
 		DocFilter:  true,
@@ -151,7 +152,7 @@ func (suite *DatabaseTestSuite) TestActivity() {
 //   - 󰊕  (q *Queries) GetDatabaseInfo
 //   - 󰊕  (q *Queries) UpdateSettings
 func (suite *DatabaseTestSuite) TestGetDailyReadStats() {
-	readStats, err := suite.dbm.Queries.GetDailyReadStats(suite.dbm.Ctx, userID)
+	readStats, err := suite.dbm.Queries.GetDailyReadStats(context.Background(), userID)
 
 	suite.Nil(err, "should have nil err")
 	suite.Len(readStats, 30, "should have length of 30")

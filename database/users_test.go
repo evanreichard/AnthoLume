@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"testing"
@@ -36,7 +37,7 @@ func (suite *UsersTestSuite) SetupTest() {
 	// Create User
 	rawAuthHash, _ := utils.GenerateToken(64)
 	authHash := fmt.Sprintf("%x", rawAuthHash)
-	_, err := suite.dbm.Queries.CreateUser(suite.dbm.Ctx, CreateUserParams{
+	_, err := suite.dbm.Queries.CreateUser(context.Background(), CreateUserParams{
 		ID:       testUserID,
 		Pass:     &testUserPass,
 		AuthHash: &authHash,
@@ -44,7 +45,7 @@ func (suite *UsersTestSuite) SetupTest() {
 	suite.NoError(err)
 
 	// Create Document
-	_, err = suite.dbm.Queries.UpsertDocument(suite.dbm.Ctx, UpsertDocumentParams{
+	_, err = suite.dbm.Queries.UpsertDocument(context.Background(), UpsertDocumentParams{
 		ID:     documentID,
 		Title:  &documentTitle,
 		Author: &documentAuthor,
@@ -53,7 +54,7 @@ func (suite *UsersTestSuite) SetupTest() {
 	suite.NoError(err)
 
 	// Create Device
-	_, err = suite.dbm.Queries.UpsertDevice(suite.dbm.Ctx, UpsertDeviceParams{
+	_, err = suite.dbm.Queries.UpsertDevice(context.Background(), UpsertDeviceParams{
 		ID:         deviceID,
 		UserID:     testUserID,
 		DeviceName: deviceName,
@@ -62,7 +63,7 @@ func (suite *UsersTestSuite) SetupTest() {
 }
 
 func (suite *UsersTestSuite) TestGetUser() {
-	user, err := suite.dbm.Queries.GetUser(suite.dbm.Ctx, testUserID)
+	user, err := suite.dbm.Queries.GetUser(context.Background(), testUserID)
 	suite.Nil(err, "should have nil err")
 	suite.Equal(testUserPass, *user.Pass)
 }
@@ -76,7 +77,7 @@ func (suite *UsersTestSuite) TestCreateUser() {
 	suite.Nil(err, "should have nil err")
 
 	authHash := fmt.Sprintf("%x", rawAuthHash)
-	changed, err := suite.dbm.Queries.CreateUser(suite.dbm.Ctx, CreateUserParams{
+	changed, err := suite.dbm.Queries.CreateUser(context.Background(), CreateUserParams{
 		ID:       testUser,
 		Pass:     &testPass,
 		AuthHash: &authHash,
@@ -85,29 +86,29 @@ func (suite *UsersTestSuite) TestCreateUser() {
 	suite.Nil(err, "should have nil err")
 	suite.Equal(int64(1), changed)
 
-	user, err := suite.dbm.Queries.GetUser(suite.dbm.Ctx, testUser)
+	user, err := suite.dbm.Queries.GetUser(context.Background(), testUser)
 	suite.Nil(err, "should have nil err")
 	suite.Equal(testPass, *user.Pass)
 }
 
 func (suite *UsersTestSuite) TestDeleteUser() {
-	changed, err := suite.dbm.Queries.DeleteUser(suite.dbm.Ctx, testUserID)
+	changed, err := suite.dbm.Queries.DeleteUser(context.Background(), testUserID)
 	suite.Nil(err, "should have nil err")
 	suite.Equal(int64(1), changed, "should have one changed row")
 
-	_, err = suite.dbm.Queries.GetUser(suite.dbm.Ctx, testUserID)
+	_, err = suite.dbm.Queries.GetUser(context.Background(), testUserID)
 	suite.ErrorIs(err, sql.ErrNoRows, "should have no rows error")
 }
 
 func (suite *UsersTestSuite) TestGetUsers() {
-	users, err := suite.dbm.Queries.GetUsers(suite.dbm.Ctx)
+	users, err := suite.dbm.Queries.GetUsers(context.Background())
 	suite.Nil(err, "should have nil err")
 	suite.Len(users, 1, "should have single user")
 }
 
 func (suite *UsersTestSuite) TestUpdateUser() {
 	newPassword := "newPass123"
-	user, err := suite.dbm.Queries.UpdateUser(suite.dbm.Ctx, UpdateUserParams{
+	user, err := suite.dbm.Queries.UpdateUser(context.Background(), UpdateUserParams{
 		UserID:   testUserID,
 		Password: &newPassword,
 	})
@@ -116,11 +117,11 @@ func (suite *UsersTestSuite) TestUpdateUser() {
 }
 
 func (suite *UsersTestSuite) TestGetUserStatistics() {
-	err := suite.dbm.CacheTempTables()
+	err := suite.dbm.CacheTempTables(context.Background())
 	suite.NoError(err)
 
 	// Ensure Zero Items
-	userStats, err := suite.dbm.Queries.GetUserStatistics(suite.dbm.Ctx)
+	userStats, err := suite.dbm.Queries.GetUserStatistics(context.Background())
 	suite.Nil(err, "should have nil err")
 	suite.Empty(userStats, "should be empty")
 
@@ -133,7 +134,7 @@ func (suite *UsersTestSuite) TestGetUserStatistics() {
 		counter += 1
 
 		// Add Item
-		activity, err := suite.dbm.Queries.AddActivity(suite.dbm.Ctx, AddActivityParams{
+		activity, err := suite.dbm.Queries.AddActivity(context.Background(), AddActivityParams{
 			DocumentID:      documentID,
 			DeviceID:        deviceID,
 			UserID:          testUserID,
@@ -147,21 +148,21 @@ func (suite *UsersTestSuite) TestGetUserStatistics() {
 		suite.Equal(counter, activity.ID, fmt.Sprintf("[%d] should have correct id for add activity", counter))
 	}
 
-	err = suite.dbm.CacheTempTables()
+	err = suite.dbm.CacheTempTables(context.Background())
 	suite.NoError(err)
 
 	// Ensure One Item
-	userStats, err = suite.dbm.Queries.GetUserStatistics(suite.dbm.Ctx)
+	userStats, err = suite.dbm.Queries.GetUserStatistics(context.Background())
 	suite.Nil(err, "should have nil err")
 	suite.Len(userStats, 1, "should have length of one")
 }
 
 func (suite *UsersTestSuite) TestGetUsersStreaks() {
-	err := suite.dbm.CacheTempTables()
+	err := suite.dbm.CacheTempTables(context.Background())
 	suite.NoError(err)
 
 	// Ensure Zero Items
-	userStats, err := suite.dbm.Queries.GetUserStreaks(suite.dbm.Ctx, testUserID)
+	userStats, err := suite.dbm.Queries.GetUserStreaks(context.Background(), testUserID)
 	suite.Nil(err, "should have nil err")
 	suite.Empty(userStats, "should be empty")
 
@@ -174,7 +175,7 @@ func (suite *UsersTestSuite) TestGetUsersStreaks() {
 		counter += 1
 
 		// Add Item
-		activity, err := suite.dbm.Queries.AddActivity(suite.dbm.Ctx, AddActivityParams{
+		activity, err := suite.dbm.Queries.AddActivity(context.Background(), AddActivityParams{
 			DocumentID:      documentID,
 			DeviceID:        deviceID,
 			UserID:          testUserID,
@@ -188,11 +189,11 @@ func (suite *UsersTestSuite) TestGetUsersStreaks() {
 		suite.Equal(counter, activity.ID, fmt.Sprintf("[%d] should have correct id for add activity", counter))
 	}
 
-	err = suite.dbm.CacheTempTables()
+	err = suite.dbm.CacheTempTables(context.Background())
 	suite.NoError(err)
 
 	// Ensure Two Item
-	userStats, err = suite.dbm.Queries.GetUserStreaks(suite.dbm.Ctx, testUserID)
+	userStats, err = suite.dbm.Queries.GetUserStreaks(context.Background(), testUserID)
 	suite.Nil(err, "should have nil err")
 	suite.Len(userStats, 2, "should have length of two")
 

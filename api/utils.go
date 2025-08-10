@@ -55,6 +55,7 @@ func getTimeZones() []string {
 
 // niceSeconds takes in an int (in seconds) and returns a string readable
 // representation. For example 1928371 -> "22d 7h 39m 31s".
+// Deprecated: Use formatters.FormatDuration
 func niceSeconds(input int64) (result string) {
 	if input == 0 {
 		return "N/A"
@@ -85,6 +86,7 @@ func niceSeconds(input int64) (result string) {
 
 // niceNumbers takes in an int and returns a string representation. For example
 // 19823 -> "19.8k".
+// Deprecated: Use formatters.FormatNumber
 func niceNumbers(input int64) string {
 	if input == 0 {
 		return "0"

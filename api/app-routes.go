@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/md5"
 	"database/sql"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 	"golang.org/x/exp/slices"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
+	"reichard.io/antholume/pkg/ptr"
 	"reichard.io/antholume/search"
 )
 
@@ -109,11 +111,12 @@ func (api *API) appGetDocuments(c *gin.Context) {
 		query = &search
 	}
 
-	documents, err := api.db.Queries.GetDocumentsWithStats(api.db.Ctx, database.GetDocumentsWithStatsParams{
-		UserID: auth.UserName,
-		Query:  query,
-		Offset: (*qParams.Page - 1) * *qParams.Limit,
-		Limit:  *qParams.Limit,
+	documents, err := api.db.Queries.GetDocumentsWithStats(c, database.GetDocumentsWithStatsParams{
+		UserID:  auth.UserName,
+		Query:   query,
+		Deleted: ptr.Of(false),
+		Offset:  (*qParams.Page - 1) * *qParams.Limit,
+		Limit:   *qParams.Limit,
 	})
 	if err != nil {
 		log.Error("GetDocumentsWithStats DB Error: ", err)
@@ -121,14 +124,14 @@ func (api *API) appGetDocuments(c *gin.Context) {
 		return
 	}
 
-	length, err := api.db.Queries.GetDocumentsSize(api.db.Ctx, query)
+	length, err := api.db.Queries.GetDocumentsSize(c, query)
 	if err != nil {
 		log.Error("GetDocumentsSize DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsSize DB Error: %v", err))
 		return
 	}
 
-	if err = api.getDocumentsWordCount(documents); err != nil {
+	if err = api.getDocumentsWordCount(c, documents); err != nil {
 		log.Error("Unable to Get Word Counts: ", err)
 	}
 
@@ -160,13 +163,10 @@ func (api *API) appGetDocument(c *gin.Context) {
 		return
 	}
 
-	document, err := api.db.Queries.GetDocumentWithStats(api.db.Ctx, database.GetDocumentWithStatsParams{
-		UserID:     auth.UserName,
-		DocumentID: rDocID.DocumentID,
-	})
+	document, err := api.db.GetDocument(c, rDocID.DocumentID, auth.UserName)
 	if err != nil {
-		log.Error("GetDocumentWithStats DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsWithStats DB Error: %v", err))
+		log.Error("GetDocument DB Error: ", err)
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocument DB Error: %v", err))
 		return
 	}
 
@@ -192,7 +192,7 @@ func (api *API) appGetProgress(c *gin.Context) {
 		progressFilter.DocumentID = *qParams.Document
 	}
 
-	progress, err := api.db.Queries.GetProgress(api.db.Ctx, progressFilter)
+	progress, err := api.db.Queries.GetProgress(c, progressFilter)
 	if err != nil {
 		log.Error("GetProgress DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetActivity DB Error: %v", err))
@@ -219,7 +219,7 @@ func (api *API) appGetActivity(c *gin.Context) {
 		activityFilter.DocumentID = *qParams.Document
 	}
 
-	activity, err := api.db.Queries.GetActivity(api.db.Ctx, activityFilter)
+	activity, err := api.db.Queries.GetActivity(c, activityFilter)
 	if err != nil {
 		log.Error("GetActivity DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetActivity DB Error: %v", err))
@@ -235,7 +235,7 @@ func (api *API) appGetHome(c *gin.Context) {
 	templateVars, auth := api.getBaseTemplateVars("home", c)
 
 	start := time.Now()
-	graphData, err := api.db.Queries.GetDailyReadStats(api.db.Ctx, auth.UserName)
+	graphData, err := api.db.Queries.GetDailyReadStats(c, auth.UserName)
 	if err != nil {
 		log.Error("GetDailyReadStats DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDailyReadStats DB Error: %v", err))
@@ -244,7 +244,7 @@ func (api *API) appGetHome(c *gin.Context) {
 	log.Debug("GetDailyReadStats DB Performance: ", time.Since(start))
 
 	start = time.Now()
-	databaseInfo, err := api.db.Queries.GetDatabaseInfo(api.db.Ctx, auth.UserName)
+	databaseInfo, err := api.db.Queries.GetDatabaseInfo(c, auth.UserName)
 	if err != nil {
 		log.Error("GetDatabaseInfo DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDatabaseInfo DB Error: %v", err))
@@ -253,7 +253,7 @@ func (api *API) appGetHome(c *gin.Context) {
 	log.Debug("GetDatabaseInfo DB Performance: ", time.Since(start))
 
 	start = time.Now()
-	streaks, err := api.db.Queries.GetUserStreaks(api.db.Ctx, auth.UserName)
+	streaks, err := api.db.Queries.GetUserStreaks(c, auth.UserName)
 	if err != nil {
 		log.Error("GetUserStreaks DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStreaks DB Error: %v", err))
@@ -262,7 +262,7 @@ func (api *API) appGetHome(c *gin.Context) {
 	log.Debug("GetUserStreaks DB Performance: ", time.Since(start))
 
 	start = time.Now()
-	userStatistics, err := api.db.Queries.GetUserStatistics(api.db.Ctx)
+	userStatistics, err := api.db.Queries.GetUserStatistics(c)
 	if err != nil {
 		log.Error("GetUserStatistics DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStatistics DB Error: %v", err))
@@ -283,14 +283,14 @@ func (api *API) appGetHome(c *gin.Context) {
 func (api *API) appGetSettings(c *gin.Context) {
 	templateVars, auth := api.getBaseTemplateVars("settings", c)
 
-	user, err := api.db.Queries.GetUser(api.db.Ctx, auth.UserName)
+	user, err := api.db.Queries.GetUser(c, auth.UserName)
 	if err != nil {
 		log.Error("GetUser DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
 		return
 	}
 
-	devices, err := api.db.Queries.GetDevices(api.db.Ctx, auth.UserName)
+	devices, err := api.db.Queries.GetDevices(c, auth.UserName)
 	if err != nil {
 		log.Error("GetDevices DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
@@ -368,7 +368,7 @@ func (api *API) appGetDocumentProgress(c *gin.Context) {
 		return
 	}
 
-	progress, err := api.db.Queries.GetDocumentProgress(api.db.Ctx, database.GetDocumentProgressParams{
+	progress, err := api.db.Queries.GetDocumentProgress(c, database.GetDocumentProgressParams{
 		DocumentID: rDoc.DocumentID,
 		UserID:     auth.UserName,
 	})
@@ -378,13 +378,10 @@ func (api *API) appGetDocumentProgress(c *gin.Context) {
 		return
 	}
 
-	document, err := api.db.Queries.GetDocumentWithStats(api.db.Ctx, database.GetDocumentWithStatsParams{
-		UserID:     auth.UserName,
-		DocumentID: rDoc.DocumentID,
-	})
+	document, err := api.db.GetDocument(c, rDoc.DocumentID, auth.UserName)
 	if err != nil {
-		log.Error("GetDocumentWithStats DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentWithStats DB Error: %v", err))
+		log.Error("GetDocument DB Error: ", err)
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocument DB Error: %v", err))
 		return
 	}
 
@@ -404,7 +401,7 @@ func (api *API) appGetDevices(c *gin.Context) {
 		auth = data.(authData)
 	}
 
-	devices, err := api.db.Queries.GetDevices(api.db.Ctx, auth.UserName)
+	devices, err := api.db.Queries.GetDevices(c, auth.UserName)
 
 	if err != nil && err != sql.ErrNoRows {
 		log.Error("GetDevices DB Error: ", err)
@@ -455,7 +452,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	}
 
 	// Check Already Exists
-	_, err = api.db.Queries.GetDocument(api.db.Ctx, *metadataInfo.PartialMD5)
+	_, err = api.db.Queries.GetDocument(c, *metadataInfo.PartialMD5)
 	if err == nil {
 		log.Warnf("document already exists: %s", *metadataInfo.PartialMD5)
 		c.Redirect(http.StatusFound, fmt.Sprintf("./documents/%s", *metadataInfo.PartialMD5))
@@ -483,7 +480,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	}
 
 	// Upsert Document
-	if _, err = api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
+	if _, err = api.db.Queries.UpsertDocument(c, database.UpsertDocumentParams{
 		ID:          *metadataInfo.PartialMD5,
 		Title:       metadataInfo.Title,
 		Author:      metadataInfo.Author,
@@ -573,7 +570,7 @@ func (api *API) appEditDocument(c *gin.Context) {
 
 		coverFileName = &fileName
 	} else if rDocEdit.CoverGBID != nil {
-		var coverDir string = filepath.Join(api.cfg.DataPath, "covers")
+		coverDir := filepath.Join(api.cfg.DataPath, "covers")
 		fileName, err := metadata.CacheCover(*rDocEdit.CoverGBID, coverDir, rDocID.DocumentID, true)
 		if err == nil {
 			coverFileName = fileName
@@ -581,7 +578,7 @@ func (api *API) appEditDocument(c *gin.Context) {
 	}
 
 	// Update Document
-	if _, err := api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
+	if _, err := api.db.Queries.UpsertDocument(c, database.UpsertDocumentParams{
 		ID:          rDocID.DocumentID,
 		Title:       api.sanitizeInput(rDocEdit.Title),
 		Author:      api.sanitizeInput(rDocEdit.Author),
@@ -605,7 +602,7 @@ func (api *API) appDeleteDocument(c *gin.Context) {
 		appErrorPage(c, http.StatusNotFound, "Invalid document")
 		return
 	}
-	changed, err := api.db.Queries.DeleteDocument(api.db.Ctx, rDocID.DocumentID)
+	changed, err := api.db.Queries.DeleteDocument(c, rDocID.DocumentID)
 	if err != nil {
 		log.Error("DeleteDocument DB Error")
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("DeleteDocument DB Error: %v", err))
@@ -667,7 +664,7 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 		firstResult := metadataResults[0]
 
 		// Store First Metadata Result
-		if _, err = api.db.Queries.AddMetadata(api.db.Ctx, database.AddMetadataParams{
+		if _, err = api.db.Queries.AddMetadata(c, database.AddMetadataParams{
 			DocumentID:  rDocID.DocumentID,
 			Title:       firstResult.Title,
 			Author:      firstResult.Author,
@@ -686,13 +683,10 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 		templateVars["MetadataError"] = "No Metadata Found"
 	}
 
-	document, err := api.db.Queries.GetDocumentWithStats(api.db.Ctx, database.GetDocumentWithStatsParams{
-		UserID:     auth.UserName,
-		DocumentID: rDocID.DocumentID,
-	})
+	document, err := api.db.GetDocument(c, rDocID.DocumentID, auth.UserName)
 	if err != nil {
-		log.Error("GetDocumentWithStats DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentWithStats DB Error: %v", err))
+		log.Error("GetDocument DB Error: ", err)
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocument DB Error: %v", err))
 		return
 	}
 
@@ -817,7 +811,7 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	sendDownloadMessage("Saving to database...", gin.H{"Progress": 99})
 
 	// Upsert Document
-	if _, err = api.db.Queries.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
+	if _, err = api.db.Queries.UpsertDocument(c, database.UpsertDocumentParams{
 		ID:       *metadata.PartialMD5,
 		Title:    &docTitle,
 		Author:   &docAuthor,
@@ -864,7 +858,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	// Set New Password
 	if rUserSettings.Password != nil && rUserSettings.NewPassword != nil {
 		password := fmt.Sprintf("%x", md5.Sum([]byte(*rUserSettings.Password)))
-		data := api.authorizeCredentials(auth.UserName, password)
+		data := api.authorizeCredentials(c, auth.UserName, password)
 		if data == nil {
 			templateVars["PasswordErrorMessage"] = "Invalid Password"
 		} else {
@@ -886,7 +880,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	}
 
 	// Update User
-	_, err := api.db.Queries.UpdateUser(api.db.Ctx, newUserSettings)
+	_, err := api.db.Queries.UpdateUser(c, newUserSettings)
 	if err != nil {
 		log.Error("UpdateUser DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpdateUser DB Error: %v", err))
@@ -894,7 +888,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	}
 
 	// Get User
-	user, err := api.db.Queries.GetUser(api.db.Ctx, auth.UserName)
+	user, err := api.db.Queries.GetUser(c, auth.UserName)
 	if err != nil {
 		log.Error("GetUser DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
@@ -902,7 +896,7 @@ func (api *API) appEditSettings(c *gin.Context) {
 	}
 
 	// Get Devices
-	devices, err := api.db.Queries.GetDevices(api.db.Ctx, auth.UserName)
+	devices, err := api.db.Queries.GetDevices(c, auth.UserName)
 	if err != nil {
 		log.Error("GetDevices DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
@@ -921,7 +915,7 @@ func (api *API) appDemoModeError(c *gin.Context) {
 	appErrorPage(c, http.StatusUnauthorized, "Not Allowed in Demo Mode")
 }
 
-func (api *API) getDocumentsWordCount(documents []database.GetDocumentsWithStatsRow) error {
+func (api *API) getDocumentsWordCount(ctx context.Context, documents []database.GetDocumentsWithStatsRow) error {
 	// Do Transaction
 	tx, err := api.db.DB.Begin()
 	if err != nil {
@@ -944,7 +938,7 @@ func (api *API) getDocumentsWordCount(documents []database.GetDocumentsWithStats
 			if err != nil {
 				log.Warn("Word Count Error: ", err)
 			} else {
-				if _, err := qtx.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
+				if _, err := qtx.UpsertDocument(ctx, database.UpsertDocumentParams{
 					ID:    item.ID,
 					Words: wordCount,
 				}); err != nil {
@@ -1005,7 +999,7 @@ func bindQueryParams(c *gin.Context, defaultLimit int64) queryParams {
 }
 
 func appErrorPage(c *gin.Context, errorCode int, errorMessage string) {
-	var errorHuman string = "We're not even sure what happened."
+	errorHuman := "We're not even sure what happened."
 
 	switch errorCode {
 	case http.StatusInternalServerError:

@@ -3,6 +3,7 @@ package api
 import (
 	"archive/zip"
 	"bufio"
+	"context"
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
@@ -112,7 +113,7 @@ func (api *API) appPerformAdminAction(c *gin.Context) {
 		// 2. Select all / deselect?
 	case adminCacheTables:
 		go func() {
-			err := api.db.CacheTempTables()
+			err := api.db.CacheTempTables(c)
 			if err != nil {
 				log.Error("Unable to cache temp tables: ", err)
 			}
@@ -122,7 +123,7 @@ func (api *API) appPerformAdminAction(c *gin.Context) {
 		return
 	case adminBackup:
 		// Vacuum
-		_, err := api.db.DB.ExecContext(api.db.Ctx, "VACUUM;")
+		_, err := api.db.DB.ExecContext(c, "VACUUM;")
 		if err != nil {
 			log.Error("Unable to vacuum DB: ", err)
 			appErrorPage(c, http.StatusInternalServerError, "Unable to vacuum database")
@@ -144,7 +145,7 @@ func (api *API) appPerformAdminAction(c *gin.Context) {
 				}
 			}
 
-			err := api.createBackup(w, directories)
+			err := api.createBackup(c, w, directories)
 			if err != nil {
 				log.Error("Backup Error: ", err)
 			}
@@ -261,7 +262,7 @@ func (api *API) appGetAdminLogs(c *gin.Context) {
 func (api *API) appGetAdminUsers(c *gin.Context) {
 	templateVars, _ := api.getBaseTemplateVars("admin-users", c)
 
-	users, err := api.db.Queries.GetUsers(api.db.Ctx)
+	users, err := api.db.Queries.GetUsers(c)
 	if err != nil {
 		log.Error("GetUsers DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUsers DB Error: %v", err))
@@ -292,11 +293,11 @@ func (api *API) appUpdateAdminUsers(c *gin.Context) {
 	var err error
 	switch rUpdate.Operation {
 	case opCreate:
-		err = api.createUser(rUpdate.User, rUpdate.Password, rUpdate.IsAdmin)
+		err = api.createUser(c, rUpdate.User, rUpdate.Password, rUpdate.IsAdmin)
 	case opUpdate:
-		err = api.updateUser(rUpdate.User, rUpdate.Password, rUpdate.IsAdmin)
+		err = api.updateUser(c, rUpdate.User, rUpdate.Password, rUpdate.IsAdmin)
 	case opDelete:
-		err = api.deleteUser(rUpdate.User)
+		err = api.deleteUser(c, rUpdate.User)
 	default:
 		appErrorPage(c, http.StatusNotFound, "Unknown user operation")
 		return
@@ -307,7 +308,7 @@ func (api *API) appUpdateAdminUsers(c *gin.Context) {
 		return
 	}
 
-	users, err := api.db.Queries.GetUsers(api.db.Ctx)
+	users, err := api.db.Queries.GetUsers(c)
 	if err != nil {
 		log.Error("GetUsers DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUsers DB Error: %v", err))
@@ -448,7 +449,7 @@ func (api *API) appPerformAdminImport(c *gin.Context) {
 		iResult.Name = fmt.Sprintf("%s - %s", *fileMeta.Author, *fileMeta.Title)
 
 		// Check already exists
-		_, err = qtx.GetDocument(api.db.Ctx, *fileMeta.PartialMD5)
+		_, err = qtx.GetDocument(c, *fileMeta.PartialMD5)
 		if err == nil {
 			log.Warnf("document already exists: %s", *fileMeta.PartialMD5)
 			iResult.Status = importExists
@@ -492,7 +493,7 @@ func (api *API) appPerformAdminImport(c *gin.Context) {
 		}
 
 		// Upsert document
-		if _, err = qtx.UpsertDocument(api.db.Ctx, database.UpsertDocumentParams{
+		if _, err = qtx.UpsertDocument(c, database.UpsertDocumentParams{
 			ID:          *fileMeta.PartialMD5,
 			Title:       fileMeta.Title,
 			Author:      fileMeta.Author,
@@ -627,7 +628,7 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 
 	// Save Backup File
 	w := bufio.NewWriter(backupFile)
-	err = api.createBackup(w, []string{"covers", "documents"})
+	err = api.createBackup(c, w, []string{"covers", "documents"})
 	if err != nil {
 		log.Error("Unable to save backup file: ", err)
 		appErrorPage(c, http.StatusInternalServerError, "Unable to save backup file")
@@ -650,13 +651,13 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	}
 
 	// Reinit DB
-	if err := api.db.Reload(); err != nil {
+	if err := api.db.Reload(c); err != nil {
 		appErrorPage(c, http.StatusInternalServerError, "Unable to reload DB")
 		log.Panicf("Unable to reload DB: %v", err)
 	}
 
 	// Rotate Auth Hashes
-	if err := api.rotateAllAuthHashes(); err != nil {
+	if err := api.rotateAllAuthHashes(c); err != nil {
 		appErrorPage(c, http.StatusInternalServerError, "Unable to rotate hashes")
 		log.Panicf("Unable to rotate auth hashes: %v", err)
 	}
@@ -717,9 +718,9 @@ func (api *API) removeData() error {
 	return nil
 }
 
-func (api *API) createBackup(w io.Writer, directories []string) error {
+func (api *API) createBackup(ctx context.Context, w io.Writer, directories []string) error {
 	// Vacuum DB
-	_, err := api.db.DB.ExecContext(api.db.Ctx, "VACUUM;")
+	_, err := api.db.DB.ExecContext(ctx, "VACUUM;")
 	if err != nil {
 		return errors.Wrap(err, "Unable to vacuum database")
 	}
@@ -792,8 +793,8 @@ func (api *API) createBackup(w io.Writer, directories []string) error {
 	return nil
 }
 
-func (api *API) isLastAdmin(userID string) (bool, error) {
-	allUsers, err := api.db.Queries.GetUsers(api.db.Ctx)
+func (api *API) isLastAdmin(ctx context.Context, userID string) (bool, error) {
+	allUsers, err := api.db.Queries.GetUsers(ctx)
 	if err != nil {
 		return false, errors.Wrap(err, fmt.Sprintf("GetUsers DB Error: %v", err))
 	}
@@ -809,7 +810,7 @@ func (api *API) isLastAdmin(userID string) (bool, error) {
 	return !hasAdmin, nil
 }
 
-func (api *API) createUser(user string, rawPassword *string, isAdmin *bool) error {
+func (api *API) createUser(ctx context.Context, user string, rawPassword *string, isAdmin *bool) error {
 	// Validate Necessary Parameters
 	if rawPassword == nil || *rawPassword == "" {
 		return fmt.Errorf("password can't be empty")
@@ -844,7 +845,7 @@ func (api *API) createUser(user string, rawPassword *string, isAdmin *bool) erro
 	createParams.AuthHash = &authHash
 
 	// Create user in DB
-	if rows, err := api.db.Queries.CreateUser(api.db.Ctx, createParams); err != nil {
+	if rows, err := api.db.Queries.CreateUser(ctx, createParams); err != nil {
 		log.Error("CreateUser DB Error:", err)
 		return fmt.Errorf("unable to create user")
 	} else if rows == 0 {
@@ -855,7 +856,7 @@ func (api *API) createUser(user string, rawPassword *string, isAdmin *bool) erro
 	return nil
 }
 
-func (api *API) updateUser(user string, rawPassword *string, isAdmin *bool) error {
+func (api *API) updateUser(ctx context.Context, user string, rawPassword *string, isAdmin *bool) error {
 	// Validate Necessary Parameters
 	if rawPassword == nil && isAdmin == nil {
 		return fmt.Errorf("nothing to update")
@@ -870,7 +871,7 @@ func (api *API) updateUser(user string, rawPassword *string, isAdmin *bool) erro
 	if isAdmin != nil {
 		updateParams.Admin = *isAdmin
 	} else {
-		user, err := api.db.Queries.GetUser(api.db.Ctx, user)
+		user, err := api.db.Queries.GetUser(ctx, user)
 		if err != nil {
 			return errors.Wrap(err, fmt.Sprintf("GetUser DB Error: %v", err))
 		}
@@ -878,7 +879,7 @@ func (api *API) updateUser(user string, rawPassword *string, isAdmin *bool) erro
 	}
 
 	// Check Admins - Disallow Demotion
-	if isLast, err := api.isLastAdmin(user); err != nil {
+	if isLast, err := api.isLastAdmin(ctx, user); err != nil {
 		return err
 	} else if isLast && !updateParams.Admin {
 		return fmt.Errorf("unable to demote %s - last admin", user)
@@ -908,7 +909,7 @@ func (api *API) updateUser(user string, rawPassword *string, isAdmin *bool) erro
 	}
 
 	// Update User
-	_, err := api.db.Queries.UpdateUser(api.db.Ctx, updateParams)
+	_, err := api.db.Queries.UpdateUser(ctx, updateParams)
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("UpdateUser DB Error: %v", err))
 	}
@@ -916,9 +917,9 @@ func (api *API) updateUser(user string, rawPassword *string, isAdmin *bool) erro
 	return nil
 }
 
-func (api *API) deleteUser(user string) error {
+func (api *API) deleteUser(ctx context.Context, user string) error {
 	// Check Admins
-	if isLast, err := api.isLastAdmin(user); err != nil {
+	if isLast, err := api.isLastAdmin(ctx, user); err != nil {
 		return err
 	} else if isLast {
 		return fmt.Errorf("unable to delete %s - last admin", user)
@@ -934,13 +935,13 @@ func (api *API) deleteUser(user string) error {
 
 	// Save Backup File (DB Only)
 	w := bufio.NewWriter(backupFile)
-	err = api.createBackup(w, []string{})
+	err = api.createBackup(ctx, w, []string{})
 	if err != nil {
 		return err
 	}
 
 	// Delete User
-	_, err = api.db.Queries.DeleteUser(api.db.Ctx, user)
+	_, err = api.db.Queries.DeleteUser(ctx, user)
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("DeleteUser DB Error: %v", err))
 	}
