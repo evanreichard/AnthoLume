@@ -138,9 +138,10 @@ func (api *API) appPerformAdminAction(c *gin.Context) {
 		c.Stream(func(w io.Writer) bool {
 			var directories []string
 			for _, item := range rAdminAction.BackupTypes {
-				if item == backupCovers {
+				switch item {
+				case backupCovers:
 					directories = append(directories, "covers")
-				} else if item == backupDocuments {
+				case backupDocuments:
 					directories = append(directories, "documents")
 				}
 			}

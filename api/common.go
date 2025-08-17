@@ -98,20 +98,20 @@ func (api *API) createGetCoverHandler(errorFunc func(*gin.Context, int, string))
 		}
 
 		// Attempt Metadata
-		var coverDir string = filepath.Join(api.cfg.DataPath, "covers")
-		var coverFile string = "UNKNOWN"
+		coverDir := filepath.Join(api.cfg.DataPath, "covers")
+		coverFile := "UNKNOWN"
 
 		// Identify Documents & Save Covers
-		metadataResults, err := metadata.SearchMetadata(metadata.SOURCE_GBOOK, metadata.MetadataInfo{
+		metadataResults, err := metadata.SearchMetadata(metadata.SourceGoogleBooks, metadata.MetadataInfo{
 			Title:  document.Title,
 			Author: document.Author,
 		})
 
-		if err == nil && len(metadataResults) > 0 && metadataResults[0].ID != nil {
+		if err == nil && len(metadataResults) > 0 && metadataResults[0].SourceID != nil {
 			firstResult := metadataResults[0]
 
 			// Save Cover
-			fileName, err := metadata.CacheCover(*firstResult.ID, coverDir, document.ID, false)
+			fileName, err := metadata.CacheCover(*firstResult.SourceID, coverDir, document.ID, false)
 			if err == nil {
 				coverFile = *fileName
 			}
@@ -122,7 +122,7 @@ func (api *API) createGetCoverHandler(errorFunc func(*gin.Context, int, string))
 				Title:       firstResult.Title,
 				Author:      firstResult.Author,
 				Description: firstResult.Description,
-				Gbid:        firstResult.ID,
+				Gbid:        firstResult.SourceID,
 				Olid:        nil,
 				Isbn10:      firstResult.ISBN10,
 				Isbn13:      firstResult.ISBN13,

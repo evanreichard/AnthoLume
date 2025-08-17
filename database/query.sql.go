@@ -193,7 +193,7 @@ WITH filtered_activity AS (
 SELECT
     document_id,
     device_id,
-    LOCAL_TIME(activity.start_time, users.timezone) AS start_time,
+    CAST(LOCAL_TIME(activity.start_time, users.timezone) AS TEXT) AS start_time,
     title,
     author,
     duration,
@@ -214,15 +214,15 @@ type GetActivityParams struct {
 }
 
 type GetActivityRow struct {
-	DocumentID      string      `json:"document_id"`
-	DeviceID        string      `json:"device_id"`
-	StartTime       interface{} `json:"start_time"`
-	Title           *string     `json:"title"`
-	Author          *string     `json:"author"`
-	Duration        int64       `json:"duration"`
-	StartPercentage float64     `json:"start_percentage"`
-	EndPercentage   float64     `json:"end_percentage"`
-	ReadPercentage  float64     `json:"read_percentage"`
+	DocumentID      string  `json:"document_id"`
+	DeviceID        string  `json:"device_id"`
+	StartTime       string  `json:"start_time"`
+	Title           *string `json:"title"`
+	Author          *string `json:"author"`
+	Duration        int64   `json:"duration"`
+	StartPercentage float64 `json:"start_percentage"`
+	EndPercentage   float64 `json:"end_percentage"`
+	ReadPercentage  float64 `json:"read_percentage"`
 }
 
 func (q *Queries) GetActivity(ctx context.Context, arg GetActivityParams) ([]GetActivityRow, error) {
@@ -824,7 +824,7 @@ SELECT
     ROUND(CAST(progress.percentage AS REAL) * 100, 2) AS percentage,
     progress.document_id,
     progress.user_id,
-    LOCAL_TIME(progress.created_at, users.timezone) AS created_at
+    CAST(LOCAL_TIME(progress.created_at, users.timezone) AS TEXT) AS created_at
 FROM document_progress AS progress
 LEFT JOIN users ON progress.user_id = users.id
 LEFT JOIN devices ON progress.device_id = devices.id
@@ -851,13 +851,13 @@ type GetProgressParams struct {
 }
 
 type GetProgressRow struct {
-	Title      *string     `json:"title"`
-	Author     *string     `json:"author"`
-	DeviceName string      `json:"device_name"`
-	Percentage float64     `json:"percentage"`
-	DocumentID string      `json:"document_id"`
-	UserID     string      `json:"user_id"`
-	CreatedAt  interface{} `json:"created_at"`
+	Title      *string `json:"title"`
+	Author     *string `json:"author"`
+	DeviceName string  `json:"device_name"`
+	Percentage float64 `json:"percentage"`
+	DocumentID string  `json:"document_id"`
+	UserID     string  `json:"user_id"`
+	CreatedAt  string  `json:"created_at"`
 }
 
 func (q *Queries) GetProgress(ctx context.Context, arg GetProgressParams) ([]GetProgressRow, error) {

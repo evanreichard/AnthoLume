@@ -136,24 +136,30 @@ func (api *API) registerWebAppRoutes(router *gin.Engine) {
 	router.GET("/favicon.ico", api.appFaviconIcon)
 	router.GET("/sw.js", api.appServiceWorker)
 
-	// Local / offline static pages (no template, no auth)
+	// Web App - Offline
 	router.GET("/local", api.appLocalDocuments)
 
-	// Reader (reader page, document progress, devices)
+	// Web App - Reader
 	router.GET("/reader", api.appDocumentReader)
 	router.GET("/reader/devices", api.authWebAppMiddleware, api.appGetDevices)
 	router.GET("/reader/progress/:document", api.authWebAppMiddleware, api.appGetDocumentProgress)
 
-	// Web app
-	router.GET("/", api.authWebAppMiddleware, api.appGetHome)
-	router.GET("/activity", api.authWebAppMiddleware, api.appGetActivity)
-	router.GET("/progress", api.authWebAppMiddleware, api.appGetProgress)
-	router.GET("/documents", api.authWebAppMiddleware, api.appGetDocuments)
-	router.GET("/documents/:document", api.authWebAppMiddleware, api.appGetDocument)
-	router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.createGetCoverHandler(appErrorPage))
-	router.GET("/documents/:document/file", api.authWebAppMiddleware, api.createDownloadDocumentHandler(appErrorPage))
-	router.GET("/login", api.appGetLogin)
+	// Web App - Templates
+	router.GET("/", api.authWebAppMiddleware, api.appGetHomeNew)                        // DONE
+	router.GET("/activity", api.authWebAppMiddleware, api.appGetActivityNew)            // DONE
+	router.GET("/progress", api.authWebAppMiddleware, api.appGetProgressNew)            // DONE
+	router.GET("/documents", api.authWebAppMiddleware, api.appGetDocumentsNew)          // DONE
+	router.GET("/documents/:document", api.authWebAppMiddleware, api.appGetDocumentNew) // DONE
+
+	// Web App - Other Routes
+	router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.createGetCoverHandler(appErrorPage))        // DONE
+	router.GET("/documents/:document/file", api.authWebAppMiddleware, api.createDownloadDocumentHandler(appErrorPage)) // DONE
 	router.GET("/logout", api.authWebAppMiddleware, api.appAuthLogout)
+	router.POST("/login", api.appAuthLogin)       // DONE
+	router.POST("/register", api.appAuthRegister) // DONE
+
+	// TODO
+	router.GET("/login", api.appGetLogin)
 	router.GET("/register", api.appGetRegister)
 	router.GET("/settings", api.authWebAppMiddleware, api.appGetSettings)
 	router.GET("/admin/logs", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminLogs)
@@ -163,8 +169,6 @@ func (api *API) registerWebAppRoutes(router *gin.Engine) {
 	router.POST("/admin/users", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appUpdateAdminUsers)
 	router.GET("/admin", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdmin)
 	router.POST("/admin", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appPerformAdminAction)
-	router.POST("/login", api.appAuthLogin)
-	router.POST("/register", api.appAuthRegister)
 
 	// Demo mode enabled configuration
 	if api.cfg.DemoMode {
@@ -174,17 +178,19 @@ func (api *API) registerWebAppRoutes(router *gin.Engine) {
 		router.POST("/documents/:document/identify", api.authWebAppMiddleware, api.appDemoModeError)
 		router.POST("/settings", api.authWebAppMiddleware, api.appDemoModeError)
 	} else {
-		router.POST("/documents", api.authWebAppMiddleware, api.appUploadNewDocument)
-		router.POST("/documents/:document/delete", api.authWebAppMiddleware, api.appDeleteDocument)
-		router.POST("/documents/:document/edit", api.authWebAppMiddleware, api.appEditDocument)
-		router.POST("/documents/:document/identify", api.authWebAppMiddleware, api.appIdentifyDocument)
-		router.POST("/settings", api.authWebAppMiddleware, api.appEditSettings)
+		router.POST("/documents", api.authWebAppMiddleware, api.appUploadNewDocument)                      // DONE
+		router.POST("/documents/:document/delete", api.authWebAppMiddleware, api.appDeleteDocument)        // DONE
+		router.POST("/documents/:document/edit", api.authWebAppMiddleware, api.appEditDocument)            // DONE
+		router.POST("/documents/:document/identify", api.authWebAppMiddleware, api.appIdentifyDocumentNew) // DONE
+		router.POST("/settings", api.authWebAppMiddleware, api.appEditSettings)                            // TODO
 	}
 
 	// Search enabled configuration
 	if api.cfg.SearchEnabled {
-		router.GET("/search", api.authWebAppMiddleware, api.appGetSearch)
-		router.POST("/search", api.authWebAppMiddleware, api.appSaveNewDocument)
+		router.GET("/search", api.authWebAppMiddleware, api.appGetSearchNew) // WIP
+
+		router.GET("/search-old", api.authWebAppMiddleware, api.appGetSearch)    // TODO
+		router.POST("/search", api.authWebAppMiddleware, api.appSaveNewDocument) // TODO
 	}
 }
 

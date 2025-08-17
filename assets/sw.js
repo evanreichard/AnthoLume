@@ -72,7 +72,8 @@ const PRECACHE_ASSETS = [
   // Main App Assets
   "/manifest.json",
   "/assets/index.js",
-  "/assets/style.css",
+  "/assets/index.css",
+  "/assets/tailwind.css",
   "/assets/common.js",
 
   // Library Assets

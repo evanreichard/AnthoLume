@@ -25,8 +25,8 @@ const (
 type Source string
 
 const (
-	SOURCE_ANNAS_ARCHIVE Source = "Annas Archive"
-	SOURCE_LIBGEN        Source = "LibGen"
+	SourceAnnasArchive Source = "Annas Archive"
+	SourceLibGen       Source = "LibGen"
 )
 
 type SearchItem struct {
@@ -44,8 +44,8 @@ type searchFunc func(query string) (searchResults []SearchItem, err error)
 type downloadFunc func(md5 string, source Source) (downloadURL []string, err error)
 
 var searchDefs = map[Source]searchFunc{
-	SOURCE_ANNAS_ARCHIVE: searchAnnasArchive,
-	SOURCE_LIBGEN:        searchLibGen,
+	SourceAnnasArchive: searchAnnasArchive,
+	SourceLibGen:       searchLibGen,
 }
 
 var downloadFuncs = []downloadFunc{
