@@ -654,7 +654,7 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 	templateVars, auth := api.getBaseTemplateVars("document", c)
 
 	// Get Metadata
-	metadataResults, err := metadata.SearchMetadata(metadata.SOURCE_GBOOK, metadata.MetadataInfo{
+	metadataResults, err := metadata.SearchMetadata(metadata.SourceGoogleBooks, metadata.MetadataInfo{
 		Title:  rDocIdentify.Title,
 		Author: rDocIdentify.Author,
 		ISBN10: rDocIdentify.ISBN,
@@ -669,7 +669,7 @@ func (api *API) appIdentifyDocument(c *gin.Context) {
 			Title:       firstResult.Title,
 			Author:      firstResult.Author,
 			Description: firstResult.Description,
-			Gbid:        firstResult.ID,
+			Gbid:        firstResult.SourceID,
 			Olid:        nil,
 			Isbn10:      firstResult.ISBN10,
 			Isbn13:      firstResult.ISBN13,

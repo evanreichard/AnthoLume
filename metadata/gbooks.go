@@ -41,9 +41,9 @@ const GBOOKS_GBID_COVER_URL string = "https://books.google.com/books/content/ima
 
 func getGBooksMetadata(metadataSearch MetadataInfo) ([]MetadataInfo, error) {
 	var queryResults []gBooksQueryItem
-	if metadataSearch.ID != nil {
+	if metadataSearch.SourceID != nil {
 		// Use GBID
-		resp, err := performGBIDRequest(*metadataSearch.ID)
+		resp, err := performGBIDRequest(*metadataSearch.SourceID)
 		if err != nil {
 			return nil, err
 		}
@@ -83,15 +83,16 @@ func getGBooksMetadata(metadataSearch MetadataInfo) ([]MetadataInfo, error) {
 
 		queryResults = resp.Items
 	} else {
-		return nil, errors.New("Invalid Data")
+		return nil, errors.New("invalid data")
 	}
 
 	// Normalize Data
-	allMetadata := []MetadataInfo{}
+	var allMetadata []MetadataInfo
 	for i := range queryResults {
 		item := queryResults[i] // Range Value Pointer Issue
 		itemResult := MetadataInfo{
-			ID:          &item.ID,
+			SourceID:    &item.ID,
+			Source:      SourceGoogleBooks,
 			Title:       &item.Info.Title,
 			Description: &item.Info.Description,
 		}
@@ -130,7 +131,7 @@ func saveGBooksCover(gbid string, coverFilePath string, overwrite bool) error {
 	out, err := os.Create(coverFilePath)
 	if err != nil {
 		log.Error("File Create Error")
-		return errors.New("File Failure")
+		return errors.New("file failure")
 	}
 	defer out.Close()
 
@@ -149,7 +150,7 @@ func saveGBooksCover(gbid string, coverFilePath string, overwrite bool) error {
 	_, err = io.Copy(out, resp.Body)
 	if err != nil {
 		log.Error("File Copy Error")
-		return errors.New("File Failure")
+		return errors.New("file failure")
 	}
 
 	return nil
@@ -164,16 +165,11 @@ func performSearchRequest(searchQuery string) (*gBooksQueryResponse, error) {
 		return nil, errors.New("API Failure")
 	}
 
-	parsedResp := gBooksQueryResponse{}
+	var parsedResp gBooksQueryResponse
 	err = json.NewDecoder(resp.Body).Decode(&parsedResp)
 	if err != nil {
 		log.Error("Google Books Query API Decode Failure")
 		return nil, errors.New("API Failure")
-	}
-
-	if len(parsedResp.Items) == 0 {
-		log.Warn("No Results")
-		return nil, errors.New("No Results")
 	}
 
 	return &parsedResp, nil
