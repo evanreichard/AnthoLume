@@ -187,9 +187,7 @@ func (api *API) registerWebAppRoutes(router *gin.Engine) {
 
 	// Search enabled configuration
 	if api.cfg.SearchEnabled {
-		router.GET("/search", api.authWebAppMiddleware, api.appGetSearchNew) // WIP
-
-		router.GET("/search-old", api.authWebAppMiddleware, api.appGetSearch)    // TODO
+		router.GET("/search", api.authWebAppMiddleware, api.appGetSearchNew)     // WIP
 		router.POST("/search", api.authWebAppMiddleware, api.appSaveNewDocument) // TODO
 	}
 }
