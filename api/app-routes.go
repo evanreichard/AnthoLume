@@ -6,13 +6,10 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"math"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
-	"reflect"
-	"sort"
 	"strings"
 	"time"
 
@@ -23,7 +20,6 @@ import (
 	"golang.org/x/exp/slices"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
-	"reichard.io/antholume/pkg/ptr"
 	"reichard.io/antholume/search"
 )
 
@@ -101,185 +97,6 @@ func (api *API) appDocumentReader(c *gin.Context) {
 	c.FileFromFS("assets/reader/index.htm", http.FS(api.assets))
 }
 
-func (api *API) appGetDocuments(c *gin.Context) {
-	templateVars, auth := api.getBaseTemplateVars("documents", c)
-	qParams := bindQueryParams(c, 9)
-
-	var query *string
-	if qParams.Search != nil && *qParams.Search != "" {
-		search := "%" + *qParams.Search + "%"
-		query = &search
-	}
-
-	documents, err := api.db.Queries.GetDocumentsWithStats(c, database.GetDocumentsWithStatsParams{
-		UserID:  auth.UserName,
-		Query:   query,
-		Deleted: ptr.Of(false),
-		Offset:  (*qParams.Page - 1) * *qParams.Limit,
-		Limit:   *qParams.Limit,
-	})
-	if err != nil {
-		log.Error("GetDocumentsWithStats DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsWithStats DB Error: %v", err))
-		return
-	}
-
-	length, err := api.db.Queries.GetDocumentsSize(c, query)
-	if err != nil {
-		log.Error("GetDocumentsSize DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsSize DB Error: %v", err))
-		return
-	}
-
-	if err = api.getDocumentsWordCount(c, documents); err != nil {
-		log.Error("Unable to Get Word Counts: ", err)
-	}
-
-	totalPages := int64(math.Ceil(float64(length) / float64(*qParams.Limit)))
-	nextPage := *qParams.Page + 1
-	previousPage := *qParams.Page - 1
-
-	if nextPage <= totalPages {
-		templateVars["NextPage"] = nextPage
-	}
-
-	if previousPage >= 0 {
-		templateVars["PreviousPage"] = previousPage
-	}
-
-	templateVars["PageLimit"] = *qParams.Limit
-	templateVars["Data"] = documents
-
-	c.HTML(http.StatusOK, "page/documents", templateVars)
-}
-
-func (api *API) appGetDocument(c *gin.Context) {
-	templateVars, auth := api.getBaseTemplateVars("document", c)
-
-	var rDocID requestDocumentID
-	if err := c.ShouldBindUri(&rDocID); err != nil {
-		log.Error("Invalid URI Bind")
-		appErrorPage(c, http.StatusNotFound, "Invalid document")
-		return
-	}
-
-	document, err := api.db.GetDocument(c, rDocID.DocumentID, auth.UserName)
-	if err != nil {
-		log.Error("GetDocument DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocument DB Error: %v", err))
-		return
-	}
-
-	templateVars["Data"] = document
-	templateVars["TotalTimeLeftSeconds"] = int64((100.0 - document.Percentage) * float64(document.SecondsPerPercent))
-
-	c.HTML(http.StatusOK, "page/document", templateVars)
-}
-
-func (api *API) appGetProgress(c *gin.Context) {
-	templateVars, auth := api.getBaseTemplateVars("progress", c)
-
-	qParams := bindQueryParams(c, 15)
-
-	progressFilter := database.GetProgressParams{
-		UserID: auth.UserName,
-		Offset: (*qParams.Page - 1) * *qParams.Limit,
-		Limit:  *qParams.Limit,
-	}
-
-	if qParams.Document != nil {
-		progressFilter.DocFilter = true
-		progressFilter.DocumentID = *qParams.Document
-	}
-
-	progress, err := api.db.Queries.GetProgress(c, progressFilter)
-	if err != nil {
-		log.Error("GetProgress DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetActivity DB Error: %v", err))
-		return
-	}
-
-	templateVars["Data"] = progress
-
-	c.HTML(http.StatusOK, "page/progress", templateVars)
-}
-
-func (api *API) appGetActivity(c *gin.Context) {
-	templateVars, auth := api.getBaseTemplateVars("activity", c)
-	qParams := bindQueryParams(c, 15)
-
-	activityFilter := database.GetActivityParams{
-		UserID: auth.UserName,
-		Offset: (*qParams.Page - 1) * *qParams.Limit,
-		Limit:  *qParams.Limit,
-	}
-
-	if qParams.Document != nil {
-		activityFilter.DocFilter = true
-		activityFilter.DocumentID = *qParams.Document
-	}
-
-	activity, err := api.db.Queries.GetActivity(c, activityFilter)
-	if err != nil {
-		log.Error("GetActivity DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetActivity DB Error: %v", err))
-		return
-	}
-
-	templateVars["Data"] = activity
-
-	c.HTML(http.StatusOK, "page/activity", templateVars)
-}
-
-func (api *API) appGetHome(c *gin.Context) {
-	templateVars, auth := api.getBaseTemplateVars("home", c)
-
-	start := time.Now()
-	graphData, err := api.db.Queries.GetDailyReadStats(c, auth.UserName)
-	if err != nil {
-		log.Error("GetDailyReadStats DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDailyReadStats DB Error: %v", err))
-		return
-	}
-	log.Debug("GetDailyReadStats DB Performance: ", time.Since(start))
-
-	start = time.Now()
-	databaseInfo, err := api.db.Queries.GetDatabaseInfo(c, auth.UserName)
-	if err != nil {
-		log.Error("GetDatabaseInfo DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDatabaseInfo DB Error: %v", err))
-		return
-	}
-	log.Debug("GetDatabaseInfo DB Performance: ", time.Since(start))
-
-	start = time.Now()
-	streaks, err := api.db.Queries.GetUserStreaks(c, auth.UserName)
-	if err != nil {
-		log.Error("GetUserStreaks DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStreaks DB Error: %v", err))
-		return
-	}
-	log.Debug("GetUserStreaks DB Performance: ", time.Since(start))
-
-	start = time.Now()
-	userStatistics, err := api.db.Queries.GetUserStatistics(c)
-	if err != nil {
-		log.Error("GetUserStatistics DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStatistics DB Error: %v", err))
-		return
-	}
-	log.Debug("GetUserStatistics DB Performance: ", time.Since(start))
-
-	templateVars["Data"] = gin.H{
-		"Streaks":        streaks,
-		"GraphData":      graphData,
-		"DatabaseInfo":   databaseInfo,
-		"UserStatistics": arrangeUserStatistics(userStatistics),
-	}
-
-	c.HTML(http.StatusOK, "page/home", templateVars)
-}
-
 func (api *API) appGetSettings(c *gin.Context) {
 	templateVars, auth := api.getBaseTemplateVars("settings", c)
 
@@ -303,38 +120,6 @@ func (api *API) appGetSettings(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "page/settings", templateVars)
-}
-
-// Tabs:
-//   - General (Import, Backup & Restore, Version (githash?), Stats?)
-//   - Users
-//   - Metadata
-func (api *API) appGetSearch(c *gin.Context) {
-	templateVars, _ := api.getBaseTemplateVars("search", c)
-
-	var sParams searchParams
-	err := c.BindQuery(&sParams)
-	if err != nil {
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Invalid Form Bind: %v", err))
-		return
-	}
-
-	// Only Handle Query
-	if sParams.Query != nil && sParams.Source != nil {
-		// Search
-		searchResults, err := search.SearchBook(*sParams.Query, *sParams.Source)
-		if err != nil {
-			appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Search Error: %v", err))
-			return
-		}
-
-		templateVars["Data"] = searchResults
-		templateVars["Source"] = *sParams.Source
-	} else if sParams.Query != nil || sParams.Source != nil {
-		templateVars["SearchErrorMessage"] = "Invalid Query"
-	}
-
-	c.HTML(http.StatusOK, "page/search", templateVars)
 }
 
 func (api *API) appGetLogin(c *gin.Context) {
@@ -615,85 +400,6 @@ func (api *API) appDeleteDocument(c *gin.Context) {
 	}
 
 	c.Redirect(http.StatusFound, "../")
-}
-
-func (api *API) appIdentifyDocument(c *gin.Context) {
-	var rDocID requestDocumentID
-	if err := c.ShouldBindUri(&rDocID); err != nil {
-		log.Error("Invalid URI Bind")
-		appErrorPage(c, http.StatusNotFound, "Invalid document")
-		return
-	}
-
-	var rDocIdentify requestDocumentIdentify
-	if err := c.ShouldBind(&rDocIdentify); err != nil {
-		log.Error("Invalid Form Bind")
-		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
-		return
-	}
-
-	// Disallow Empty Strings
-	if rDocIdentify.Title != nil && strings.TrimSpace(*rDocIdentify.Title) == "" {
-		rDocIdentify.Title = nil
-	}
-	if rDocIdentify.Author != nil && strings.TrimSpace(*rDocIdentify.Author) == "" {
-		rDocIdentify.Author = nil
-	}
-	if rDocIdentify.ISBN != nil && strings.TrimSpace(*rDocIdentify.ISBN) == "" {
-		rDocIdentify.ISBN = nil
-	}
-
-	// Validate Values
-	if rDocIdentify.ISBN == nil && rDocIdentify.Title == nil && rDocIdentify.Author == nil {
-		log.Error("Invalid Form")
-		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
-		return
-	}
-
-	// Get Template Variables
-	templateVars, auth := api.getBaseTemplateVars("document", c)
-
-	// Get Metadata
-	metadataResults, err := metadata.SearchMetadata(metadata.SourceGoogleBooks, metadata.MetadataInfo{
-		Title:  rDocIdentify.Title,
-		Author: rDocIdentify.Author,
-		ISBN10: rDocIdentify.ISBN,
-		ISBN13: rDocIdentify.ISBN,
-	})
-	if err == nil && len(metadataResults) > 0 {
-		firstResult := metadataResults[0]
-
-		// Store First Metadata Result
-		if _, err = api.db.Queries.AddMetadata(c, database.AddMetadataParams{
-			DocumentID:  rDocID.DocumentID,
-			Title:       firstResult.Title,
-			Author:      firstResult.Author,
-			Description: firstResult.Description,
-			Gbid:        firstResult.SourceID,
-			Olid:        nil,
-			Isbn10:      firstResult.ISBN10,
-			Isbn13:      firstResult.ISBN13,
-		}); err != nil {
-			log.Error("AddMetadata DB Error: ", err)
-		}
-
-		templateVars["Metadata"] = firstResult
-	} else {
-		log.Warn("Metadata Error")
-		templateVars["MetadataError"] = "No Metadata Found"
-	}
-
-	document, err := api.db.GetDocument(c, rDocID.DocumentID, auth.UserName)
-	if err != nil {
-		log.Error("GetDocument DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocument DB Error: %v", err))
-		return
-	}
-
-	templateVars["Data"] = document
-	templateVars["TotalTimeLeftSeconds"] = int64((100.0 - document.Percentage) * float64(document.SecondsPerPercent))
-
-	c.HTML(http.StatusOK, "page/document", templateVars)
 }
 
 func (api *API) appSaveNewDocument(c *gin.Context) {
@@ -1017,81 +723,4 @@ func appErrorPage(c *gin.Context, errorCode int, errorMessage string) {
 		"Error":   errorHuman,
 		"Message": errorMessage,
 	})
-}
-
-func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) gin.H {
-	// Item Sorter
-	sortItem := func(userStatistics []database.GetUserStatisticsRow, key string, less func(i int, j int) bool) []map[string]any {
-		sortedData := append([]database.GetUserStatisticsRow(nil), userStatistics...)
-		sort.SliceStable(sortedData, less)
-
-		newData := make([]map[string]any, 0)
-		for _, item := range sortedData {
-			v := reflect.Indirect(reflect.ValueOf(item))
-
-			var value string
-			if strings.Contains(key, "Wpm") {
-				rawVal := v.FieldByName(key).Float()
-				value = fmt.Sprintf("%.2f WPM", rawVal)
-			} else if strings.Contains(key, "Seconds") {
-				rawVal := v.FieldByName(key).Int()
-				value = niceSeconds(rawVal)
-			} else if strings.Contains(key, "Words") {
-				rawVal := v.FieldByName(key).Int()
-				value = niceNumbers(rawVal)
-			}
-
-			newData = append(newData, map[string]any{
-				"UserID": item.UserID,
-				"Value":  value,
-			})
-		}
-
-		return newData
-	}
-
-	return gin.H{
-		"WPM": gin.H{
-			"All": sortItem(userStatistics, "TotalWpm", func(i, j int) bool {
-				return userStatistics[i].TotalWpm > userStatistics[j].TotalWpm
-			}),
-			"Year": sortItem(userStatistics, "YearlyWpm", func(i, j int) bool {
-				return userStatistics[i].YearlyWpm > userStatistics[j].YearlyWpm
-			}),
-			"Month": sortItem(userStatistics, "MonthlyWpm", func(i, j int) bool {
-				return userStatistics[i].MonthlyWpm > userStatistics[j].MonthlyWpm
-			}),
-			"Week": sortItem(userStatistics, "WeeklyWpm", func(i, j int) bool {
-				return userStatistics[i].WeeklyWpm > userStatistics[j].WeeklyWpm
-			}),
-		},
-		"Duration": gin.H{
-			"All": sortItem(userStatistics, "TotalSeconds", func(i, j int) bool {
-				return userStatistics[i].TotalSeconds > userStatistics[j].TotalSeconds
-			}),
-			"Year": sortItem(userStatistics, "YearlySeconds", func(i, j int) bool {
-				return userStatistics[i].YearlySeconds > userStatistics[j].YearlySeconds
-			}),
-			"Month": sortItem(userStatistics, "MonthlySeconds", func(i, j int) bool {
-				return userStatistics[i].MonthlySeconds > userStatistics[j].MonthlySeconds
-			}),
-			"Week": sortItem(userStatistics, "WeeklySeconds", func(i, j int) bool {
-				return userStatistics[i].WeeklySeconds > userStatistics[j].WeeklySeconds
-			}),
-		},
-		"Words": gin.H{
-			"All": sortItem(userStatistics, "TotalWordsRead", func(i, j int) bool {
-				return userStatistics[i].TotalWordsRead > userStatistics[j].TotalWordsRead
-			}),
-			"Year": sortItem(userStatistics, "YearlyWordsRead", func(i, j int) bool {
-				return userStatistics[i].YearlyWordsRead > userStatistics[j].YearlyWordsRead
-			}),
-			"Month": sortItem(userStatistics, "MonthlyWordsRead", func(i, j int) bool {
-				return userStatistics[i].MonthlyWordsRead > userStatistics[j].MonthlyWordsRead
-			}),
-			"Week": sortItem(userStatistics, "WeeklyWordsRead", func(i, j int) bool {
-				return userStatistics[i].WeeklyWordsRead > userStatistics[j].WeeklyWordsRead
-			}),
-		},
-	}
 }
