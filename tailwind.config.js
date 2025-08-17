@@ -2,6 +2,7 @@
 module.exports = {
   content: [
     "./templates/**/*.{tmpl,html,htm,svg}",
+    "./web/**/*.go",
     "./assets/local/*.{html,htm,svg,js}",
     "./assets/reader/*.{html,htm,svg,js}",
   ],

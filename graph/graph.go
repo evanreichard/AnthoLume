@@ -28,7 +28,7 @@ type SVGBezierOpposedLine struct {
 
 func GetSVGGraphData(inputData []int64, svgWidth int, svgHeight int) SVGGraphData {
 	// Derive Height
-	var maxHeight int = 0
+	var maxHeight int
 	for _, item := range inputData {
 		if int(item) > maxHeight {
 			maxHeight = int(item)
@@ -39,19 +39,19 @@ func GetSVGGraphData(inputData []int64, svgWidth int, svgHeight int) SVGGraphDat
 	var sizePercentage float32 = 0.5
 
 	// Scale Ratio -> Desired Height
-	var sizeRatio float32 = float32(svgHeight) * sizePercentage / float32(maxHeight)
+	sizeRatio := float32(svgHeight) * sizePercentage / float32(maxHeight)
 
 	// Point Block Offset
-	var blockOffset int = int(math.Floor(float64(svgWidth) / float64(len(inputData))))
+	blockOffset := int(math.Floor(float64(svgWidth) / float64(len(inputData))))
 
 	// Line & Bar Points
 	linePoints := []SVGGraphPoint{}
 	barPoints := []SVGGraphPoint{}
 
 	// Bezier Fill Coordinates (Max X, Min X, Max Y)
-	var maxBX int = 0
-	var maxBY int = 0
-	var minBX int = 0
+	var maxBX int
+	var maxBY int
+	var minBX int
 	for idx, item := range inputData {
 		itemSize := int(float32(item) * sizeRatio)
 		itemY := svgHeight - itemSize
@@ -98,7 +98,7 @@ func getSVGBezierOpposedLine(pointA SVGGraphPoint, pointB SVGGraphPoint) SVGBezi
 	lengthY := float64(pointB.Y - pointA.Y)
 
 	return SVGBezierOpposedLine{
-		Length: int(math.Sqrt(math.Pow(lengthX, 2) + math.Pow(lengthY, 2))),
+		Length: int(math.Sqrt(lengthX*lengthX + lengthY*lengthY)),
 		Angle:  int(math.Atan2(lengthY, lengthX)),
 	}
 }
@@ -113,15 +113,15 @@ func getSVGBezierControlPoint(currentPoint *SVGGraphPoint, prevPoint *SVGGraphPo
 	}
 
 	// Modifiers
-	var smoothingRatio float64 = 0.2
+	smoothingRatio := 0.2
 	var directionModifier float64 = 0
 	if isReverse {
 		directionModifier = math.Pi
 	}
 
 	opposingLine := getSVGBezierOpposedLine(*prevPoint, *nextPoint)
-	var lineAngle float64 = float64(opposingLine.Angle) + directionModifier
-	var lineLength float64 = float64(opposingLine.Length) * smoothingRatio
+	lineAngle := float64(opposingLine.Angle) + directionModifier
+	lineLength := float64(opposingLine.Length) * smoothingRatio
 
 	// Calculate Control Point
 	return SVGGraphPoint{
@@ -156,7 +156,7 @@ func getSVGBezierCurve(point SVGGraphPoint, index int, allPoints []SVGGraphPoint
 }
 
 func getSVGBezierPath(allPoints []SVGGraphPoint) string {
-	var bezierSVGPath string = ""
+	var bezierSVGPath string
 
 	for index, point := range allPoints {
 		if index == 0 {

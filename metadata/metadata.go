@@ -25,12 +25,12 @@ var extensionHandlerMap = map[DocumentType]MetadataHandler{
 type Source int
 
 const (
-	SOURCE_GBOOK Source = iota
-	SOURCE_OLIB
+	SourceGoogleBooks Source = iota
+	SourceOpenLibrary
 )
 
 type MetadataInfo struct {
-	ID         *string
+	SourceID   *string
 	MD5        *string
 	PartialMD5 *string
 	WordCount  *int64
@@ -41,6 +41,7 @@ type MetadataInfo struct {
 	ISBN10      *string
 	ISBN13      *string
 	Type        DocumentType
+	Source      Source
 }
 
 // Downloads the Google Books cover file and saves it to the provided directory.
@@ -62,9 +63,9 @@ func CacheCover(gbid string, coverDir string, documentID string, overwrite bool)
 // Searches source for metadata based on the provided information.
 func SearchMetadata(s Source, metadataSearch MetadataInfo) ([]MetadataInfo, error) {
 	switch s {
-	case SOURCE_GBOOK:
+	case SourceGoogleBooks:
 		return getGBooksMetadata(metadataSearch)
-	case SOURCE_OLIB:
+	case SourceOpenLibrary:
 		return nil, errors.New("not implemented")
 	default:
 		return nil, errors.New("not implemented")

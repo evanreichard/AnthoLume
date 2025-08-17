@@ -67,7 +67,7 @@ WITH filtered_activity AS (
 SELECT
     document_id,
     device_id,
-    LOCAL_TIME(activity.start_time, users.timezone) AS start_time,
+    CAST(LOCAL_TIME(activity.start_time, users.timezone) AS TEXT) AS start_time,
     title,
     author,
     duration,
@@ -246,7 +246,7 @@ SELECT
     ROUND(CAST(progress.percentage AS REAL) * 100, 2) AS percentage,
     progress.document_id,
     progress.user_id,
-    LOCAL_TIME(progress.created_at, users.timezone) AS created_at
+    CAST(LOCAL_TIME(progress.created_at, users.timezone) AS TEXT) AS created_at
 FROM document_progress AS progress
 LEFT JOIN users ON progress.user_id = users.id
 LEFT JOIN devices ON progress.device_id = devices.id

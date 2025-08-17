@@ -17,7 +17,7 @@
     <title>AnthoLume - Reader</title>
 
     <link rel="manifest" href="/manifest.json" />
-    <link rel="stylesheet" href="/assets/style.css" />
+    <link rel="stylesheet" href="/assets/tailwind.css" />
 
     <!-- Libraries -->
     <script src="/assets/lib/jszip.min.js"></script>
@@ -82,9 +82,13 @@
         id="top-bar"
         class="transition-all duration-200 absolute z-10 bg-gray-100 dark:bg-gray-800 w-full px-2"
       >
-        <div class="max-h-[75vh] w-full flex flex-col items-center justify-around relative dark:text-white">
-	  <div class="h-32">
-            <div class="text-gray-500 absolute top-6 left-4 flex flex-col gap-4">
+        <div
+          class="max-h-[75vh] w-full flex flex-col items-center justify-around relative dark:text-white"
+        >
+          <div class="h-32">
+            <div
+              class="text-gray-500 absolute top-6 left-4 flex flex-col gap-4"
+            >
               <a href="#">
                 <svg
                   width="32"
@@ -152,8 +156,11 @@
                 </div>
               </div>
             </div>
-	  </div>
-	  <div id="toc" class="w-full text-center max-h-[50%] overflow-scroll no-scrollbar"></div>
+          </div>
+          <div
+            id="toc"
+            class="w-full text-center max-h-[50%] overflow-scroll no-scrollbar"
+          ></div>
         </div>
       </div>
 

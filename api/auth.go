@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
+	"maps"
 	"net/http"
 	"strings"
 	"time"
@@ -464,9 +465,7 @@ func (api *API) rotateAllAuthHashes(ctx context.Context) error {
 	}
 
 	// Transaction Succeeded -> Update Cache
-	for user, hash := range newAuthHashCache {
-		api.userAuthCache[user] = hash
-	}
+	maps.Copy(api.userAuthCache, newAuthHashCache)
 
 	return nil
 }

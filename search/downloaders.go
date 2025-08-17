@@ -37,7 +37,7 @@ func getLibraryDownloadURL(md5 string, source Source) ([]string, error) {
 	// Derive Info URL
 	var infoURL string
 	switch source {
-	case SOURCE_LIBGEN, SOURCE_ANNAS_ARCHIVE:
+	case SourceLibGen, SourceAnnasArchive:
 		infoURL = "http://library.lol/fiction/" + md5
 	// case SOURCE_LIBGEN_NON_FICTION:
 	// 	infoURL = "http://library.lol/main/" + md5

@@ -43,7 +43,7 @@
             <dd class="mt-1 text-sm sm:mt-0 sm:col-span-2">
               <img
                 class="rounded object-fill h-32"
-                src="https://books.google.com/books/content/images/frontcover/{{ .Metadata.ID }}?fife=w480-h690"
+                src="https://books.google.com/books/content/images/frontcover/{{ .Metadata.SourceID }}?fife=w480-h690"
               />
             </dd>
           </div>
@@ -123,7 +123,7 @@
             type="text"
             id="cover_gbid"
             name="cover_gbid"
-            value="{{ .Metadata.ID }}"
+            value="{{ .Metadata.SourceID }}"
           />
         </div>
       </form>

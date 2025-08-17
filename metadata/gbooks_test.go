@@ -65,7 +65,7 @@ func TestGBooksGBIDMetadata(t *testing.T) {
 
 	GBID := "ZxwpakTv_MIC"
 	expectedURL := fmt.Sprintf(GBOOKS_GBID_INFO_URL, GBID)
-	metadataResp, err := getGBooksMetadata(MetadataInfo{ID: &GBID})
+	metadataResp, err := getGBooksMetadata(MetadataInfo{SourceID: &GBID})
 
 	assert.Nil(t, err, "should not have error")
 	assert.Contains(t, hookDetails.URLs, expectedURL, "should have intercepted URL")
