@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"crypto/md5"
 	"database/sql"
 	"fmt"
 	"io"
@@ -13,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	argon2 "github.com/alexedwards/argon2id"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
@@ -95,31 +93,6 @@ func (api *API) appLocalDocuments(c *gin.Context) {
 
 func (api *API) appDocumentReader(c *gin.Context) {
 	c.FileFromFS("assets/reader/index.htm", http.FS(api.assets))
-}
-
-func (api *API) appGetSettings(c *gin.Context) {
-	templateVars, auth := api.getBaseTemplateVars("settings", c)
-
-	user, err := api.db.Queries.GetUser(c, auth.UserName)
-	if err != nil {
-		log.Error("GetUser DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
-		return
-	}
-
-	devices, err := api.db.Queries.GetDevices(c, auth.UserName)
-	if err != nil {
-		log.Error("GetDevices DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
-		return
-	}
-
-	templateVars["Data"] = gin.H{
-		"Timezone": *user.Timezone,
-		"Devices":  devices,
-	}
-
-	c.HTML(http.StatusOK, "page/settings", templateVars)
 }
 
 func (api *API) appGetLogin(c *gin.Context) {
@@ -539,84 +512,6 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	})
 }
 
-func (api *API) appEditSettings(c *gin.Context) {
-	var rUserSettings requestSettingsEdit
-	if err := c.ShouldBind(&rUserSettings); err != nil {
-		log.Error("Invalid Form Bind")
-		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
-		return
-	}
-
-	// Validate Something Exists
-	if rUserSettings.Password == nil && rUserSettings.NewPassword == nil && rUserSettings.Timezone == nil {
-		log.Error("Missing Form Values")
-		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
-		return
-	}
-
-	templateVars, auth := api.getBaseTemplateVars("settings", c)
-
-	newUserSettings := database.UpdateUserParams{
-		UserID: auth.UserName,
-		Admin:  auth.IsAdmin,
-	}
-
-	// Set New Password
-	if rUserSettings.Password != nil && rUserSettings.NewPassword != nil {
-		password := fmt.Sprintf("%x", md5.Sum([]byte(*rUserSettings.Password)))
-		data := api.authorizeCredentials(c, auth.UserName, password)
-		if data == nil {
-			templateVars["PasswordErrorMessage"] = "Invalid Password"
-		} else {
-			password := fmt.Sprintf("%x", md5.Sum([]byte(*rUserSettings.NewPassword)))
-			hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
-			if err != nil {
-				templateVars["PasswordErrorMessage"] = "Unknown Error"
-			} else {
-				templateVars["PasswordMessage"] = "Password Updated"
-				newUserSettings.Password = &hashedPassword
-			}
-		}
-	}
-
-	// Set Time Offset
-	if rUserSettings.Timezone != nil {
-		templateVars["TimeOffsetMessage"] = "Time Offset Updated"
-		newUserSettings.Timezone = rUserSettings.Timezone
-	}
-
-	// Update User
-	_, err := api.db.Queries.UpdateUser(c, newUserSettings)
-	if err != nil {
-		log.Error("UpdateUser DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpdateUser DB Error: %v", err))
-		return
-	}
-
-	// Get User
-	user, err := api.db.Queries.GetUser(c, auth.UserName)
-	if err != nil {
-		log.Error("GetUser DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
-		return
-	}
-
-	// Get Devices
-	devices, err := api.db.Queries.GetDevices(c, auth.UserName)
-	if err != nil {
-		log.Error("GetDevices DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
-		return
-	}
-
-	templateVars["Data"] = gin.H{
-		"Timezone": *user.Timezone,
-		"Devices":  devices,
-	}
-
-	c.HTML(http.StatusOK, "page/settings", templateVars)
-}
-
 func (api *API) appDemoModeError(c *gin.Context) {
 	appErrorPage(c, http.StatusUnauthorized, "Not Allowed in Demo Mode")
 }
@@ -664,10 +559,10 @@ func (api *API) getDocumentsWordCount(ctx context.Context, documents []database.
 	return nil
 }
 
-func (api *API) getBaseTemplateVars(routeName string, c *gin.Context) (gin.H, authData) {
-	var auth authData
+func (api *API) getBaseTemplateVars(routeName string, c *gin.Context) (gin.H, *authData) {
+	var auth *authData
 	if data, _ := c.Get("Authorization"); data != nil {
-		auth = data.(authData)
+		auth = data.(*authData)
 	}
 
 	return gin.H{
@@ -681,12 +576,11 @@ func (api *API) getBaseTemplateVars(routeName string, c *gin.Context) (gin.H, au
 	}, auth
 }
 
-func bindQueryParams(c *gin.Context, defaultLimit int64) queryParams {
+func bindQueryParams(c *gin.Context, defaultLimit int64) (*queryParams, error) {
 	var qParams queryParams
 	err := c.BindQuery(&qParams)
 	if err != nil {
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Invalid Form Bind: %v", err))
-		return qParams
+		return nil, err
 	}
 
 	if qParams.Limit == nil {
@@ -701,7 +595,7 @@ func bindQueryParams(c *gin.Context, defaultLimit int64) queryParams {
 		qParams.Page = &oneValue
 	}
 
-	return qParams
+	return &qParams, nil
 }
 
 func appErrorPage(c *gin.Context, errorCode int, errorMessage string) {

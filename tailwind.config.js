@@ -17,6 +17,20 @@ module.exports = {
       minWidth: {
         40: "10rem",
       },
+      animation: {
+        notification:
+          "slideIn 0.25s ease-out forwards, slideOut 0.25s ease-out 4.5s forwards",
+      },
+      keyframes: {
+        slideIn: {
+          "0%": { transform: "translateX(100%)" },
+          "100%": { transform: "translateX(0)" },
+        },
+        slideOut: {
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(100%)" },
+        },
+      },
     },
   },
   plugins: [],

@@ -6,7 +6,7 @@ import (
 	g "maragu.dev/gomponents"
 	h "maragu.dev/gomponents/html"
 	"reichard.io/antholume/web/assets"
-	"reichard.io/antholume/web/pages"
+	"reichard.io/antholume/web/models"
 )
 
 const (
@@ -14,29 +14,28 @@ const (
 	inactive = "border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100"
 )
 
-func Navigation(currentRoute pages.PageRoute, opts *LayoutOptions) g.Node {
+func Navigation(ctx models.PageContext) g.Node {
 	return h.Div(
 		g.Attr("class", "flex items-center justify-between w-full h-16"),
-		Sidebar(currentRoute, opts),
-		h.H1(g.Attr("class", "text-xl font-bold px-6 lg:ml-44"), g.Text(currentRoute.Title())),
-		Dropdown(opts.Username),
+		Sidebar(ctx),
+		h.H1(g.Attr("class", "text-xl font-bold px-6 lg:ml-44"), g.Text(ctx.Route.Title())),
+		Dropdown(ctx.UserInfo.Username),
 	)
 }
 
-func Sidebar(currentRoute pages.PageRoute, opts *LayoutOptions) g.Node {
+func Sidebar(ctx models.PageContext) g.Node {
 	links := []g.Node{
-		navLink(currentRoute, pages.HomePage, "/", "home"),
-		navLink(currentRoute, pages.DocumentsPage, "/documents", "documents"),
-		navLink(currentRoute, pages.ProgressPage, "/progress", "activity"),
-		navLink(currentRoute, pages.ActivityPage, "/activity", "activity"),
+		navLink(ctx.Route, models.HomePage, "/", "home"),
+		navLink(ctx.Route, models.DocumentsPage, "/documents", "documents"),
+		navLink(ctx.Route, models.ProgressPage, "/progress", "activity"),
+		navLink(ctx.Route, models.ActivityPage, "/activity", "activity"),
 	}
-	if opts.SearchEnabled {
-		links = append(links, navLink(currentRoute, pages.SearchPage, "/search", "search"))
+	if ctx.ServerInfo.SearchEnabled {
+		links = append(links, navLink(ctx.Route, models.SearchPage, "/search", "search"))
 	}
-	if opts.IsAdmin {
-		links = append(links, adminLinks(currentRoute))
+	if ctx.UserInfo.IsAdmin {
+		links = append(links, adminLinks(ctx.Route))
 	}
-
 	return h.Div(
 		g.Attr("id", "mobile-nav-button"),
 		g.Attr("class", "flex flex-col z-40 relative ml-6"),
@@ -54,13 +53,13 @@ func Sidebar(currentRoute pages.PageRoute, opts *LayoutOptions) g.Node {
 				g.Attr("target", "_blank"),
 				g.Attr("class", "flex flex-col gap-2 justify-center items-center p-6 w-full absolute bottom-0 text-black dark:text-white"),
 				assets.Icon("gitea", 20),
-				h.Span(g.Attr("class", "text-xs"), g.Text(opts.Version)),
+				h.Span(g.Attr("class", "text-xs"), g.Text(ctx.ServerInfo.Version)),
 			),
 		),
 	)
 }
 
-func navLink(currentRoute, linkRoute pages.PageRoute, path, icon string) g.Node {
+func navLink(currentRoute, linkRoute models.PageRoute, path, icon string) g.Node {
 	class := inactive
 	if currentRoute == linkRoute {
 		class = active
@@ -73,7 +72,7 @@ func navLink(currentRoute, linkRoute pages.PageRoute, path, icon string) g.Node 
 	)
 }
 
-func adminLinks(currentRoute pages.PageRoute) g.Node {
+func adminLinks(currentRoute models.PageRoute) g.Node {
 	routeID := string(currentRoute)
 
 	class := inactive
@@ -83,10 +82,10 @@ func adminLinks(currentRoute pages.PageRoute) g.Node {
 
 	children := g.If(strings.HasPrefix(routeID, "admin"),
 		g.Group([]g.Node{
-			subNavLink(currentRoute, pages.AdminGeneralPage, "/admin"),
-			subNavLink(currentRoute, pages.AdminImportPage, "/admin/import"),
-			subNavLink(currentRoute, pages.AdminUsersPage, "/admin/users"),
-			subNavLink(currentRoute, pages.AdminLogsPage, "/admin/logs"),
+			subNavLink(currentRoute, models.AdminGeneralPage, "/admin"),
+			subNavLink(currentRoute, models.AdminImportPage, "/admin/import"),
+			subNavLink(currentRoute, models.AdminUsersPage, "/admin/users"),
+			subNavLink(currentRoute, models.AdminLogsPage, "/admin/logs"),
 		}),
 	)
 
@@ -102,7 +101,7 @@ func adminLinks(currentRoute pages.PageRoute) g.Node {
 	)
 }
 
-func subNavLink(currentRoute, linkRoute pages.PageRoute, path string) g.Node {
+func subNavLink(currentRoute, linkRoute models.PageRoute, path string) g.Node {
 	class := inactive
 	if currentRoute == linkRoute {
 		class = active

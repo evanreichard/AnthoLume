@@ -5,6 +5,8 @@ import (
 	h "maragu.dev/gomponents/html"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/web/components/stats"
+	"reichard.io/antholume/web/models"
+	"reichard.io/antholume/web/pages/layout"
 )
 
 var _ Page = (*Home)(nil)
@@ -16,9 +18,11 @@ type Home struct {
 	RecordInfo  *database.GetDatabaseInfoRow
 }
 
-func (Home) Route() PageRoute { return HomePage }
+func (p *Home) Generate(ctx models.PageContext) (g.Node, error) {
+	return layout.Layout(ctx.WithRoute(models.HomePage), p.content())
+}
 
-func (p Home) Render() g.Node {
+func (p *Home) content() g.Node {
 	return h.Div(
 		g.Attr("class", "flex flex-col gap-4"),
 		h.Div(

@@ -9,6 +9,7 @@ import (
 	"reichard.io/antholume/pkg/sliceutils"
 	"reichard.io/antholume/web/components/ui"
 	"reichard.io/antholume/web/models"
+	"reichard.io/antholume/web/pages/layout"
 )
 
 var _ Page = (*Activity)(nil)
@@ -17,14 +18,15 @@ type Activity struct {
 	Data []models.Activity
 }
 
-func (Activity) Route() PageRoute { return ActivityPage }
-
-func (p Activity) Render() g.Node {
-	return h.Div(
-		h.Class("overflow-x-auto"),
+func (p *Activity) Generate(ctx models.PageContext) (g.Node, error) {
+	return layout.Layout(
+		ctx.WithRoute(models.ActivityPage),
 		h.Div(
-			h.Class("inline-block min-w-full overflow-hidden rounded shadow"),
-			ui.Table(p.buildTableConfig()),
+			h.Class("overflow-x-auto"),
+			h.Div(
+				h.Class("inline-block min-w-full overflow-hidden rounded shadow"),
+				ui.Table(p.buildTableConfig()),
+			),
 		),
 	)
 }

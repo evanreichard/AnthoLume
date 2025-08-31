@@ -13,6 +13,7 @@ import (
 	"reichard.io/antholume/web/components/document"
 	"reichard.io/antholume/web/components/ui"
 	"reichard.io/antholume/web/models"
+	"reichard.io/antholume/web/pages/layout"
 )
 
 var _ Page = (*Document)(nil)
@@ -22,9 +23,14 @@ type Document struct {
 	Search *models.DocumentMetadata
 }
 
-func (Document) Route() PageRoute { return DocumentPage }
+func (p *Document) Generate(ctx models.PageContext) (g.Node, error) {
+	return layout.Layout(
+		ctx.WithRoute(models.DocumentPage),
+		p.content(),
+	)
+}
 
-func (p Document) Render() g.Node {
+func (p *Document) content() g.Node {
 	return h.Div(
 		h.Class("h-full w-full overflow-scroll bg-white shadow-lg dark:bg-gray-700 rounded dark:text-white p-4"),
 		document.Actions(p.Data),

@@ -8,10 +8,21 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/graph"
 	"reichard.io/antholume/metadata"
 )
+
+func getAuthData(ctx *gin.Context) (*authData, error) {
+	if data, ok := ctx.Get("Authorization"); ok {
+		var auth *authData
+		if auth, ok = data.(*authData); ok {
+			return auth, nil
+		}
+	}
+	return nil, errors.New("could not acquire auth data")
+}
 
 // getTimeZones returns a string slice of IANA timezones.
 func getTimeZones() []string {
