@@ -62,13 +62,19 @@ func (api *API) opdsEntry(c *gin.Context) {
 }
 
 func (api *API) opdsDocuments(c *gin.Context) {
-	var auth authData
-	if data, _ := c.Get("Authorization"); data != nil {
-		auth = data.(authData)
+	auth, err := getAuthData(c)
+	if err != nil {
+		log.WithError(err).Error("failed to acquire auth data")
+		c.AbortWithStatus(http.StatusInternalServerError)
 	}
 
 	// Potential URL Parameters (Default Pagination - 100)
-	qParams := bindQueryParams(c, 100)
+	qParams, err := bindQueryParams(c, 100)
+	if err != nil {
+		log.WithError(err).Error("failed to bind query params")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
 
 	// Possible Query
 	var query *string
@@ -86,7 +92,7 @@ func (api *API) opdsDocuments(c *gin.Context) {
 		Limit:   *qParams.Limit,
 	})
 	if err != nil {
-		log.Error("GetDocumentsWithStats DB Error:", err)
+		log.WithError(err).Error("failed to get documents with stats")
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}

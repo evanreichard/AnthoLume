@@ -15,21 +15,6 @@ func IdentifyPopover(docID string, m *models.DocumentMetadata) g.Node {
 		return nil
 	}
 
-	if m.Error != nil {
-		return ui.Popover(h.Div(
-			h.Class("flex flex-col gap-2"),
-			h.H3(
-				h.Class("text-lg font-bold text-center"),
-				g.Text("Error"),
-			),
-			h.Div(
-				h.Class("bg-gray-100 dark:bg-gray-900 p-2"),
-				h.P(g.Text(*m.Error)),
-			),
-			ui.LinkButton(g.Text("Back to Document"), fmt.Sprintf("/documents/%s", docID)),
-		))
-	}
-
 	return ui.Popover(h.Div(
 		h.Class("flex flex-col gap-2"),
 		h.H3(

@@ -30,31 +30,31 @@ type authKOHeader struct {
 	AuthKey  string `header:"x-auth-key"`
 }
 
-func (api *API) authorizeCredentials(ctx context.Context, username string, password string) (auth *authData) {
+func (api *API) authorizeCredentials(ctx context.Context, username string, password string) (*authData, error) {
 	user, err := api.db.Queries.GetUser(ctx, username)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	if match, err := argon2.ComparePasswordAndHash(password, *user.Pass); err != nil || !match {
-		return
+		return nil, err
 	}
 
-	// Update auth cache
+	// Update Auth Cache
 	api.userAuthCache[user.ID] = *user.AuthHash
 
 	return &authData{
 		UserName: user.ID,
 		IsAdmin:  user.Admin,
 		AuthHash: *user.AuthHash,
-	}
+	}, nil
 }
 
 func (api *API) authKOMiddleware(c *gin.Context) {
 	session := sessions.Default(c)
 
 	// Check Session First
-	if auth, ok := api.getSession(c, session); ok {
+	if auth, ok := api.authorizeSession(c, session); ok {
 		c.Set("Authorization", auth)
 		c.Header("Cache-Control", "private")
 		c.Next()
@@ -65,21 +65,25 @@ func (api *API) authKOMiddleware(c *gin.Context) {
 
 	var rHeader authKOHeader
 	if err := c.ShouldBindHeader(&rHeader); err != nil {
+		log.WithError(err).Error("failed to bind auth headers")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Incorrect Headers"})
 		return
 	}
 	if rHeader.AuthUser == "" || rHeader.AuthKey == "" {
+		log.Error("invalid authentication headers")
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization Headers"})
 		return
 	}
 
-	authData := api.authorizeCredentials(c, rHeader.AuthUser, rHeader.AuthKey)
-	if authData == nil {
+	authData, err := api.authorizeCredentials(c, rHeader.AuthUser, rHeader.AuthKey)
+	if err != nil {
+		log.WithField("user", rHeader.AuthUser).WithError(err).Error("failed to authorize credentials")
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	if err := api.setSession(session, *authData); err != nil {
+	if err := api.setSession(session, authData); err != nil {
+		log.WithField("user", rHeader.AuthUser).WithError(err).Error("failed to set session")
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
@@ -96,14 +100,16 @@ func (api *API) authOPDSMiddleware(c *gin.Context) {
 
 	// Validate Auth Fields
 	if !hasAuth || user == "" || rawPassword == "" {
+		log.Error("invalid authorization headers")
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization Headers"})
 		return
 	}
 
 	// Validate Auth
 	password := fmt.Sprintf("%x", md5.Sum([]byte(rawPassword)))
-	authData := api.authorizeCredentials(c, user, password)
-	if authData == nil {
+	authData, err := api.authorizeCredentials(c, user, password)
+	if err != nil {
+		log.WithField("user", user).WithError(err).Error("failed to authorize credentials")
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
@@ -117,7 +123,7 @@ func (api *API) authWebAppMiddleware(c *gin.Context) {
 	session := sessions.Default(c)
 
 	// Check Session
-	if auth, ok := api.getSession(c, session); ok {
+	if auth, ok := api.authorizeSession(c, session); ok {
 		c.Set("Authorization", auth)
 		c.Header("Cache-Control", "private")
 		c.Next()
@@ -130,7 +136,7 @@ func (api *API) authWebAppMiddleware(c *gin.Context) {
 
 func (api *API) authAdminWebAppMiddleware(c *gin.Context) {
 	if data, _ := c.Get("Authorization"); data != nil {
-		auth := data.(authData)
+		auth := data.(*authData)
 		if auth.IsAdmin {
 			c.Next()
 			return
@@ -155,8 +161,9 @@ func (api *API) appAuthLogin(c *gin.Context) {
 
 	// MD5 - KOSync Compatiblity
 	password := fmt.Sprintf("%x", md5.Sum([]byte(rawPassword)))
-	authData := api.authorizeCredentials(c, username, password)
-	if authData == nil {
+	authData, err := api.authorizeCredentials(c, username, password)
+	if err != nil {
+		log.WithField("user", username).WithError(err).Error("failed to authorize credentials")
 		templateVars["Error"] = "Invalid Credentials"
 		c.HTML(http.StatusUnauthorized, "page/login", templateVars)
 		return
@@ -164,7 +171,7 @@ func (api *API) appAuthLogin(c *gin.Context) {
 
 	// Set Session
 	session := sessions.Default(c)
-	if err := api.setSession(session, *authData); err != nil {
+	if err := api.setSession(session, authData); err != nil {
 		templateVars["Error"] = "Invalid Credentials"
 		c.HTML(http.StatusUnauthorized, "page/login", templateVars)
 		return
@@ -253,7 +260,7 @@ func (api *API) appAuthRegister(c *gin.Context) {
 	}
 
 	// Set session
-	auth := authData{
+	auth := &authData{
 		UserName: user.ID,
 		IsAdmin:  user.Admin,
 		AuthHash: *user.AuthHash,
@@ -349,35 +356,40 @@ func (api *API) koAuthRegister(c *gin.Context) {
 	})
 }
 
-func (api *API) getSession(ctx context.Context, session sessions.Session) (auth authData, ok bool) {
+func (api *API) authorizeSession(ctx context.Context, session sessions.Session) (*authData, bool) {
 	// Get Session
 	authorizedUser := session.Get("authorizedUser")
 	isAdmin := session.Get("isAdmin")
 	expiresAt := session.Get("expiresAt")
 	authHash := session.Get("authHash")
 	if authorizedUser == nil || isAdmin == nil || expiresAt == nil || authHash == nil {
-		return
+		return nil, false
 	}
 
 	// Create Auth Object
-	auth = authData{
+	auth := &authData{
 		UserName: authorizedUser.(string),
 		IsAdmin:  isAdmin.(bool),
 		AuthHash: authHash.(string),
 	}
+	logger := log.WithField("user", auth.UserName)
 
 	// Validate Auth Hash
 	correctAuthHash, err := api.getUserAuthHash(ctx, auth.UserName)
-	if err != nil || correctAuthHash != auth.AuthHash {
-		return
+	if err != nil {
+		logger.WithError(err).Error("failed to get auth hash")
+		return nil, false
+	} else if correctAuthHash != auth.AuthHash {
+		logger.Warn("user auth hash mismatch")
+		return nil, false
 	}
 
 	// Refresh
 	if expiresAt.(int64)-time.Now().Unix() < 60*60*24 {
-		log.Info("Refreshing Session")
+		logger.Info("refreshing session")
 		if err := api.setSession(session, auth); err != nil {
-			log.Error("unable to get session")
-			return
+			logger.WithError(err).Error("failed to refresh session")
+			return nil, false
 		}
 	}
 
@@ -385,7 +397,7 @@ func (api *API) getSession(ctx context.Context, session sessions.Session) (auth 
 	return auth, true
 }
 
-func (api *API) setSession(session sessions.Session, auth authData) error {
+func (api *API) setSession(session sessions.Session, auth *authData) error {
 	// Set Session Cookie
 	session.Set("authorizedUser", auth.UserName)
 	session.Set("isAdmin", auth.IsAdmin)

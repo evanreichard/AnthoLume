@@ -422,8 +422,8 @@ const getDevices = `-- name: GetDevices :many
 SELECT
     devices.id,
     devices.device_name,
-    LOCAL_TIME(devices.created_at, users.timezone) AS created_at,
-    LOCAL_TIME(devices.last_synced, users.timezone) AS last_synced
+    CAST(LOCAL_TIME(devices.created_at, users.timezone) AS TEXT) AS created_at,
+    CAST(LOCAL_TIME(devices.last_synced, users.timezone) AS TEXT) AS last_synced
 FROM devices
 JOIN users ON users.id = devices.user_id
 WHERE users.id = ?1
@@ -431,10 +431,10 @@ ORDER BY devices.last_synced DESC
 `
 
 type GetDevicesRow struct {
-	ID         string      `json:"id"`
-	DeviceName string      `json:"device_name"`
-	CreatedAt  interface{} `json:"created_at"`
-	LastSynced interface{} `json:"last_synced"`
+	ID         string `json:"id"`
+	DeviceName string `json:"device_name"`
+	CreatedAt  string `json:"created_at"`
+	LastSynced string `json:"last_synced"`
 }
 
 func (q *Queries) GetDevices(ctx context.Context, userID string) ([]GetDevicesRow, error) {

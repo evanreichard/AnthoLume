@@ -12,6 +12,7 @@ import (
 	"reichard.io/antholume/web/assets"
 	"reichard.io/antholume/web/components/ui"
 	"reichard.io/antholume/web/models"
+	"reichard.io/antholume/web/pages/layout"
 )
 
 var _ Page = (*Search)(nil)
@@ -23,9 +24,14 @@ type Search struct {
 	Error   string
 }
 
-func (Search) Route() PageRoute { return SearchPage }
+func (p Search) Generate(ctx models.PageContext) (g.Node, error) {
+	return layout.Layout(
+		ctx.WithRoute(models.SearchPage),
+		p.content(),
+	)
+}
 
-func (p Search) Render() g.Node {
+func (p *Search) content() g.Node {
 	return h.Div(
 		h.Class("flex flex-col gap-4"),
 		h.Div(
@@ -96,7 +102,7 @@ func (p Search) Render() g.Node {
 	)
 }
 
-func (p Search) tableRows() []ui.TableRow {
+func (p *Search) tableRows() []ui.TableRow {
 	return sliceutils.Map(p.Results, func(r models.SearchResult) ui.TableRow {
 		return ui.TableRow{
 			"": ui.TableCell{

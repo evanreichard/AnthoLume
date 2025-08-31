@@ -1,35 +1,41 @@
 package layout
 
 import (
+	"errors"
+	"fmt"
+
 	g "maragu.dev/gomponents"
 	h "maragu.dev/gomponents/html"
-	"reichard.io/antholume/web/pages"
+	"reichard.io/antholume/web/components/ui"
+	"reichard.io/antholume/web/models"
 )
 
-type LayoutOptions struct {
-	SearchEnabled bool
-	IsAdmin       bool
-	Username      string
-	Version       string
-}
+func Layout(ctx models.PageContext, children ...g.Node) (g.Node, error) {
+	if ctx.UserInfo == nil {
+		return nil, errors.New("no user info")
+	} else if ctx.ServerInfo == nil {
+		return nil, errors.New("no server info")
+	} else if !ctx.Route.Valid() {
+		return nil, fmt.Errorf("invalid route: %s", ctx.Route)
+	}
 
-func Layout(p pages.Page, opts LayoutOptions) g.Node {
 	return h.Doctype(
 		h.HTML(
 			g.Attr("lang", "en"),
-			Head(p.Route().Title()),
+			Head(ctx.Route.Title()),
 			h.Body(
 				g.Attr("class", "bg-gray-100 dark:bg-gray-800 text-black dark:text-white"),
-				Navigation(p.Route(), &opts),
-				Base(p.Render()),
+				Navigation(ctx),
+				Base(children),
+				ui.Notifications(ctx.Notifications),
 			),
 		),
-	)
+	), nil
 }
 
 func Head(routeTitle string) g.Node {
 	return h.Head(
-		h.Title("AnthoLume - "+routeTitle),
+		g.El("title", g.Text("AnthoLume - "+routeTitle)),
 		h.Meta(g.Attr("charset", "utf-8")),
 		h.Meta(g.Attr("name", "viewport"), g.Attr("content", "width=device-width, initial-scale=0.9, user-scalable=no, viewport-fit=cover")),
 		h.Meta(g.Attr("name", "apple-mobile-web-app-capable"), g.Attr("content", "yes")),
@@ -45,13 +51,13 @@ func Head(routeTitle string) g.Node {
 	)
 }
 
-func Base(body g.Node) g.Node {
+func Base(body []g.Node) g.Node {
 	return h.Main(
 		g.Attr("class", "relative overflow-hidden"),
 		h.Div(
 			g.Attr("id", "container"),
 			g.Attr("class", "h-[100dvh] px-4 overflow-auto md:px-6 lg:ml-48"),
-			body,
+			g.Group(body),
 		),
 	)
 }
