@@ -9,6 +9,7 @@ import (
 	"reichard.io/antholume/web/components/document"
 	"reichard.io/antholume/web/components/ui"
 	"reichard.io/antholume/web/models"
+	"reichard.io/antholume/web/pages/layout"
 )
 
 var _ Page = (*Documents)(nil)
@@ -20,15 +21,13 @@ type Documents struct {
 	Limit    int
 }
 
-func (Documents) Route() PageRoute { return DocumentsPage }
-
-func (p Documents) Render() g.Node {
-	return g.Group([]g.Node{
+func (p Documents) Generate(ctx models.PageContext) (g.Node, error) {
+	return layout.Layout(ctx.WithRoute(models.DocumentsPage),
 		searchBar(),
 		documentGrid(p.Data),
 		pagination(p.Previous, p.Next, p.Limit),
 		uploadFAB(),
-	})
+	)
 }
 
 func searchBar() g.Node {

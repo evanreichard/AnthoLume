@@ -58,7 +58,6 @@ func SearchBook(query string, source Source) ([]SearchItem, error) {
 	if !found {
 		return nil, fmt.Errorf("invalid source: %s", source)
 	}
-	log.Debug("Source: ", source)
 	return searchFunc(query)
 }
 

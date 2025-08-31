@@ -145,23 +145,23 @@ func (api *API) registerWebAppRoutes(router *gin.Engine) {
 	router.GET("/reader/progress/:document", api.authWebAppMiddleware, api.appGetDocumentProgress)
 
 	// Web App - Templates
-	router.GET("/", api.authWebAppMiddleware, api.appGetHomeNew)                        // DONE
-	router.GET("/activity", api.authWebAppMiddleware, api.appGetActivityNew)            // DONE
-	router.GET("/progress", api.authWebAppMiddleware, api.appGetProgressNew)            // DONE
-	router.GET("/documents", api.authWebAppMiddleware, api.appGetDocumentsNew)          // DONE
-	router.GET("/documents/:document", api.authWebAppMiddleware, api.appGetDocumentNew) // DONE
+	router.GET("/", api.authWebAppMiddleware, api.appGetHome)                        // DONE
+	router.GET("/activity", api.authWebAppMiddleware, api.appGetActivity)            // DONE
+	router.GET("/progress", api.authWebAppMiddleware, api.appGetProgress)            // DONE
+	router.GET("/documents", api.authWebAppMiddleware, api.appGetDocuments)          // DONE
+	router.GET("/documents/:document", api.authWebAppMiddleware, api.appGetDocument) // DONE
 
 	// Web App - Other Routes
 	router.GET("/documents/:document/cover", api.authWebAppMiddleware, api.createGetCoverHandler(appErrorPage))        // DONE
 	router.GET("/documents/:document/file", api.authWebAppMiddleware, api.createDownloadDocumentHandler(appErrorPage)) // DONE
-	router.GET("/logout", api.authWebAppMiddleware, api.appAuthLogout)
-	router.POST("/login", api.appAuthLogin)       // DONE
-	router.POST("/register", api.appAuthRegister) // DONE
+	router.GET("/logout", api.authWebAppMiddleware, api.appAuthLogout)                                                 // DONE
+	router.POST("/login", api.appAuthLogin)                                                                            // DONE
+	router.POST("/register", api.appAuthRegister)                                                                      // DONE
+	router.GET("/settings", api.authWebAppMiddleware, api.appGetSettings)                                              // DONE
 
 	// TODO
 	router.GET("/login", api.appGetLogin)
 	router.GET("/register", api.appGetRegister)
-	router.GET("/settings", api.authWebAppMiddleware, api.appGetSettings)
 	router.GET("/admin/logs", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminLogs)
 	router.GET("/admin/import", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminImport)
 	router.POST("/admin/import", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appPerformAdminImport)
@@ -182,12 +182,13 @@ func (api *API) registerWebAppRoutes(router *gin.Engine) {
 		router.POST("/documents/:document/delete", api.authWebAppMiddleware, api.appDeleteDocument)        // DONE
 		router.POST("/documents/:document/edit", api.authWebAppMiddleware, api.appEditDocument)            // DONE
 		router.POST("/documents/:document/identify", api.authWebAppMiddleware, api.appIdentifyDocumentNew) // DONE
-		router.POST("/settings", api.authWebAppMiddleware, api.appEditSettings)                            // TODO
+		router.POST("/settings", api.authWebAppMiddleware, api.appEditSettings)                            // DONE
+
 	}
 
 	// Search enabled configuration
 	if api.cfg.SearchEnabled {
-		router.GET("/search", api.authWebAppMiddleware, api.appGetSearchNew)     // WIP
+		router.GET("/search", api.authWebAppMiddleware, api.appGetSearch)        // DONE
 		router.POST("/search", api.authWebAppMiddleware, api.appSaveNewDocument) // TODO
 	}
 }
@@ -358,13 +359,13 @@ func loggingMiddleware(c *gin.Context) {
 	}
 
 	// Get username
-	var auth authData
+	var auth *authData
 	if data, _ := c.Get("Authorization"); data != nil {
-		auth = data.(authData)
+		auth = data.(*authData)
 	}
 
 	// Log user
-	if auth.UserName != "" {
+	if auth != nil && auth.UserName != "" {
 		logData["user"] = auth.UserName
 	}
 

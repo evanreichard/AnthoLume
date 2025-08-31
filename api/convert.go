@@ -28,7 +28,7 @@ func convertDBDocToUI(r database.GetDocumentsWithStatsRow) models.Document {
 	}
 }
 
-func convertMetaToUI(m metadata.MetadataInfo, errorMsg *string) *models.DocumentMetadata {
+func convertMetaToUI(m metadata.MetadataInfo) *models.DocumentMetadata {
 	return &models.DocumentMetadata{
 		SourceID:    ptr.Deref(m.SourceID),
 		ISBN10:      ptr.Deref(m.ISBN10),
@@ -37,7 +37,6 @@ func convertMetaToUI(m metadata.MetadataInfo, errorMsg *string) *models.Document
 		Author:      ptr.Deref(m.Author),
 		Description: ptr.Deref(m.Description),
 		Source:      m.Source,
-		Error:       errorMsg,
 	}
 }
 
@@ -59,6 +58,14 @@ func convertDBProgressToUI(r database.GetProgressRow) models.Progress {
 		Title:      utils.FirstNonZero(ptr.Deref(r.Title), "N/A"),
 		DeviceName: r.DeviceName,
 		Percentage: r.Percentage,
+		CreatedAt:  r.CreatedAt,
+	}
+}
+
+func convertDBDeviceToUI(r database.GetDevicesRow) models.Device {
+	return models.Device{
+		DeviceName: r.DeviceName,
+		LastSynced: r.LastSynced,
 		CreatedAt:  r.CreatedAt,
 	}
 }

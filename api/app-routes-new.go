@@ -2,6 +2,7 @@ package api
 
 import (
 	"cmp"
+	"crypto/md5"
 	"fmt"
 	"math"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	argon2 "github.com/alexedwards/argon2id"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/database"
@@ -18,20 +20,19 @@ import (
 	"reichard.io/antholume/pkg/sliceutils"
 	"reichard.io/antholume/pkg/utils"
 	"reichard.io/antholume/search"
-	"reichard.io/antholume/web/components/layout"
 	"reichard.io/antholume/web/components/stats"
 	"reichard.io/antholume/web/models"
 	"reichard.io/antholume/web/pages"
 )
 
-func (api *API) appGetHomeNew(c *gin.Context) {
+func (api *API) appGetHome(c *gin.Context) {
 	_, auth := api.getBaseTemplateVars("home", c)
 
 	start := time.Now()
 	dailyStats, err := api.db.Queries.GetDailyReadStats(c, auth.UserName)
 	if err != nil {
-		log.Error("GetDailyReadStats DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDailyReadStats DB Error: %v", err))
+		log.WithError(err).Error("failed to get daily read stats")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to get daily read stats: %s", err))
 		return
 	}
 	log.Debug("GetDailyReadStats DB Performance: ", time.Since(start))
@@ -39,8 +40,8 @@ func (api *API) appGetHomeNew(c *gin.Context) {
 	start = time.Now()
 	databaseInfo, err := api.db.Queries.GetDatabaseInfo(c, auth.UserName)
 	if err != nil {
-		log.Error("GetDatabaseInfo DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDatabaseInfo DB Error: %v", err))
+		log.WithError(err).Error("failed to get database info")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to get database info: %s", err))
 		return
 	}
 	log.Debug("GetDatabaseInfo DB Performance: ", time.Since(start))
@@ -48,8 +49,8 @@ func (api *API) appGetHomeNew(c *gin.Context) {
 	start = time.Now()
 	streaks, err := api.db.Queries.GetUserStreaks(c, auth.UserName)
 	if err != nil {
-		log.Error("GetUserStreaks DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStreaks DB Error: %v", err))
+		log.WithError(err).Error("failed to get user streaks")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to get user streaks: %s", err))
 		return
 	}
 	log.Debug("GetUserStreaks DB Performance: ", time.Since(start))
@@ -57,35 +58,27 @@ func (api *API) appGetHomeNew(c *gin.Context) {
 	start = time.Now()
 	userStatistics, err := api.db.Queries.GetUserStatistics(c)
 	if err != nil {
-		log.Error("GetUserStatistics DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUserStatistics DB Error: %v", err))
+		log.WithError(err).Error("failed to get user statistics")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to get user statistics: %s", err))
 		return
 	}
 	log.Debug("GetUserStatistics DB Performance: ", time.Since(start))
 
-	err = layout.Layout(
-		pages.Home{
-			Leaderboard: arrangeUserStatisticsNew(userStatistics),
-			Streaks:     streaks,
-			DailyStats:  dailyStats,
-			RecordInfo:  &databaseInfo,
-		},
-		layout.LayoutOptions{
-			Username:      auth.UserName,
-			IsAdmin:       auth.IsAdmin,
-			SearchEnabled: api.cfg.SearchEnabled,
-			Version:       api.cfg.Version,
-		},
-	).Render(c.Writer)
-	if err != nil {
-		log.Error("Render Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Unknown Error: %v", err))
-	}
+	api.renderPage(c, &pages.Home{
+		Leaderboard: arrangeUserStatistic(userStatistics),
+		Streaks:     streaks,
+		DailyStats:  dailyStats,
+		RecordInfo:  &databaseInfo,
+	})
 }
 
-func (api *API) appGetDocumentsNew(c *gin.Context) {
-	_, auth := api.getBaseTemplateVars("documents", c)
-	qParams := bindQueryParams(c, 9)
+func (api *API) appGetDocuments(c *gin.Context) {
+	qParams, err := bindQueryParams(c, 9)
+	if err != nil {
+		log.WithError(err).Error("failed to bind query params")
+		appErrorPage(c, http.StatusBadRequest, fmt.Sprintf("failed to bind query params: %s", err))
+		return
+	}
 
 	var query *string
 	if qParams.Search != nil && *qParams.Search != "" {
@@ -93,6 +86,7 @@ func (api *API) appGetDocumentsNew(c *gin.Context) {
 		query = &search
 	}
 
+	_, auth := api.getBaseTemplateVars("documents", c)
 	documents, err := api.db.Queries.GetDocumentsWithStats(c, database.GetDocumentsWithStatsParams{
 		UserID:  auth.UserName,
 		Query:   query,
@@ -101,170 +95,114 @@ func (api *API) appGetDocumentsNew(c *gin.Context) {
 		Limit:   *qParams.Limit,
 	})
 	if err != nil {
-		log.Error("GetDocumentsWithStats DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsWithStats DB Error: %v", err))
+		log.WithError(err).Error("failed to get documents with stats")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to get documents with stats: %s", err))
 		return
 	}
 
 	length, err := api.db.Queries.GetDocumentsSize(c, query)
 	if err != nil {
-		log.Error("GetDocumentsSize DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsSize DB Error: %v", err))
+		log.WithError(err).Error("failed to get document sizes")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to get document sizes: %s", err))
 		return
 	}
 
 	if err = api.getDocumentsWordCount(c, documents); err != nil {
-		log.Error("Unable to Get Word Counts: ", err)
+		log.WithError(err).Error("failed to get word counts")
 	}
 
 	totalPages := int64(math.Ceil(float64(length) / float64(*qParams.Limit)))
 	nextPage := *qParams.Page + 1
 	previousPage := *qParams.Page - 1
 
-	err = layout.Layout(
-		pages.Documents{
-			Data:     sliceutils.Map(documents, convertDBDocToUI),
-			Previous: utils.Ternary(previousPage >= 0, int(previousPage), 0),
-			Next:     utils.Ternary(nextPage <= totalPages, int(nextPage), 0),
-			Limit:    int(ptr.Deref(qParams.Limit)),
-		},
-		layout.LayoutOptions{
-			Username:      auth.UserName,
-			IsAdmin:       auth.IsAdmin,
-			SearchEnabled: api.cfg.SearchEnabled,
-			Version:       api.cfg.Version,
-		},
-	).Render(c.Writer)
-	if err != nil {
-		log.Error("Render Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Unknown Error: %v", err))
-	}
+	api.renderPage(c, pages.Documents{
+		Data:     sliceutils.Map(documents, convertDBDocToUI),
+		Previous: utils.Ternary(previousPage >= 0, int(previousPage), 0),
+		Next:     utils.Ternary(nextPage <= totalPages, int(nextPage), 0),
+		Limit:    int(ptr.Deref(qParams.Limit)),
+	})
 }
 
-func (api *API) appGetDocumentNew(c *gin.Context) {
-	_, auth := api.getBaseTemplateVars("document", c)
-
+func (api *API) appGetDocument(c *gin.Context) {
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
-		log.Error("Invalid URI Bind")
+		log.WithError(err).Error("failed to bind URI")
 		appErrorPage(c, http.StatusNotFound, "Invalid document")
 		return
 	}
 
+	_, auth := api.getBaseTemplateVars("document", c)
 	document, err := api.db.GetDocument(c, rDocID.DocumentID, auth.UserName)
 	if err != nil {
-		log.Error("GetDocument DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocument DB Error: %v", err))
+		log.WithError(err).Error("failed to get document")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to get document: %s", err))
 		return
 	}
 
-	err = layout.Layout(
-		pages.Document{
-			Data: convertDBDocToUI(*document),
-		},
-		layout.LayoutOptions{
-			Username:      auth.UserName,
-			IsAdmin:       auth.IsAdmin,
-			SearchEnabled: api.cfg.SearchEnabled,
-			Version:       api.cfg.Version,
-		},
-	).Render(c.Writer)
-	if err != nil {
-		log.Error("Render Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Unknown Error: %v", err))
-	}
+	api.renderPage(c, &pages.Document{Data: convertDBDocToUI(*document)})
 }
 
-func (api *API) appGetActivityNew(c *gin.Context) {
+func (api *API) appGetActivity(c *gin.Context) {
+	qParams, err := bindQueryParams(c, 15)
+	if err != nil {
+		log.WithError(err).Error("failed to bind query params")
+		appErrorPage(c, http.StatusBadRequest, fmt.Sprintf("failed to bind query params: %s", err))
+		return
+	}
+
 	_, auth := api.getBaseTemplateVars("activity", c)
-	qParams := bindQueryParams(c, 15)
-
-	activityFilter := database.GetActivityParams{
-		UserID: auth.UserName,
-		Offset: (*qParams.Page - 1) * *qParams.Limit,
-		Limit:  *qParams.Limit,
-	}
-
-	if qParams.Document != nil {
-		activityFilter.DocFilter = true
-		activityFilter.DocumentID = *qParams.Document
-	}
-
-	activity, err := api.db.Queries.GetActivity(c, activityFilter)
+	activity, err := api.db.Queries.GetActivity(c, database.GetActivityParams{
+		UserID:     auth.UserName,
+		Offset:     (*qParams.Page - 1) * *qParams.Limit,
+		Limit:      *qParams.Limit,
+		DocFilter:  qParams.Document != nil,
+		DocumentID: ptr.Deref(qParams.Document),
+	})
 	if err != nil {
-		log.Error("GetActivity DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetActivity DB Error: %v", err))
+		log.WithError(err).Error("failed to get activity")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to get activity: %s", err))
 		return
 	}
 
-	err = layout.Layout(
-		pages.Activity{
-			Data: sliceutils.Map(activity, convertDBActivityToUI),
-		},
-		layout.LayoutOptions{
-			Username:      auth.UserName,
-			IsAdmin:       auth.IsAdmin,
-			SearchEnabled: api.cfg.SearchEnabled,
-			Version:       api.cfg.Version,
-		},
-	).Render(c.Writer)
-	if err != nil {
-		log.Error("Render Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Unknown Error: %v", err))
-	}
+	api.renderPage(c, &pages.Activity{Data: sliceutils.Map(activity, convertDBActivityToUI)})
 }
 
-func (api *API) appGetProgressNew(c *gin.Context) {
-	_, auth := api.getBaseTemplateVars("progress", c)
-
-	qParams := bindQueryParams(c, 15)
-
-	progressFilter := database.GetProgressParams{
-		UserID: auth.UserName,
-		Offset: (*qParams.Page - 1) * *qParams.Limit,
-		Limit:  *qParams.Limit,
-	}
-
-	if qParams.Document != nil {
-		progressFilter.DocFilter = true
-		progressFilter.DocumentID = *qParams.Document
-	}
-
-	progress, err := api.db.Queries.GetProgress(c, progressFilter)
+func (api *API) appGetProgress(c *gin.Context) {
+	qParams, err := bindQueryParams(c, 15)
 	if err != nil {
-		log.Error("GetProgress DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetActivity DB Error: %v", err))
+		log.WithError(err).Error("failed to bind query params")
+		appErrorPage(c, http.StatusBadRequest, fmt.Sprintf("failed to bind query params: %s", err))
 		return
 	}
 
-	err = layout.Layout(
-		pages.Progress{
-			Data: sliceutils.Map(progress, convertDBProgressToUI),
-		},
-		layout.LayoutOptions{
-			Username:      auth.UserName,
-			IsAdmin:       auth.IsAdmin,
-			SearchEnabled: api.cfg.SearchEnabled,
-			Version:       api.cfg.Version,
-		},
-	).Render(c.Writer)
+	_, auth := api.getBaseTemplateVars("progress", c)
+	progress, err := api.db.Queries.GetProgress(c, database.GetProgressParams{
+		UserID:     auth.UserName,
+		Offset:     (*qParams.Page - 1) * *qParams.Limit,
+		Limit:      *qParams.Limit,
+		DocFilter:  qParams.Document != nil,
+		DocumentID: ptr.Deref(qParams.Document),
+	})
 	if err != nil {
-		log.Error("Render Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Unknown Error: %v", err))
+		log.WithError(err).Error("failed to get progress")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to get progress: %s", err))
+		return
 	}
+
+	api.renderPage(c, &pages.Progress{Data: sliceutils.Map(progress, convertDBProgressToUI)})
 }
 
 func (api *API) appIdentifyDocumentNew(c *gin.Context) {
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
-		log.Error("Invalid URI Bind")
+		log.WithError(err).Error("failed to bind URI")
 		appErrorPage(c, http.StatusNotFound, "Invalid document")
 		return
 	}
 
 	var rDocIdentify requestDocumentIdentify
 	if err := c.ShouldBind(&rDocIdentify); err != nil {
-		log.Error("Invalid Form Bind")
+		log.WithError(err).Error("failed to bind form")
 		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
 		return
 	}
@@ -282,15 +220,14 @@ func (api *API) appIdentifyDocumentNew(c *gin.Context) {
 
 	// Validate Values
 	if rDocIdentify.ISBN == nil && rDocIdentify.Title == nil && rDocIdentify.Author == nil {
-		log.Error("Invalid Form")
+		log.Error("invalid or missing form values")
 		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
 		return
 	}
 
-	// Get Template Variables
-	_, auth := api.getBaseTemplateVars("document", c)
-
 	// Get Metadata
+	var searchResult *models.DocumentMetadata
+	var allNotifications []*models.Notification
 	metadataResults, err := metadata.SearchMetadata(metadata.SourceGoogleBooks, metadata.MetadataInfo{
 		Title:  rDocIdentify.Title,
 		Author: rDocIdentify.Author,
@@ -298,14 +235,12 @@ func (api *API) appIdentifyDocumentNew(c *gin.Context) {
 		ISBN13: rDocIdentify.ISBN,
 	})
 	if err != nil {
-		log.Error("Search Metadata Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Search Metadata Error: %v", err))
+		log.WithError(err).Error("failed to search metadata")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to search metadata: %s", err))
 		return
-	}
+	} else if firstResult, found := sliceutils.First(metadataResults); found {
+		searchResult = convertMetaToUI(firstResult)
 
-	var errorMsg *string
-	firstResult, found := sliceutils.First(metadataResults)
-	if found {
 		// Store First Metadata Result
 		if _, err = api.db.Queries.AddMetadata(c, database.AddMetadataParams{
 			DocumentID:  rDocID.DocumentID,
@@ -313,52 +248,42 @@ func (api *API) appIdentifyDocumentNew(c *gin.Context) {
 			Author:      firstResult.Author,
 			Description: firstResult.Description,
 			Gbid:        firstResult.SourceID,
-			Olid:        nil,
 			Isbn10:      firstResult.ISBN10,
 			Isbn13:      firstResult.ISBN13,
 		}); err != nil {
-			log.Error("AddMetadata DB Error: ", err)
+			log.WithError(err).Error("failed to add metadata")
 		}
 	} else {
-		errorMsg = ptr.Of("No Metadata Found")
+		allNotifications = append(allNotifications, &models.Notification{
+			Type:    models.NotificationTypeError,
+			Content: "No Metadata Found",
+		})
 	}
 
+	// Get Auth
+	_, auth := api.getBaseTemplateVars("document", c)
 	document, err := api.db.GetDocument(c, rDocID.DocumentID, auth.UserName)
 	if err != nil {
-		log.Error("GetDocument DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocument DB Error: %v", err))
+		log.WithError(err).Error("failed to get document")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to get document: %s", err))
 		return
 	}
 
-	err = layout.Layout(
-		pages.Document{
-			Data:   convertDBDocToUI(*document),
-			Search: convertMetaToUI(firstResult, errorMsg),
-		},
-		layout.LayoutOptions{
-			Username:      auth.UserName,
-			IsAdmin:       auth.IsAdmin,
-			SearchEnabled: api.cfg.SearchEnabled,
-			Version:       api.cfg.Version,
-		},
-	).Render(c.Writer)
-	if err != nil {
-		log.Error("Render Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Unknown Error: %v", err))
-	}
+	api.renderPage(c, &pages.Document{
+		Data:   convertDBDocToUI(*document),
+		Search: searchResult,
+	}, allNotifications...)
 }
 
 // Tabs:
 //   - General (Import, Backup & Restore, Version (githash?), Stats?)
 //   - Users
 //   - Metadata
-func (api *API) appGetSearchNew(c *gin.Context) {
-	_, auth := api.getBaseTemplateVars("search", c)
-
+func (api *API) appGetSearch(c *gin.Context) {
 	var sParams searchParams
-	err := c.BindQuery(&sParams)
-	if err != nil {
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Invalid Form Bind: %v", err))
+	if err := c.BindQuery(&sParams); err != nil {
+		log.WithError(err).Error("failed to bind form")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
 		return
 	}
 
@@ -368,6 +293,7 @@ func (api *API) appGetSearchNew(c *gin.Context) {
 	if sParams.Query != nil && sParams.Source != nil {
 		results, err := search.SearchBook(*sParams.Query, *sParams.Source)
 		if err != nil {
+			log.WithError(err).Error("failed to search book")
 			appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Search Error: %v", err))
 			return
 		}
@@ -376,23 +302,159 @@ func (api *API) appGetSearchNew(c *gin.Context) {
 		searchError = "Invailid Query"
 	}
 
-	err = layout.Layout(
-		pages.Search{
-			Results: searchResults,
-			Source:  ptr.Deref(sParams.Source),
-			Query:   ptr.Deref(sParams.Query),
-			Error:   searchError,
-		},
-		layout.LayoutOptions{
-			Username:      auth.UserName,
-			IsAdmin:       auth.IsAdmin,
-			SearchEnabled: api.cfg.SearchEnabled,
-			Version:       api.cfg.Version,
-		},
-	).Render(c.Writer)
+	api.renderPage(c, &pages.Search{
+		Results: searchResults,
+		Source:  ptr.Deref(sParams.Source),
+		Query:   ptr.Deref(sParams.Query),
+		Error:   searchError,
+	})
+}
+
+func (api *API) appGetSettings(c *gin.Context) {
+	_, auth := api.getBaseTemplateVars("settings", c)
+
+	user, err := api.db.Queries.GetUser(c, auth.UserName)
 	if err != nil {
-		log.Error("Render Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("Unknown Error: %v", err))
+		log.WithError(err).Error("failed to get user")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to get user: %s", err))
+		return
+	}
+
+	devices, err := api.db.Queries.GetDevices(c, auth.UserName)
+	if err != nil {
+		log.WithError(err).Error("failed to get devices")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to get devices: %s", err))
+		return
+	}
+
+	api.renderPage(c, &pages.Settings{
+		Timezone: ptr.Deref(user.Timezone),
+		Devices:  sliceutils.Map(devices, convertDBDeviceToUI),
+	})
+}
+
+func (api *API) appEditSettings(c *gin.Context) {
+	var rUserSettings requestSettingsEdit
+	if err := c.ShouldBind(&rUserSettings); err != nil {
+		log.WithError(err).Error("failed to bind form")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
+		return
+	}
+
+	// Validate Something Exists
+	if rUserSettings.Password == nil && rUserSettings.NewPassword == nil && rUserSettings.Timezone == nil {
+		log.Error("invalid or missing form values")
+		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
+		return
+	}
+
+	_, auth := api.getBaseTemplateVars("settings", c)
+
+	newUserSettings := database.UpdateUserParams{
+		UserID: auth.UserName,
+		Admin:  auth.IsAdmin,
+	}
+
+	// Set New Password
+	var allNotifications []*models.Notification
+	if rUserSettings.Password != nil && rUserSettings.NewPassword != nil {
+		password := fmt.Sprintf("%x", md5.Sum([]byte(*rUserSettings.Password)))
+		if _, err := api.authorizeCredentials(c, auth.UserName, password); err != nil {
+			allNotifications = append(allNotifications, &models.Notification{
+				Type:    models.NotificationTypeError,
+				Content: "Invalid Password",
+			})
+		} else {
+			password := fmt.Sprintf("%x", md5.Sum([]byte(*rUserSettings.NewPassword)))
+			hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
+			if err != nil {
+				allNotifications = append(allNotifications, &models.Notification{
+					Type:    models.NotificationTypeError,
+					Content: "Unknown Error",
+				})
+			} else {
+				allNotifications = append(allNotifications, &models.Notification{
+					Type:    models.NotificationTypeSuccess,
+					Content: "Password Updated",
+				})
+				newUserSettings.Password = &hashedPassword
+			}
+		}
+	}
+
+	// Set Time Offset
+	if rUserSettings.Timezone != nil {
+		allNotifications = append(allNotifications, &models.Notification{
+			Type:    models.NotificationTypeSuccess,
+			Content: "Time Offset Updated",
+		})
+		newUserSettings.Timezone = rUserSettings.Timezone
+	}
+
+	// Update User
+	_, err := api.db.Queries.UpdateUser(c, newUserSettings)
+	if err != nil {
+		log.WithError(err).Error("failed to update user")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to update user: %s", err))
+		return
+	}
+
+	// Get User
+	user, err := api.db.Queries.GetUser(c, auth.UserName)
+	if err != nil {
+		log.WithError(err).Error("failed to get user")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to get user: %s", err))
+		return
+	}
+
+	// Get Devices
+	devices, err := api.db.Queries.GetDevices(c, auth.UserName)
+	if err != nil {
+		log.WithError(err).Error("failed to get devices")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to get devices: %s", err))
+		return
+	}
+
+	api.renderPage(c, &pages.Settings{
+		Devices:  sliceutils.Map(devices, convertDBDeviceToUI),
+		Timezone: ptr.Deref(user.Timezone),
+	}, allNotifications...)
+}
+
+func (api *API) renderPage(c *gin.Context, page pages.Page, notifications ...*models.Notification) {
+	// Get Authentication Data
+	auth, err := getAuthData(c)
+	if err != nil {
+		log.WithError(err).Error("failed to acquire auth data")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to acquire auth data: %s", err))
+		return
+	}
+
+	// Generate Page
+	pageNode, err := page.Generate(models.PageContext{
+		UserInfo: &models.UserInfo{
+			Username: auth.UserName,
+			IsAdmin:  auth.IsAdmin,
+		},
+		ServerInfo: &models.ServerInfo{
+			RegistrationEnabled: api.cfg.RegistrationEnabled,
+			SearchEnabled:       api.cfg.SearchEnabled,
+			Version:             api.cfg.Version,
+		},
+		Notifications: notifications,
+	})
+	if err != nil {
+		log.WithError(err).Error("failed to generate page")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to generate page: %s", err))
+		return
+	}
+
+	// Render Page
+	err = pageNode.Render(c.Writer)
+	if err != nil {
+		log.WithError(err).Error("failed to render page")
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("failed to render page: %s", err))
+		return
 	}
 }
 
@@ -415,7 +477,7 @@ func sortItem[T cmp.Ordered](
 	return items
 }
 
-func arrangeUserStatisticsNew(data []database.GetUserStatisticsRow) []stats.LeaderboardData {
+func arrangeUserStatistic(data []database.GetUserStatisticsRow) []stats.LeaderboardData {
 	wpmFormatter := func(v float64) string { return fmt.Sprintf("%.2f WPM", v) }
 	return []stats.LeaderboardData{
 		{

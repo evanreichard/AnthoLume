@@ -138,8 +138,8 @@ WHERE id = $device_id LIMIT 1;
 SELECT
     devices.id,
     devices.device_name,
-    LOCAL_TIME(devices.created_at, users.timezone) AS created_at,
-    LOCAL_TIME(devices.last_synced, users.timezone) AS last_synced
+    CAST(LOCAL_TIME(devices.created_at, users.timezone) AS TEXT) AS created_at,
+    CAST(LOCAL_TIME(devices.last_synced, users.timezone) AS TEXT) AS last_synced
 FROM devices
 JOIN users ON users.id = devices.user_id
 WHERE users.id = $user_id

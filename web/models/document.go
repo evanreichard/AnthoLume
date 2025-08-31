@@ -29,5 +29,4 @@ type DocumentMetadata struct {
 	Author      string
 	Description string
 	Source      metadata.Source
-	Error       *string
 }
