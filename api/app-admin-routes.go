@@ -27,6 +27,8 @@ import (
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
 	"reichard.io/antholume/utils"
+	"reichard.io/antholume/web/models"
+	"reichard.io/antholume/web/pages"
 )
 
 type adminAction string
@@ -96,21 +98,31 @@ type importResult struct {
 	Error  error
 }
 
-func (api *API) appPerformAdminAction(c *gin.Context) {
-	templateVars, _ := api.getBaseTemplateVars("admin", c)
+func (api *API) appGetAdmin(c *gin.Context) {
+	api.renderPage(c, &pages.AdminGeneral{})
+}
 
+func (api *API) appPerformAdminAction(c *gin.Context) {
 	var rAdminAction requestAdminAction
 	if err := c.ShouldBind(&rAdminAction); err != nil {
-		log.Error("Invalid Form Bind: ", err)
+		log.Error("invalid or missing form values")
 		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
 		return
 	}
 
+	var allNotifications []*models.Notification
 	switch rAdminAction.Action {
+	case adminRestore:
+		api.processRestoreFile(rAdminAction, c)
+		return
+	case adminBackup:
+		api.processBackup(c, rAdminAction.BackupTypes)
+		return
 	case adminMetadataMatch:
-		// TODO
-		// 1. Documents xref most recent metadata table?
-		// 2. Select all / deselect?
+		allNotifications = append(allNotifications, &models.Notification{
+			Type:    models.NotificationTypeError,
+			Content: "Metadata match not implemented",
+		})
 	case adminCacheTables:
 		go func() {
 			err := api.db.CacheTempTables(c)
@@ -118,50 +130,14 @@ func (api *API) appPerformAdminAction(c *gin.Context) {
 				log.Error("Unable to cache temp tables: ", err)
 			}
 		}()
-	case adminRestore:
-		api.processRestoreFile(rAdminAction, c)
-		return
-	case adminBackup:
-		// Vacuum
-		_, err := api.db.DB.ExecContext(c, "VACUUM;")
-		if err != nil {
-			log.Error("Unable to vacuum DB: ", err)
-			appErrorPage(c, http.StatusInternalServerError, "Unable to vacuum database")
-			return
-		}
 
-		// Set Headers
-		c.Header("Content-type", "application/octet-stream")
-		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"AnthoLumeBackup_%s.zip\"", time.Now().Format("20060102150405")))
-
-		// Stream Backup ZIP Archive
-		c.Stream(func(w io.Writer) bool {
-			var directories []string
-			for _, item := range rAdminAction.BackupTypes {
-				switch item {
-				case backupCovers:
-					directories = append(directories, "covers")
-				case backupDocuments:
-					directories = append(directories, "documents")
-				}
-			}
-
-			err := api.createBackup(c, w, directories)
-			if err != nil {
-				log.Error("Backup Error: ", err)
-			}
-			return false
+		allNotifications = append(allNotifications, &models.Notification{
+			Type:    models.NotificationTypeSuccess,
+			Content: "Initiated table cache",
 		})
-
-		return
 	}
 
-	c.HTML(http.StatusOK, "page/admin", templateVars)
-}
-
-func (api *API) appGetAdmin(c *gin.Context) {
-	templateVars, _ := api.getBaseTemplateVars("admin", c)
-	c.HTML(http.StatusOK, "page/admin", templateVars)
+	api.renderPage(c, &pages.AdminGeneral{}, allNotifications...)
 }
 
 func (api *API) appGetAdminLogs(c *gin.Context) {
@@ -534,6 +510,40 @@ func (api *API) appPerformAdminImport(c *gin.Context) {
 	c.HTML(http.StatusOK, "page/admin-import-results", templateVars)
 }
 
+func (api *API) processBackup(c *gin.Context, backupTypes []backupType) {
+	// Vacuum
+	_, err := api.db.DB.ExecContext(c, "VACUUM;")
+	if err != nil {
+		log.Error("Unable to vacuum DB: ", err)
+		appErrorPage(c, http.StatusInternalServerError, "Unable to vacuum database")
+		return
+	}
+
+	// Set Headers
+	c.Header("Content-type", "application/octet-stream")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"AnthoLumeBackup_%s.zip\"", time.Now().Format("20060102150405")))
+
+	// Stream Backup ZIP Archive
+	c.Stream(func(w io.Writer) bool {
+		var directories []string
+		for _, item := range backupTypes {
+			switch item {
+			case backupCovers:
+				directories = append(directories, "covers")
+			case backupDocuments:
+				directories = append(directories, "documents")
+			}
+		}
+
+		err := api.createBackup(c, w, directories)
+		if err != nil {
+			log.Error("Backup Error: ", err)
+		}
+		return false
+	})
+
+}
+
 func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Context) {
 	// Validate Type & Derive Extension on MIME
 	uploadedFile, err := rAdminAction.RestoreFile.Open()
@@ -790,7 +800,7 @@ func (api *API) createBackup(ctx context.Context, w io.Writer, directories []str
 		}
 	}
 
-	ar.Close()
+	_ = ar.Close()
 	return nil
 }
 
