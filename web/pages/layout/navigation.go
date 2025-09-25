@@ -18,7 +18,7 @@ func Navigation(ctx models.PageContext) g.Node {
 	return h.Div(
 		g.Attr("class", "flex items-center justify-between w-full h-16"),
 		Sidebar(ctx),
-		h.H1(g.Attr("class", "text-xl font-bold px-6 lg:ml-44"), g.Text(ctx.Route.Title())),
+		h.H1(g.Attr("class", "text-xl font-bold whitespace-nowrap px-6 lg:ml-44"), g.Text(ctx.Route.Title())),
 		Dropdown(ctx.UserInfo.Username),
 	)
 }
