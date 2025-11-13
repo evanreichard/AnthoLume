@@ -87,7 +87,7 @@ func GetWordCount(filepath string) (*int64, error) {
 		}
 		return &totalWords, nil
 	} else {
-		return nil, fmt.Errorf("Invalid extension: %s", fileExtension)
+		return nil, fmt.Errorf("invalid extension: %s", fileExtension)
 	}
 }
 

@@ -53,10 +53,12 @@ func countEPUBWords(filepath string) (int64, error) {
 	rf := rc.Rootfiles[0]
 
 	var completeCount int64
-	for _, item := range rf.Spine.Itemrefs {
+	for _, item := range rf.Itemrefs {
 		f, _ := item.Open()
 		doc, _ := goquery.NewDocumentFromReader(f)
-		completeCount = completeCount + int64(len(strings.Fields(doc.Text())))
+		doc.Find("script, style, noscript, iframe").Remove()
+		words := len(strings.Fields(doc.Text()))
+		completeCount = completeCount + int64(words)
 	}
 
 	return completeCount, nil
