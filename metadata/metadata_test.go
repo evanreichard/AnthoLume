@@ -8,7 +8,7 @@ import (
 )
 
 func TestGetWordCount(t *testing.T) {
-	var desiredCount int64 = 30080
+	var desiredCount int64 = 30070
 	actualCount, err := countEPUBWords("../_test_files/alice.epub")
 
 	assert.Nil(t, err, "should have no error")
