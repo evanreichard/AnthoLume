@@ -10,7 +10,7 @@ import (
 )
 
 func searchAnnasArchive(query string) ([]SearchItem, error) {
-	searchURL := "https://annas-archive.org/search?index=&q=%s&ext=epub&sort=&lang=en"
+	searchURL := "https://annas-archive.li/search?index=&q=%s&ext=epub&sort=&lang=en"
 	url := fmt.Sprintf(searchURL, url.QueryEscape(query))
 	body, err := getPage(url)
 	if err != nil {
