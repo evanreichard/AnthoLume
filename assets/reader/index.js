@@ -1317,7 +1317,7 @@ class EBookReader {
     let spineWC = await Promise.all(
       this.book.spine.spineItems.map(async (item) => {
         let newDoc = await item.load(this.book.load.bind(this.book));
-        let spineWords = newDoc.innerText.trim().split(/\s+/).length;
+        let spineWords = (newDoc.innerText || "").trim().split(/\s+/).length;
         item.wordCount = spineWords;
         return spineWords;
       }),
