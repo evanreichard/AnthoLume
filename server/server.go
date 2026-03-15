@@ -12,36 +12,62 @@ import (
 	"reichard.io/antholume/api"
 	"reichard.io/antholume/config"
 	"reichard.io/antholume/database"
+	v1 "reichard.io/antholume/api/v1"
 )
 
 type server struct {
-	db   *database.DBManager
-	api  *api.API
-	done chan int
-	wg   sync.WaitGroup
+	db        *database.DBManager
+	ginAPI    *api.API
+	v1API     *v1.Server
+	httpServer *http.Server
+	done      chan int
+	wg        sync.WaitGroup
 }
 
-// Create new server
+// Create new server with both Gin and v1 API running in parallel
 func New(c *config.Config, assets fs.FS) *server {
 	db := database.NewMgr(c)
-	api := api.NewApi(db, c, assets)
+	ginAPI := api.NewApi(db, c, assets)
+	v1API := v1.NewServer(db, c)
+
+	// Create combined mux that handles both Gin and v1 API
+	mux := http.NewServeMux()
+
+	// Register v1 API routes first (they take precedence)
+	mux.Handle("/api/v1/", v1API)
+
+	// Register Gin API routes (handles all other routes including /)
+	// Gin's router implements http.Handler
+	mux.Handle("/", ginAPI.Handler())
+
+	// Create HTTP server with combined mux
+	httpServer := &http.Server{
+		Handler: mux,
+		Addr:    ":" + c.ListenPort,
+	}
 
 	return &server{
-		db:   db,
-		api:  api,
-		done: make(chan int),
+		db:        db,
+		ginAPI:    ginAPI,
+		v1API:     v1API,
+		httpServer: httpServer,
+		done:      make(chan int),
 	}
 }
 
-// Start server
+// Start server - runs both Gin and v1 API concurrently
 func (s *server) Start() {
-	log.Info("Starting server...")
+	log.Info("Starting server with both Gin (templates) and v1 (API)...")
+	log.Info("v1 API endpoints available at /api/v1/*")
+	log.Info("Gin template endpoints available at /")
+
 	s.wg.Add(2)
 
 	go func() {
 		defer s.wg.Done()
 
-		err := s.api.Start()
+		log.Infof("HTTP server listening on %s", s.httpServer.Addr)
+		err := s.httpServer.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
 			log.Error("Starting server failed: ", err)
 		}
@@ -66,19 +92,27 @@ func (s *server) Start() {
 		}
 	}()
 
-	log.Info("Server started")
+	log.Info("Server started - running both Gin and v1 API concurrently")
 }
 
-// Stop server
+// Stop server - gracefully shuts down both APIs
 func (s *server) Stop() {
 	log.Info("Stopping server...")
 
-	if err := s.api.Stop(); err != nil {
-		log.Error("HTTP server stop failed: ", err)
+	// Shutdown HTTP server (both Gin and v1)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := s.httpServer.Shutdown(ctx); err != nil {
+		log.Error("HTTP server shutdown failed: ", err)
 	}
 
 	close(s.done)
 	s.wg.Wait()
+
+	// Close DB
+	if err := s.db.DB.Close(); err != nil {
+		log.Error("DB close failed: ", err)
+	}
 
 	log.Info("Server stopped")
 }

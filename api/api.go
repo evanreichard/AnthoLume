@@ -114,6 +114,11 @@ func (api *API) Start() error {
 	return api.httpServer.ListenAndServe()
 }
 
+// Handler returns the underlying http.Handler for the Gin router
+func (api *API) Handler() http.Handler {
+	return api.httpServer.Handler
+}
+
 func (api *API) Stop() error {
 	// Stop server
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
