@@ -2,23 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, Outlet, Navigate } from 'react-router-dom';
 import { useGetMe } from '../generated/anthoLumeAPIV1';
 import { useAuth } from '../auth/AuthContext';
-import { Home, FileText, Activity, Search, Settings, User, ChevronDown } from 'lucide-react';
-
-interface NavItem {
-  path: string;
-  label: string;
-  icon: React.ElementType;
-  title: string;
-}
-
-const navItems: NavItem[] = [
-  { path: '/', label: 'Home', icon: Home, title: 'Home' },
-  { path: '/documents', label: 'Documents', icon: FileText, title: 'Documents' },
-  { path: '/progress', label: 'Progress', icon: Activity, title: 'Progress' },
-  { path: '/activity', label: 'Activity', icon: Activity, title: 'Activity' },
-  { path: '/search', label: 'Search', icon: Search, title: 'Search' },
-  { path: '/settings', label: 'Settings', icon: Settings, title: 'Settings' },
-];
+import { User, ChevronDown } from 'lucide-react';
+import HamburgerMenu from './HamburgerMenu';
 
 export default function Layout() {
   const location = useLocation();
@@ -48,6 +33,14 @@ export default function Layout() {
   }, []);
 
   // Get current page title
+  const navItems = [
+    { path: '/', title: 'Home' },
+    { path: '/documents', title: 'Documents' },
+    { path: '/progress', title: 'Progress' },
+    { path: '/activity', title: 'Activity' },
+    { path: '/search', title: 'Search' },
+    { path: '/settings', title: 'Settings' },
+  ];
   const currentPageTitle = navItems.find(item => location.pathname === item.path)?.title || 'Documents';
 
   // Show loading while checking authentication status
@@ -64,51 +57,8 @@ export default function Layout() {
     <div className="bg-gray-100 dark:bg-gray-800 min-h-screen">
       {/* Header */}
       <div className="flex items-center justify-between w-full h-16">
-        {/* Mobile Navigation Button */}
-        <div className="flex flex-col z-40 relative ml-6">
-          <input
-            type="checkbox"
-            className="absolute lg:hidden z-50 -top-2 w-7 h-7 flex cursor-pointer opacity-0"
-            id="mobile-nav-button"
-          />
-          <span className="lg:hidden bg-black w-7 h-0.5 z-40 mt-0.5 dark:bg-white"></span>
-          <span className="lg:hidden bg-black w-7 h-0.5 z-40 mt-1 dark:bg-white"></span>
-          <span className="lg:hidden bg-black w-7 h-0.5 z-40 mt-1 dark:bg-white"></span>
-          <div
-            id="menu"
-            className="fixed -ml-6 h-full w-56 lg:w-48 bg-white dark:bg-gray-700 shadow-lg"
-            style={{ top: 0, paddingTop: 'env(safe-area-inset-top)' }}
-          >
-            <div className="h-16 flex justify-end lg:justify-around">
-              <p className="text-xl font-bold dark:text-white text-right my-auto pr-8 lg:pr-0">
-                AnthoLume
-              </p>
-            </div>
-            <nav className="flex flex-col">
-              {navItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center justify-start w-full p-2 pl-6 my-2 transition-colors duration-200 border-l-4 ${
-                    location.pathname === item.path
-                      ? 'border-purple-500 dark:text-white'
-                      : 'border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100'
-                  }`}
-                >
-                  <item.icon size={20} />
-                  <span className="mx-4 text-sm font-normal">{item.label}</span>
-                </Link>
-              ))}
-            </nav>
-            <a
-              className="flex flex-col gap-2 justify-center items-center p-6 w-full absolute bottom-0 text-black dark:text-white"
-              target="_blank"
-              href="https://gitea.va.reichard.io/evan/AnthoLume"
-            >
-              <span className="text-xs">v1.0.0</span>
-            </a>
-          </div>
-        </div>
+        {/* Mobile Navigation Button with CSS animations */}
+        <HamburgerMenu />
 
         {/* Header Title */}
         <h1 className="text-xl font-bold dark:text-white px-6 lg:ml-44">

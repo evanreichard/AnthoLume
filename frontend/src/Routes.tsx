@@ -8,6 +8,10 @@ import ActivityPage from './pages/ActivityPage';
 import SearchPage from './pages/SearchPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
+import AdminPage from './pages/AdminPage';
+import AdminImportPage from './pages/AdminImportPage';
+import AdminUsersPage from './pages/AdminUsersPage';
+import AdminLogsPage from './pages/AdminLogsPage';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 
 export function Routes() {
@@ -67,6 +71,39 @@ export function Routes() {
           element={
             <ProtectedRoute>
               <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* Admin routes */}
+        <Route
+          path="admin"
+          element={
+            <ProtectedRoute>
+              <AdminPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="admin/import"
+          element={
+            <ProtectedRoute>
+              <AdminImportPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="admin/users"
+          element={
+            <ProtectedRoute>
+              <AdminUsersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="admin/logs"
+          element={
+            <ProtectedRoute>
+              <AdminLogsPage />
             </ProtectedRoute>
           }
         />
