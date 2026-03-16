@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useGetSettings, useUpdateSettings } from '../generated/anthoLumeAPIV1';
 import { User, Lock, Clock } from 'lucide-react';
 import { Button } from '../components/Button';
@@ -7,12 +7,18 @@ import { useToasts } from '../components/ToastContext';
 export default function SettingsPage() {
   const { data, isLoading } = useGetSettings();
   const updateSettings = useUpdateSettings();
-  const settingsData = data?.data;
+  const settingsData = data;
   const { showInfo, showError } = useToasts();
 
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [timezone, setTimezone] = useState(settingsData?.timezone || '');
+  const [timezone, setTimezone] = useState('UTC');
+
+  useEffect(() => {
+    if (settingsData?.data.timezone && settingsData.data.timezone.trim() !== '') {
+      setTimezone(settingsData.data.timezone);
+    }
+  }, [settingsData]);
 
   const handlePasswordSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -99,7 +105,7 @@ export default function SettingsPage() {
           className="flex flex-col p-4 items-center rounded shadow-lg md:w-60 lg:w-80 bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
         >
           <User size={60} />
-          <p className="text-lg">{settingsData?.user?.username}</p>
+          <p className="text-lg">{settingsData?.data.user.username || "N/A"}</p>
         </div>
       </div>
 
@@ -167,7 +173,7 @@ export default function SettingsPage() {
                 <Clock size={15} />
               </span>
               <select
-                value={timezone}
+                value={timezone || 'UTC'}
                 onChange={(e) => setTimezone(e.target.value)}
                 className="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
               >
@@ -215,12 +221,12 @@ export default function SettingsPage() {
               </tr>
             </thead>
             <tbody className="text-black dark:text-white">
-              {!settingsData?.devices || settingsData.devices.length === 0 ? (
+              {!settingsData?.data.devices || settingsData.data.devices.length === 0 ? (
                 <tr>
                   <td className="text-center p-3" colSpan={3}>No Results</td>
                 </tr>
               ) : (
-                settingsData.devices.map((device: any) => (
+                settingsData.data.devices.map((device: any) => (
                   <tr key={device.id}>
                     <td className="p-3 pl-0">
                       <p>{device.device_name || 'Unknown'}</p>

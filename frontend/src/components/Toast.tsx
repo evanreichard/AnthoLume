@@ -68,7 +68,11 @@ export function Toast({ id, type, message, duration = 5000, onClose }: ToastProp
 
   return (
     <div
-      className={`${baseStyles} ${typeStyles[type]} ${isAnimatingOut ? 'opacity-0 translate-x-full' : 'opacity-100 translate-x-0'}`}
+      className={`${baseStyles} ${typeStyles[type]} ${
+        isAnimatingOut 
+          ? 'opacity-0 translate-x-full' 
+          : 'animate-slideInRight opacity-100'
+      }`}
     >
       {icons[type]}
       <p className={`flex-1 text-sm font-medium ${textStyles[type]}`}>
