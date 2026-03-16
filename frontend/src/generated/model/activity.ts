@@ -7,9 +7,13 @@
  */
 
 export interface Activity {
-  id: string;
-  user_id: string;
   document_id: string;
-  activity_type: string;
-  timestamp: string;
+  device_id: string;
+  start_time: string;
+  title?: string;
+  author?: string;
+  duration: number;
+  start_percentage: number;
+  end_percentage: number;
+  read_percentage: number;
 }

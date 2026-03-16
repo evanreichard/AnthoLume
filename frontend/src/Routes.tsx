@@ -10,6 +10,7 @@ import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import AdminPage from './pages/AdminPage';
 import AdminImportPage from './pages/AdminImportPage';
+import AdminImportResultsPage from './pages/AdminImportResultsPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminLogsPage from './pages/AdminLogsPage';
 import { ProtectedRoute } from './auth/ProtectedRoute';
@@ -88,6 +89,14 @@ export function Routes() {
           element={
             <ProtectedRoute>
               <AdminImportPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="admin/import-results"
+          element={
+            <ProtectedRoute>
+              <AdminImportResultsPage />
             </ProtectedRoute>
           }
         />

@@ -2,8 +2,6 @@ package v1
 
 import (
 	"context"
-	"strconv"
-	"time"
 
 	"reichard.io/antholume/database"
 )
@@ -48,12 +46,24 @@ func (s *Server) GetActivity(ctx context.Context, request GetActivityRequestObje
 
 	apiActivities := make([]Activity, len(activities))
 	for i, a := range activities {
+		// Convert StartTime from interface{} to string
+		startTimeStr := ""
+		if a.StartTime != nil {
+			if str, ok := a.StartTime.(string); ok {
+				startTimeStr = str
+			}
+		}
+
 		apiActivities[i] = Activity{
-			ActivityType: a.DeviceID,
-			DocumentId:   a.DocumentID,
-			Id:           strconv.Itoa(i),
-			Timestamp:    time.Now(),
-			UserId:       auth.UserName,
+			DocumentId:      a.DocumentID,
+			DeviceId:        a.DeviceID,
+			StartTime:       startTimeStr,
+			Title:           a.Title,
+			Author:          a.Author,
+			Duration:        a.Duration,
+			StartPercentage: float32(a.StartPercentage),
+			EndPercentage:   float32(a.EndPercentage),
+			ReadPercentage:  float32(a.ReadPercentage),
 		}
 	}
 

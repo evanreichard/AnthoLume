@@ -1,43 +1,53 @@
+import { Link } from 'react-router-dom';
 import { useGetActivity } from '../generated/anthoLumeAPIV1';
+import { Table } from '../components/Table';
 
 export default function ActivityPage() {
   const { data, isLoading } = useGetActivity({ offset: 0, limit: 100 });
   const activities = data?.data?.activities;
 
-  if (isLoading) {
-    return <div className="text-gray-500 dark:text-white">Loading...</div>;
-  }
+  const columns = [
+    {
+      key: 'document_id' as const,
+      header: 'Document',
+      render: (_: any, row: any) => (
+        <Link
+          to={`/documents/${row.document_id}`}
+          className="text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          {row.author || 'Unknown'} - {row.title || 'Unknown'}
+        </Link>
+      ),
+    },
+    {
+      key: 'start_time' as const,
+      header: 'Time',
+      render: (value: any) => value || 'N/A',
+    },
+    {
+      key: 'duration' as const,
+      header: 'Duration',
+      render: (value: any) => {
+        if (!value) return 'N/A';
+        // Format duration (in seconds) to readable format
+        const hours = Math.floor(value / 3600);
+        const minutes = Math.floor((value % 3600) / 60);
+        const seconds = value % 60;
+        if (hours > 0) {
+          return `${hours}h ${minutes}m ${seconds}s`;
+        } else if (minutes > 0) {
+          return `${minutes}m ${seconds}s`;
+        } else {
+          return `${seconds}s`;
+        }
+      },
+    },
+    {
+      key: 'end_percentage' as const,
+      header: 'Percent',
+      render: (value: any) => (value != null ? `${value}%` : '0%'),
+    },
+  ];
 
-  return (
-    <div className="overflow-x-auto">
-      <div className="inline-block min-w-full overflow-hidden rounded shadow">
-        <table className="min-w-full bg-white dark:bg-gray-700">
-          <thead>
-            <tr className="border-b dark:border-gray-600">
-              <th className="text-left p-3 text-gray-500 dark:text-white">Activity Type</th>
-              <th className="text-left p-3 text-gray-500 dark:text-white">Document</th>
-              <th className="text-left p-3 text-gray-500 dark:text-white">Timestamp</th>
-            </tr>
-          </thead>
-          <tbody>
-            {activities?.map((activity: any) => (
-              <tr key={activity.id} className="border-b dark:border-gray-600">
-                <td className="p-3 text-gray-700 dark:text-gray-300">
-                  {activity.activity_type}
-                </td>
-                <td className="p-3">
-                  <a href={`/documents/${activity.document_id}`} className="text-blue-600 dark:text-blue-400">
-                    {activity.document_id}
-                  </a>
-                </td>
-                <td className="p-3 text-gray-700 dark:text-gray-300">
-                  {new Date(activity.timestamp).toLocaleString()}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  return <Table columns={columns} data={activities || []} loading={isLoading} />;
 }

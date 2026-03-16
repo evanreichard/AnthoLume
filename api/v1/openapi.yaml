@@ -91,23 +91,36 @@ components:
     Activity:
       type: object
       properties:
-        id:
-          type: string
-        user_id:
-          type: string
         document_id:
           type: string
-        activity_type:
+        device_id:
           type: string
-        timestamp:
+        start_time:
           type: string
-          format: date-time
+        title:
+          type: string
+        author:
+          type: string
+        duration:
+          type: integer
+          format: int64
+        start_percentage:
+          type: number
+          format: float
+        end_percentage:
+          type: number
+          format: float
+        read_percentage:
+          type: number
+          format: float
       required:
-        - id
-        - user_id
         - document_id
-        - activity_type
-        - timestamp
+        - device_id
+        - start_time
+        - duration
+        - start_percentage
+        - end_percentage
+        - read_percentage
 
     SearchItem:
       type: object
@@ -481,6 +494,95 @@ components:
         - graph_data
         - user_statistics
         - user
+
+    BackupType:
+      type: string
+      enum: [COVERS, DOCUMENTS]
+
+    ImportType:
+      type: string
+      enum: [DIRECT, COPY]
+
+    OperationType:
+      type: string
+      enum: [CREATE, UPDATE, DELETE]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        admin:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - admin
+        - created_at
+
+    UsersResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+
+    ImportResult:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        path:
+          type: string
+        status:
+          type: string
+          enum: [FAILED, SUCCESS, EXISTS]
+        error:
+          type: string
+
+    ImportResultsResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportResult'
+
+    DirectoryItem:
+      type: object
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+
+    DirectoryListResponse:
+      type: object
+      properties:
+        current_path:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DirectoryItem'
+
+    LogEntry:
+      type: string
+
+    LogsResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogEntry'
+        filter:
+          type: string
 
   securitySchemes:
     BearerAuth:
@@ -1058,3 +1160,306 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /admin:
+    get:
+      summary: Get admin page data
+      operationId: getAdmin
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  database_info:
+                    $ref: '#/components/schemas/DatabaseInfo'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Perform admin action (backup, restore, etc.)
+      operationId: postAdminAction
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [BACKUP, RESTORE, METADATA_MATCH, CACHE_TABLES]
+                backup_types:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/BackupType'
+                restore_file:
+                  type: string
+                  format: binary
+              required:
+                - action
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Action completed successfully
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/users:
+    get:
+      summary: Get all users
+      operationId: getUsers
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsersResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Create, update, or delete user
+      operationId: updateUser
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                operation:
+                  $ref: '#/components/schemas/OperationType'
+                user:
+                  type: string
+                password:
+                  type: string
+                is_admin:
+                  type: boolean
+              required:
+                - operation
+                - user
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsersResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/import:
+    get:
+      summary: Get import directory list
+      operationId: getImportDirectory
+      tags:
+        - Admin
+      parameters:
+        - name: directory
+          in: query
+          schema:
+            type: string
+        - name: select
+          in: query
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DirectoryListResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Perform import
+      operationId: postImport
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                directory:
+                  type: string
+                type:
+                  $ref: '#/components/schemas/ImportType'
+              required:
+                - directory
+                - type
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Import completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResultsResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/import-results:
+    get:
+      summary: Get import results
+      operationId: getImportResults
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResultsResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/logs:
+    get:
+      summary: Get logs with optional filter
+      operationId: getLogs
+      tags:
+        - Admin
+      parameters:
+        - name: filter
+          in: query
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogsResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+

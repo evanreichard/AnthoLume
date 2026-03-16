@@ -34,24 +34,34 @@ import type {
 import type {
   ActivityResponse,
   CreateDocumentBody,
+  DirectoryListResponse,
   DocumentResponse,
   DocumentsResponse,
   ErrorResponse,
   GetActivityParams,
+  GetAdmin200,
   GetDocumentsParams,
+  GetImportDirectoryParams,
+  GetLogsParams,
   GetProgressListParams,
   GetSearchParams,
   GraphDataResponse,
   HomeResponse,
+  ImportResultsResponse,
   LoginRequest,
   LoginResponse,
+  LogsResponse,
+  PostAdminActionBody,
+  PostImportBody,
   PostSearchBody,
   ProgressListResponse,
   ProgressResponse,
   SearchResponse,
   SettingsResponse,
   StreaksResponse,
-  UserStatisticsResponse
+  UpdateUserBody,
+  UserStatisticsResponse,
+  UsersResponse
 } from './model';
 
 
@@ -1412,3 +1422,670 @@ export const usePostSearch = <TError = AxiosError<ErrorResponse>,
       return useMutation(mutationOptions, queryClient);
     }
     
+/**
+ * @summary Get admin page data
+ */
+export const getAdmin = (
+     options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<GetAdmin200>> => {
+    
+    
+    return axios.default.get(
+      `/api/v1/admin`,options
+    );
+  }
+
+
+
+
+export const getGetAdminQueryKey = () => {
+    return [
+    `/api/v1/admin`
+    ] as const;
+    }
+
+    
+export const getGetAdminQueryOptions = <TData = Awaited<ReturnType<typeof getAdmin>>, TError = AxiosError<ErrorResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdmin>>, TError, TData>>, axios?: AxiosRequestConfig}
+) => {
+
+const {query: queryOptions, axios: axiosOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdmin>>> = ({ signal }) => getAdmin({ signal, ...axiosOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdmin>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetAdminQueryResult = NonNullable<Awaited<ReturnType<typeof getAdmin>>>
+export type GetAdminQueryError = AxiosError<ErrorResponse>
+
+
+export function useGetAdmin<TData = Awaited<ReturnType<typeof getAdmin>>, TError = AxiosError<ErrorResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdmin>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAdmin>>,
+          TError,
+          Awaited<ReturnType<typeof getAdmin>>
+        > , 'initialData'
+      >, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAdmin<TData = Awaited<ReturnType<typeof getAdmin>>, TError = AxiosError<ErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdmin>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAdmin>>,
+          TError,
+          Awaited<ReturnType<typeof getAdmin>>
+        > , 'initialData'
+      >, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAdmin<TData = Awaited<ReturnType<typeof getAdmin>>, TError = AxiosError<ErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdmin>>, TError, TData>>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get admin page data
+ */
+
+export function useGetAdmin<TData = Awaited<ReturnType<typeof getAdmin>>, TError = AxiosError<ErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdmin>>, TError, TData>>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetAdminQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+
+/**
+ * @summary Perform admin action (backup, restore, etc.)
+ */
+export const postAdminAction = (
+    postAdminActionBody: PostAdminActionBody, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<Blob>> => {
+    
+    const formUrlEncoded = new URLSearchParams();
+formUrlEncoded.append(`action`, postAdminActionBody.action)
+if(postAdminActionBody.backup_types !== undefined) {
+ postAdminActionBody.backup_types.forEach(value => formUrlEncoded.append(`backup_types`, value));
+ }
+if(postAdminActionBody.restore_file !== undefined) {
+ formUrlEncoded.append(`restore_file`, postAdminActionBody.restore_file)
+ }
+
+    return axios.default.post(
+      `/api/v1/admin`,
+      formUrlEncoded,{
+        responseType: 'blob',
+    ...options,}
+    );
+  }
+
+
+
+export const getPostAdminActionMutationOptions = <TError = AxiosError<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAdminAction>>, TError,{data: PostAdminActionBody}, TContext>, axios?: AxiosRequestConfig}
+): UseMutationOptions<Awaited<ReturnType<typeof postAdminAction>>, TError,{data: PostAdminActionBody}, TContext> => {
+
+const mutationKey = ['postAdminAction'];
+const {mutation: mutationOptions, axios: axiosOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, axios: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postAdminAction>>, {data: PostAdminActionBody}> = (props) => {
+          const {data} = props ?? {};
+
+          return  postAdminAction(data,axiosOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostAdminActionMutationResult = NonNullable<Awaited<ReturnType<typeof postAdminAction>>>
+    export type PostAdminActionMutationBody = PostAdminActionBody
+    export type PostAdminActionMutationError = AxiosError<ErrorResponse>
+
+    /**
+ * @summary Perform admin action (backup, restore, etc.)
+ */
+export const usePostAdminAction = <TError = AxiosError<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAdminAction>>, TError,{data: PostAdminActionBody}, TContext>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postAdminAction>>,
+        TError,
+        {data: PostAdminActionBody},
+        TContext
+      > => {
+
+      const mutationOptions = getPostAdminActionMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * @summary Get all users
+ */
+export const getUsers = (
+     options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<UsersResponse>> => {
+    
+    
+    return axios.default.get(
+      `/api/v1/admin/users`,options
+    );
+  }
+
+
+
+
+export const getGetUsersQueryKey = () => {
+    return [
+    `/api/v1/admin/users`
+    ] as const;
+    }
+
+    
+export const getGetUsersQueryOptions = <TData = Awaited<ReturnType<typeof getUsers>>, TError = AxiosError<ErrorResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>, axios?: AxiosRequestConfig}
+) => {
+
+const {query: queryOptions, axios: axiosOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUsersQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsers>>> = ({ signal }) => getUsers({ signal, ...axiosOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUsersQueryResult = NonNullable<Awaited<ReturnType<typeof getUsers>>>
+export type GetUsersQueryError = AxiosError<ErrorResponse>
+
+
+export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = AxiosError<ErrorResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUsers>>,
+          TError,
+          Awaited<ReturnType<typeof getUsers>>
+        > , 'initialData'
+      >, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = AxiosError<ErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUsers>>,
+          TError,
+          Awaited<ReturnType<typeof getUsers>>
+        > , 'initialData'
+      >, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = AxiosError<ErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get all users
+ */
+
+export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = AxiosError<ErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetUsersQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+
+/**
+ * @summary Create, update, or delete user
+ */
+export const updateUser = (
+    updateUserBody: UpdateUserBody, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<UsersResponse>> => {
+    
+    const formUrlEncoded = new URLSearchParams();
+formUrlEncoded.append(`operation`, updateUserBody.operation)
+formUrlEncoded.append(`user`, updateUserBody.user)
+if(updateUserBody.password !== undefined) {
+ formUrlEncoded.append(`password`, updateUserBody.password)
+ }
+if(updateUserBody.is_admin !== undefined) {
+ formUrlEncoded.append(`is_admin`, updateUserBody.is_admin.toString())
+ }
+
+    return axios.default.post(
+      `/api/v1/admin/users`,
+      formUrlEncoded,options
+    );
+  }
+
+
+
+export const getUpdateUserMutationOptions = <TError = AxiosError<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateUser>>, TError,{data: UpdateUserBody}, TContext>, axios?: AxiosRequestConfig}
+): UseMutationOptions<Awaited<ReturnType<typeof updateUser>>, TError,{data: UpdateUserBody}, TContext> => {
+
+const mutationKey = ['updateUser'];
+const {mutation: mutationOptions, axios: axiosOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, axios: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateUser>>, {data: UpdateUserBody}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateUser(data,axiosOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateUserMutationResult = NonNullable<Awaited<ReturnType<typeof updateUser>>>
+    export type UpdateUserMutationBody = UpdateUserBody
+    export type UpdateUserMutationError = AxiosError<ErrorResponse>
+
+    /**
+ * @summary Create, update, or delete user
+ */
+export const useUpdateUser = <TError = AxiosError<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateUser>>, TError,{data: UpdateUserBody}, TContext>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateUser>>,
+        TError,
+        {data: UpdateUserBody},
+        TContext
+      > => {
+
+      const mutationOptions = getUpdateUserMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * @summary Get import directory list
+ */
+export const getImportDirectory = (
+    params?: GetImportDirectoryParams, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<DirectoryListResponse>> => {
+    
+    
+    return axios.default.get(
+      `/api/v1/admin/import`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
+
+
+
+
+export const getGetImportDirectoryQueryKey = (params?: GetImportDirectoryParams,) => {
+    return [
+    `/api/v1/admin/import`, ...(params ? [params]: [])
+    ] as const;
+    }
+
+    
+export const getGetImportDirectoryQueryOptions = <TData = Awaited<ReturnType<typeof getImportDirectory>>, TError = AxiosError<ErrorResponse>>(params?: GetImportDirectoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getImportDirectory>>, TError, TData>>, axios?: AxiosRequestConfig}
+) => {
+
+const {query: queryOptions, axios: axiosOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetImportDirectoryQueryKey(params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getImportDirectory>>> = ({ signal }) => getImportDirectory(params, { signal, ...axiosOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getImportDirectory>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetImportDirectoryQueryResult = NonNullable<Awaited<ReturnType<typeof getImportDirectory>>>
+export type GetImportDirectoryQueryError = AxiosError<ErrorResponse>
+
+
+export function useGetImportDirectory<TData = Awaited<ReturnType<typeof getImportDirectory>>, TError = AxiosError<ErrorResponse>>(
+ params: undefined |  GetImportDirectoryParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getImportDirectory>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getImportDirectory>>,
+          TError,
+          Awaited<ReturnType<typeof getImportDirectory>>
+        > , 'initialData'
+      >, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetImportDirectory<TData = Awaited<ReturnType<typeof getImportDirectory>>, TError = AxiosError<ErrorResponse>>(
+ params?: GetImportDirectoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getImportDirectory>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getImportDirectory>>,
+          TError,
+          Awaited<ReturnType<typeof getImportDirectory>>
+        > , 'initialData'
+      >, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetImportDirectory<TData = Awaited<ReturnType<typeof getImportDirectory>>, TError = AxiosError<ErrorResponse>>(
+ params?: GetImportDirectoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getImportDirectory>>, TError, TData>>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get import directory list
+ */
+
+export function useGetImportDirectory<TData = Awaited<ReturnType<typeof getImportDirectory>>, TError = AxiosError<ErrorResponse>>(
+ params?: GetImportDirectoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getImportDirectory>>, TError, TData>>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetImportDirectoryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+
+/**
+ * @summary Perform import
+ */
+export const postImport = (
+    postImportBody: PostImportBody, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ImportResultsResponse>> => {
+    
+    const formUrlEncoded = new URLSearchParams();
+formUrlEncoded.append(`directory`, postImportBody.directory)
+formUrlEncoded.append(`type`, postImportBody.type)
+
+    return axios.default.post(
+      `/api/v1/admin/import`,
+      formUrlEncoded,options
+    );
+  }
+
+
+
+export const getPostImportMutationOptions = <TError = AxiosError<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postImport>>, TError,{data: PostImportBody}, TContext>, axios?: AxiosRequestConfig}
+): UseMutationOptions<Awaited<ReturnType<typeof postImport>>, TError,{data: PostImportBody}, TContext> => {
+
+const mutationKey = ['postImport'];
+const {mutation: mutationOptions, axios: axiosOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, axios: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postImport>>, {data: PostImportBody}> = (props) => {
+          const {data} = props ?? {};
+
+          return  postImport(data,axiosOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostImportMutationResult = NonNullable<Awaited<ReturnType<typeof postImport>>>
+    export type PostImportMutationBody = PostImportBody
+    export type PostImportMutationError = AxiosError<ErrorResponse>
+
+    /**
+ * @summary Perform import
+ */
+export const usePostImport = <TError = AxiosError<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postImport>>, TError,{data: PostImportBody}, TContext>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postImport>>,
+        TError,
+        {data: PostImportBody},
+        TContext
+      > => {
+
+      const mutationOptions = getPostImportMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * @summary Get import results
+ */
+export const getImportResults = (
+     options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ImportResultsResponse>> => {
+    
+    
+    return axios.default.get(
+      `/api/v1/admin/import-results`,options
+    );
+  }
+
+
+
+
+export const getGetImportResultsQueryKey = () => {
+    return [
+    `/api/v1/admin/import-results`
+    ] as const;
+    }
+
+    
+export const getGetImportResultsQueryOptions = <TData = Awaited<ReturnType<typeof getImportResults>>, TError = AxiosError<ErrorResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getImportResults>>, TError, TData>>, axios?: AxiosRequestConfig}
+) => {
+
+const {query: queryOptions, axios: axiosOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetImportResultsQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getImportResults>>> = ({ signal }) => getImportResults({ signal, ...axiosOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getImportResults>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetImportResultsQueryResult = NonNullable<Awaited<ReturnType<typeof getImportResults>>>
+export type GetImportResultsQueryError = AxiosError<ErrorResponse>
+
+
+export function useGetImportResults<TData = Awaited<ReturnType<typeof getImportResults>>, TError = AxiosError<ErrorResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getImportResults>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getImportResults>>,
+          TError,
+          Awaited<ReturnType<typeof getImportResults>>
+        > , 'initialData'
+      >, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetImportResults<TData = Awaited<ReturnType<typeof getImportResults>>, TError = AxiosError<ErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getImportResults>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getImportResults>>,
+          TError,
+          Awaited<ReturnType<typeof getImportResults>>
+        > , 'initialData'
+      >, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetImportResults<TData = Awaited<ReturnType<typeof getImportResults>>, TError = AxiosError<ErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getImportResults>>, TError, TData>>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get import results
+ */
+
+export function useGetImportResults<TData = Awaited<ReturnType<typeof getImportResults>>, TError = AxiosError<ErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getImportResults>>, TError, TData>>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetImportResultsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+
+/**
+ * @summary Get logs with optional filter
+ */
+export const getLogs = (
+    params?: GetLogsParams, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<LogsResponse>> => {
+    
+    
+    return axios.default.get(
+      `/api/v1/admin/logs`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
+
+
+
+
+export const getGetLogsQueryKey = (params?: GetLogsParams,) => {
+    return [
+    `/api/v1/admin/logs`, ...(params ? [params]: [])
+    ] as const;
+    }
+
+    
+export const getGetLogsQueryOptions = <TData = Awaited<ReturnType<typeof getLogs>>, TError = AxiosError<ErrorResponse>>(params?: GetLogsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLogs>>, TError, TData>>, axios?: AxiosRequestConfig}
+) => {
+
+const {query: queryOptions, axios: axiosOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLogsQueryKey(params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLogs>>> = ({ signal }) => getLogs(params, { signal, ...axiosOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLogs>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetLogsQueryResult = NonNullable<Awaited<ReturnType<typeof getLogs>>>
+export type GetLogsQueryError = AxiosError<ErrorResponse>
+
+
+export function useGetLogs<TData = Awaited<ReturnType<typeof getLogs>>, TError = AxiosError<ErrorResponse>>(
+ params: undefined |  GetLogsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLogs>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getLogs>>,
+          TError,
+          Awaited<ReturnType<typeof getLogs>>
+        > , 'initialData'
+      >, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetLogs<TData = Awaited<ReturnType<typeof getLogs>>, TError = AxiosError<ErrorResponse>>(
+ params?: GetLogsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLogs>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getLogs>>,
+          TError,
+          Awaited<ReturnType<typeof getLogs>>
+        > , 'initialData'
+      >, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetLogs<TData = Awaited<ReturnType<typeof getLogs>>, TError = AxiosError<ErrorResponse>>(
+ params?: GetLogsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLogs>>, TError, TData>>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get logs with optional filter
+ */
+
+export function useGetLogs<TData = Awaited<ReturnType<typeof getLogs>>, TError = AxiosError<ErrorResponse>>(
+ params?: GetLogsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLogs>>, TError, TData>>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetLogsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+

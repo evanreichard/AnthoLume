@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"time"
@@ -21,6 +22,108 @@ import (
 const (
 	BearerAuthScopes = "BearerAuth.Scopes"
 )
+
+// Defines values for BackupType.
+const (
+	COVERS    BackupType = "COVERS"
+	DOCUMENTS BackupType = "DOCUMENTS"
+)
+
+// Valid indicates whether the value is a known member of the BackupType enum.
+func (e BackupType) Valid() bool {
+	switch e {
+	case COVERS:
+		return true
+	case DOCUMENTS:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportResultStatus.
+const (
+	EXISTS  ImportResultStatus = "EXISTS"
+	FAILED  ImportResultStatus = "FAILED"
+	SUCCESS ImportResultStatus = "SUCCESS"
+)
+
+// Valid indicates whether the value is a known member of the ImportResultStatus enum.
+func (e ImportResultStatus) Valid() bool {
+	switch e {
+	case EXISTS:
+		return true
+	case FAILED:
+		return true
+	case SUCCESS:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportType.
+const (
+	COPY   ImportType = "COPY"
+	DIRECT ImportType = "DIRECT"
+)
+
+// Valid indicates whether the value is a known member of the ImportType enum.
+func (e ImportType) Valid() bool {
+	switch e {
+	case COPY:
+		return true
+	case DIRECT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for OperationType.
+const (
+	CREATE OperationType = "CREATE"
+	DELETE OperationType = "DELETE"
+	UPDATE OperationType = "UPDATE"
+)
+
+// Valid indicates whether the value is a known member of the OperationType enum.
+func (e OperationType) Valid() bool {
+	switch e {
+	case CREATE:
+		return true
+	case DELETE:
+		return true
+	case UPDATE:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostAdminActionFormdataBodyAction.
+const (
+	BACKUP        PostAdminActionFormdataBodyAction = "BACKUP"
+	CACHETABLES   PostAdminActionFormdataBodyAction = "CACHE_TABLES"
+	METADATAMATCH PostAdminActionFormdataBodyAction = "METADATA_MATCH"
+	RESTORE       PostAdminActionFormdataBodyAction = "RESTORE"
+)
+
+// Valid indicates whether the value is a known member of the PostAdminActionFormdataBodyAction enum.
+func (e PostAdminActionFormdataBodyAction) Valid() bool {
+	switch e {
+	case BACKUP:
+		return true
+	case CACHETABLES:
+		return true
+	case METADATAMATCH:
+		return true
+	case RESTORE:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for GetSearchParamsSource.
 const (
@@ -42,11 +145,15 @@ func (e GetSearchParamsSource) Valid() bool {
 
 // Activity defines model for Activity.
 type Activity struct {
-	ActivityType string    `json:"activity_type"`
-	DocumentId   string    `json:"document_id"`
-	Id           string    `json:"id"`
-	Timestamp    time.Time `json:"timestamp"`
-	UserId       string    `json:"user_id"`
+	Author          *string `json:"author,omitempty"`
+	DeviceId        string  `json:"device_id"`
+	DocumentId      string  `json:"document_id"`
+	Duration        int64   `json:"duration"`
+	EndPercentage   float32 `json:"end_percentage"`
+	ReadPercentage  float32 `json:"read_percentage"`
+	StartPercentage float32 `json:"start_percentage"`
+	StartTime       string  `json:"start_time"`
+	Title           *string `json:"title,omitempty"`
 }
 
 // ActivityResponse defines model for ActivityResponse.
@@ -54,6 +161,9 @@ type ActivityResponse struct {
 	Activities []Activity `json:"activities"`
 	User       UserData   `json:"user"`
 }
+
+// BackupType defines model for BackupType.
+type BackupType string
 
 // DatabaseInfo defines model for DatabaseInfo.
 type DatabaseInfo struct {
@@ -69,6 +179,18 @@ type Device struct {
 	DeviceName *string    `json:"device_name,omitempty"`
 	Id         *string    `json:"id,omitempty"`
 	LastSynced *time.Time `json:"last_synced,omitempty"`
+}
+
+// DirectoryItem defines model for DirectoryItem.
+type DirectoryItem struct {
+	Name *string `json:"name,omitempty"`
+	Path *string `json:"path,omitempty"`
+}
+
+// DirectoryListResponse defines model for DirectoryListResponse.
+type DirectoryListResponse struct {
+	CurrentPath *string          `json:"current_path,omitempty"`
+	Items       *[]DirectoryItem `json:"items,omitempty"`
 }
 
 // Document defines model for Document.
@@ -132,6 +254,26 @@ type HomeResponse struct {
 	UserStatistics UserStatisticsResponse `json:"user_statistics"`
 }
 
+// ImportResult defines model for ImportResult.
+type ImportResult struct {
+	Error  *string             `json:"error,omitempty"`
+	Id     *string             `json:"id,omitempty"`
+	Name   *string             `json:"name,omitempty"`
+	Path   *string             `json:"path,omitempty"`
+	Status *ImportResultStatus `json:"status,omitempty"`
+}
+
+// ImportResultStatus defines model for ImportResult.Status.
+type ImportResultStatus string
+
+// ImportResultsResponse defines model for ImportResultsResponse.
+type ImportResultsResponse struct {
+	Results *[]ImportResult `json:"results,omitempty"`
+}
+
+// ImportType defines model for ImportType.
+type ImportType string
+
 // LeaderboardData defines model for LeaderboardData.
 type LeaderboardData struct {
 	All   []LeaderboardEntry `json:"all"`
@@ -146,6 +288,9 @@ type LeaderboardEntry struct {
 	Value  int64  `json:"value"`
 }
 
+// LogEntry defines model for LogEntry.
+type LogEntry = string
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	Password string `json:"password"`
@@ -157,6 +302,15 @@ type LoginResponse struct {
 	IsAdmin  bool   `json:"is_admin"`
 	Username string `json:"username"`
 }
+
+// LogsResponse defines model for LogsResponse.
+type LogsResponse struct {
+	Filter *string     `json:"filter,omitempty"`
+	Logs   *[]LogEntry `json:"logs,omitempty"`
+}
+
+// OperationType defines model for OperationType.
+type OperationType string
 
 // Progress defines model for Progress.
 type Progress struct {
@@ -218,6 +372,13 @@ type StreaksResponse struct {
 	User    UserData     `json:"user"`
 }
 
+// User defines model for User.
+type User struct {
+	Admin     bool      `json:"admin"`
+	CreatedAt time.Time `json:"created_at"`
+	Id        string    `json:"id"`
+}
+
 // UserData defines model for UserData.
 type UserData struct {
 	IsAdmin  bool   `json:"is_admin"`
@@ -243,6 +404,11 @@ type UserStreak struct {
 	Window                 string `json:"window"`
 }
 
+// UsersResponse defines model for UsersResponse.
+type UsersResponse struct {
+	Users *[]User `json:"users,omitempty"`
+}
+
 // WordCount defines model for WordCount.
 type WordCount struct {
 	Count      int64  `json:"count"`
@@ -255,6 +421,41 @@ type GetActivityParams struct {
 	DocumentId *string `form:"document_id,omitempty" json:"document_id,omitempty"`
 	Offset     *int64  `form:"offset,omitempty" json:"offset,omitempty"`
 	Limit      *int64  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// PostAdminActionFormdataBody defines parameters for PostAdminAction.
+type PostAdminActionFormdataBody struct {
+	Action      PostAdminActionFormdataBodyAction `form:"action" json:"action"`
+	BackupTypes *[]BackupType                     `form:"backup_types,omitempty" json:"backup_types,omitempty"`
+	RestoreFile *openapi_types.File               `form:"restore_file,omitempty" json:"restore_file,omitempty"`
+}
+
+// PostAdminActionFormdataBodyAction defines parameters for PostAdminAction.
+type PostAdminActionFormdataBodyAction string
+
+// GetImportDirectoryParams defines parameters for GetImportDirectory.
+type GetImportDirectoryParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Select    *string `form:"select,omitempty" json:"select,omitempty"`
+}
+
+// PostImportFormdataBody defines parameters for PostImport.
+type PostImportFormdataBody struct {
+	Directory string     `form:"directory" json:"directory"`
+	Type      ImportType `form:"type" json:"type"`
+}
+
+// GetLogsParams defines parameters for GetLogs.
+type GetLogsParams struct {
+	Filter *string `form:"filter,omitempty" json:"filter,omitempty"`
+}
+
+// UpdateUserFormdataBody defines parameters for UpdateUser.
+type UpdateUserFormdataBody struct {
+	IsAdmin   *bool         `form:"is_admin,omitempty" json:"is_admin,omitempty"`
+	Operation OperationType `form:"operation" json:"operation"`
+	Password  *string       `form:"password,omitempty" json:"password,omitempty"`
+	User      string        `form:"user" json:"user"`
 }
 
 // GetDocumentsParams defines parameters for GetDocuments.
@@ -293,6 +494,15 @@ type PostSearchFormdataBody struct {
 	Title  string `form:"title" json:"title"`
 }
 
+// PostAdminActionFormdataRequestBody defines body for PostAdminAction for application/x-www-form-urlencoded ContentType.
+type PostAdminActionFormdataRequestBody PostAdminActionFormdataBody
+
+// PostImportFormdataRequestBody defines body for PostImport for application/x-www-form-urlencoded ContentType.
+type PostImportFormdataRequestBody PostImportFormdataBody
+
+// UpdateUserFormdataRequestBody defines body for UpdateUser for application/x-www-form-urlencoded ContentType.
+type UpdateUserFormdataRequestBody UpdateUserFormdataBody
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -307,6 +517,30 @@ type ServerInterface interface {
 	// Get activity data
 	// (GET /activity)
 	GetActivity(w http.ResponseWriter, r *http.Request, params GetActivityParams)
+	// Get admin page data
+	// (GET /admin)
+	GetAdmin(w http.ResponseWriter, r *http.Request)
+	// Perform admin action (backup, restore, etc.)
+	// (POST /admin)
+	PostAdminAction(w http.ResponseWriter, r *http.Request)
+	// Get import directory list
+	// (GET /admin/import)
+	GetImportDirectory(w http.ResponseWriter, r *http.Request, params GetImportDirectoryParams)
+	// Perform import
+	// (POST /admin/import)
+	PostImport(w http.ResponseWriter, r *http.Request)
+	// Get import results
+	// (GET /admin/import-results)
+	GetImportResults(w http.ResponseWriter, r *http.Request)
+	// Get logs with optional filter
+	// (GET /admin/logs)
+	GetLogs(w http.ResponseWriter, r *http.Request, params GetLogsParams)
+	// Get all users
+	// (GET /admin/users)
+	GetUsers(w http.ResponseWriter, r *http.Request)
+	// Create, update, or delete user
+	// (POST /admin/users)
+	UpdateUser(w http.ResponseWriter, r *http.Request)
 	// User login
 	// (POST /auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
@@ -411,6 +645,200 @@ func (siw *ServerInterfaceWrapper) GetActivity(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetActivity(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdmin operation middleware
+func (siw *ServerInterfaceWrapper) GetAdmin(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdmin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminAction operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminAction(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminAction(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetImportDirectory operation middleware
+func (siw *ServerInterfaceWrapper) GetImportDirectory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetImportDirectoryParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "directory", r.URL.Query(), &params.Directory, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "select" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "select", r.URL.Query(), &params.Select, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "select", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetImportDirectory(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostImport operation middleware
+func (siw *ServerInterfaceWrapper) PostImport(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostImport(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetImportResults operation middleware
+func (siw *ServerInterfaceWrapper) GetImportResults(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetImportResults(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetLogs operation middleware
+func (siw *ServerInterfaceWrapper) GetLogs(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetLogsParams
+
+	// ------------- Optional query parameter "filter" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "filter", r.URL.Query(), &params.Filter, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "filter", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLogs(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetUsers operation middleware
+func (siw *ServerInterfaceWrapper) GetUsers(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUsers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateUser operation middleware
+func (siw *ServerInterfaceWrapper) UpdateUser(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateUser(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -950,6 +1378,14 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc("GET "+options.BaseURL+"/activity", wrapper.GetActivity)
+	m.HandleFunc("GET "+options.BaseURL+"/admin", wrapper.GetAdmin)
+	m.HandleFunc("POST "+options.BaseURL+"/admin", wrapper.PostAdminAction)
+	m.HandleFunc("GET "+options.BaseURL+"/admin/import", wrapper.GetImportDirectory)
+	m.HandleFunc("POST "+options.BaseURL+"/admin/import", wrapper.PostImport)
+	m.HandleFunc("GET "+options.BaseURL+"/admin/import-results", wrapper.GetImportResults)
+	m.HandleFunc("GET "+options.BaseURL+"/admin/logs", wrapper.GetLogs)
+	m.HandleFunc("GET "+options.BaseURL+"/admin/users", wrapper.GetUsers)
+	m.HandleFunc("POST "+options.BaseURL+"/admin/users", wrapper.UpdateUser)
 	m.HandleFunc("POST "+options.BaseURL+"/auth/login", wrapper.Login)
 	m.HandleFunc("POST "+options.BaseURL+"/auth/logout", wrapper.Logout)
 	m.HandleFunc("GET "+options.BaseURL+"/auth/me", wrapper.GetMe)
@@ -998,6 +1434,313 @@ func (response GetActivity401JSONResponse) VisitGetActivityResponse(w http.Respo
 type GetActivity500JSONResponse ErrorResponse
 
 func (response GetActivity500JSONResponse) VisitGetActivityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAdminRequestObject struct {
+}
+
+type GetAdminResponseObject interface {
+	VisitGetAdminResponse(w http.ResponseWriter) error
+}
+
+type GetAdmin200JSONResponse struct {
+	DatabaseInfo *DatabaseInfo `json:"database_info,omitempty"`
+}
+
+func (response GetAdmin200JSONResponse) VisitGetAdminResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAdmin401JSONResponse ErrorResponse
+
+func (response GetAdmin401JSONResponse) VisitGetAdminResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminActionRequestObject struct {
+	Body *PostAdminActionFormdataRequestBody
+}
+
+type PostAdminActionResponseObject interface {
+	VisitPostAdminActionResponse(w http.ResponseWriter) error
+}
+
+type PostAdminAction200ApplicationoctetStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response PostAdminAction200ApplicationoctetStreamResponse) VisitPostAdminActionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type PostAdminAction400JSONResponse ErrorResponse
+
+func (response PostAdminAction400JSONResponse) VisitPostAdminActionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminAction401JSONResponse ErrorResponse
+
+func (response PostAdminAction401JSONResponse) VisitPostAdminActionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminAction500JSONResponse ErrorResponse
+
+func (response PostAdminAction500JSONResponse) VisitPostAdminActionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetImportDirectoryRequestObject struct {
+	Params GetImportDirectoryParams
+}
+
+type GetImportDirectoryResponseObject interface {
+	VisitGetImportDirectoryResponse(w http.ResponseWriter) error
+}
+
+type GetImportDirectory200JSONResponse DirectoryListResponse
+
+func (response GetImportDirectory200JSONResponse) VisitGetImportDirectoryResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetImportDirectory401JSONResponse ErrorResponse
+
+func (response GetImportDirectory401JSONResponse) VisitGetImportDirectoryResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetImportDirectory500JSONResponse ErrorResponse
+
+func (response GetImportDirectory500JSONResponse) VisitGetImportDirectoryResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostImportRequestObject struct {
+	Body *PostImportFormdataRequestBody
+}
+
+type PostImportResponseObject interface {
+	VisitPostImportResponse(w http.ResponseWriter) error
+}
+
+type PostImport200JSONResponse ImportResultsResponse
+
+func (response PostImport200JSONResponse) VisitPostImportResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostImport400JSONResponse ErrorResponse
+
+func (response PostImport400JSONResponse) VisitPostImportResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostImport401JSONResponse ErrorResponse
+
+func (response PostImport401JSONResponse) VisitPostImportResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostImport500JSONResponse ErrorResponse
+
+func (response PostImport500JSONResponse) VisitPostImportResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetImportResultsRequestObject struct {
+}
+
+type GetImportResultsResponseObject interface {
+	VisitGetImportResultsResponse(w http.ResponseWriter) error
+}
+
+type GetImportResults200JSONResponse ImportResultsResponse
+
+func (response GetImportResults200JSONResponse) VisitGetImportResultsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetImportResults401JSONResponse ErrorResponse
+
+func (response GetImportResults401JSONResponse) VisitGetImportResultsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetImportResults500JSONResponse ErrorResponse
+
+func (response GetImportResults500JSONResponse) VisitGetImportResultsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetLogsRequestObject struct {
+	Params GetLogsParams
+}
+
+type GetLogsResponseObject interface {
+	VisitGetLogsResponse(w http.ResponseWriter) error
+}
+
+type GetLogs200JSONResponse LogsResponse
+
+func (response GetLogs200JSONResponse) VisitGetLogsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetLogs401JSONResponse ErrorResponse
+
+func (response GetLogs401JSONResponse) VisitGetLogsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetLogs500JSONResponse ErrorResponse
+
+func (response GetLogs500JSONResponse) VisitGetLogsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetUsersRequestObject struct {
+}
+
+type GetUsersResponseObject interface {
+	VisitGetUsersResponse(w http.ResponseWriter) error
+}
+
+type GetUsers200JSONResponse UsersResponse
+
+func (response GetUsers200JSONResponse) VisitGetUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetUsers401JSONResponse ErrorResponse
+
+func (response GetUsers401JSONResponse) VisitGetUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetUsers500JSONResponse ErrorResponse
+
+func (response GetUsers500JSONResponse) VisitGetUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateUserRequestObject struct {
+	Body *UpdateUserFormdataRequestBody
+}
+
+type UpdateUserResponseObject interface {
+	VisitUpdateUserResponse(w http.ResponseWriter) error
+}
+
+type UpdateUser200JSONResponse UsersResponse
+
+func (response UpdateUser200JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateUser400JSONResponse ErrorResponse
+
+func (response UpdateUser400JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateUser401JSONResponse ErrorResponse
+
+func (response UpdateUser401JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateUser500JSONResponse ErrorResponse
+
+func (response UpdateUser500JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -1552,6 +2295,30 @@ type StrictServerInterface interface {
 	// Get activity data
 	// (GET /activity)
 	GetActivity(ctx context.Context, request GetActivityRequestObject) (GetActivityResponseObject, error)
+	// Get admin page data
+	// (GET /admin)
+	GetAdmin(ctx context.Context, request GetAdminRequestObject) (GetAdminResponseObject, error)
+	// Perform admin action (backup, restore, etc.)
+	// (POST /admin)
+	PostAdminAction(ctx context.Context, request PostAdminActionRequestObject) (PostAdminActionResponseObject, error)
+	// Get import directory list
+	// (GET /admin/import)
+	GetImportDirectory(ctx context.Context, request GetImportDirectoryRequestObject) (GetImportDirectoryResponseObject, error)
+	// Perform import
+	// (POST /admin/import)
+	PostImport(ctx context.Context, request PostImportRequestObject) (PostImportResponseObject, error)
+	// Get import results
+	// (GET /admin/import-results)
+	GetImportResults(ctx context.Context, request GetImportResultsRequestObject) (GetImportResultsResponseObject, error)
+	// Get logs with optional filter
+	// (GET /admin/logs)
+	GetLogs(ctx context.Context, request GetLogsRequestObject) (GetLogsResponseObject, error)
+	// Get all users
+	// (GET /admin/users)
+	GetUsers(ctx context.Context, request GetUsersRequestObject) (GetUsersResponseObject, error)
+	// Create, update, or delete user
+	// (POST /admin/users)
+	UpdateUser(ctx context.Context, request UpdateUserRequestObject) (UpdateUserResponseObject, error)
 	// User login
 	// (POST /auth/login)
 	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
@@ -1647,6 +2414,235 @@ func (sh *strictHandler) GetActivity(w http.ResponseWriter, r *http.Request, par
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetActivityResponseObject); ok {
 		if err := validResponse.VisitGetActivityResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdmin operation middleware
+func (sh *strictHandler) GetAdmin(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdmin(ctx, request.(GetAdminRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdmin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminResponseObject); ok {
+		if err := validResponse.VisitGetAdminResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminAction operation middleware
+func (sh *strictHandler) PostAdminAction(w http.ResponseWriter, r *http.Request) {
+	var request PostAdminActionRequestObject
+
+	if err := r.ParseForm(); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode formdata: %w", err))
+		return
+	}
+	var body PostAdminActionFormdataRequestBody
+	if err := runtime.BindForm(&body, r.Form, nil, nil); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't bind formdata: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminAction(ctx, request.(PostAdminActionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminAction")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminActionResponseObject); ok {
+		if err := validResponse.VisitPostAdminActionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetImportDirectory operation middleware
+func (sh *strictHandler) GetImportDirectory(w http.ResponseWriter, r *http.Request, params GetImportDirectoryParams) {
+	var request GetImportDirectoryRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetImportDirectory(ctx, request.(GetImportDirectoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetImportDirectory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetImportDirectoryResponseObject); ok {
+		if err := validResponse.VisitGetImportDirectoryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostImport operation middleware
+func (sh *strictHandler) PostImport(w http.ResponseWriter, r *http.Request) {
+	var request PostImportRequestObject
+
+	if err := r.ParseForm(); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode formdata: %w", err))
+		return
+	}
+	var body PostImportFormdataRequestBody
+	if err := runtime.BindForm(&body, r.Form, nil, nil); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't bind formdata: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostImport(ctx, request.(PostImportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostImport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostImportResponseObject); ok {
+		if err := validResponse.VisitPostImportResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetImportResults operation middleware
+func (sh *strictHandler) GetImportResults(w http.ResponseWriter, r *http.Request) {
+	var request GetImportResultsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetImportResults(ctx, request.(GetImportResultsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetImportResults")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetImportResultsResponseObject); ok {
+		if err := validResponse.VisitGetImportResultsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetLogs operation middleware
+func (sh *strictHandler) GetLogs(w http.ResponseWriter, r *http.Request, params GetLogsParams) {
+	var request GetLogsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLogs(ctx, request.(GetLogsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLogs")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetLogsResponseObject); ok {
+		if err := validResponse.VisitGetLogsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetUsers operation middleware
+func (sh *strictHandler) GetUsers(w http.ResponseWriter, r *http.Request) {
+	var request GetUsersRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetUsers(ctx, request.(GetUsersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetUsers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetUsersResponseObject); ok {
+		if err := validResponse.VisitGetUsersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateUser operation middleware
+func (sh *strictHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
+	var request UpdateUserRequestObject
+
+	if err := r.ParseForm(); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode formdata: %w", err))
+		return
+	}
+	var body UpdateUserFormdataRequestBody
+	if err := runtime.BindForm(&body, r.Form, nil, nil); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't bind formdata: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateUser(ctx, request.(UpdateUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateUserResponseObject); ok {
+		if err := validResponse.VisitUpdateUserResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
