@@ -359,6 +359,14 @@ components:
         - code
         - message
 
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
     DatabaseInfo:
       type: object
       properties:
@@ -725,6 +733,86 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DocumentResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        404:
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents/{id}/cover:
+    get:
+      summary: Get document cover image
+      operationId: getDocumentCover
+      tags:
+        - Documents
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Cover image
+          content:
+            image/jpeg: {}
+            image/png: {}
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        404:
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents/{id}/file:
+    get:
+      summary: Download document file
+      operationId: getDocumentFile
+      tags:
+        - Documents
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Document file download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
         401:
           description: Unauthorized
           content:
@@ -1257,7 +1345,7 @@ paths:
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -1279,6 +1367,9 @@ paths:
         200:
           description: Action completed successfully
           content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
             application/octet-stream:
               schema:
                 type: string

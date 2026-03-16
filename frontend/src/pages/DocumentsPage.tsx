@@ -76,9 +76,9 @@ function DocumentCard({ doc }: DocumentCardProps) {
             <Activity size={20} />
           </Link>
           {doc.filepath ? (
-            <Link to={`/documents/${doc.id}/file`}>
+            <a href={`/api/v1/documents/${doc.id}/file`}>
               <Download size={20} />
-            </Link>
+            </a>
           ) : (
             <Download size={20} className="text-gray-400" />
           )}

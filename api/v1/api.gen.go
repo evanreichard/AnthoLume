@@ -101,16 +101,16 @@ func (e OperationType) Valid() bool {
 	}
 }
 
-// Defines values for PostAdminActionFormdataBodyAction.
+// Defines values for PostAdminActionMultipartBodyAction.
 const (
-	BACKUP        PostAdminActionFormdataBodyAction = "BACKUP"
-	CACHETABLES   PostAdminActionFormdataBodyAction = "CACHE_TABLES"
-	METADATAMATCH PostAdminActionFormdataBodyAction = "METADATA_MATCH"
-	RESTORE       PostAdminActionFormdataBodyAction = "RESTORE"
+	BACKUP        PostAdminActionMultipartBodyAction = "BACKUP"
+	CACHETABLES   PostAdminActionMultipartBodyAction = "CACHE_TABLES"
+	METADATAMATCH PostAdminActionMultipartBodyAction = "METADATA_MATCH"
+	RESTORE       PostAdminActionMultipartBodyAction = "RESTORE"
 )
 
-// Valid indicates whether the value is a known member of the PostAdminActionFormdataBodyAction enum.
-func (e PostAdminActionFormdataBodyAction) Valid() bool {
+// Valid indicates whether the value is a known member of the PostAdminActionMultipartBodyAction enum.
+func (e PostAdminActionMultipartBodyAction) Valid() bool {
 	switch e {
 	case BACKUP:
 		return true
@@ -315,6 +315,11 @@ type LogsResponse struct {
 	Logs   *[]LogEntry `json:"logs,omitempty"`
 }
 
+// MessageResponse defines model for MessageResponse.
+type MessageResponse struct {
+	Message string `json:"message"`
+}
+
 // OperationType defines model for OperationType.
 type OperationType string
 
@@ -436,15 +441,15 @@ type GetActivityParams struct {
 	Limit      *int64  `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
-// PostAdminActionFormdataBody defines parameters for PostAdminAction.
-type PostAdminActionFormdataBody struct {
-	Action      PostAdminActionFormdataBodyAction `form:"action" json:"action"`
-	BackupTypes *[]BackupType                     `form:"backup_types,omitempty" json:"backup_types,omitempty"`
-	RestoreFile *openapi_types.File               `form:"restore_file,omitempty" json:"restore_file,omitempty"`
+// PostAdminActionMultipartBody defines parameters for PostAdminAction.
+type PostAdminActionMultipartBody struct {
+	Action      PostAdminActionMultipartBodyAction `json:"action"`
+	BackupTypes *[]BackupType                      `json:"backup_types,omitempty"`
+	RestoreFile *openapi_types.File                `json:"restore_file,omitempty"`
 }
 
-// PostAdminActionFormdataBodyAction defines parameters for PostAdminAction.
-type PostAdminActionFormdataBodyAction string
+// PostAdminActionMultipartBodyAction defines parameters for PostAdminAction.
+type PostAdminActionMultipartBodyAction string
 
 // GetImportDirectoryParams defines parameters for GetImportDirectory.
 type GetImportDirectoryParams struct {
@@ -507,8 +512,8 @@ type PostSearchFormdataBody struct {
 	Title  string `form:"title" json:"title"`
 }
 
-// PostAdminActionFormdataRequestBody defines body for PostAdminAction for application/x-www-form-urlencoded ContentType.
-type PostAdminActionFormdataRequestBody PostAdminActionFormdataBody
+// PostAdminActionMultipartRequestBody defines body for PostAdminAction for multipart/form-data ContentType.
+type PostAdminActionMultipartRequestBody PostAdminActionMultipartBody
 
 // PostImportFormdataRequestBody defines body for PostImport for application/x-www-form-urlencoded ContentType.
 type PostImportFormdataRequestBody PostImportFormdataBody
@@ -575,6 +580,12 @@ type ServerInterface interface {
 	// Get a single document
 	// (GET /documents/{id})
 	GetDocument(w http.ResponseWriter, r *http.Request, id string)
+	// Get document cover image
+	// (GET /documents/{id}/cover)
+	GetDocumentCover(w http.ResponseWriter, r *http.Request, id string)
+	// Download document file
+	// (GET /documents/{id}/file)
+	GetDocumentFile(w http.ResponseWriter, r *http.Request, id string)
 	// Get home page data
 	// (GET /home)
 	GetHome(w http.ResponseWriter, r *http.Request)
@@ -1021,6 +1032,68 @@ func (siw *ServerInterfaceWrapper) GetDocument(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// GetDocumentCover operation middleware
+func (siw *ServerInterfaceWrapper) GetDocumentCover(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDocumentCover(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDocumentFile operation middleware
+func (siw *ServerInterfaceWrapper) GetDocumentFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDocumentFile(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetHome operation middleware
 func (siw *ServerInterfaceWrapper) GetHome(w http.ResponseWriter, r *http.Request) {
 
@@ -1431,6 +1504,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/documents", wrapper.GetDocuments)
 	m.HandleFunc("POST "+options.BaseURL+"/documents", wrapper.CreateDocument)
 	m.HandleFunc("GET "+options.BaseURL+"/documents/{id}", wrapper.GetDocument)
+	m.HandleFunc("GET "+options.BaseURL+"/documents/{id}/cover", wrapper.GetDocumentCover)
+	m.HandleFunc("GET "+options.BaseURL+"/documents/{id}/file", wrapper.GetDocumentFile)
 	m.HandleFunc("GET "+options.BaseURL+"/home", wrapper.GetHome)
 	m.HandleFunc("GET "+options.BaseURL+"/home/graph", wrapper.GetGraphData)
 	m.HandleFunc("GET "+options.BaseURL+"/home/statistics", wrapper.GetUserStatistics)
@@ -1508,11 +1583,20 @@ func (response GetAdmin401JSONResponse) VisitGetAdminResponse(w http.ResponseWri
 }
 
 type PostAdminActionRequestObject struct {
-	Body *PostAdminActionFormdataRequestBody
+	Body *multipart.Reader
 }
 
 type PostAdminActionResponseObject interface {
 	VisitPostAdminActionResponse(w http.ResponseWriter) error
+}
+
+type PostAdminAction200JSONResponse MessageResponse
+
+func (response PostAdminAction200JSONResponse) VisitPostAdminActionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
 }
 
 type PostAdminAction200ApplicationoctetStreamResponse struct {
@@ -2003,6 +2087,133 @@ func (response GetDocument500JSONResponse) VisitGetDocumentResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetDocumentCoverRequestObject struct {
+	Id string `json:"id"`
+}
+
+type GetDocumentCoverResponseObject interface {
+	VisitGetDocumentCoverResponse(w http.ResponseWriter) error
+}
+
+type GetDocumentCover200ImagejpegResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetDocumentCover200ImagejpegResponse) VisitGetDocumentCoverResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "image/jpeg")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetDocumentCover200ImagepngResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetDocumentCover200ImagepngResponse) VisitGetDocumentCoverResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "image/png")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetDocumentCover401JSONResponse ErrorResponse
+
+func (response GetDocumentCover401JSONResponse) VisitGetDocumentCoverResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetDocumentCover404JSONResponse ErrorResponse
+
+func (response GetDocumentCover404JSONResponse) VisitGetDocumentCoverResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetDocumentCover500JSONResponse ErrorResponse
+
+func (response GetDocumentCover500JSONResponse) VisitGetDocumentCoverResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetDocumentFileRequestObject struct {
+	Id string `json:"id"`
+}
+
+type GetDocumentFileResponseObject interface {
+	VisitGetDocumentFileResponse(w http.ResponseWriter) error
+}
+
+type GetDocumentFile200ApplicationoctetStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetDocumentFile200ApplicationoctetStreamResponse) VisitGetDocumentFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetDocumentFile401JSONResponse ErrorResponse
+
+func (response GetDocumentFile401JSONResponse) VisitGetDocumentFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetDocumentFile404JSONResponse ErrorResponse
+
+func (response GetDocumentFile404JSONResponse) VisitGetDocumentFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetDocumentFile500JSONResponse ErrorResponse
+
+func (response GetDocumentFile500JSONResponse) VisitGetDocumentFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetHomeRequestObject struct {
 }
 
@@ -2421,6 +2632,12 @@ type StrictServerInterface interface {
 	// Get a single document
 	// (GET /documents/{id})
 	GetDocument(ctx context.Context, request GetDocumentRequestObject) (GetDocumentResponseObject, error)
+	// Get document cover image
+	// (GET /documents/{id}/cover)
+	GetDocumentCover(ctx context.Context, request GetDocumentCoverRequestObject) (GetDocumentCoverResponseObject, error)
+	// Download document file
+	// (GET /documents/{id}/file)
+	GetDocumentFile(ctx context.Context, request GetDocumentFileRequestObject) (GetDocumentFileResponseObject, error)
 	// Get home page data
 	// (GET /home)
 	GetHome(ctx context.Context, request GetHomeRequestObject) (GetHomeResponseObject, error)
@@ -2536,16 +2753,12 @@ func (sh *strictHandler) GetAdmin(w http.ResponseWriter, r *http.Request) {
 func (sh *strictHandler) PostAdminAction(w http.ResponseWriter, r *http.Request) {
 	var request PostAdminActionRequestObject
 
-	if err := r.ParseForm(); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode formdata: %w", err))
+	if reader, err := r.MultipartReader(); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode multipart body: %w", err))
 		return
+	} else {
+		request.Body = reader
 	}
-	var body PostAdminActionFormdataRequestBody
-	if err := runtime.BindForm(&body, r.Form, nil, nil); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't bind formdata: %w", err))
-		return
-	}
-	request.Body = &body
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.PostAdminAction(ctx, request.(PostAdminActionRequestObject))
@@ -2892,6 +3105,58 @@ func (sh *strictHandler) GetDocument(w http.ResponseWriter, r *http.Request, id 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetDocumentResponseObject); ok {
 		if err := validResponse.VisitGetDocumentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetDocumentCover operation middleware
+func (sh *strictHandler) GetDocumentCover(w http.ResponseWriter, r *http.Request, id string) {
+	var request GetDocumentCoverRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetDocumentCover(ctx, request.(GetDocumentCoverRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetDocumentCover")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetDocumentCoverResponseObject); ok {
+		if err := validResponse.VisitGetDocumentCoverResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetDocumentFile operation middleware
+func (sh *strictHandler) GetDocumentFile(w http.ResponseWriter, r *http.Request, id string) {
+	var request GetDocumentFileRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetDocumentFile(ctx, request.(GetDocumentFileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetDocumentFile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetDocumentFileResponseObject); ok {
+		if err := validResponse.VisitGetDocumentFileResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -19,52 +19,79 @@ export default function AdminPage() {
   });
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
 
-  const handleBackupSubmit = (e: FormEvent) => {
+  const handleBackupSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const backupTypesList: string[] = [];
     if (backupTypes.covers) backupTypesList.push('COVERS');
     if (backupTypes.documents) backupTypesList.push('DOCUMENTS');
 
-    postAdminAction.mutate(
-      {
-        data: {
-          action: 'BACKUP',
-          backup_types: backupTypesList as any,
-        },
-      },
-      {
-        onSuccess: response => {
-          // Handle file download
-          const url = window.URL.createObjectURL(new Blob([response.data]));
-          const link = document.createElement('a');
-          link.href = url;
-          link.setAttribute(
-            'download',
-            `AnthoLumeBackup_${new Date().toISOString().replace(/[:.]/g, '')}.zip`
-          );
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-          showInfo('Backup completed successfully');
-        },
-        onError: error => {
-          showError('Backup failed: ' + (error as any).message);
-        },
+    try {
+      const formData = new FormData();
+      formData.append('action', 'BACKUP');
+      backupTypesList.forEach(value => formData.append('backup_types', value));
+
+      const response = await fetch('/api/v1/admin', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Backup failed: ' + response.statusText);
       }
-    );
+
+      const filename = `AnthoLumeBackup_${new Date().toISOString().replace(/[:.]/g, '')}.zip`;
+
+      // Stream the response directly to disk using File System Access API
+      // This avoids loading multi-GB files into browser memory
+      if (typeof (window as any).showSaveFilePicker === 'function') {
+        try {
+          // Modern browsers: Use File System Access API for direct disk writes
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: filename,
+            types: [{ description: 'ZIP Archive', accept: { 'application/zip': ['.zip'] } }],
+          });
+
+          const writable = await handle.createWritable();
+
+          // Stream response body directly to file without buffering
+          const reader = response.body?.getReader();
+          if (!reader) throw new Error('Unable to read response');
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            await writable.write(value);
+          }
+
+          await writable.close();
+          showInfo('Backup completed successfully');
+        } catch (err) {
+          // User cancelled or error
+          if ((err as Error).name !== 'AbortError') {
+            showError('Backup failed: ' + (err as Error).message);
+          }
+        }
+      } else {
+        // Fallback for older browsers
+        showError(
+          'Your browser does not support large file downloads. Please use Chrome, Edge, or Safari.'
+        );
+      }
+    } catch (error) {
+      showError('Backup failed: ' + (error as any).message);
+    }
   };
 
   const handleRestoreSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!restoreFile) return;
 
-    const formData = new FormData();
-    formData.append('restore_file', restoreFile);
-    formData.append('action', 'RESTORE');
-
     postAdminAction.mutate(
       {
-        data: formData as any,
+        data: {
+          action: 'RESTORE',
+          restore_file: restoreFile,
+        },
       },
       {
         onSuccess: () => {

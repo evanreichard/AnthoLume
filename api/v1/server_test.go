@@ -38,7 +38,7 @@ func (suite *ServerTestSuite) SetupTest() {
 	}
 
 	suite.db = database.NewMgr(suite.cfg)
-	suite.srv = NewServer(suite.db, suite.cfg)
+	suite.srv = NewServer(suite.db, suite.cfg, nil)
 }
 
 func (suite *ServerTestSuite) TestNewServer() {

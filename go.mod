@@ -14,7 +14,6 @@ require (
 	github.com/jarcoal/httpmock v1.3.1
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/oapi-codegen/runtime v1.2.0
-	github.com/pkg/errors v0.9.1
 	github.com/pressly/goose/v3 v3.24.3
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.10.0

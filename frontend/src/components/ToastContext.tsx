@@ -77,11 +77,11 @@ function ToastContainer({ toasts }: ToastContainerProps) {
 
   return (
     <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-full max-w-sm flex-col gap-2">
-      <div className="pointer-events-auto">
-        {toasts.map(toast => (
-          <Toast key={toast.id} {...toast} />
-        ))}
-      </div>
+      {toasts.map(toast => (
+        <div key={toast.id} className="pointer-events-auto">
+          <Toast {...toast} />
+        </div>
+      ))}
     </div>
   );
 }

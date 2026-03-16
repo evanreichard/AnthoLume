@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"net/http"
 
 	"reichard.io/antholume/config"
@@ -12,17 +13,19 @@ import (
 var _ StrictServerInterface = (*Server)(nil)
 
 type Server struct {
-	mux *http.ServeMux
-	db  *database.DBManager
-	cfg *config.Config
+	mux    *http.ServeMux
+	db     *database.DBManager
+	cfg    *config.Config
+	assets fs.FS
 }
 
 // NewServer creates a new native HTTP server
-func NewServer(db *database.DBManager, cfg *config.Config) *Server {
+func NewServer(db *database.DBManager, cfg *config.Config, assets fs.FS) *Server {
 	s := &Server{
-		mux: http.NewServeMux(),
-		db:  db,
-		cfg: cfg,
+		mux:    http.NewServeMux(),
+		db:     db,
+		cfg:    cfg,
+		assets: assets,
 	}
 
 	// Create strict handler with authentication middleware
@@ -43,7 +46,7 @@ func (s *Server) authMiddleware(handler StrictHandlerFunc, operationID string) S
 		ctx = context.WithValue(ctx, "request", r)
 		ctx = context.WithValue(ctx, "response", w)
 
-		// Skip auth for login endpoint
+		// Skip auth for login endpoint only - cover and file require auth via cookies
 		if operationID == "Login" {
 			return handler(ctx, w, r, request)
 		}

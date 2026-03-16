@@ -44,7 +44,7 @@ func (s *Server) Login(ctx context.Context, request LoginRequestObject) (LoginRe
 		return Login500JSONResponse{Code: 500, Message: "Internal context error"}, nil
 	}
 
-	// Create session
+	// Create session with cookie options for Vite proxy compatibility
 	store := sessions.NewCookieStore([]byte(s.cfg.CookieAuthKey))
 	if s.cfg.CookieEncKey != "" {
 		if len(s.cfg.CookieEncKey) == 16 || len(s.cfg.CookieEncKey) == 32 {
@@ -53,6 +53,17 @@ func (s *Server) Login(ctx context.Context, request LoginRequestObject) (LoginRe
 	}
 
 	session, _ := store.Get(r, "token")
+
+	// Configure cookie options to work with Vite proxy
+	// For localhost development, we need SameSite to allow cookies across ports
+	session.Options.SameSite = http.SameSiteLaxMode
+	session.Options.HttpOnly = true
+	if !s.cfg.CookieSecure {
+		session.Options.Secure = false // Allow HTTP for localhost development
+	} else {
+		session.Options.Secure = true
+	}
+
 	session.Values["authorizedUser"] = user.ID
 	session.Values["isAdmin"] = user.Admin
 	session.Values["expiresAt"] = time.Now().Unix() + (60 * 60 * 24 * 7)
@@ -82,8 +93,25 @@ func (s *Server) Logout(ctx context.Context, request LogoutRequestObject) (Logou
 		return Logout401JSONResponse{Code: 401, Message: "Internal context error"}, nil
 	}
 
+	// Create session store
 	store := sessions.NewCookieStore([]byte(s.cfg.CookieAuthKey))
+	if s.cfg.CookieEncKey != "" {
+		if len(s.cfg.CookieEncKey) == 16 || len(s.cfg.CookieEncKey) == 32 {
+			store = sessions.NewCookieStore([]byte(s.cfg.CookieAuthKey), []byte(s.cfg.CookieEncKey))
+		}
+	}
+
 	session, _ := store.Get(r, "token")
+
+	// Configure cookie options (same as login)
+	session.Options.SameSite = http.SameSiteLaxMode
+	session.Options.HttpOnly = true
+	if !s.cfg.CookieSecure {
+		session.Options.Secure = false
+	} else {
+		session.Options.Secure = true
+	}
+
 	session.Values = make(map[any]any)
 
 	if err := session.Save(r, w); err != nil {

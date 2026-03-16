@@ -44,6 +44,7 @@ import type {
   LoginRequest,
   LoginResponse,
   LogsResponse,
+  MessageResponse,
   PostAdminActionBody,
   PostImportBody,
   PostSearchBody,
@@ -430,6 +431,279 @@ export function useGetDocument<TData = Awaited<ReturnType<typeof getDocument>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetDocumentQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+/**
+ * @summary Get document cover image
+ */
+export type getDocumentCoverResponse200ImageJpeg = {
+  data: Blob
+  status: 200
+}
+
+export type getDocumentCoverResponse200ImagePng = {
+  data: Blob
+  status: 200
+}
+
+export type getDocumentCoverResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type getDocumentCoverResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getDocumentCoverResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getDocumentCoverResponseSuccess = (getDocumentCoverResponse200ImageJpeg | getDocumentCoverResponse200ImagePng) & {
+  headers: Headers;
+};
+export type getDocumentCoverResponseError = (getDocumentCoverResponse401 | getDocumentCoverResponse404 | getDocumentCoverResponse500) & {
+  headers: Headers;
+};
+
+export type getDocumentCoverResponse = (getDocumentCoverResponseSuccess | getDocumentCoverResponseError)
+
+export const getGetDocumentCoverUrl = (id: string,) => {
+
+
+  
+
+  return `/api/v1/documents/${id}/cover`
+}
+
+export const getDocumentCover = async (id: string, options?: RequestInit): Promise<getDocumentCoverResponse> => {
+  
+  const res = await fetch(getGetDocumentCoverUrl(id),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+)
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  
+  const data: getDocumentCoverResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as getDocumentCoverResponse
+}
+  
+
+
+
+
+export const getGetDocumentCoverQueryKey = (id: string,) => {
+    return [
+    `/api/v1/documents/${id}/cover`
+    ] as const;
+    }
+
+    
+export const getGetDocumentCoverQueryOptions = <TData = Awaited<ReturnType<typeof getDocumentCover>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDocumentCover>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDocumentCoverQueryKey(id);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDocumentCover>>> = ({ signal }) => getDocumentCover(id, { signal, ...fetchOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDocumentCover>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDocumentCoverQueryResult = NonNullable<Awaited<ReturnType<typeof getDocumentCover>>>
+export type GetDocumentCoverQueryError = ErrorResponse
+
+
+export function useGetDocumentCover<TData = Awaited<ReturnType<typeof getDocumentCover>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDocumentCover>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDocumentCover>>,
+          TError,
+          Awaited<ReturnType<typeof getDocumentCover>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDocumentCover<TData = Awaited<ReturnType<typeof getDocumentCover>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDocumentCover>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDocumentCover>>,
+          TError,
+          Awaited<ReturnType<typeof getDocumentCover>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDocumentCover<TData = Awaited<ReturnType<typeof getDocumentCover>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDocumentCover>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get document cover image
+ */
+
+export function useGetDocumentCover<TData = Awaited<ReturnType<typeof getDocumentCover>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDocumentCover>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDocumentCoverQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+/**
+ * @summary Download document file
+ */
+export type getDocumentFileResponse200 = {
+  data: Blob
+  status: 200
+}
+
+export type getDocumentFileResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type getDocumentFileResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getDocumentFileResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getDocumentFileResponseSuccess = (getDocumentFileResponse200) & {
+  headers: Headers;
+};
+export type getDocumentFileResponseError = (getDocumentFileResponse401 | getDocumentFileResponse404 | getDocumentFileResponse500) & {
+  headers: Headers;
+};
+
+export type getDocumentFileResponse = (getDocumentFileResponseSuccess | getDocumentFileResponseError)
+
+export const getGetDocumentFileUrl = (id: string,) => {
+
+
+  
+
+  return `/api/v1/documents/${id}/file`
+}
+
+export const getDocumentFile = async (id: string, options?: RequestInit): Promise<getDocumentFileResponse> => {
+  
+  const res = await fetch(getGetDocumentFileUrl(id),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+)
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  
+  const data: getDocumentFileResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as getDocumentFileResponse
+}
+  
+
+
+
+
+export const getGetDocumentFileQueryKey = (id: string,) => {
+    return [
+    `/api/v1/documents/${id}/file`
+    ] as const;
+    }
+
+    
+export const getGetDocumentFileQueryOptions = <TData = Awaited<ReturnType<typeof getDocumentFile>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDocumentFile>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDocumentFileQueryKey(id);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDocumentFile>>> = ({ signal }) => getDocumentFile(id, { signal, ...fetchOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDocumentFile>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDocumentFileQueryResult = NonNullable<Awaited<ReturnType<typeof getDocumentFile>>>
+export type GetDocumentFileQueryError = ErrorResponse
+
+
+export function useGetDocumentFile<TData = Awaited<ReturnType<typeof getDocumentFile>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDocumentFile>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDocumentFile>>,
+          TError,
+          Awaited<ReturnType<typeof getDocumentFile>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDocumentFile<TData = Awaited<ReturnType<typeof getDocumentFile>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDocumentFile>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDocumentFile>>,
+          TError,
+          Awaited<ReturnType<typeof getDocumentFile>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDocumentFile<TData = Awaited<ReturnType<typeof getDocumentFile>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDocumentFile>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Download document file
+ */
+
+export function useGetDocumentFile<TData = Awaited<ReturnType<typeof getDocumentFile>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDocumentFile>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDocumentFileQueryOptions(id,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -2296,7 +2570,12 @@ export function useGetAdmin<TData = Awaited<ReturnType<typeof getAdmin>>, TError
 /**
  * @summary Perform admin action (backup, restore, etc.)
  */
-export type postAdminActionResponse200 = {
+export type postAdminActionResponse200ApplicationJson = {
+  data: MessageResponse
+  status: 200
+}
+
+export type postAdminActionResponse200ApplicationOctetStream = {
   data: Blob
   status: 200
 }
@@ -2316,7 +2595,7 @@ export type postAdminActionResponse500 = {
   status: 500
 }
 
-export type postAdminActionResponseSuccess = (postAdminActionResponse200) & {
+export type postAdminActionResponseSuccess = (postAdminActionResponse200ApplicationJson | postAdminActionResponse200ApplicationOctetStream) & {
   headers: Headers;
 };
 export type postAdminActionResponseError = (postAdminActionResponse400 | postAdminActionResponse401 | postAdminActionResponse500) & {
@@ -2334,22 +2613,22 @@ export const getPostAdminActionUrl = () => {
 }
 
 export const postAdminAction = async (postAdminActionBody: PostAdminActionBody, options?: RequestInit): Promise<postAdminActionResponse> => {
-    const formUrlEncoded = new URLSearchParams();
-formUrlEncoded.append(`action`, postAdminActionBody.action);
+    const formData = new FormData();
+formData.append(`action`, postAdminActionBody.action);
 if(postAdminActionBody.backup_types !== undefined) {
- postAdminActionBody.backup_types.forEach(value => formUrlEncoded.append(`backup_types`, value));
+ postAdminActionBody.backup_types.forEach(value => formData.append(`backup_types`, value));
  }
 if(postAdminActionBody.restore_file !== undefined) {
- formUrlEncoded.append(`restore_file`, postAdminActionBody.restore_file);
+ formData.append(`restore_file`, postAdminActionBody.restore_file);
  }
 
   const res = await fetch(getPostAdminActionUrl(),
   {      
     ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...options?.headers },
+    method: 'POST'
+    ,
     body: 
-      formUrlEncoded,
+      formData,
   }
 )
 

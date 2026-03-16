@@ -46,7 +46,7 @@ func TestAuth(t *testing.T) {
 func (suite *AuthTestSuite) SetupTest() {
 	suite.cfg = suite.setupConfig()
 	suite.db = database.NewMgr(suite.cfg)
-	suite.srv = NewServer(suite.db, suite.cfg)
+	suite.srv = NewServer(suite.db, suite.cfg, nil)
 }
 
 func (suite *AuthTestSuite) createTestUser(username, password string) {

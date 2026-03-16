@@ -35,23 +35,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthState(prev => {
       if (meLoading) {
         // Still checking authentication
+        console.log('[AuthContext] Checking authentication status...');
         return { ...prev, isCheckingAuth: true };
-      } else if (meData?.data) {
-        // User is authenticated
+      } else if (meData?.data && meData.status === 200) {
+        // User is authenticated - check that response has valid data
+        console.log('[AuthContext] User authenticated:', meData.data);
         return {
           isAuthenticated: true,
           user: meData.data,
           isCheckingAuth: false,
         };
-      } else if (meError) {
+      } else if (
+        meError ||
+        (meData && meData.status === 401) ||
+        (meData && meData.status === 403)
+      ) {
         // User is not authenticated or error occurred
+        console.log('[AuthContext] User not authenticated:', meError?.message || String(meError));
         return {
           isAuthenticated: false,
           user: null,
           isCheckingAuth: false,
         };
       }
-      return prev;
+      console.log('[AuthContext] Unexpected state - checking...');
+      return { ...prev, isCheckingAuth: false }; // Assume not authenticated if we can't determine
     });
   }, [meData, meError, meLoading]);
 
@@ -75,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         navigate('/');
       } catch (_error) {
+        console.error('[AuthContext] Login failed:', _error);
         throw new Error('Login failed');
       }
     },

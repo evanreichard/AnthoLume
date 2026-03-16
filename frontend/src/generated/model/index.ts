@@ -39,6 +39,7 @@ export * from './logEntry';
 export * from './loginRequest';
 export * from './loginResponse';
 export * from './logsResponse';
+export * from './messageResponse';
 export * from './operationType';
 export * from './postAdminActionBody';
 export * from './postAdminActionBodyAction';

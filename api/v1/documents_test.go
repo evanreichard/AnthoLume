@@ -47,7 +47,7 @@ func TestDocuments(t *testing.T) {
 func (suite *DocumentsTestSuite) SetupTest() {
 	suite.cfg = suite.setupConfig()
 	suite.db = database.NewMgr(suite.cfg)
-	suite.srv = NewServer(suite.db, suite.cfg)
+	suite.srv = NewServer(suite.db, suite.cfg, nil)
 }
 
 func (suite *DocumentsTestSuite) createTestUser(username, password string) {
@@ -158,4 +158,22 @@ func (suite *DocumentsTestSuite) TestAPIGetDocumentNotFound() {
 	suite.srv.ServeHTTP(w, req)
 
 	suite.Equal(http.StatusNotFound, w.Code)
+}
+
+func (suite *DocumentsTestSuite) TestAPIGetDocumentCoverUnauthenticated() {
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/documents/test-id/cover", nil)
+	w := httptest.NewRecorder()
+
+	suite.srv.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusUnauthorized, w.Code)
+}
+
+func (suite *DocumentsTestSuite) TestAPIGetDocumentFileUnauthenticated() {
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/documents/test-id/file", nil)
+	w := httptest.NewRecorder()
+
+	suite.srv.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusUnauthorized, w.Code)
 }

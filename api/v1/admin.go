@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"net/http"
+	"mime/multipart"
 	"os"
 	"path/filepath"
 	"sort"
@@ -77,16 +77,30 @@ func (s *Server) PostAdminAction(ctx context.Context, request PostAdminActionReq
 		return PostAdminAction400JSONResponse{Code: 400, Message: "Missing request body"}, nil
 	}
 
+	// Read the multipart form in a streaming way to support large files
+	reader := request.Body
+	form, err := reader.ReadForm(32 << 20) // 32MB for non-file fields (files are not stored in memory)
+	if err != nil {
+		return PostAdminAction400JSONResponse{Code: 400, Message: "Unable to parse form"}, nil
+	}
+
+	// Extract action from form
+	actionValues := form.Value["action"]
+	if len(actionValues) == 0 {
+		return PostAdminAction400JSONResponse{Code: 400, Message: "Missing action"}, nil
+	}
+	action := actionValues[0]
+
 	// Handle different admin actions mirroring legacy appPerformAdminAction
-	switch request.Body.Action {
+	switch action {
 	case "METADATA_MATCH":
 		// This is a TODO in the legacy code as well
 		go func() {
 			// TODO: Implement metadata matching logic
 			log.Info("Metadata match action triggered (not yet implemented)")
 		}()
-		return PostAdminAction200ApplicationoctetStreamResponse{
-			Body: strings.NewReader("Metadata match started"),
+		return PostAdminAction200JSONResponse{
+			Message: "Metadata match started",
 		}, nil
 
 	case "CACHE_TABLES":
@@ -97,15 +111,15 @@ func (s *Server) PostAdminAction(ctx context.Context, request PostAdminActionReq
 				log.Error("Unable to cache temp tables: ", err)
 			}
 		}()
-		return PostAdminAction200ApplicationoctetStreamResponse{
-			Body: strings.NewReader("Cache tables operation started"),
+		return PostAdminAction200JSONResponse{
+			Message: "Cache tables operation started",
 		}, nil
 
 	case "BACKUP":
-		return s.handleBackupAction(ctx, request)
+		return s.handleBackupAction(ctx, request, form)
 
 	case "RESTORE":
-		return s.handleRestoreAction(ctx, request)
+		return s.handleRestoreAction(ctx, request, form)
 
 	default:
 		return PostAdminAction400JSONResponse{Code: 400, Message: "Invalid action"}, nil
@@ -113,59 +127,51 @@ func (s *Server) PostAdminAction(ctx context.Context, request PostAdminActionReq
 }
 
 // handleBackupAction handles the backup action, mirroring legacy createBackup logic
-func (s *Server) handleBackupAction(ctx context.Context, request PostAdminActionRequestObject) (PostAdminActionResponseObject, error) {
+func (s *Server) handleBackupAction(ctx context.Context, request PostAdminActionRequestObject, form *multipart.Form) (PostAdminActionResponseObject, error) {
+	// Extract backup_types from form
+	backupTypesValues := form.Value["backup_types"]
+
 	// Create a pipe for streaming the backup
 	pr, pw := io.Pipe()
 
 	go func() {
 		defer pw.Close()
 		var directories []string
-		if request.Body.BackupTypes != nil {
-			for _, item := range *request.Body.BackupTypes {
-				if item == "COVERS" {
-					directories = append(directories, "covers")
-				} else if item == "DOCUMENTS" {
-					directories = append(directories, "documents")
-				}
+		for _, val := range backupTypesValues {
+			if val == "COVERS" {
+				directories = append(directories, "covers")
+			} else if val == "DOCUMENTS" {
+				directories = append(directories, "documents")
 			}
 		}
+		log.Info("Starting backup for directories: ", directories)
 		err := s.createBackup(ctx, pw, directories)
 		if err != nil {
-			log.Error("Backup Error: ", err)
+			log.Error("Backup failed: ", err)
+		} else {
+			log.Info("Backup completed successfully")
 		}
 	}()
 
+	// Set Content-Length to 0 to enable chunked transfer encoding
+	// This allows streaming with unknown file size
 	return PostAdminAction200ApplicationoctetStreamResponse{
-		Body: pr,
+		Body:          pr,
+		ContentLength: 0,
 	}, nil
 }
 
 // handleRestoreAction handles the restore action, mirroring legacy processRestoreFile logic
-func (s *Server) handleRestoreAction(ctx context.Context, request PostAdminActionRequestObject) (PostAdminActionResponseObject, error) {
-	if request.Body == nil || request.Body.RestoreFile == nil {
+func (s *Server) handleRestoreAction(ctx context.Context, request PostAdminActionRequestObject, form *multipart.Form) (PostAdminActionResponseObject, error) {
+	// Get the uploaded file from form
+	fileHeaders := form.File["restore_file"]
+	if len(fileHeaders) == 0 {
 		return PostAdminAction400JSONResponse{Code: 400, Message: "Missing restore file"}, nil
 	}
 
-	// Read multipart form (similar to CreateDocument)
-	// Since the Body has the file, we need to extract it differently
-	// The request.Body.RestoreFile is of type openapi_types.File
-
-	// For now, let's access the raw request from context
-	r := ctx.Value("request").(*http.Request)
-	if r == nil {
-		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to get request"}, nil
-	}
-
-	// Parse multipart form from raw request
-	err := r.ParseMultipartForm(32 << 20) // 32MB max memory
+	file, err := fileHeaders[0].Open()
 	if err != nil {
-		return PostAdminAction500JSONResponse{Code: 500, Message: "Failed to parse form"}, nil
-	}
-
-	// Get the uploaded file
-	file, _, err := r.FormFile("restore_file")
-	if err != nil {
-		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to get file from form"}, nil
+		return PostAdminAction400JSONResponse{Code: 400, Message: "Unable to open restore file"}, nil
 	}
 	defer file.Close()
 
@@ -180,17 +186,20 @@ func (s *Server) handleRestoreAction(ctx context.Context, request PostAdminActio
 
 	// Save uploaded file to temp
 	if _, err = io.Copy(tempFile, file); err != nil {
+		log.Error("Unable to save uploaded file: ", err)
 		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to save file"}, nil
 	}
 
 	// Get file info and validate ZIP
 	fileInfo, err := tempFile.Stat()
 	if err != nil {
+		log.Error("Unable to read temp file: ", err)
 		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to read file"}, nil
 	}
 
 	zipReader, err := zip.NewReader(tempFile, fileInfo.Size())
 	if err != nil {
+		log.Error("Unable to read zip: ", err)
 		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to read zip"}, nil
 	}
 
@@ -213,9 +222,11 @@ func (s *Server) handleRestoreAction(ctx context.Context, request PostAdminActio
 	}
 
 	// Create backup before restoring (mirroring legacy logic)
+	log.Info("Creating backup before restore...")
 	backupFilePath := filepath.Join(s.cfg.ConfigPath, fmt.Sprintf("backups/AnthoLumeBackup_%s.zip", time.Now().Format("20060102150405")))
 	backupFile, err := os.Create(backupFilePath)
 	if err != nil {
+		log.Error("Unable to create backup file: ", err)
 		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to create backup file"}, nil
 	}
 	defer backupFile.Close()
@@ -223,46 +234,55 @@ func (s *Server) handleRestoreAction(ctx context.Context, request PostAdminActio
 	w := bufio.NewWriter(backupFile)
 	err = s.createBackup(ctx, w, []string{"covers", "documents"})
 	if err != nil {
+		log.Error("Unable to save backup file: ", err)
 		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to save backup file"}, nil
 	}
 
 	// Remove data (mirroring legacy removeData)
+	log.Info("Removing data...")
 	err = s.removeData()
 	if err != nil {
+		log.Error("Unable to delete data: ", err)
 		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to delete data"}, nil
 	}
 
 	// Restore data (mirroring legacy restoreData)
+	log.Info("Restoring data...")
 	err = s.restoreData(zipReader)
 	if err != nil {
+		log.Error("Unable to restore data: ", err)
 		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to restore data"}, nil
 	}
 
 	// Reload DB (mirroring legacy Reload)
+	log.Info("Reloading database...")
 	if err := s.db.Reload(ctx); err != nil {
+		log.Error("Unable to reload DB: ", err)
 		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to reload DB"}, nil
 	}
 
 	// Rotate auth hashes (mirroring legacy rotateAllAuthHashes)
+	log.Info("Rotating auth hashes...")
 	if err := s.rotateAllAuthHashes(ctx); err != nil {
+		log.Error("Unable to rotate hashes: ", err)
 		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to rotate hashes"}, nil
 	}
 
-	return PostAdminAction200ApplicationoctetStreamResponse{
-		Body: strings.NewReader("Restore completed successfully"),
+	log.Info("Restore completed successfully")
+	return PostAdminAction200JSONResponse{
+		Message: "Restore completed successfully",
 	}, nil
 }
 
 // createBackup creates a backup ZIP archive, mirroring legacy createBackup
 func (s *Server) createBackup(ctx context.Context, w io.Writer, directories []string) error {
-	// Vacuum DB (mirroring legacy logic)
+	// Vacuum DB
 	_, err := s.db.DB.ExecContext(ctx, "VACUUM;")
 	if err != nil {
-		return err
+		return fmt.Errorf("Unable to vacuum database: %w", err)
 	}
 
 	ar := zip.NewWriter(w)
-	defer ar.Close()
 
 	// Helper function to walk and archive files
 	exportWalker := func(currentPath string, f fs.DirEntry, err error) error {
@@ -319,6 +339,8 @@ func (s *Server) createBackup(ctx context.Context, w io.Writer, directories []st
 		}
 	}
 
+	// Close writer to flush all data before returning
+	ar.Close()
 	return nil
 }
 
@@ -345,6 +367,10 @@ func (s *Server) removeData() error {
 
 // restoreData restores data from ZIP archive, mirroring legacy restoreData
 func (s *Server) restoreData(zipReader *zip.Reader) error {
+	// Ensure Directories
+	s.cfg.EnsureDirectories()
+
+	// Restore Data
 	for _, file := range zipReader.File {
 		rc, err := file.Open()
 		if err != nil {
@@ -355,12 +381,14 @@ func (s *Server) restoreData(zipReader *zip.Reader) error {
 		destPath := filepath.Join(s.cfg.DataPath, file.Name)
 		destFile, err := os.Create(destPath)
 		if err != nil {
+			log.Errorf("error creating destination file: %v", err)
 			return err
 		}
 		defer destFile.Close()
 
-		_, err = io.Copy(destFile, rc)
-		if err != nil {
+		// Copy the contents from the zip file to the destination file.
+		if _, err := io.Copy(destFile, rc); err != nil {
+			log.Errorf("Error copying file contents: %v", err)
 			return err
 		}
 	}

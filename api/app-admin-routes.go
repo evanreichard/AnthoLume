@@ -22,7 +22,6 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/gin-gonic/gin"
 	"github.com/itchyny/gojq"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
@@ -722,7 +721,7 @@ func (api *API) createBackup(ctx context.Context, w io.Writer, directories []str
 	// Vacuum DB
 	_, err := api.db.DB.ExecContext(ctx, "VACUUM;")
 	if err != nil {
-		return errors.Wrap(err, "Unable to vacuum database")
+		return fmt.Errorf("Unable to vacuum database: %w", err)
 	}
 
 	ar := zip.NewWriter(w)
@@ -796,7 +795,7 @@ func (api *API) createBackup(ctx context.Context, w io.Writer, directories []str
 func (api *API) isLastAdmin(ctx context.Context, userID string) (bool, error) {
 	allUsers, err := api.db.Queries.GetUsers(ctx)
 	if err != nil {
-		return false, errors.Wrap(err, fmt.Sprintf("GetUsers DB Error: %v", err))
+		return false, fmt.Errorf("GetUsers DB Error: %w", err)
 	}
 
 	hasAdmin := false
@@ -873,7 +872,7 @@ func (api *API) updateUser(ctx context.Context, user string, rawPassword *string
 	} else {
 		user, err := api.db.Queries.GetUser(ctx, user)
 		if err != nil {
-			return errors.Wrap(err, fmt.Sprintf("GetUser DB Error: %v", err))
+			return fmt.Errorf("GetUser DB Error: %w", err)
 		}
 		updateParams.Admin = user.Admin
 	}
@@ -911,7 +910,7 @@ func (api *API) updateUser(ctx context.Context, user string, rawPassword *string
 	// Update User
 	_, err := api.db.Queries.UpdateUser(ctx, updateParams)
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("UpdateUser DB Error: %v", err))
+		return fmt.Errorf("UpdateUser DB Error: %w", err)
 	}
 
 	return nil
@@ -943,7 +942,7 @@ func (api *API) deleteUser(ctx context.Context, user string) error {
 	// Delete User
 	_, err = api.db.Queries.DeleteUser(ctx, user)
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("DeleteUser DB Error: %v", err))
+		return fmt.Errorf("DeleteUser DB Error: %w", err)
 	}
 
 	return nil

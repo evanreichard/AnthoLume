@@ -28,7 +28,7 @@ type server struct {
 func New(c *config.Config, assets fs.FS) *server {
 	db := database.NewMgr(c)
 	ginAPI := api.NewApi(db, c, assets)
-	v1API := v1.NewServer(db, c)
+	v1API := v1.NewServer(db, c, assets)
 
 	// Create combined mux that handles both Gin and v1 API
 	mux := http.NewServeMux()

@@ -16,7 +16,6 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/microcosm-cc/bluemonday"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/config"
 	"reichard.io/antholume/database"
@@ -298,7 +297,7 @@ func (api *API) loadTemplates(
 	templateDirectory := fmt.Sprintf("templates/%ss", basePath)
 	allFiles, err := fs.ReadDir(api.assets, templateDirectory)
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("unable to read template dir: %s", templateDirectory))
+		return fmt.Errorf("unable to read template dir %s: %w", templateDirectory, err)
 	}
 
 	// Generate Templates
@@ -310,7 +309,7 @@ func (api *API) loadTemplates(
 		// Read Template
 		b, err := fs.ReadFile(api.assets, templatePath)
 		if err != nil {
-			return errors.Wrap(err, fmt.Sprintf("unable to read template: %s", templateName))
+			return fmt.Errorf("unable to read template %s: %w", templateName, err)
 		}
 
 		// Clone? (Pages - Don't Stomp)
@@ -321,7 +320,7 @@ func (api *API) loadTemplates(
 		// Parse Template
 		baseTemplate, err = baseTemplate.New(templateName).Parse(string(b))
 		if err != nil {
-			return errors.Wrap(err, fmt.Sprintf("unable to parse template: %s", templateName))
+			return fmt.Errorf("unable to parse template %s: %w", templateName, err)
 		}
 
 		allTemplates[templateName] = baseTemplate

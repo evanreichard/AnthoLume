@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -197,6 +199,221 @@ func parseInterfaceTime(t interface{}) *time.Time {
 	}
 }
 
+// serveNoCover serves the default no-cover image from assets
+func (s *Server) serveNoCover() (fs.File, string, int64, error) {
+	// Try to open the no-cover image from assets
+	file, err := s.assets.Open("assets/images/no-cover.jpg")
+	if err != nil {
+		return nil, "", 0, err
+	}
+
+	// Get file info
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return nil, "", 0, err
+	}
+
+	return file, "image/jpeg", info.Size(), nil
+}
+
+// openFileReader opens a file and returns it as an io.ReaderCloser
+func openFileReader(path string) (*os.File, error) {
+	return os.Open(path)
+}
+
+// GET /documents/{id}/cover
+func (s *Server) GetDocumentCover(ctx context.Context, request GetDocumentCoverRequestObject) (GetDocumentCoverResponseObject, error) {
+	// Authentication is handled by middleware, which also adds auth data to context
+	// This endpoint just serves the cover image
+
+	// Validate Document Exists in DB
+	document, err := s.db.Queries.GetDocument(ctx, request.Id)
+	if err != nil {
+		log.Error("GetDocument DB Error:", err)
+		return GetDocumentCover404JSONResponse{Code: 404, Message: "Document not found"}, nil
+	}
+
+	var coverFile fs.File
+	var contentType string
+	var contentLength int64
+	var needMetadataFetch bool
+
+	// Handle Identified Document
+	if document.Coverfile != nil {
+		if *document.Coverfile == "UNKNOWN" {
+			// Serve no-cover image
+			file, ct, size, err := s.serveNoCover()
+			if err != nil {
+				log.Error("Failed to open no-cover image:", err)
+				return GetDocumentCover404JSONResponse{Code: 404, Message: "Cover not found"}, nil
+			}
+			coverFile = file
+			contentType = ct
+			contentLength = size
+			needMetadataFetch = true
+		} else {
+			// Derive Path
+			coverPath := filepath.Join(s.cfg.DataPath, "covers", *document.Coverfile)
+	
+			// Validate File Exists
+			fileInfo, err := os.Stat(coverPath)
+			if os.IsNotExist(err) {
+				log.Error("Cover file should but doesn't exist: ", err)
+				// Serve no-cover image
+				file, ct, size, err := s.serveNoCover()
+				if err != nil {
+					log.Error("Failed to open no-cover image:", err)
+					return GetDocumentCover404JSONResponse{Code: 404, Message: "Cover not found"}, nil
+				}
+				coverFile = file
+				contentType = ct
+				contentLength = size
+				needMetadataFetch = true
+			} else {
+				// Open the cover file
+				file, err := openFileReader(coverPath)
+				if err != nil {
+					log.Error("Failed to open cover file:", err)
+					return GetDocumentCover500JSONResponse{Code: 500, Message: "Failed to open cover"}, nil
+				}
+				coverFile = file
+				contentLength = fileInfo.Size()
+
+				// Determine content type based on file extension
+				contentType = "image/jpeg"
+				if strings.HasSuffix(coverPath, ".png") {
+					contentType = "image/png"
+				}
+			}
+		}
+	} else {
+		needMetadataFetch = true
+	}
+
+	// Attempt Metadata fetch if needed
+	var cachedCoverFile string = "UNKNOWN"
+	var coverDir string = filepath.Join(s.cfg.DataPath, "covers")
+
+	if needMetadataFetch {
+		// Identify Documents & Save Covers
+		metadataResults, err := metadata.SearchMetadata(metadata.SOURCE_GBOOK, metadata.MetadataInfo{
+			Title:  document.Title,
+			Author: document.Author,
+		})
+
+		if err == nil && len(metadataResults) > 0 && metadataResults[0].ID != nil {
+			firstResult := metadataResults[0]
+
+			// Save Cover
+			fileName, err := metadata.CacheCover(*firstResult.ID, coverDir, document.ID, false)
+			if err == nil {
+				cachedCoverFile = *fileName
+			}
+
+			// Store First Metadata Result
+			if _, err = s.db.Queries.AddMetadata(ctx, database.AddMetadataParams{
+				DocumentID:  document.ID,
+				Title:       firstResult.Title,
+				Author:      firstResult.Author,
+				Description: firstResult.Description,
+				Gbid:        firstResult.ID,
+				Olid:        nil,
+				Isbn10:      firstResult.ISBN10,
+				Isbn13:      firstResult.ISBN13,
+			}); err != nil {
+				log.Error("AddMetadata DB Error:", err)
+			}
+		}
+
+		// Upsert Document
+		if _, err = s.db.Queries.UpsertDocument(ctx, database.UpsertDocumentParams{
+			ID:        document.ID,
+			Coverfile: &cachedCoverFile,
+		}); err != nil {
+			log.Warn("UpsertDocument DB Error:", err)
+		}
+
+		// Update cover file if we got a new cover
+		if cachedCoverFile != "UNKNOWN" {
+			coverPath := filepath.Join(coverDir, cachedCoverFile)
+			fileInfo, err := os.Stat(coverPath)
+			if err != nil {
+				log.Error("Failed to stat cached cover:", err)
+				// Keep the no-cover image
+			} else {
+				file, err := openFileReader(coverPath)
+				if err != nil {
+					log.Error("Failed to open cached cover:", err)
+					// Keep the no-cover image
+				} else {
+					_ = coverFile.Close() // Close the previous file
+					coverFile = file
+					contentLength = fileInfo.Size()
+
+					// Determine content type based on file extension
+					contentType = "image/jpeg"
+					if strings.HasSuffix(coverPath, ".png") {
+						contentType = "image/png"
+					}
+				}
+			}
+		}
+	}
+
+	return &GetDocumentCover200Response{
+		Body:          coverFile,
+		ContentLength: contentLength,
+		ContentType:   contentType,
+	}, nil
+}
+
+// GET /documents/{id}/file
+func (s *Server) GetDocumentFile(ctx context.Context, request GetDocumentFileRequestObject) (GetDocumentFileResponseObject, error) {
+	// Authentication is handled by middleware, which also adds auth data to context
+	// This endpoint just serves the document file download
+	// Get Document
+	document, err := s.db.Queries.GetDocument(ctx, request.Id)
+	if err != nil {
+		log.Error("GetDocument DB Error:", err)
+		return GetDocumentFile404JSONResponse{Code: 404, Message: "Document not found"}, nil
+	}
+
+	if document.Filepath == nil {
+		log.Error("Document Doesn't Have File:", request.Id)
+		return GetDocumentFile404JSONResponse{Code: 404, Message: "Document file not found"}, nil
+	}
+
+	// Derive Basepath
+	basepath := filepath.Join(s.cfg.DataPath, "documents")
+	if document.Basepath != nil && *document.Basepath != "" {
+		basepath = *document.Basepath
+	}
+
+	// Derive Storage Location
+	filePath := filepath.Join(basepath, *document.Filepath)
+
+	// Validate File Exists
+	fileInfo, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		log.Error("File should but doesn't exist:", err)
+		return GetDocumentFile404JSONResponse{Code: 404, Message: "Document file not found"}, nil
+	}
+
+	// Open file
+	file, err := os.Open(filePath)
+	if err != nil {
+		log.Error("Failed to open document file:", err)
+		return GetDocumentFile500JSONResponse{Code: 500, Message: "Failed to open document"}, nil
+	}
+
+	return &GetDocumentFile200Response{
+		Body:          file,
+		ContentLength: fileInfo.Size(),
+		Filename:      filepath.Base(*document.Filepath),
+	}, nil
+}
+
 // POST /documents
 func (s *Server) CreateDocument(ctx context.Context, request CreateDocumentRequestObject) (CreateDocumentResponseObject, error) {
 	auth, ok := s.getSessionFromContext(ctx)
@@ -338,4 +555,47 @@ func (s *Server) CreateDocument(ctx context.Context, request CreateDocumentReque
 	}
 
 	return CreateDocument200JSONResponse(response), nil
+}
+
+// GetDocumentCover200Response is a custom response type that allows setting content type
+type GetDocumentCover200Response struct {
+	Body          io.Reader
+	ContentLength int64
+	ContentType   string
+}
+
+func (response GetDocumentCover200Response) VisitGetDocumentCoverResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", response.ContentType)
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.Closer); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+// GetDocumentFile200Response is a custom response type that allows setting filename for download
+type GetDocumentFile200Response struct {
+	Body          io.Reader
+	ContentLength int64
+	Filename      string
+}
+
+func (response GetDocumentFile200Response) VisitGetDocumentFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", response.Filename))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.Closer); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
 }
