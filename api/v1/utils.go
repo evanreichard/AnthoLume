@@ -67,3 +67,18 @@ func parseTime(s string) time.Time {
 	}
 	return t
 }
+
+// parseTimePtr parses an interface{} (from SQL) to *time.Time
+func parseTimePtr(v interface{}) *time.Time {
+	if v == nil {
+		return nil
+	}
+	if s, ok := v.(string); ok {
+		t := parseTime(s)
+		if t.IsZero() {
+			return nil
+		}
+		return &t
+	}
+	return nil
+}

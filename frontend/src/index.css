@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* PWA Styling */
+html,
+body {
+  overscroll-behavior-y: none;
+  margin: 0px;
+}
+
+html {
+  height: calc(100% + env(safe-area-inset-bottom));
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0
+    env(safe-area-inset-left);
+}
+
+main {
+  height: calc(100dvh - 4rem - env(safe-area-inset-top));
+}
+
+#container {
+  padding-bottom: calc(5em + env(safe-area-inset-bottom) * 2);
+}
+
+/* No Scrollbar - IE, Edge, Firefox */
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* No Scrollbar - WebKit */
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* Button visibility toggle */
+.css-button:checked + div {
+  visibility: visible;
+  opacity: 1;
+}
+
+.css-button + div {
+  visibility: hidden;
+  opacity: 0;
+}

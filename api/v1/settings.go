@@ -16,10 +16,25 @@ func (s *Server) GetSettings(ctx context.Context, request GetSettingsRequestObje
 		return GetSettings500JSONResponse{Code: 500, Message: err.Error()}, nil
 	}
 
+	devices, err := s.db.Queries.GetDevices(ctx, auth.UserName)
+	if err != nil {
+		return GetSettings500JSONResponse{Code: 500, Message: err.Error()}, nil
+	}
+
+	apiDevices := make([]Device, len(devices))
+	for i, device := range devices {
+		apiDevices[i] = Device{
+			Id:         &device.ID,
+			DeviceName: &device.DeviceName,
+			CreatedAt:  parseTimePtr(device.CreatedAt),
+			LastSynced: parseTimePtr(device.LastSynced),
+		}
+	}
+
 	response := SettingsResponse{
-		Settings: []Setting{},
 		User:     UserData{Username: auth.UserName, IsAdmin: auth.IsAdmin},
 		Timezone: user.Timezone,
+		Devices:  &apiDevices,
 	}
 	return GetSettings200JSONResponse(response), nil
 }

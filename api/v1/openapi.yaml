@@ -29,6 +29,14 @@ components:
         words:
           type: integer
           format: int64
+        filepath:
+          type: string
+        percentage:
+          type: number
+          format: float
+        total_time_seconds:
+          type: integer
+          format: int64
       required:
         - id
         - title
@@ -63,27 +71,22 @@ components:
     Progress:
       type: object
       properties:
-        user_id:
+        title:
           type: string
-        document_id:
+        author:
           type: string
-        device_id:
+        device_name:
           type: string
         percentage:
           type: number
           format: double
-        progress:
+        document_id:
+          type: string
+        user_id:
           type: string
         created_at:
           type: string
           format: date-time
-      required:
-        - user_id
-        - document_id
-        - device_id
-        - percentage
-        - progress
-        - created_at
 
     Activity:
       type: object
@@ -105,6 +108,42 @@ components:
         - document_id
         - activity_type
         - timestamp
+
+    SearchItem:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        author:
+          type: string
+        language:
+          type: string
+        series:
+          type: string
+        file_type:
+          type: string
+        file_size:
+          type: string
+        upload_date:
+          type: string
+
+    SearchResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchItem'
+        source:
+          type: string
+        query:
+          type: string
+      required:
+        - results
+        - source
+        - query
 
     Setting:
       type: object
@@ -174,8 +213,38 @@ components:
         - document
         - user
 
+    ProgressListResponse:
+      type: object
+      properties:
+        progress:
+          type: array
+          items:
+            $ref: '#/components/schemas/Progress'
+        user:
+          $ref: '#/components/schemas/UserData'
+        page:
+          type: integer
+          format: int64
+        limit:
+          type: integer
+          format: int64
+        next_page:
+          type: integer
+          format: int64
+        previous_page:
+          type: integer
+          format: int64
+        total:
+          type: integer
+          format: int64
+
     ProgressResponse:
-      $ref: '#/components/schemas/Progress'
+      type: object
+      properties:
+        progress:
+          $ref: '#/components/schemas/Progress'
+        user:
+          $ref: '#/components/schemas/UserData'
 
     ActivityResponse:
       type: object
@@ -190,17 +259,31 @@ components:
         - activities
         - user
 
+    Device:
+      type: object
+      properties:
+        id:
+          type: string
+        device_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_synced:
+          type: string
+          format: date-time
+
     SettingsResponse:
       type: object
       properties:
-        settings:
-          type: array
-          items:
-            $ref: '#/components/schemas/Setting'
         user:
           $ref: '#/components/schemas/UserData'
         timezone:
           type: string
+        devices:
+          type: array
+          items:
+            $ref: '#/components/schemas/Device'
       required:
         - settings
         - user
@@ -237,6 +320,167 @@ components:
       required:
         - code
         - message
+
+    DatabaseInfo:
+      type: object
+      properties:
+        documents_size:
+          type: integer
+          format: int64
+        activity_size:
+          type: integer
+          format: int64
+        progress_size:
+          type: integer
+          format: int64
+        devices_size:
+          type: integer
+          format: int64
+      required:
+        - documents_size
+        - activity_size
+        - progress_size
+        - devices_size
+
+    UserStreak:
+      type: object
+      properties:
+        window:
+          type: string
+        max_streak:
+          type: integer
+          format: int64
+        max_streak_start_date:
+          type: string
+        max_streak_end_date:
+          type: string
+        current_streak:
+          type: integer
+          format: int64
+        current_streak_start_date:
+          type: string
+        current_streak_end_date:
+          type: string
+      required:
+        - window
+        - max_streak
+        - max_streak_start_date
+        - max_streak_end_date
+        - current_streak
+        - current_streak_start_date
+        - current_streak_end_date
+
+    StreaksResponse:
+      type: object
+      properties:
+        streaks:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserStreak'
+        user:
+          $ref: '#/components/schemas/UserData'
+      required:
+        - streaks
+        - user
+
+    GraphDataPoint:
+      type: object
+      properties:
+        date:
+          type: string
+        minutes_read:
+          type: integer
+          format: int64
+      required:
+        - date
+        - minutes_read
+
+    GraphDataResponse:
+      type: object
+      properties:
+        graph_data:
+          type: array
+          items:
+            $ref: '#/components/schemas/GraphDataPoint'
+        user:
+          $ref: '#/components/schemas/UserData'
+      required:
+        - graph_data
+        - user
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        user_id:
+          type: string
+        value:
+          type: integer
+          format: int64
+      required:
+        - user_id
+        - value
+
+    LeaderboardData:
+      type: object
+      properties:
+        all:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
+        year:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
+        month:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
+        week:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
+      required:
+        - all
+        - year
+        - month
+        - week
+
+    UserStatisticsResponse:
+      type: object
+      properties:
+        wpm:
+          $ref: '#/components/schemas/LeaderboardData'
+        duration:
+          $ref: '#/components/schemas/LeaderboardData'
+        words:
+          $ref: '#/components/schemas/LeaderboardData'
+        user:
+          $ref: '#/components/schemas/UserData'
+      required:
+        - wpm
+        - duration
+        - words
+        - user
+
+    HomeResponse:
+      type: object
+      properties:
+        database_info:
+          $ref: '#/components/schemas/DatabaseInfo'
+        streaks:
+          $ref: '#/components/schemas/StreaksResponse'
+        graph_data:
+          $ref: '#/components/schemas/GraphDataResponse'
+        user_statistics:
+          $ref: '#/components/schemas/UserStatisticsResponse'
+        user:
+          $ref: '#/components/schemas/UserData'
+      required:
+        - database_info
+        - streaks
+        - graph_data
+        - user_statistics
+        - user
 
   securitySchemes:
     BearerAuth:
@@ -288,6 +532,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Upload a new document
+      operationId: createDocument
+      tags:
+        - Documents
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                document_file:
+                  type: string
+                  format: binary
+              required:
+                - document_file
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /documents/{id}:
     get:
@@ -318,6 +606,51 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         404:
           description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /progress:
+    get:
+      summary: List progress records
+      operationId: getProgressList
+      tags:
+        - Progress
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            format: int64
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            format: int64
+            default: 15
+        - name: document
+          in: query
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressListResponse'
+        401:
+          description: Unauthorized
           content:
             application/json:
               schema:
@@ -520,6 +853,207 @@ paths:
                 $ref: '#/components/schemas/LoginResponse'
         401:
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /home:
+    get:
+      summary: Get home page data
+      operationId: getHome
+      tags:
+        - Home
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /home/streaks:
+    get:
+      summary: Get user streaks
+      operationId: getStreaks
+      tags:
+        - Home
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StreaksResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /home/graph:
+    get:
+      summary: Get daily read stats graph data
+      operationId: getGraphData
+      tags:
+        - Home
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphDataResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /home/statistics:
+    get:
+      summary: Get user statistics (leaderboards)
+      operationId: getUserStatistics
+      tags:
+        - Home
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserStatisticsResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /search:
+    get:
+      summary: Search external book sources
+      operationId: getSearch
+      tags:
+        - Search
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: source
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [LibGen, Annas Archive]
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        400:
+          description: Invalid query
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Search error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Download search result
+      operationId: postSearch
+      tags:
+        - Search
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                source:
+                  type: string
+                title:
+                  type: string
+                author:
+                  type: string
+                id:
+                  type: string
+              required:
+                - source
+                - title
+                - author
+                - id
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Download initiated
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Download error
           content:
             application/json:
               schema:

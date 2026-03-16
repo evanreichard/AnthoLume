@@ -9,16 +9,36 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"time"
 
 	"github.com/oapi-codegen/runtime"
 	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 const (
 	BearerAuthScopes = "BearerAuth.Scopes"
 )
+
+// Defines values for GetSearchParamsSource.
+const (
+	AnnasArchive GetSearchParamsSource = "Annas Archive"
+	LibGen       GetSearchParamsSource = "LibGen"
+)
+
+// Valid indicates whether the value is a known member of the GetSearchParamsSource enum.
+func (e GetSearchParamsSource) Valid() bool {
+	switch e {
+	case AnnasArchive:
+		return true
+	case LibGen:
+		return true
+	default:
+		return false
+	}
+}
 
 // Activity defines model for Activity.
 type Activity struct {
@@ -35,15 +55,34 @@ type ActivityResponse struct {
 	User       UserData   `json:"user"`
 }
 
+// DatabaseInfo defines model for DatabaseInfo.
+type DatabaseInfo struct {
+	ActivitySize  int64 `json:"activity_size"`
+	DevicesSize   int64 `json:"devices_size"`
+	DocumentsSize int64 `json:"documents_size"`
+	ProgressSize  int64 `json:"progress_size"`
+}
+
+// Device defines model for Device.
+type Device struct {
+	CreatedAt  *time.Time `json:"created_at,omitempty"`
+	DeviceName *string    `json:"device_name,omitempty"`
+	Id         *string    `json:"id,omitempty"`
+	LastSynced *time.Time `json:"last_synced,omitempty"`
+}
+
 // Document defines model for Document.
 type Document struct {
-	Author    string    `json:"author"`
-	CreatedAt time.Time `json:"created_at"`
-	Deleted   bool      `json:"deleted"`
-	Id        string    `json:"id"`
-	Title     string    `json:"title"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Words     *int64    `json:"words,omitempty"`
+	Author           string    `json:"author"`
+	CreatedAt        time.Time `json:"created_at"`
+	Deleted          bool      `json:"deleted"`
+	Filepath         *string   `json:"filepath,omitempty"`
+	Id               string    `json:"id"`
+	Percentage       *float32  `json:"percentage,omitempty"`
+	Title            string    `json:"title"`
+	TotalTimeSeconds *int64    `json:"total_time_seconds,omitempty"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	Words            *int64    `json:"words,omitempty"`
 }
 
 // DocumentResponse defines model for DocumentResponse.
@@ -72,6 +111,41 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
+// GraphDataPoint defines model for GraphDataPoint.
+type GraphDataPoint struct {
+	Date        string `json:"date"`
+	MinutesRead int64  `json:"minutes_read"`
+}
+
+// GraphDataResponse defines model for GraphDataResponse.
+type GraphDataResponse struct {
+	GraphData []GraphDataPoint `json:"graph_data"`
+	User      UserData         `json:"user"`
+}
+
+// HomeResponse defines model for HomeResponse.
+type HomeResponse struct {
+	DatabaseInfo   DatabaseInfo           `json:"database_info"`
+	GraphData      GraphDataResponse      `json:"graph_data"`
+	Streaks        StreaksResponse        `json:"streaks"`
+	User           UserData               `json:"user"`
+	UserStatistics UserStatisticsResponse `json:"user_statistics"`
+}
+
+// LeaderboardData defines model for LeaderboardData.
+type LeaderboardData struct {
+	All   []LeaderboardEntry `json:"all"`
+	Month []LeaderboardEntry `json:"month"`
+	Week  []LeaderboardEntry `json:"week"`
+	Year  []LeaderboardEntry `json:"year"`
+}
+
+// LeaderboardEntry defines model for LeaderboardEntry.
+type LeaderboardEntry struct {
+	UserId string `json:"user_id"`
+	Value  int64  `json:"value"`
+}
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	Password string `json:"password"`
@@ -86,36 +160,87 @@ type LoginResponse struct {
 
 // Progress defines model for Progress.
 type Progress struct {
-	CreatedAt  time.Time `json:"created_at"`
-	DeviceId   string    `json:"device_id"`
-	DocumentId string    `json:"document_id"`
-	Percentage float64   `json:"percentage"`
-	Progress   string    `json:"progress"`
-	UserId     string    `json:"user_id"`
+	Author     *string    `json:"author,omitempty"`
+	CreatedAt  *time.Time `json:"created_at,omitempty"`
+	DeviceName *string    `json:"device_name,omitempty"`
+	DocumentId *string    `json:"document_id,omitempty"`
+	Percentage *float64   `json:"percentage,omitempty"`
+	Title      *string    `json:"title,omitempty"`
+	UserId     *string    `json:"user_id,omitempty"`
+}
+
+// ProgressListResponse defines model for ProgressListResponse.
+type ProgressListResponse struct {
+	Limit        *int64      `json:"limit,omitempty"`
+	NextPage     *int64      `json:"next_page,omitempty"`
+	Page         *int64      `json:"page,omitempty"`
+	PreviousPage *int64      `json:"previous_page,omitempty"`
+	Progress     *[]Progress `json:"progress,omitempty"`
+	Total        *int64      `json:"total,omitempty"`
+	User         *UserData   `json:"user,omitempty"`
 }
 
 // ProgressResponse defines model for ProgressResponse.
-type ProgressResponse = Progress
+type ProgressResponse struct {
+	Progress *Progress `json:"progress,omitempty"`
+	User     *UserData `json:"user,omitempty"`
+}
 
-// Setting defines model for Setting.
-type Setting struct {
-	Id     string `json:"id"`
-	Key    string `json:"key"`
-	UserId string `json:"user_id"`
-	Value  string `json:"value"`
+// SearchItem defines model for SearchItem.
+type SearchItem struct {
+	Author     *string `json:"author,omitempty"`
+	FileSize   *string `json:"file_size,omitempty"`
+	FileType   *string `json:"file_type,omitempty"`
+	Id         *string `json:"id,omitempty"`
+	Language   *string `json:"language,omitempty"`
+	Series     *string `json:"series,omitempty"`
+	Title      *string `json:"title,omitempty"`
+	UploadDate *string `json:"upload_date,omitempty"`
+}
+
+// SearchResponse defines model for SearchResponse.
+type SearchResponse struct {
+	Query   string       `json:"query"`
+	Results []SearchItem `json:"results"`
+	Source  string       `json:"source"`
 }
 
 // SettingsResponse defines model for SettingsResponse.
 type SettingsResponse struct {
-	Settings []Setting `json:"settings"`
+	Devices  *[]Device `json:"devices,omitempty"`
 	Timezone *string   `json:"timezone,omitempty"`
 	User     UserData  `json:"user"`
+}
+
+// StreaksResponse defines model for StreaksResponse.
+type StreaksResponse struct {
+	Streaks []UserStreak `json:"streaks"`
+	User    UserData     `json:"user"`
 }
 
 // UserData defines model for UserData.
 type UserData struct {
 	IsAdmin  bool   `json:"is_admin"`
 	Username string `json:"username"`
+}
+
+// UserStatisticsResponse defines model for UserStatisticsResponse.
+type UserStatisticsResponse struct {
+	Duration LeaderboardData `json:"duration"`
+	User     UserData        `json:"user"`
+	Words    LeaderboardData `json:"words"`
+	Wpm      LeaderboardData `json:"wpm"`
+}
+
+// UserStreak defines model for UserStreak.
+type UserStreak struct {
+	CurrentStreak          int64  `json:"current_streak"`
+	CurrentStreakEndDate   string `json:"current_streak_end_date"`
+	CurrentStreakStartDate string `json:"current_streak_start_date"`
+	MaxStreak              int64  `json:"max_streak"`
+	MaxStreakEndDate       string `json:"max_streak_end_date"`
+	MaxStreakStartDate     string `json:"max_streak_start_date"`
+	Window                 string `json:"window"`
 }
 
 // WordCount defines model for WordCount.
@@ -139,8 +264,43 @@ type GetDocumentsParams struct {
 	Search *string `form:"search,omitempty" json:"search,omitempty"`
 }
 
+// CreateDocumentMultipartBody defines parameters for CreateDocument.
+type CreateDocumentMultipartBody struct {
+	DocumentFile openapi_types.File `json:"document_file"`
+}
+
+// GetProgressListParams defines parameters for GetProgressList.
+type GetProgressListParams struct {
+	Page     *int64  `form:"page,omitempty" json:"page,omitempty"`
+	Limit    *int64  `form:"limit,omitempty" json:"limit,omitempty"`
+	Document *string `form:"document,omitempty" json:"document,omitempty"`
+}
+
+// GetSearchParams defines parameters for GetSearch.
+type GetSearchParams struct {
+	Query  string                `form:"query" json:"query"`
+	Source GetSearchParamsSource `form:"source" json:"source"`
+}
+
+// GetSearchParamsSource defines parameters for GetSearch.
+type GetSearchParamsSource string
+
+// PostSearchFormdataBody defines parameters for PostSearch.
+type PostSearchFormdataBody struct {
+	Author string `form:"author" json:"author"`
+	Id     string `form:"id" json:"id"`
+	Source string `form:"source" json:"source"`
+	Title  string `form:"title" json:"title"`
+}
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
+
+// CreateDocumentMultipartRequestBody defines body for CreateDocument for multipart/form-data ContentType.
+type CreateDocumentMultipartRequestBody CreateDocumentMultipartBody
+
+// PostSearchFormdataRequestBody defines body for PostSearch for application/x-www-form-urlencoded ContentType.
+type PostSearchFormdataRequestBody PostSearchFormdataBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -159,12 +319,36 @@ type ServerInterface interface {
 	// List documents
 	// (GET /documents)
 	GetDocuments(w http.ResponseWriter, r *http.Request, params GetDocumentsParams)
+	// Upload a new document
+	// (POST /documents)
+	CreateDocument(w http.ResponseWriter, r *http.Request)
 	// Get a single document
 	// (GET /documents/{id})
 	GetDocument(w http.ResponseWriter, r *http.Request, id string)
+	// Get home page data
+	// (GET /home)
+	GetHome(w http.ResponseWriter, r *http.Request)
+	// Get daily read stats graph data
+	// (GET /home/graph)
+	GetGraphData(w http.ResponseWriter, r *http.Request)
+	// Get user statistics (leaderboards)
+	// (GET /home/statistics)
+	GetUserStatistics(w http.ResponseWriter, r *http.Request)
+	// Get user streaks
+	// (GET /home/streaks)
+	GetStreaks(w http.ResponseWriter, r *http.Request)
+	// List progress records
+	// (GET /progress)
+	GetProgressList(w http.ResponseWriter, r *http.Request, params GetProgressListParams)
 	// Get document progress
 	// (GET /progress/{id})
 	GetProgress(w http.ResponseWriter, r *http.Request, id string)
+	// Search external book sources
+	// (GET /search)
+	GetSearch(w http.ResponseWriter, r *http.Request, params GetSearchParams)
+	// Download search result
+	// (POST /search)
+	PostSearch(w http.ResponseWriter, r *http.Request)
 	// Get user settings
 	// (GET /settings)
 	GetSettings(w http.ResponseWriter, r *http.Request)
@@ -339,6 +523,26 @@ func (siw *ServerInterfaceWrapper) GetDocuments(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// CreateDocument operation middleware
+func (siw *ServerInterfaceWrapper) CreateDocument(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateDocument(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetDocument operation middleware
 func (siw *ServerInterfaceWrapper) GetDocument(w http.ResponseWriter, r *http.Request) {
 
@@ -370,6 +574,135 @@ func (siw *ServerInterfaceWrapper) GetDocument(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// GetHome operation middleware
+func (siw *ServerInterfaceWrapper) GetHome(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHome(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetGraphData operation middleware
+func (siw *ServerInterfaceWrapper) GetGraphData(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGraphData(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetUserStatistics operation middleware
+func (siw *ServerInterfaceWrapper) GetUserStatistics(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUserStatistics(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetStreaks operation middleware
+func (siw *ServerInterfaceWrapper) GetStreaks(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetStreaks(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProgressList operation middleware
+func (siw *ServerInterfaceWrapper) GetProgressList(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetProgressListParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "document" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "document", r.URL.Query(), &params.Document, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "document", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProgressList(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProgress operation middleware
 func (siw *ServerInterfaceWrapper) GetProgress(w http.ResponseWriter, r *http.Request) {
 
@@ -392,6 +725,81 @@ func (siw *ServerInterfaceWrapper) GetProgress(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetProgress(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSearch operation middleware
+func (siw *ServerInterfaceWrapper) GetSearch(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSearchParams
+
+	// ------------- Required query parameter "query" -------------
+
+	if paramValue := r.URL.Query().Get("query"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "query"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "query", r.URL.Query(), &params.Query, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "query", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "source" -------------
+
+	if paramValue := r.URL.Query().Get("source"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "source"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "source", r.URL.Query(), &params.Source, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSearch(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostSearch operation middleware
+func (siw *ServerInterfaceWrapper) PostSearch(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostSearch(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -546,8 +954,16 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("POST "+options.BaseURL+"/auth/logout", wrapper.Logout)
 	m.HandleFunc("GET "+options.BaseURL+"/auth/me", wrapper.GetMe)
 	m.HandleFunc("GET "+options.BaseURL+"/documents", wrapper.GetDocuments)
+	m.HandleFunc("POST "+options.BaseURL+"/documents", wrapper.CreateDocument)
 	m.HandleFunc("GET "+options.BaseURL+"/documents/{id}", wrapper.GetDocument)
+	m.HandleFunc("GET "+options.BaseURL+"/home", wrapper.GetHome)
+	m.HandleFunc("GET "+options.BaseURL+"/home/graph", wrapper.GetGraphData)
+	m.HandleFunc("GET "+options.BaseURL+"/home/statistics", wrapper.GetUserStatistics)
+	m.HandleFunc("GET "+options.BaseURL+"/home/streaks", wrapper.GetStreaks)
+	m.HandleFunc("GET "+options.BaseURL+"/progress", wrapper.GetProgressList)
 	m.HandleFunc("GET "+options.BaseURL+"/progress/{id}", wrapper.GetProgress)
+	m.HandleFunc("GET "+options.BaseURL+"/search", wrapper.GetSearch)
+	m.HandleFunc("POST "+options.BaseURL+"/search", wrapper.PostSearch)
 	m.HandleFunc("GET "+options.BaseURL+"/settings", wrapper.GetSettings)
 
 	return m
@@ -716,6 +1132,50 @@ func (response GetDocuments500JSONResponse) VisitGetDocumentsResponse(w http.Res
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CreateDocumentRequestObject struct {
+	Body *multipart.Reader
+}
+
+type CreateDocumentResponseObject interface {
+	VisitCreateDocumentResponse(w http.ResponseWriter) error
+}
+
+type CreateDocument200JSONResponse DocumentResponse
+
+func (response CreateDocument200JSONResponse) VisitCreateDocumentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateDocument400JSONResponse ErrorResponse
+
+func (response CreateDocument400JSONResponse) VisitCreateDocumentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateDocument401JSONResponse ErrorResponse
+
+func (response CreateDocument401JSONResponse) VisitCreateDocumentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateDocument500JSONResponse ErrorResponse
+
+func (response CreateDocument500JSONResponse) VisitCreateDocumentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetDocumentRequestObject struct {
 	Id string `json:"id"`
 }
@@ -760,6 +1220,177 @@ func (response GetDocument500JSONResponse) VisitGetDocumentResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetHomeRequestObject struct {
+}
+
+type GetHomeResponseObject interface {
+	VisitGetHomeResponse(w http.ResponseWriter) error
+}
+
+type GetHome200JSONResponse HomeResponse
+
+func (response GetHome200JSONResponse) VisitGetHomeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetHome401JSONResponse ErrorResponse
+
+func (response GetHome401JSONResponse) VisitGetHomeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetHome500JSONResponse ErrorResponse
+
+func (response GetHome500JSONResponse) VisitGetHomeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetGraphDataRequestObject struct {
+}
+
+type GetGraphDataResponseObject interface {
+	VisitGetGraphDataResponse(w http.ResponseWriter) error
+}
+
+type GetGraphData200JSONResponse GraphDataResponse
+
+func (response GetGraphData200JSONResponse) VisitGetGraphDataResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetGraphData401JSONResponse ErrorResponse
+
+func (response GetGraphData401JSONResponse) VisitGetGraphDataResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetGraphData500JSONResponse ErrorResponse
+
+func (response GetGraphData500JSONResponse) VisitGetGraphDataResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetUserStatisticsRequestObject struct {
+}
+
+type GetUserStatisticsResponseObject interface {
+	VisitGetUserStatisticsResponse(w http.ResponseWriter) error
+}
+
+type GetUserStatistics200JSONResponse UserStatisticsResponse
+
+func (response GetUserStatistics200JSONResponse) VisitGetUserStatisticsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetUserStatistics401JSONResponse ErrorResponse
+
+func (response GetUserStatistics401JSONResponse) VisitGetUserStatisticsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetUserStatistics500JSONResponse ErrorResponse
+
+func (response GetUserStatistics500JSONResponse) VisitGetUserStatisticsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetStreaksRequestObject struct {
+}
+
+type GetStreaksResponseObject interface {
+	VisitGetStreaksResponse(w http.ResponseWriter) error
+}
+
+type GetStreaks200JSONResponse StreaksResponse
+
+func (response GetStreaks200JSONResponse) VisitGetStreaksResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetStreaks401JSONResponse ErrorResponse
+
+func (response GetStreaks401JSONResponse) VisitGetStreaksResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetStreaks500JSONResponse ErrorResponse
+
+func (response GetStreaks500JSONResponse) VisitGetStreaksResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProgressListRequestObject struct {
+	Params GetProgressListParams
+}
+
+type GetProgressListResponseObject interface {
+	VisitGetProgressListResponse(w http.ResponseWriter) error
+}
+
+type GetProgressList200JSONResponse ProgressListResponse
+
+func (response GetProgressList200JSONResponse) VisitGetProgressListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProgressList401JSONResponse ErrorResponse
+
+func (response GetProgressList401JSONResponse) VisitGetProgressListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProgressList500JSONResponse ErrorResponse
+
+func (response GetProgressList500JSONResponse) VisitGetProgressListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetProgressRequestObject struct {
 	Id string `json:"id"`
 }
@@ -798,6 +1429,84 @@ func (response GetProgress404JSONResponse) VisitGetProgressResponse(w http.Respo
 type GetProgress500JSONResponse ErrorResponse
 
 func (response GetProgress500JSONResponse) VisitGetProgressResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSearchRequestObject struct {
+	Params GetSearchParams
+}
+
+type GetSearchResponseObject interface {
+	VisitGetSearchResponse(w http.ResponseWriter) error
+}
+
+type GetSearch200JSONResponse SearchResponse
+
+func (response GetSearch200JSONResponse) VisitGetSearchResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSearch400JSONResponse ErrorResponse
+
+func (response GetSearch400JSONResponse) VisitGetSearchResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSearch401JSONResponse ErrorResponse
+
+func (response GetSearch401JSONResponse) VisitGetSearchResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSearch500JSONResponse ErrorResponse
+
+func (response GetSearch500JSONResponse) VisitGetSearchResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostSearchRequestObject struct {
+	Body *PostSearchFormdataRequestBody
+}
+
+type PostSearchResponseObject interface {
+	VisitPostSearchResponse(w http.ResponseWriter) error
+}
+
+type PostSearch200Response struct {
+}
+
+func (response PostSearch200Response) VisitPostSearchResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type PostSearch401JSONResponse ErrorResponse
+
+func (response PostSearch401JSONResponse) VisitPostSearchResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostSearch500JSONResponse ErrorResponse
+
+func (response PostSearch500JSONResponse) VisitPostSearchResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -855,12 +1564,36 @@ type StrictServerInterface interface {
 	// List documents
 	// (GET /documents)
 	GetDocuments(ctx context.Context, request GetDocumentsRequestObject) (GetDocumentsResponseObject, error)
+	// Upload a new document
+	// (POST /documents)
+	CreateDocument(ctx context.Context, request CreateDocumentRequestObject) (CreateDocumentResponseObject, error)
 	// Get a single document
 	// (GET /documents/{id})
 	GetDocument(ctx context.Context, request GetDocumentRequestObject) (GetDocumentResponseObject, error)
+	// Get home page data
+	// (GET /home)
+	GetHome(ctx context.Context, request GetHomeRequestObject) (GetHomeResponseObject, error)
+	// Get daily read stats graph data
+	// (GET /home/graph)
+	GetGraphData(ctx context.Context, request GetGraphDataRequestObject) (GetGraphDataResponseObject, error)
+	// Get user statistics (leaderboards)
+	// (GET /home/statistics)
+	GetUserStatistics(ctx context.Context, request GetUserStatisticsRequestObject) (GetUserStatisticsResponseObject, error)
+	// Get user streaks
+	// (GET /home/streaks)
+	GetStreaks(ctx context.Context, request GetStreaksRequestObject) (GetStreaksResponseObject, error)
+	// List progress records
+	// (GET /progress)
+	GetProgressList(ctx context.Context, request GetProgressListRequestObject) (GetProgressListResponseObject, error)
 	// Get document progress
 	// (GET /progress/{id})
 	GetProgress(ctx context.Context, request GetProgressRequestObject) (GetProgressResponseObject, error)
+	// Search external book sources
+	// (GET /search)
+	GetSearch(ctx context.Context, request GetSearchRequestObject) (GetSearchResponseObject, error)
+	// Download search result
+	// (POST /search)
+	PostSearch(ctx context.Context, request PostSearchRequestObject) (PostSearchResponseObject, error)
 	// Get user settings
 	// (GET /settings)
 	GetSettings(ctx context.Context, request GetSettingsRequestObject) (GetSettingsResponseObject, error)
@@ -1026,6 +1759,37 @@ func (sh *strictHandler) GetDocuments(w http.ResponseWriter, r *http.Request, pa
 	}
 }
 
+// CreateDocument operation middleware
+func (sh *strictHandler) CreateDocument(w http.ResponseWriter, r *http.Request) {
+	var request CreateDocumentRequestObject
+
+	if reader, err := r.MultipartReader(); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode multipart body: %w", err))
+		return
+	} else {
+		request.Body = reader
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateDocument(ctx, request.(CreateDocumentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateDocument")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateDocumentResponseObject); ok {
+		if err := validResponse.VisitCreateDocumentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetDocument operation middleware
 func (sh *strictHandler) GetDocument(w http.ResponseWriter, r *http.Request, id string) {
 	var request GetDocumentRequestObject
@@ -1052,6 +1816,128 @@ func (sh *strictHandler) GetDocument(w http.ResponseWriter, r *http.Request, id 
 	}
 }
 
+// GetHome operation middleware
+func (sh *strictHandler) GetHome(w http.ResponseWriter, r *http.Request) {
+	var request GetHomeRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetHome(ctx, request.(GetHomeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHome")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetHomeResponseObject); ok {
+		if err := validResponse.VisitGetHomeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetGraphData operation middleware
+func (sh *strictHandler) GetGraphData(w http.ResponseWriter, r *http.Request) {
+	var request GetGraphDataRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetGraphData(ctx, request.(GetGraphDataRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetGraphData")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetGraphDataResponseObject); ok {
+		if err := validResponse.VisitGetGraphDataResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetUserStatistics operation middleware
+func (sh *strictHandler) GetUserStatistics(w http.ResponseWriter, r *http.Request) {
+	var request GetUserStatisticsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetUserStatistics(ctx, request.(GetUserStatisticsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetUserStatistics")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetUserStatisticsResponseObject); ok {
+		if err := validResponse.VisitGetUserStatisticsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetStreaks operation middleware
+func (sh *strictHandler) GetStreaks(w http.ResponseWriter, r *http.Request) {
+	var request GetStreaksRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetStreaks(ctx, request.(GetStreaksRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetStreaks")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetStreaksResponseObject); ok {
+		if err := validResponse.VisitGetStreaksResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProgressList operation middleware
+func (sh *strictHandler) GetProgressList(w http.ResponseWriter, r *http.Request, params GetProgressListParams) {
+	var request GetProgressListRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProgressList(ctx, request.(GetProgressListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProgressList")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProgressListResponseObject); ok {
+		if err := validResponse.VisitGetProgressListResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetProgress operation middleware
 func (sh *strictHandler) GetProgress(w http.ResponseWriter, r *http.Request, id string) {
 	var request GetProgressRequestObject
@@ -1071,6 +1957,67 @@ func (sh *strictHandler) GetProgress(w http.ResponseWriter, r *http.Request, id 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetProgressResponseObject); ok {
 		if err := validResponse.VisitGetProgressResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSearch operation middleware
+func (sh *strictHandler) GetSearch(w http.ResponseWriter, r *http.Request, params GetSearchParams) {
+	var request GetSearchRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSearch(ctx, request.(GetSearchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSearch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSearchResponseObject); ok {
+		if err := validResponse.VisitGetSearchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostSearch operation middleware
+func (sh *strictHandler) PostSearch(w http.ResponseWriter, r *http.Request) {
+	var request PostSearchRequestObject
+
+	if err := r.ParseForm(); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode formdata: %w", err))
+		return
+	}
+	var body PostSearchFormdataRequestBody
+	if err := runtime.BindForm(&body, r.Form, nil, nil); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't bind formdata: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostSearch(ctx, request.(PostSearchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostSearch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostSearchResponseObject); ok {
+		if err := validResponse.VisitPostSearchResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
