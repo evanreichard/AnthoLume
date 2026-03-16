@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useGetHome, useGetDocuments } from '../generated/anthoLumeAPIV1';
-import type { GraphDataPoint, LeaderboardData } from '../generated/model';
+import type { LeaderboardData } from '../generated/model';
+import ReadingHistoryGraph from '../components/ReadingHistoryGraph';
 
 interface InfoCardProps {
   title: string;
@@ -139,34 +140,7 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
   );
 }
 
-function GraphVisualization({ data }: { data: GraphDataPoint[] }) {
-  if (!data || data.length === 0) {
-    return (
-      <div className="relative flex h-24 items-center justify-center bg-gray-100 dark:bg-gray-600">
-        <p className="text-gray-400 dark:text-gray-300">No data available</p>
-      </div>
-    );
-  }
 
-  // Simple bar visualization (could be enhanced with SVG bezier curve like SSR)
-  const maxMinutes = Math.max(...data.map(d => d.minutes_read), 1);
-
-  return (
-    <div className="relative flex h-24 items-end justify-between bg-gray-100 p-2 dark:bg-gray-600">
-      {data.map((point, i) => (
-        <div
-          key={i}
-          className="group relative mx-0.5 flex-1 bg-blue-500 transition-colors hover:bg-blue-600"
-          style={{ height: `${(point.minutes_read / maxMinutes) * 100}%` }}
-        >
-          <div className="pointer-events-none absolute bottom-full left-0 mb-1 w-full text-center text-xs text-gray-600 opacity-0 group-hover:opacity-100 dark:text-gray-300">
-            {point.minutes_read} min
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export default function HomePage() {
   const { data: homeData, isLoading: homeLoading } = useGetHome();
@@ -190,7 +164,7 @@ export default function HomePage() {
           <p className="absolute left-5 top-3 w-max border-b border-gray-200 text-sm font-semibold text-gray-700 dark:border-gray-500 dark:text-white">
             Daily Read Totals
           </p>
-          <GraphVisualization data={graphData || []} />
+          <ReadingHistoryGraph data={graphData || []} />
         </div>
       </div>
 

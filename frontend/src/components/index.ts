@@ -1,3 +1,6 @@
+// Reading History Graph
+export { default as ReadingHistoryGraph } from './ReadingHistoryGraph';
+
 // Toast components
 export { Toast } from './Toast';
 export { ToastProvider, useToasts } from './ToastContext';
