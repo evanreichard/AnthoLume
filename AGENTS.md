@@ -12,13 +12,20 @@ Currently mid migration from go templates (`./templates`) to React App (`./front
 The frontend uses ESLint and Prettier for code quality and formatting.
 
 ### Running Linting
-- **Check linting**: `cd frontend && npm run lint`
-- **Fix linting issues**: `cd frontend && npm run lint:fix`
-- **Check formatting**: `cd frontend && npm run format`
-- **Format files**: `cd frontend && npm run format:fix`
+- **Check linting**: `cd frontend && bun run lint`
+- **Fix linting issues**: `cd frontend && bun run lint:fix`
+- **Check formatting**: `cd frontend && bun run format`
+- **Format files**: `cd frontend && bun run format:fix`
 
 ### When to Run Linting
 Run linting after making any changes to the frontend to ensure code quality and consistency. All new code should pass linting before committing.
+
+### Package Management
+The frontend uses **bun** for package management. Use:
+- `bun install` to install dependencies
+- `bun add <package>` to add a new package
+- `bun remove <package>` to remove a package
+- `bunx <command>` to run CLI binaries locally
 
 ## Data Flow (CRITICAL for migrations)
 1. Database schema → SQL queries (`database/query.sql`, `database/query.sql.go`)
