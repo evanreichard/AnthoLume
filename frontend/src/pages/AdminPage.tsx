@@ -115,16 +115,16 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="w-full flex flex-col gap-4 grow">
+    <div className="flex w-full grow flex-col gap-4">
       {/* Backup & Restore Card */}
       <div
-        className="flex flex-col gap-2 grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+        className="flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
       >
-        <p className="text-lg font-semibold mb-2">Backup & Restore</p>
+        <p className="mb-2 text-lg font-semibold">Backup & Restore</p>
         <div className="flex flex-col gap-4">
           {/* Backup Form */}
           <form className="flex justify-between" onSubmit={handleBackupSubmit}>
-            <div className="flex gap-8 items-center">
+            <div className="flex items-center gap-8">
               <div>
                 <input
                   type="checkbox"
@@ -144,7 +144,7 @@ export default function AdminPage() {
                 <label htmlFor="backup_documents">Documents</label>
               </div>
             </div>
-            <div className="w-40 h-10">
+            <div className="h-10 w-40">
               <Button variant="secondary" type="submit">Backup</Button>
             </div>
           </form>
@@ -152,9 +152,9 @@ export default function AdminPage() {
           {/* Restore Form */}
           <form
             onSubmit={handleRestoreSubmit}
-            className="flex justify-between grow"
+            className="flex grow justify-between"
           >
-            <div className="flex items-center w-1/2">
+            <div className="flex w-1/2 items-center">
               <input
                 type="file"
                 accept=".zip"
@@ -162,7 +162,7 @@ export default function AdminPage() {
                 className="w-full"
               />
             </div>
-            <div className="w-40 h-10">
+            <div className="h-10 w-40">
               <Button variant="secondary" type="submit">Restore</Button>
             </div>
           </form>
@@ -171,17 +171,17 @@ export default function AdminPage() {
 
       {/* Tasks Card */}
       <div
-        className="flex flex-col grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+        className="flex grow flex-col rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
       >
         <p className="text-lg font-semibold">Tasks</p>
-        <table className="min-w-full bg-white dark:bg-gray-700 text-sm">
+        <table className="min-w-full bg-white text-sm dark:bg-gray-700">
           <tbody className="text-black dark:text-white">
             <tr>
               <td className="pl-0">
                 <p>Metadata Matching</p>
               </td>
-              <td className="py-2 float-right">
-                <div className="w-40 h-10 text-base">
+              <td className="float-right py-2">
+                <div className="h-10 w-40 text-base">
                   <Button variant="secondary" onClick={handleMetadataMatch}>Run</Button>
                 </div>
               </td>
@@ -190,8 +190,8 @@ export default function AdminPage() {
               <td>
                 <p>Cache Tables</p>
               </td>
-              <td className="py-2 float-right">
-                <div className="w-40 h-10 text-base">
+              <td className="float-right py-2">
+                <div className="h-10 w-40 text-base">
                   <Button variant="secondary" onClick={handleCacheTables}>Run</Button>
                 </div>
               </td>

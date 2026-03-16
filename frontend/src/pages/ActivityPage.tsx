@@ -13,7 +13,7 @@ export default function ActivityPage() {
       render: (_: any, row: any) => (
         <Link
           to={`/documents/${row.document_id}`}
-          className="text-blue-600 dark:text-blue-400 hover:underline"
+          className="text-blue-600 hover:underline dark:text-blue-400"
         >
           {row.author || 'Unknown'} - {row.title || 'Unknown'}
         </Link>

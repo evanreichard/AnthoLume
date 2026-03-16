@@ -43,14 +43,14 @@ export function Table<T extends Record<string, any>>({
             <tr className="border-b dark:border-gray-600">
               {Array.from({ length: columns }).map((_, i) => (
                 <th key={i} className="p-3">
-                  <Skeleton variant="text" className="w-3/4 h-5" />
+                  <Skeleton variant="text" className="h-5 w-3/4" />
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {Array.from({ length: rows }).map((_, rowIndex) => (
-              <tr key={rowIndex} className="border-b dark:border-gray-600 last:border-0">
+              <tr key={rowIndex} className="border-b last:border-0 dark:border-gray-600">
                 {Array.from({ length: columns }).map((_, colIndex) => (
                   <td key={colIndex} className="p-3">
                     <Skeleton variant="text" className={colIndex === columns - 1 ? 'w-1/2' : 'w-full'} />
@@ -79,7 +79,7 @@ export function Table<T extends Record<string, any>>({
               {columns.map((column) => (
                 <th
                   key={String(column.key)}
-                  className={`text-left p-3 text-gray-500 dark:text-white ${column.className || ''}`}
+                  className={`p-3 text-left text-gray-500 dark:text-white ${column.className || ''}`}
                 >
                   {column.header}
                 </th>
@@ -91,7 +91,7 @@ export function Table<T extends Record<string, any>>({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="text-center p-3 text-gray-700 dark:text-gray-300"
+                  className="p-3 text-center text-gray-700 dark:text-gray-300"
                 >
                   {emptyMessage}
                 </td>

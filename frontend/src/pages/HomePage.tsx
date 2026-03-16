@@ -12,8 +12,8 @@ function InfoCard({ title, size, link }: InfoCardProps) {
   if (link) {
     return (
       <Link to={link} className="w-full">
-        <div className="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded">
-          <div className="flex flex-col justify-around dark:text-white w-full text-sm">
+        <div className="flex w-full gap-4 rounded bg-white p-4 shadow-lg dark:bg-gray-700">
+          <div className="flex w-full flex-col justify-around text-sm dark:text-white">
             <p className="text-2xl font-bold text-black dark:text-white">{size}</p>
             <p className="text-sm text-gray-400">{title}</p>
           </div>
@@ -24,8 +24,8 @@ function InfoCard({ title, size, link }: InfoCardProps) {
   
   return (
     <div className="w-full">
-      <div className="flex gap-4 w-full p-4 bg-white shadow-lg dark:bg-gray-700 rounded">
-        <div className="flex flex-col justify-around dark:text-white w-full text-sm">
+      <div className="flex w-full gap-4 rounded bg-white p-4 shadow-lg dark:bg-gray-700">
+        <div className="flex w-full flex-col justify-around text-sm dark:text-white">
           <p className="text-2xl font-bold text-black dark:text-white">{size}</p>
           <p className="text-sm text-gray-400">{title}</p>
         </div>
@@ -47,15 +47,15 @@ interface StreakCardProps {
 function StreakCard({ window, currentStreak, currentStreakStartDate, currentStreakEndDate, maxStreak, maxStreakStartDate, maxStreakEndDate }: StreakCardProps) {
   return (
     <div className="w-full">
-      <div className="relative w-full px-4 py-6 bg-white shadow-lg dark:bg-gray-700 rounded">
-        <p className="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500">
+      <div className="relative w-full rounded bg-white px-4 py-6 shadow-lg dark:bg-gray-700">
+        <p className="w-max border-b border-gray-200 text-sm font-semibold text-gray-700 dark:border-gray-500 dark:text-white">
           {window === 'WEEK' ? 'Weekly Read Streak' : 'Daily Read Streak'}
         </p>
-        <div className="flex items-end my-6 space-x-2">
+        <div className="my-6 flex items-end space-x-2">
           <p className="text-5xl font-bold text-black dark:text-white">{currentStreak}</p>
         </div>
         <div className="dark:text-white">
-          <div className="flex items-center justify-between pb-2 mb-2 text-sm border-b border-gray-200">
+          <div className="mb-2 flex items-center justify-between border-b border-gray-200 pb-2 text-sm">
             <div>
               <p>{window === 'WEEK' ? 'Current Weekly Streak' : 'Current Daily Streak'}</p>
               <div className="flex items-end text-sm text-gray-400">
@@ -64,7 +64,7 @@ function StreakCard({ window, currentStreak, currentStreakStartDate, currentStre
             </div>
             <div className="flex items-end font-bold">{currentStreak}</div>
           </div>
-          <div className="flex items-center justify-between pb-2 mb-2 text-sm">
+          <div className="mb-2 flex items-center justify-between pb-2 text-sm">
             <div>
               <p>{window === 'WEEK' ? 'Best Weekly Streak' : 'Best Daily Streak'}</p>
               <div className="flex items-end text-sm text-gray-400">
@@ -87,13 +87,13 @@ interface LeaderboardCardProps {
 function LeaderboardCard({ name, data }: LeaderboardCardProps) {
   return (
     <div className="w-full">
-      <div className="flex flex-col justify-between h-full w-full px-4 py-6 bg-white shadow-lg dark:bg-gray-700 rounded">
+      <div className="flex size-full flex-col justify-between rounded bg-white px-4 py-6 shadow-lg dark:bg-gray-700">
         <div>
           <div className="flex justify-between">
-            <p className="text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500">
+            <p className="w-max border-b border-gray-200 text-sm font-semibold text-gray-700 dark:border-gray-500 dark:text-white">
               {name} Leaderboard
             </p>
-            <div className="flex gap-2 text-xs text-gray-400 items-center">
+            <div className="flex items-center gap-2 text-xs text-gray-400">
               <span className="cursor-pointer hover:text-black dark:hover:text-white">all</span>
               <span className="cursor-pointer hover:text-black dark:hover:text-white">year</span>
               <span className="cursor-pointer hover:text-black dark:hover:text-white">month</span>
@@ -103,7 +103,7 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
         </div>
         
         {/* All time data */}
-        <div className="flex items-end my-6 space-x-2">
+        <div className="my-6 flex items-end space-x-2">
           {data.all.length === 0 ? (
             <p className="text-5xl font-bold text-black dark:text-white">N/A</p>
           ) : (
@@ -115,7 +115,7 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
           {data.all.slice(0, 3).map((item: any, index: number) => (
             <div 
               key={index} 
-              className={`flex items-center justify-between pt-2 pb-2 text-sm ${index > 0 ? 'border-t border-gray-200' : ''}`}
+              className={`flex items-center justify-between py-2 text-sm ${index > 0 ? 'border-t border-gray-200' : ''}`}
             >
               <div>
                 <p>{item.user_id}</p>
@@ -132,7 +132,7 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
 function GraphVisualization({ data }: { data: GraphDataPoint[] }) {
   if (!data || data.length === 0) {
     return (
-      <div className="relative h-24 flex items-center justify-center bg-gray-100 dark:bg-gray-600">
+      <div className="relative flex h-24 items-center justify-center bg-gray-100 dark:bg-gray-600">
         <p className="text-gray-400 dark:text-gray-300">No data available</p>
       </div>
     );
@@ -142,14 +142,14 @@ function GraphVisualization({ data }: { data: GraphDataPoint[] }) {
   const maxMinutes = Math.max(...data.map(d => d.minutes_read), 1);
   
   return (
-    <div className="relative h-24 flex items-end justify-between p-2 bg-gray-100 dark:bg-gray-600">
+    <div className="relative flex h-24 items-end justify-between bg-gray-100 p-2 dark:bg-gray-600">
       {data.map((point, i) => (
         <div
           key={i}
-          className="flex-1 mx-0.5 bg-blue-500 hover:bg-blue-600 transition-colors relative group"
+          className="group relative mx-0.5 flex-1 bg-blue-500 transition-colors hover:bg-blue-600"
           style={{ height: `${(point.minutes_read / maxMinutes) * 100}%` }}
         >
-          <div className="absolute bottom-full mb-1 left-0 w-full text-xs text-center text-gray-600 dark:text-gray-300 opacity-0 group-hover:opacity-100 pointer-events-none">
+          <div className="pointer-events-none absolute bottom-full left-0 mb-1 w-full text-center text-xs text-gray-600 opacity-0 group-hover:opacity-100 dark:text-gray-300">
             {point.minutes_read} min
           </div>
         </div>
@@ -176,8 +176,8 @@ export default function HomePage() {
     <div className="flex flex-col gap-4">
       {/* Daily Read Totals Graph */}
       <div className="w-full">
-        <div className="relative w-full bg-white shadow-lg dark:bg-gray-700 rounded">
-          <p className="absolute top-3 left-5 text-sm font-semibold text-gray-700 border-b border-gray-200 w-max dark:text-white dark:border-gray-500">
+        <div className="relative w-full rounded bg-white shadow-lg dark:bg-gray-700">
+          <p className="absolute left-5 top-3 w-max border-b border-gray-200 text-sm font-semibold text-gray-700 dark:border-gray-500 dark:text-white">
             Daily Read Totals
           </p>
           <GraphVisualization data={graphData || []} />
@@ -244,13 +244,13 @@ export default function HomePage() {
         {docs?.slice(0, 6).map((doc: any) => (
           <div
             key={doc.id}
-            className="flex flex-col gap-2 p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+            className="flex flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
           >
-            <h3 className="font-medium text-lg">{doc.title}</h3>
+            <h3 className="text-lg font-medium">{doc.title}</h3>
             <p className="text-sm">{doc.author}</p>
             <Link
               to={`/documents/${doc.id}`}
-              className="text-white bg-blue-700 hover:bg-blue-800 font-medium rounded text-sm text-center py-1 dark:bg-blue-600 dark:hover:bg-blue-700"
+              className="rounded bg-blue-700 py-1 text-center text-sm font-medium text-white hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700"
             >
               View Document
             </Link>

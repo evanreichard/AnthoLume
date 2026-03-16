@@ -60,37 +60,37 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="w-full flex flex-col md:flex-row gap-4">
+      <div className="flex w-full flex-col gap-4 md:flex-row">
         <div>
-          <div className="flex flex-col p-4 items-center rounded shadow-lg md:w-60 lg:w-80 bg-white dark:bg-gray-700">
-            <div className="w-16 h-16 bg-gray-200 dark:bg-gray-600 rounded-full mb-4" />
-            <div className="w-32 h-6 bg-gray-200 dark:bg-gray-600 rounded" />
+          <div className="flex flex-col items-center rounded bg-white p-4 shadow-lg md:w-60 lg:w-80 dark:bg-gray-700">
+            <div className="mb-4 size-16 rounded-full bg-gray-200 dark:bg-gray-600" />
+            <div className="h-6 w-32 rounded bg-gray-200 dark:bg-gray-600" />
           </div>
         </div>
-        <div className="flex flex-col gap-4 grow">
-          <div className="flex flex-col gap-2 p-4 rounded shadow-lg bg-white dark:bg-gray-700">
-            <div className="w-48 h-6 bg-gray-200 dark:bg-gray-600 rounded mb-4" />
+        <div className="flex grow flex-col gap-4">
+          <div className="flex flex-col gap-2 rounded bg-white p-4 shadow-lg dark:bg-gray-700">
+            <div className="mb-4 h-6 w-48 rounded bg-gray-200 dark:bg-gray-600" />
             <div className="flex gap-4">
-              <div className="flex-1 h-12 bg-gray-200 dark:bg-gray-600 rounded" />
-              <div className="flex-1 h-12 bg-gray-200 dark:bg-gray-600 rounded" />
-              <div className="w-40 h-10 bg-gray-200 dark:bg-gray-600 rounded" />
+              <div className="h-12 flex-1 rounded bg-gray-200 dark:bg-gray-600" />
+              <div className="h-12 flex-1 rounded bg-gray-200 dark:bg-gray-600" />
+              <div className="h-10 w-40 rounded bg-gray-200 dark:bg-gray-600" />
             </div>
           </div>
-          <div className="flex flex-col gap-2 p-4 rounded shadow-lg bg-white dark:bg-gray-700">
-            <div className="w-48 h-6 bg-gray-200 dark:bg-gray-600 rounded mb-4" />
+          <div className="flex flex-col gap-2 rounded bg-white p-4 shadow-lg dark:bg-gray-700">
+            <div className="mb-4 h-6 w-48 rounded bg-gray-200 dark:bg-gray-600" />
             <div className="flex gap-4">
-              <div className="flex-1 h-12 bg-gray-200 dark:bg-gray-600 rounded" />
-              <div className="w-40 h-10 bg-gray-200 dark:bg-gray-600 rounded" />
+              <div className="h-12 flex-1 rounded bg-gray-200 dark:bg-gray-600" />
+              <div className="h-10 w-40 rounded bg-gray-200 dark:bg-gray-600" />
             </div>
           </div>
-          <div className="flex flex-col p-4 rounded shadow-lg bg-white dark:bg-gray-700">
-            <div className="w-24 h-6 bg-gray-200 dark:bg-gray-600 rounded mb-4" />
-            <div className="flex gap-4 mb-4">
-              <div className="flex-1 h-6 bg-gray-200 dark:bg-gray-600 rounded" />
-              <div className="flex-1 h-6 bg-gray-200 dark:bg-gray-600 rounded" />
-              <div className="flex-1 h-6 bg-gray-200 dark:bg-gray-600 rounded" />
+          <div className="flex flex-col rounded bg-white p-4 shadow-lg dark:bg-gray-700">
+            <div className="mb-4 h-6 w-24 rounded bg-gray-200 dark:bg-gray-600" />
+            <div className="mb-4 flex gap-4">
+              <div className="h-6 flex-1 rounded bg-gray-200 dark:bg-gray-600" />
+              <div className="h-6 flex-1 rounded bg-gray-200 dark:bg-gray-600" />
+              <div className="h-6 flex-1 rounded bg-gray-200 dark:bg-gray-600" />
             </div>
-            <div className="flex-1 h-32 bg-gray-200 dark:bg-gray-600 rounded" />
+            <div className="h-32 flex-1 rounded bg-gray-200 dark:bg-gray-600" />
           </div>
         </div>
       </div>
@@ -98,31 +98,31 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="w-full flex flex-col md:flex-row gap-4">
+    <div className="flex w-full flex-col gap-4 md:flex-row">
       {/* User Profile Card */}
       <div>
         <div
-          className="flex flex-col p-4 items-center rounded shadow-lg md:w-60 lg:w-80 bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+          className="flex flex-col items-center rounded bg-white p-4 text-gray-500 shadow-lg md:w-60 lg:w-80 dark:bg-gray-700 dark:text-white"
         >
           <User size={60} />
           <p className="text-lg">{settingsData?.data.user.username || "N/A"}</p>
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 grow">
+      <div className="flex grow flex-col gap-4">
         {/* Change Password Form */}
         <div
-          className="flex flex-col gap-2 grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+          className="flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
         >
-          <p className="text-lg font-semibold mb-2">Change Password</p>
+          <p className="mb-2 text-lg font-semibold">Change Password</p>
           <form
-            className="flex gap-4 flex-col lg:flex-row"
+            className="flex flex-col gap-4 lg:flex-row"
             onSubmit={handlePasswordSubmit}
           >
-            <div className="flex flex-col grow">
-              <div className="flex relative">
+            <div className="flex grow flex-col">
+              <div className="relative flex">
                 <span
-                  className="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm"
+                  className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm"
                 >
                   <Lock size={15} />
                 </span>
@@ -130,15 +130,15 @@ export default function SettingsPage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
                   placeholder="Password"
                 />
               </div>
             </div>
-            <div className="flex flex-col grow">
-              <div className="flex relative">
+            <div className="flex grow flex-col">
+              <div className="relative flex">
                 <span
-                  className="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm"
+                  className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm"
                 >
                   <Lock size={15} />
                 </span>
@@ -146,7 +146,7 @@ export default function SettingsPage() {
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
                   placeholder="New Password"
                 />
               </div>
@@ -159,23 +159,23 @@ export default function SettingsPage() {
 
         {/* Change Timezone Form */}
         <div
-          className="flex flex-col grow gap-2 p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+          className="flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
         >
-          <p className="text-lg font-semibold mb-2">Change Timezone</p>
+          <p className="mb-2 text-lg font-semibold">Change Timezone</p>
           <form
-            className="flex gap-4 flex-col lg:flex-row"
+            className="flex flex-col gap-4 lg:flex-row"
             onSubmit={handleTimezoneSubmit}
           >
-            <div className="flex relative grow">
+            <div className="relative flex grow">
               <span
-                className="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm"
+                className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm"
               >
                 <Clock size={15} />
               </span>
               <select
                 value={timezone || 'UTC'}
                 onChange={(e) => setTimezone(e.target.value)}
-                className="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
               >
                 <option value="UTC">UTC</option>
                 <option value="America/New_York">America/New_York</option>
@@ -197,24 +197,24 @@ export default function SettingsPage() {
 
         {/* Devices Table */}
         <div
-          className="flex flex-col grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+          className="flex grow flex-col rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
         >
           <p className="text-lg font-semibold">Devices</p>
-          <table className="min-w-full bg-white dark:bg-gray-700 text-sm">
+          <table className="min-w-full bg-white text-sm dark:bg-gray-700">
             <thead className="text-gray-800 dark:text-gray-400">
               <tr>
                 <th
-                  className="p-3 pl-0 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+                  className="border-b border-gray-200 p-3 pl-0 text-left font-normal uppercase dark:border-gray-800"
                 >
                   Name
                 </th>
                 <th
-                  className="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+                  className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800"
                 >
                   Last Sync
                 </th>
                 <th
-                  className="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+                  className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800"
                 >
                   Created
                 </th>
@@ -223,7 +223,7 @@ export default function SettingsPage() {
             <tbody className="text-black dark:text-white">
               {!settingsData?.data.devices || settingsData.data.devices.length === 0 ? (
                 <tr>
-                  <td className="text-center p-3" colSpan={3}>No Results</td>
+                  <td className="p-3 text-center" colSpan={3}>No Results</td>
                 </tr>
               ) : (
                 settingsData.data.devices.map((device: any) => (

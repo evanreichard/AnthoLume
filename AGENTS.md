@@ -8,6 +8,18 @@ Currently mid migration from go templates (`./templates`) to React App (`./front
 - **Frontend**: React with Vite, currently migrating from Go templates (using the V1 API)
 - **API**: OpenAPI 3.0 spec, generates Go server (oapi-codegen) and TS client (orval)
 
+## Frontend Linting
+The frontend uses ESLint and Prettier for code quality and formatting.
+
+### Running Linting
+- **Check linting**: `cd frontend && npm run lint`
+- **Fix linting issues**: `cd frontend && npm run lint:fix`
+- **Check formatting**: `cd frontend && npm run format`
+- **Format files**: `cd frontend && npm run format:fix`
+
+### When to Run Linting
+Run linting after making any changes to the frontend to ensure code quality and consistency. All new code should pass linting before committing.
+
 ## Data Flow (CRITICAL for migrations)
 1. Database schema → SQL queries (`database/query.sql`, `database/query.sql.go`)
 2. SQLC models → API handlers (`api/v1/*.go`)  
@@ -23,6 +35,12 @@ Currently mid migration from go templates (`./templates`) to React App (`./front
 ## API Regeneration Commands
 - Go backend: `go generate ./api/v1/generate.go`
 - TS client: `cd frontend && npm run generate:api`
+
+## Frontend Key Files and Directories
+- **Source code**: `frontend/src/`
+- **Configuration**: `frontend/eslint.config.js`, `frontend/.prettierrc`, `frontend/tsconfig.json`
+- **Build output**: `frontend/dist/`
+- **Generated API client**: `frontend/src/generated/`
 
 ## Key Files
 - Database queries: `database/query.sql` → SQLc Query shows actual fields returned

@@ -54,19 +54,19 @@ export default function Layout() {
   }
 
   return (
-    <div className="bg-gray-100 dark:bg-gray-800 min-h-screen">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-800">
       {/* Header */}
-      <div className="flex items-center justify-between w-full h-16">
+      <div className="flex h-16 w-full items-center justify-between">
         {/* Mobile Navigation Button with CSS animations */}
         <HamburgerMenu />
 
         {/* Header Title */}
-        <h1 className="text-xl font-bold dark:text-white px-6 lg:ml-44">
+        <h1 className="px-6 text-xl font-bold lg:ml-44 dark:text-white">
           {currentPageTitle}
         </h1>
 
         {/* User Dropdown */}
-        <div className="relative flex items-center justify-end w-full p-4 space-x-4" ref={dropdownRef}>
+        <div className="relative flex w-full items-center justify-end space-x-4 p-4" ref={dropdownRef}>
           <button
             onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
             className="relative block text-gray-800 dark:text-gray-200"
@@ -75,8 +75,8 @@ export default function Layout() {
           </button>
 
           {isUserDropdownOpen && (
-            <div className="transition duration-200 z-20 absolute right-4 top-16 pt-4">
-              <div className="w-40 origin-top-right bg-white rounded-md shadow-lg dark:shadow-gray-800 dark:bg-gray-700 ring-1 ring-black ring-opacity-5">
+            <div className="absolute right-4 top-16 z-20 pt-4 transition duration-200">
+              <div className="w-40 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 dark:bg-gray-700 dark:shadow-gray-800">
                 <div
                   className="py-1"
                   role="menu"
@@ -86,7 +86,7 @@ export default function Layout() {
                   <Link
                     to="/settings"
                     onClick={() => setIsUserDropdownOpen(false)}
-                    className="block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600"
+                    className="text-md block px-4 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-600 dark:hover:text-white"
                     role="menuitem"
                   >
                     <span className="flex flex-col">
@@ -95,7 +95,7 @@ export default function Layout() {
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="block px-4 py-2 text-md text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white dark:hover:bg-gray-600 w-full text-left"
+                    className="text-md block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-600 dark:hover:text-white"
                     role="menuitem"
                   >
                     <span className="flex flex-col">
@@ -109,10 +109,10 @@ export default function Layout() {
 
           <button
             onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-            className="flex items-center gap-2 text-gray-500 dark:text-white text-md py-4 cursor-pointer"
+            className="text-md flex cursor-pointer items-center gap-2 py-4 text-gray-500 dark:text-white"
           >
             <span>{userData?.username || 'User'}</span>
-            <span className="text-gray-800 dark:text-gray-200 transition-transform duration-200" style={{ transform: isUserDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+            <span className="text-gray-800 transition-transform duration-200 dark:text-gray-200" style={{ transform: isUserDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
               <ChevronDown size={20} />
             </span>
           </button>
@@ -121,7 +121,7 @@ export default function Layout() {
 
       {/* Main Content */}
       <main className="relative overflow-hidden" style={{ height: 'calc(100dvh - 4rem - env(safe-area-inset-top))' }}>
-        <div id="container" className="h-[100dvh] px-4 overflow-auto md:px-6 lg:ml-48" style={{ paddingBottom: 'calc(5em + env(safe-area-inset-bottom) * 2)' }}>
+        <div id="container" className="h-dvh overflow-auto px-4 md:px-6 lg:ml-48" style={{ paddingBottom: 'calc(5em + env(safe-area-inset-bottom) * 2)' }}>
           <Outlet />
         </div>
       </main>

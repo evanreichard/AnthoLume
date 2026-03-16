@@ -34,20 +34,20 @@ function DocumentCard({ doc }: DocumentCardProps) {
   };
 
   return (
-    <div className="w-full relative">
+    <div className="relative w-full">
       <div
-        className="flex gap-4 w-full h-full p-4 shadow-lg bg-white dark:bg-gray-700 rounded"
+        className="flex size-full gap-4 rounded bg-white p-4 shadow-lg dark:bg-gray-700"
       >
-        <div className="min-w-fit my-auto h-48 relative">
+        <div className="relative my-auto h-48 min-w-fit">
           <Link to={`/documents/${doc.id}`}>
             <img
-              className="rounded object-cover h-full"
+              className="h-full rounded object-cover"
               src={`/api/v1/documents/${doc.id}/cover`}
               alt={doc.title}
             />
           </Link>
         </div>
-        <div className="flex flex-col justify-around dark:text-white w-full text-sm">
+        <div className="flex w-full flex-col justify-around text-sm dark:text-white">
           <div className="inline-flex shrink-0 items-center">
             <div>
               <p className="text-gray-400">Title</p>
@@ -74,7 +74,7 @@ function DocumentCard({ doc }: DocumentCardProps) {
           </div>
         </div>
         <div
-          className="absolute flex flex-col gap-2 right-4 bottom-4 text-gray-500 dark:text-gray-400"
+          className="absolute bottom-4 right-4 flex flex-col gap-2 text-gray-500 dark:text-gray-400"
         >
           <Link to={`/activity?document=${doc.id}`}>
             <Activity size={20} />
@@ -153,13 +153,13 @@ export default function DocumentsPage() {
     <div className="flex flex-col gap-4">
       {/* Search Form */}
       <div
-        className="flex flex-col gap-2 grow p-4 mb-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+        className="mb-4 flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
       >
-        <form className="flex gap-4 flex-col lg:flex-row" onSubmit={handleSubmit}>
-          <div className="flex flex-col w-full grow">
-            <div className="flex relative">
+        <form className="flex flex-col gap-4 lg:flex-row" onSubmit={handleSubmit}>
+          <div className="flex w-full grow flex-col">
+            <div className="relative flex">
               <span
-                className="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm"
+                className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm"
               >
                 <Search size={15} />
               </span>
@@ -167,7 +167,7 @@ export default function DocumentsPage() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-2 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white p-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
                 placeholder="Search Author / Title"
                 name="search"
               />
@@ -187,11 +187,11 @@ export default function DocumentsPage() {
       </div>
 
       {/* Pagination */}
-      <div className="w-full flex gap-4 justify-center mt-4 text-black dark:text-white">
+      <div className="mt-4 flex w-full justify-center gap-4 text-black dark:text-white">
         {previousPage && previousPage > 0 && (
           <button
             onClick={() => setPage(page - 1)}
-            className="bg-white shadow-lg dark:bg-gray-600 hover:bg-gray-400 font-medium rounded text-sm text-center p-2 w-24 dark:hover:bg-gray-700 focus:outline-none"
+            className="w-24 rounded bg-white p-2 text-center text-sm font-medium shadow-lg hover:bg-gray-400 focus:outline-none dark:bg-gray-600 dark:hover:bg-gray-700"
           >
             ◄
           </button>
@@ -199,7 +199,7 @@ export default function DocumentsPage() {
         {nextPage && nextPage > 0 && (
           <button
             onClick={() => setPage(page + 1)}
-            className="bg-white shadow-lg dark:bg-gray-600 hover:bg-gray-400 font-medium rounded text-sm text-center p-2 w-24 dark:hover:bg-gray-700 focus:outline-none"
+            className="w-24 rounded bg-white p-2 text-center text-sm font-medium shadow-lg hover:bg-gray-400 focus:outline-none dark:bg-gray-600 dark:hover:bg-gray-700"
           >
             ►
           </button>
@@ -208,7 +208,7 @@ export default function DocumentsPage() {
 
       {/* Upload Button */}
       <div
-        className="fixed bottom-6 right-6 rounded-full flex items-center justify-center"
+        className="fixed bottom-6 right-6 flex items-center justify-center rounded-full"
       >
         <input 
           type="checkbox" 
@@ -218,7 +218,7 @@ export default function DocumentsPage() {
           onChange={() => setUploadMode(!uploadMode)}
         />
         <div
-          className={`absolute right-0 z-10 bottom-0 rounded p-4 bg-gray-800 dark:bg-gray-200 text-white dark:text-black w-72 text-sm flex flex-col gap-2 transition-opacity duration-200 ${uploadMode ? 'visible opacity-100' : 'invisible opacity-0'}`}
+          className={`absolute bottom-0 right-0 z-10 flex w-72 flex-col gap-2 rounded bg-gray-800 p-4 text-sm text-white transition-opacity duration-200 dark:bg-gray-200 dark:text-black ${uploadMode ? 'visible opacity-100' : 'invisible opacity-0'}`}
         >
           <form
             method="POST"
@@ -234,7 +234,7 @@ export default function DocumentsPage() {
               onChange={handleFileChange}
             />
             <button
-              className="font-medium px-2 py-1 text-gray-800 bg-gray-500 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
+              className="bg-gray-500 px-2 py-1 font-medium text-gray-800 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-800"
               type="submit"
               onClick={(e) => {
                 e.preventDefault();
@@ -246,7 +246,7 @@ export default function DocumentsPage() {
           </form>
           <label htmlFor="upload-file-button">
             <div
-              className="w-full text-center cursor-pointer font-medium mt-2 px-2 py-1 text-gray-800 bg-gray-500 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
+              className="mt-2 w-full cursor-pointer bg-gray-500 px-2 py-1 text-center font-medium text-gray-800 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-800"
               onClick={handleCancelUpload}
             >
               Cancel Upload
@@ -254,7 +254,7 @@ export default function DocumentsPage() {
           </label>
         </div>
         <label
-          className="w-16 h-16 bg-gray-800 dark:bg-gray-200 rounded-full flex items-center justify-center opacity-30 hover:opacity-100 transition-all duration-200 cursor-pointer"
+          className="flex size-16 cursor-pointer items-center justify-center rounded-full bg-gray-800 opacity-30 transition-all duration-200 hover:opacity-100 dark:bg-gray-200"
           htmlFor="upload-file-button"
         >
           <Upload size={34} />

@@ -69,21 +69,21 @@ export default function AdminImportPage() {
       <div className="overflow-x-auto">
         <div className="inline-block min-w-full overflow-hidden rounded shadow">
           <div
-            className="flex flex-col grow gap-2 p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+            className="flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
           >
             <p className="text-lg font-semibold text-gray-500">
               Selected Import Directory
             </p>
-            <form className="flex gap-4 flex-col" onSubmit={handleImport}>
-              <div className="flex justify-between gap-4 w-full">
-                <div className="flex gap-4 items-center">
+            <form className="flex flex-col gap-4" onSubmit={handleImport}>
+              <div className="flex w-full justify-between gap-4">
+                <div className="flex items-center gap-4">
                   <FolderOpen size={20} />
-                  <p className="font-medium text-lg break-all">
+                  <p className="break-all text-lg font-medium">
                     {selectedDirectory}
                   </p>
                 </div>
-                <div className="flex flex-col justify-around gap-2 mr-4">
-                  <div className="inline-flex gap-2 items-center">
+                <div className="mr-4 flex flex-col justify-around gap-2">
+                  <div className="inline-flex items-center gap-2">
                     <input
                       type="radio"
                       id="direct"
@@ -92,7 +92,7 @@ export default function AdminImportPage() {
                     />
                     <label htmlFor="direct">Direct</label>
                   </div>
-                  <div className="inline-flex gap-2 items-center">
+                  <div className="inline-flex items-center gap-2">
                     <input
                       type="radio"
                       id="copy"
@@ -127,15 +127,15 @@ export default function AdminImportPage() {
     <div className="overflow-x-auto">
       <div className="inline-block min-w-full overflow-hidden rounded shadow">
         <table
-          className="min-w-full leading-normal bg-white dark:bg-gray-700 text-sm"
+          className="min-w-full bg-white text-sm leading-normal dark:bg-gray-700"
         >
           <thead className="text-gray-800 dark:text-gray-400">
             <tr>
               <th
-                className="p-3 font-normal text-left border-b border-gray-200 dark:border-gray-800 w-12"
+                className="w-12 border-b border-gray-200 p-3 text-left font-normal dark:border-gray-800"
               ></th>
               <th
-                className="p-3 font-normal text-left border-b border-gray-200 dark:border-gray-800 break-all"
+                className="break-all border-b border-gray-200 p-3 text-left font-normal dark:border-gray-800"
               >
                 {currentPath}
               </th>
@@ -145,9 +145,9 @@ export default function AdminImportPage() {
             {currentPath !== '/' && (
               <tr>
                 <td
-                  className="p-3 border-b border-gray-200 text-gray-800 dark:text-gray-400"
+                  className="border-b border-gray-200 p-3 text-gray-800 dark:text-gray-400"
                 ></td>
-                <td className="p-3 border-b border-gray-200">
+                <td className="border-b border-gray-200 p-3">
                   <button onClick={handleNavigateUp}>
                     <p>../</p>
                   </button>
@@ -156,19 +156,19 @@ export default function AdminImportPage() {
             )}
             {directories.length === 0 ? (
               <tr>
-                <td className="text-center p-3" colSpan={2}>No Folders</td>
+                <td className="p-3 text-center" colSpan={2}>No Folders</td>
               </tr>
             ) : (
               directories.map((item) => (
                 <tr key={item.name}>
                   <td
-                    className="p-3 border-b border-gray-200 text-gray-800 dark:text-gray-400"
+                    className="border-b border-gray-200 p-3 text-gray-800 dark:text-gray-400"
                   >
                     <button onClick={() => item.name && handleSelectDirectory(item.name)}>
                       <FolderOpen size={20} />
                     </button>
                   </td>
-                  <td className="p-3 border-b border-gray-200">
+                  <td className="border-b border-gray-200 p-3">
                     <button onClick={() => item.name && handleSelectDirectory(item.name)}>
                       <p>{item.name ?? ''}</p>
                     </button>

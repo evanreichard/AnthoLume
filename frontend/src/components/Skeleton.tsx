@@ -113,16 +113,16 @@ export function SkeletonCard({
   return (
     <div className={cn('bg-white dark:bg-gray-700 rounded-lg p-4 border dark:border-gray-600', className)}>
       {showAvatar && (
-        <div className="flex items-start gap-4 mb-4">
+        <div className="mb-4 flex items-start gap-4">
           <SkeletonAvatar />
           <div className="flex-1">
-            <Skeleton variant="text" className="w-3/4 mb-2" />
+            <Skeleton variant="text" className="mb-2 w-3/4" />
             <Skeleton variant="text" className="w-1/2" />
           </div>
         </div>
       )}
       {showTitle && (
-        <Skeleton variant="text" className="w-1/2 mb-4 h-6" />
+        <Skeleton variant="text" className="mb-4 h-6 w-1/2" />
       )}
       {showText && (
         <SkeletonText lines={textLines} />
@@ -152,7 +152,7 @@ export function SkeletonTable({
             <tr className="border-b dark:border-gray-600">
               {Array.from({ length: columns }).map((_, i) => (
                 <th key={i} className="p-3">
-                  <Skeleton variant="text" className="w-3/4 h-5" />
+                  <Skeleton variant="text" className="h-5 w-3/4" />
                 </th>
               ))}
             </tr>
@@ -160,7 +160,7 @@ export function SkeletonTable({
         )}
         <tbody>
           {Array.from({ length: rows }).map((_, rowIndex) => (
-            <tr key={rowIndex} className="border-b dark:border-gray-600 last:border-0">
+            <tr key={rowIndex} className="border-b last:border-0 dark:border-gray-600">
               {Array.from({ length: columns }).map((_, colIndex) => (
                 <td key={colIndex} className="p-3">
                   <Skeleton variant="text" className={colIndex === columns - 1 ? 'w-1/2' : 'w-full'} />
@@ -199,9 +199,9 @@ export function PageLoader({ message = 'Loading...', className = '' }: PageLoade
   return (
     <div className={cn('flex flex-col items-center justify-center min-h-[400px] gap-4', className)}>
       <div className="relative">
-        <div className="w-12 h-12 border-4 border-gray-200 dark:border-gray-600 border-t-blue-500 rounded-full animate-spin" />
+        <div className="size-12 animate-spin rounded-full border-4 border-gray-200 border-t-blue-500 dark:border-gray-600" />
       </div>
-      <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">{message}</p>
+      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{message}</p>
     </div>
   );
 }
@@ -220,7 +220,7 @@ export function InlineLoader({ size = 'md', className = '' }: InlineLoaderProps)
 
   return (
     <div className={cn('flex items-center justify-center', className)}>
-      <div className={`${sizeMap[size]} border-gray-200 dark:border-gray-600 border-t-blue-500 rounded-full animate-spin`} />
+      <div className={`${sizeMap[size]} animate-spin rounded-full border-gray-200 border-t-blue-500 dark:border-gray-600`} />
     </div>
   );
 }

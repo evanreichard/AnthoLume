@@ -74,19 +74,19 @@ export default function DocumentPage() {
   const totalTimeLeftSeconds = Math.round((100 - percentage) * secondsPerPercent);
 
   return (
-    <div className="h-full w-full relative">
+    <div className="relative size-full">
       <div
-        className="h-full w-full overflow-scroll bg-white shadow-lg dark:bg-gray-700 rounded dark:text-white p-4"
+        className="size-full overflow-scroll rounded bg-white p-4 shadow-lg dark:bg-gray-700 dark:text-white"
       >
         {/* Document Info - Left Column */}
         <div
-          className="flex flex-col gap-2 float-left w-44 md:w-60 lg:w-80 mr-4 mb-2 relative"
+          className="relative float-left mb-2 mr-4 flex w-44 flex-col gap-2 md:w-60 lg:w-80"
         >
           {/* Cover Image */}
           {document.filepath && (
-            <div className="rounded object-fill w-full bg-gray-200 dark:bg-gray-600 h-60">
+            <div className="h-60 w-full rounded bg-gray-200 object-fill dark:bg-gray-600">
               <img
-                className="rounded object-cover h-full"
+                className="h-full rounded object-cover"
                 src={`/api/v1/documents/${document.id}/cover`}
                 alt={`${document.title} cover`}
               />
@@ -97,14 +97,14 @@ export default function DocumentPage() {
           {document.filepath && (
             <a
               href={`/reader#id=${document.id}&type=REMOTE`}
-              className="z-10 text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded text-sm text-center py-1 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none w-full mt-2"
+              className="z-10 mt-2 w-full rounded bg-blue-700 py-1 text-center text-sm font-medium text-white hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700"
             >
               Read
             </a>
           )}
           
           {/* Action Buttons */}
-          <div className="flex flex-wrap-reverse justify-between gap-2 z-20 relative my-2">
+          <div className="relative z-20 my-2 flex flex-wrap-reverse justify-between gap-2">
             <div className="min-w-[50%] md:mr-2">
               <div className="flex gap-1 text-sm">
                 <p className="text-gray-500">ISBN-10:</p>
@@ -123,7 +123,7 @@ export default function DocumentPage() {
                 className="z-10 text-gray-500 dark:text-gray-400"
                 title="Download"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003-3h4a3 3 0 003 3v1m0-3l-3 3m0 0L4 20" />
                 </svg>
               </a>
@@ -132,34 +132,34 @@ export default function DocumentPage() {
         </div>
 
         {/* Document Details Grid */}
-        <div className="grid sm:grid-cols-2 justify-between gap-4 pb-4">
+        <div className="grid justify-between gap-4 pb-4 sm:grid-cols-2">
           {/* Title - Editable */}
           <div className="relative">
-            <div className="text-gray-500 inline-flex gap-2 relative">
+            <div className="relative inline-flex gap-2 text-gray-500">
               <p>Title</p>
             </div>
-            <div className="relative font-medium text-justify hyphens-auto">
+            <div className="relative hyphens-auto text-justify font-medium">
               <p>{document.title}</p>
             </div>
           </div>
 
           {/* Author - Editable */}
           <div className="relative">
-            <div className="text-gray-500 inline-flex gap-2 relative">
+            <div className="relative inline-flex gap-2 text-gray-500">
               <p>Author</p>
             </div>
-            <div className="relative font-medium text-justify hyphens-auto">
+            <div className="relative hyphens-auto text-justify font-medium">
               <p>{document.author}</p>
             </div>
           </div>
 
           {/* Time Read */}
           <div className="relative">
-            <div className="text-gray-500 inline-flex gap-2 relative">
+            <div className="relative inline-flex gap-2 text-gray-500">
               <p>Time Read</p>
             </div>
             <div className="relative">
-              <p className="font-medium text-lg">
+              <p className="text-lg font-medium">
                 {document.total_time_seconds ? niceSeconds(document.total_time_seconds) : 'N/A'}
               </p>
             </div>
@@ -168,7 +168,7 @@ export default function DocumentPage() {
           {/* Progress */}
           <div>
             <p className="text-gray-500">Progress</p>
-            <p className="font-medium text-lg">
+            <p className="text-lg font-medium">
               {percentage ? `${Math.round(percentage)}%` : '0%'}
             </p>
           </div>
@@ -176,16 +176,16 @@ export default function DocumentPage() {
 
         {/* Description - Editable */}
         <div className="relative">
-          <div className="text-gray-500 inline-flex gap-2 relative">
+          <div className="relative inline-flex gap-2 text-gray-500">
             <p>Description</p>
           </div>
-          <div className="relative font-medium text-justify hyphens-auto">
+          <div className="relative hyphens-auto text-justify font-medium">
             <p>{document.description || 'N/A'}</p>
           </div>
         </div>
 
         {/* Reading Statistics */}
-        <div className="mt-4 grid sm:grid-cols-3 gap-4">
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
           <div>
             <p className="text-gray-500">Words</p>
             <p className="font-medium">{document.words || 'N/A'}</p>
@@ -206,14 +206,14 @@ export default function DocumentPage() {
 
         {/* Additional Reading Stats - Matching Legacy Template */}
         {progress && (
-          <div className="mt-4 grid sm:grid-cols-2 gap-4">
-            <div className="flex gap-2 items-center">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="flex items-center gap-2">
               <p className="text-gray-500">Words / Minute:</p>
               <p className="font-medium">{document.wpm || 'N/A'}</p>
             </div>
-            <div className="flex gap-2 items-center">
+            <div className="flex items-center gap-2">
               <p className="text-gray-500">Est. Time Left:</p>
-              <p className="font-medium whitespace-nowrap">
+              <p className="whitespace-nowrap font-medium">
                 {niceSeconds(totalTimeLeftSeconds)}
               </p>
             </div>

@@ -70,7 +70,7 @@ export function Toast({ id, type, message, duration = 5000, onClose }: ToastProp
     <div
       className={`${baseStyles} ${typeStyles[type]} ${
         isAnimatingOut 
-          ? 'opacity-0 translate-x-full' 
+          ? 'translate-x-full opacity-0' 
           : 'animate-slideInRight opacity-100'
       }`}
     >
@@ -80,7 +80,7 @@ export function Toast({ id, type, message, duration = 5000, onClose }: ToastProp
       </p>
       <button
         onClick={handleClose}
-        className={`ml-2 opacity-70 hover:opacity-100 transition-opacity ${textStyles[type]}`}
+        className={`ml-2 opacity-70 transition-opacity hover:opacity-100 ${textStyles[type]}`}
         aria-label="Close"
       >
         <X size={18} />

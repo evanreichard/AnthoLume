@@ -17,17 +17,17 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="w-full flex flex-col md:flex-row gap-4">
-      <div className="flex flex-col gap-4 grow">
+    <div className="flex w-full flex-col gap-4 md:flex-row">
+      <div className="flex grow flex-col gap-4">
         {/* Search Form */}
         <div
-          className="flex flex-col gap-2 grow p-4 rounded shadow-lg bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
+          className="flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
         >
-          <form className="flex gap-4 flex-col lg:flex-row" onSubmit={handleSubmit}>
-            <div className="flex flex-col w-full grow">
-              <div className="flex relative">
+          <form className="flex flex-col gap-4 lg:flex-row" onSubmit={handleSubmit}>
+            <div className="flex w-full grow flex-col">
+              <div className="relative flex">
                 <span
-                  className="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm"
+                  className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm"
                 >
                   <Search size={15} />
                 </span>
@@ -35,21 +35,21 @@ export default function SearchPage() {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
                   placeholder="Query"
                 />
               </div>
             </div>
-            <div className="flex relative min-w-[12em]">
+            <div className="relative flex min-w-[12em]">
               <span
-                className="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm"
+                className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm"
               >
                 <Book size={15} />
               </span>
               <select
                 value={source}
                 onChange={(e) => setSource(e.target.value as GetSearchSource)}
-                className="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
               >
                 <option value="LibGen">Library Genesis</option>
                 <option value="Annas Archive">Annas Archive</option>
@@ -64,35 +64,35 @@ export default function SearchPage() {
         {/* Search Results Table */}
         <div className="inline-block min-w-full overflow-hidden rounded shadow">
           <table
-            className="min-w-full leading-normal bg-white dark:bg-gray-700 text-sm md:text-sm"
+            className="min-w-full bg-white text-sm leading-normal md:text-sm dark:bg-gray-700"
           >
             <thead className="text-gray-800 dark:text-gray-400">
               <tr>
                 <th
-                  className="w-12 p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+                  className="w-12 border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800"
                 ></th>
                 <th
-                  className="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+                  className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800"
                 >
                   Document
                 </th>
                 <th
-                  className="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+                  className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800"
                 >
                   Series
                 </th>
                 <th
-                  className="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+                  className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800"
                 >
                   Type
                 </th>
                 <th
-                  className="p-3 font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+                  className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800"
                 >
                   Size
                 </th>
                 <th
-                  className="p-3 hidden md:block font-normal text-left uppercase border-b border-gray-200 dark:border-gray-800"
+                  className="hidden border-b border-gray-200 p-3 text-left font-normal uppercase md:block dark:border-gray-800"
                 >
                   Date
                 </th>
@@ -101,18 +101,18 @@ export default function SearchPage() {
             <tbody className="text-black dark:text-white">
               {isLoading && (
                 <tr>
-                  <td className="text-center p-3" colSpan={6}>Loading...</td>
+                  <td className="p-3 text-center" colSpan={6}>Loading...</td>
                 </tr>
               )}
               {!isLoading && !results && (
                 <tr>
-                  <td className="text-center p-3" colSpan={6}>No Results</td>
+                  <td className="p-3 text-center" colSpan={6}>No Results</td>
                 </tr>
               )}
               {!isLoading && results && results.map((item: any) => (
                 <tr key={item.id}>
                   <td
-                    className="p-3 border-b border-gray-200 text-gray-500 dark:text-gray-500"
+                    className="border-b border-gray-200 p-3 text-gray-500 dark:text-gray-500"
                   >
                     <button
                       className="hover:text-purple-600"
@@ -121,19 +121,19 @@ export default function SearchPage() {
                       <Download size={15} />
                     </button>
                   </td>
-                  <td className="p-3 border-b border-gray-200">
+                  <td className="border-b border-gray-200 p-3">
                     {item.author || 'N/A'} - {item.title || 'N/A'}
                   </td>
-                  <td className="p-3 border-b border-gray-200">
+                  <td className="border-b border-gray-200 p-3">
                     <p>{item.series || 'N/A'}</p>
                   </td>
-                  <td className="p-3 border-b border-gray-200">
+                  <td className="border-b border-gray-200 p-3">
                     <p>{item.file_type || 'N/A'}</p>
                   </td>
-                  <td className="p-3 border-b border-gray-200">
+                  <td className="border-b border-gray-200 p-3">
                     <p>{item.file_size || 'N/A'}</p>
                   </td>
-                  <td className="hidden md:table-cell p-3 border-b border-gray-200">
+                  <td className="hidden border-b border-gray-200 p-3 md:table-cell">
                     <p>{item.upload_date || 'N/A'}</p>
                   </td>
                 </tr>

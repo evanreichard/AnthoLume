@@ -42,31 +42,31 @@ export default function ComponentDemoPage() {
       <h1 className="text-2xl font-bold dark:text-white">UI Components Demo</h1>
 
       {/* Toast Demos */}
-      <section className="bg-white dark:bg-gray-700 rounded-lg p-6 shadow">
-        <h2 className="text-xl font-semibold mb-4 dark:text-white">Toast Notifications</h2>
+      <section className="rounded-lg bg-white p-6 shadow dark:bg-gray-700">
+        <h2 className="mb-4 text-xl font-semibold dark:text-white">Toast Notifications</h2>
         <div className="flex flex-wrap gap-4">
           <button
             onClick={handleDemoClick}
             disabled={isLoading}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isLoading ? <InlineLoader size="sm" /> : 'Show Info Toast'}
           </button>
           <button
             onClick={handleWarningClick}
-            className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+            className="rounded bg-yellow-500 px-4 py-2 text-white hover:bg-yellow-600"
           >
             Show Warning Toast (10s)
           </button>
           <button
             onClick={handleErrorClick}
-            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+            className="rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600"
           >
             Show Error Toast
           </button>
           <button
             onClick={handleCustomToast}
-            className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
+            className="rounded bg-purple-500 px-4 py-2 text-white hover:bg-purple-600"
           >
             Show Custom Toast
           </button>
@@ -74,15 +74,15 @@ export default function ComponentDemoPage() {
       </section>
 
       {/* Skeleton Demos */}
-      <section className="bg-white dark:bg-gray-700 rounded-lg p-6 shadow">
-        <h2 className="text-xl font-semibold mb-4 dark:text-white">Skeleton Loading Components</h2>
+      <section className="rounded-lg bg-white p-6 shadow dark:bg-gray-700">
+        <h2 className="mb-4 text-xl font-semibold dark:text-white">Skeleton Loading Components</h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
           {/* Basic Skeletons */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium dark:text-gray-300">Basic Skeletons</h3>
             <div className="space-y-2">
-              <Skeleton className="w-full h-8" />
+              <Skeleton className="h-8 w-full" />
               <Skeleton variant="text" className="w-3/4" />
               <Skeleton variant="text" className="w-1/2" />
               <div className="flex items-center gap-4">
@@ -113,7 +113,7 @@ export default function ComponentDemoPage() {
           {/* Skeleton Button */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium dark:text-gray-300">Skeleton Button</h3>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex flex-wrap gap-2">
               <SkeletonButton width={120} />
               <SkeletonButton className="w-full max-w-xs" />
             </div>
@@ -122,9 +122,9 @@ export default function ComponentDemoPage() {
       </section>
 
       {/* Skeleton Card Demo */}
-      <section className="bg-white dark:bg-gray-700 rounded-lg p-6 shadow">
-        <h2 className="text-xl font-semibold mb-4 dark:text-white">Skeleton Cards</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <section className="rounded-lg bg-white p-6 shadow dark:bg-gray-700">
+        <h2 className="mb-4 text-xl font-semibold dark:text-white">Skeleton Cards</h2>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <SkeletonCard />
           <SkeletonCard showAvatar />
           <SkeletonCard showAvatar showTitle showText textLines={4} />
@@ -132,20 +132,20 @@ export default function ComponentDemoPage() {
       </section>
 
       {/* Skeleton Table Demo */}
-      <section className="bg-white dark:bg-gray-700 rounded-lg p-6 shadow">
-        <h2 className="text-xl font-semibold mb-4 dark:text-white">Skeleton Table</h2>
+      <section className="rounded-lg bg-white p-6 shadow dark:bg-gray-700">
+        <h2 className="mb-4 text-xl font-semibold dark:text-white">Skeleton Table</h2>
         <SkeletonTable rows={5} columns={4} />
       </section>
 
       {/* Page Loader Demo */}
-      <section className="bg-white dark:bg-gray-700 rounded-lg p-6 shadow">
-        <h2 className="text-xl font-semibold mb-4 dark:text-white">Page Loader</h2>
+      <section className="rounded-lg bg-white p-6 shadow dark:bg-gray-700">
+        <h2 className="mb-4 text-xl font-semibold dark:text-white">Page Loader</h2>
         <PageLoader message="Loading demo content..." />
       </section>
 
       {/* Inline Loader Demo */}
-      <section className="bg-white dark:bg-gray-700 rounded-lg p-6 shadow">
-        <h2 className="text-xl font-semibold mb-4 dark:text-white">Inline Loader</h2>
+      <section className="rounded-lg bg-white p-6 shadow dark:bg-gray-700">
+        <h2 className="mb-4 text-xl font-semibold dark:text-white">Inline Loader</h2>
         <div className="flex items-center gap-8">
           <div className="text-center">
             <InlineLoader size="sm" />

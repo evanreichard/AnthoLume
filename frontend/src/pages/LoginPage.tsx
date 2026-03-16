@@ -34,34 +34,34 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="bg-gray-100 dark:bg-gray-800 dark:text-white min-h-screen">
-      <div className="flex flex-wrap w-full">
-        <div className="flex flex-col w-full md:w-1/2">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-800 dark:text-white">
+      <div className="flex w-full flex-wrap">
+        <div className="flex w-full flex-col md:w-1/2">
           <div
-            className="flex flex-col justify-center px-8 pt-8 my-auto md:justify-start md:pt-0 md:px-24 lg:px-32"
+            className="my-auto flex flex-col justify-center px-8 pt-8 md:justify-start md:px-24 md:pt-0 lg:px-32"
           >
-            <p className="text-3xl text-center">Welcome.</p>
+            <p className="text-center text-3xl">Welcome.</p>
             <form className="flex flex-col pt-3 md:pt-8" onSubmit={handleSubmit}>
               <div className="flex flex-col pt-4">
-                <div className="flex relative">
+                <div className="relative flex">
                   <input
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                    className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
                     placeholder="Username"
                     required
                     disabled={isLoading}
                   />
                 </div>
               </div>
-              <div className="flex flex-col pt-4 mb-12">
-                <div className="flex relative">
+              <div className="mb-12 flex flex-col pt-4">
+                <div className="relative flex">
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="flex-1 appearance-none rounded-none border border-gray-300 w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                    className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
                     placeholder="Password"
                     required
                     disabled={isLoading}
@@ -72,12 +72,12 @@ export default function LoginPage() {
                 variant="secondary" 
                 type="submit" 
                 disabled={isLoading}
-                className="w-full px-4 py-2 text-base font-semibold text-center transition duration-200 ease-in focus:outline-none focus:ring-2 disabled:opacity-50"
+                className="w-full px-4 py-2 text-center text-base font-semibold transition duration-200 ease-in focus:outline-none focus:ring-2 disabled:opacity-50"
               >
                 {isLoading ? 'Logging in...' : 'Login'}
               </Button>
             </form>
-            <div className="pt-12 pb-12 text-center">
+            <div className="py-12 text-center">
               <p className="mt-4">
                 <a href="/local" className="font-semibold underline">
                   Offline / Local Mode
@@ -86,8 +86,8 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
-        <div className="hidden image-fader w-1/2 shadow-2xl h-screen relative md:block">
-          <div className="w-full h-screen object-cover ease-in-out top-0 left-0 bg-gray-300 flex items-center justify-center">
+        <div className="image-fader relative hidden h-screen w-1/2 shadow-2xl md:block">
+          <div className="left-0 top-0 flex h-screen w-full items-center justify-center bg-gray-300 object-cover ease-in-out">
             <span className="text-gray-500">AnthoLume</span>
           </div>
         </div>
