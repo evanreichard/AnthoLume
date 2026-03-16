@@ -1,6 +1,8 @@
 import { useState, FormEvent, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useGetDocuments, useCreateDocument } from '../generated/anthoLumeAPIV1';
+import { Activity, Download, Search, Upload } from 'lucide-react';
+import { Button } from '../components/Button';
 
 interface DocumentCardProps {
   doc: {
@@ -14,34 +16,6 @@ interface DocumentCardProps {
     percentage?: number;
     total_time_seconds?: number;
   };
-}
-
-// Activity icon SVG
-function ActivityIcon() {
-  return (
-    <svg className="w-20 h-20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-    </svg>
-  );
-}
-
-// Download icon SVG
-function DownloadIcon({ disabled }: { disabled?: boolean }) {
-  if (disabled) {
-    return (
-      <svg className="w-20 h-20 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <polyline points="21 15 16 10 8 10" />
-        <line x1="12" y1="3" x2="12" y2="21" />
-        <line x1="21" y1="15" x2="21" y2="15" opacity="0" />
-      </svg>
-    );
-  }
-  return (
-    <svg className="w-20 h-20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <polyline points="21 15 16 10 8 10" />
-      <line x1="12" y1="3" x2="12" y2="21" />
-    </svg>
-  );
 }
 
 function DocumentCard({ doc }: DocumentCardProps) {
@@ -102,14 +76,14 @@ function DocumentCard({ doc }: DocumentCardProps) {
           className="absolute flex flex-col gap-2 right-4 bottom-4 text-gray-500 dark:text-gray-400"
         >
           <Link to={`/activity?document=${doc.id}`}>
-            <ActivityIcon />
+            <Activity size={20} />
           </Link>
           {doc.filepath ? (
             <Link to={`/documents/${doc.id}/file`}>
-              <DownloadIcon />
+              <Download size={20} />
             </Link>
           ) : (
-            <DownloadIcon disabled />
+            <Download size={20} className="text-gray-400" />
           )}
         </div>
       </div>
@@ -117,26 +91,9 @@ function DocumentCard({ doc }: DocumentCardProps) {
   );
 }
 
-// Search icon SVG
-function SearchIcon() {
-  return (
-    <svg className="w-15 h-15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="11" cy="11" r="8" />
-      <path d="M21 21l-6-6" />
-    </svg>
-  );
-}
 
-// Upload icon SVG
-function UploadIcon() {
-  return (
-    <svg className="w-34 h-34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="17 8 12 3 7 8" />
-      <line x1="12" y1="3" x2="12" y2="15" />
-    </svg>
-  );
-}
+
+
 
 export default function DocumentsPage() {
   const [search, setSearch] = useState('');
@@ -203,7 +160,7 @@ export default function DocumentsPage() {
               <span
                 className="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm"
               >
-                <SearchIcon />
+                <Search size={15} />
               </span>
               <input
                 type="text"
@@ -216,12 +173,7 @@ export default function DocumentsPage() {
             </div>
           </div>
           <div className="lg:w-60">
-            <button
-              type="submit"
-              className="font-medium px-4 py-2 text-gray-800 bg-gray-500 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
-            >
-              Search
-            </button>
+            <Button variant="secondary" type="submit">Search</Button>
           </div>
         </form>
       </div>
@@ -265,7 +217,7 @@ export default function DocumentsPage() {
           onChange={() => setUploadMode(!uploadMode)}
         />
         <div
-          className={`absolute right-0 z-10 bottom-0 rounded p-4 bg-gray-800 dark:bg-gray-200 text-white dark:text-black w-72 text-sm flex flex-col gap-2 ${uploadMode ? 'display-block' : 'display-none'}`}
+          className={`absolute right-0 z-10 bottom-0 rounded p-4 bg-gray-800 dark:bg-gray-200 text-white dark:text-black w-72 text-sm flex flex-col gap-2 transition-opacity duration-200 ${uploadMode ? 'visible opacity-100' : 'invisible opacity-0'}`}
         >
           <form
             method="POST"
@@ -304,7 +256,7 @@ export default function DocumentsPage() {
           className="w-16 h-16 bg-gray-800 dark:bg-gray-200 rounded-full flex items-center justify-center opacity-30 hover:opacity-100 transition-all duration-200 cursor-pointer"
           htmlFor="upload-file-button"
         >
-          <UploadIcon />
+          <Upload size={34} />
         </label>
       </div>
     </div>

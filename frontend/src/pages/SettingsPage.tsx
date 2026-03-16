@@ -1,35 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { useGetSettings } from '../generated/anthoLumeAPIV1';
-
-// User icon SVG
-function UserIcon() {
-  return (
-    <svg className="w-60 h-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="8" r="4" />
-      <path d="M12 12c-4 0-8 3-8 8h16c0-5-4-8-8-8" />
-    </svg>
-  );
-}
-
-// Password icon SVG
-function PasswordIcon() {
-  return (
-    <svg className="w-15 h-15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-    </svg>
-  );
-}
-
-// Clock icon SVG
-function ClockIcon() {
-  return (
-    <svg className="w-15 h-15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
-  );
-}
+import { User, Lock, Clock } from 'lucide-react';
+import { Button } from '../components/Button';
 
 export default function SettingsPage() {
   const { data, isLoading } = useGetSettings();
@@ -60,7 +32,7 @@ export default function SettingsPage() {
         <div
           className="flex flex-col p-4 items-center rounded shadow-lg md:w-60 lg:w-80 bg-white dark:bg-gray-700 text-gray-500 dark:text-white"
         >
-          <UserIcon />
+          <User size={60} />
           <p className="text-lg">{settingsData?.user?.username}</p>
         </div>
       </div>
@@ -80,7 +52,7 @@ export default function SettingsPage() {
                 <span
                   className="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm"
                 >
-                  <PasswordIcon />
+                  <Lock size={15} />
                 </span>
                 <input
                   type="password"
@@ -96,7 +68,7 @@ export default function SettingsPage() {
                 <span
                   className="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm"
                 >
-                  <PasswordIcon />
+                  <Lock size={15} />
                 </span>
                 <input
                   type="password"
@@ -108,12 +80,7 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="lg:w-60">
-              <button
-                type="submit"
-                className="font-medium px-4 py-2 text-gray-800 bg-gray-500 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
-              >
-                Submit
-              </button>
+              <Button variant="secondary" type="submit">Submit</Button>
             </div>
           </form>
         </div>
@@ -131,7 +98,7 @@ export default function SettingsPage() {
               <span
                 className="inline-flex items-center px-3 border-t bg-white border-l border-b border-gray-300 text-gray-500 shadow-sm text-sm"
               >
-                <ClockIcon />
+                <Clock size={15} />
               </span>
               <select
                 value={timezone}
@@ -151,12 +118,7 @@ export default function SettingsPage() {
               </select>
             </div>
             <div className="lg:w-60">
-              <button
-                type="submit"
-                className="font-medium px-4 py-2 text-gray-800 bg-gray-500 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
-              >
-                Submit
-              </button>
+              <Button variant="secondary" type="submit">Submit</Button>
             </div>
           </form>
         </div>

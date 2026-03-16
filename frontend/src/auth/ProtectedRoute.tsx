@@ -6,8 +6,13 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isCheckingAuth } = useAuth();
   const location = useLocation();
+
+  // Show loading while checking authentication status
+  if (isCheckingAuth) {
+    return <div className="text-gray-500 dark:text-white">Loading...</div>;
+  }
 
   if (!isAuthenticated) {
     // Redirect to login with the current location saved

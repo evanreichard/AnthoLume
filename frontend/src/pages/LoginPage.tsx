@@ -1,19 +1,29 @@
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { Button } from '../components/Button';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
-  const { login } = useAuth();
+
+  const { login, isAuthenticated, isCheckingAuth } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect to home if already logged in
+  useEffect(() => {
+    if (!isCheckingAuth && isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, isCheckingAuth, navigate]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-    
+
     try {
       await login(username, password);
     } catch (err) {
@@ -59,13 +69,14 @@ export default function LoginPage() {
                   <span className="absolute -bottom-5 text-red-400 text-xs">{error}</span>
                 </div>
               </div>
-              <button
-                type="submit"
+              <Button 
+                variant="secondary" 
+                type="submit" 
                 disabled={isLoading}
-                className="w-full px-4 py-2 text-base font-semibold text-center text-white transition duration-200 ease-in bg-black shadow-md hover:text-black hover:bg-white focus:outline-none focus:ring-2 disabled:opacity-50"
+                className="w-full px-4 py-2 text-base font-semibold text-center transition duration-200 ease-in focus:outline-none focus:ring-2 disabled:opacity-50"
               >
                 {isLoading ? 'Logging in...' : 'Login'}
-              </button>
+              </Button>
             </form>
             <div className="pt-12 pb-12 text-center">
               <p className="mt-4">

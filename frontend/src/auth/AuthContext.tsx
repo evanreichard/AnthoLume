@@ -5,7 +5,7 @@ import { useLogin, useLogout, useGetMe } from '../generated/anthoLumeAPIV1';
 interface AuthState {
   isAuthenticated: boolean;
   user: { username: string; is_admin: boolean } | null;
-  token: string | null;
+  isCheckingAuth: boolean;
 }
 
 interface AuthContextType extends AuthState {
@@ -15,76 +15,73 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const TOKEN_KEY = 'antholume_token';
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
     user: null,
-    token: null,
+    isCheckingAuth: true, // Start with checking state to prevent redirects during initial load
   });
 
   const loginMutation = useLogin();
   const logoutMutation = useLogout();
-  const { data: meData } = useGetMe(authState.isAuthenticated ? {} : undefined);
+  
+  // Always call /me to check authentication status
+  const { data: meData, error: meError, isLoading: meLoading } = useGetMe();
 
   const navigate = useNavigate();
 
-  // Check for existing token on mount
+  // Update auth state based on /me endpoint response
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (token) {
-      setAuthState((prev) => ({ ...prev, token, isAuthenticated: true }));
-    }
-  }, []);
-
-  // Fetch user data when authenticated
-  useEffect(() => {
-    if (meData?.data && authState.isAuthenticated) {
-      setAuthState((prev) => ({
-        ...prev,
+    if (meLoading) {
+      // Still checking authentication
+      setAuthState((prev) => ({ ...prev, isCheckingAuth: true }));
+    } else if (meData?.data) {
+      // User is authenticated
+      setAuthState({
+        isAuthenticated: true,
         user: meData.data,
-      }));
+        isCheckingAuth: false,
+      });
+    } else if (meError) {
+      // User is not authenticated or error occurred
+      setAuthState({
+        isAuthenticated: false,
+        user: null,
+        isCheckingAuth: false,
+      });
     }
-  }, [meData, authState.isAuthenticated]);
+  }, [meData, meError, meLoading]);
 
   const login = async (username: string, password: string) => {
     try {
-      loginMutation.mutate({
+      const response = await loginMutation.mutateAsync({
         data: {
           username,
           password,
         },
-      }, {
-        onSuccess: () => {
-          const token = localStorage.getItem(TOKEN_KEY) || 'authenticated';
-          localStorage.setItem(TOKEN_KEY, token);
-          
-          setAuthState({
-            isAuthenticated: true,
-            user: null,
-            token,
-          });
-          
-          navigate('/');
-        },
-        onError: () => {
-          throw new Error('Login failed');
-        },
       });
+
+      // The backend uses session-based authentication, so no token to store
+      // The session cookie is automatically set by the browser
+      setAuthState({
+        isAuthenticated: true,
+        user: response.data,
+        isCheckingAuth: false,
+      });
+
+      navigate('/');
     } catch (err) {
-      throw err;
+      throw new Error('Login failed');
     }
   };
 
   const logout = () => {
     logoutMutation.mutate(undefined, {
       onSuccess: () => {
-        localStorage.removeItem(TOKEN_KEY);
         setAuthState({
           isAuthenticated: false,
           user: null,
-          token: null,
+          isCheckingAuth: false,
         });
         navigate('/login');
       },
