@@ -1,0 +1,526 @@
+openapi: 3.0.3
+info:
+  title: AnthoLume API v1
+  version: 1.0.0
+  description: REST API for AnthoLume document management system
+
+servers:
+  - url: /api/v1
+
+components:
+  schemas:
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        author:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        deleted:
+          type: boolean
+        words:
+          type: integer
+          format: int64
+      required:
+        - id
+        - title
+        - author
+        - created_at
+        - updated_at
+        - deleted
+
+    UserData:
+      type: object
+      properties:
+        username:
+          type: string
+        is_admin:
+          type: boolean
+      required:
+        - username
+        - is_admin
+
+    WordCount:
+      type: object
+      properties:
+        document_id:
+          type: string
+        count:
+          type: integer
+          format: int64
+      required:
+        - document_id
+        - count
+
+    Progress:
+      type: object
+      properties:
+        user_id:
+          type: string
+        document_id:
+          type: string
+        device_id:
+          type: string
+        percentage:
+          type: number
+          format: double
+        progress:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - user_id
+        - document_id
+        - device_id
+        - percentage
+        - progress
+        - created_at
+
+    Activity:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        document_id:
+          type: string
+        activity_type:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - id
+        - user_id
+        - document_id
+        - activity_type
+        - timestamp
+
+    Setting:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        key:
+          type: string
+        value:
+          type: string
+      required:
+        - id
+        - user_id
+        - key
+        - value
+
+    DocumentsResponse:
+      type: object
+      properties:
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+        total:
+          type: integer
+          format: int64
+        page:
+          type: integer
+          format: int64
+        limit:
+          type: integer
+          format: int64
+        next_page:
+          type: integer
+          format: int64
+        previous_page:
+          type: integer
+          format: int64
+        search:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserData'
+        word_counts:
+          type: array
+          items:
+            $ref: '#/components/schemas/WordCount'
+      required:
+        - documents
+        - total
+        - page
+        - limit
+        - user
+        - word_counts
+
+    DocumentResponse:
+      type: object
+      properties:
+        document:
+          $ref: '#/components/schemas/Document'
+        user:
+          $ref: '#/components/schemas/UserData'
+        progress:
+          $ref: '#/components/schemas/Progress'
+      required:
+        - document
+        - user
+
+    ProgressResponse:
+      $ref: '#/components/schemas/Progress'
+
+    ActivityResponse:
+      type: object
+      properties:
+        activities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Activity'
+        user:
+          $ref: '#/components/schemas/UserData'
+      required:
+        - activities
+        - user
+
+    SettingsResponse:
+      type: object
+      properties:
+        settings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Setting'
+        user:
+          $ref: '#/components/schemas/UserData'
+        timezone:
+          type: string
+      required:
+        - settings
+        - user
+
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+        - username
+        - password
+
+    LoginResponse:
+      type: object
+      properties:
+        username:
+          type: string
+        is_admin:
+          type: boolean
+      required:
+        - username
+        - is_admin
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+      required:
+        - code
+        - message
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+
+paths:
+  /documents:
+    get:
+      summary: List documents
+      operationId: getDocuments
+      tags:
+        - Documents
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            format: int64
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            format: int64
+            default: 9
+        - name: search
+          in: query
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentsResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents/{id}:
+    get:
+      summary: Get a single document
+      operationId: getDocument
+      tags:
+        - Documents
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        404:
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /progress/{id}:
+    get:
+      summary: Get document progress
+      operationId: getProgress
+      tags:
+        - Progress
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        404:
+          description: Progress not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /activity:
+    get:
+      summary: Get activity data
+      operationId: getActivity
+      tags:
+        - Activity
+      parameters:
+        - name: doc_filter
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: document_id
+          in: query
+          schema:
+            type: string
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            format: int64
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            format: int64
+            default: 100
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /settings:
+    get:
+      summary: Get user settings
+      operationId: getSettings
+      tags:
+        - Settings
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      summary: User login
+      operationId: login
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        200:
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      summary: User logout
+      operationId: logout
+      tags:
+        - Auth
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful logout
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/me:
+    get:
+      summary: Get current user info
+      operationId: getMe
+      tags:
+        - Auth
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

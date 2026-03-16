@@ -2,163 +2,160 @@ package v1
 
 import (
 	"bytes"
+	"crypto/md5"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/suite"
+
+	argon2 "github.com/alexedwards/argon2id"
+	"reichard.io/antholume/config"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/pkg/ptr"
 )
 
-func TestAPIGetDocuments(t *testing.T) {
-	db := setupTestDB(t)
-	cfg := testConfig()
-	server := NewServer(db, cfg)
+type DocumentsTestSuite struct {
+	suite.Suite
+	db  *database.DBManager
+	cfg *config.Config
+	srv *Server
+}
 
-	// Create user and login
-	createTestUser(t, db, "testuser", "testpass")
-
-	// Login first
-	reqBody := LoginRequest{Username: "testuser", Password: "testpass"}
-	body, _ := json.Marshal(reqBody)
-	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(body))
-	loginResp := httptest.NewRecorder()
-	server.ServeHTTP(loginResp, loginReq)
-
-	// Get session cookie
-	cookies := loginResp.Result().Cookies()
-	if len(cookies) == 0 {
-		t.Fatal("No session cookie returned")
-	}
-
-	// Get documents
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/documents?page=1&limit=9", nil)
-	req.AddCookie(cookies[0])
-	w := httptest.NewRecorder()
-
-	server.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("Expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var resp DocumentsResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if resp.Page != 1 {
-		t.Errorf("Expected page 1, got %d", resp.Page)
-	}
-
-	if resp.Limit != 9 {
-		t.Errorf("Expected limit 9, got %d", resp.Limit)
-	}
-
-	if resp.User.Username != "testuser" {
-		t.Errorf("Expected username 'testuser', got '%s'", resp.User.Username)
+func (suite *DocumentsTestSuite) setupConfig() *config.Config {
+	return &config.Config{
+		ListenPort:        "8080",
+		DBType:            "memory",
+		DBName:            "test",
+		ConfigPath:        "/tmp",
+		CookieAuthKey:     "test-auth-key-32-bytes-long-enough",
+		CookieEncKey:      "0123456789abcdef",
+		CookieSecure:      false,
+		CookieHTTPOnly:    true,
+		Version:           "test",
+		DemoMode:          false,
+		RegistrationEnabled: true,
 	}
 }
 
-func TestAPIGetDocumentsUnauthenticated(t *testing.T) {
-	db := setupTestDB(t)
-	cfg := testConfig()
-	server := NewServer(db, cfg)
+func TestDocuments(t *testing.T) {
+	suite.Run(t, new(DocumentsTestSuite))
+}
 
+func (suite *DocumentsTestSuite) SetupTest() {
+	suite.cfg = suite.setupConfig()
+	suite.db = database.NewMgr(suite.cfg)
+	suite.srv = NewServer(suite.db, suite.cfg)
+}
+
+func (suite *DocumentsTestSuite) createTestUser(username, password string) {
+	suite.authTestSuiteHelper(username, password)
+}
+
+func (suite *DocumentsTestSuite) login(username, password string) *http.Cookie {
+	return suite.authLoginHelper(username, password)
+}
+
+func (suite *DocumentsTestSuite) authTestSuiteHelper(username, password string) {
+	// MD5 hash for KOSync compatibility (matches existing system)
+	md5Hash := fmt.Sprintf("%x", md5.Sum([]byte(password)))
+
+	// Then argon2 hash the MD5
+	hashedPassword, err := argon2.CreateHash(md5Hash, argon2.DefaultParams)
+	suite.Require().NoError(err)
+
+	_, err = suite.db.Queries.CreateUser(suite.T().Context(), database.CreateUserParams{
+		ID:       username,
+		Pass:     &hashedPassword,
+		AuthHash: ptr.Of("test-auth-hash"),
+		Admin:    true,
+	})
+	suite.Require().NoError(err)
+}
+
+func (suite *DocumentsTestSuite) authLoginHelper(username, password string) *http.Cookie {
+	reqBody := LoginRequest{Username: username, Password: password}
+	body, err := json.Marshal(reqBody)
+	suite.Require().NoError(err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	suite.srv.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusOK, w.Code)
+
+	cookies := w.Result().Cookies()
+	suite.Require().Len(cookies, 1)
+
+	return cookies[0]
+}
+
+func (suite *DocumentsTestSuite) TestAPIGetDocuments() {
+	suite.createTestUser("testuser", "testpass")
+	cookie := suite.login("testuser", "testpass")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/documents?page=1&limit=9", nil)
+	req.AddCookie(cookie)
+	w := httptest.NewRecorder()
+
+	suite.srv.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusOK, w.Code)
+
+	var resp DocumentsResponse
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &resp))
+	suite.Equal(int64(1), resp.Page)
+	suite.Equal(int64(9), resp.Limit)
+	suite.Equal("testuser", resp.User.Username)
+}
+
+func (suite *DocumentsTestSuite) TestAPIGetDocumentsUnauthenticated() {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/documents", nil)
 	w := httptest.NewRecorder()
 
-	server.ServeHTTP(w, req)
+	suite.srv.ServeHTTP(w, req)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("Expected 401, got %d", w.Code)
-	}
+	suite.Equal(http.StatusUnauthorized, w.Code)
 }
 
-func TestAPIGetDocument(t *testing.T) {
-	db := setupTestDB(t)
-	cfg := testConfig()
-	server := NewServer(db, cfg)
+func (suite *DocumentsTestSuite) TestAPIGetDocument() {
+	suite.createTestUser("testuser", "testpass")
 
-	// Create user
-	createTestUser(t, db, "testuser", "testpass")
-
-	// Create a document using UpsertDocument
 	docID := "test-doc-1"
-	_, err := db.Queries.UpsertDocument(t.Context(), database.UpsertDocumentParams{
+	_, err := suite.db.Queries.UpsertDocument(suite.T().Context(), database.UpsertDocumentParams{
 		ID:       docID,
 		Title:    ptr.Of("Test Document"),
 		Author:   ptr.Of("Test Author"),
 	})
-	if err != nil {
-		t.Fatalf("Failed to create document: %v", err)
-	}
+	suite.Require().NoError(err)
 
-	// Login
-	reqBody := LoginRequest{Username: "testuser", Password: "testpass"}
-	body, _ := json.Marshal(reqBody)
-	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(body))
-	loginResp := httptest.NewRecorder()
-	server.ServeHTTP(loginResp, loginReq)
+	cookie := suite.login("testuser", "testpass")
 
-	cookies := loginResp.Result().Cookies()
-	if len(cookies) == 0 {
-		t.Fatal("No session cookie returned")
-	}
-
-	// Get document
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/documents/"+docID, nil)
-	req.AddCookie(cookies[0])
+	req.AddCookie(cookie)
 	w := httptest.NewRecorder()
 
-	server.ServeHTTP(w, req)
+	suite.srv.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("Expected 200, got %d: %s", w.Code, w.Body.String())
-	}
+	suite.Equal(http.StatusOK, w.Code)
 
 	var resp DocumentResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if resp.Document.ID != docID {
-		t.Errorf("Expected document ID '%s', got '%s'", docID, resp.Document.ID)
-	}
-
-	if *resp.Document.Title != "Test Document" {
-		t.Errorf("Expected title 'Test Document', got '%s'", *resp.Document.Title)
-	}
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &resp))
+	suite.Equal(docID, resp.Document.Id)
+	suite.Equal("Test Document", resp.Document.Title)
 }
 
-func TestAPIGetDocumentNotFound(t *testing.T) {
-	db := setupTestDB(t)
-	cfg := testConfig()
-	server := NewServer(db, cfg)
+func (suite *DocumentsTestSuite) TestAPIGetDocumentNotFound() {
+	suite.createTestUser("testuser", "testpass")
+	cookie := suite.login("testuser", "testpass")
 
-	// Create user and login
-	createTestUser(t, db, "testuser", "testpass")
-
-	reqBody := LoginRequest{Username: "testuser", Password: "testpass"}
-	body, _ := json.Marshal(reqBody)
-	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(body))
-	loginResp := httptest.NewRecorder()
-	server.ServeHTTP(loginResp, loginReq)
-
-	cookies := loginResp.Result().Cookies()
-	if len(cookies) == 0 {
-		t.Fatal("No session cookie returned")
-	}
-
-	// Get non-existent document
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/documents/non-existent", nil)
-	req.AddCookie(cookies[0])
+	req.AddCookie(cookie)
 	w := httptest.NewRecorder()
 
-	server.ServeHTTP(w, req)
+	suite.srv.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("Expected 404, got %d", w.Code)
-	}
+	suite.Equal(http.StatusNotFound, w.Code)
 }

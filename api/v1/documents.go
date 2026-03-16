@@ -1,141 +1,130 @@
 package v1
 
 import (
-	"net/http"
-	"strconv"
-	"strings"
+	"context"
 
 	"reichard.io/antholume/database"
-	"reichard.io/antholume/pkg/ptr"
 )
 
-// apiGetDocuments handles GET /api/v1/documents
-// Deprecated: Use GetDocuments with DocumentListRequest instead
-func (s *Server) apiGetDocuments(w http.ResponseWriter, r *http.Request) {
-	// Parse query params
-	query := r.URL.Query()
-	page, _ := strconv.ParseInt(query.Get("page"), 10, 64)
-	if page == 0 {
-		page = 1
-	}
-	limit, _ := strconv.ParseInt(query.Get("limit"), 10, 64)
-	if limit == 0 {
-		limit = 9
-	}
-	search := query.Get("search")
-
-	// Get auth from context
-	auth, ok := r.Context().Value("auth").(authData)
+// GET /documents
+func (s *Server) GetDocuments(ctx context.Context, request GetDocumentsRequestObject) (GetDocumentsResponseObject, error) {
+	auth, ok := s.getSessionFromContext(ctx)
 	if !ok {
-		writeJSONError(w, http.StatusUnauthorized, "Unauthorized")
-		return
+		return GetDocuments401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
 	}
 
-	// Build query
-	var queryPtr *string
-	if search != "" {
-		queryPtr = ptr.Of("%" + search + "%")
+	page := int64(1)
+	if request.Params.Page != nil {
+		page = *request.Params.Page
 	}
 
-	// Query database
+	limit := int64(9)
+	if request.Params.Limit != nil {
+		limit = *request.Params.Limit
+	}
+
+	search := ""
+	if request.Params.Search != nil {
+		search = "%" + *request.Params.Search + "%"
+	}
+
 	rows, err := s.db.Queries.GetDocumentsWithStats(
-		r.Context(),
+		ctx,
 		database.GetDocumentsWithStatsParams{
 			UserID:  auth.UserName,
-			Query:   queryPtr,
-			Deleted: ptr.Of(false),
+			Query:   &search,
+			Deleted: ptrOf(false),
 			Offset:  (page - 1) * limit,
 			Limit:   limit,
 		},
 	)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, err.Error())
-		return
+		return GetDocuments500JSONResponse{Code: 500, Message: err.Error()}, nil
 	}
 
-	// Calculate pagination
 	total := int64(len(rows))
 	var nextPage *int64
 	var previousPage *int64
 	if page*limit < total {
-		nextPage = ptr.Of(page + 1)
+		nextPage = ptrOf(page + 1)
 	}
 	if page > 1 {
-		previousPage = ptr.Of(page - 1)
+		previousPage = ptrOf(page - 1)
 	}
 
-	// Get word counts
+	apiDocuments := make([]Document, len(rows))
 	wordCounts := make([]WordCount, 0, len(rows))
-	for _, row := range rows {
+	for i, row := range rows {
+		apiDocuments[i] = Document{
+			Id:     row.ID,
+			Title:  *row.Title,
+			Author: *row.Author,
+			Words:  row.Words,
+		}
 		if row.Words != nil {
 			wordCounts = append(wordCounts, WordCount{
-				DocumentID: row.ID,
+				DocumentId: row.ID,
 				Count:      *row.Words,
 			})
 		}
 	}
 
-	// Return response
-	writeJSON(w, http.StatusOK, DocumentsResponse{
-		Documents:    rows,
+	response := DocumentsResponse{
+		Documents:    apiDocuments,
 		Total:        total,
 		Page:         page,
 		Limit:        limit,
 		NextPage:     nextPage,
 		PreviousPage: previousPage,
-		Search:       ptr.Of(search),
+		Search:       request.Params.Search,
 		User:         UserData{Username: auth.UserName, IsAdmin: auth.IsAdmin},
 		WordCounts:   wordCounts,
-	})
+	}
+	return GetDocuments200JSONResponse(response), nil
 }
 
-// apiGetDocument handles GET /api/v1/documents/:id
-// Deprecated: Use GetDocument with DocumentRequest instead
-func (s *Server) apiGetDocument(w http.ResponseWriter, r *http.Request) {
-	// Extract ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/documents/")
-	id := strings.TrimPrefix(path, "/")
-
-	if id == "" {
-		writeJSONError(w, http.StatusBadRequest, "Document ID required")
-		return
-	}
-
-	// Get auth from context
-	auth, ok := r.Context().Value("auth").(authData)
+// GET /documents/{id}
+func (s *Server) GetDocument(ctx context.Context, request GetDocumentRequestObject) (GetDocumentResponseObject, error) {
+	auth, ok := s.getSessionFromContext(ctx)
 	if !ok {
-		writeJSONError(w, http.StatusUnauthorized, "Unauthorized")
-		return
+		return GetDocument401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
 	}
 
-	// Query database
-	doc, err := s.db.Queries.GetDocument(r.Context(), id)
+	doc, err := s.db.Queries.GetDocument(ctx, request.Id)
 	if err != nil {
-		writeJSONError(w, http.StatusNotFound, "Document not found")
-		return
+		return GetDocument404JSONResponse{Code: 404, Message: "Document not found"}, nil
 	}
 
-	// Get progress
-	progressRow, err := s.db.Queries.GetDocumentProgress(r.Context(), database.GetDocumentProgressParams{
+	progressRow, err := s.db.Queries.GetDocumentProgress(ctx, database.GetDocumentProgressParams{
 		UserID:     auth.UserName,
-		DocumentID: id,
+		DocumentID: request.Id,
 	})
 	var progress *Progress
 	if err == nil {
 		progress = &Progress{
-			UserID:     progressRow.UserID,
-			DocumentID: progressRow.DocumentID,
-			DeviceID:   progressRow.DeviceID,
+			UserId:     progressRow.UserID,
+			DocumentId: progressRow.DocumentID,
+			DeviceId:   progressRow.DeviceID,
 			Percentage: progressRow.Percentage,
 			Progress:   progressRow.Progress,
-			CreatedAt:  progressRow.CreatedAt,
+			CreatedAt:  parseTime(progressRow.CreatedAt),
 		}
 	}
 
-	// Return response
-	writeJSON(w, http.StatusOK, DocumentResponse{
-		Document: doc,
+	apiDoc := Document{
+		Id:        doc.ID,
+		Title:     *doc.Title,
+		Author:    *doc.Author,
+		CreatedAt: parseTime(doc.CreatedAt),
+		UpdatedAt: parseTime(doc.UpdatedAt),
+		Deleted:   doc.Deleted,
+		Words:     doc.Words,
+	}
+
+	response := DocumentResponse{
+		Document: apiDoc,
 		User:     UserData{Username: auth.UserName, IsAdmin: auth.IsAdmin},
 		Progress: progress,
-	})
+	}
+	return GetDocument200JSONResponse(response), nil
 }

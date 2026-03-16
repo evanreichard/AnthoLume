@@ -1,11 +1,15 @@
 package v1
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 
 	"reichard.io/antholume/config"
 	"reichard.io/antholume/database"
 )
+
+var _ StrictServerInterface = (*Server)(nil)
 
 type Server struct {
 	mux *http.ServeMux
@@ -20,7 +24,11 @@ func NewServer(db *database.DBManager, cfg *config.Config) *Server {
 		db:  db,
 		cfg: cfg,
 	}
-	s.registerRoutes()
+
+	// Create strict handler with authentication middleware
+	strictHandler := NewStrictHandler(s, []StrictMiddlewareFunc{s.authMiddleware})
+
+	s.mux = HandlerFromMuxWithBaseURL(strictHandler, s.mux, "/api/v1").(*http.ServeMux)
 	return s
 }
 
@@ -28,23 +36,31 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mux.ServeHTTP(w, r)
 }
 
-// registerRoutes sets up all API routes
-func (s *Server) registerRoutes() {
-	// Documents endpoints
-	s.mux.HandleFunc("/api/v1/documents", s.withAuth(wrapRequest(s.GetDocuments, parseDocumentListRequest)))
-	s.mux.HandleFunc("/api/v1/documents/", s.withAuth(wrapRequest(s.GetDocument, parseDocumentRequest)))
+// authMiddleware adds authentication context to requests
+func (s *Server) authMiddleware(handler StrictHandlerFunc, operationID string) StrictHandlerFunc {
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+		// Store request and response in context for all handlers
+		ctx = context.WithValue(ctx, "request", r)
+		ctx = context.WithValue(ctx, "response", w)
 
-	// Progress endpoints
-	s.mux.HandleFunc("/api/v1/progress/", s.withAuth(wrapRequest(s.GetProgress, parseProgressRequest)))
+		// Skip auth for login endpoint
+		if operationID == "Login" {
+			return handler(ctx, w, r, request)
+		}
 
-	// Activity endpoints
-	s.mux.HandleFunc("/api/v1/activity", s.withAuth(wrapRequest(s.GetActivity, parseActivityRequest)))
+		auth, ok := s.getSession(r)
+		if !ok {
+			// Write 401 response directly
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(401)
+			json.NewEncoder(w).Encode(ErrorResponse{Code: 401, Message: "Unauthorized"})
+			return nil, nil
+		}
 
-	// Settings endpoints
-	s.mux.HandleFunc("/api/v1/settings", s.withAuth(wrapRequest(s.GetSettings, parseSettingsRequest)))
+		// Store auth in context for handlers to access
+		ctx = context.WithValue(ctx, "auth", auth)
 
-	// Auth endpoints
-	s.mux.HandleFunc("/api/v1/auth/login", s.apiLogin)
-	s.mux.HandleFunc("/api/v1/auth/logout", s.withAuth(s.apiLogout))
-	s.mux.HandleFunc("/api/v1/auth/me", s.withAuth(s.apiGetMe))
+		return handler(ctx, w, r, request)
+	}
 }
+

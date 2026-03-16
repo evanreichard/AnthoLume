@@ -5,56 +5,46 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/suite"
 )
 
-func TestWriteJSON(t *testing.T) {
+type UtilsTestSuite struct {
+	suite.Suite
+}
+
+func TestUtils(t *testing.T) {
+	suite.Run(t, new(UtilsTestSuite))
+}
+
+func (suite *UtilsTestSuite) TestWriteJSON() {
 	w := httptest.NewRecorder()
 	data := map[string]string{"test": "value"}
 
 	writeJSON(w, http.StatusOK, data)
 
-	if w.Header().Get("Content-Type") != "application/json" {
-		t.Errorf("Expected Content-Type 'application/json', got '%s'", w.Header().Get("Content-Type"))
-	}
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	suite.Equal("application/json", w.Header().Get("Content-Type"))
+	suite.Equal(http.StatusOK, w.Code)
 
 	var resp map[string]string
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if resp["test"] != "value" {
-		t.Errorf("Expected 'value', got '%s'", resp["test"])
-	}
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &resp))
+	suite.Equal("value", resp["test"])
 }
 
-func TestWriteJSONError(t *testing.T) {
+func (suite *UtilsTestSuite) TestWriteJSONError() {
 	w := httptest.NewRecorder()
 
 	writeJSONError(w, http.StatusBadRequest, "test error")
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("Expected status 400, got %d", w.Code)
-	}
+	suite.Equal(http.StatusBadRequest, w.Code)
 
 	var resp ErrorResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if resp.Code != http.StatusBadRequest {
-		t.Errorf("Expected code 400, got %d", resp.Code)
-	}
-
-	if resp.Message != "test error" {
-		t.Errorf("Expected message 'test error', got '%s'", resp.Message)
-	}
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &resp))
+	suite.Equal(http.StatusBadRequest, resp.Code)
+	suite.Equal("test error", resp.Message)
 }
 
-func TestParseQueryParams(t *testing.T) {
+func (suite *UtilsTestSuite) TestParseQueryParams() {
 	query := make(map[string][]string)
 	query["page"] = []string{"2"}
 	query["limit"] = []string{"15"}
@@ -62,46 +52,25 @@ func TestParseQueryParams(t *testing.T) {
 
 	params := parseQueryParams(query, 9)
 
-	if params.Page != 2 {
-		t.Errorf("Expected page 2, got %d", params.Page)
-	}
-
-	if params.Limit != 15 {
-		t.Errorf("Expected limit 15, got %d", params.Limit)
-	}
-
-	if params.Search == nil {
-		t.Fatal("Expected search to be set")
-	}
+	suite.Equal(int64(2), params.Page)
+	suite.Equal(int64(15), params.Limit)
+	suite.NotNil(params.Search)
 }
 
-func TestParseQueryParamsDefaults(t *testing.T) {
+func (suite *UtilsTestSuite) TestParseQueryParamsDefaults() {
 	query := make(map[string][]string)
 
 	params := parseQueryParams(query, 9)
 
-	if params.Page != 1 {
-		t.Errorf("Expected page 1, got %d", params.Page)
-	}
-
-	if params.Limit != 9 {
-		t.Errorf("Expected limit 9, got %d", params.Limit)
-	}
-
-	if params.Search != nil {
-		t.Errorf("Expected search to be nil, got '%v'", params.Search)
-	}
+	suite.Equal(int64(1), params.Page)
+	suite.Equal(int64(9), params.Limit)
+	suite.Nil(params.Search)
 }
 
-func TestPtrOf(t *testing.T) {
+func (suite *UtilsTestSuite) TestPtrOf() {
 	value := "test"
 	ptr := ptrOf(value)
 
-	if ptr == nil {
-		t.Fatal("Expected non-nil pointer")
-	}
-
-	if *ptr != "test" {
-		t.Errorf("Expected 'test', got '%s'", *ptr)
-	}
+	suite.NotNil(ptr)
+	suite.Equal("test", *ptr)
 }
