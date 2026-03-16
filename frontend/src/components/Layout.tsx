@@ -41,7 +41,8 @@ export default function Layout() {
     { path: '/search', title: 'Search' },
     { path: '/settings', title: 'Settings' },
   ];
-  const currentPageTitle = navItems.find(item => location.pathname === item.path)?.title || 'Documents';
+  const currentPageTitle =
+    navItems.find(item => location.pathname === item.path)?.title || 'Documents';
 
   // Show loading while checking authentication status
   if (isCheckingAuth) {
@@ -61,12 +62,13 @@ export default function Layout() {
         <HamburgerMenu />
 
         {/* Header Title */}
-        <h1 className="px-6 text-xl font-bold lg:ml-44 dark:text-white">
-          {currentPageTitle}
-        </h1>
+        <h1 className="px-6 text-xl font-bold lg:ml-44 dark:text-white">{currentPageTitle}</h1>
 
         {/* User Dropdown */}
-        <div className="relative flex w-full items-center justify-end space-x-4 p-4" ref={dropdownRef}>
+        <div
+          className="relative flex w-full items-center justify-end space-x-4 p-4"
+          ref={dropdownRef}
+        >
           <button
             onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
             className="relative block text-gray-800 dark:text-gray-200"
@@ -86,7 +88,7 @@ export default function Layout() {
                   <Link
                     to="/settings"
                     onClick={() => setIsUserDropdownOpen(false)}
-                    className="text-md block px-4 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-600 dark:hover:text-white"
+                    className="block px-4 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-600 dark:hover:text-white"
                     role="menuitem"
                   >
                     <span className="flex flex-col">
@@ -95,7 +97,7 @@ export default function Layout() {
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="text-md block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-600 dark:hover:text-white"
+                    className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-600 dark:hover:text-white"
                     role="menuitem"
                   >
                     <span className="flex flex-col">
@@ -109,10 +111,13 @@ export default function Layout() {
 
           <button
             onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-            className="text-md flex cursor-pointer items-center gap-2 py-4 text-gray-500 dark:text-white"
+            className="flex cursor-pointer items-center gap-2 py-4 text-gray-500 dark:text-white"
           >
             <span>{userData?.username || 'User'}</span>
-            <span className="text-gray-800 transition-transform duration-200 dark:text-gray-200" style={{ transform: isUserDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+            <span
+              className="text-gray-800 transition-transform duration-200 dark:text-gray-200"
+              style={{ transform: isUserDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+            >
               <ChevronDown size={20} />
             </span>
           </button>
@@ -120,8 +125,15 @@ export default function Layout() {
       </div>
 
       {/* Main Content */}
-      <main className="relative overflow-hidden" style={{ height: 'calc(100dvh - 4rem - env(safe-area-inset-top))' }}>
-        <div id="container" className="h-dvh overflow-auto px-4 md:px-6 lg:ml-48" style={{ paddingBottom: 'calc(5em + env(safe-area-inset-bottom) * 2)' }}>
+      <main
+        className="relative overflow-hidden"
+        style={{ height: 'calc(100dvh - 4rem - env(safe-area-inset-top))' }}
+      >
+        <div
+          id="container"
+          className="h-dvh overflow-auto px-4 md:px-6 lg:ml-48"
+          style={{ paddingBottom: 'calc(5em + env(safe-area-inset-bottom) * 2)' }}
+        >
           <Outlet />
         </div>
       </main>

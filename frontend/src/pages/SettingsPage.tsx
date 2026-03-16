@@ -39,7 +39,10 @@ export default function SettingsPage() {
       setPassword('');
       setNewPassword('');
     } catch (error: any) {
-      showError('Failed to update password: ' + (error.response?.data?.message || error.message || 'Unknown error'));
+      showError(
+        'Failed to update password: ' +
+          (error.response?.data?.message || error.message || 'Unknown error')
+      );
     }
   };
 
@@ -54,7 +57,10 @@ export default function SettingsPage() {
       });
       showInfo('Timezone updated successfully');
     } catch (error: any) {
-      showError('Failed to update timezone: ' + (error.response?.data?.message || error.message || 'Unknown error'));
+      showError(
+        'Failed to update timezone: ' +
+          (error.response?.data?.message || error.message || 'Unknown error')
+      );
     }
   };
 
@@ -101,35 +107,26 @@ export default function SettingsPage() {
     <div className="flex w-full flex-col gap-4 md:flex-row">
       {/* User Profile Card */}
       <div>
-        <div
-          className="flex flex-col items-center rounded bg-white p-4 text-gray-500 shadow-lg md:w-60 lg:w-80 dark:bg-gray-700 dark:text-white"
-        >
+        <div className="flex flex-col items-center rounded bg-white p-4 text-gray-500 shadow-lg md:w-60 lg:w-80 dark:bg-gray-700 dark:text-white">
           <User size={60} />
-          <p className="text-lg">{settingsData?.data.user.username || "N/A"}</p>
+          <p className="text-lg">{settingsData?.data.user.username || 'N/A'}</p>
         </div>
       </div>
 
       <div className="flex grow flex-col gap-4">
         {/* Change Password Form */}
-        <div
-          className="flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
-        >
+        <div className="flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white">
           <p className="mb-2 text-lg font-semibold">Change Password</p>
-          <form
-            className="flex flex-col gap-4 lg:flex-row"
-            onSubmit={handlePasswordSubmit}
-          >
+          <form className="flex flex-col gap-4 lg:flex-row" onSubmit={handlePasswordSubmit}>
             <div className="flex grow flex-col">
               <div className="relative flex">
-                <span
-                  className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm"
-                >
+                <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
                   <Lock size={15} />
                 </span>
                 <input
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={e => setPassword(e.target.value)}
                   className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
                   placeholder="Password"
                 />
@@ -137,44 +134,37 @@ export default function SettingsPage() {
             </div>
             <div className="flex grow flex-col">
               <div className="relative flex">
-                <span
-                  className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm"
-                >
+                <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
                   <Lock size={15} />
                 </span>
                 <input
                   type="password"
                   value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
+                  onChange={e => setNewPassword(e.target.value)}
                   className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
                   placeholder="New Password"
                 />
               </div>
             </div>
             <div className="lg:w-60">
-              <Button variant="secondary" type="submit">Submit</Button>
+              <Button variant="secondary" type="submit">
+                Submit
+              </Button>
             </div>
           </form>
         </div>
 
         {/* Change Timezone Form */}
-        <div
-          className="flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
-        >
+        <div className="flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white">
           <p className="mb-2 text-lg font-semibold">Change Timezone</p>
-          <form
-            className="flex flex-col gap-4 lg:flex-row"
-            onSubmit={handleTimezoneSubmit}
-          >
+          <form className="flex flex-col gap-4 lg:flex-row" onSubmit={handleTimezoneSubmit}>
             <div className="relative flex grow">
-              <span
-                className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm"
-              >
+              <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
                 <Clock size={15} />
               </span>
               <select
                 value={timezone || 'UTC'}
-                onChange={(e) => setTimezone(e.target.value)}
+                onChange={e => setTimezone(e.target.value)}
                 className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
               >
                 <option value="UTC">UTC</option>
@@ -190,32 +180,26 @@ export default function SettingsPage() {
               </select>
             </div>
             <div className="lg:w-60">
-              <Button variant="secondary" type="submit">Submit</Button>
+              <Button variant="secondary" type="submit">
+                Submit
+              </Button>
             </div>
           </form>
         </div>
 
         {/* Devices Table */}
-        <div
-          className="flex grow flex-col rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
-        >
+        <div className="flex grow flex-col rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white">
           <p className="text-lg font-semibold">Devices</p>
           <table className="min-w-full bg-white text-sm dark:bg-gray-700">
             <thead className="text-gray-800 dark:text-gray-400">
               <tr>
-                <th
-                  className="border-b border-gray-200 p-3 pl-0 text-left font-normal uppercase dark:border-gray-800"
-                >
+                <th className="border-b border-gray-200 p-3 pl-0 text-left font-normal uppercase dark:border-gray-800">
                   Name
                 </th>
-                <th
-                  className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800"
-                >
+                <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
                   Last Sync
                 </th>
-                <th
-                  className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800"
-                >
+                <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
                   Created
                 </th>
               </tr>
@@ -223,7 +207,9 @@ export default function SettingsPage() {
             <tbody className="text-black dark:text-white">
               {!settingsData?.data.devices || settingsData.data.devices.length === 0 ? (
                 <tr>
-                  <td className="p-3 text-center" colSpan={3}>No Results</td>
+                  <td className="p-3 text-center" colSpan={3}>
+                    No Results
+                  </td>
                 </tr>
               ) : (
                 settingsData.data.devices.map((device: any) => (
@@ -232,10 +218,14 @@ export default function SettingsPage() {
                       <p>{device.device_name || 'Unknown'}</p>
                     </td>
                     <td className="p-3">
-                      <p>{device.last_synced ? new Date(device.last_synced).toLocaleString() : 'N/A'}</p>
+                      <p>
+                        {device.last_synced ? new Date(device.last_synced).toLocaleString() : 'N/A'}
+                      </p>
                     </td>
                     <td className="p-3">
-                      <p>{device.created_at ? new Date(device.created_at).toLocaleString() : 'N/A'}</p>
+                      <p>
+                        {device.created_at ? new Date(device.created_at).toLocaleString() : 'N/A'}
+                      </p>
                     </td>
                   </tr>
                 ))

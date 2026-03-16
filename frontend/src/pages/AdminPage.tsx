@@ -33,18 +33,21 @@ export default function AdminPage() {
         },
       },
       {
-        onSuccess: (response) => {
+        onSuccess: response => {
           // Handle file download
           const url = window.URL.createObjectURL(new Blob([response.data]));
           const link = document.createElement('a');
           link.href = url;
-          link.setAttribute('download', `AnthoLumeBackup_${new Date().toISOString().replace(/[:.]/g, '')}.zip`);
+          link.setAttribute(
+            'download',
+            `AnthoLumeBackup_${new Date().toISOString().replace(/[:.]/g, '')}.zip`
+          );
           document.body.appendChild(link);
           link.click();
           link.remove();
           showInfo('Backup completed successfully');
         },
-        onError: (error) => {
+        onError: error => {
           showError('Backup failed: ' + (error as any).message);
         },
       }
@@ -67,7 +70,7 @@ export default function AdminPage() {
         onSuccess: () => {
           showInfo('Restore completed successfully');
         },
-        onError: (error) => {
+        onError: error => {
           showError('Restore failed: ' + (error as any).message);
         },
       }
@@ -85,7 +88,7 @@ export default function AdminPage() {
         onSuccess: () => {
           showInfo('Metadata matching started');
         },
-        onError: (error) => {
+        onError: error => {
           showError('Metadata matching failed: ' + (error as any).message);
         },
       }
@@ -103,7 +106,7 @@ export default function AdminPage() {
         onSuccess: () => {
           showInfo('Cache tables started');
         },
-        onError: (error) => {
+        onError: error => {
           showError('Cache tables failed: ' + (error as any).message);
         },
       }
@@ -117,9 +120,7 @@ export default function AdminPage() {
   return (
     <div className="flex w-full grow flex-col gap-4">
       {/* Backup & Restore Card */}
-      <div
-        className="flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
-      >
+      <div className="flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white">
         <p className="mb-2 text-lg font-semibold">Backup & Restore</p>
         <div className="flex flex-col gap-4">
           {/* Backup Form */}
@@ -130,7 +131,7 @@ export default function AdminPage() {
                   type="checkbox"
                   id="backup_covers"
                   checked={backupTypes.covers}
-                  onChange={(e) => setBackupTypes({ ...backupTypes, covers: e.target.checked })}
+                  onChange={e => setBackupTypes({ ...backupTypes, covers: e.target.checked })}
                 />
                 <label htmlFor="backup_covers">Covers</label>
               </div>
@@ -139,40 +140,39 @@ export default function AdminPage() {
                   type="checkbox"
                   id="backup_documents"
                   checked={backupTypes.documents}
-                  onChange={(e) => setBackupTypes({ ...backupTypes, documents: e.target.checked })}
+                  onChange={e => setBackupTypes({ ...backupTypes, documents: e.target.checked })}
                 />
                 <label htmlFor="backup_documents">Documents</label>
               </div>
             </div>
             <div className="h-10 w-40">
-              <Button variant="secondary" type="submit">Backup</Button>
+              <Button variant="secondary" type="submit">
+                Backup
+              </Button>
             </div>
           </form>
 
           {/* Restore Form */}
-          <form
-            onSubmit={handleRestoreSubmit}
-            className="flex grow justify-between"
-          >
+          <form onSubmit={handleRestoreSubmit} className="flex grow justify-between">
             <div className="flex w-1/2 items-center">
               <input
                 type="file"
                 accept=".zip"
-                onChange={(e) => setRestoreFile(e.target.files?.[0] || null)}
+                onChange={e => setRestoreFile(e.target.files?.[0] || null)}
                 className="w-full"
               />
             </div>
             <div className="h-10 w-40">
-              <Button variant="secondary" type="submit">Restore</Button>
+              <Button variant="secondary" type="submit">
+                Restore
+              </Button>
             </div>
           </form>
         </div>
       </div>
 
       {/* Tasks Card */}
-      <div
-        className="flex grow flex-col rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
-      >
+      <div className="flex grow flex-col rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white">
         <p className="text-lg font-semibold">Tasks</p>
         <table className="min-w-full bg-white text-sm dark:bg-gray-700">
           <tbody className="text-black dark:text-white">
@@ -182,7 +182,9 @@ export default function AdminPage() {
               </td>
               <td className="float-right py-2">
                 <div className="h-10 w-40 text-base">
-                  <Button variant="secondary" onClick={handleMetadataMatch}>Run</Button>
+                  <Button variant="secondary" onClick={handleMetadataMatch}>
+                    Run
+                  </Button>
                 </div>
               </td>
             </tr>
@@ -192,7 +194,9 @@ export default function AdminPage() {
               </td>
               <td className="float-right py-2">
                 <div className="h-10 w-40 text-base">
-                  <Button variant="secondary" onClick={handleCacheTables}>Run</Button>
+                  <Button variant="secondary" onClick={handleCacheTables}>
+                    Run
+                  </Button>
                 </div>
               </td>
             </tr>

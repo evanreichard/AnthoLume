@@ -118,19 +118,21 @@ export default function AdminUsersPage() {
       {/* Add User Form */}
       {showAddForm && (
         <div className="absolute left-10 top-10 rounded bg-gray-200 p-3 shadow-lg shadow-gray-500 transition-all duration-200 dark:bg-gray-600 dark:shadow-gray-900">
-          <form onSubmit={handleCreateUser}
-                className="flex flex-col gap-2 text-sm text-black dark:text-white">
+          <form
+            onSubmit={handleCreateUser}
+            className="flex flex-col gap-2 text-sm text-black dark:text-white"
+          >
             <input
               type="text"
               value={newUsername}
-              onChange={(e) => setNewUsername(e.target.value)}
+              onChange={e => setNewUsername(e.target.value)}
               placeholder="Username"
               className="bg-gray-300 p-2 text-black dark:bg-gray-700 dark:text-white"
             />
             <input
               type="password"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={e => setNewPassword(e.target.value)}
               placeholder="Password"
               className="bg-gray-300 p-2 text-black dark:bg-gray-700 dark:text-white"
             />
@@ -139,7 +141,7 @@ export default function AdminUsersPage() {
                 type="checkbox"
                 id="new_is_admin"
                 checked={newIsAdmin}
-                onChange={(e) => setNewIsAdmin(e.target.checked)}
+                onChange={e => setNewIsAdmin(e.target.checked)}
               />
               <label htmlFor="new_is_admin">Admin</label>
             </div>
@@ -163,21 +165,29 @@ export default function AdminUsersPage() {
                   <Plus size={20} />
                 </button>
               </th>
-              <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">User</th>
-              <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">Password</th>
-              <th className="border-b border-gray-200 p-3 text-left text-center font-normal uppercase dark:border-gray-800">
+              <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
+                User
+              </th>
+              <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
+                Password
+              </th>
+              <th className="border-b border-gray-200 p-3 text-center font-normal uppercase dark:border-gray-800">
                 Permissions
               </th>
-              <th className="w-48 border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">Created</th>
+              <th className="w-48 border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
+                Created
+              </th>
             </tr>
           </thead>
           <tbody className="text-black dark:text-white">
             {users.length === 0 ? (
               <tr>
-                <td className="p-3 text-center" colSpan={5}>No Results</td>
+                <td className="p-3 text-center" colSpan={5}>
+                  No Results
+                </td>
               </tr>
             ) : (
-              users.map((user) => (
+              users.map(user => (
                 <tr key={user.id}>
                   {/* Delete Button */}
                   <td className="relative cursor-pointer border-b border-gray-200 p-3 text-gray-800 dark:text-gray-400">

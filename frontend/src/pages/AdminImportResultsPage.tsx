@@ -13,24 +13,16 @@ export default function AdminImportResultsPage() {
   return (
     <div className="overflow-x-auto">
       <div className="inline-block min-w-full overflow-hidden rounded shadow">
-        <table
-          className="min-w-full bg-white text-sm leading-normal dark:bg-gray-700"
-        >
+        <table className="min-w-full bg-white text-sm leading-normal dark:bg-gray-700">
           <thead className="text-gray-800 dark:text-gray-400">
             <tr>
-              <th
-                className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800"
-              >
+              <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
                 Document
               </th>
-              <th
-                className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800"
-              >
+              <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
                 Status
               </th>
-              <th
-                className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800"
-              >
+              <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
                 Error
               </th>
             </tr>
@@ -38,7 +30,9 @@ export default function AdminImportResultsPage() {
           <tbody className="text-black dark:text-white">
             {results.length === 0 ? (
               <tr>
-                <td className="p-3 text-center" colSpan={3}>No Results</td>
+                <td className="p-3 text-center" colSpan={3}>
+                  No Results
+                </td>
               </tr>
             ) : (
               results.map((result: ImportResult, index: number) => (

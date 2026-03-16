@@ -7,7 +7,7 @@
  */
 
 export type GetProgressListParams = {
-page?: number;
-limit?: number;
-document?: string;
+  page?: number;
+  limit?: number;
+  document?: string;
 };

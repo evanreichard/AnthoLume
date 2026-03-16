@@ -11,8 +11,7 @@ body {
 
 html {
   height: calc(100% + env(safe-area-inset-bottom));
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0
-    env(safe-area-inset-left);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
 
 main {

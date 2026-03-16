@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { useToasts } from '../components/ToastContext';
-import { 
-  Skeleton, 
-  SkeletonText, 
-  SkeletonAvatar, 
-  SkeletonCard, 
-  SkeletonTable, 
+import {
+  Skeleton,
+  SkeletonText,
+  SkeletonAvatar,
+  SkeletonCard,
+  SkeletonTable,
   SkeletonButton,
   PageLoader,
-  InlineLoader 
+  InlineLoader,
 } from '../components/Skeleton';
 
 export default function ComponentDemoPage() {
@@ -18,7 +18,7 @@ export default function ComponentDemoPage() {
   const handleDemoClick = () => {
     setIsLoading(true);
     showInfo('Starting demo operation...');
-    
+
     setTimeout(() => {
       setIsLoading(false);
       showInfo('Demo operation completed successfully!');
@@ -76,7 +76,7 @@ export default function ComponentDemoPage() {
       {/* Skeleton Demos */}
       <section className="rounded-lg bg-white p-6 shadow dark:bg-gray-700">
         <h2 className="mb-4 text-xl font-semibold dark:text-white">Skeleton Loading Components</h2>
-        
+
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
           {/* Basic Skeletons */}
           <div className="space-y-4">

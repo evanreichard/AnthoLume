@@ -5,7 +5,7 @@ import { cn } from '../utils/cn';
 export interface Column<T> {
   key: keyof T;
   header: string;
-  render?: (value: any, row: T, index: number) => React.ReactNode;
+  render?: (value: any, _row: T, _index: number) => React.ReactNode;
   className?: string;
 }
 
@@ -17,6 +17,47 @@ export interface TableProps<T> {
   rowKey?: keyof T | ((row: T) => string);
 }
 
+// Skeleton table component for loading state
+function SkeletonTable({
+  rows = 5,
+  columns = 4,
+  className = '',
+}: {
+  rows?: number;
+  columns?: number;
+  className?: string;
+}) {
+  return (
+    <div className={cn('bg-white dark:bg-gray-700 rounded-lg overflow-hidden', className)}>
+      <table className="min-w-full">
+        <thead>
+          <tr className="border-b dark:border-gray-600">
+            {Array.from({ length: columns }).map((_, i) => (
+              <th key={i} className="p-3">
+                <Skeleton variant="text" className="h-5 w-3/4" />
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: rows }).map((_, rowIndex) => (
+            <tr key={rowIndex} className="border-b last:border-0 dark:border-gray-600">
+              {Array.from({ length: columns }).map((_, colIndex) => (
+                <td key={colIndex} className="p-3">
+                  <Skeleton
+                    variant="text"
+                    className={colIndex === columns - 1 ? 'w-1/2' : 'w-full'}
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function Table<T extends Record<string, any>>({
   columns,
   data,
@@ -24,50 +65,18 @@ export function Table<T extends Record<string, any>>({
   emptyMessage = 'No Results',
   rowKey,
 }: TableProps<T>) {
-  const getRowKey = (row: T, index: number): string => {
+  const getRowKey = (_row: T, index: number): string => {
     if (typeof rowKey === 'function') {
-      return rowKey(row);
+      return rowKey(_row);
     }
     if (rowKey) {
-      return String(row[rowKey] ?? index);
+      return String(_row[rowKey] ?? index);
     }
     return `row-${index}`;
   };
 
-  // Skeleton table component for loading state
-  function SkeletonTable({ rows = 5, columns = 4, className = '' }: { rows?: number; columns?: number; className?: string }) {
-    return (
-      <div className={cn('bg-white dark:bg-gray-700 rounded-lg overflow-hidden', className)}>
-        <table className="min-w-full">
-          <thead>
-            <tr className="border-b dark:border-gray-600">
-              {Array.from({ length: columns }).map((_, i) => (
-                <th key={i} className="p-3">
-                  <Skeleton variant="text" className="h-5 w-3/4" />
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: rows }).map((_, rowIndex) => (
-              <tr key={rowIndex} className="border-b last:border-0 dark:border-gray-600">
-                {Array.from({ length: columns }).map((_, colIndex) => (
-                  <td key={colIndex} className="p-3">
-                    <Skeleton variant="text" className={colIndex === columns - 1 ? 'w-1/2' : 'w-full'} />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-
   if (loading) {
-    return (
-      <SkeletonTable rows={5} columns={columns.length} />
-    );
+    return <SkeletonTable rows={5} columns={columns.length} />;
   }
 
   return (
@@ -76,7 +85,7 @@ export function Table<T extends Record<string, any>>({
         <table className="min-w-full bg-white dark:bg-gray-700">
           <thead>
             <tr className="border-b dark:border-gray-600">
-              {columns.map((column) => (
+              {columns.map(column => (
                 <th
                   key={String(column.key)}
                   className={`p-3 text-left text-gray-500 dark:text-white ${column.className || ''}`}
@@ -98,18 +107,13 @@ export function Table<T extends Record<string, any>>({
               </tr>
             ) : (
               data.map((row, index) => (
-                <tr
-                  key={getRowKey(row, index)}
-                  className="border-b dark:border-gray-600"
-                >
-                  {columns.map((column) => (
+                <tr key={getRowKey(row, index)} className="border-b dark:border-gray-600">
+                  {columns.map(column => (
                     <td
                       key={`${getRowKey(row, index)}-${String(column.key)}`}
                       className={`p-3 text-gray-700 dark:text-gray-300 ${column.className || ''}`}
                     >
-                      {column.render
-                        ? column.render(row[column.key], row, index)
-                        : row[column.key]}
+                      {column.render ? column.render(row[column.key], row, index) : row[column.key]}
                     </td>
                   ))}
                 </tr>

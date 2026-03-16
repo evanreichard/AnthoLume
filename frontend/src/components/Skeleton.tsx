@@ -16,7 +16,7 @@ export function Skeleton({
   animation = 'pulse',
 }: SkeletonProps) {
   const baseClasses = 'bg-gray-200 dark:bg-gray-600';
-  
+
   const variantClasses = {
     default: 'rounded',
     text: 'rounded-md h-4',
@@ -32,17 +32,13 @@ export function Skeleton({
 
   const style = {
     width: width !== undefined ? (typeof width === 'number' ? `${width}px` : width) : undefined,
-    height: height !== undefined ? (typeof height === 'number' ? `${height}px` : height) : undefined,
+    height:
+      height !== undefined ? (typeof height === 'number' ? `${height}px` : height) : undefined,
   };
 
   return (
     <div
-      className={cn(
-        baseClasses,
-        variantClasses[variant],
-        animationClasses[animation],
-        className
-      )}
+      className={cn(baseClasses, variantClasses[variant], animationClasses[animation], className)}
       style={style}
     />
   );
@@ -61,10 +57,7 @@ export function SkeletonText({ lines = 3, className = '', lineClassName = '' }: 
         <Skeleton
           key={i}
           variant="text"
-          className={cn(
-            lineClassName,
-            i === lines - 1 && lines > 1 ? 'w-3/4' : 'w-full'
-          )}
+          className={cn(lineClassName, i === lines - 1 && lines > 1 ? 'w-3/4' : 'w-full')}
         />
       ))}
     </div>
@@ -85,14 +78,7 @@ export function SkeletonAvatar({ size = 'md', className = '' }: SkeletonAvatarPr
 
   const pixelSize = typeof size === 'number' ? size : sizeMap[size];
 
-  return (
-    <Skeleton
-      variant="circular"
-      width={pixelSize}
-      height={pixelSize}
-      className={className}
-    />
-  );
+  return <Skeleton variant="circular" width={pixelSize} height={pixelSize} className={className} />;
 }
 
 interface SkeletonCardProps {
@@ -111,7 +97,12 @@ export function SkeletonCard({
   textLines = 3,
 }: SkeletonCardProps) {
   return (
-    <div className={cn('bg-white dark:bg-gray-700 rounded-lg p-4 border dark:border-gray-600', className)}>
+    <div
+      className={cn(
+        'bg-white dark:bg-gray-700 rounded-lg p-4 border dark:border-gray-600',
+        className
+      )}
+    >
       {showAvatar && (
         <div className="mb-4 flex items-start gap-4">
           <SkeletonAvatar />
@@ -121,12 +112,8 @@ export function SkeletonCard({
           </div>
         </div>
       )}
-      {showTitle && (
-        <Skeleton variant="text" className="mb-4 h-6 w-1/2" />
-      )}
-      {showText && (
-        <SkeletonText lines={textLines} />
-      )}
+      {showTitle && <Skeleton variant="text" className="mb-4 h-6 w-1/2" />}
+      {showText && <SkeletonText lines={textLines} />}
     </div>
   );
 }
@@ -163,7 +150,10 @@ export function SkeletonTable({
             <tr key={rowIndex} className="border-b last:border-0 dark:border-gray-600">
               {Array.from({ length: columns }).map((_, colIndex) => (
                 <td key={colIndex} className="p-3">
-                  <Skeleton variant="text" className={colIndex === columns - 1 ? 'w-1/2' : 'w-full'} />
+                  <Skeleton
+                    variant="text"
+                    className={colIndex === columns - 1 ? 'w-1/2' : 'w-full'}
+                  />
                 </td>
               ))}
             </tr>
@@ -220,11 +210,12 @@ export function InlineLoader({ size = 'md', className = '' }: InlineLoaderProps)
 
   return (
     <div className={cn('flex items-center justify-center', className)}>
-      <div className={`${sizeMap[size]} animate-spin rounded-full border-gray-200 border-t-blue-500 dark:border-gray-600`} />
+      <div
+        className={`${sizeMap[size]} animate-spin rounded-full border-gray-200 border-t-blue-500 dark:border-gray-600`}
+      />
     </div>
   );
 }
 
 // Re-export SkeletonTable for backward compatibility
 export { SkeletonTable as SkeletonTableExport };
-

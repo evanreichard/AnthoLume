@@ -7,6 +7,6 @@
  */
 
 export type GetImportDirectoryParams = {
-directory?: string;
-select?: string;
+  directory?: string;
+  select?: string;
 };

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLogin, useLogout, useGetMe } from '../generated/anthoLumeAPIV1';
 
@@ -9,7 +9,7 @@ interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-  login: (username: string, password: string) => Promise<void>;
+  login: (_username: string, _password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -24,7 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginMutation = useLogin();
   const logoutMutation = useLogout();
-  
+
   // Always call /me to check authentication status
   const { data: meData, error: meError, isLoading: meLoading } = useGetMe();
 
@@ -32,50 +32,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Update auth state based on /me endpoint response
   useEffect(() => {
-    if (meLoading) {
-      // Still checking authentication
-      setAuthState((prev) => ({ ...prev, isCheckingAuth: true }));
-    } else if (meData?.data) {
-      // User is authenticated
-      setAuthState({
-        isAuthenticated: true,
-        user: meData.data,
-        isCheckingAuth: false,
-      });
-    } else if (meError) {
-      // User is not authenticated or error occurred
-      setAuthState({
-        isAuthenticated: false,
-        user: null,
-        isCheckingAuth: false,
-      });
-    }
+    setAuthState(prev => {
+      if (meLoading) {
+        // Still checking authentication
+        return { ...prev, isCheckingAuth: true };
+      } else if (meData?.data) {
+        // User is authenticated
+        return {
+          isAuthenticated: true,
+          user: meData.data,
+          isCheckingAuth: false,
+        };
+      } else if (meError) {
+        // User is not authenticated or error occurred
+        return {
+          isAuthenticated: false,
+          user: null,
+          isCheckingAuth: false,
+        };
+      }
+      return prev;
+    });
   }, [meData, meError, meLoading]);
 
-  const login = async (username: string, password: string) => {
-    try {
-      const response = await loginMutation.mutateAsync({
-        data: {
-          username,
-          password,
-        },
-      });
+  const login = useCallback(
+    async (username: string, password: string) => {
+      try {
+        const response = await loginMutation.mutateAsync({
+          data: {
+            username,
+            password,
+          },
+        });
 
-      // The backend uses session-based authentication, so no token to store
-      // The session cookie is automatically set by the browser
-      setAuthState({
-        isAuthenticated: true,
-        user: response.data,
-        isCheckingAuth: false,
-      });
+        // The backend uses session-based authentication, so no token to store
+        // The session cookie is automatically set by the browser
+        setAuthState({
+          isAuthenticated: true,
+          user: response.data,
+          isCheckingAuth: false,
+        });
 
-      navigate('/');
-    } catch (err) {
-      throw new Error('Login failed');
-    }
-  };
+        navigate('/');
+      } catch (_error) {
+        throw new Error('Login failed');
+      }
+    },
+    [loginMutation, navigate]
+  );
 
-  const logout = () => {
+  const logout = useCallback(() => {
     logoutMutation.mutate(undefined, {
       onSuccess: () => {
         setAuthState({
@@ -86,12 +92,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         navigate('/login');
       },
     });
-  };
+  }, [logoutMutation, navigate]);
 
   return (
-    <AuthContext.Provider value={{ ...authState, login, logout }}>
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={{ ...authState, login, logout }}>{children}</AuthContext.Provider>
   );
 }
 

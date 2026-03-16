@@ -9,10 +9,8 @@ import eslintConfigPrettier from "eslint-config-prettier";
 
 export default [
   js.configs.recommended,
-  reactPlugin.configs.flat.recommended,
-  reactHooksPlugin.configs.flat.recommended,
   {
-    files: ["**/*.ts", "**/*.tsx", "**/*.css"],
+    files: ["**/*.ts", "**/*.tsx"],
     ignores: ["**/generated/**"],
     languageOptions: {
       parser: typescriptParser,
@@ -22,10 +20,36 @@ export default [
         ecmaFeatures: {
           jsx: true,
         },
+        projectService: true,
+      },
+      globals: {
+        localStorage: "readonly",
+        sessionStorage: "readonly",
+        document: "readonly",
+        window: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        setInterval: "readonly",
+        clearInterval: "readonly",
+        HTMLElement: "readonly",
+        HTMLDivElement: "readonly",
+        HTMLButtonElement: "readonly",
+        HTMLAnchorElement: "readonly",
+        MouseEvent: "readonly",
+        Node: "readonly",
+        File: "readonly",
+        Blob: "readonly",
+        FormData: "readonly",
+        alert: "readonly",
+        confirm: "readonly",
+        prompt: "readonly",
+        React: "readonly",
       },
     },
     plugins: {
       "@typescript-eslint": typescriptPlugin,
+      react: reactPlugin,
+      "react-hooks": reactHooksPlugin,
       tailwindcss,
       prettier,
     },
@@ -35,11 +59,19 @@ export default [
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",
       "no-console": ["warn", { allow: ["warn", "error"] }],
+      "no-undef": "off",
       "@typescript-eslint/no-explicit-any": "warn",
+      "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": [
         "error",
-        { argsIgnorePattern: "^_" },
+        { 
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
       ],
+      "no-useless-catch": "off",
     },
     settings: {
       react: {

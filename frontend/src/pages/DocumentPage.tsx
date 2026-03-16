@@ -33,27 +33,27 @@ interface Progress {
 // Helper function to format seconds nicely (mirroring legacy niceSeconds)
 function niceSeconds(seconds: number): string {
   if (seconds === 0) return 'N/A';
-  
+
   const days = Math.floor(seconds / 60 / 60 / 24);
   const remainingSeconds = seconds % (60 * 60 * 24);
   const hours = Math.floor(remainingSeconds / 60 / 60);
   const remainingAfterHours = remainingSeconds % (60 * 60);
   const minutes = Math.floor(remainingAfterHours / 60);
   const remainingSeconds2 = remainingAfterHours % 60;
-  
+
   let result = '';
   if (days > 0) result += `${days}d `;
   if (hours > 0) result += `${hours}h `;
   if (minutes > 0) result += `${minutes}m `;
   if (remainingSeconds2 > 0) result += `${remainingSeconds2}s`;
-  
+
   return result || 'N/A';
 }
 
 export default function DocumentPage() {
-  const { id } = useParams<{ id: string }>();  
+  const { id } = useParams<{ id: string }>();
   const { data: docData, isLoading: docLoading } = useGetDocument(id || '');
-  
+
   const { data: progressData, isLoading: progressLoading } = useGetProgress(id || '');
 
   if (docLoading || progressLoading) {
@@ -62,7 +62,9 @@ export default function DocumentPage() {
 
   const document = docData?.data?.document as Document;
   const progressDataArray = progressData?.data?.progress;
-  const progress = Array.isArray(progressDataArray) ? progressDataArray[0] as Progress : undefined;
+  const progress = Array.isArray(progressDataArray)
+    ? (progressDataArray[0] as Progress)
+    : undefined;
 
   if (!document) {
     return <div className="text-gray-500 dark:text-white">Document not found</div>;
@@ -75,13 +77,9 @@ export default function DocumentPage() {
 
   return (
     <div className="relative size-full">
-      <div
-        className="size-full overflow-scroll rounded bg-white p-4 shadow-lg dark:bg-gray-700 dark:text-white"
-      >
+      <div className="size-full overflow-scroll rounded bg-white p-4 shadow-lg dark:bg-gray-700 dark:text-white">
         {/* Document Info - Left Column */}
-        <div
-          className="relative float-left mb-2 mr-4 flex w-44 flex-col gap-2 md:w-60 lg:w-80"
-        >
+        <div className="relative float-left mb-2 mr-4 flex w-44 flex-col gap-2 md:w-60 lg:w-80">
           {/* Cover Image */}
           {document.filepath && (
             <div className="h-60 w-full rounded bg-gray-200 object-fill dark:bg-gray-600">
@@ -92,7 +90,7 @@ export default function DocumentPage() {
               />
             </div>
           )}
-          
+
           {/* Read Button - Only if file exists */}
           {document.filepath && (
             <a
@@ -102,7 +100,7 @@ export default function DocumentPage() {
               Read
             </a>
           )}
-          
+
           {/* Action Buttons */}
           <div className="relative z-20 my-2 flex flex-wrap-reverse justify-between gap-2">
             <div className="min-w-[50%] md:mr-2">
@@ -115,7 +113,7 @@ export default function DocumentPage() {
                 <p className="font-medium">{document.isbn13 || 'N/A'}</p>
               </div>
             </div>
-            
+
             {/* Download Button - Only if file exists */}
             {document.filepath && (
               <a
@@ -124,7 +122,12 @@ export default function DocumentPage() {
                 title="Download"
               >
                 <svg className="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003-3h4a3 3 0 003 3v1m0-3l-3 3m0 0L4 20" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v1a3 3 0 003-3h4a3 3 0 003 3v1m0-3l-3 3m0 0L4 20"
+                  />
                 </svg>
               </a>
             )}
@@ -192,15 +195,11 @@ export default function DocumentPage() {
           </div>
           <div>
             <p className="text-gray-500">Created</p>
-            <p className="font-medium">
-              {new Date(document.created_at).toLocaleDateString()}
-            </p>
+            <p className="font-medium">{new Date(document.created_at).toLocaleDateString()}</p>
           </div>
           <div>
             <p className="text-gray-500">Updated</p>
-            <p className="font-medium">
-              {new Date(document.updated_at).toLocaleDateString()}
-            </p>
+            <p className="font-medium">{new Date(document.updated_at).toLocaleDateString()}</p>
           </div>
         </div>
 
@@ -213,9 +212,7 @@ export default function DocumentPage() {
             </div>
             <div className="flex items-center gap-2">
               <p className="text-gray-500">Est. Time Left:</p>
-              <p className="whitespace-nowrap font-medium">
-                {niceSeconds(totalTimeLeftSeconds)}
-              </p>
+              <p className="whitespace-nowrap font-medium">{niceSeconds(totalTimeLeftSeconds)}</p>
             </div>
           </div>
         )}

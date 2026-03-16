@@ -8,6 +8,6 @@
 import type { GetSearchSource } from './getSearchSource';
 
 export type GetSearchParams = {
-query: string;
-source: GetSearchSource;
+  query: string;
+  source: GetSearchSource;
 };

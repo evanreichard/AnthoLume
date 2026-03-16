@@ -6,8 +6,8 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export type PostAdminActionBodyAction = typeof PostAdminActionBodyAction[keyof typeof PostAdminActionBodyAction];
-
+export type PostAdminActionBodyAction =
+  (typeof PostAdminActionBodyAction)[keyof typeof PostAdminActionBodyAction];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const PostAdminActionBodyAction = {

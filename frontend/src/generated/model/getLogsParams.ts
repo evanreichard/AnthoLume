@@ -7,5 +7,5 @@
  */
 
 export type GetLogsParams = {
-filter?: string;
+  filter?: string;
 };

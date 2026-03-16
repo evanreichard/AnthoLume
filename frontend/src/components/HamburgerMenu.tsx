@@ -44,36 +44,39 @@ export default function HamburgerMenu() {
         className="absolute -top-2 z-50 flex size-7 cursor-pointer opacity-0 lg:hidden"
         id="mobile-nav-checkbox"
         checked={isOpen}
-        onChange={(e) => setIsOpen(e.target.checked)}
+        onChange={e => setIsOpen(e.target.checked)}
       />
-      
+
       {/* Hamburger icon lines with CSS animations - hidden on desktop */}
       <span
-        className="transition-background z-40 mt-0.5 h-0.5 w-7 bg-black transition-opacity transition-transform duration-500 lg:hidden dark:bg-white"
+        className="z-40 mt-0.5 h-0.5 w-7 bg-black transition-opacity duration-500 lg:hidden dark:bg-white"
         style={{
           transformOrigin: '5px 0px',
-          transition: 'transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), background 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), opacity 0.55s ease',
+          transition:
+            'transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), background 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), opacity 0.55s ease',
           transform: isOpen ? 'rotate(45deg) translate(2px, -2px)' : 'none',
         }}
       />
       <span
-        className="transition-background z-40 mt-1 h-0.5 w-7 bg-black transition-opacity transition-transform duration-500 lg:hidden dark:bg-white"
+        className="z-40 mt-1 h-0.5 w-7 bg-black transition-opacity duration-500 lg:hidden dark:bg-white"
         style={{
           transformOrigin: '0% 100%',
-          transition: 'transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), background 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), opacity 0.55s ease',
+          transition:
+            'transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), background 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), opacity 0.55s ease',
           opacity: isOpen ? 0 : 1,
           transform: isOpen ? 'rotate(0deg) scale(0.2, 0.2)' : 'none',
         }}
       />
       <span
-        className="transition-background z-40 mt-1 h-0.5 w-7 bg-black transition-opacity transition-transform duration-500 lg:hidden dark:bg-white"
+        className="z-40 mt-1 h-0.5 w-7 bg-black transition-opacity duration-500 lg:hidden dark:bg-white"
         style={{
           transformOrigin: '0% 0%',
-          transition: 'transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), background 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), opacity 0.55s ease',
+          transition:
+            'transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), background 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), opacity 0.55s ease',
           transform: isOpen ? 'rotate(-45deg) translate(0, 6px)' : 'none',
         }}
       />
-      
+
       {/* Navigation menu with slide animation */}
       <div
         id="menu"
@@ -102,7 +105,7 @@ export default function HamburgerMenu() {
           </p>
         </div>
         <nav>
-          {navItems.map((item) => (
+          {navItems.map(item => (
             <Link
               key={item.path}
               to={item.path}
@@ -117,14 +120,16 @@ export default function HamburgerMenu() {
               <span className="mx-4 text-sm font-normal">{item.label}</span>
             </Link>
           ))}
-          
+
           {/* Admin section - only visible for admins */}
           {isAdmin && (
-            <div className={`my-2 flex flex-col gap-4 border-l-4 p-2 pl-6 transition-colors duration-200 ${
-              hasPrefix(location.pathname, '/admin')
-                ? 'border-purple-500 dark:text-white'
-                : 'border-transparent text-gray-400'
-            }`}>
+            <div
+              className={`my-2 flex flex-col gap-4 border-l-4 p-2 pl-6 transition-colors duration-200 ${
+                hasPrefix(location.pathname, '/admin')
+                  ? 'border-purple-500 dark:text-white'
+                  : 'border-transparent text-gray-400'
+              }`}
+            >
               {/* Admin header - always shown */}
               <Link
                 to="/admin"
@@ -138,10 +143,10 @@ export default function HamburgerMenu() {
                 <Settings size={20} />
                 <span className="mx-4 text-sm font-normal">Admin</span>
               </Link>
-              
+
               {hasPrefix(location.pathname, '/admin') && (
                 <div className="flex flex-col gap-4">
-                  {adminSubItems.map((item) => (
+                  {adminSubItems.map(item => (
                     <Link
                       key={item.path}
                       to={item.path}
@@ -164,7 +169,8 @@ export default function HamburgerMenu() {
         <a
           className="absolute bottom-0 flex w-full flex-col items-center justify-center gap-2 p-6 text-black dark:text-white"
           target="_blank"
-          href="https://gitea.va.reichard.io/evan/AnthoLume" rel="noreferrer"
+          href="https://gitea.va.reichard.io/evan/AnthoLume"
+          rel="noreferrer"
         >
           <span className="text-xs">v1.0.0</span>
         </a>

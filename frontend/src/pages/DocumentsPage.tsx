@@ -22,7 +22,7 @@ interface DocumentCardProps {
 function DocumentCard({ doc }: DocumentCardProps) {
   const percentage = doc.percentage || 0;
   const totalTimeSeconds = doc.total_time_seconds || 0;
-  
+
   // Convert seconds to nice format (e.g., "2h 30m")
   const niceSeconds = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
@@ -35,9 +35,7 @@ function DocumentCard({ doc }: DocumentCardProps) {
 
   return (
     <div className="relative w-full">
-      <div
-        className="flex size-full gap-4 rounded bg-white p-4 shadow-lg dark:bg-gray-700"
-      >
+      <div className="flex size-full gap-4 rounded bg-white p-4 shadow-lg dark:bg-gray-700">
         <div className="relative my-auto h-48 min-w-fit">
           <Link to={`/documents/${doc.id}`}>
             <img
@@ -51,13 +49,13 @@ function DocumentCard({ doc }: DocumentCardProps) {
           <div className="inline-flex shrink-0 items-center">
             <div>
               <p className="text-gray-400">Title</p>
-              <p className="font-medium">{doc.title || "Unknown"}</p>
+              <p className="font-medium">{doc.title || 'Unknown'}</p>
             </div>
           </div>
           <div className="inline-flex shrink-0 items-center">
             <div>
               <p className="text-gray-400">Author</p>
-              <p className="font-medium">{doc.author || "Unknown"}</p>
+              <p className="font-medium">{doc.author || 'Unknown'}</p>
             </div>
           </div>
           <div className="inline-flex shrink-0 items-center">
@@ -73,9 +71,7 @@ function DocumentCard({ doc }: DocumentCardProps) {
             </div>
           </div>
         </div>
-        <div
-          className="absolute bottom-4 right-4 flex flex-col gap-2 text-gray-500 dark:text-gray-400"
-        >
+        <div className="absolute bottom-4 right-4 flex flex-col gap-2 text-gray-500 dark:text-gray-400">
           <Link to={`/activity?document=${doc.id}`}>
             <Activity size={20} />
           </Link>
@@ -91,10 +87,6 @@ function DocumentCard({ doc }: DocumentCardProps) {
     </div>
   );
 }
-
-
-
-
 
 export default function DocumentsPage() {
   const [search, setSearch] = useState('');
@@ -152,21 +144,17 @@ export default function DocumentsPage() {
   return (
     <div className="flex flex-col gap-4">
       {/* Search Form */}
-      <div
-        className="mb-4 flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
-      >
+      <div className="mb-4 flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white">
         <form className="flex flex-col gap-4 lg:flex-row" onSubmit={handleSubmit}>
           <div className="flex w-full grow flex-col">
             <div className="relative flex">
-              <span
-                className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm"
-              >
+              <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
                 <Search size={15} />
               </span>
               <input
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={e => setSearch(e.target.value)}
                 className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white p-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
                 placeholder="Search Author / Title"
                 name="search"
@@ -174,7 +162,9 @@ export default function DocumentsPage() {
             </div>
           </div>
           <div className="lg:w-60">
-            <Button variant="secondary" type="submit">Search</Button>
+            <Button variant="secondary" type="submit">
+              Search
+            </Button>
           </div>
         </form>
       </div>
@@ -207,12 +197,10 @@ export default function DocumentsPage() {
       </div>
 
       {/* Upload Button */}
-      <div
-        className="fixed bottom-6 right-6 flex items-center justify-center rounded-full"
-      >
-        <input 
-          type="checkbox" 
-          id="upload-file-button" 
+      <div className="fixed bottom-6 right-6 flex items-center justify-center rounded-full">
+        <input
+          type="checkbox"
+          id="upload-file-button"
           className="hidden"
           checked={uploadMode}
           onChange={() => setUploadMode(!uploadMode)}
@@ -220,11 +208,7 @@ export default function DocumentsPage() {
         <div
           className={`absolute bottom-0 right-0 z-10 flex w-72 flex-col gap-2 rounded bg-gray-800 p-4 text-sm text-white transition-opacity duration-200 dark:bg-gray-200 dark:text-black ${uploadMode ? 'visible opacity-100' : 'invisible opacity-0'}`}
         >
-          <form
-            method="POST"
-            encType="multipart/form-data"
-            className="flex flex-col gap-2"
-          >
+          <form method="POST" encType="multipart/form-data" className="flex flex-col gap-2">
             <input
               type="file"
               accept=".epub"
@@ -236,7 +220,7 @@ export default function DocumentsPage() {
             <button
               className="bg-gray-500 px-2 py-1 font-medium text-gray-800 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-800"
               type="submit"
-              onClick={(e) => {
+              onClick={e => {
                 e.preventDefault();
                 handleFileChange({ target: { files: fileInputRef.current?.files } } as any);
               }}

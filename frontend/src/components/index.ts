@@ -4,13 +4,13 @@ export { ToastProvider, useToasts } from './ToastContext';
 export type { ToastType, ToastProps } from './Toast';
 
 // Skeleton components
-export { 
-  Skeleton, 
-  SkeletonText, 
-  SkeletonAvatar, 
-  SkeletonCard, 
-  SkeletonTable, 
+export {
+  Skeleton,
+  SkeletonText,
+  SkeletonAvatar,
+  SkeletonCard,
+  SkeletonTable,
   SkeletonButton,
   PageLoader,
-  InlineLoader 
+  InlineLoader,
 } from './Skeleton';

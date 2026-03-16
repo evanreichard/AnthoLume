@@ -124,10 +124,10 @@ Card placeholder with optional elements:
 <SkeletonCard showAvatar />
 
 // Custom configuration
-<SkeletonCard 
-  showAvatar 
-  showTitle 
-  showText 
+<SkeletonCard
+  showAvatar
+  showTitle
+  showText
   textLines={4}
   className="max-w-sm"
 />
@@ -183,12 +183,7 @@ function DocumentList() {
     return <SkeletonTable rows={10} columns={5} />;
   }
 
-  return (
-    <Table
-      columns={columns}
-      data={data?.documents || []}
-    />
-  );
+  return <Table columns={columns} data={data?.documents || []} />;
 }
 ```
 

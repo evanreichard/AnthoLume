@@ -6,8 +6,7 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export type BackupType = typeof BackupType[keyof typeof BackupType];
-
+export type BackupType = (typeof BackupType)[keyof typeof BackupType];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const BackupType = {

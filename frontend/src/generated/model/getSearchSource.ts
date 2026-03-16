@@ -6,8 +6,7 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export type GetSearchSource = typeof GetSearchSource[keyof typeof GetSearchSource];
-
+export type GetSearchSource = (typeof GetSearchSource)[keyof typeof GetSearchSource];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const GetSearchSource = {

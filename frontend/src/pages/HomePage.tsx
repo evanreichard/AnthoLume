@@ -21,7 +21,7 @@ function InfoCard({ title, size, link }: InfoCardProps) {
       </Link>
     );
   }
-  
+
   return (
     <div className="w-full">
       <div className="flex w-full gap-4 rounded bg-white p-4 shadow-lg dark:bg-gray-700">
@@ -44,7 +44,15 @@ interface StreakCardProps {
   maxStreakEndDate: string;
 }
 
-function StreakCard({ window, currentStreak, currentStreakStartDate, currentStreakEndDate, maxStreak, maxStreakStartDate, maxStreakEndDate }: StreakCardProps) {
+function StreakCard({
+  window,
+  currentStreak,
+  currentStreakStartDate,
+  currentStreakEndDate,
+  maxStreak,
+  maxStreakStartDate,
+  maxStreakEndDate,
+}: StreakCardProps) {
   return (
     <div className="w-full">
       <div className="relative w-full rounded bg-white px-4 py-6 shadow-lg dark:bg-gray-700">
@@ -101,20 +109,22 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
             </div>
           </div>
         </div>
-        
+
         {/* All time data */}
         <div className="my-6 flex items-end space-x-2">
           {data.all.length === 0 ? (
             <p className="text-5xl font-bold text-black dark:text-white">N/A</p>
           ) : (
-            <p className="text-5xl font-bold text-black dark:text-white">{data.all[0]?.user_id || 'N/A'}</p>
+            <p className="text-5xl font-bold text-black dark:text-white">
+              {data.all[0]?.user_id || 'N/A'}
+            </p>
           )}
         </div>
-        
+
         <div className="dark:text-white">
           {data.all.slice(0, 3).map((item: any, index: number) => (
-            <div 
-              key={index} 
+            <div
+              key={index}
               className={`flex items-center justify-between py-2 text-sm ${index > 0 ? 'border-t border-gray-200' : ''}`}
             >
               <div>
@@ -140,7 +150,7 @@ function GraphVisualization({ data }: { data: GraphDataPoint[] }) {
 
   // Simple bar visualization (could be enhanced with SVG bezier curve like SSR)
   const maxMinutes = Math.max(...data.map(d => d.minutes_read), 1);
-  
+
   return (
     <div className="relative flex h-24 items-end justify-between bg-gray-100 p-2 dark:bg-gray-600">
       {data.map((point, i) => (
@@ -161,7 +171,7 @@ function GraphVisualization({ data }: { data: GraphDataPoint[] }) {
 export default function HomePage() {
   const { data: homeData, isLoading: homeLoading } = useGetHome();
   const { data: docsData, isLoading: docsLoading } = useGetDocuments({ page: 1, limit: 9 });
-  
+
   const docs = docsData?.data?.documents;
   const dbInfo = homeData?.data?.database_info;
   const streaks = homeData?.data?.streaks?.streaks;
@@ -186,31 +196,16 @@ export default function HomePage() {
 
       {/* Info Cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <InfoCard
-          title="Documents"
-          size={dbInfo?.documents_size || 0}
-          link="./documents"
-        />
-        <InfoCard
-          title="Activity Records"
-          size={dbInfo?.activity_size || 0}
-          link="./activity"
-        />
-        <InfoCard
-          title="Progress Records"
-          size={dbInfo?.progress_size || 0}
-          link="./progress"
-        />
-        <InfoCard
-          title="Devices"
-          size={dbInfo?.devices_size || 0}
-        />
+        <InfoCard title="Documents" size={dbInfo?.documents_size || 0} link="./documents" />
+        <InfoCard title="Activity Records" size={dbInfo?.activity_size || 0} link="./activity" />
+        <InfoCard title="Progress Records" size={dbInfo?.progress_size || 0} link="./progress" />
+        <InfoCard title="Devices" size={dbInfo?.devices_size || 0} />
       </div>
 
       {/* Streak Cards */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {streaks?.map((streak: any, index) => (
-          <StreakCard 
+          <StreakCard
             key={index}
             window={streak.window as 'DAY' | 'WEEK'}
             currentStreak={streak.current_streak}
@@ -225,20 +220,20 @@ export default function HomePage() {
 
       {/* Leaderboard Cards */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <LeaderboardCard 
-          name="WPM" 
-          data={userStats?.wpm || { all: [], year: [], month: [], week: []}} 
+        <LeaderboardCard
+          name="WPM"
+          data={userStats?.wpm || { all: [], year: [], month: [], week: [] }}
         />
-        <LeaderboardCard 
-          name="Duration" 
-          data={userStats?.duration || { all: [], year: [], month: [], week: []}} 
+        <LeaderboardCard
+          name="Duration"
+          data={userStats?.duration || { all: [], year: [], month: [], week: [] }}
         />
-        <LeaderboardCard 
-          name="Words" 
-          data={userStats?.words || { all: [], year: [], month: [], week: []}} 
+        <LeaderboardCard
+          name="Words"
+          data={userStats?.words || { all: [], year: [], month: [], week: [] }}
         />
       </div>
-      
+
       {/* Recent Documents */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {docs?.slice(0, 6).map((doc: any) => (

@@ -7,8 +7,8 @@
  */
 
 export type GetActivityParams = {
-doc_filter?: boolean;
-document_id?: string;
-offset?: number;
-limit?: number;
+  doc_filter?: boolean;
+  document_id?: string;
+  offset?: number;
+  limit?: number;
 };

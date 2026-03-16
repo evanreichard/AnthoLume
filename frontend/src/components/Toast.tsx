@@ -11,9 +11,10 @@ export interface ToastProps {
   onClose?: (id: string) => void;
 }
 
-const getToastStyles = (type: ToastType) => {
-  const baseStyles = 'flex items-center gap-3 p-4 rounded-lg shadow-lg border-l-4 transition-all duration-300';
-  
+const getToastStyles = (_type: ToastType) => {
+  const baseStyles =
+    'flex items-center gap-3 p-4 rounded-lg shadow-lg border-l-4 transition-all duration-300';
+
   const typeStyles = {
     info: 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 dark:border-blue-400',
     warning: 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-500 dark:border-yellow-400',
@@ -69,15 +70,11 @@ export function Toast({ id, type, message, duration = 5000, onClose }: ToastProp
   return (
     <div
       className={`${baseStyles} ${typeStyles[type]} ${
-        isAnimatingOut 
-          ? 'translate-x-full opacity-0' 
-          : 'animate-slideInRight opacity-100'
+        isAnimatingOut ? 'translate-x-full opacity-0' : 'animate-slideInRight opacity-100'
       }`}
     >
       {icons[type]}
-      <p className={`flex-1 text-sm font-medium ${textStyles[type]}`}>
-        {message}
-      </p>
+      <p className={`flex-1 text-sm font-medium ${textStyles[type]}`}>{message}</p>
       <button
         onClick={handleClose}
         className={`ml-2 opacity-70 transition-opacity hover:opacity-100 ${textStyles[type]}`}
