@@ -195,16 +195,22 @@ type DirectoryListResponse struct {
 
 // Document defines model for Document.
 type Document struct {
-	Author           string    `json:"author"`
-	CreatedAt        time.Time `json:"created_at"`
-	Deleted          bool      `json:"deleted"`
-	Filepath         *string   `json:"filepath,omitempty"`
-	Id               string    `json:"id"`
-	Percentage       *float32  `json:"percentage,omitempty"`
-	Title            string    `json:"title"`
-	TotalTimeSeconds *int64    `json:"total_time_seconds,omitempty"`
-	UpdatedAt        time.Time `json:"updated_at"`
-	Words            *int64    `json:"words,omitempty"`
+	Author            string     `json:"author"`
+	CreatedAt         time.Time  `json:"created_at"`
+	Deleted           bool       `json:"deleted"`
+	Description       *string    `json:"description,omitempty"`
+	Filepath          *string    `json:"filepath,omitempty"`
+	Id                string     `json:"id"`
+	Isbn10            *string    `json:"isbn10,omitempty"`
+	Isbn13            *string    `json:"isbn13,omitempty"`
+	LastRead          *time.Time `json:"last_read,omitempty"`
+	Percentage        *float32   `json:"percentage,omitempty"`
+	SecondsPerPercent *int64     `json:"seconds_per_percent,omitempty"`
+	Title             string     `json:"title"`
+	TotalTimeSeconds  *int64     `json:"total_time_seconds,omitempty"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	Words             *int64     `json:"words,omitempty"`
+	Wpm               *float32   `json:"wpm,omitempty"`
 }
 
 // DocumentResponse defines model for DocumentResponse.
@@ -372,6 +378,13 @@ type StreaksResponse struct {
 	User    UserData     `json:"user"`
 }
 
+// UpdateSettingsRequest defines model for UpdateSettingsRequest.
+type UpdateSettingsRequest struct {
+	NewPassword *string `json:"new_password,omitempty"`
+	Password    *string `json:"password,omitempty"`
+	Timezone    *string `json:"timezone,omitempty"`
+}
+
 // User defines model for User.
 type User struct {
 	Admin     bool      `json:"admin"`
@@ -512,6 +525,9 @@ type CreateDocumentMultipartRequestBody CreateDocumentMultipartBody
 // PostSearchFormdataRequestBody defines body for PostSearch for application/x-www-form-urlencoded ContentType.
 type PostSearchFormdataRequestBody PostSearchFormdataBody
 
+// UpdateSettingsJSONRequestBody defines body for UpdateSettings for application/json ContentType.
+type UpdateSettingsJSONRequestBody = UpdateSettingsRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Get activity data
@@ -586,6 +602,9 @@ type ServerInterface interface {
 	// Get user settings
 	// (GET /settings)
 	GetSettings(w http.ResponseWriter, r *http.Request)
+	// Update user settings
+	// (PUT /settings)
+	UpdateSettings(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -1257,6 +1276,26 @@ func (siw *ServerInterfaceWrapper) GetSettings(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// UpdateSettings operation middleware
+func (siw *ServerInterfaceWrapper) UpdateSettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -1401,6 +1440,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/search", wrapper.GetSearch)
 	m.HandleFunc("POST "+options.BaseURL+"/search", wrapper.PostSearch)
 	m.HandleFunc("GET "+options.BaseURL+"/settings", wrapper.GetSettings)
+	m.HandleFunc("PUT "+options.BaseURL+"/settings", wrapper.UpdateSettings)
 
 	return m
 }
@@ -2290,6 +2330,50 @@ func (response GetSettings500JSONResponse) VisitGetSettingsResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type UpdateSettingsRequestObject struct {
+	Body *UpdateSettingsJSONRequestBody
+}
+
+type UpdateSettingsResponseObject interface {
+	VisitUpdateSettingsResponse(w http.ResponseWriter) error
+}
+
+type UpdateSettings200JSONResponse SettingsResponse
+
+func (response UpdateSettings200JSONResponse) VisitUpdateSettingsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSettings400JSONResponse ErrorResponse
+
+func (response UpdateSettings400JSONResponse) VisitUpdateSettingsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSettings401JSONResponse ErrorResponse
+
+func (response UpdateSettings401JSONResponse) VisitUpdateSettingsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSettings500JSONResponse ErrorResponse
+
+func (response UpdateSettings500JSONResponse) VisitUpdateSettingsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// Get activity data
@@ -2364,6 +2448,9 @@ type StrictServerInterface interface {
 	// Get user settings
 	// (GET /settings)
 	GetSettings(ctx context.Context, request GetSettingsRequestObject) (GetSettingsResponseObject, error)
+	// Update user settings
+	// (PUT /settings)
+	UpdateSettings(ctx context.Context, request UpdateSettingsRequestObject) (UpdateSettingsResponseObject, error)
 }
 
 type StrictHandlerFunc = strictnethttp.StrictHTTPHandlerFunc
@@ -3038,6 +3125,37 @@ func (sh *strictHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetSettingsResponseObject); ok {
 		if err := validResponse.VisitGetSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateSettings operation middleware
+func (sh *strictHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
+	var request UpdateSettingsRequestObject
+
+	var body UpdateSettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateSettings(ctx, request.(UpdateSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateSettingsResponseObject); ok {
+		if err := validResponse.VisitUpdateSettingsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

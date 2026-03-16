@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useGetImportDirectory, usePostImport } from '../generated/anthoLumeAPIV1';
 import { Button } from '../components/Button';
 import { FolderOpen } from 'lucide-react';
+import { useToasts } from '../components/ToastContext';
 
 export default function AdminImportPage() {
   const [currentPath, setCurrentPath] = useState<string>('');
   const [selectedDirectory, setSelectedDirectory] = useState<string>('');
   const [importType, setImportType] = useState<'DIRECT' | 'COPY'>('DIRECT');
+  const { showInfo, showError } = useToasts();
 
   const { data: directoryData, isLoading } = useGetImportDirectory(
     currentPath ? { directory: currentPath } : {}
@@ -41,13 +43,14 @@ export default function AdminImportPage() {
       },
       {
         onSuccess: (response) => {
-          console.log('Import completed:', response.data);
-          // Redirect to import results page
-          window.location.href = '/admin/import-results';
+          showInfo('Import completed successfully');
+          // Redirect to import results page after a short delay
+          setTimeout(() => {
+            window.location.href = '/admin/import-results';
+          }, 1500);
         },
         onError: (error) => {
-          console.error('Import failed:', error);
-          alert('Import failed: ' + (error as any).message);
+          showError('Import failed: ' + (error as any).message);
         },
       }
     );

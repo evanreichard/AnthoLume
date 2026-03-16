@@ -10,6 +10,9 @@ export interface Document {
   id: string;
   title: string;
   author: string;
+  description?: string;
+  isbn10?: string;
+  isbn13?: string;
   created_at: string;
   updated_at: string;
   deleted: boolean;
@@ -17,4 +20,7 @@ export interface Document {
   filepath?: string;
   percentage?: number;
   total_time_seconds?: number;
+  wpm?: number;
+  seconds_per_percent?: number;
+  last_read?: string;
 }

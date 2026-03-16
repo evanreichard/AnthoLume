@@ -1,10 +1,12 @@
 import { useState, FormEvent } from 'react';
 import { useGetUsers, useUpdateUser } from '../generated/anthoLumeAPIV1';
 import { Plus, Trash2 } from 'lucide-react';
+import { useToasts } from '../components/ToastContext';
 
 export default function AdminUsersPage() {
   const { data: usersData, isLoading, refetch } = useGetUsers({});
   const updateUser = useUpdateUser();
+  const { showInfo, showError } = useToasts();
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [newUsername, setNewUsername] = useState('');
@@ -16,7 +18,7 @@ export default function AdminUsersPage() {
   const handleCreateUser = (e: FormEvent) => {
     e.preventDefault();
     if (!newUsername || !newPassword) return;
-    
+
     updateUser.mutate(
       {
         data: {
@@ -28,6 +30,7 @@ export default function AdminUsersPage() {
       },
       {
         onSuccess: () => {
+          showInfo('User created successfully');
           setShowAddForm(false);
           setNewUsername('');
           setNewPassword('');
@@ -35,7 +38,7 @@ export default function AdminUsersPage() {
           refetch();
         },
         onError: (error: any) => {
-          alert('Failed to create user: ' + error.message);
+          showError('Failed to create user: ' + error.message);
         },
       }
     );
@@ -51,10 +54,11 @@ export default function AdminUsersPage() {
       },
       {
         onSuccess: () => {
+          showInfo('User deleted successfully');
           refetch();
         },
         onError: (error: any) => {
-          alert('Failed to delete user: ' + error.message);
+          showError('Failed to delete user: ' + error.message);
         },
       }
     );
@@ -73,10 +77,11 @@ export default function AdminUsersPage() {
       },
       {
         onSuccess: () => {
+          showInfo('Password updated successfully');
           refetch();
         },
         onError: (error: any) => {
-          alert('Failed to update password: ' + error.message);
+          showError('Failed to update password: ' + error.message);
         },
       }
     );
@@ -93,10 +98,12 @@ export default function AdminUsersPage() {
       },
       {
         onSuccess: () => {
+          const role = isAdmin ? 'admin' : 'user';
+          showInfo(`User permissions updated to ${role}`);
           refetch();
         },
         onError: (error: any) => {
-          alert('Failed to update admin status: ' + error.message);
+          showError('Failed to update admin status: ' + error.message);
         },
       }
     );

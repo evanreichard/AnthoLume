@@ -18,6 +18,12 @@ components:
           type: string
         author:
           type: string
+        description:
+          type: string
+        isbn10:
+          type: string
+        isbn13:
+          type: string
         created_at:
           type: string
           format: date-time
@@ -37,6 +43,15 @@ components:
         total_time_seconds:
           type: integer
           format: int64
+        wpm:
+          type: number
+          format: float
+        seconds_per_percent:
+          type: integer
+          format: int64
+        last_read:
+          type: string
+          format: date-time
       required:
         - id
         - title
@@ -300,6 +315,16 @@ components:
       required:
         - settings
         - user
+
+    UpdateSettingsRequest:
+      type: object
+      properties:
+        password:
+          type: string
+        new_password:
+          type: string
+        timezone:
+          type: string
 
     LoginRequest:
       type: object
@@ -869,6 +894,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SettingsResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Update user settings
+      operationId: updateSettings
+      tags:
+        - Settings
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettingsRequest'
+      responses:
+        200:
+          description: Settings updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         401:
           description: Unauthorized
           content:
@@ -1462,4 +1525,3 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-

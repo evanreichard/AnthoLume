@@ -1,5 +1,8 @@
 # Agent Context Hints
 
+## Current Status
+Currently mid migration from go templates (`./templates`) to React App (`./frontend`)
+
 ## Architecture Context
 - **Backend**: Go with Gin router (legacy), SQLC for database queries, currently migrating to V1 API (oapi-codegen)
 - **Frontend**: React with Vite, currently migrating from Go templates (using the V1 API)
@@ -32,3 +35,25 @@
 - API implementation may not map all fields from DB query (check `api/v1/activity.go` mapping)
 - `start_time` is `interface{}` in Go models, needs type assertion
 - Go templates use `LOCAL_TIME()` SQL function for timezone-aware display
+
+## CRITICAL: Migration Implementation Rules
+- **NEVER write ad-hoc SQL queries** - All database access must use existing SQLC queries from `database/query.sql`
+- **Mirror legacy implementation** - Check `api/app-admin-routes.go`, `api/app-routes.go` for existing business logic
+- **Reuse existing functions** - Look for helper functions in `api/utils.go` that handle file operations, metadata, etc.
+- **SQLC query reference** - Check `database/query.sql` for available queries and `database/query.sql.go` for function signatures
+- **When implementing TODOs in v1 API**:
+  1. Find the corresponding function in legacy API (e.g., `api/app-admin-routes.go`)
+  2. Copy the logic pattern but adapt to use `s.db.Queries.*` instead of `api.db.Queries.*`
+  3. Use existing helper functions from `api/utils.go` (make them accessible if needed)
+  4. Map legacy response types to new v1 API response types
+  5. Never create new database queries - use what SQLC already provides
+
+## API Structure
+- **Legacy API**: `api/` directory (e.g., `api/app-admin-routes.go`, `api/app-routes.go`)
+  - Uses Gin router
+  - Renders Go templates
+  - Contains all existing business logic to mirror
+- **V1 API**: `api/v1/` directory (e.g., `api/v1/admin.go`, `api/v1/documents.go`)
+  - Uses oapi-codegen (OpenAPI spec driven)
+  - Returns JSON responses
+  - Currently being migrated from legacy patterns

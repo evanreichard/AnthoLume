@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
@@ -63,13 +64,22 @@ func (s *Server) GetDocuments(ctx context.Context, request GetDocumentsRequestOb
 	wordCounts := make([]WordCount, 0, len(rows))
 	for i, row := range rows {
 		apiDocuments[i] = Document{
-			Id:        row.ID,
-			Title:     *row.Title,
-			Author:    *row.Author,
-			Words:     row.Words,
-			Filepath:  row.Filepath,
-			Percentage: ptrOf(float32(row.Percentage)),
-			TotalTimeSeconds: ptrOf(row.TotalTimeSeconds),
+			Id:                row.ID,
+			Title:             *row.Title,
+			Author:            *row.Author,
+			Description:       row.Description,
+			Isbn10:            row.Isbn10,
+			Isbn13:            row.Isbn13,
+			Words:             row.Words,
+			Filepath:          row.Filepath,
+			Percentage:        ptrOf(float32(row.Percentage)),
+			TotalTimeSeconds:  ptrOf(row.TotalTimeSeconds),
+			Wpm:               ptrOf(float32(row.Wpm)),
+			SecondsPerPercent: ptrOf(row.SecondsPerPercent),
+			LastRead:          parseInterfaceTime(row.LastRead),
+			CreatedAt:         time.Now(), // Will be overwritten if we had a proper created_at from DB
+			UpdatedAt:         time.Now(), // Will be overwritten if we had a proper updated_at from DB
+			Deleted:           false,     // Default, should be overridden if available
 		}
 		if row.Words != nil {
 			wordCounts = append(wordCounts, WordCount{
@@ -120,14 +130,24 @@ func (s *Server) GetDocument(ctx context.Context, request GetDocumentRequestObje
 		}
 	}
 
+	var percentage *float32
+	if progress != nil && progress.Percentage != nil {
+		percentage = ptrOf(float32(*progress.Percentage))
+	}
+
 	apiDoc := Document{
-		Id:        doc.ID,
-		Title:     *doc.Title,
-		Author:    *doc.Author,
-		CreatedAt: parseTime(doc.CreatedAt),
-		UpdatedAt: parseTime(doc.UpdatedAt),
-		Deleted:   doc.Deleted,
-		Words:     doc.Words,
+		Id:         doc.ID,
+		Title:      *doc.Title,
+		Author:     *doc.Author,
+		Description: doc.Description,
+		Isbn10:     doc.Isbn10,
+		Isbn13:     doc.Isbn13,
+		Words:      doc.Words,
+		Filepath:    doc.Filepath,
+		CreatedAt:  parseTime(doc.CreatedAt),
+		UpdatedAt:   parseTime(doc.UpdatedAt),
+		Deleted:    doc.Deleted,
+		Percentage: percentage,
 	}
 
 	response := DocumentResponse{
@@ -156,6 +176,25 @@ func deriveBaseFileName(metadataInfo *metadata.MetadataInfo) string {
 	// Remove Slashes
 	fileName := strings.ReplaceAll(newFileName, "/", "")
 	return "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, *metadataInfo.PartialMD5, metadataInfo.Type))
+}
+
+// parseInterfaceTime converts an interface{} to time.Time for SQLC queries
+func parseInterfaceTime(t interface{}) *time.Time {
+	if t == nil {
+		return nil
+	}
+	switch v := t.(type) {
+	case string:
+		parsed, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			return nil
+		}
+		return &parsed
+	case time.Time:
+		return &v
+	default:
+		return nil
+	}
 }
 
 // POST /documents
@@ -232,13 +271,17 @@ func (s *Server) CreateDocument(ctx context.Context, request CreateDocumentReque
 		// Document already exists
 		existingDoc, _ := s.db.Queries.GetDocument(ctx, *metadataInfo.PartialMD5)
 		apiDoc := Document{
-			Id:        existingDoc.ID,
-			Title:     *existingDoc.Title,
-			Author:    *existingDoc.Author,
-			CreatedAt: parseTime(existingDoc.CreatedAt),
-			UpdatedAt: parseTime(existingDoc.UpdatedAt),
-			Deleted:   existingDoc.Deleted,
-			Words:     existingDoc.Words,
+			Id:         existingDoc.ID,
+			Title:      *existingDoc.Title,
+			Author:     *existingDoc.Author,
+			Description: existingDoc.Description,
+			Isbn10:     existingDoc.Isbn10,
+			Isbn13:     existingDoc.Isbn13,
+			Words:      existingDoc.Words,
+			Filepath:    existingDoc.Filepath,
+			CreatedAt:  parseTime(existingDoc.CreatedAt),
+			UpdatedAt:   parseTime(existingDoc.UpdatedAt),
+			Deleted:    existingDoc.Deleted,
 		}
 		response := DocumentResponse{
 			Document: apiDoc,
@@ -276,13 +319,17 @@ func (s *Server) CreateDocument(ctx context.Context, request CreateDocumentReque
 	}
 
 	apiDoc := Document{
-		Id:        doc.ID,
-		Title:     *doc.Title,
-		Author:    *doc.Author,
-		CreatedAt: parseTime(doc.CreatedAt),
-		UpdatedAt: parseTime(doc.UpdatedAt),
-		Deleted:   doc.Deleted,
-		Words:     doc.Words,
+		Id:         doc.ID,
+		Title:      *doc.Title,
+		Author:     *doc.Author,
+		Description: doc.Description,
+		Isbn10:     doc.Isbn10,
+		Isbn13:     doc.Isbn13,
+		Words:      doc.Words,
+		Filepath:    doc.Filepath,
+		CreatedAt:  parseTime(doc.CreatedAt),
+		UpdatedAt:   parseTime(doc.UpdatedAt),
+		Deleted:    doc.Deleted,
 	}
 
 	response := DocumentResponse{

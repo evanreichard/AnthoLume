@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { useGetAdmin, usePostAdminAction } from '../generated/anthoLumeAPIV1';
 import { Button } from '../components/Button';
+import { useToasts } from '../components/ToastContext';
 
 interface BackupTypes {
   covers: boolean;
@@ -10,14 +11,13 @@ interface BackupTypes {
 export default function AdminPage() {
   const { isLoading } = useGetAdmin();
   const postAdminAction = usePostAdminAction();
+  const { showInfo, showError } = useToasts();
 
   const [backupTypes, setBackupTypes] = useState<BackupTypes>({
     covers: false,
     documents: false,
   });
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleBackupSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -42,12 +42,10 @@ export default function AdminPage() {
           document.body.appendChild(link);
           link.click();
           link.remove();
-          setMessage('Backup completed successfully');
-          setErrorMessage(null);
+          showInfo('Backup completed successfully');
         },
         onError: (error) => {
-          setErrorMessage('Backup failed: ' + (error as any).message);
-          setMessage(null);
+          showError('Backup failed: ' + (error as any).message);
         },
       }
     );
@@ -67,12 +65,10 @@ export default function AdminPage() {
       },
       {
         onSuccess: () => {
-          setMessage('Restore completed successfully');
-          setErrorMessage(null);
+          showInfo('Restore completed successfully');
         },
         onError: (error) => {
-          setErrorMessage('Restore failed: ' + (error as any).message);
-          setMessage(null);
+          showError('Restore failed: ' + (error as any).message);
         },
       }
     );
@@ -87,12 +83,10 @@ export default function AdminPage() {
       },
       {
         onSuccess: () => {
-          setMessage('Metadata matching started');
-          setErrorMessage(null);
+          showInfo('Metadata matching started');
         },
         onError: (error) => {
-          setErrorMessage('Metadata matching failed: ' + (error as any).message);
-          setMessage(null);
+          showError('Metadata matching failed: ' + (error as any).message);
         },
       }
     );
@@ -107,12 +101,10 @@ export default function AdminPage() {
       },
       {
         onSuccess: () => {
-          setMessage('Cache tables started');
-          setErrorMessage(null);
+          showInfo('Cache tables started');
         },
         onError: (error) => {
-          setErrorMessage('Cache tables failed: ' + (error as any).message);
-          setMessage(null);
+          showError('Cache tables failed: ' + (error as any).message);
         },
       }
     );
@@ -175,12 +167,6 @@ export default function AdminPage() {
             </div>
           </form>
         </div>
-        {errorMessage && (
-          <span className="text-red-400 text-xs">{errorMessage}</span>
-        )}
-        {message && (
-          <span className="text-green-400 text-xs">{message}</span>
-        )}
       </div>
 
       {/* Tasks Card */}

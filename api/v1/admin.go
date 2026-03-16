@@ -1,8 +1,27 @@
 package v1
 
 import (
+	"archive/zip"
+	"bufio"
 	"context"
+	"crypto/md5"
+	"encoding/json"
+	"fmt"
+	"io"
+	"io/fs"
+	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"time"
+
+	argon2 "github.com/alexedwards/argon2id"
+	"github.com/itchyny/gojq"
+	log "github.com/sirupsen/logrus"
+	"reichard.io/antholume/database"
+	"reichard.io/antholume/metadata"
+	"reichard.io/antholume/utils"
 )
 
 // GET /admin
@@ -12,15 +31,36 @@ func (s *Server) GetAdmin(ctx context.Context, request GetAdminRequestObject) (G
 		return GetAdmin401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
 	}
 
-	// Get database info from the main API
-	// This is a placeholder - you'll need to implement this in the main API or database
-	// For now, return empty data
+	// Get documents count using existing SQLC query
+	documentsSize, err := s.db.Queries.GetDocumentsSize(ctx, nil)
+	if err != nil {
+		return GetAdmin401JSONResponse{Code: 500, Message: err.Error()}, nil
+	}
+
+	// For other counts, we need to aggregate across all users
+	// Get all users first
+	users, err := s.db.Queries.GetUsers(ctx)
+	if err != nil {
+		return GetAdmin401JSONResponse{Code: 500, Message: err.Error()}, nil
+	}
+
+	var activitySize, progressSize, devicesSize int64
+	for _, user := range users {
+		// Get user's database info using existing SQLC query
+		dbInfo, err := s.db.Queries.GetDatabaseInfo(ctx, user.ID)
+		if err == nil {
+			activitySize += dbInfo.ActivitySize
+			progressSize += dbInfo.ProgressSize
+			devicesSize += dbInfo.DevicesSize
+		}
+	}
+
 	response := GetAdmin200JSONResponse{
 		DatabaseInfo: &DatabaseInfo{
-			DocumentsSize: 0,
-			ActivitySize:  0,
-			ProgressSize:  0,
-			DevicesSize:   0,
+			DocumentsSize: documentsSize,
+			ActivitySize:  activitySize,
+			ProgressSize:  progressSize,
+			DevicesSize:   devicesSize,
 		},
 	}
 	return response, nil
@@ -33,9 +73,326 @@ func (s *Server) PostAdminAction(ctx context.Context, request PostAdminActionReq
 		return PostAdminAction401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
 	}
 
-	// TODO: Implement admin actions (backup, restore, etc.)
-	// For now, this is a placeholder
-	return PostAdminAction200ApplicationoctetStreamResponse{}, nil
+	if request.Body == nil {
+		return PostAdminAction400JSONResponse{Code: 400, Message: "Missing request body"}, nil
+	}
+
+	// Handle different admin actions mirroring legacy appPerformAdminAction
+	switch request.Body.Action {
+	case "METADATA_MATCH":
+		// This is a TODO in the legacy code as well
+		go func() {
+			// TODO: Implement metadata matching logic
+			log.Info("Metadata match action triggered (not yet implemented)")
+		}()
+		return PostAdminAction200ApplicationoctetStreamResponse{
+			Body: strings.NewReader("Metadata match started"),
+		}, nil
+
+	case "CACHE_TABLES":
+		// Cache temp tables asynchronously, matching legacy implementation
+		go func() {
+			err := s.db.CacheTempTables(context.Background())
+			if err != nil {
+				log.Error("Unable to cache temp tables: ", err)
+			}
+		}()
+		return PostAdminAction200ApplicationoctetStreamResponse{
+			Body: strings.NewReader("Cache tables operation started"),
+		}, nil
+
+	case "BACKUP":
+		return s.handleBackupAction(ctx, request)
+
+	case "RESTORE":
+		return s.handleRestoreAction(ctx, request)
+
+	default:
+		return PostAdminAction400JSONResponse{Code: 400, Message: "Invalid action"}, nil
+	}
+}
+
+// handleBackupAction handles the backup action, mirroring legacy createBackup logic
+func (s *Server) handleBackupAction(ctx context.Context, request PostAdminActionRequestObject) (PostAdminActionResponseObject, error) {
+	// Create a pipe for streaming the backup
+	pr, pw := io.Pipe()
+
+	go func() {
+		defer pw.Close()
+		var directories []string
+		if request.Body.BackupTypes != nil {
+			for _, item := range *request.Body.BackupTypes {
+				if item == "COVERS" {
+					directories = append(directories, "covers")
+				} else if item == "DOCUMENTS" {
+					directories = append(directories, "documents")
+				}
+			}
+		}
+		err := s.createBackup(ctx, pw, directories)
+		if err != nil {
+			log.Error("Backup Error: ", err)
+		}
+	}()
+
+	return PostAdminAction200ApplicationoctetStreamResponse{
+		Body: pr,
+	}, nil
+}
+
+// handleRestoreAction handles the restore action, mirroring legacy processRestoreFile logic
+func (s *Server) handleRestoreAction(ctx context.Context, request PostAdminActionRequestObject) (PostAdminActionResponseObject, error) {
+	if request.Body == nil || request.Body.RestoreFile == nil {
+		return PostAdminAction400JSONResponse{Code: 400, Message: "Missing restore file"}, nil
+	}
+
+	// Read multipart form (similar to CreateDocument)
+	// Since the Body has the file, we need to extract it differently
+	// The request.Body.RestoreFile is of type openapi_types.File
+
+	// For now, let's access the raw request from context
+	r := ctx.Value("request").(*http.Request)
+	if r == nil {
+		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to get request"}, nil
+	}
+
+	// Parse multipart form from raw request
+	err := r.ParseMultipartForm(32 << 20) // 32MB max memory
+	if err != nil {
+		return PostAdminAction500JSONResponse{Code: 500, Message: "Failed to parse form"}, nil
+	}
+
+	// Get the uploaded file
+	file, _, err := r.FormFile("restore_file")
+	if err != nil {
+		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to get file from form"}, nil
+	}
+	defer file.Close()
+
+	// Create temp file for the uploaded file
+	tempFile, err := os.CreateTemp("", "restore")
+	if err != nil {
+		log.Warn("Temp File Create Error: ", err)
+		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to create temp file"}, nil
+	}
+	defer os.Remove(tempFile.Name())
+	defer tempFile.Close()
+
+	// Save uploaded file to temp
+	if _, err = io.Copy(tempFile, file); err != nil {
+		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to save file"}, nil
+	}
+
+	// Get file info and validate ZIP
+	fileInfo, err := tempFile.Stat()
+	if err != nil {
+		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to read file"}, nil
+	}
+
+	zipReader, err := zip.NewReader(tempFile, fileInfo.Size())
+	if err != nil {
+		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to read zip"}, nil
+	}
+
+	// Validate ZIP contents (mirroring legacy logic)
+	hasDBFile := false
+	hasUnknownFile := false
+	for _, file := range zipReader.File {
+		fileName := strings.TrimPrefix(file.Name, "/")
+		if fileName == "antholume.db" {
+			hasDBFile = true
+		} else if !strings.HasPrefix(fileName, "covers/") && !strings.HasPrefix(fileName, "documents/") {
+			hasUnknownFile = true
+		}
+	}
+
+	if !hasDBFile {
+		return PostAdminAction500JSONResponse{Code: 500, Message: "Invalid Restore ZIP - Missing DB"}, nil
+	} else if hasUnknownFile {
+		return PostAdminAction500JSONResponse{Code: 500, Message: "Invalid Restore ZIP - Invalid File(s)"}, nil
+	}
+
+	// Create backup before restoring (mirroring legacy logic)
+	backupFilePath := filepath.Join(s.cfg.ConfigPath, fmt.Sprintf("backups/AnthoLumeBackup_%s.zip", time.Now().Format("20060102150405")))
+	backupFile, err := os.Create(backupFilePath)
+	if err != nil {
+		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to create backup file"}, nil
+	}
+	defer backupFile.Close()
+
+	w := bufio.NewWriter(backupFile)
+	err = s.createBackup(ctx, w, []string{"covers", "documents"})
+	if err != nil {
+		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to save backup file"}, nil
+	}
+
+	// Remove data (mirroring legacy removeData)
+	err = s.removeData()
+	if err != nil {
+		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to delete data"}, nil
+	}
+
+	// Restore data (mirroring legacy restoreData)
+	err = s.restoreData(zipReader)
+	if err != nil {
+		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to restore data"}, nil
+	}
+
+	// Reload DB (mirroring legacy Reload)
+	if err := s.db.Reload(ctx); err != nil {
+		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to reload DB"}, nil
+	}
+
+	// Rotate auth hashes (mirroring legacy rotateAllAuthHashes)
+	if err := s.rotateAllAuthHashes(ctx); err != nil {
+		return PostAdminAction500JSONResponse{Code: 500, Message: "Unable to rotate hashes"}, nil
+	}
+
+	return PostAdminAction200ApplicationoctetStreamResponse{
+		Body: strings.NewReader("Restore completed successfully"),
+	}, nil
+}
+
+// createBackup creates a backup ZIP archive, mirroring legacy createBackup
+func (s *Server) createBackup(ctx context.Context, w io.Writer, directories []string) error {
+	// Vacuum DB (mirroring legacy logic)
+	_, err := s.db.DB.ExecContext(ctx, "VACUUM;")
+	if err != nil {
+		return err
+	}
+
+	ar := zip.NewWriter(w)
+	defer ar.Close()
+
+	// Helper function to walk and archive files
+	exportWalker := func(currentPath string, f fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if f.IsDir() {
+			return nil
+		}
+
+		file, err := os.Open(currentPath)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		fileName := filepath.Base(currentPath)
+		folderName := filepath.Base(filepath.Dir(currentPath))
+
+		newF, err := ar.Create(filepath.Join(folderName, fileName))
+		if err != nil {
+			return err
+		}
+
+		_, err = io.Copy(newF, file)
+		return err
+	}
+
+	// Copy Database File (mirroring legacy logic)
+	fileName := fmt.Sprintf("%s.db", s.cfg.DBName)
+	dbLocation := filepath.Join(s.cfg.ConfigPath, fileName)
+
+	dbFile, err := os.Open(dbLocation)
+	if err != nil {
+		return err
+	}
+	defer dbFile.Close()
+
+	newDbFile, err := ar.Create(fileName)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(newDbFile, dbFile)
+	if err != nil {
+		return err
+	}
+
+	// Backup Covers & Documents (mirroring legacy logic)
+	for _, dir := range directories {
+		err = filepath.WalkDir(filepath.Join(s.cfg.DataPath, dir), exportWalker)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// removeData removes all data files, mirroring legacy removeData
+func (s *Server) removeData() error {
+	allPaths := []string{
+		"covers",
+		"documents",
+		"antholume.db",
+		"antholume.db-wal",
+		"antholume.db-shm",
+	}
+
+	for _, name := range allPaths {
+		fullPath := filepath.Join(s.cfg.DataPath, name)
+		err := os.RemoveAll(fullPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// restoreData restores data from ZIP archive, mirroring legacy restoreData
+func (s *Server) restoreData(zipReader *zip.Reader) error {
+	for _, file := range zipReader.File {
+		rc, err := file.Open()
+		if err != nil {
+			return err
+		}
+		defer rc.Close()
+
+		destPath := filepath.Join(s.cfg.DataPath, file.Name)
+		destFile, err := os.Create(destPath)
+		if err != nil {
+			return err
+		}
+		defer destFile.Close()
+
+		_, err = io.Copy(destFile, rc)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// rotateAllAuthHashes rotates all user auth hashes, mirroring legacy rotateAllAuthHashes
+func (s *Server) rotateAllAuthHashes(ctx context.Context) error {
+	users, err := s.db.Queries.GetUsers(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, user := range users {
+		rawAuthHash, err := utils.GenerateToken(64)
+		if err != nil {
+			return err
+		}
+		authHash := fmt.Sprintf("%x", rawAuthHash)
+
+		_, err = s.db.Queries.UpdateUser(ctx, database.UpdateUserParams{
+			UserID:   user.ID,
+			AuthHash: &authHash,
+			Admin:    user.Admin,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // GET /admin/users
@@ -74,11 +431,209 @@ func (s *Server) UpdateUser(ctx context.Context, request UpdateUserRequestObject
 		return UpdateUser401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
 	}
 
-	// TODO: Implement user creation, update, deletion
-	// For now, this is a placeholder
+	if request.Body == nil {
+		return UpdateUser400JSONResponse{Code: 400, Message: "Missing request body"}, nil
+	}
+
+	// Ensure Username (mirroring legacy validation)
+	if request.Body.User == "" {
+		return UpdateUser400JSONResponse{Code: 400, Message: "User cannot be empty"}, nil
+	}
+
+	var err error
+	// Handle different operations mirroring legacy appUpdateAdminUsers
+	switch request.Body.Operation {
+	case "CREATE":
+		err = s.createUser(ctx, request.Body.User, request.Body.Password, request.Body.IsAdmin)
+	case "UPDATE":
+		err = s.updateUser(ctx, request.Body.User, request.Body.Password, request.Body.IsAdmin)
+	case "DELETE":
+		err = s.deleteUser(ctx, request.Body.User)
+	default:
+		return UpdateUser400JSONResponse{Code: 400, Message: "Unknown user operation"}, nil
+	}
+
+	if err != nil {
+		return UpdateUser500JSONResponse{Code: 500, Message: err.Error()}, nil
+	}
+
+	// Get updated users list (mirroring legacy appGetAdminUsers)
+	users, err := s.db.Queries.GetUsers(ctx)
+	if err != nil {
+		return UpdateUser500JSONResponse{Code: 500, Message: err.Error()}, nil
+	}
+
+	apiUsers := make([]User, len(users))
+	for i, user := range users {
+		createdAt, _ := time.Parse("2006-01-02T15:04:05", user.CreatedAt)
+		apiUsers[i] = User{
+			Id:        user.ID,
+			Admin:     user.Admin,
+			CreatedAt: createdAt,
+		}
+	}
+
 	return UpdateUser200JSONResponse{
-		Users: &[]User{},
+		Users: &apiUsers,
 	}, nil
+}
+
+// createUser creates a new user, mirroring legacy createUser
+func (s *Server) createUser(ctx context.Context, user string, rawPassword *string, isAdmin *bool) error {
+	// Validate Necessary Parameters (mirroring legacy)
+	if rawPassword == nil || *rawPassword == "" {
+		return fmt.Errorf("password can't be empty")
+	}
+
+	// Base Params
+	createParams := database.CreateUserParams{
+		ID: user,
+	}
+
+	// Handle Admin (Explicit or False)
+	if isAdmin != nil {
+		createParams.Admin = *isAdmin
+	} else {
+		createParams.Admin = false
+	}
+
+	// Parse Password (mirroring legacy)
+	password := fmt.Sprintf("%x", md5.Sum([]byte(*rawPassword)))
+	hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
+	if err != nil {
+		return fmt.Errorf("unable to create hashed password")
+	}
+	createParams.Pass = &hashedPassword
+
+	// Generate Auth Hash (mirroring legacy)
+	rawAuthHash, err := utils.GenerateToken(64)
+	if err != nil {
+		return fmt.Errorf("unable to create token for user")
+	}
+	authHash := fmt.Sprintf("%x", rawAuthHash)
+	createParams.AuthHash = &authHash
+
+	// Create user in DB (mirroring legacy)
+	if rows, err := s.db.Queries.CreateUser(ctx, createParams); err != nil {
+		return fmt.Errorf("unable to create user")
+	} else if rows == 0 {
+		return fmt.Errorf("user already exists")
+	}
+
+	return nil
+}
+
+// updateUser updates an existing user, mirroring legacy updateUser
+func (s *Server) updateUser(ctx context.Context, user string, rawPassword *string, isAdmin *bool) error {
+	// Validate Necessary Parameters (mirroring legacy)
+	if rawPassword == nil && isAdmin == nil {
+		return fmt.Errorf("nothing to update")
+	}
+
+	// Base Params
+	updateParams := database.UpdateUserParams{
+		UserID: user,
+	}
+
+	// Handle Admin (Update or Existing)
+	if isAdmin != nil {
+		updateParams.Admin = *isAdmin
+	} else {
+		userData, err := s.db.Queries.GetUser(ctx, user)
+		if err != nil {
+			return fmt.Errorf("unable to get user")
+		}
+		updateParams.Admin = userData.Admin
+	}
+
+	// Check Admins - Disallow Demotion (mirroring legacy isLastAdmin)
+	if isLast, err := s.isLastAdmin(ctx, user); err != nil {
+		return err
+	} else if isLast && !updateParams.Admin {
+		return fmt.Errorf("unable to demote %s - last admin", user)
+	}
+
+	// Handle Password (mirroring legacy)
+	if rawPassword != nil {
+		if *rawPassword == "" {
+			return fmt.Errorf("password can't be empty")
+		}
+
+		// Parse Password
+		password := fmt.Sprintf("%x", md5.Sum([]byte(*rawPassword)))
+		hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
+		if err != nil {
+			return fmt.Errorf("unable to create hashed password")
+		}
+		updateParams.Password = &hashedPassword
+
+		// Generate Auth Hash
+		rawAuthHash, err := utils.GenerateToken(64)
+		if err != nil {
+			return fmt.Errorf("unable to create token for user")
+		}
+		authHash := fmt.Sprintf("%x", rawAuthHash)
+		updateParams.AuthHash = &authHash
+	}
+
+	// Update User (mirroring legacy)
+	_, err := s.db.Queries.UpdateUser(ctx, updateParams)
+	if err != nil {
+		return fmt.Errorf("unable to update user")
+	}
+
+	return nil
+}
+
+// deleteUser deletes a user, mirroring legacy deleteUser
+func (s *Server) deleteUser(ctx context.Context, user string) error {
+	// Check Admins (mirroring legacy isLastAdmin)
+	if isLast, err := s.isLastAdmin(ctx, user); err != nil {
+		return err
+	} else if isLast {
+		return fmt.Errorf("unable to delete %s - last admin", user)
+	}
+
+	// Create Backup File (mirroring legacy)
+	backupFilePath := filepath.Join(s.cfg.ConfigPath, fmt.Sprintf("backups/AnthoLumeBackup_%s.zip", time.Now().Format("20060102150405")))
+	backupFile, err := os.Create(backupFilePath)
+	if err != nil {
+		return err
+	}
+	defer backupFile.Close()
+
+	// Save Backup File (DB Only) (mirroring legacy)
+	w := bufio.NewWriter(backupFile)
+	err = s.createBackup(ctx, w, []string{})
+	if err != nil {
+		return err
+	}
+
+	// Delete User (mirroring legacy)
+	_, err = s.db.Queries.DeleteUser(ctx, user)
+	if err != nil {
+		return fmt.Errorf("unable to delete user")
+	}
+
+	return nil
+}
+
+// isLastAdmin checks if the user is the last admin, mirroring legacy isLastAdmin
+func (s *Server) isLastAdmin(ctx context.Context, userID string) (bool, error) {
+	allUsers, err := s.db.Queries.GetUsers(ctx)
+	if err != nil {
+		return false, fmt.Errorf("unable to get users")
+	}
+
+	hasAdmin := false
+	for _, user := range allUsers {
+		if user.Admin && user.ID != userID {
+			hasAdmin = true
+			break
+		}
+	}
+
+	return !hasAdmin, nil
 }
 
 // GET /admin/import
@@ -88,11 +643,51 @@ func (s *Server) GetImportDirectory(ctx context.Context, request GetImportDirect
 		return GetImportDirectory401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
 	}
 
-	// TODO: Implement directory listing
-	// For now, this is a placeholder
+	// Handle select parameter - mirroring legacy appGetAdminImport
+	if request.Params.Select != nil && *request.Params.Select != "" {
+		return GetImportDirectory200JSONResponse{
+			CurrentPath: request.Params.Select,
+			Items:       &[]DirectoryItem{},
+		}, nil
+	}
+
+	// Default Path (mirroring legacy logic)
+	directory := ""
+	if request.Params.Directory != nil && *request.Params.Directory != "" {
+		directory = *request.Params.Directory
+	} else {
+		dPath, err := filepath.Abs(s.cfg.DataPath)
+		if err != nil {
+			return GetImportDirectory500JSONResponse{Code: 500, Message: "Unable to get data directory absolute path"}, nil
+		}
+		directory = dPath
+	}
+
+	// Read directory entries (mirroring legacy)
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return GetImportDirectory500JSONResponse{Code: 500, Message: "Invalid directory"}, nil
+	}
+
+	allDirectories := []DirectoryItem{}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+
+		name := e.Name()
+		path := filepath.Join(directory, name)
+		allDirectories = append(allDirectories, DirectoryItem{
+			Name: &name,
+			Path: &path,
+		})
+	}
+
+	cleanPath := filepath.Clean(directory)
+
 	return GetImportDirectory200JSONResponse{
-		CurrentPath: ptrOf("/data"),
-		Items:       &[]DirectoryItem{},
+		CurrentPath: &cleanPath,
+		Items:       &allDirectories,
 	}, nil
 }
 
@@ -103,11 +698,197 @@ func (s *Server) PostImport(ctx context.Context, request PostImportRequestObject
 		return PostImport401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
 	}
 
-	// TODO: Implement import functionality
-	// For now, this is a placeholder
+	if request.Body == nil {
+		return PostImport400JSONResponse{Code: 400, Message: "Missing request body"}, nil
+	}
+
+	// Get import directory (mirroring legacy)
+	importDirectory := filepath.Clean(request.Body.Directory)
+
+	// Get data directory (mirroring legacy)
+	absoluteDataPath, _ := filepath.Abs(filepath.Join(s.cfg.DataPath, "documents"))
+
+	// Validate different path (mirroring legacy)
+	if absoluteDataPath == importDirectory {
+		return PostImport400JSONResponse{Code: 400, Message: "Directory is the same as data path"}, nil
+	}
+
+	// Do Transaction (mirroring legacy)
+	tx, err := s.db.DB.Begin()
+	if err != nil {
+		return PostImport500JSONResponse{Code: 500, Message: "Unknown error"}, nil
+	}
+
+	// Defer & Start Transaction (mirroring legacy)
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			log.Error("DB Rollback Error:", err)
+		}
+	}()
+	qtx := s.db.Queries.WithTx(tx)
+
+	// Track imports (mirroring legacy)
+	importResults := make([]ImportResult, 0)
+
+	// Walk Directory & Import (mirroring legacy)
+	err = filepath.WalkDir(importDirectory, func(importPath string, f fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if f.IsDir() {
+			return nil
+		}
+
+		// Get relative path (mirroring legacy)
+		basePath := importDirectory
+		relFilePath, err := filepath.Rel(importDirectory, importPath)
+		if err != nil {
+			log.Warnf("path error: %v", err)
+			return nil
+		}
+
+		// Track imports (mirroring legacy)
+		iResult := ImportResult{
+			Path: &relFilePath,
+		}
+		defer func() {
+			importResults = append(importResults, iResult)
+		}()
+
+		// Get metadata (mirroring legacy)
+		fileMeta, err := metadata.GetMetadata(importPath)
+		if err != nil {
+			log.Errorf("metadata error: %v", err)
+			errMsg := err.Error()
+			iResult.Error = &errMsg
+			status := ImportResultStatus("FAILED")
+			iResult.Status = &status
+			return nil
+		}
+		iResult.Id = fileMeta.PartialMD5
+		name := fmt.Sprintf("%s - %s", *fileMeta.Author, *fileMeta.Title)
+		iResult.Name = &name
+
+		// Check already exists (mirroring legacy)
+		_, err = qtx.GetDocument(ctx, *fileMeta.PartialMD5)
+		if err == nil {
+			log.Warnf("document already exists: %s", *fileMeta.PartialMD5)
+			status := ImportResultStatus("EXISTS")
+			iResult.Status = &status
+			return nil
+		}
+
+		// Import Copy (mirroring legacy)
+		if request.Body.Type == "COPY" {
+			// Derive & Sanitize File Name (mirroring legacy deriveBaseFileName)
+			relFilePath = s.deriveBaseFileName(fileMeta)
+			safePath := filepath.Join(s.cfg.DataPath, "documents", relFilePath)
+
+			// Open Source File
+			srcFile, err := os.Open(importPath)
+			if err != nil {
+				log.Errorf("unable to open current file: %v", err)
+				errMsg := err.Error()
+				iResult.Error = &errMsg
+				return nil
+			}
+			defer srcFile.Close()
+
+			// Open Destination File
+			destFile, err := os.Create(safePath)
+			if err != nil {
+				log.Errorf("unable to open destination file: %v", err)
+				errMsg := err.Error()
+				iResult.Error = &errMsg
+				return nil
+			}
+			defer destFile.Close()
+
+			// Copy File
+			if _, err = io.Copy(destFile, srcFile); err != nil {
+				log.Errorf("unable to save file: %v", err)
+				errMsg := err.Error()
+				iResult.Error = &errMsg
+				return nil
+			}
+
+			// Update Base & Path
+			basePath = filepath.Join(s.cfg.DataPath, "documents")
+			iResult.Path = &relFilePath
+		}
+
+		// Upsert document (mirroring legacy)
+		if _, err = qtx.UpsertDocument(ctx, database.UpsertDocumentParams{
+			ID:          *fileMeta.PartialMD5,
+			Title:       fileMeta.Title,
+			Author:      fileMeta.Author,
+			Description: fileMeta.Description,
+			Md5:         fileMeta.MD5,
+			Words:       fileMeta.WordCount,
+			Filepath:    &relFilePath,
+			Basepath:    &basePath,
+		}); err != nil {
+			log.Errorf("UpsertDocument DB Error: %v", err)
+			errMsg := err.Error()
+			iResult.Error = &errMsg
+			return nil
+		}
+
+		status := ImportResultStatus("SUCCESS")
+		iResult.Status = &status
+		return nil
+	})
+	if err != nil {
+		return PostImport500JSONResponse{Code: 500, Message: fmt.Sprintf("Import Failed: %v", err)}, nil
+	}
+
+	// Commit transaction (mirroring legacy)
+	if err := tx.Commit(); err != nil {
+		log.Error("Transaction Commit DB Error: ", err)
+		return PostImport500JSONResponse{Code: 500, Message: fmt.Sprintf("Import DB Error: %v", err)}, nil
+	}
+
+	// Sort import results (mirroring legacy importStatusPriority)
+	sort.Slice(importResults, func(i int, j int) bool {
+		return s.importStatusPriority(*importResults[i].Status) <
+			s.importStatusPriority(*importResults[j].Status)
+	})
+
 	return PostImport200JSONResponse{
-		Results: &[]ImportResult{},
+		Results: &importResults,
 	}, nil
+}
+
+// importStatusPriority returns the order priority for import status, mirroring legacy
+func (s *Server) importStatusPriority(status ImportResultStatus) int {
+	switch status {
+	case "FAILED":
+		return 1
+	case "EXISTS":
+		return 2
+	default:
+		return 3
+	}
+}
+
+// deriveBaseFileName builds the base filename for a given MetadataInfo object, mirroring legacy deriveBaseFileName
+func (s *Server) deriveBaseFileName(metadataInfo *metadata.MetadataInfo) string {
+	var newFileName string
+	if *metadataInfo.Author != "" {
+		newFileName = newFileName + *metadataInfo.Author
+	} else {
+		newFileName = newFileName + "Unknown"
+	}
+	if *metadataInfo.Title != "" {
+		newFileName = newFileName + " - " + *metadataInfo.Title
+	} else {
+		newFileName = newFileName + " - Unknown"
+	}
+
+	// Remove Slashes (mirroring legacy)
+	fileName := strings.ReplaceAll(newFileName, "/", "")
+	return "." + filepath.Clean(fmt.Sprintf("/%s [%s]%s", fileName, *metadataInfo.PartialMD5, metadataInfo.Type))
 }
 
 // GET /admin/import-results
@@ -117,8 +898,9 @@ func (s *Server) GetImportResults(ctx context.Context, request GetImportResultsR
 		return GetImportResults401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
 	}
 
-	// TODO: Implement import results retrieval
-	// For now, this is a placeholder
+	// Note: In the legacy implementation, import results are returned directly
+	// after import. This endpoint could be enhanced to store results in
+	// session or memory for later retrieval. For now, return empty results.
 	return GetImportResults200JSONResponse{
 		Results: &[]ImportResult{},
 	}, nil
@@ -131,10 +913,92 @@ func (s *Server) GetLogs(ctx context.Context, request GetLogsRequestObject) (Get
 		return GetLogs401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
 	}
 
-	// TODO: Implement log retrieval
-	// For now, this is a placeholder
+	// Get filter parameter (mirroring legacy)
+	filter := ""
+	if request.Params.Filter != nil {
+		filter = strings.TrimSpace(*request.Params.Filter)
+	}
+
+	var jqFilter *gojq.Code
+	var basicFilter string
+
+	// Parse JQ or basic filter (mirroring legacy)
+	if strings.HasPrefix(filter, "\"") && strings.HasSuffix(filter, "\"") {
+		basicFilter = filter[1 : len(filter)-1]
+	} else if filter != "" {
+		parsed, err := gojq.Parse(filter)
+		if err != nil {
+			log.Error("Unable to parse JQ filter")
+			return GetLogs500JSONResponse{Code: 500, Message: "Unable to parse JQ filter"}, nil
+		}
+
+		jqFilter, err = gojq.Compile(parsed)
+		if err != nil {
+			log.Error("Unable to compile JQ filter")
+			return GetLogs500JSONResponse{Code: 500, Message: "Unable to compile JQ filter"}, nil
+		}
+	}
+
+	// Open Log File (mirroring legacy)
+	logPath := filepath.Join(s.cfg.ConfigPath, "logs/antholume.log")
+	logFile, err := os.Open(logPath)
+	if err != nil {
+		return GetLogs500JSONResponse{Code: 500, Message: "Missing AnthoLume log file"}, nil
+	}
+	defer logFile.Close()
+
+	// Log Lines (mirroring legacy)
+	var logLines []string
+	scanner := bufio.NewScanner(logFile)
+	for scanner.Scan() {
+		rawLog := scanner.Text()
+
+		// Attempt JSON Pretty (mirroring legacy)
+		var jsonMap map[string]any
+		err := json.Unmarshal([]byte(rawLog), &jsonMap)
+		if err != nil {
+			logLines = append(logLines, rawLog)
+			continue
+		}
+
+		// Parse JSON (mirroring legacy)
+		rawData, err := json.MarshalIndent(jsonMap, "", "  ")
+		if err != nil {
+			logLines = append(logLines, rawLog)
+			continue
+		}
+
+		// Basic Filter (mirroring legacy)
+		if basicFilter != "" && strings.Contains(string(rawData), basicFilter) {
+			logLines = append(logLines, string(rawData))
+			continue
+		}
+
+		// No JQ Filter (mirroring legacy)
+		if jqFilter == nil {
+			continue
+		}
+
+		// Error or nil (mirroring legacy)
+		result, _ := jqFilter.Run(jsonMap).Next()
+		if _, ok := result.(error); ok {
+			logLines = append(logLines, string(rawData))
+			continue
+		} else if result == nil {
+			continue
+		}
+
+		// Attempt filtered json (mirroring legacy)
+		filteredData, err := json.MarshalIndent(result, "", "  ")
+		if err == nil {
+			rawData = filteredData
+		}
+
+		logLines = append(logLines, string(rawData))
+	}
+
 	return GetLogs200JSONResponse{
-		Logs:   &[]string{},
-		Filter: request.Params.Filter,
+		Logs:   &logLines,
+		Filter: &filter,
 	}, nil
 }

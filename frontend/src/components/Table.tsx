@@ -1,4 +1,6 @@
 import React from 'react';
+import { Skeleton } from './Skeleton';
+import { cn } from '../utils/cn';
 
 export interface Column<T> {
   key: keyof T;
@@ -32,9 +34,39 @@ export function Table<T extends Record<string, any>>({
     return `row-${index}`;
   };
 
+  // Skeleton table component for loading state
+  function SkeletonTable({ rows = 5, columns = 4, className = '' }: { rows?: number; columns?: number; className?: string }) {
+    return (
+      <div className={cn('bg-white dark:bg-gray-700 rounded-lg overflow-hidden', className)}>
+        <table className="min-w-full">
+          <thead>
+            <tr className="border-b dark:border-gray-600">
+              {Array.from({ length: columns }).map((_, i) => (
+                <th key={i} className="p-3">
+                  <Skeleton variant="text" className="w-3/4 h-5" />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: rows }).map((_, rowIndex) => (
+              <tr key={rowIndex} className="border-b dark:border-gray-600 last:border-0">
+                {Array.from({ length: columns }).map((_, colIndex) => (
+                  <td key={colIndex} className="p-3">
+                    <Skeleton variant="text" className={colIndex === columns - 1 ? 'w-1/2' : 'w-full'} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <div className="text-gray-500 dark:text-white p-4">Loading...</div>
+      <SkeletonTable rows={5} columns={columns.length} />
     );
   }
 

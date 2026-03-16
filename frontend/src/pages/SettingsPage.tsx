@@ -1,28 +1,94 @@
 import { useState, FormEvent } from 'react';
-import { useGetSettings } from '../generated/anthoLumeAPIV1';
+import { useGetSettings, useUpdateSettings } from '../generated/anthoLumeAPIV1';
 import { User, Lock, Clock } from 'lucide-react';
 import { Button } from '../components/Button';
+import { useToasts } from '../components/ToastContext';
 
 export default function SettingsPage() {
   const { data, isLoading } = useGetSettings();
+  const updateSettings = useUpdateSettings();
   const settingsData = data?.data;
-  
+  const { showInfo, showError } = useToasts();
+
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [timezone, setTimezone] = useState(settingsData?.timezone || '');
 
-  const handlePasswordSubmit = (e: FormEvent) => {
+  const handlePasswordSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    // TODO: Call API to change password
+
+    if (!password || !newPassword) {
+      showError('Please enter both current and new password');
+      return;
+    }
+
+    try {
+      await updateSettings.mutateAsync({
+        data: {
+          password: password,
+          new_password: newPassword,
+        },
+      });
+      showInfo('Password updated successfully');
+      setPassword('');
+      setNewPassword('');
+    } catch (error: any) {
+      showError('Failed to update password: ' + (error.response?.data?.message || error.message || 'Unknown error'));
+    }
   };
 
-  const handleTimezoneSubmit = (e: FormEvent) => {
+  const handleTimezoneSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    // TODO: Call API to change timezone
+
+    try {
+      await updateSettings.mutateAsync({
+        data: {
+          timezone: timezone,
+        },
+      });
+      showInfo('Timezone updated successfully');
+    } catch (error: any) {
+      showError('Failed to update timezone: ' + (error.response?.data?.message || error.message || 'Unknown error'));
+    }
   };
 
   if (isLoading) {
-    return <div className="text-gray-500 dark:text-white">Loading...</div>;
+    return (
+      <div className="w-full flex flex-col md:flex-row gap-4">
+        <div>
+          <div className="flex flex-col p-4 items-center rounded shadow-lg md:w-60 lg:w-80 bg-white dark:bg-gray-700">
+            <div className="w-16 h-16 bg-gray-200 dark:bg-gray-600 rounded-full mb-4" />
+            <div className="w-32 h-6 bg-gray-200 dark:bg-gray-600 rounded" />
+          </div>
+        </div>
+        <div className="flex flex-col gap-4 grow">
+          <div className="flex flex-col gap-2 p-4 rounded shadow-lg bg-white dark:bg-gray-700">
+            <div className="w-48 h-6 bg-gray-200 dark:bg-gray-600 rounded mb-4" />
+            <div className="flex gap-4">
+              <div className="flex-1 h-12 bg-gray-200 dark:bg-gray-600 rounded" />
+              <div className="flex-1 h-12 bg-gray-200 dark:bg-gray-600 rounded" />
+              <div className="w-40 h-10 bg-gray-200 dark:bg-gray-600 rounded" />
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 p-4 rounded shadow-lg bg-white dark:bg-gray-700">
+            <div className="w-48 h-6 bg-gray-200 dark:bg-gray-600 rounded mb-4" />
+            <div className="flex gap-4">
+              <div className="flex-1 h-12 bg-gray-200 dark:bg-gray-600 rounded" />
+              <div className="w-40 h-10 bg-gray-200 dark:bg-gray-600 rounded" />
+            </div>
+          </div>
+          <div className="flex flex-col p-4 rounded shadow-lg bg-white dark:bg-gray-700">
+            <div className="w-24 h-6 bg-gray-200 dark:bg-gray-600 rounded mb-4" />
+            <div className="flex gap-4 mb-4">
+              <div className="flex-1 h-6 bg-gray-200 dark:bg-gray-600 rounded" />
+              <div className="flex-1 h-6 bg-gray-200 dark:bg-gray-600 rounded" />
+              <div className="flex-1 h-6 bg-gray-200 dark:bg-gray-600 rounded" />
+            </div>
+            <div className="flex-1 h-32 bg-gray-200 dark:bg-gray-600 rounded" />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -59,6 +59,7 @@ import type {
   SearchResponse,
   SettingsResponse,
   StreaksResponse,
+  UpdateSettingsRequest,
   UpdateUserBody,
   UserStatisticsResponse,
   UsersResponse
@@ -684,6 +685,68 @@ export function useGetSettings<TData = Awaited<ReturnType<typeof getSettings>>, 
 
 
 
+/**
+ * @summary Update user settings
+ */
+export const updateSettings = (
+    updateSettingsRequest: UpdateSettingsRequest, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<SettingsResponse>> => {
+    
+    
+    return axios.default.put(
+      `/api/v1/settings`,
+      updateSettingsRequest,options
+    );
+  }
+
+
+
+export const getUpdateSettingsMutationOptions = <TError = AxiosError<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSettings>>, TError,{data: UpdateSettingsRequest}, TContext>, axios?: AxiosRequestConfig}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSettings>>, TError,{data: UpdateSettingsRequest}, TContext> => {
+
+const mutationKey = ['updateSettings'];
+const {mutation: mutationOptions, axios: axiosOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, axios: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSettings>>, {data: UpdateSettingsRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateSettings(data,axiosOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateSettings>>>
+    export type UpdateSettingsMutationBody = UpdateSettingsRequest
+    export type UpdateSettingsMutationError = AxiosError<ErrorResponse>
+
+    /**
+ * @summary Update user settings
+ */
+export const useUpdateSettings = <TError = AxiosError<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSettings>>, TError,{data: UpdateSettingsRequest}, TContext>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateSettings>>,
+        TError,
+        {data: UpdateSettingsRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getUpdateSettingsMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
 /**
  * @summary User login
  */

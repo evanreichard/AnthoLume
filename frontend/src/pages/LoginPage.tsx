@@ -2,15 +2,16 @@ import { useState, FormEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../components/Button';
+import { useToasts } from '../components/ToastContext';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const { login, isAuthenticated, isCheckingAuth } = useAuth();
   const navigate = useNavigate();
+  const { showError } = useToasts();
 
   // Redirect to home if already logged in
   useEffect(() => {
@@ -22,12 +23,11 @@ export default function LoginPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
 
     try {
       await login(username, password);
     } catch (err) {
-      setError('Invalid credentials');
+      showError('Invalid credentials');
     } finally {
       setIsLoading(false);
     }
@@ -66,7 +66,6 @@ export default function LoginPage() {
                     required
                     disabled={isLoading}
                   />
-                  <span className="absolute -bottom-5 text-red-400 text-xs">{error}</span>
                 </div>
               </div>
               <Button 

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useGetDocuments, useCreateDocument } from '../generated/anthoLumeAPIV1';
 import { Activity, Download, Search, Upload } from 'lucide-react';
 import { Button } from '../components/Button';
+import { useToasts } from '../components/ToastContext';
 
 interface DocumentCardProps {
   doc: {
@@ -101,6 +102,7 @@ export default function DocumentsPage() {
   const [limit] = useState(9);
   const [uploadMode, setUploadMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { showInfo, showWarning, showError } = useToasts();
 
   const { data, isLoading, refetch } = useGetDocuments({ page, limit, search });
   const createMutation = useCreateDocument();
@@ -118,7 +120,7 @@ export default function DocumentsPage() {
     if (!file) return;
 
     if (!file.name.endsWith('.epub')) {
-      alert('Please upload an EPUB file');
+      showWarning('Please upload an EPUB file');
       return;
     }
 
@@ -128,12 +130,11 @@ export default function DocumentsPage() {
           document_file: file,
         },
       });
-      alert('Document uploaded successfully!');
+      showInfo('Document uploaded successfully!');
       setUploadMode(false);
       refetch();
-    } catch (error) {
-      console.error('Upload failed:', error);
-      alert('Failed to upload document');
+    } catch (error: any) {
+      showError('Failed to upload document: ' + error.message);
     }
   };
 

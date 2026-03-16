@@ -99,3 +99,34 @@ main {
     transform: translate(calc(-1 * (env(safe-area-inset-left) + 100%)), 0);
   }
 }
+
+/* Skeleton Wave Animation */
+@keyframes wave {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-wave {
+  background: linear-gradient(
+    90deg,
+    rgb(229, 231, 235) 0%,
+    rgb(243, 244, 246) 50%,
+    rgb(229, 231, 235) 100%
+  );
+  background-size: 200% 100%;
+  animation: wave 1.5s ease-in-out infinite;
+}
+
+.dark .animate-wave {
+  background: linear-gradient(
+    90deg,
+    rgb(75, 85, 99) 0%,
+    rgb(107, 114, 128) 50%,
+    rgb(75, 85, 99) 100%
+  );
+  background-size: 200% 100%;
+}

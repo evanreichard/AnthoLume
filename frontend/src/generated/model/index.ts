@@ -52,6 +52,7 @@ export * from './searchResponse';
 export * from './setting';
 export * from './settingsResponse';
 export * from './streaksResponse';
+export * from './updateSettingsRequest';
 export * from './updateUserBody';
 export * from './user';
 export * from './userData';
