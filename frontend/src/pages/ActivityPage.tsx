@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useGetActivity } from '../generated/anthoLumeAPIV1';
 import { Table } from '../components/Table';
+import { formatDuration } from '../utils/formatters';
 
 export default function ActivityPage() {
   const { data, isLoading } = useGetActivity({ offset: 0, limit: 100 });
@@ -28,18 +29,7 @@ export default function ActivityPage() {
       key: 'duration' as const,
       header: 'Duration',
       render: (value: any) => {
-        if (!value) return 'N/A';
-        // Format duration (in seconds) to readable format
-        const hours = Math.floor(value / 3600);
-        const minutes = Math.floor((value % 3600) / 60);
-        const seconds = value % 60;
-        if (hours > 0) {
-          return `${hours}h ${minutes}m ${seconds}s`;
-        } else if (minutes > 0) {
-          return `${minutes}m ${seconds}s`;
-        } else {
-          return `${seconds}s`;
-        }
+        return formatDuration(value || 0);
       },
     },
     {

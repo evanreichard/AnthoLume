@@ -41,6 +41,7 @@ import type {
   GraphDataResponse,
   HomeResponse,
   ImportResultsResponse,
+  InfoResponse,
   LoginRequest,
   LoginResponse,
   LogsResponse,
@@ -1670,6 +1671,130 @@ export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = Err
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetMeQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+/**
+ * @summary Get server information
+ */
+export type getInfoResponse200 = {
+  data: InfoResponse
+  status: 200
+}
+
+export type getInfoResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getInfoResponseSuccess = (getInfoResponse200) & {
+  headers: Headers;
+};
+export type getInfoResponseError = (getInfoResponse500) & {
+  headers: Headers;
+};
+
+export type getInfoResponse = (getInfoResponseSuccess | getInfoResponseError)
+
+export const getGetInfoUrl = () => {
+
+
+  
+
+  return `/api/v1/info`
+}
+
+export const getInfo = async ( options?: RequestInit): Promise<getInfoResponse> => {
+  
+  const res = await fetch(getGetInfoUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+)
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  
+  const data: getInfoResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as getInfoResponse
+}
+  
+
+
+
+
+export const getGetInfoQueryKey = () => {
+    return [
+    `/api/v1/info`
+    ] as const;
+    }
+
+    
+export const getGetInfoQueryOptions = <TData = Awaited<ReturnType<typeof getInfo>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInfo>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInfoQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInfo>>> = ({ signal }) => getInfo({ signal, ...fetchOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInfo>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetInfoQueryResult = NonNullable<Awaited<ReturnType<typeof getInfo>>>
+export type GetInfoQueryError = ErrorResponse
+
+
+export function useGetInfo<TData = Awaited<ReturnType<typeof getInfo>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInfo>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getInfo>>,
+          TError,
+          Awaited<ReturnType<typeof getInfo>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetInfo<TData = Awaited<ReturnType<typeof getInfo>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInfo>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getInfo>>,
+          TError,
+          Awaited<ReturnType<typeof getInfo>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetInfo<TData = Awaited<ReturnType<typeof getInfo>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInfo>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get server information
+ */
+
+export function useGetInfo<TData = Awaited<ReturnType<typeof getInfo>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInfo>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetInfoQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

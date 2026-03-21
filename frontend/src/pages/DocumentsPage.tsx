@@ -4,6 +4,7 @@ import { useGetDocuments, useCreateDocument } from '../generated/anthoLumeAPIV1'
 import { Activity, Download, Search, Upload } from 'lucide-react';
 import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
+import { formatDuration } from '../utils/formatters';
 
 interface DocumentCardProps {
   doc: {
@@ -22,16 +23,6 @@ interface DocumentCardProps {
 function DocumentCard({ doc }: DocumentCardProps) {
   const percentage = doc.percentage || 0;
   const totalTimeSeconds = doc.total_time_seconds || 0;
-
-  // Convert seconds to nice format (e.g., "2h 30m")
-  const niceSeconds = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
 
   return (
     <div className="relative w-full">
@@ -67,7 +58,7 @@ function DocumentCard({ doc }: DocumentCardProps) {
           <div className="inline-flex shrink-0 items-center">
             <div>
               <p className="text-gray-400">Time Read</p>
-              <p className="font-medium">{niceSeconds(totalTimeSeconds)}</p>
+              <p className="font-medium">{formatDuration(totalTimeSeconds)}</p>
             </div>
           </div>
         </div>

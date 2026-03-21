@@ -1,5 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { useGetDocument, useGetProgress } from '../generated/anthoLumeAPIV1';
+import { formatDuration, formatNumber } from '../utils/formatters';
 
 interface Document {
   id: string;
@@ -28,26 +29,6 @@ interface Progress {
   device_name?: string;
   title?: string;
   author?: string;
-}
-
-// Helper function to format seconds nicely (mirroring legacy niceSeconds)
-function niceSeconds(seconds: number): string {
-  if (seconds === 0) return 'N/A';
-
-  const days = Math.floor(seconds / 60 / 60 / 24);
-  const remainingSeconds = seconds % (60 * 60 * 24);
-  const hours = Math.floor(remainingSeconds / 60 / 60);
-  const remainingAfterHours = remainingSeconds % (60 * 60);
-  const minutes = Math.floor(remainingAfterHours / 60);
-  const remainingSeconds2 = remainingAfterHours % 60;
-
-  let result = '';
-  if (days > 0) result += `${days}d `;
-  if (hours > 0) result += `${hours}h `;
-  if (minutes > 0) result += `${minutes}m `;
-  if (remainingSeconds2 > 0) result += `${remainingSeconds2}s`;
-
-  return result || 'N/A';
 }
 
 export default function DocumentPage() {
@@ -163,7 +144,7 @@ export default function DocumentPage() {
             </div>
             <div className="relative">
               <p className="text-lg font-medium">
-                {document.total_time_seconds ? niceSeconds(document.total_time_seconds) : 'N/A'}
+                {document.total_time_seconds ? formatDuration(document.total_time_seconds) : 'N/A'}
               </p>
             </div>
           </div>
@@ -191,7 +172,9 @@ export default function DocumentPage() {
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           <div>
             <p className="text-gray-500">Words</p>
-            <p className="font-medium">{document.words || 'N/A'}</p>
+            <p className="font-medium">
+              {document.words != null ? formatNumber(document.words) : 'N/A'}
+            </p>
           </div>
           <div>
             <p className="text-gray-500">Created</p>
@@ -212,7 +195,9 @@ export default function DocumentPage() {
             </div>
             <div className="flex items-center gap-2">
               <p className="text-gray-500">Est. Time Left:</p>
-              <p className="whitespace-nowrap font-medium">{niceSeconds(totalTimeLeftSeconds)}</p>
+              <p className="whitespace-nowrap font-medium">
+                {formatDuration(totalTimeLeftSeconds)}
+              </p>
             </div>
           </div>
         )}

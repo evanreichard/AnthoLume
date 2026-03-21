@@ -460,8 +460,8 @@ components:
         user_id:
           type: string
         value:
-          type: integer
-          format: int64
+          type: number
+          format: double
       required:
         - user_id
         - value
@@ -616,6 +616,20 @@ components:
             $ref: '#/components/schemas/LogEntry'
         filter:
           type: string
+
+    InfoResponse:
+      type: object
+      properties:
+        version:
+          type: string
+        search_enabled:
+          type: boolean
+        registration_enabled:
+          type: boolean
+      required:
+        - version
+        - search_enabled
+        - registration_enabled
 
   securitySchemes:
     BearerAuth:
@@ -1106,6 +1120,26 @@ paths:
                 $ref: '#/components/schemas/LoginResponse'
         401:
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /info:
+    get:
+      summary: Get server information
+      operationId: getInfo
+      tags:
+        - Info
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InfoResponse'
+        500:
+          description: Internal server error
           content:
             application/json:
               schema:

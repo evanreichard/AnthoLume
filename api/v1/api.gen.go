@@ -280,6 +280,13 @@ type ImportResultsResponse struct {
 // ImportType defines model for ImportType.
 type ImportType string
 
+// InfoResponse defines model for InfoResponse.
+type InfoResponse struct {
+	RegistrationEnabled bool   `json:"registration_enabled"`
+	SearchEnabled       bool   `json:"search_enabled"`
+	Version             string `json:"version"`
+}
+
 // LeaderboardData defines model for LeaderboardData.
 type LeaderboardData struct {
 	All   []LeaderboardEntry `json:"all"`
@@ -290,8 +297,8 @@ type LeaderboardData struct {
 
 // LeaderboardEntry defines model for LeaderboardEntry.
 type LeaderboardEntry struct {
-	UserId string `json:"user_id"`
-	Value  int64  `json:"value"`
+	UserId string  `json:"user_id"`
+	Value  float64 `json:"value"`
 }
 
 // LogEntry defines model for LogEntry.
@@ -598,6 +605,9 @@ type ServerInterface interface {
 	// Get user streaks
 	// (GET /home/streaks)
 	GetStreaks(w http.ResponseWriter, r *http.Request)
+	// Get server information
+	// (GET /info)
+	GetInfo(w http.ResponseWriter, r *http.Request)
 	// List progress records
 	// (GET /progress)
 	GetProgressList(w http.ResponseWriter, r *http.Request, params GetProgressListParams)
@@ -1174,6 +1184,20 @@ func (siw *ServerInterfaceWrapper) GetStreaks(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// GetInfo operation middleware
+func (siw *ServerInterfaceWrapper) GetInfo(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetInfo(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProgressList operation middleware
 func (siw *ServerInterfaceWrapper) GetProgressList(w http.ResponseWriter, r *http.Request) {
 
@@ -1510,6 +1534,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/home/graph", wrapper.GetGraphData)
 	m.HandleFunc("GET "+options.BaseURL+"/home/statistics", wrapper.GetUserStatistics)
 	m.HandleFunc("GET "+options.BaseURL+"/home/streaks", wrapper.GetStreaks)
+	m.HandleFunc("GET "+options.BaseURL+"/info", wrapper.GetInfo)
 	m.HandleFunc("GET "+options.BaseURL+"/progress", wrapper.GetProgressList)
 	m.HandleFunc("GET "+options.BaseURL+"/progress/{id}", wrapper.GetProgress)
 	m.HandleFunc("GET "+options.BaseURL+"/search", wrapper.GetSearch)
@@ -2350,6 +2375,31 @@ func (response GetStreaks500JSONResponse) VisitGetStreaksResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetInfoRequestObject struct {
+}
+
+type GetInfoResponseObject interface {
+	VisitGetInfoResponse(w http.ResponseWriter) error
+}
+
+type GetInfo200JSONResponse InfoResponse
+
+func (response GetInfo200JSONResponse) VisitGetInfoResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetInfo500JSONResponse ErrorResponse
+
+func (response GetInfo500JSONResponse) VisitGetInfoResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetProgressListRequestObject struct {
 	Params GetProgressListParams
 }
@@ -2650,6 +2700,9 @@ type StrictServerInterface interface {
 	// Get user streaks
 	// (GET /home/streaks)
 	GetStreaks(ctx context.Context, request GetStreaksRequestObject) (GetStreaksResponseObject, error)
+	// Get server information
+	// (GET /info)
+	GetInfo(ctx context.Context, request GetInfoRequestObject) (GetInfoResponseObject, error)
 	// List progress records
 	// (GET /progress)
 	GetProgressList(ctx context.Context, request GetProgressListRequestObject) (GetProgressListResponseObject, error)
@@ -3253,6 +3306,30 @@ func (sh *strictHandler) GetStreaks(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetStreaksResponseObject); ok {
 		if err := validResponse.VisitGetStreaksResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetInfo operation middleware
+func (sh *strictHandler) GetInfo(w http.ResponseWriter, r *http.Request) {
+	var request GetInfoRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetInfo(ctx, request.(GetInfoRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetInfo")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetInfoResponseObject); ok {
+		if err := validResponse.VisitGetInfoResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useGetHome, useGetDocuments } from '../generated/anthoLumeAPIV1';
 import type { LeaderboardData } from '../generated/model';
 import ReadingHistoryGraph from '../components/ReadingHistoryGraph';
+import { formatNumber, formatDuration } from '../utils/formatters';
 
 interface InfoCardProps {
   title: string;
@@ -93,7 +95,30 @@ interface LeaderboardCardProps {
   data: LeaderboardData;
 }
 
+type TimePeriod = 'all' | 'year' | 'month' | 'week';
+
 function LeaderboardCard({ name, data }: LeaderboardCardProps) {
+  const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('all');
+
+  const formatValue = (value: number): string => {
+    switch (name) {
+      case 'WPM':
+        return `${value.toFixed(2)} WPM`;
+      case 'Duration':
+        return formatDuration(value);
+      case 'Words':
+        return formatNumber(value);
+      default:
+        return value.toString();
+    }
+  };
+
+  const currentData = data[selectedPeriod];
+
+  const handlePeriodChange = (period: TimePeriod) => {
+    setSelectedPeriod(period);
+  };
+
   return (
     <div className="w-full">
       <div className="flex size-full flex-col justify-between rounded bg-white px-4 py-6 shadow-lg dark:bg-gray-700">
@@ -102,28 +127,52 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
             <p className="w-max border-b border-gray-200 text-sm font-semibold text-gray-700 dark:border-gray-500 dark:text-white">
               {name} Leaderboard
             </p>
-            <div className="flex items-center gap-2 text-xs text-gray-400">
-              <span className="cursor-pointer hover:text-black dark:hover:text-white">all</span>
-              <span className="cursor-pointer hover:text-black dark:hover:text-white">year</span>
-              <span className="cursor-pointer hover:text-black dark:hover:text-white">month</span>
-              <span className="cursor-pointer hover:text-black dark:hover:text-white">week</span>
+            <div className="flex gap-2 text-xs text-gray-400 items-center">
+              <button
+                type="button"
+                onClick={() => handlePeriodChange('all')}
+                className={`cursor-pointer hover:text-black dark:hover:text-white ${selectedPeriod === 'all' ? '!text-black dark:!text-white' : ''}`}
+              >
+                all
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePeriodChange('year')}
+                className={`cursor-pointer hover:text-black dark:hover:text-white ${selectedPeriod === 'year' ? '!text-black dark:!text-white' : ''}`}
+              >
+                year
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePeriodChange('month')}
+                className={`cursor-pointer hover:text-black dark:hover:text-white ${selectedPeriod === 'month' ? '!text-black dark:!text-white' : ''}`}
+              >
+                month
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePeriodChange('week')}
+                className={`cursor-pointer hover:text-black dark:hover:text-white ${selectedPeriod === 'week' ? '!text-black dark:!text-white' : ''}`}
+              >
+                week
+              </button>
             </div>
           </div>
         </div>
 
-        {/* All time data */}
+        {/* Current period data */}
         <div className="my-6 flex items-end space-x-2">
-          {data.all.length === 0 ? (
+          {currentData?.length === 0 ? (
             <p className="text-5xl font-bold text-black dark:text-white">N/A</p>
           ) : (
             <p className="text-5xl font-bold text-black dark:text-white">
-              {data.all[0]?.user_id || 'N/A'}
+              {currentData[0]?.user_id || 'N/A'}
             </p>
           )}
         </div>
 
         <div className="dark:text-white">
-          {data.all.slice(0, 3).map((item: any, index: number) => (
+          {currentData?.slice(0, 3).map((item: any, index: number) => (
             <div
               key={index}
               className={`flex items-center justify-between py-2 text-sm ${index > 0 ? 'border-t border-gray-200' : ''}`}
@@ -131,7 +180,7 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
               <div>
                 <p>{item.user_id}</p>
               </div>
-              <div className="flex items-end font-bold">{item.value}</div>
+              <div className="flex items-end font-bold">{formatValue(item.value)}</div>
             </div>
           ))}
         </div>
@@ -139,8 +188,6 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
     </div>
   );
 }
-
-
 
 export default function HomePage() {
   const { data: homeData, isLoading: homeLoading } = useGetHome();

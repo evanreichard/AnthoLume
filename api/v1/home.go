@@ -174,66 +174,66 @@ func convertGraphData(graphData []database.GetDailyReadStatsRow) []GraphDataPoin
 }
 
 func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) UserStatisticsResponse {
-	// Sort helper - sort by WPM
-	sortByWPM := func(stats []database.GetUserStatisticsRow) []LeaderboardEntry {
+	// Sort by WPM for each period
+	sortByWPM := func(stats []database.GetUserStatisticsRow, getter func(database.GetUserStatisticsRow) float64) []LeaderboardEntry {
 		sorted := append([]database.GetUserStatisticsRow(nil), stats...)
 		sort.SliceStable(sorted, func(i, j int) bool {
-			return sorted[i].TotalWpm > sorted[j].TotalWpm
+			return getter(sorted[i]) > getter(sorted[j])
 		})
 
 		result := make([]LeaderboardEntry, len(sorted))
 		for i, item := range sorted {
-			result[i] = LeaderboardEntry{UserId: item.UserID, Value: int64(item.TotalWpm)}
+			result[i] = LeaderboardEntry{UserId: item.UserID, Value: getter(item)}
 		}
 		return result
 	}
 
-	// Sort by duration (seconds)
-sortByDuration := func(stats []database.GetUserStatisticsRow) []LeaderboardEntry {
+	// Sort by duration (seconds) for each period
+	sortByDuration := func(stats []database.GetUserStatisticsRow, getter func(database.GetUserStatisticsRow) int64) []LeaderboardEntry {
 		sorted := append([]database.GetUserStatisticsRow(nil), stats...)
 		sort.SliceStable(sorted, func(i, j int) bool {
-			return sorted[i].TotalSeconds > sorted[j].TotalSeconds
+			return getter(sorted[i]) > getter(sorted[j])
 		})
 
 		result := make([]LeaderboardEntry, len(sorted))
 		for i, item := range sorted {
-			result[i] = LeaderboardEntry{UserId: item.UserID, Value: item.TotalSeconds}
+			result[i] = LeaderboardEntry{UserId: item.UserID, Value: float64(getter(item))}
 		}
 		return result
 	}
 
-	// Sort by words
-sortByWords := func(stats []database.GetUserStatisticsRow) []LeaderboardEntry {
+	// Sort by words for each period
+	sortByWords := func(stats []database.GetUserStatisticsRow, getter func(database.GetUserStatisticsRow) int64) []LeaderboardEntry {
 		sorted := append([]database.GetUserStatisticsRow(nil), stats...)
 		sort.SliceStable(sorted, func(i, j int) bool {
-			return sorted[i].TotalWordsRead > sorted[j].TotalWordsRead
+			return getter(sorted[i]) > getter(sorted[j])
 		})
 
 		result := make([]LeaderboardEntry, len(sorted))
 		for i, item := range sorted {
-			result[i] = LeaderboardEntry{UserId: item.UserID, Value: item.TotalWordsRead}
+			result[i] = LeaderboardEntry{UserId: item.UserID, Value: float64(getter(item))}
 		}
 		return result
 	}
 
 	return UserStatisticsResponse{
 		Wpm: LeaderboardData{
-			All:   sortByWPM(userStatistics),
-			Year:  sortByWPM(userStatistics),
-			Month: sortByWPM(userStatistics),
-			Week:  sortByWPM(userStatistics),
+			All:   sortByWPM(userStatistics, func(s database.GetUserStatisticsRow) float64 { return s.TotalWpm }),
+			Year:  sortByWPM(userStatistics, func(s database.GetUserStatisticsRow) float64 { return s.YearlyWpm }),
+			Month: sortByWPM(userStatistics, func(s database.GetUserStatisticsRow) float64 { return s.MonthlyWpm }),
+			Week:  sortByWPM(userStatistics, func(s database.GetUserStatisticsRow) float64 { return s.WeeklyWpm }),
 		},
 		Duration: LeaderboardData{
-			All:   sortByDuration(userStatistics),
-			Year:  sortByDuration(userStatistics),
-			Month: sortByDuration(userStatistics),
-			Week:  sortByDuration(userStatistics),
+			All:   sortByDuration(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.TotalSeconds }),
+			Year:  sortByDuration(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.YearlySeconds }),
+			Month: sortByDuration(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.MonthlySeconds }),
+			Week:  sortByDuration(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.WeeklySeconds }),
 		},
 		Words: LeaderboardData{
-			All:   sortByWords(userStatistics),
-			Year:  sortByWords(userStatistics),
-			Month: sortByWords(userStatistics),
-			Week:  sortByWords(userStatistics),
+			All:   sortByWords(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.TotalWordsRead }),
+			Year:  sortByWords(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.YearlyWordsRead }),
+			Month: sortByWords(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.MonthlyWordsRead }),
+			Week:  sortByWords(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.WeeklyWordsRead }),
 		},
 	}
 }

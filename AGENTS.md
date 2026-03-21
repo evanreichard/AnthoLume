@@ -5,6 +5,14 @@ Updating Go templates (rendered HTML) → React app using V1 API (OpenAPI spec)
 
 ## Critical Rules
 
+### Generated Files
+- **NEVER edit generated files** - Always edit the source and regenerate
+  - Go backend API: Edit `api/v1/openapi.yaml` then run `go generate ./api/v1/generate.go`
+  - TS client: Regenerate with `cd frontend && npm run generate:api`
+  - Examples of generated files:
+    - `api/v1/api.gen.go`
+    - `frontend/src/generated/**/*.ts`
+
 ### Database Access
 - **NEVER write ad-hoc SQL** - Only use SQLC queries from `database/query.sql`
 - Migrate V1 API by mirroring legacy implementation in `api/app-admin-routes.go` and `api/app-routes.go`

@@ -9,6 +9,7 @@
 export * from './activity';
 export * from './activityResponse';
 export * from './backupType';
+export * from './configResponse';
 export * from './createDocumentBody';
 export * from './databaseInfo';
 export * from './device';
@@ -33,6 +34,7 @@ export * from './importResult';
 export * from './importResultsResponse';
 export * from './importResultStatus';
 export * from './importType';
+export * from './infoResponse';
 export * from './leaderboardData';
 export * from './leaderboardEntry';
 export * from './logEntry';

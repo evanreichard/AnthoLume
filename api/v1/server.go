@@ -46,8 +46,8 @@ func (s *Server) authMiddleware(handler StrictHandlerFunc, operationID string) S
 		ctx = context.WithValue(ctx, "request", r)
 		ctx = context.WithValue(ctx, "response", w)
 
-		// Skip auth for login endpoint only - cover and file require auth via cookies
-		if operationID == "Login" {
+		// Skip auth for login and info endpoints - cover and file require auth via cookies
+		if operationID == "Login" || operationID == "GetInfo" {
 			return handler(ctx, w, r, request)
 		}
 
@@ -66,4 +66,14 @@ func (s *Server) authMiddleware(handler StrictHandlerFunc, operationID string) S
 		return handler(ctx, w, r, request)
 	}
 }
+
+// GetInfo returns server information
+func (s *Server) GetInfo(ctx context.Context, request GetInfoRequestObject) (GetInfoResponseObject, error) {
+	return GetInfo200JSONResponse{
+		Version:              s.cfg.Version,
+		SearchEnabled:        s.cfg.SearchEnabled,
+		RegistrationEnabled:  s.cfg.RegistrationEnabled,
+	}, nil
+}
+
 
