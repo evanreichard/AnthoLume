@@ -112,10 +112,22 @@ func (s *Server) GetDocument(ctx context.Context, request GetDocumentRequestObje
 		return GetDocument401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
 	}
 
-	doc, err := s.db.Queries.GetDocument(ctx, request.Id)
-	if err != nil {
+	// Use GetDocumentsWithStats to get document with stats
+	docs, err := s.db.Queries.GetDocumentsWithStats(
+		ctx,
+		database.GetDocumentsWithStatsParams{
+			UserID:  auth.UserName,
+			ID:      &request.Id,
+			Deleted: ptrOf(false),
+			Offset:  0,
+			Limit:   1,
+		},
+	)
+	if err != nil || len(docs) == 0 {
 		return GetDocument404JSONResponse{Code: 404, Message: "Document not found"}, nil
 	}
+
+	doc := docs[0]
 
 	progressRow, err := s.db.Queries.GetDocumentProgress(ctx, database.GetDocumentProgressParams{
 		UserID:     auth.UserName,
@@ -132,24 +144,23 @@ func (s *Server) GetDocument(ctx context.Context, request GetDocumentRequestObje
 		}
 	}
 
-	var percentage *float32
-	if progress != nil && progress.Percentage != nil {
-		percentage = ptrOf(float32(*progress.Percentage))
-	}
-
 	apiDoc := Document{
-		Id:         doc.ID,
-		Title:      *doc.Title,
-		Author:     *doc.Author,
-		Description: doc.Description,
-		Isbn10:     doc.Isbn10,
-		Isbn13:     doc.Isbn13,
-		Words:      doc.Words,
-		Filepath:    doc.Filepath,
-		CreatedAt:  parseTime(doc.CreatedAt),
-		UpdatedAt:   parseTime(doc.UpdatedAt),
-		Deleted:    doc.Deleted,
-		Percentage: percentage,
+		Id:                doc.ID,
+		Title:             *doc.Title,
+		Author:            *doc.Author,
+		Description:       doc.Description,
+		Isbn10:            doc.Isbn10,
+		Isbn13:            doc.Isbn13,
+		Words:             doc.Words,
+		Filepath:          doc.Filepath,
+		Percentage:        ptrOf(float32(doc.Percentage)),
+		TotalTimeSeconds:  ptrOf(doc.TotalTimeSeconds),
+		Wpm:               ptrOf(float32(doc.Wpm)),
+		SecondsPerPercent: ptrOf(doc.SecondsPerPercent),
+		LastRead:          parseInterfaceTime(doc.LastRead),
+		CreatedAt:         time.Now(), // Will be overwritten if we had a proper created_at from DB
+		UpdatedAt:         time.Now(), // Will be overwritten if we had a proper updated_at from DB
+		Deleted:           false,      // Default, should be overridden if available
 	}
 
 	response := DocumentResponse{
@@ -197,7 +208,7 @@ func (s *Server) EditDocument(ctx context.Context, request EditDocumentRequestOb
 	}
 
 	// Update document with provided editable fields only
-	updatedDoc, err := s.db.Queries.UpsertDocument(ctx, database.UpsertDocumentParams{
+	_, err = s.db.Queries.UpsertDocument(ctx, database.UpsertDocumentParams{
 		ID:          request.Id,
 		Title:       request.Body.Title,
 		Author:      request.Body.Author,
@@ -216,7 +227,23 @@ func (s *Server) EditDocument(ctx context.Context, request EditDocumentRequestOb
 		return EditDocument500JSONResponse{Code: 500, Message: "Failed to update document"}, nil
 	}
 
-	// Get progress for the document
+	// Use GetDocumentsWithStats to get document with stats for the response
+	docs, err := s.db.Queries.GetDocumentsWithStats(
+		ctx,
+		database.GetDocumentsWithStatsParams{
+			UserID:  auth.UserName,
+			ID:      &request.Id,
+			Deleted: ptrOf(false),
+			Offset:  0,
+			Limit:   1,
+		},
+	)
+	if err != nil || len(docs) == 0 {
+		return EditDocument404JSONResponse{Code: 404, Message: "Document not found"}, nil
+	}
+
+	doc := docs[0]
+
 	progressRow, err := s.db.Queries.GetDocumentProgress(ctx, database.GetDocumentProgressParams{
 		UserID:     auth.UserName,
 		DocumentID: request.Id,
@@ -232,24 +259,23 @@ func (s *Server) EditDocument(ctx context.Context, request EditDocumentRequestOb
 		}
 	}
 
-	var percentage *float32
-	if progress != nil && progress.Percentage != nil {
-		percentage = ptrOf(float32(*progress.Percentage))
-	}
-
 	apiDoc := Document{
-		Id:         updatedDoc.ID,
-		Title:      *updatedDoc.Title,
-		Author:     *updatedDoc.Author,
-		Description: updatedDoc.Description,
-		Isbn10:     updatedDoc.Isbn10,
-		Isbn13:     updatedDoc.Isbn13,
-		Words:      updatedDoc.Words,
-		Filepath:    updatedDoc.Filepath,
-		CreatedAt:  parseTime(updatedDoc.CreatedAt),
-		UpdatedAt:   parseTime(updatedDoc.UpdatedAt),
-		Deleted:    updatedDoc.Deleted,
-		Percentage: percentage,
+		Id:                doc.ID,
+		Title:             *doc.Title,
+		Author:            *doc.Author,
+		Description:       doc.Description,
+		Isbn10:            doc.Isbn10,
+		Isbn13:            doc.Isbn13,
+		Words:             doc.Words,
+		Filepath:          doc.Filepath,
+		Percentage:        ptrOf(float32(doc.Percentage)),
+		TotalTimeSeconds:  ptrOf(doc.TotalTimeSeconds),
+		Wpm:               ptrOf(float32(doc.Wpm)),
+		SecondsPerPercent: ptrOf(doc.SecondsPerPercent),
+		LastRead:          parseInterfaceTime(doc.LastRead),
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
+		Deleted:           false,
 	}
 
 	response := DocumentResponse{
@@ -549,7 +575,7 @@ func (s *Server) UploadDocumentCover(ctx context.Context, request UploadDocument
 	}
 
 	// Upsert document with new cover
-	updatedDoc, err := s.db.Queries.UpsertDocument(ctx, database.UpsertDocumentParams{
+	_, err = s.db.Queries.UpsertDocument(ctx, database.UpsertDocumentParams{
 		ID:        request.Id,
 		Coverfile: &fileName,
 	})
@@ -558,7 +584,23 @@ func (s *Server) UploadDocumentCover(ctx context.Context, request UploadDocument
 		return UploadDocumentCover500JSONResponse{Code: 500, Message: "Failed to save cover"}, nil
 	}
 
-	// Get progress for the document
+	// Use GetDocumentsWithStats to get document with stats for the response
+	docs, err := s.db.Queries.GetDocumentsWithStats(
+		ctx,
+		database.GetDocumentsWithStatsParams{
+			UserID:  auth.UserName,
+			ID:      &request.Id,
+			Deleted: ptrOf(false),
+			Offset:  0,
+			Limit:   1,
+		},
+	)
+	if err != nil || len(docs) == 0 {
+		return UploadDocumentCover404JSONResponse{Code: 404, Message: "Document not found"}, nil
+	}
+
+	doc := docs[0]
+
 	progressRow, err := s.db.Queries.GetDocumentProgress(ctx, database.GetDocumentProgressParams{
 		UserID:     auth.UserName,
 		DocumentID: request.Id,
@@ -574,24 +616,23 @@ func (s *Server) UploadDocumentCover(ctx context.Context, request UploadDocument
 		}
 	}
 
-	var percentage *float32
-	if progress != nil && progress.Percentage != nil {
-		percentage = ptrOf(float32(*progress.Percentage))
-	}
-
 	apiDoc := Document{
-		Id:         updatedDoc.ID,
-		Title:      *updatedDoc.Title,
-		Author:     *updatedDoc.Author,
-		Description: updatedDoc.Description,
-		Isbn10:     updatedDoc.Isbn10,
-		Isbn13:     updatedDoc.Isbn13,
-		Words:      updatedDoc.Words,
-		Filepath:    updatedDoc.Filepath,
-		CreatedAt:  parseTime(updatedDoc.CreatedAt),
-		UpdatedAt:   parseTime(updatedDoc.UpdatedAt),
-		Deleted:    updatedDoc.Deleted,
-		Percentage: percentage,
+		Id:                doc.ID,
+		Title:             *doc.Title,
+		Author:            *doc.Author,
+		Description:       doc.Description,
+		Isbn10:            doc.Isbn10,
+		Isbn13:            doc.Isbn13,
+		Words:             doc.Words,
+		Filepath:          doc.Filepath,
+		Percentage:        ptrOf(float32(doc.Percentage)),
+		TotalTimeSeconds:  ptrOf(doc.TotalTimeSeconds),
+		Wpm:               ptrOf(float32(doc.Wpm)),
+		SecondsPerPercent: ptrOf(doc.SecondsPerPercent),
+		LastRead:          parseInterfaceTime(doc.LastRead),
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
+		Deleted:           false,
 	}
 
 	response := DocumentResponse{

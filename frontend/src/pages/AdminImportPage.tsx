@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useGetImportDirectory, usePostImport } from '../generated/anthoLumeAPIV1';
 import { Button } from '../components/Button';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpenIcon } from '../icons';
 import { useToasts } from '../components/ToastContext';
 
 export default function AdminImportPage() {
@@ -73,7 +73,7 @@ export default function AdminImportPage() {
             <form className="flex flex-col gap-4" onSubmit={handleImport}>
               <div className="flex w-full justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <FolderOpen size={20} />
+                  <FolderOpenIcon size={20} />
                   <p className="break-all text-lg font-medium">{selectedDirectory}</p>
                 </div>
                 <div className="mr-4 flex flex-col justify-around gap-2">
@@ -151,7 +151,7 @@ export default function AdminImportPage() {
                 <tr key={item.name}>
                   <td className="border-b border-gray-200 p-3 text-gray-800 dark:text-gray-400">
                     <button onClick={() => item.name && handleSelectDirectory(item.name)}>
-                      <FolderOpen size={20} />
+                      <FolderOpenIcon size={20} />
                     </button>
                   </td>
                   <td className="border-b border-gray-200 p-3">

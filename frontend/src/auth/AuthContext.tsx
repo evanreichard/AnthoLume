@@ -46,10 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           user: userData as { username: string; is_admin: boolean } | null,
           isCheckingAuth: false,
         };
-      } else if (
-        meError ||
-        (meData && meData.status === 401)
-      ) {
+      } else if (meError || (meData && meData.status === 401)) {
         // User is not authenticated or error occurred
         console.log('[AuthContext] User not authenticated:', meError?.message || String(meError));
         return {
@@ -77,7 +74,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // The session cookie is automatically set by the browser
         setAuthState({
           isAuthenticated: true,
-          user: 'username' in response.data ? response.data as { username: string; is_admin: boolean } : null,
+          user:
+            'username' in response.data
+              ? (response.data as { username: string; is_admin: boolean })
+              : null,
           isCheckingAuth: false,
         });
 

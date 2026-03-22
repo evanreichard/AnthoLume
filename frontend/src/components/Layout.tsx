@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, Outlet, Navigate } from 'react-router-dom';
 import { useGetMe } from '../generated/anthoLumeAPIV1';
 import { useAuth } from '../auth/AuthContext';
-import { UserIcon } from '../icons';
-import { ChevronDown } from 'lucide-react';
+import { UserIcon, DropdownIcon } from '../icons';
 import HamburgerMenu from './HamburgerMenu';
 
 export default function Layout() {
@@ -119,7 +118,7 @@ export default function Layout() {
               className="text-gray-800 transition-transform duration-200 dark:text-gray-200"
               style={{ transform: isUserDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
             >
-              <ChevronDown size={20} />
+              <DropdownIcon size={20} />
             </span>
           </button>
         </div>

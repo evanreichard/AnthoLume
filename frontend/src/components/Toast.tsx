@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Info, AlertTriangle, XCircle, X } from 'lucide-react';
+import { InfoIcon, WarningIcon, ErrorIcon, CloseIcon } from '../icons';
 
 export type ToastType = 'info' | 'warning' | 'error';
 
@@ -62,9 +62,9 @@ export function Toast({ id, type, message, duration = 5000, onClose }: ToastProp
   }
 
   const icons = {
-    info: <Info size={20} className={iconStyles[type]} />,
-    warning: <AlertTriangle size={20} className={iconStyles[type]} />,
-    error: <XCircle size={20} className={iconStyles[type]} />,
+    info: <InfoIcon size={20} className={iconStyles[type]} />,
+    warning: <WarningIcon size={20} className={iconStyles[type]} />,
+    error: <ErrorIcon size={20} className={iconStyles[type]} />,
   };
 
   return (
@@ -80,7 +80,7 @@ export function Toast({ id, type, message, duration = 5000, onClose }: ToastProp
         className={`ml-2 opacity-70 transition-opacity hover:opacity-100 ${textStyles[type]}`}
         aria-label="Close"
       >
-        <X size={18} />
+        <CloseIcon size={18} />
       </button>
     </div>
   );

@@ -21,7 +21,7 @@
 
 ## Frontend
 - **Package manager**: bun (not npm)
-- **Icons**: Use `lucide-react` for all icons (not custom SVGs)
+- **Icons**: Use custom icon components in `src/icons/` (not external icon libraries)
 - **Lint**: `cd frontend && bun run lint` (and `lint:fix`)
 - **Format**: `cd frontend && bun run format` (and `format:fix`)
 - **Generate API client**: `cd frontend && bun run generate:api`

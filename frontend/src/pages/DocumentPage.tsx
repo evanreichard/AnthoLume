@@ -1,43 +1,30 @@
 import { useParams } from 'react-router-dom';
-import { useGetDocument, useGetProgress, useEditDocument } from '../generated/anthoLumeAPIV1';
+import {
+  useGetDocument,
+  useEditDocument,
+  getGetDocumentQueryKey,
+} from '../generated/anthoLumeAPIV1';
+import { Document } from '../generated/model/document';
+import { Progress } from '../generated/model/progress';
+import { useQueryClient } from '@tanstack/react-query';
 import { formatDuration } from '../utils/formatters';
-import { DeleteIcon, ActivityIcon, SearchIcon, DownloadIcon, EditIcon, InfoIcon } from '../icons';
-import { X, Check } from 'lucide-react';
+import {
+  DeleteIcon,
+  ActivityIcon,
+  SearchIcon,
+  DownloadIcon,
+  EditIcon,
+  InfoIcon,
+  CloseIcon,
+  CheckIcon,
+} from '../icons';
 import { useState } from 'react';
-
-interface Document {
-  id: string;
-  title: string;
-  author: string;
-  description?: string;
-  isbn10?: string;
-  isbn13?: string;
-  words?: number;
-  filepath?: string;
-  created_at: string;
-  updated_at: string;
-  deleted: boolean;
-  percentage?: number;
-  total_time_seconds?: number;
-  wpm?: number;
-  seconds_per_percent?: number;
-  last_read?: string;
-}
-
-interface Progress {
-  document_id?: string;
-  percentage?: number;
-  created_at?: string;
-  user_id?: string;
-  device_name?: string;
-  title?: string;
-  author?: string;
-}
+import { Field, FieldLabel, FieldValue, FieldActions } from '../components';
 
 export default function DocumentPage() {
   const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
   const { data: docData, isLoading: docLoading } = useGetDocument(id || '');
-  const { data: progressData, isLoading: progressLoading } = useGetProgress(id || '');
   const editMutation = useEditDocument();
 
   const [showEditCover, setShowEditCover] = useState(false);
@@ -53,7 +40,7 @@ export default function DocumentPage() {
   const [editAuthor, setEditAuthor] = useState('');
   const [editDescription, setEditDescription] = useState('');
 
-  if (docLoading || progressLoading) {
+  if (docLoading) {
     return <div className="text-gray-500 dark:text-white">Loading...</div>;
   }
 
@@ -64,14 +51,14 @@ export default function DocumentPage() {
 
   const document = docData.data.document as Document;
   const progress =
-    progressData?.status === 200 ? (progressData.data.progress as Progress | undefined) : undefined;
+    docData?.status === 200 ? (docData.data.progress as Progress | undefined) : undefined;
 
   if (!document) {
     return <div className="text-gray-500 dark:text-white">Document not found</div>;
   }
 
-  // Calculate total time left (mirroring legacy template logic)
-  const percentage = progress?.percentage || document.percentage || 0;
+  const percentage =
+    document.percentage ?? (progress?.percentage ? progress.percentage * 100 : 0) ?? 0;
   const secondsPerPercent = document.seconds_per_percent || 0;
   const totalTimeLeftSeconds = Math.round((100 - percentage) * secondsPerPercent);
 
@@ -90,7 +77,11 @@ export default function DocumentPage() {
         data: { title: editTitle },
       },
       {
-        onSuccess: () => setIsEditingTitle(false),
+        onSuccess: response => {
+          setIsEditingTitle(false);
+          // Update cache with the response data (no refetch needed)
+          queryClient.setQueryData(getGetDocumentQueryKey(document.id), response);
+        },
         onError: () => setIsEditingTitle(false),
       }
     );
@@ -103,7 +94,11 @@ export default function DocumentPage() {
         data: { author: editAuthor },
       },
       {
-        onSuccess: () => setIsEditingAuthor(false),
+        onSuccess: response => {
+          setIsEditingAuthor(false);
+          // Update cache with the response data (no refetch needed)
+          queryClient.setQueryData(getGetDocumentQueryKey(document.id), response);
+        },
         onError: () => setIsEditingAuthor(false),
       }
     );
@@ -116,21 +111,25 @@ export default function DocumentPage() {
         data: { description: editDescription },
       },
       {
-        onSuccess: () => setIsEditingDescription(false),
+        onSuccess: response => {
+          setIsEditingDescription(false);
+          // Update cache with the response data (no refetch needed)
+          queryClient.setQueryData(getGetDocumentQueryKey(document.id), response);
+        },
         onError: () => setIsEditingDescription(false),
       }
     );
   };
 
   return (
-    <div className="relative h-full w-full">
-      <div className="h-full w-full overflow-scroll rounded bg-white p-4 shadow-lg dark:bg-gray-700 dark:text-white">
+    <div className="relative size-full">
+      <div className="size-full overflow-scroll rounded bg-white p-4 shadow-lg dark:bg-gray-700 dark:text-white">
         {/* Document Info - Left Column */}
         <div className="relative float-left mb-2 mr-4 flex w-44 flex-col gap-2 md:w-60 lg:w-80">
           {/* Cover Image with Edit Label */}
           <label className="z-10 cursor-pointer" htmlFor="edit-cover-checkbox">
             <img
-              className="rounded object-fill w-full"
+              className="w-full rounded object-fill"
               src={`/api/v1/documents/${document.id}/cover`}
               alt={`${document.title} cover`}
             />
@@ -161,7 +160,7 @@ export default function DocumentPage() {
             </div>
 
             {/* Icons Container */}
-            <div className="relative grow flex justify-between my-auto text-gray-500 dark:text-gray-500">
+            <div className="relative my-auto flex grow justify-between text-gray-500 dark:text-gray-500">
               {/* Edit Cover Dropdown */}
               <div className="relative">
                 <input
@@ -172,25 +171,25 @@ export default function DocumentPage() {
                   onChange={e => setShowEditCover(e.target.checked)}
                 />
                 <div
-                  className={`absolute z-30 flex flex-col gap-2 top-0 left-0 p-3 transition-all duration-200 bg-gray-200 rounded shadow-lg dark:bg-gray-600 ${
-                    showEditCover ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                  className={`absolute left-0 top-0 z-30 flex flex-col gap-2 rounded bg-gray-200 p-3 shadow-lg transition-all duration-200 dark:bg-gray-600 ${
+                    showEditCover ? 'opacity-100' : 'pointer-events-none opacity-0'
                   }`}
                 >
-                  <form className="flex flex-col gap-2 w-72 text-black dark:text-white text-sm">
+                  <form className="flex w-72 flex-col gap-2 text-sm text-black dark:text-white">
                     <input
                       type="file"
                       id="cover_file"
                       name="cover_file"
-                      className="p-2 bg-gray-300"
+                      className="bg-gray-300 p-2"
                     />
                     <button
                       type="submit"
-                      className="rounded bg-blue-700 py-1 px-2 text-sm font-medium text-white hover:bg-blue-800 dark:bg-blue-600"
+                      className="rounded bg-blue-700 px-2 py-1 text-sm font-medium text-white hover:bg-blue-800 dark:bg-blue-600"
                     >
                       Upload Cover
                     </button>
                   </form>
-                  <form className="flex flex-col gap-2 w-72 text-black dark:text-white text-sm">
+                  <form className="flex w-72 flex-col gap-2 text-sm text-black dark:text-white">
                     <input
                       type="checkbox"
                       checked
@@ -200,7 +199,7 @@ export default function DocumentPage() {
                     />
                     <button
                       type="submit"
-                      className="rounded bg-blue-700 py-1 px-2 text-sm font-medium text-white hover:bg-blue-800 dark:bg-blue-600"
+                      className="rounded bg-blue-700 px-2 py-1 text-sm font-medium text-white hover:bg-blue-800 dark:bg-blue-600"
                     >
                       Remove Cover
                     </button>
@@ -219,14 +218,14 @@ export default function DocumentPage() {
                   <DeleteIcon size={28} />
                 </button>
                 <div
-                  className={`absolute z-30 bottom-7 left-5 p-3 transition-all duration-200 bg-gray-200 rounded shadow-lg dark:bg-gray-600 ${
-                    showDelete ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                  className={`absolute bottom-7 left-5 z-30 rounded bg-gray-200 p-3 shadow-lg transition-all duration-200 dark:bg-gray-600 ${
+                    showDelete ? 'opacity-100' : 'pointer-events-none opacity-0'
                   }`}
                 >
-                  <form className="text-black dark:text-white text-sm w-24">
+                  <form className="w-24 text-sm text-black dark:text-white">
                     <button
                       type="submit"
-                      className="rounded bg-red-600 py-1 px-2 text-sm font-medium text-white hover:bg-red-700"
+                      className="rounded bg-red-600 px-2 py-1 text-sm font-medium text-white hover:bg-red-700"
                     >
                       Delete
                     </button>
@@ -254,18 +253,18 @@ export default function DocumentPage() {
                   <SearchIcon size={28} />
                 </button>
                 <div
-                  className={`absolute z-30 bottom-7 left-5 p-3 transition-all duration-200 bg-gray-200 rounded shadow-lg dark:bg-gray-600 ${
-                    showIdentify ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                  className={`absolute bottom-7 left-5 z-30 rounded bg-gray-200 p-3 shadow-lg transition-all duration-200 dark:bg-gray-600 ${
+                    showIdentify ? 'opacity-100' : 'pointer-events-none opacity-0'
                   }`}
                 >
-                  <form className="flex flex-col gap-2 text-black dark:text-white text-sm">
+                  <form className="flex flex-col gap-2 text-sm text-black dark:text-white">
                     <input
                       type="text"
                       id="title"
                       name="title"
                       placeholder="Title"
                       defaultValue={document.title}
-                      className="p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white rounded"
+                      className="rounded bg-gray-300 p-2 text-black dark:bg-gray-700 dark:text-white"
                     />
                     <input
                       type="text"
@@ -273,7 +272,7 @@ export default function DocumentPage() {
                       name="author"
                       placeholder="Author"
                       defaultValue={document.author}
-                      className="p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white rounded"
+                      className="rounded bg-gray-300 p-2 text-black dark:bg-gray-700 dark:text-white"
                     />
                     <input
                       type="text"
@@ -281,11 +280,11 @@ export default function DocumentPage() {
                       name="isbn"
                       placeholder="ISBN 10 / ISBN 13"
                       defaultValue={document.isbn13 || document.isbn10}
-                      className="p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white rounded"
+                      className="rounded bg-gray-300 p-2 text-black dark:bg-gray-700 dark:text-white"
                     />
                     <button
                       type="submit"
-                      className="rounded bg-blue-700 py-1 px-2 text-sm font-medium text-white hover:bg-blue-800 dark:bg-blue-600"
+                      className="rounded bg-blue-700 px-2 py-1 text-sm font-medium text-white hover:bg-blue-800 dark:bg-blue-600"
                     >
                       Identify
                     </button>
@@ -314,221 +313,230 @@ export default function DocumentPage() {
         {/* Document Details Grid */}
         <div className="grid justify-between gap-4 pb-4 sm:grid-cols-2">
           {/* Title - Editable */}
-          <div
-            className={`relative rounded p-2 ${isEditingTitle ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700' : ''}`}
+          <Field
+            isEditing={isEditingTitle}
+            label={
+              <>
+                <FieldLabel>Title</FieldLabel>
+                <FieldActions>
+                  {isEditingTitle ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingTitle(false)}
+                        className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
+                        aria-label="Cancel edit"
+                      >
+                        <CloseIcon size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveTitle}
+                        className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
+                        aria-label="Confirm edit"
+                      >
+                        <CheckIcon size={18} />
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        startEditing('title');
+                        setIsEditingTitle(true);
+                      }}
+                      className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
+                      aria-label="Edit title"
+                    >
+                      <EditIcon size={18} />
+                    </button>
+                  )}
+                </FieldActions>
+              </>
+            }
           >
-            <div className="relative inline-flex gap-2 text-gray-500">
-              <p>Title</p>
-              {isEditingTitle ? (
-                <div className="inline-flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingTitle(false)}
-                    className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
-                    aria-label="Cancel edit"
-                  >
-                    <X size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={saveTitle}
-                    className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
-                    aria-label="Confirm edit"
-                  >
-                    <Check size={18} />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    startEditing('title');
-                    setIsEditingTitle(true);
-                  }}
-                  className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
-                  aria-label="Edit title"
-                >
-                  <EditIcon size={18} />
-                </button>
-              )}
-            </div>
             {isEditingTitle ? (
-              <div className="relative flex gap-2 mt-1">
+              <div className="relative mt-1 flex gap-2">
                 <input
                   type="text"
                   value={editTitle}
                   onChange={e => setEditTitle(e.target.value)}
-                  className="p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white rounded font-medium text-lg flex-grow"
+                  className="grow rounded border border-blue-200 bg-blue-50 p-2 text-lg font-medium text-black focus:outline-none focus:ring-2 focus:ring-blue-400 dark:border-blue-700 dark:bg-blue-900/20 dark:text-white dark:focus:ring-blue-500"
                 />
               </div>
             ) : (
-              <p className="font-medium text-lg">{document.title}</p>
+              <FieldValue>{document.title}</FieldValue>
             )}
-          </div>
+          </Field>
 
           {/* Author - Editable */}
-          <div
-            className={`relative rounded p-2 ${isEditingAuthor ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700' : ''}`}
+          <Field
+            isEditing={isEditingAuthor}
+            label={
+              <>
+                <FieldLabel>Author</FieldLabel>
+                <FieldActions>
+                  {isEditingAuthor ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingAuthor(false)}
+                        className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
+                        aria-label="Cancel edit"
+                      >
+                        <CloseIcon size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveAuthor}
+                        className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
+                        aria-label="Confirm edit"
+                      >
+                        <CheckIcon size={18} />
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        startEditing('author');
+                        setIsEditingAuthor(true);
+                      }}
+                      className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
+                      aria-label="Edit author"
+                    >
+                      <EditIcon size={18} />
+                    </button>
+                  )}
+                </FieldActions>
+              </>
+            }
           >
-            <div className="relative inline-flex gap-2 text-gray-500">
-              <p>Author</p>
-              {isEditingAuthor ? (
-                <div className="inline-flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingAuthor(false)}
-                    className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
-                    aria-label="Cancel edit"
-                  >
-                    <X size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={saveAuthor}
-                    className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
-                    aria-label="Confirm edit"
-                  >
-                    <Check size={18} />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    startEditing('author');
-                    setIsEditingAuthor(true);
-                  }}
-                  className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
-                  aria-label="Edit author"
-                >
-                  <EditIcon size={18} />
-                </button>
-              )}
-            </div>
             {isEditingAuthor ? (
-              <div className="relative flex gap-2 mt-1">
+              <div className="relative mt-1 flex gap-2">
                 <input
                   type="text"
                   value={editAuthor}
                   onChange={e => setEditAuthor(e.target.value)}
-                  className="p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white rounded font-medium text-lg flex-grow"
+                  className="grow rounded border border-blue-200 bg-blue-50 p-2 text-lg font-medium text-black focus:outline-none focus:ring-2 focus:ring-blue-400 dark:border-blue-700 dark:bg-blue-900/20 dark:text-white dark:focus:ring-blue-500"
                 />
               </div>
             ) : (
-              <p className="font-medium text-lg">{document.author}</p>
+              <FieldValue>{document.author}</FieldValue>
             )}
-          </div>
+          </Field>
 
           {/* Time Read with Info Dropdown */}
-          <div className="relative">
-            <div className="relative inline-flex gap-2 text-gray-500">
-              <p>Time Read</p>
-              <button
-                type="button"
-                onClick={() => setShowTimeReadInfo(!showTimeReadInfo)}
-                className="my-auto cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
-                aria-label="Show time read info"
-              >
-                <InfoIcon size={18} />
-              </button>
-              <div
-                className={`absolute z-30 top-7 right-0 p-3 transition-all duration-200 bg-gray-200 rounded shadow-lg dark:bg-gray-600 ${
-                  showTimeReadInfo ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                }`}
-              >
-                <div className="text-xs flex">
-                  <p className="text-gray-400 w-32">Seconds / Percent</p>
-                  <p className="font-medium dark:text-white">
-                    {secondsPerPercent !== 0 ? secondsPerPercent : 'N/A'}
-                  </p>
+          <Field
+            label={
+              <>
+                <FieldLabel>Time Read</FieldLabel>
+                <button
+                  type="button"
+                  onClick={() => setShowTimeReadInfo(!showTimeReadInfo)}
+                  className="my-auto cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
+                  aria-label="Show time read info"
+                >
+                  <InfoIcon size={18} />
+                </button>
+                <div
+                  className={`absolute right-0 top-7 z-30 rounded bg-gray-200 p-3 shadow-lg transition-all duration-200 dark:bg-gray-600 ${
+                    showTimeReadInfo ? 'opacity-100' : 'pointer-events-none opacity-0'
+                  }`}
+                >
+                  <div className="flex text-xs">
+                    <p className="w-32 text-gray-400">Seconds / Percent</p>
+                    <p className="font-medium dark:text-white">
+                      {secondsPerPercent !== 0 ? secondsPerPercent : 'N/A'}
+                    </p>
+                  </div>
+                  <div className="flex text-xs">
+                    <p className="w-32 text-gray-400">Words / Minute</p>
+                    <p className="font-medium dark:text-white">
+                      {document.wpm && document.wpm > 0 ? document.wpm : 'N/A'}
+                    </p>
+                  </div>
+                  <div className="flex text-xs">
+                    <p className="w-32 text-gray-400">Est. Time Left</p>
+                    <p className="whitespace-nowrap font-medium dark:text-white">
+                      {totalTimeLeftSeconds > 0 ? formatDuration(totalTimeLeftSeconds) : 'N/A'}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-xs flex">
-                  <p className="text-gray-400 w-32">Words / Minute</p>
-                  <p className="font-medium dark:text-white">
-                    {document.wpm && document.wpm > 0 ? document.wpm : 'N/A'}
-                  </p>
-                </div>
-                <div className="text-xs flex">
-                  <p className="text-gray-400 w-32">Est. Time Left</p>
-                  <p className="font-medium dark:text-white whitespace-nowrap">
-                    {totalTimeLeftSeconds > 0 ? formatDuration(totalTimeLeftSeconds) : 'N/A'}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <p className="font-medium text-lg">
+              </>
+            }
+          >
+            <FieldValue>
               {document.total_time_seconds && document.total_time_seconds > 0
                 ? formatDuration(document.total_time_seconds)
                 : 'N/A'}
-            </p>
-          </div>
+            </FieldValue>
+          </Field>
 
           {/* Progress */}
-          <div>
-            <p className="text-gray-500">Progress</p>
-            <p className="font-medium text-lg">
-              {percentage ? `${Math.round(percentage)}%` : '0%'}
-            </p>
-          </div>
+          <Field label={<FieldLabel>Progress</FieldLabel>}>
+            <FieldValue>{`${percentage.toFixed(2)}%`}</FieldValue>
+          </Field>
         </div>
 
         {/* Description - Editable */}
-        <div
-          className={`relative rounded p-2 ${isEditingDescription ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700' : ''}`}
+        <Field
+          isEditing={isEditingDescription}
+          label={
+            <>
+              <FieldLabel>Description</FieldLabel>
+              <FieldActions>
+                {isEditingDescription ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingDescription(false)}
+                      className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
+                      aria-label="Cancel edit"
+                    >
+                      <CloseIcon size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveDescription}
+                      className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
+                      aria-label="Confirm edit"
+                    >
+                      <CheckIcon size={18} />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      startEditing('description');
+                      setIsEditingDescription(true);
+                    }}
+                    className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
+                    aria-label="Edit description"
+                  >
+                    <EditIcon size={18} />
+                  </button>
+                )}
+              </FieldActions>
+            </>
+          }
         >
-          <div className="relative inline-flex gap-2 text-gray-500">
-            <p>Description</p>
-            {isEditingDescription ? (
-              <div className="inline-flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsEditingDescription(false)}
-                  className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
-                  aria-label="Cancel edit"
-                >
-                  <X size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={saveDescription}
-                  className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
-                  aria-label="Confirm edit"
-                >
-                  <Check size={18} />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  startEditing('description');
-                  setIsEditingDescription(true);
-                }}
-                className="cursor-pointer hover:text-gray-800 dark:hover:text-gray-100"
-                aria-label="Edit description"
-              >
-                <EditIcon size={18} />
-              </button>
-            )}
-          </div>
           {isEditingDescription ? (
-            <div className="relative flex gap-2 mt-1">
+            <div className="relative mt-1 flex gap-2">
               <textarea
                 value={editDescription}
                 onChange={e => setEditDescription(e.target.value)}
-                className="h-32 w-full p-2 bg-gray-300 text-black dark:bg-gray-700 dark:text-white rounded font-medium flex-grow"
+                className="h-32 w-full grow rounded border border-blue-200 bg-blue-50 p-2 font-medium text-black focus:outline-none focus:ring-2 focus:ring-blue-400 dark:border-blue-700 dark:bg-blue-900/20 dark:text-white dark:focus:ring-blue-500"
                 rows={5}
               />
             </div>
           ) : (
-            <div className="relative font-medium text-justify hyphens-auto mt-1">
-              <p>{document.description || 'N/A'}</p>
-            </div>
+            <FieldValue className="hyphens-auto text-justify">
+              {document.description || 'N/A'}
+            </FieldValue>
           )}
-        </div>
-
-        {/* Metadata Section */}
-        {/* TODO: Add metadata component when available */}
+        </Field>
       </div>
     </div>
   );

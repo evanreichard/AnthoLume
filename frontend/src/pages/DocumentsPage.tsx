@@ -1,10 +1,12 @@
-import { useState, FormEvent, useRef } from 'react';
+import { useState, FormEvent, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useGetDocuments, useCreateDocument } from '../generated/anthoLumeAPIV1';
+import type { DocumentsResponse } from '../generated/model/documentsResponse';
 import { ActivityIcon, DownloadIcon, SearchIcon, UploadIcon } from '../icons';
 import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
 import { formatDuration } from '../utils/formatters';
+import { useDebounce } from '../hooks/useDebounce';
 
 interface DocumentCardProps {
   doc: {
@@ -87,11 +89,18 @@ export default function DocumentsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showInfo, showWarning, showError } = useToasts();
 
-  const { data, isLoading, refetch } = useGetDocuments({ page, limit, search });
+  const debouncedSearch = useDebounce(search, 300);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const { data, isLoading, refetch } = useGetDocuments({ page, limit, search: debouncedSearch });
   const createMutation = useCreateDocument();
-  const docs = data?.data?.documents;
-  const previousPage = data?.data?.previous_page;
-  const nextPage = data?.data?.next_page;
+  const docs = (data?.data as DocumentsResponse | undefined)?.documents;
+  const previousPage = (data?.data as DocumentsResponse | undefined)?.previous_page;
+  const nextPage = (data?.data as DocumentsResponse | undefined)?.next_page;
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -128,10 +137,6 @@ export default function DocumentsPage() {
     }
   };
 
-  if (isLoading) {
-    return <div className="text-gray-500 dark:text-white">Loading...</div>;
-  }
-
   return (
     <div className="flex flex-col gap-4">
       {/* Search Form */}
@@ -162,9 +167,11 @@ export default function DocumentsPage() {
 
       {/* Document Grid */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {docs?.map((doc: any) => (
-          <DocumentCard key={doc.id} doc={doc} />
-        ))}
+        {isLoading ? (
+          <div className="col-span-full text-center text-gray-500 dark:text-white">Loading...</div>
+        ) : (
+          docs?.map((doc: any) => <DocumentCard key={doc.id} doc={doc} />)
+        )}
       </div>
 
       {/* Pagination */}
