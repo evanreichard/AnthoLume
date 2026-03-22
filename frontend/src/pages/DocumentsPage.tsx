@@ -2,8 +2,9 @@ import { useState, FormEvent, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useGetDocuments, useCreateDocument } from '../generated/anthoLumeAPIV1';
 import type { Document, DocumentsResponse } from '../generated/model';
-import { ActivityIcon, DownloadIcon, SearchIcon, UploadIcon } from '../icons';
+import { ActivityIcon, DownloadIcon, Search2Icon, UploadIcon } from '../icons';
 import { Button } from '../components/Button';
+import { LoadingState } from '../components';
 import { useToasts } from '../components/ToastContext';
 import { formatDuration } from '../utils/formatters';
 import { useDebounce } from '../hooks/useDebounce';
@@ -136,7 +137,7 @@ export default function DocumentsPage() {
           <div className="flex w-full grow flex-col">
             <div className="relative flex">
               <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
-                <SearchIcon size={15} />
+                <Search2Icon size={15} />
               </span>
               <input
                 type="text"
@@ -159,7 +160,7 @@ export default function DocumentsPage() {
       {/* Document Grid */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {isLoading ? (
-          <div className="col-span-full text-center text-gray-500 dark:text-white">Loading...</div>
+          <LoadingState className="col-span-full min-h-48" />
         ) : (
           docs?.map(doc => <DocumentCard key={doc.id} doc={doc} />)
         )}

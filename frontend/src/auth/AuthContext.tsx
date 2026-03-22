@@ -8,12 +8,13 @@ import {
   useGetMe,
   useRegister,
 } from '../generated/anthoLumeAPIV1';
-
-interface AuthState {
-  isAuthenticated: boolean;
-  user: { username: string; is_admin: boolean } | null;
-  isCheckingAuth: boolean;
-}
+import {
+  type AuthState,
+  getAuthenticatedAuthState,
+  getUnauthenticatedAuthState,
+  resolveAuthStateFromMe,
+  validateAuthMutationResponse,
+} from './authHelpers';
 
 interface AuthContextType extends AuthState {
   login: (_username: string, _password: string) => Promise<void>;
@@ -23,12 +24,14 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const initialAuthState: AuthState = {
+  isAuthenticated: false,
+  user: null,
+  isCheckingAuth: true,
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [authState, setAuthState] = useState<AuthState>({
-    isAuthenticated: false,
-    user: null,
-    isCheckingAuth: true,
-  });
+  const [authState, setAuthState] = useState<AuthState>(initialAuthState);
 
   const loginMutation = useLogin();
   const registerMutation = useRegister();
@@ -40,26 +43,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    setAuthState(prev => {
-      if (meLoading) {
-        return { ...prev, isCheckingAuth: true };
-      } else if (meData?.data && meData.status === 200) {
-        const userData = 'username' in meData.data ? meData.data : null;
-        return {
-          isAuthenticated: true,
-          user: userData as { username: string; is_admin: boolean } | null,
-          isCheckingAuth: false,
-        };
-      } else if (meError || (meData && meData.status === 401)) {
-        return {
-          isAuthenticated: false,
-          user: null,
-          isCheckingAuth: false,
-        };
-      }
-
-      return { ...prev, isCheckingAuth: false };
-    });
+    setAuthState(prev =>
+      resolveAuthStateFromMe({
+        meData,
+        meError,
+        meLoading,
+        previousState: prev,
+      })
+    );
   }, [meData, meError, meLoading]);
 
   const login = useCallback(
@@ -72,29 +63,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
         });
 
-        if (response.status !== 200 || !('username' in response.data)) {
-          setAuthState({
-            isAuthenticated: false,
-            user: null,
-            isCheckingAuth: false,
-          });
+        const user = validateAuthMutationResponse(response, 200);
+        if (!user) {
+          setAuthState(getUnauthenticatedAuthState());
           throw new Error('Login failed');
         }
 
-        setAuthState({
-          isAuthenticated: true,
-          user: response.data as { username: string; is_admin: boolean },
-          isCheckingAuth: false,
-        });
+        setAuthState(getAuthenticatedAuthState(user));
 
         await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
         navigate('/');
       } catch (_error) {
-        setAuthState({
-          isAuthenticated: false,
-          user: null,
-          isCheckingAuth: false,
-        });
+        setAuthState(getUnauthenticatedAuthState());
         throw new Error('Login failed');
       }
     },
@@ -111,29 +91,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
         });
 
-        if (response.status !== 201 || !('username' in response.data)) {
-          setAuthState({
-            isAuthenticated: false,
-            user: null,
-            isCheckingAuth: false,
-          });
+        const user = validateAuthMutationResponse(response, 201);
+        if (!user) {
+          setAuthState(getUnauthenticatedAuthState());
           throw new Error('Registration failed');
         }
 
-        setAuthState({
-          isAuthenticated: true,
-          user: response.data as { username: string; is_admin: boolean },
-          isCheckingAuth: false,
-        });
+        setAuthState(getAuthenticatedAuthState(user));
 
         await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
         navigate('/');
       } catch (_error) {
-        setAuthState({
-          isAuthenticated: false,
-          user: null,
-          isCheckingAuth: false,
-        });
+        setAuthState(getUnauthenticatedAuthState());
         throw new Error('Registration failed');
       }
     },
@@ -143,11 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     logoutMutation.mutate(undefined, {
       onSuccess: async () => {
-        setAuthState({
-          isAuthenticated: false,
-          user: null,
-          isCheckingAuth: false,
-        });
+        setAuthState(getUnauthenticatedAuthState());
         await queryClient.removeQueries({ queryKey: getGetMeQueryKey() });
         navigate('/login');
       },

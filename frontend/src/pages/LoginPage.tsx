@@ -5,57 +5,57 @@ import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
 import { useGetInfo } from '../generated/anthoLumeAPIV1';
 
-export default function LoginPage() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+interface LoginPageViewProps {
+  username: string;
+  password: string;
+  isLoading: boolean;
+  registrationEnabled: boolean;
+  onUsernameChange: (value: string) => void;
+  onPasswordChange: (value: string) => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void | Promise<void>;
+}
 
-  const { login, isAuthenticated, isCheckingAuth } = useAuth();
-  const navigate = useNavigate();
-  const { showError } = useToasts();
-  const { data: infoData } = useGetInfo({
-    query: {
-      staleTime: Infinity,
-    },
-  });
+export function getRegistrationEnabled(infoData: unknown): boolean {
+  if (!infoData || typeof infoData !== 'object') {
+    return false;
+  }
 
-  const registrationEnabled =
-    infoData && 'data' in infoData && infoData.data && 'registration_enabled' in infoData.data
-      ? infoData.data.registration_enabled
-      : false;
+  if (!('data' in infoData) || !infoData.data || typeof infoData.data !== 'object') {
+    return false;
+  }
 
-  useEffect(() => {
-    if (!isCheckingAuth && isAuthenticated) {
-      navigate('/', { replace: true });
-    }
-  }, [isAuthenticated, isCheckingAuth, navigate]);
+  if (
+    !('registration_enabled' in infoData.data) ||
+    typeof infoData.data.registration_enabled !== 'boolean'
+  ) {
+    return false;
+  }
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  return infoData.data.registration_enabled;
+}
 
-    try {
-      await login(username, password);
-    } catch (_err) {
-      showError('Invalid credentials');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+export function LoginPageView({
+  username,
+  password,
+  isLoading,
+  registrationEnabled,
+  onUsernameChange,
+  onPasswordChange,
+  onSubmit,
+}: LoginPageViewProps) {
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-800 dark:text-white">
       <div className="flex w-full flex-wrap">
         <div className="flex w-full flex-col md:w-1/2">
           <div className="my-auto flex flex-col justify-center px-8 pt-8 md:justify-start md:px-24 md:pt-0 lg:px-32">
             <p className="text-center text-3xl">Welcome.</p>
-            <form className="flex flex-col pt-3 md:pt-8" onSubmit={handleSubmit}>
+            <form className="flex flex-col pt-3 md:pt-8" onSubmit={onSubmit}>
               <div className="flex flex-col pt-4">
                 <div className="relative flex">
                   <input
                     type="text"
                     value={username}
-                    onChange={e => setUsername(e.target.value)}
+                    onChange={e => onUsernameChange(e.target.value)}
                     className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
                     placeholder="Username"
                     required
@@ -68,7 +68,7 @@ export default function LoginPage() {
                   <input
                     type="password"
                     value={password}
-                    onChange={e => setPassword(e.target.value)}
+                    onChange={e => onPasswordChange(e.target.value)}
                     className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
                     placeholder="Password"
                     required
@@ -109,5 +109,53 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const { login, isAuthenticated, isCheckingAuth } = useAuth();
+  const navigate = useNavigate();
+  const { showError } = useToasts();
+  const { data: infoData } = useGetInfo({
+    query: {
+      staleTime: Infinity,
+    },
+  });
+
+  const registrationEnabled = getRegistrationEnabled(infoData);
+
+  useEffect(() => {
+    if (!isCheckingAuth && isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, isCheckingAuth, navigate]);
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      await login(username, password);
+    } catch (_err) {
+      showError('Invalid credentials');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <LoginPageView
+      username={username}
+      password={password}
+      isLoading={isLoading}
+      registrationEnabled={registrationEnabled}
+      onUsernameChange={setUsername}
+      onPasswordChange={setPassword}
+      onSubmit={handleSubmit}
+    />
   );
 }

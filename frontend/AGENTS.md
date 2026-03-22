@@ -18,6 +18,7 @@ Also follow the repository root guide at `../AGENTS.md`.
 - Do not add external icon libraries.
 - Prefer generated types from `src/generated/model/` over `any`.
 - Avoid custom class names in JSX `className` values unless the Tailwind lint config already allows them.
+- Prefer `LoadingState` for result-area loading indicators; avoid early returns that unmount search/filter forms during fetches.
 
 ## 3) Generated API client
 
@@ -51,6 +52,9 @@ Also follow the repository root guide at `../AGENTS.md`.
 
 - ESLint ignores `src/generated/**`.
 - Frontend unit tests use Vitest and live alongside source as `src/**/*.test.ts(x)`.
+- Read `TESTING_STRATEGY.md` before adding or expanding frontend tests.
+- Prefer tests for meaningful app behavior, branching logic, side effects, and user-visible outcomes.
+- Avoid low-value tests that mainly assert exact styling classes, duplicate existing coverage, or re-test framework/library behavior.
 - `bun run lint` includes test files but does not typecheck.
 - Use `bun run typecheck` to run TypeScript validation for app code and colocated tests without a full production build.
 - Run frontend tests with `bun run test`.

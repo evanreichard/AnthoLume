@@ -34,12 +34,6 @@ describe('formatNumber', () => {
     expect(formatNumber(-1500000)).toBe('-1.50M');
   });
 
-  it('matches Go test cases exactly', () => {
-    expect(formatNumber(0)).toBe('0');
-    expect(formatNumber(19823)).toBe('19.8k');
-    expect(formatNumber(1500000)).toBe('1.50M');
-    expect(formatNumber(-12345)).toBe('-12.3k');
-  });
 });
 
 describe('formatDuration', () => {
@@ -68,9 +62,4 @@ describe('formatDuration', () => {
     expect(formatDuration(1928371)).toBe('22d 7h 39m 31s');
   });
 
-  it('matches Go test cases exactly', () => {
-    expect(formatDuration(0)).toBe('N/A');
-    expect(formatDuration(22 * 24 * 60 * 60 + 7 * 60 * 60 + 39 * 60 + 31)).toBe('22d 7h 39m 31s');
-    expect(formatDuration(5 * 60 + 15)).toBe('5m 15s');
-  });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getSVGGraphData } from './ReadingHistoryGraph';
 
-// Test data matching Go test exactly
+// Intentionally exact fixture data for algorithm parity coverage
 const testInput = [
   { date: '2024-01-01', minutes_read: 10 },
   { date: '2024-01-02', minutes_read: 90 },
@@ -23,7 +23,7 @@ describe('ReadingHistoryGraph', () => {
     it('should match exactly', () => {
       const result = getSVGGraphData(testInput, svgWidth, svgHeight);
 
-      // Expected values from Go test
+      // Expected exact algorithm output
       const expectedBezierPath =
         'M 50,95 C63,95 80,50 100,50 C120,50 128,73 150,73 C172,73 180,98 200,98 C220,98 230,95 250,95 C270,95 279,98 300,98 C321,98 330,62 350,62 C370,62 380,67 400,67 C420,67 430,73 450,73 C470,73 489,50 500,50';
       const expectedBezierFill = 'L 500,98 L 50,98 Z';
@@ -37,13 +37,13 @@ describe('ReadingHistoryGraph', () => {
       expect(svgHeight).toBe(expectedHeight);
       expect(result.Offset).toBe(expectedOffset);
 
-      // Verify line points are integers like Go
+      // Verify line points are integer pixel values
       result.LinePoints.forEach((p, _i) => {
         expect(Number.isInteger(p.x)).toBe(true);
         expect(Number.isInteger(p.y)).toBe(true);
       });
 
-      // Expected line points from Go calculation:
+      // Expected line points from the current algorithm:
       // idx 0: itemSize=5, itemY=95, lineX=50
       // idx 1: itemSize=45, itemY=55, lineX=100
       // idx 2: itemSize=25, itemY=75, lineX=150

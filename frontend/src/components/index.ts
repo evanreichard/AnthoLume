@@ -17,6 +17,7 @@ export {
   PageLoader,
   InlineLoader,
 } from './Skeleton';
+export { LoadingState } from './LoadingState';
 
 // Field components
 export { Field, FieldLabel, FieldValue, FieldActions } from './Field';

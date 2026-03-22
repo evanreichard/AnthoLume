@@ -594,6 +594,21 @@ components:
             $ref: '#/components/schemas/LogEntry'
         filter:
           type: string
+        page:
+          type: integer
+          format: int64
+        limit:
+          type: integer
+          format: int64
+        next_page:
+          type: integer
+          format: int64
+        previous_page:
+          type: integer
+          format: int64
+        total:
+          type: integer
+          format: int64
 
     InfoResponse:
       type: object
@@ -1764,6 +1779,18 @@ paths:
           in: query
           schema:
             type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
       security:
         - BearerAuth: []
       responses:

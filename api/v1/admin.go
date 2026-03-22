@@ -941,7 +941,16 @@ func (s *Server) GetLogs(ctx context.Context, request GetLogsRequestObject) (Get
 		return GetLogs401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
 	}
 
-	// Get filter parameter (mirroring legacy)
+	page := int64(1)
+	if request.Params.Page != nil && *request.Params.Page > 0 {
+		page = *request.Params.Page
+	}
+
+	limit := int64(100)
+	if request.Params.Limit != nil && *request.Params.Limit > 0 {
+		limit = *request.Params.Limit
+	}
+
 	filter := ""
 	if request.Params.Filter != nil {
 		filter = strings.TrimSpace(*request.Params.Filter)
@@ -967,7 +976,6 @@ func (s *Server) GetLogs(ctx context.Context, request GetLogsRequestObject) (Get
 		}
 	}
 
-	// Open Log File (mirroring legacy)
 	logPath := filepath.Join(s.cfg.ConfigPath, "logs/antholume.log")
 	logFile, err := os.Open(logPath)
 	if err != nil {
@@ -975,58 +983,90 @@ func (s *Server) GetLogs(ctx context.Context, request GetLogsRequestObject) (Get
 	}
 	defer logFile.Close()
 
-	// Log Lines (mirroring legacy)
-	var logLines []string
+	offset := (page - 1) * limit
+	logLines := make([]string, 0, limit)
+	matchedCount := int64(0)
+
 	scanner := bufio.NewScanner(logFile)
 	for scanner.Scan() {
-		rawLog := scanner.Text()
-
-		// Attempt JSON Pretty (mirroring legacy)
-		var jsonMap map[string]any
-		err := json.Unmarshal([]byte(rawLog), &jsonMap)
-		if err != nil {
-			logLines = append(logLines, rawLog)
+		formattedLog, matched := formatLogLine(scanner.Text(), basicFilter, jqFilter)
+		if !matched {
 			continue
 		}
 
-		// Parse JSON (mirroring legacy)
-		rawData, err := json.MarshalIndent(jsonMap, "", "  ")
-		if err != nil {
-			logLines = append(logLines, rawLog)
-			continue
+		if matchedCount >= offset && int64(len(logLines)) < limit {
+			logLines = append(logLines, formattedLog)
 		}
+		matchedCount++
+	}
 
-		// Basic Filter (mirroring legacy)
-		if basicFilter != "" && strings.Contains(string(rawData), basicFilter) {
-			logLines = append(logLines, string(rawData))
-			continue
-		}
+	if err := scanner.Err(); err != nil {
+		return GetLogs500JSONResponse{Code: 500, Message: "Unable to read AnthoLume log file"}, nil
+	}
 
-		// No JQ Filter (mirroring legacy)
-		if jqFilter == nil {
-			continue
-		}
-
-		// Error or nil (mirroring legacy)
-		result, _ := jqFilter.Run(jsonMap).Next()
-		if _, ok := result.(error); ok {
-			logLines = append(logLines, string(rawData))
-			continue
-		} else if result == nil {
-			continue
-		}
-
-		// Attempt filtered json (mirroring legacy)
-		filteredData, err := json.MarshalIndent(result, "", "  ")
-		if err == nil {
-			rawData = filteredData
-		}
-
-		logLines = append(logLines, string(rawData))
+	var nextPage *int64
+	var previousPage *int64
+	if page > 1 {
+		previousPage = ptrOf(page - 1)
+	}
+	if offset+int64(len(logLines)) < matchedCount {
+		nextPage = ptrOf(page + 1)
 	}
 
 	return GetLogs200JSONResponse{
-		Logs:   &logLines,
-		Filter: &filter,
+		Logs:         &logLines,
+		Filter:       &filter,
+		Page:         &page,
+		Limit:        &limit,
+		NextPage:     nextPage,
+		PreviousPage: previousPage,
+		Total:        &matchedCount,
 	}, nil
+}
+
+func formatLogLine(rawLog string, basicFilter string, jqFilter *gojq.Code) (string, bool) {
+	var jsonMap map[string]any
+	if err := json.Unmarshal([]byte(rawLog), &jsonMap); err != nil {
+		if basicFilter == "" && jqFilter == nil {
+			return rawLog, true
+		}
+		if basicFilter != "" && strings.Contains(rawLog, basicFilter) {
+			return rawLog, true
+		}
+		return "", false
+	}
+
+	rawData, err := json.MarshalIndent(jsonMap, "", "  ")
+	if err != nil {
+		if basicFilter == "" && jqFilter == nil {
+			return rawLog, true
+		}
+		if basicFilter != "" && strings.Contains(rawLog, basicFilter) {
+			return rawLog, true
+		}
+		return "", false
+	}
+
+	formattedLog := string(rawData)
+	if basicFilter != "" {
+		return formattedLog, strings.Contains(formattedLog, basicFilter)
+	}
+	if jqFilter == nil {
+		return formattedLog, true
+	}
+
+	result, _ := jqFilter.Run(jsonMap).Next()
+	if _, ok := result.(error); ok {
+		return formattedLog, true
+	}
+	if result == nil {
+		return "", false
+	}
+
+	filteredData, err := json.MarshalIndent(result, "", "  ")
+	if err == nil {
+		formattedLog = string(filteredData)
+	}
+
+	return formattedLog, true
 }

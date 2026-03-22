@@ -314,8 +314,13 @@ type LoginResponse struct {
 
 // LogsResponse defines model for LogsResponse.
 type LogsResponse struct {
-	Filter *string     `json:"filter,omitempty"`
-	Logs   *[]LogEntry `json:"logs,omitempty"`
+	Filter       *string     `json:"filter,omitempty"`
+	Limit        *int64      `json:"limit,omitempty"`
+	Logs         *[]LogEntry `json:"logs,omitempty"`
+	NextPage     *int64      `json:"next_page,omitempty"`
+	Page         *int64      `json:"page,omitempty"`
+	PreviousPage *int64      `json:"previous_page,omitempty"`
+	Total        *int64      `json:"total,omitempty"`
 }
 
 // MessageResponse defines model for MessageResponse.
@@ -465,6 +470,8 @@ type PostImportFormdataBody struct {
 // GetLogsParams defines parameters for GetLogs.
 type GetLogsParams struct {
 	Filter *string `form:"filter,omitempty" json:"filter,omitempty"`
+	Page   *int64  `form:"page,omitempty" json:"page,omitempty"`
+	Limit  *int64  `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // UpdateUserFormdataBody defines parameters for UpdateUser.
@@ -859,6 +866,22 @@ func (siw *ServerInterfaceWrapper) GetLogs(w http.ResponseWriter, r *http.Reques
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "filter", r.URL.Query(), &params.Filter, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "filter", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
 		return
 	}
 

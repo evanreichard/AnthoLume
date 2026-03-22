@@ -1,24 +1,28 @@
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useGetLogs } from '../generated/anthoLumeAPIV1';
 import type { LogsResponse } from '../generated/model';
 import { Button } from '../components/Button';
-import { SearchIcon } from '../icons';
+import { LoadingState } from '../components';
+import { useDebounce } from '../hooks/useDebounce';
+import { Search2Icon } from '../icons';
 
 export default function AdminLogsPage() {
   const [filter, setFilter] = useState('');
+  const [activeFilter, setActiveFilter] = useState('');
+  const debouncedFilter = useDebounce(filter, 300);
 
-  const { data: logsData, isLoading, refetch } = useGetLogs(filter ? { filter } : {});
+  useEffect(() => {
+    setActiveFilter(debouncedFilter);
+  }, [debouncedFilter]);
+
+  const { data: logsData, isLoading } = useGetLogs(activeFilter ? { filter: activeFilter } : {});
 
   const logs = logsData?.status === 200 ? ((logsData.data as LogsResponse).logs ?? []) : [];
 
   const handleFilterSubmit = (e: FormEvent) => {
     e.preventDefault();
-    refetch();
+    setActiveFilter(filter);
   };
-
-  if (isLoading) {
-    return <div className="text-gray-500 dark:text-white">Loading...</div>;
-  }
 
   return (
     <div>
@@ -27,7 +31,7 @@ export default function AdminLogsPage() {
           <div className="flex w-full grow flex-col">
             <div className="relative flex">
               <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
-                <SearchIcon size={15} />
+                <Search2Icon size={15} />
               </span>
               <input
                 type="text"
@@ -50,11 +54,15 @@ export default function AdminLogsPage() {
         className="flex w-full flex-col-reverse overflow-scroll text-black dark:text-white"
         style={{ fontFamily: 'monospace' }}
       >
-        {logs.map((log, index) => (
-          <span key={index} className="whitespace-nowrap hover:whitespace-pre">
-            {typeof log === 'string' ? log : JSON.stringify(log)}
-          </span>
-        ))}
+        {isLoading ? (
+          <LoadingState className="min-h-40 w-full" />
+        ) : (
+          logs.map((log, index) => (
+            <span key={index} className="whitespace-nowrap hover:whitespace-pre">
+              {typeof log === 'string' ? log : JSON.stringify(log)}
+            </span>
+          ))
+        )}
       </div>
     </div>
   );

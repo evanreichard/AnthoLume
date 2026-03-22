@@ -10,4 +10,9 @@ import type { LogEntry } from './logEntry';
 export interface LogsResponse {
   logs?: LogEntry[];
   filter?: string;
+  page?: number;
+  limit?: number;
+  next_page?: number;
+  previous_page?: number;
+  total?: number;
 }

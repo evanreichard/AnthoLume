@@ -1,37 +1,65 @@
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useGetSearch } from '../generated/anthoLumeAPIV1';
 import { GetSearchSource } from '../generated/model/getSearchSource';
 import type { SearchItem } from '../generated/model';
-import { SearchIcon, DownloadIcon, BookIcon } from '../icons';
 import { Button } from '../components/Button';
+import { LoadingState } from '../components';
+import { useDebounce } from '../hooks/useDebounce';
+import { Search2Icon, DownloadIcon, BookIcon } from '../icons';
 
-export default function SearchPage() {
-  const [query, setQuery] = useState('');
-  const [source, setSource] = useState<GetSearchSource>(GetSearchSource.LibGen);
+interface SearchPageViewProps {
+  query: string;
+  source: GetSearchSource;
+  isLoading: boolean;
+  results: SearchItem[];
+  onQueryChange: (value: string) => void;
+  onSourceChange: (value: GetSearchSource) => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+}
 
-  const { data, isLoading } = useGetSearch({ query, source });
-  const results = data?.status === 200 ? data.data.results : [];
+export function getSearchResults(data: unknown): SearchItem[] {
+  if (!data || typeof data !== 'object') {
+    return [];
+  }
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    // Trigger refetch by updating query
-  };
+  if (!('status' in data) || data.status !== 200) {
+    return [];
+  }
 
+  if (!('data' in data) || !data.data || typeof data.data !== 'object') {
+    return [];
+  }
+
+  if (!('results' in data.data) || !Array.isArray(data.data.results)) {
+    return [];
+  }
+
+  return data.data.results as SearchItem[];
+}
+
+export function SearchPageView({
+  query,
+  source,
+  isLoading,
+  results,
+  onQueryChange,
+  onSourceChange,
+  onSubmit,
+}: SearchPageViewProps) {
   return (
     <div className="flex w-full flex-col gap-4 md:flex-row">
       <div className="flex grow flex-col gap-4">
-        {/* Search Form */}
         <div className="flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white">
-          <form className="flex flex-col gap-4 lg:flex-row" onSubmit={handleSubmit}>
+          <form className="flex flex-col gap-4 lg:flex-row" onSubmit={onSubmit}>
             <div className="flex w-full grow flex-col">
               <div className="relative flex">
                 <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
-                  <SearchIcon size={15} />
+                  <Search2Icon size={15} />
                 </span>
                 <input
                   type="text"
                   value={query}
-                  onChange={e => setQuery(e.target.value)}
+                  onChange={e => onQueryChange(e.target.value)}
                   className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
                   placeholder="Query"
                 />
@@ -43,11 +71,11 @@ export default function SearchPage() {
               </span>
               <select
                 value={source}
-                onChange={e => setSource(e.target.value as GetSearchSource)}
+                onChange={e => onSourceChange(e.target.value as GetSearchSource)}
                 className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
               >
-                <option value="LibGen">Library Genesis</option>
-                <option value="Annas Archive">Annas Archive</option>
+                <option value={GetSearchSource.LibGen}>Library Genesis</option>
+                <option value={GetSearchSource.Annas_Archive}>Annas Archive</option>
               </select>
             </div>
             <div className="lg:w-60">
@@ -58,7 +86,6 @@ export default function SearchPage() {
           </form>
         </div>
 
-        {/* Search Results Table */}
         <div className="inline-block min-w-full overflow-hidden rounded shadow">
           <table className="min-w-full bg-white text-sm leading-normal md:text-sm dark:bg-gray-700">
             <thead className="text-gray-800 dark:text-gray-400">
@@ -85,11 +112,11 @@ export default function SearchPage() {
               {isLoading && (
                 <tr>
                   <td className="p-3 text-center" colSpan={6}>
-                    Loading...
+                    <LoadingState />
                   </td>
                 </tr>
               )}
-              {!isLoading && !results && (
+              {!isLoading && results.length === 0 && (
                 <tr>
                   <td className="p-3 text-center" colSpan={6}>
                     No Results
@@ -97,8 +124,7 @@ export default function SearchPage() {
                 </tr>
               )}
               {!isLoading &&
-                results &&
-                results.map((item: SearchItem) => (
+                results.map(item => (
                   <tr key={item.id}>
                     <td className="border-b border-gray-200 p-3 text-gray-500 dark:text-gray-500">
                       <button className="hover:text-purple-600" title="Download">
@@ -127,5 +153,43 @@ export default function SearchPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SearchPage() {
+  const [query, setQuery] = useState('');
+  const [activeQuery, setActiveQuery] = useState('');
+  const [source, setSource] = useState<GetSearchSource>(GetSearchSource.LibGen);
+  const debouncedQuery = useDebounce(query, 300);
+
+  useEffect(() => {
+    setActiveQuery(debouncedQuery);
+  }, [debouncedQuery]);
+
+  const { data, isLoading } = useGetSearch(
+    { query: activeQuery, source },
+    {
+      query: {
+        enabled: activeQuery.trim().length > 0,
+      },
+    },
+  );
+  const results = getSearchResults(data);
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setActiveQuery(query.trim());
+  };
+
+  return (
+    <SearchPageView
+      query={query}
+      source={source}
+      isLoading={isLoading}
+      results={results}
+      onQueryChange={setQuery}
+      onSourceChange={setSource}
+      onSubmit={handleSubmit}
+    />
   );
 }
