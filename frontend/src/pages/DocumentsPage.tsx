@@ -8,19 +8,11 @@ import { useToasts } from '../components/ToastContext';
 import { formatDuration } from '../utils/formatters';
 import { useDebounce } from '../hooks/useDebounce';
 import { getErrorMessage } from '../utils/errors';
-
-const DOCUMENTS_VIEW_MODE_KEY = 'documents:view-mode';
-
-type DocumentViewMode = 'grid' | 'list';
-
-function getInitialViewMode(): DocumentViewMode {
-  if (typeof window === 'undefined') {
-    return 'grid';
-  }
-
-  const storedValue = window.localStorage.getItem(DOCUMENTS_VIEW_MODE_KEY);
-  return storedValue === 'list' ? 'list' : 'grid';
-}
+import {
+  getDocumentsViewMode,
+  setDocumentsViewMode,
+  type DocumentsViewMode,
+} from '../utils/localSettings';
 
 interface DocumentCardProps {
   doc: Document;
@@ -36,7 +28,7 @@ function DocumentCard({ doc }: DocumentCardProps) {
       <div
         role="link"
         tabIndex={0}
-        className="flex size-full cursor-pointer gap-4 rounded bg-white p-4 shadow-lg transition-colors hover:bg-gray-50 focus:outline-none dark:bg-gray-700 dark:hover:bg-gray-600"
+        className="flex size-full cursor-pointer gap-4 rounded bg-surface p-4 shadow-lg transition-colors hover:bg-surface-muted focus:outline-none"
         onClick={() => navigate(`/documents/${doc.id}`)}
         onKeyDown={event => {
           if (event.key === 'Enter' || event.key === ' ') {
@@ -52,33 +44,33 @@ function DocumentCard({ doc }: DocumentCardProps) {
             alt={doc.title}
           />
         </div>
-        <div className="flex w-full flex-col justify-around text-sm dark:text-white">
+        <div className="flex w-full flex-col justify-around text-sm text-content">
           <div className="inline-flex shrink-0 items-center">
             <div>
-              <p className="text-gray-400">Title</p>
+              <p className="text-content-subtle">Title</p>
               <p className="font-medium">{doc.title || 'Unknown'}</p>
             </div>
           </div>
           <div className="inline-flex shrink-0 items-center">
             <div>
-              <p className="text-gray-400">Author</p>
+              <p className="text-content-subtle">Author</p>
               <p className="font-medium">{doc.author || 'Unknown'}</p>
             </div>
           </div>
           <div className="inline-flex shrink-0 items-center">
             <div>
-              <p className="text-gray-400">Progress</p>
+              <p className="text-content-subtle">Progress</p>
               <p className="font-medium">{percentage}%</p>
             </div>
           </div>
           <div className="inline-flex shrink-0 items-center">
             <div>
-              <p className="text-gray-400">Time Read</p>
+              <p className="text-content-subtle">Time Read</p>
               <p className="font-medium">{formatDuration(totalTimeSeconds)}</p>
             </div>
           </div>
         </div>
-        <div className="absolute bottom-4 right-4 flex flex-col gap-2 text-gray-500 dark:text-gray-400">
+        <div className="absolute bottom-4 right-4 flex flex-col gap-2 text-content-muted">
           <Link to={`/activity?document=${doc.id}`} onClick={e => e.stopPropagation()}>
             <ActivityIcon size={20} />
           </Link>
@@ -108,7 +100,7 @@ function DocumentListItem({ doc }: DocumentListItemProps) {
     <div
       role="link"
       tabIndex={0}
-      className="block cursor-pointer rounded bg-white p-4 shadow-lg transition-colors hover:bg-gray-50 focus:outline-none dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+      className="block cursor-pointer rounded bg-surface p-4 text-content shadow-lg transition-colors hover:bg-surface-muted focus:outline-none"
       onClick={() => navigate(`/documents/${doc.id}`)}
       onKeyDown={event => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -120,24 +112,24 @@ function DocumentListItem({ doc }: DocumentListItemProps) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="grid flex-1 grid-cols-1 gap-3 text-sm md:grid-cols-4">
           <div>
-            <p className="text-gray-400">Title</p>
+            <p className="text-content-subtle">Title</p>
             <p className="font-medium">{doc.title || 'Unknown'}</p>
           </div>
           <div>
-            <p className="text-gray-400">Author</p>
+            <p className="text-content-subtle">Author</p>
             <p className="font-medium">{doc.author || 'Unknown'}</p>
           </div>
           <div>
-            <p className="text-gray-400">Progress</p>
+            <p className="text-content-subtle">Progress</p>
             <p className="font-medium">{percentage}%</p>
           </div>
           <div>
-            <p className="text-gray-400">Time Read</p>
+            <p className="text-content-subtle">Time Read</p>
             <p className="font-medium">{formatDuration(totalTimeSeconds)}</p>
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center justify-end gap-4 text-gray-500 dark:text-gray-400">
+        <div className="flex shrink-0 items-center justify-end gap-4 text-content-muted">
           <Link to={`/activity?document=${doc.id}`} onClick={e => e.stopPropagation()}>
             <ActivityIcon size={20} />
           </Link>
@@ -159,17 +151,16 @@ export default function DocumentsPage() {
   const [page, setPage] = useState(1);
   const [limit] = useState(9);
   const [uploadMode, setUploadMode] = useState(false);
-  const [viewMode, setViewMode] = useState<DocumentViewMode>(getInitialViewMode);
+  const [viewMode, setViewMode] = useState<DocumentsViewMode>(getDocumentsViewMode);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showInfo, showWarning, showError } = useToasts();
 
   const debouncedSearch = useDebounce(search, 300);
 
   useEffect(() => {
-    window.localStorage.setItem(DOCUMENTS_VIEW_MODE_KEY, viewMode);
+    setDocumentsViewMode(viewMode);
   }, [viewMode]);
 
-  // Reset to page 1 when search changes
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch]);
@@ -210,45 +201,44 @@ export default function DocumentsPage() {
     }
   };
 
+  const getViewModeButtonClasses = (mode: DocumentsViewMode) =>
+    `rounded px-3 py-1 text-sm font-medium transition-colors ${
+      viewMode === mode
+        ? 'bg-content text-content-inverse'
+        : 'text-content-muted hover:bg-surface-muted'
+    }`;
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex grow flex-col gap-4 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white">
+      <div className="flex grow flex-col gap-4 rounded bg-surface p-4 text-content-muted shadow-lg">
         <div className="flex flex-col gap-4 lg:flex-row">
           <div className="flex w-full grow flex-col">
             <div className="relative flex">
-              <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
+              <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-sm">
                 <Search2Icon size={15} hoverable={false} />
               </span>
               <input
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white p-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
+                className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-sm placeholder:text-content-subtle focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-600"
                 placeholder="Search Author / Title"
                 name="search"
               />
             </div>
           </div>
-          <div className="inline-flex rounded border border-gray-300 bg-white p-1 dark:border-gray-600 dark:bg-gray-800">
+          <div className="inline-flex rounded border border-border bg-surface p-1">
             <button
               type="button"
               onClick={() => setViewMode('grid')}
-              className={`rounded px-3 py-1 text-sm font-medium transition-colors ${
-                viewMode === 'grid'
-                  ? 'bg-gray-800 text-white dark:bg-gray-100 dark:text-gray-900'
-                  : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-              }`}
+              className={getViewModeButtonClasses('grid')}
             >
               Grid
             </button>
             <button
               type="button"
               onClick={() => setViewMode('list')}
-              className={`rounded px-3 py-1 text-sm font-medium transition-colors ${
-                viewMode === 'list'
-                  ? 'bg-gray-800 text-white dark:bg-gray-100 dark:text-gray-900'
-                  : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-              }`}
+              className={getViewModeButtonClasses('list')}
             >
               List
             </button>
@@ -263,7 +253,7 @@ export default function DocumentsPage() {
           ) : docs && docs.length > 0 ? (
             docs.map(doc => <DocumentCard key={doc.id} doc={doc} />)
           ) : (
-            <div className="col-span-full rounded bg-white p-6 text-center text-gray-500 shadow-lg dark:bg-gray-700 dark:text-gray-300">
+            <div className="col-span-full rounded bg-surface p-6 text-center text-content-muted shadow-lg">
               No documents found.
             </div>
           )}
@@ -275,18 +265,18 @@ export default function DocumentsPage() {
           ) : docs && docs.length > 0 ? (
             docs.map(doc => <DocumentListItem key={doc.id} doc={doc} />)
           ) : (
-            <div className="rounded bg-white p-6 text-center text-gray-500 shadow-lg dark:bg-gray-700 dark:text-gray-300">
+            <div className="rounded bg-surface p-6 text-center text-content-muted shadow-lg">
               No documents found.
             </div>
           )}
         </div>
       )}
 
-      <div className="mt-4 flex w-full justify-center gap-4 text-black dark:text-white">
+      <div className="mt-4 flex w-full justify-center gap-4 text-content">
         {previousPage && previousPage > 0 && (
           <button
             onClick={() => setPage(page - 1)}
-            className="w-24 rounded bg-white p-2 text-center text-sm font-medium shadow-lg hover:bg-gray-400 focus:outline-none dark:bg-gray-600 dark:hover:bg-gray-700"
+            className="w-24 rounded bg-surface p-2 text-center text-sm font-medium shadow-lg hover:bg-surface-strong focus:outline-none"
           >
             ◄
           </button>
@@ -294,7 +284,7 @@ export default function DocumentsPage() {
         {nextPage && nextPage > 0 && (
           <button
             onClick={() => setPage(page + 1)}
-            className="w-24 rounded bg-white p-2 text-center text-sm font-medium shadow-lg hover:bg-gray-400 focus:outline-none dark:bg-gray-600 dark:hover:bg-gray-700"
+            className="w-24 rounded bg-surface p-2 text-center text-sm font-medium shadow-lg hover:bg-surface-strong focus:outline-none"
           >
             ►
           </button>
@@ -310,7 +300,7 @@ export default function DocumentsPage() {
           onChange={() => setUploadMode(!uploadMode)}
         />
         <div
-          className={`absolute bottom-0 right-0 z-10 flex w-72 flex-col gap-2 rounded bg-gray-800 p-4 text-sm text-white transition-opacity duration-200 dark:bg-gray-200 dark:text-black ${uploadMode ? 'visible opacity-100' : 'invisible opacity-0'}`}
+          className={`absolute bottom-0 right-0 z-10 flex w-72 flex-col gap-2 rounded bg-content p-4 text-sm text-content-inverse transition-opacity duration-200 ${uploadMode ? 'visible opacity-100' : 'invisible opacity-0'}`}
         >
           <form method="POST" encType="multipart/form-data" className="flex flex-col gap-2">
             <input
@@ -322,7 +312,7 @@ export default function DocumentsPage() {
               onChange={handleFileChange}
             />
             <button
-              className="bg-gray-500 px-2 py-1 font-medium text-gray-800 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-800"
+              className="bg-surface-strong px-2 py-1 font-medium text-content hover:bg-surface"
               type="submit"
               onClick={e => {
                 e.preventDefault();
@@ -336,7 +326,7 @@ export default function DocumentsPage() {
           </form>
           <label htmlFor="upload-file-button">
             <div
-              className="mt-2 w-full cursor-pointer bg-gray-500 px-2 py-1 text-center font-medium text-gray-800 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-800"
+              className="mt-2 w-full cursor-pointer bg-surface-strong px-2 py-1 text-center font-medium text-content hover:bg-surface"
               onClick={handleCancelUpload}
             >
               Cancel Upload
@@ -344,10 +334,10 @@ export default function DocumentsPage() {
           </label>
         </div>
         <label
-          className="flex size-16 cursor-pointer items-center justify-center rounded-full bg-gray-800 opacity-30 transition-all duration-200 hover:opacity-100 dark:bg-gray-200"
+          className="flex size-16 cursor-pointer items-center justify-center rounded-full bg-content opacity-30 transition-all duration-200 hover:opacity-100"
           htmlFor="upload-file-button"
         >
-          <UploadIcon size={34} />
+          <UploadIcon size={34} className="text-content-inverse" />
         </label>
       </div>
     </div>

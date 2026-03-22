@@ -26,7 +26,6 @@ const adminSubItems: NavItem[] = [
   { path: '/admin/logs', label: 'Logs', icon: SettingsIcon, title: 'Logs' },
 ];
 
-// Helper function to check if pathname has a prefix
 function hasPrefix(path: string, prefix: string): boolean {
   return path.startsWith(prefix);
 }
@@ -37,10 +36,9 @@ export default function HamburgerMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const isAdmin = user?.is_admin ?? false;
 
-  // Fetch server info for version
   const { data: infoData } = useGetInfo({
     query: {
-      staleTime: Infinity, // Info doesn't change frequently
+      staleTime: Infinity,
     },
   });
   const version =
@@ -50,7 +48,6 @@ export default function HamburgerMenu() {
 
   return (
     <div className="relative z-40 ml-6 flex flex-col">
-      {/* Checkbox input for state management */}
       <input
         type="checkbox"
         className="absolute -top-2 z-50 flex size-7 cursor-pointer opacity-0 lg:hidden"
@@ -59,9 +56,8 @@ export default function HamburgerMenu() {
         onChange={e => setIsOpen(e.target.checked)}
       />
 
-      {/* Hamburger icon lines with CSS animations - hidden on desktop */}
       <span
-        className="z-40 mt-0.5 h-0.5 w-7 bg-black transition-opacity duration-500 lg:hidden dark:bg-white"
+        className="z-40 mt-0.5 h-0.5 w-7 bg-content transition-opacity duration-500 lg:hidden"
         style={{
           transformOrigin: '5px 0px',
           transition:
@@ -70,7 +66,7 @@ export default function HamburgerMenu() {
         }}
       />
       <span
-        className="z-40 mt-1 h-0.5 w-7 bg-black transition-opacity duration-500 lg:hidden dark:bg-white"
+        className="z-40 mt-1 h-0.5 w-7 bg-content transition-opacity duration-500 lg:hidden"
         style={{
           transformOrigin: '0% 100%',
           transition:
@@ -80,7 +76,7 @@ export default function HamburgerMenu() {
         }}
       />
       <span
-        className="z-40 mt-1 h-0.5 w-7 bg-black transition-opacity duration-500 lg:hidden dark:bg-white"
+        className="z-40 mt-1 h-0.5 w-7 bg-content transition-opacity duration-500 lg:hidden"
         style={{
           transformOrigin: '0% 0%',
           transition:
@@ -89,21 +85,17 @@ export default function HamburgerMenu() {
         }}
       />
 
-      {/* Navigation menu with slide animation */}
       <div
         id="menu"
-        className="fixed -ml-6 h-full w-56 bg-white shadow-lg lg:w-48 dark:bg-gray-700"
+        className="fixed -ml-6 h-full w-56 bg-surface shadow-lg lg:w-48"
         style={{
           top: 0,
           paddingTop: 'env(safe-area-inset-top)',
           transformOrigin: '0% 0%',
-          // On desktop (lg), always show the menu via CSS class
-          // On mobile, control via state
           transform: isOpen ? 'none' : 'translate(-100%, 0)',
           transition: 'transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1)',
         }}
       >
-        {/* Desktop override - always visible */}
         <style>{`
           @media (min-width: 1024px) {
             #menu {
@@ -112,9 +104,7 @@ export default function HamburgerMenu() {
           }
         `}</style>
         <div className="flex h-16 justify-end lg:justify-around">
-          <p className="my-auto pr-8 text-right text-xl font-bold lg:pr-0 dark:text-white">
-            AnthoLume
-          </p>
+          <p className="my-auto pr-8 text-right text-xl font-bold text-content lg:pr-0">AnthoLume</p>
         </div>
         <nav>
           {navItems.map(item => (
@@ -124,8 +114,8 @@ export default function HamburgerMenu() {
               onClick={() => setIsOpen(false)}
               className={`my-2 flex w-full items-center justify-start border-l-4 p-2 pl-6 transition-colors duration-200 ${
                 location.pathname === item.path
-                  ? 'border-purple-500 dark:text-white'
-                  : 'border-transparent text-gray-400 hover:text-gray-800 dark:hover:text-gray-100'
+                  ? 'border-primary-500 text-content'
+                  : 'border-transparent text-content-subtle hover:text-content'
               }`}
             >
               <item.icon size={20} />
@@ -133,23 +123,21 @@ export default function HamburgerMenu() {
             </Link>
           ))}
 
-          {/* Admin section - only visible for admins */}
           {isAdmin && (
             <div
               className={`my-2 flex flex-col gap-4 border-l-4 p-2 pl-6 transition-colors duration-200 ${
                 hasPrefix(location.pathname, '/admin')
-                  ? 'border-purple-500 dark:text-white'
-                  : 'border-transparent text-gray-400'
+                  ? 'border-primary-500 text-content'
+                  : 'border-transparent text-content-subtle'
               }`}
             >
-              {/* Admin header - always shown */}
               <Link
                 to="/admin"
                 onClick={() => setIsOpen(false)}
                 className={`flex w-full justify-start ${
                   location.pathname === '/admin' && !hasPrefix(location.pathname, '/admin/')
-                    ? 'dark:text-white'
-                    : 'text-gray-400 hover:text-gray-800 dark:hover:text-gray-100'
+                    ? 'text-content'
+                    : 'text-content-subtle hover:text-content'
                 }`}
               >
                 <SettingsIcon size={20} />
@@ -165,8 +153,8 @@ export default function HamburgerMenu() {
                       onClick={() => setIsOpen(false)}
                       className={`flex w-full justify-start ${
                         location.pathname === item.path
-                          ? 'dark:text-white'
-                          : 'text-gray-400 hover:text-gray-800 dark:hover:text-gray-100'
+                          ? 'text-content'
+                          : 'text-content-subtle hover:text-content'
                       }`}
                       style={{ paddingLeft: '1.75em' }}
                     >
@@ -179,7 +167,7 @@ export default function HamburgerMenu() {
           )}
         </nav>
         <a
-          className="absolute bottom-0 flex w-full flex-col items-center justify-center gap-2 p-6 text-black dark:text-white"
+          className="absolute bottom-0 flex w-full flex-col items-center justify-center gap-2 p-6 text-content"
           target="_blank"
           href="https://gitea.va.reichard.io/evan/AnthoLume"
           rel="noreferrer"

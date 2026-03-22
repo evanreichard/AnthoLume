@@ -20,6 +20,8 @@ Also follow the repository root guide at `../AGENTS.md`.
 - Avoid custom class names in JSX `className` values unless the Tailwind lint config already allows them.
 - For decorative icons in inputs or labels, disable hover styling via the icon component API rather than overriding it ad hoc.
 - Prefer `LoadingState` for result-area loading indicators; avoid early returns that unmount search/filter forms during fetches.
+- Use theme tokens from `tailwind.config.js` / `src/index.css` (`bg-surface`, `text-content`, `border-border`, `primary`, etc.) for new UI work instead of adding raw light/dark color pairs.
+- Store frontend-only preferences in `src/utils/localSettings.ts` so appearance and view settings share one local-storage shape.
 
 ## 3) Generated API client
 

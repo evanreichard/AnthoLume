@@ -2,16 +2,208 @@
 @tailwind components;
 @tailwind utilities;
 
-/* PWA Styling */
-html,
-body {
-  overscroll-behavior-y: none;
-  margin: 0px;
+:root {
+  --white: 255 255 255;
+  --black: 0 0 0;
+
+  --canvas: 243 244 246;
+  --surface: 255 255 255;
+  --surface-muted: 249 250 251;
+  --surface-strong: 209 213 219;
+  --overlay: 31 41 55;
+
+  --content: 0 0 0;
+  --content-muted: 107 114 128;
+  --content-subtle: 156 163 175;
+  --content-inverse: 255 255 255;
+
+  --border: 209 213 219;
+  --border-muted: 229 231 235;
+  --border-strong: 156 163 175;
+
+  --neutral-50: 249 250 251;
+  --neutral-100: 243 244 246;
+  --neutral-200: 229 231 235;
+  --neutral-300: 209 213 219;
+  --neutral-400: 156 163 175;
+  --neutral-500: 107 114 128;
+  --neutral-600: 75 85 99;
+  --neutral-700: 55 65 81;
+  --neutral-800: 31 41 55;
+  --neutral-900: 17 24 39;
+
+  --primary-50: 250 245 255;
+  --primary-100: 243 232 255;
+  --primary-200: 233 213 255;
+  --primary-300: 216 180 254;
+  --primary-400: 192 132 252;
+  --primary-500: 168 85 247;
+  --primary-600: 147 51 234;
+  --primary-700: 126 34 206;
+  --primary-800: 107 33 168;
+  --primary-900: 88 28 135;
+  --primary-foreground: 255 255 255;
+
+  --secondary-50: 239 246 255;
+  --secondary-100: 219 234 254;
+  --secondary-200: 191 219 254;
+  --secondary-300: 147 197 253;
+  --secondary-400: 96 165 250;
+  --secondary-500: 59 130 246;
+  --secondary-600: 37 99 235;
+  --secondary-700: 29 78 216;
+  --secondary-800: 30 64 175;
+  --secondary-900: 30 58 138;
+  --secondary-foreground: 255 255 255;
+
+  --tertiary-50: 236 253 245;
+  --tertiary-100: 209 250 229;
+  --tertiary-200: 167 243 208;
+  --tertiary-300: 110 231 183;
+  --tertiary-400: 52 211 153;
+  --tertiary-500: 16 185 129;
+  --tertiary-600: 5 150 105;
+  --tertiary-700: 4 120 87;
+  --tertiary-800: 6 95 70;
+  --tertiary-900: 6 78 59;
+  --tertiary-foreground: 255 255 255;
+
+  --warning-50: 254 252 232;
+  --warning-100: 254 249 195;
+  --warning-200: 254 240 138;
+  --warning-300: 253 224 71;
+  --warning-400: 250 204 21;
+  --warning-500: 234 179 8;
+  --warning-600: 202 138 4;
+  --warning-700: 161 98 7;
+  --warning-800: 133 77 14;
+  --warning-900: 113 63 18;
+  --warning-foreground: 17 24 39;
+
+  --error-50: 254 242 242;
+  --error-100: 254 226 226;
+  --error-200: 254 202 202;
+  --error-300: 252 165 165;
+  --error-400: 248 113 113;
+  --error-500: 239 68 68;
+  --error-600: 220 38 38;
+  --error-700: 185 28 28;
+  --error-800: 153 27 27;
+  --error-900: 127 29 29;
+  --error-foreground: 255 255 255;
 }
 
-html {
-  height: calc(100% + env(safe-area-inset-bottom));
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+.dark {
+  --white: 255 255 255;
+  --black: 0 0 0;
+
+  --canvas: 31 41 55;
+  --surface: 55 65 81;
+  --surface-muted: 75 85 99;
+  --surface-strong: 107 114 128;
+  --overlay: 229 231 235;
+
+  --content: 255 255 255;
+  --content-muted: 209 213 219;
+  --content-subtle: 156 163 175;
+  --content-inverse: 17 24 39;
+
+  --border: 75 85 99;
+  --border-muted: 55 65 81;
+  --border-strong: 107 114 128;
+
+  --neutral-50: 249 250 251;
+  --neutral-100: 243 244 246;
+  --neutral-200: 229 231 235;
+  --neutral-300: 209 213 219;
+  --neutral-400: 156 163 175;
+  --neutral-500: 107 114 128;
+  --neutral-600: 75 85 99;
+  --neutral-700: 55 65 81;
+  --neutral-800: 31 41 55;
+  --neutral-900: 17 24 39;
+
+  --primary-50: 250 245 255;
+  --primary-100: 243 232 255;
+  --primary-200: 233 213 255;
+  --primary-300: 216 180 254;
+  --primary-400: 192 132 252;
+  --primary-500: 168 85 247;
+  --primary-600: 147 51 234;
+  --primary-700: 126 34 206;
+  --primary-800: 107 33 168;
+  --primary-900: 88 28 135;
+  --primary-foreground: 255 255 255;
+
+  --secondary-50: 239 246 255;
+  --secondary-100: 219 234 254;
+  --secondary-200: 191 219 254;
+  --secondary-300: 147 197 253;
+  --secondary-400: 96 165 250;
+  --secondary-500: 59 130 246;
+  --secondary-600: 37 99 235;
+  --secondary-700: 29 78 216;
+  --secondary-800: 30 64 175;
+  --secondary-900: 30 58 138;
+  --secondary-foreground: 255 255 255;
+
+  --tertiary-50: 236 253 245;
+  --tertiary-100: 209 250 229;
+  --tertiary-200: 167 243 208;
+  --tertiary-300: 110 231 183;
+  --tertiary-400: 52 211 153;
+  --tertiary-500: 16 185 129;
+  --tertiary-600: 5 150 105;
+  --tertiary-700: 4 120 87;
+  --tertiary-800: 6 95 70;
+  --tertiary-900: 6 78 59;
+  --tertiary-foreground: 255 255 255;
+
+  --warning-50: 254 252 232;
+  --warning-100: 254 249 195;
+  --warning-200: 254 240 138;
+  --warning-300: 253 224 71;
+  --warning-400: 250 204 21;
+  --warning-500: 234 179 8;
+  --warning-600: 202 138 4;
+  --warning-700: 161 98 7;
+  --warning-800: 133 77 14;
+  --warning-900: 113 63 18;
+  --warning-foreground: 17 24 39;
+
+  --error-50: 254 242 242;
+  --error-100: 254 226 226;
+  --error-200: 254 202 202;
+  --error-300: 252 165 165;
+  --error-400: 248 113 113;
+  --error-500: 239 68 68;
+  --error-600: 220 38 38;
+  --error-700: 185 28 28;
+  --error-800: 153 27 27;
+  --error-900: 127 29 29;
+  --error-foreground: 255 255 255;
+}
+
+@layer base {
+  html,
+  body {
+    overscroll-behavior-y: none;
+    margin: 0;
+  }
+
+  html {
+    height: calc(100% + env(safe-area-inset-bottom));
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+    background-color: rgb(var(--canvas));
+  }
+
+  body {
+    background-color: rgb(var(--canvas));
+    color: rgb(var(--content));
+    transition:
+      background-color 150ms ease,
+      color 150ms ease;
+  }
 }
 
 main {
@@ -46,7 +238,7 @@ main {
 
 /* Mobile Navigation */
 #mobile-nav-button span {
-  transform-origin: 5px 0px;
+  transform-origin: 5px 0;
   transition:
     transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1),
     background 0.5s cubic-bezier(0.77, 0.2, 0.05, 1),
@@ -54,11 +246,11 @@ main {
 }
 
 #mobile-nav-button span:first-child {
-  transform-origin: 0% 0%;
+  transform-origin: 0 0;
 }
 
 #mobile-nav-button span:nth-last-child(2) {
-  transform-origin: 0% 100%;
+  transform-origin: 0 100%;
 }
 
 #mobile-nav-button:checked ~ span {
@@ -88,7 +280,7 @@ main {
 #menu {
   top: 0;
   padding-top: env(safe-area-inset-top);
-  transform-origin: 0% 0%;
+  transform-origin: 0 0;
   transform: translate(-100%, 0);
   transition: transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1);
 }
@@ -112,9 +304,9 @@ main {
 .animate-wave {
   background: linear-gradient(
     90deg,
-    rgb(229, 231, 235) 0%,
-    rgb(243, 244, 246) 50%,
-    rgb(229, 231, 235) 100%
+    rgb(var(--neutral-200)) 0%,
+    rgb(var(--neutral-100)) 50%,
+    rgb(var(--neutral-200)) 100%
   );
   background-size: 200% 100%;
   animation: wave 1.5s ease-in-out infinite;
@@ -123,9 +315,9 @@ main {
 .dark .animate-wave {
   background: linear-gradient(
     90deg,
-    rgb(75, 85, 99) 0%,
-    rgb(107, 114, 128) 50%,
-    rgb(75, 85, 99) 100%
+    rgb(var(--neutral-600)) 0%,
+    rgb(var(--neutral-500)) 50%,
+    rgb(var(--neutral-600)) 100%
   );
   background-size: 200% 100%;
 }

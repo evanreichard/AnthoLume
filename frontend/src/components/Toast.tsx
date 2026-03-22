@@ -13,24 +13,24 @@ export interface ToastProps {
 
 const getToastStyles = (_type: ToastType) => {
   const baseStyles =
-    'flex items-center gap-3 p-4 rounded-lg shadow-lg border-l-4 transition-all duration-300';
+    'flex items-center gap-3 rounded-lg border-l-4 p-4 shadow-lg transition-all duration-300';
 
   const typeStyles = {
-    info: 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 dark:border-blue-400',
-    warning: 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-500 dark:border-yellow-400',
-    error: 'bg-red-50 dark:bg-red-900/30 border-red-500 dark:border-red-400',
+    info: 'border-secondary-500 bg-secondary-50 dark:bg-secondary-100/20',
+    warning: 'border-yellow-500 bg-yellow-50 dark:bg-yellow-100/20',
+    error: 'border-red-500 bg-red-50 dark:bg-red-100/20',
   };
 
   const iconStyles = {
-    info: 'text-blue-600 dark:text-blue-400',
-    warning: 'text-yellow-600 dark:text-yellow-400',
+    info: 'text-secondary-600 dark:text-secondary-500',
+    warning: 'text-yellow-700 dark:text-yellow-500',
     error: 'text-red-600 dark:text-red-400',
   };
 
   const textStyles = {
-    info: 'text-blue-800 dark:text-blue-200',
-    warning: 'text-yellow-800 dark:text-yellow-200',
-    error: 'text-red-800 dark:text-red-200',
+    info: 'text-secondary-900 dark:text-secondary-700',
+    warning: 'text-yellow-900 dark:text-yellow-700',
+    error: 'text-red-900 dark:text-red-700',
   };
 
   return { baseStyles, typeStyles, iconStyles, textStyles };

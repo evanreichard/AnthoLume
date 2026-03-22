@@ -7,7 +7,7 @@ export function GitIcon({ size = 20, className = '' }: GitIconProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      className={`${className} text-black dark:text-white`.trim()}
+      className={`${className} text-content`.trim()}
       height={size}
       viewBox="0 0 219 92"
       fill="currentColor"

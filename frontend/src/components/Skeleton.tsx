@@ -19,7 +19,7 @@ export function Skeleton({
 
   const variantClasses = {
     default: 'rounded',
-    text: 'rounded-md h-4',
+    text: 'h-4 rounded-md',
     circular: 'rounded-full',
     rectangular: 'rounded-none',
   };
@@ -97,12 +97,7 @@ export function SkeletonCard({
   textLines = 3,
 }: SkeletonCardProps) {
   return (
-    <div
-      className={cn(
-        'bg-white dark:bg-gray-700 rounded-lg p-4 border dark:border-gray-600',
-        className
-      )}
-    >
+    <div className={cn('rounded-lg border border-border bg-surface p-4', className)}>
       {showAvatar && (
         <div className="mb-4 flex items-start gap-4">
           <SkeletonAvatar />
@@ -132,11 +127,11 @@ export function SkeletonTable({
   showHeader = true,
 }: SkeletonTableProps) {
   return (
-    <div className={cn('bg-white dark:bg-gray-700 rounded-lg overflow-hidden', className)}>
+    <div className={cn('overflow-hidden rounded-lg bg-surface', className)}>
       <table className="min-w-full">
         {showHeader && (
           <thead>
-            <tr className="border-b dark:border-gray-600">
+            <tr className="border-b border-border">
               {Array.from({ length: columns }).map((_, i) => (
                 <th key={i} className="p-3">
                   <Skeleton variant="text" className="h-5 w-3/4" />
@@ -147,7 +142,7 @@ export function SkeletonTable({
         )}
         <tbody>
           {Array.from({ length: rows }).map((_, rowIndex) => (
-            <tr key={rowIndex} className="border-b last:border-0 dark:border-gray-600">
+            <tr key={rowIndex} className="border-b border-border last:border-0">
               {Array.from({ length: columns }).map((_, colIndex) => (
                 <td key={colIndex} className="p-3">
                   <Skeleton
@@ -187,11 +182,11 @@ interface PageLoaderProps {
 
 export function PageLoader({ message = 'Loading...', className = '' }: PageLoaderProps) {
   return (
-    <div className={cn('flex flex-col items-center justify-center min-h-[400px] gap-4', className)}>
+    <div className={cn('flex min-h-[400px] flex-col items-center justify-center gap-4', className)}>
       <div className="relative">
-        <div className="size-12 animate-spin rounded-full border-4 border-gray-200 border-t-blue-500 dark:border-gray-600" />
+        <div className="size-12 animate-spin rounded-full border-4 border-gray-200 border-t-secondary-500 dark:border-gray-600" />
       </div>
-      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{message}</p>
+      <p className="text-sm font-medium text-content-muted">{message}</p>
     </div>
   );
 }
@@ -203,19 +198,18 @@ interface InlineLoaderProps {
 
 export function InlineLoader({ size = 'md', className = '' }: InlineLoaderProps) {
   const sizeMap = {
-    sm: 'w-4 h-4 border-2',
-    md: 'w-6 h-6 border-3',
-    lg: 'w-8 h-8 border-4',
+    sm: 'h-4 w-4 border-2',
+    md: 'h-6 w-6 border-[3px]',
+    lg: 'h-8 w-8 border-4',
   };
 
   return (
     <div className={cn('flex items-center justify-center', className)}>
       <div
-        className={`${sizeMap[size]} animate-spin rounded-full border-gray-200 border-t-blue-500 dark:border-gray-600`}
+        className={`${sizeMap[size]} animate-spin rounded-full border-gray-200 border-t-secondary-500 dark:border-gray-600`}
       />
     </div>
   );
 }
 
-// Re-export SkeletonTable for backward compatibility
 export { SkeletonTable as SkeletonTableExport };

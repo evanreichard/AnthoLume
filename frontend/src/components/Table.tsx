@@ -27,10 +27,10 @@ function SkeletonTable({
   className?: string;
 }) {
   return (
-    <div className={cn('overflow-hidden rounded-lg bg-white dark:bg-gray-700', className)}>
+    <div className={cn('overflow-hidden rounded-lg bg-surface', className)}>
       <table className="min-w-full">
         <thead>
-          <tr className="border-b dark:border-gray-600">
+          <tr className="border-b border-border">
             {Array.from({ length: columns }).map((_, i) => (
               <th key={i} className="p-3">
                 <Skeleton variant="text" className="h-5 w-3/4" />
@@ -40,7 +40,7 @@ function SkeletonTable({
         </thead>
         <tbody>
           {Array.from({ length: rows }).map((_, rowIndex) => (
-            <tr key={rowIndex} className="border-b last:border-0 dark:border-gray-600">
+            <tr key={rowIndex} className="border-b border-border last:border-0">
               {Array.from({ length: columns }).map((_, colIndex) => (
                 <td key={colIndex} className="p-3">
                   <Skeleton
@@ -81,13 +81,13 @@ export function Table<T extends object>({
   return (
     <div className="overflow-x-auto">
       <div className="inline-block min-w-full overflow-hidden rounded shadow">
-        <table className="min-w-full bg-white dark:bg-gray-700">
+        <table className="min-w-full bg-surface">
           <thead>
-            <tr className="border-b dark:border-gray-600">
+            <tr className="border-b border-border">
               {columns.map(column => (
                 <th
                   key={String(column.key)}
-                  className={`p-3 text-left text-gray-500 dark:text-white ${column.className || ''}`}
+                  className={`p-3 text-left text-content-muted ${column.className || ''}`}
                 >
                   {column.header}
                 </th>
@@ -97,20 +97,17 @@ export function Table<T extends object>({
           <tbody>
             {data.length === 0 ? (
               <tr>
-                <td
-                  colSpan={columns.length}
-                  className="p-3 text-center text-gray-700 dark:text-gray-300"
-                >
+                <td colSpan={columns.length} className="p-3 text-center text-content-muted">
                   {emptyMessage}
                 </td>
               </tr>
             ) : (
               data.map((row, index) => (
-                <tr key={getRowKey(row, index)} className="border-b dark:border-gray-600">
+                <tr key={getRowKey(row, index)} className="border-b border-border">
                   {columns.map(column => (
                     <td
                       key={`${getRowKey(row, index)}-${String(column.key)}`}
-                      className={`p-3 text-gray-700 dark:text-gray-300 ${column.className || ''}`}
+                      className={`p-3 text-content ${column.className || ''}`}
                     >
                       {column.render
                         ? column.render(row[column.key], row, index)

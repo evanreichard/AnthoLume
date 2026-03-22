@@ -11,13 +11,13 @@ type LinkProps = BaseButtonProps & AnchorHTMLAttributes<HTMLAnchorElement> & { h
 
 const getVariantClasses = (variant: 'default' | 'secondary' = 'default'): string => {
   const baseClass =
-    'transition duration-100 ease-in font-medium w-full h-full px-2 py-1 text-white disabled:cursor-not-allowed disabled:opacity-50';
+    'h-full w-full px-2 py-1 font-medium transition duration-100 ease-in disabled:cursor-not-allowed disabled:opacity-50';
 
   if (variant === 'secondary') {
-    return `${baseClass} bg-black shadow-md hover:text-black hover:bg-white disabled:hover:text-white disabled:hover:bg-black`;
+    return `${baseClass} bg-content text-content-inverse shadow-md hover:bg-content-muted disabled:hover:bg-content`;
   }
 
-  return `${baseClass} bg-gray-500 dark:text-gray-800 hover:bg-gray-800 dark:hover:bg-gray-100 disabled:hover:bg-gray-500 dark:disabled:hover:bg-transparent`;
+  return `${baseClass} bg-primary-500 text-primary-foreground hover:bg-primary-700 disabled:hover:bg-primary-500`;
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(

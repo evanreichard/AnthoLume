@@ -18,9 +18,9 @@ export function BaseIcon({
   children,
 }: BaseIconProps) {
   const disabledClasses = disabled
-    ? 'text-gray-200 dark:text-gray-600'
+    ? 'text-content-subtle'
     : hoverable
-      ? 'hover:text-gray-800 dark:hover:text-gray-100'
+      ? 'hover:text-content'
       : '';
 
   return (

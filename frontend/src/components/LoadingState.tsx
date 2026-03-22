@@ -13,13 +13,8 @@ export function LoadingState({
   iconSize = 24,
 }: LoadingStateProps) {
   return (
-    <div
-      className={cn(
-        'flex items-center justify-center gap-3 text-gray-500 dark:text-gray-400',
-        className,
-      )}
-    >
-      <LoadingIcon size={iconSize} className="text-purple-600 dark:text-purple-400" />
+    <div className={cn('flex items-center justify-center gap-3 text-content-muted', className)}>
+      <LoadingIcon size={iconSize} className="text-primary-500" />
       <span className="text-sm font-medium">{message}</span>
     </div>
   );
