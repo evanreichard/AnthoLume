@@ -12,7 +12,7 @@ interface BackupTypes {
 export default function AdminPage() {
   const { isLoading } = useGetAdmin();
   const postAdminAction = usePostAdminAction();
-  const { showInfo, showError } = useToasts();
+  const { showInfo, showError, removeToast } = useToasts();
 
   const [backupTypes, setBackupTypes] = useState<BackupTypes>({
     covers: false,
@@ -83,26 +83,32 @@ export default function AdminPage() {
     }
   };
 
-  const handleRestoreSubmit = (e: FormEvent) => {
+  const handleRestoreSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!restoreFile) return;
 
-    postAdminAction.mutate(
-      {
+    const startedToastId = showInfo('Restore started', 0);
+
+    try {
+      const response = await postAdminAction.mutateAsync({
         data: {
           action: 'RESTORE',
           restore_file: restoreFile,
         },
-      },
-      {
-        onSuccess: () => {
-          showInfo('Restore completed successfully');
-        },
-        onError: error => {
-          showError('Restore failed: ' + getErrorMessage(error));
-        },
+      });
+
+      removeToast(startedToastId);
+
+      if (response.status >= 200 && response.status < 300) {
+        showInfo('Restore completed successfully');
+        return;
       }
-    );
+
+      showError('Restore failed: ' + getErrorMessage(response.data));
+    } catch (error) {
+      removeToast(startedToastId);
+      showError('Restore failed: ' + getErrorMessage(error));
+    }
   };
 
   const handleMetadataMatch = () => {
@@ -191,7 +197,7 @@ export default function AdminPage() {
               />
             </div>
             <div className="h-10 w-40">
-              <Button variant="secondary" type="submit">
+              <Button variant="secondary" type="submit" disabled={!restoreFile}>
                 Restore
               </Button>
             </div>

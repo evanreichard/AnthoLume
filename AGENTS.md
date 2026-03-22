@@ -47,6 +47,7 @@ Regenerate:
 - The Go server embeds `templates/*` and `assets/*`.
 - Root Tailwind output is built to `assets/style.css`.
 - Be mindful of whether a change affects the embedded server-rendered app, the React frontend, or both.
+- SQLite timestamps are stored as RFC3339 strings (usually with a trailing `Z`); prefer `parseTime` / `parseTimePtr` instead of ad-hoc `time.Parse` layouts.
 
 ## 5) Frontend
 

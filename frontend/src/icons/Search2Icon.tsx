@@ -4,11 +4,12 @@ interface Search2IconProps {
   size?: number;
   className?: string;
   disabled?: boolean;
+  hoverable?: boolean;
 }
 
-export function Search2Icon({ size = 24, className = '', disabled = false }: Search2IconProps) {
+export function Search2Icon({ size = 24, className = '', disabled = false, hoverable = true }: Search2IconProps) {
   return (
-    <BaseIcon size={size} className={className} disabled={disabled}>
+    <BaseIcon size={size} className={className} disabled={disabled} hoverable={hoverable}>
       <rect width="24" height="24" fill="none" />
       <path
         fillRule="evenodd"

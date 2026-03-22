@@ -438,11 +438,10 @@ func (s *Server) GetUsers(ctx context.Context, request GetUsersRequestObject) (G
 
 	apiUsers := make([]User, len(users))
 	for i, user := range users {
-		createdAt, _ := time.Parse("2006-01-02T15:04:05", user.CreatedAt)
 		apiUsers[i] = User{
 			Id:        user.ID,
 			Admin:     user.Admin,
-			CreatedAt: createdAt,
+			CreatedAt: parseTime(user.CreatedAt),
 		}
 	}
 
@@ -493,11 +492,10 @@ func (s *Server) UpdateUser(ctx context.Context, request UpdateUserRequestObject
 
 	apiUsers := make([]User, len(users))
 	for i, user := range users {
-		createdAt, _ := time.Parse("2006-01-02T15:04:05", user.CreatedAt)
 		apiUsers[i] = User{
 			Id:        user.ID,
 			Admin:     user.Admin,
-			CreatedAt: createdAt,
+			CreatedAt: parseTime(user.CreatedAt),
 		}
 	}
 

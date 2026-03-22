@@ -4,6 +4,7 @@ interface BaseIconProps {
   size?: number;
   className?: string;
   disabled?: boolean;
+  hoverable?: boolean;
   viewBox?: string;
   children: ReactNode;
 }
@@ -12,12 +13,15 @@ export function BaseIcon({
   size = 24,
   className = '',
   disabled = false,
+  hoverable = true,
   viewBox = '0 0 24 24',
   children,
 }: BaseIconProps) {
   const disabledClasses = disabled
     ? 'text-gray-200 dark:text-gray-600'
-    : 'hover:text-gray-800 dark:hover:text-gray-100';
+    : hoverable
+      ? 'hover:text-gray-800 dark:hover:text-gray-100'
+      : '';
 
   return (
     <svg

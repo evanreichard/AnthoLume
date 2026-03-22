@@ -31,7 +31,7 @@ export default function AdminLogsPage() {
           <div className="flex w-full grow flex-col">
             <div className="relative flex">
               <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
-                <Search2Icon size={15} />
+                <Search2Icon size={15} hoverable={false} />
               </span>
               <input
                 type="text"

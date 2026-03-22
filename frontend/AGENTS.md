@@ -18,6 +18,7 @@ Also follow the repository root guide at `../AGENTS.md`.
 - Do not add external icon libraries.
 - Prefer generated types from `src/generated/model/` over `any`.
 - Avoid custom class names in JSX `className` values unless the Tailwind lint config already allows them.
+- For decorative icons in inputs or labels, disable hover styling via the icon component API rather than overriding it ad hoc.
 - Prefer `LoadingState` for result-area loading indicators; avoid early returns that unmount search/filter forms during fetches.
 
 ## 3) Generated API client
