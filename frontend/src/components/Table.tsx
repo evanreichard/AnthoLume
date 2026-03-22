@@ -2,14 +2,14 @@ import React from 'react';
 import { Skeleton } from './Skeleton';
 import { cn } from '../utils/cn';
 
-export interface Column<T> {
+export interface Column<T extends Record<string, unknown>> {
   key: keyof T;
   header: string;
-  render?: (value: any, _row: T, _index: number) => React.ReactNode;
+  render?: (value: T[keyof T], _row: T, _index: number) => React.ReactNode;
   className?: string;
 }
 
-export interface TableProps<T> {
+export interface TableProps<T extends Record<string, unknown>> {
   columns: Column<T>[];
   data: T[];
   loading?: boolean;
@@ -58,7 +58,7 @@ function SkeletonTable({
   );
 }
 
-export function Table<T extends Record<string, any>>({
+export function Table<T extends Record<string, unknown>>({
   columns,
   data,
   loading = false,

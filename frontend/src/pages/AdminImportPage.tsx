@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useGetImportDirectory, usePostImport } from '../generated/anthoLumeAPIV1';
+import { getErrorMessage } from '../utils/errors';
 import { Button } from '../components/Button';
 import { FolderOpenIcon } from '../icons';
 import { useToasts } from '../components/ToastContext';
@@ -50,7 +51,7 @@ export default function AdminImportPage() {
           }, 1500);
         },
         onError: error => {
-          showError('Import failed: ' + (error as any).message);
+          showError('Import failed: ' + getErrorMessage(error));
         },
       }
     );

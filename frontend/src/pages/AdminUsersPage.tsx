@@ -2,6 +2,7 @@ import { useState, FormEvent } from 'react';
 import { useGetUsers, useUpdateUser } from '../generated/anthoLumeAPIV1';
 import { AddIcon, DeleteIcon } from '../icons';
 import { useToasts } from '../components/ToastContext';
+import { getErrorMessage } from '../utils/errors';
 
 export default function AdminUsersPage() {
   const { data: usersData, isLoading, refetch } = useGetUsers({});
@@ -37,8 +38,8 @@ export default function AdminUsersPage() {
           setNewIsAdmin(false);
           refetch();
         },
-        onError: (error: any) => {
-          showError('Failed to create user: ' + error.message);
+        onError: error => {
+          showError('Failed to create user: ' + getErrorMessage(error));
         },
       }
     );
@@ -57,8 +58,8 @@ export default function AdminUsersPage() {
           showInfo('User deleted successfully');
           refetch();
         },
-        onError: (error: any) => {
-          showError('Failed to delete user: ' + error.message);
+        onError: error => {
+          showError('Failed to delete user: ' + getErrorMessage(error));
         },
       }
     );
@@ -80,8 +81,8 @@ export default function AdminUsersPage() {
           showInfo('Password updated successfully');
           refetch();
         },
-        onError: (error: any) => {
-          showError('Failed to update password: ' + error.message);
+        onError: error => {
+          showError('Failed to update password: ' + getErrorMessage(error));
         },
       }
     );
@@ -102,8 +103,8 @@ export default function AdminUsersPage() {
           showInfo(`User permissions updated to ${role}`);
           refetch();
         },
-        onError: (error: any) => {
-          showError('Failed to update admin status: ' + error.message);
+        onError: error => {
+          showError('Failed to update admin status: ' + getErrorMessage(error));
         },
       }
     );

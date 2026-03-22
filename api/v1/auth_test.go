@@ -25,16 +25,16 @@ type AuthTestSuite struct {
 
 func (suite *AuthTestSuite) setupConfig() *config.Config {
 	return &config.Config{
-		ListenPort:        "8080",
-		DBType:            "memory",
-		DBName:            "test",
-		ConfigPath:        "/tmp",
-		CookieAuthKey:     "test-auth-key-32-bytes-long-enough",
-		CookieEncKey:      "0123456789abcdef",
-		CookieSecure:      false,
-		CookieHTTPOnly:    true,
-		Version:           "test",
-		DemoMode:          false,
+		ListenPort:          "8080",
+		DBType:              "memory",
+		DBName:              "test",
+		ConfigPath:          "/tmp",
+		CookieAuthKey:       "test-auth-key-32-bytes-long-enough",
+		CookieEncKey:        "0123456789abcdef",
+		CookieSecure:        false,
+		CookieHTTPOnly:      true,
+		Version:             "test",
+		DemoMode:            false,
 		RegistrationEnabled: true,
 	}
 }
@@ -124,6 +124,51 @@ func (suite *AuthTestSuite) TestAPILoginInvalidCredentials() {
 	suite.srv.ServeHTTP(w, req)
 
 	suite.Equal(http.StatusUnauthorized, w.Code)
+}
+
+func (suite *AuthTestSuite) TestAPIRegister() {
+	reqBody := LoginRequest{
+		Username: "newuser",
+		Password: "newpass",
+	}
+	body, _ := json.Marshal(reqBody)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	suite.srv.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusCreated, w.Code)
+
+	var resp LoginResponse
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &resp))
+	suite.Equal("newuser", resp.Username)
+	suite.True(resp.IsAdmin, "first registered user should mirror legacy admin bootstrap behavior")
+
+	cookies := w.Result().Cookies()
+	suite.Require().NotEmpty(cookies, "register should set a session cookie")
+
+	user, err := suite.db.Queries.GetUser(suite.T().Context(), "newuser")
+	suite.Require().NoError(err)
+	suite.True(user.Admin)
+}
+
+func (suite *AuthTestSuite) TestAPIRegisterDisabled() {
+	suite.cfg.RegistrationEnabled = false
+	suite.srv = NewServer(suite.db, suite.cfg, nil)
+
+	reqBody := LoginRequest{
+		Username: "newuser",
+		Password: "newpass",
+	}
+	body, _ := json.Marshal(reqBody)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	suite.srv.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusForbidden, w.Code)
 }
 
 func (suite *AuthTestSuite) TestAPILogout() {

@@ -1,13 +1,15 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useGetSettings, useUpdateSettings } from '../generated/anthoLumeAPIV1';
+import type { Device, SettingsResponse } from '../generated/model';
 import { UserIcon, PasswordIcon, ClockIcon } from '../icons';
 import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
+import { getErrorMessage } from '../utils/errors';
 
 export default function SettingsPage() {
   const { data, isLoading } = useGetSettings();
   const updateSettings = useUpdateSettings();
-  const settingsData = data;
+  const settingsData = data?.status === 200 ? (data.data as SettingsResponse) : null;
   const { showInfo, showError } = useToasts();
 
   const [password, setPassword] = useState('');
@@ -15,8 +17,8 @@ export default function SettingsPage() {
   const [timezone, setTimezone] = useState('UTC');
 
   useEffect(() => {
-    if (settingsData?.data.timezone && settingsData.data.timezone.trim() !== '') {
-      setTimezone(settingsData.data.timezone);
+    if (settingsData?.timezone && settingsData.timezone.trim() !== '') {
+      setTimezone(settingsData.timezone);
     }
   }, [settingsData]);
 
@@ -38,11 +40,8 @@ export default function SettingsPage() {
       showInfo('Password updated successfully');
       setPassword('');
       setNewPassword('');
-    } catch (error: any) {
-      showError(
-        'Failed to update password: ' +
-          (error.response?.data?.message || error.message || 'Unknown error')
-      );
+    } catch (error) {
+      showError('Failed to update password: ' + getErrorMessage(error));
     }
   };
 
@@ -56,11 +55,8 @@ export default function SettingsPage() {
         },
       });
       showInfo('Timezone updated successfully');
-    } catch (error: any) {
-      showError(
-        'Failed to update timezone: ' +
-          (error.response?.data?.message || error.message || 'Unknown error')
-      );
+    } catch (error) {
+      showError('Failed to update timezone: ' + getErrorMessage(error));
     }
   };
 
@@ -109,7 +105,7 @@ export default function SettingsPage() {
       <div>
         <div className="flex flex-col items-center rounded bg-white p-4 text-gray-500 shadow-lg md:w-60 lg:w-80 dark:bg-gray-700 dark:text-white">
           <UserIcon size={60} />
-          <p className="text-lg">{settingsData?.data.user.username || 'N/A'}</p>
+          <p className="text-lg">{settingsData?.user.username || 'N/A'}</p>
         </div>
       </div>
 
@@ -205,14 +201,14 @@ export default function SettingsPage() {
               </tr>
             </thead>
             <tbody className="text-black dark:text-white">
-              {!settingsData?.data.devices || settingsData.data.devices.length === 0 ? (
+              {!settingsData?.devices || settingsData.devices.length === 0 ? (
                 <tr>
                   <td className="p-3 text-center" colSpan={3}>
                     No Results
                   </td>
                 </tr>
               ) : (
-                settingsData.data.devices.map((device: any) => (
+                settingsData.devices.map((device: Device) => (
                   <tr key={device.id}>
                     <td className="p-3 pl-0">
                       <p>{device.device_name || 'Unknown'}</p>

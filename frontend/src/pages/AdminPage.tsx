@@ -2,6 +2,7 @@ import { useState, FormEvent } from 'react';
 import { useGetAdmin, usePostAdminAction } from '../generated/anthoLumeAPIV1';
 import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
+import { getErrorMessage } from '../utils/errors';
 
 interface BackupTypes {
   covers: boolean;
@@ -43,10 +44,10 @@ export default function AdminPage() {
 
       // Stream the response directly to disk using File System Access API
       // This avoids loading multi-GB files into browser memory
-      if (typeof (window as any).showSaveFilePicker === 'function') {
+      if ('showSaveFilePicker' in window && typeof window.showSaveFilePicker === 'function') {
         try {
           // Modern browsers: Use File System Access API for direct disk writes
-          const handle = await (window as any).showSaveFilePicker({
+          const handle = await window.showSaveFilePicker({
             suggestedName: filename,
             types: [{ description: 'ZIP Archive', accept: { 'application/zip': ['.zip'] } }],
           });
@@ -78,7 +79,7 @@ export default function AdminPage() {
         );
       }
     } catch (error) {
-      showError('Backup failed: ' + (error as any).message);
+      showError('Backup failed: ' + getErrorMessage(error));
     }
   };
 
@@ -98,7 +99,7 @@ export default function AdminPage() {
           showInfo('Restore completed successfully');
         },
         onError: error => {
-          showError('Restore failed: ' + (error as any).message);
+          showError('Restore failed: ' + getErrorMessage(error));
         },
       }
     );
@@ -116,7 +117,7 @@ export default function AdminPage() {
           showInfo('Metadata matching started');
         },
         onError: error => {
-          showError('Metadata matching failed: ' + (error as any).message);
+          showError('Metadata matching failed: ' + getErrorMessage(error));
         },
       }
     );
@@ -134,7 +135,7 @@ export default function AdminPage() {
           showInfo('Cache tables started');
         },
         onError: error => {
-          showError('Cache tables failed: ' + (error as any).message);
+          showError('Cache tables failed: ' + getErrorMessage(error));
         },
       }
     );

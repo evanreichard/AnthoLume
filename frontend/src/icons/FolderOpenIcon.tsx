@@ -6,7 +6,11 @@ interface FolderOpenIconProps {
   disabled?: boolean;
 }
 
-export function FolderOpenIcon({ size = 24, className = '', disabled = false }: FolderOpenIconProps) {
+export function FolderOpenIcon({
+  size = 24,
+  className = '',
+  disabled = false,
+}: FolderOpenIconProps) {
   return (
     <BaseIcon size={size} className={className} disabled={disabled}>
       <path

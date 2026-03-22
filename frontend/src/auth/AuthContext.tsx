@@ -1,6 +1,13 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { useLogin, useLogout, useGetMe } from '../generated/anthoLumeAPIV1';
+import {
+  getGetMeQueryKey,
+  useLogin,
+  useLogout,
+  useGetMe,
+  useRegister,
+} from '../generated/anthoLumeAPIV1';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -10,6 +17,7 @@ interface AuthState {
 
 interface AuthContextType extends AuthState {
   login: (_username: string, _password: string) => Promise<void>;
+  register: (_username: string, _password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -19,27 +27,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
     user: null,
-    isCheckingAuth: true, // Start with checking state to prevent redirects during initial load
+    isCheckingAuth: true,
   });
 
   const loginMutation = useLogin();
+  const registerMutation = useRegister();
   const logoutMutation = useLogout();
 
-  // Always call /me to check authentication status
   const { data: meData, error: meError, isLoading: meLoading } = useGetMe();
 
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  // Update auth state based on /me endpoint response
   useEffect(() => {
     setAuthState(prev => {
       if (meLoading) {
-        // Still checking authentication
-        console.log('[AuthContext] Checking authentication status...');
         return { ...prev, isCheckingAuth: true };
       } else if (meData?.data && meData.status === 200) {
-        // User is authenticated - check that response has valid data
-        console.log('[AuthContext] User authenticated:', meData.data);
         const userData = 'username' in meData.data ? meData.data : null;
         return {
           isAuthenticated: true,
@@ -47,16 +51,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           isCheckingAuth: false,
         };
       } else if (meError || (meData && meData.status === 401)) {
-        // User is not authenticated or error occurred
-        console.log('[AuthContext] User not authenticated:', meError?.message || String(meError));
         return {
           isAuthenticated: false,
           user: null,
           isCheckingAuth: false,
         };
       }
-      console.log('[AuthContext] Unexpected state - checking...');
-      return { ...prev, isCheckingAuth: false }; // Assume not authenticated if we can't determine
+
+      return { ...prev, isCheckingAuth: false };
     });
   }, [meData, meError, meLoading]);
 
@@ -70,41 +72,92 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
         });
 
-        // The backend uses session-based authentication, so no token to store
-        // The session cookie is automatically set by the browser
+        if (response.status !== 200 || !('username' in response.data)) {
+          setAuthState({
+            isAuthenticated: false,
+            user: null,
+            isCheckingAuth: false,
+          });
+          throw new Error('Login failed');
+        }
+
         setAuthState({
           isAuthenticated: true,
-          user:
-            'username' in response.data
-              ? (response.data as { username: string; is_admin: boolean })
-              : null,
+          user: response.data as { username: string; is_admin: boolean },
           isCheckingAuth: false,
         });
 
+        await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
         navigate('/');
       } catch (_error) {
-        console.error('[AuthContext] Login failed:', _error);
-        throw new Error('Login failed');
-      }
-    },
-    [loginMutation, navigate]
-  );
-
-  const logout = useCallback(() => {
-    logoutMutation.mutate(undefined, {
-      onSuccess: () => {
         setAuthState({
           isAuthenticated: false,
           user: null,
           isCheckingAuth: false,
         });
+        throw new Error('Login failed');
+      }
+    },
+    [loginMutation, navigate, queryClient]
+  );
+
+  const register = useCallback(
+    async (username: string, password: string) => {
+      try {
+        const response = await registerMutation.mutateAsync({
+          data: {
+            username,
+            password,
+          },
+        });
+
+        if (response.status !== 201 || !('username' in response.data)) {
+          setAuthState({
+            isAuthenticated: false,
+            user: null,
+            isCheckingAuth: false,
+          });
+          throw new Error('Registration failed');
+        }
+
+        setAuthState({
+          isAuthenticated: true,
+          user: response.data as { username: string; is_admin: boolean },
+          isCheckingAuth: false,
+        });
+
+        await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+        navigate('/');
+      } catch (_error) {
+        setAuthState({
+          isAuthenticated: false,
+          user: null,
+          isCheckingAuth: false,
+        });
+        throw new Error('Registration failed');
+      }
+    },
+    [navigate, queryClient, registerMutation]
+  );
+
+  const logout = useCallback(() => {
+    logoutMutation.mutate(undefined, {
+      onSuccess: async () => {
+        setAuthState({
+          isAuthenticated: false,
+          user: null,
+          isCheckingAuth: false,
+        });
+        await queryClient.removeQueries({ queryKey: getGetMeQueryKey() });
         navigate('/login');
       },
     });
-  }, [logoutMutation, navigate]);
+  }, [logoutMutation, navigate, queryClient]);
 
   return (
-    <AuthContext.Provider value={{ ...authState, login, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ ...authState, login, register, logout }}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 

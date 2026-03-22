@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { useGetSearch } from '../generated/anthoLumeAPIV1';
 import { GetSearchSource } from '../generated/model/getSearchSource';
+import type { SearchItem } from '../generated/model';
 import { SearchIcon, DownloadIcon, BookIcon } from '../icons';
 import { Button } from '../components/Button';
 
@@ -9,7 +10,7 @@ export default function SearchPage() {
   const [source, setSource] = useState<GetSearchSource>(GetSearchSource.LibGen);
 
   const { data, isLoading } = useGetSearch({ query, source });
-  const results = data?.data?.results;
+  const results = data?.status === 200 ? data.data.results : [];
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -97,7 +98,7 @@ export default function SearchPage() {
               )}
               {!isLoading &&
                 results &&
-                results.map((item: any) => (
+                results.map((item: SearchItem) => (
                   <tr key={item.id}>
                     <td className="border-b border-gray-200 p-3 text-gray-500 dark:text-gray-500">
                       <button className="hover:text-purple-600" title="Download">

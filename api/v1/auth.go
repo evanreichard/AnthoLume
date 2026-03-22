@@ -36,47 +36,51 @@ func (s *Server) Login(ctx context.Context, request LoginRequestObject) (LoginRe
 		return Login401JSONResponse{Code: 401, Message: "Invalid credentials"}, nil
 	}
 
-	// Get request and response from context (set by middleware)
-	r := s.getRequestFromContext(ctx)
-	w := s.getResponseWriterFromContext(ctx)
-
-	if r == nil || w == nil {
-		return Login500JSONResponse{Code: 500, Message: "Internal context error"}, nil
-	}
-
-	// Create session with cookie options for Vite proxy compatibility
-	store := sessions.NewCookieStore([]byte(s.cfg.CookieAuthKey))
-	if s.cfg.CookieEncKey != "" {
-		if len(s.cfg.CookieEncKey) == 16 || len(s.cfg.CookieEncKey) == 32 {
-			store = sessions.NewCookieStore([]byte(s.cfg.CookieAuthKey), []byte(s.cfg.CookieEncKey))
-		}
-	}
-
-	session, err := store.Get(r, "token")
-	if err != nil {
-		return Login401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
-	}
-
-	// Configure cookie options to work with Vite proxy
-	// For localhost development, we need SameSite to allow cookies across ports
-	session.Options.SameSite = http.SameSiteLaxMode
-	session.Options.HttpOnly = true
-	if !s.cfg.CookieSecure {
-		session.Options.Secure = false // Allow HTTP for localhost development
-	} else {
-		session.Options.Secure = true
-	}
-
-	session.Values["authorizedUser"] = user.ID
-	session.Values["isAdmin"] = user.Admin
-	session.Values["expiresAt"] = time.Now().Unix() + (60 * 60 * 24 * 7)
-	session.Values["authHash"] = *user.AuthHash
-
-	if err := session.Save(r, w); err != nil {
-		return Login500JSONResponse{Code: 500, Message: "Failed to create session"}, nil
+	if err := s.saveUserSession(ctx, user.ID, user.Admin, *user.AuthHash); err != nil {
+		return Login500JSONResponse{Code: 500, Message: err.Error()}, nil
 	}
 
 	return Login200JSONResponse{
+		Username: user.ID,
+		IsAdmin:  user.Admin,
+	}, nil
+}
+
+// POST /auth/register
+func (s *Server) Register(ctx context.Context, request RegisterRequestObject) (RegisterResponseObject, error) {
+	if !s.cfg.RegistrationEnabled {
+		return Register403JSONResponse{Code: 403, Message: "Registration is disabled"}, nil
+	}
+
+	if request.Body == nil {
+		return Register400JSONResponse{Code: 400, Message: "Invalid request body"}, nil
+	}
+
+	req := *request.Body
+	if req.Username == "" || req.Password == "" {
+		return Register400JSONResponse{Code: 400, Message: "Invalid user or password"}, nil
+	}
+
+	currentUsers, err := s.db.Queries.GetUsers(ctx)
+	if err != nil {
+		return Register500JSONResponse{Code: 500, Message: "Failed to create user"}, nil
+	}
+
+	isAdmin := len(currentUsers) == 0
+	if err := s.createUser(ctx, req.Username, &req.Password, &isAdmin); err != nil {
+		return Register400JSONResponse{Code: 400, Message: err.Error()}, nil
+	}
+
+	user, err := s.db.Queries.GetUser(ctx, req.Username)
+	if err != nil {
+		return Register500JSONResponse{Code: 500, Message: "Failed to load created user"}, nil
+	}
+
+	if err := s.saveUserSession(ctx, user.ID, user.Admin, *user.AuthHash); err != nil {
+		return Register500JSONResponse{Code: 500, Message: err.Error()}, nil
+	}
+
+	return Register201JSONResponse{
 		Username: user.ID,
 		IsAdmin:  user.Admin,
 	}, nil
@@ -96,26 +100,9 @@ func (s *Server) Logout(ctx context.Context, request LogoutRequestObject) (Logou
 		return Logout401JSONResponse{Code: 401, Message: "Internal context error"}, nil
 	}
 
-	// Create session store
-	store := sessions.NewCookieStore([]byte(s.cfg.CookieAuthKey))
-	if s.cfg.CookieEncKey != "" {
-		if len(s.cfg.CookieEncKey) == 16 || len(s.cfg.CookieEncKey) == 32 {
-			store = sessions.NewCookieStore([]byte(s.cfg.CookieAuthKey), []byte(s.cfg.CookieEncKey))
-		}
-	}
-
-	session, err := store.Get(r, "token")
+	session, err := s.getCookieSession(r)
 	if err != nil {
 		return Logout401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
-	}
-
-	// Configure cookie options (same as login)
-	session.Options.SameSite = http.SameSiteLaxMode
-	session.Options.HttpOnly = true
-	if !s.cfg.CookieSecure {
-		session.Options.Secure = false
-	} else {
-		session.Options.Secure = true
 	}
 
 	session.Values = make(map[any]any)
@@ -138,6 +125,50 @@ func (s *Server) GetMe(ctx context.Context, request GetMeRequestObject) (GetMeRe
 		Username: auth.UserName,
 		IsAdmin:  auth.IsAdmin,
 	}, nil
+}
+
+func (s *Server) saveUserSession(ctx context.Context, username string, isAdmin bool, authHash string) error {
+	r := s.getRequestFromContext(ctx)
+	w := s.getResponseWriterFromContext(ctx)
+	if r == nil || w == nil {
+		return fmt.Errorf("internal context error")
+	}
+
+	session, err := s.getCookieSession(r)
+	if err != nil {
+		return fmt.Errorf("unauthorized")
+	}
+
+	session.Values["authorizedUser"] = username
+	session.Values["isAdmin"] = isAdmin
+	session.Values["expiresAt"] = time.Now().Unix() + (60 * 60 * 24 * 7)
+	session.Values["authHash"] = authHash
+
+	if err := session.Save(r, w); err != nil {
+		return fmt.Errorf("failed to create session")
+	}
+
+	return nil
+}
+
+func (s *Server) getCookieSession(r *http.Request) (*sessions.Session, error) {
+	store := sessions.NewCookieStore([]byte(s.cfg.CookieAuthKey))
+	if s.cfg.CookieEncKey != "" {
+		if len(s.cfg.CookieEncKey) == 16 || len(s.cfg.CookieEncKey) == 32 {
+			store = sessions.NewCookieStore([]byte(s.cfg.CookieAuthKey), []byte(s.cfg.CookieEncKey))
+		}
+	}
+
+	session, err := store.Get(r, "token")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session: %w", err)
+	}
+
+	session.Options.SameSite = http.SameSiteLaxMode
+	session.Options.HttpOnly = true
+	session.Options.Secure = s.cfg.CookieSecure
+
+	return session, nil
 }
 
 // getSessionFromContext extracts authData from context

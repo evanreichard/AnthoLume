@@ -8,6 +8,7 @@ import ActivityPage from './pages/ActivityPage';
 import SearchPage from './pages/SearchPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import AdminPage from './pages/AdminPage';
 import AdminImportPage from './pages/AdminImportPage';
 import AdminImportResultsPage from './pages/AdminImportResultsPage';
@@ -118,6 +119,7 @@ export function Routes() {
         />
       </Route>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
     </ReactRoutes>
   );
 }

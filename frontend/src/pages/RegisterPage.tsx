@@ -5,15 +5,15 @@ import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
 import { useGetInfo } from '../generated/anthoLumeAPIV1';
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const { login, isAuthenticated, isCheckingAuth } = useAuth();
+  const { register, isAuthenticated, isCheckingAuth } = useAuth();
   const navigate = useNavigate();
   const { showError } = useToasts();
-  const { data: infoData } = useGetInfo({
+  const { data: infoData, isLoading: isLoadingInfo } = useGetInfo({
     query: {
       staleTime: Infinity,
     },
@@ -27,17 +27,22 @@ export default function LoginPage() {
   useEffect(() => {
     if (!isCheckingAuth && isAuthenticated) {
       navigate('/', { replace: true });
+      return;
     }
-  }, [isAuthenticated, isCheckingAuth, navigate]);
+
+    if (!isLoadingInfo && !registrationEnabled) {
+      navigate('/login', { replace: true });
+    }
+  }, [isAuthenticated, isCheckingAuth, isLoadingInfo, navigate, registrationEnabled]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      await login(username, password);
+      await register(username, password);
     } catch (_err) {
-      showError('Invalid credentials');
+      showError(registrationEnabled ? 'Registration failed' : 'Registration is disabled');
     } finally {
       setIsLoading(false);
     }
@@ -59,7 +64,7 @@ export default function LoginPage() {
                     className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
                     placeholder="Username"
                     required
-                    disabled={isLoading}
+                    disabled={isLoading || isLoadingInfo || !registrationEnabled}
                   />
                 </div>
               </div>
@@ -72,29 +77,27 @@ export default function LoginPage() {
                     className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
                     placeholder="Password"
                     required
-                    disabled={isLoading}
+                    disabled={isLoading || isLoadingInfo || !registrationEnabled}
                   />
                 </div>
               </div>
               <Button
                 variant="secondary"
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || isLoadingInfo || !registrationEnabled}
                 className="w-full px-4 py-2 text-center text-base font-semibold transition duration-200 ease-in focus:outline-none focus:ring-2 disabled:opacity-50"
               >
-                {isLoading ? 'Logging in...' : 'Login'}
+                {isLoading ? 'Registering...' : 'Register'}
               </Button>
             </form>
             <div className="py-12 text-center">
-              {registrationEnabled && (
-                <p>
-                  Don&apos;t have an account?{' '}
-                  <Link to="/register" className="font-semibold underline">
-                    Register here.
-                  </Link>
-                </p>
-              )}
-              <p className={registrationEnabled ? 'mt-4' : ''}>
+              <p>
+                Trying to login?{' '}
+                <Link to="/login" className="font-semibold underline">
+                  Login here.
+                </Link>
+              </p>
+              <p className="mt-4">
                 <a href="/local" className="font-semibold underline">
                   Offline / Local Mode
                 </a>

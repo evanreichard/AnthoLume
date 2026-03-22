@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
-	log "github.com/sirupsen/logrus"
 )
 
 // GET /documents
@@ -81,7 +81,7 @@ func (s *Server) GetDocuments(ctx context.Context, request GetDocumentsRequestOb
 			LastRead:          parseInterfaceTime(row.LastRead),
 			CreatedAt:         time.Now(), // Will be overwritten if we had a proper created_at from DB
 			UpdatedAt:         time.Now(), // Will be overwritten if we had a proper updated_at from DB
-			Deleted:           false,     // Default, should be overridden if available
+			Deleted:           false,      // Default, should be overridden if available
 		}
 		if row.Words != nil {
 			wordCounts = append(wordCounts, WordCount{
@@ -217,10 +217,10 @@ func (s *Server) EditDocument(ctx context.Context, request EditDocumentRequestOb
 		Isbn13:      request.Body.Isbn13,
 		Coverfile:   coverFileName,
 		// Preserve existing values for non-editable fields
-		Md5:        currentDoc.Md5,
-		Basepath:    currentDoc.Basepath,
-		Filepath:    currentDoc.Filepath,
-		Words:       currentDoc.Words,
+		Md5:      currentDoc.Md5,
+		Basepath: currentDoc.Basepath,
+		Filepath: currentDoc.Filepath,
+		Words:    currentDoc.Words,
 	})
 	if err != nil {
 		log.Error("UpsertDocument DB Error:", err)
@@ -306,7 +306,7 @@ func deriveBaseFileName(metadataInfo *metadata.MetadataInfo) string {
 }
 
 // parseInterfaceTime converts an interface{} to time.Time for SQLC queries
-func parseInterfaceTime(t interface{}) *time.Time {
+func parseInterfaceTime(t any) *time.Time {
 	if t == nil {
 		return nil
 	}
@@ -380,7 +380,7 @@ func (s *Server) GetDocumentCover(ctx context.Context, request GetDocumentCoverR
 		} else {
 			// Derive Path
 			coverPath := filepath.Join(s.cfg.DataPath, "covers", *document.Coverfile)
-	
+
 			// Validate File Exists
 			fileInfo, err := os.Stat(coverPath)
 			if os.IsNotExist(err) {
@@ -713,7 +713,7 @@ func (s *Server) CreateDocument(ctx context.Context, request CreateDocumentReque
 	}
 
 	file := fileField[0]
-	
+
 	// Validate file extension
 	if !strings.HasSuffix(strings.ToLower(file.Filename), ".epub") {
 		return CreateDocument400JSONResponse{Code: 400, Message: "Only EPUB files are allowed"}, nil
@@ -771,17 +771,17 @@ func (s *Server) CreateDocument(ctx context.Context, request CreateDocumentReque
 		// Document already exists
 		existingDoc, _ := s.db.Queries.GetDocument(ctx, *metadataInfo.PartialMD5)
 		apiDoc := Document{
-			Id:         existingDoc.ID,
-			Title:      *existingDoc.Title,
-			Author:     *existingDoc.Author,
+			Id:          existingDoc.ID,
+			Title:       *existingDoc.Title,
+			Author:      *existingDoc.Author,
 			Description: existingDoc.Description,
-			Isbn10:     existingDoc.Isbn10,
-			Isbn13:     existingDoc.Isbn13,
-			Words:      existingDoc.Words,
+			Isbn10:      existingDoc.Isbn10,
+			Isbn13:      existingDoc.Isbn13,
+			Words:       existingDoc.Words,
 			Filepath:    existingDoc.Filepath,
-			CreatedAt:  parseTime(existingDoc.CreatedAt),
+			CreatedAt:   parseTime(existingDoc.CreatedAt),
 			UpdatedAt:   parseTime(existingDoc.UpdatedAt),
-			Deleted:    existingDoc.Deleted,
+			Deleted:     existingDoc.Deleted,
 		}
 		response := DocumentResponse{
 			Document: apiDoc,
@@ -818,17 +818,17 @@ func (s *Server) CreateDocument(ctx context.Context, request CreateDocumentReque
 	}
 
 	apiDoc := Document{
-		Id:         doc.ID,
-		Title:      *doc.Title,
-		Author:     *doc.Author,
+		Id:          doc.ID,
+		Title:       *doc.Title,
+		Author:      *doc.Author,
 		Description: doc.Description,
-		Isbn10:     doc.Isbn10,
-		Isbn13:     doc.Isbn13,
-		Words:      doc.Words,
+		Isbn10:      doc.Isbn10,
+		Isbn13:      doc.Isbn13,
+		Words:       doc.Words,
 		Filepath:    doc.Filepath,
-		CreatedAt:  parseTime(doc.CreatedAt),
+		CreatedAt:   parseTime(doc.CreatedAt),
 		UpdatedAt:   parseTime(doc.UpdatedAt),
-		Deleted:    doc.Deleted,
+		Deleted:     doc.Deleted,
 	}
 
 	response := DocumentResponse{

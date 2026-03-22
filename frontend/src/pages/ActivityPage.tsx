@@ -1,17 +1,18 @@
 import { Link } from 'react-router-dom';
 import { useGetActivity } from '../generated/anthoLumeAPIV1';
+import type { Activity } from '../generated/model';
 import { Table } from '../components/Table';
 import { formatDuration } from '../utils/formatters';
 
 export default function ActivityPage() {
   const { data, isLoading } = useGetActivity({ offset: 0, limit: 100 });
-  const activities = data?.data?.activities;
+  const activities = data?.status === 200 ? data.data.activities : [];
 
   const columns = [
     {
       key: 'document_id' as const,
       header: 'Document',
-      render: (_: any, row: any) => (
+      render: (_value: Activity['document_id'], row: Activity) => (
         <Link
           to={`/documents/${row.document_id}`}
           className="text-blue-600 hover:underline dark:text-blue-400"
@@ -23,19 +24,19 @@ export default function ActivityPage() {
     {
       key: 'start_time' as const,
       header: 'Time',
-      render: (value: any) => value || 'N/A',
+      render: (value: Activity['start_time']) => value || 'N/A',
     },
     {
       key: 'duration' as const,
       header: 'Duration',
-      render: (value: any) => {
+      render: (value: Activity['duration']) => {
         return formatDuration(value || 0);
       },
     },
     {
       key: 'end_percentage' as const,
       header: 'Percent',
-      render: (value: any) => (value != null ? `${value}%` : '0%'),
+      render: (value: Activity['end_percentage']) => (value != null ? `${value}%` : '0%'),
     },
   ];
 

@@ -9,7 +9,9 @@ export default function Layout() {
   const location = useLocation();
   const { isAuthenticated, user, logout, isCheckingAuth } = useAuth();
   const { data } = useGetMe(isAuthenticated ? {} : undefined);
-  const userData = data?.data || user;
+  const fetchedUser =
+    data?.status === 200 && data.data && 'username' in data.data ? data.data : null;
+  const userData = user ?? fetchedUser;
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -34,15 +36,26 @@ export default function Layout() {
 
   // Get current page title
   const navItems = [
-    { path: '/', title: 'Home' },
+    { path: '/admin/import-results', title: 'Admin - Import' },
+    { path: '/admin/import', title: 'Admin - Import' },
+    { path: '/admin/users', title: 'Admin - Users' },
+    { path: '/admin/logs', title: 'Admin - Logs' },
+    { path: '/admin', title: 'Admin - General' },
     { path: '/documents', title: 'Documents' },
     { path: '/progress', title: 'Progress' },
     { path: '/activity', title: 'Activity' },
     { path: '/search', title: 'Search' },
     { path: '/settings', title: 'Settings' },
+    { path: '/', title: 'Home' },
   ];
   const currentPageTitle =
-    navItems.find(item => location.pathname === item.path)?.title || 'Documents';
+    navItems.find(item =>
+      item.path === '/' ? location.pathname === item.path : location.pathname.startsWith(item.path)
+    )?.title || 'Home';
+
+  useEffect(() => {
+    document.title = `AnthoLume - ${currentPageTitle}`;
+  }, [currentPageTitle]);
 
   // Show loading while checking authentication status
   if (isCheckingAuth) {
@@ -62,7 +75,9 @@ export default function Layout() {
         <HamburgerMenu />
 
         {/* Header Title */}
-        <h1 className="px-6 text-xl font-bold lg:ml-44 dark:text-white">{currentPageTitle}</h1>
+        <h1 className="whitespace-nowrap px-6 text-xl font-bold lg:ml-44 dark:text-white">
+          {currentPageTitle}
+        </h1>
 
         {/* User Dropdown */}
         <div
@@ -78,7 +93,7 @@ export default function Layout() {
 
           {isUserDropdownOpen && (
             <div className="absolute right-4 top-16 z-20 pt-4 transition duration-200">
-              <div className="w-40 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 dark:bg-gray-700 dark:shadow-gray-800">
+              <div className="w-40 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black/5 dark:bg-gray-700 dark:shadow-gray-800">
                 <div
                   className="py-1"
                   role="menu"

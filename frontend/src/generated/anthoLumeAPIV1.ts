@@ -1691,6 +1691,112 @@ export const useLogin = <TError = ErrorResponse,
     }
     
 /**
+ * @summary User registration
+ */
+export type registerResponse201 = {
+  data: LoginResponse
+  status: 201
+}
+
+export type registerResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type registerResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type registerResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type registerResponseSuccess = (registerResponse201) & {
+  headers: Headers;
+};
+export type registerResponseError = (registerResponse400 | registerResponse403 | registerResponse500) & {
+  headers: Headers;
+};
+
+export type registerResponse = (registerResponseSuccess | registerResponseError)
+
+export const getRegisterUrl = () => {
+
+
+  
+
+  return `/api/v1/auth/register`
+}
+
+export const register = async (loginRequest: LoginRequest, options?: RequestInit): Promise<registerResponse> => {
+  
+  const res = await fetch(getRegisterUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      loginRequest,)
+  }
+)
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  
+  const data: registerResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as registerResponse
+}
+  
+
+
+
+export const getRegisterMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: LoginRequest}, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: LoginRequest}, TContext> => {
+
+const mutationKey = ['register'];
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof register>>, {data: LoginRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  register(data,fetchOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegisterMutationResult = NonNullable<Awaited<ReturnType<typeof register>>>
+    export type RegisterMutationBody = LoginRequest
+    export type RegisterMutationError = ErrorResponse
+
+    /**
+ * @summary User registration
+ */
+export const useRegister = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: LoginRequest}, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof register>>,
+        TError,
+        {data: LoginRequest},
+        TContext
+      > => {
+      return useMutation(getRegisterMutationOptions(options), queryClient);
+    }
+    
+/**
  * @summary User logout
  */
 export type logoutResponse200 = {

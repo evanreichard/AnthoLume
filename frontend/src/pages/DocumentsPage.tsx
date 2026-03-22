@@ -1,25 +1,16 @@
 import { useState, FormEvent, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useGetDocuments, useCreateDocument } from '../generated/anthoLumeAPIV1';
-import type { DocumentsResponse } from '../generated/model/documentsResponse';
+import type { Document, DocumentsResponse } from '../generated/model';
 import { ActivityIcon, DownloadIcon, SearchIcon, UploadIcon } from '../icons';
 import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
 import { formatDuration } from '../utils/formatters';
 import { useDebounce } from '../hooks/useDebounce';
+import { getErrorMessage } from '../utils/errors';
 
 interface DocumentCardProps {
-  doc: {
-    id: string;
-    title: string;
-    author: string;
-    created_at: string;
-    deleted: boolean;
-    words?: number;
-    filepath?: string;
-    percentage?: number;
-    total_time_seconds?: number;
-  };
+  doc: Document;
 }
 
 function DocumentCard({ doc }: DocumentCardProps) {
@@ -125,8 +116,8 @@ export default function DocumentsPage() {
       showInfo('Document uploaded successfully!');
       setUploadMode(false);
       refetch();
-    } catch (error: any) {
-      showError('Failed to upload document: ' + error.message);
+    } catch (error) {
+      showError('Failed to upload document: ' + getErrorMessage(error));
     }
   };
 
@@ -170,7 +161,7 @@ export default function DocumentsPage() {
         {isLoading ? (
           <div className="col-span-full text-center text-gray-500 dark:text-white">Loading...</div>
         ) : (
-          docs?.map((doc: any) => <DocumentCard key={doc.id} doc={doc} />)
+          docs?.map(doc => <DocumentCard key={doc.id} doc={doc} />)
         )}
       </div>
 
@@ -220,7 +211,9 @@ export default function DocumentsPage() {
               type="submit"
               onClick={e => {
                 e.preventDefault();
-                handleFileChange({ target: { files: fileInputRef.current?.files } } as any);
+                handleFileChange({
+                  target: { files: fileInputRef.current?.files },
+                } as React.ChangeEvent<HTMLInputElement>);
               }}
             >
               Upload File

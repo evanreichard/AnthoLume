@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useGetHome } from '../generated/anthoLumeAPIV1';
-import type { LeaderboardData } from '../generated/model';
+import type {
+  HomeResponse,
+  LeaderboardData,
+  LeaderboardEntry,
+  UserStreak,
+} from '../generated/model';
 import ReadingHistoryGraph from '../components/ReadingHistoryGraph';
 import { formatNumber, formatDuration } from '../utils/formatters';
 
@@ -127,7 +132,7 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
             <p className="w-max border-b border-gray-200 text-sm font-semibold text-gray-700 dark:border-gray-500 dark:text-white">
               {name} Leaderboard
             </p>
-            <div className="flex gap-2 text-xs text-gray-400 items-center">
+            <div className="flex items-center gap-2 text-xs text-gray-400">
               <button
                 type="button"
                 onClick={() => handlePeriodChange('all')}
@@ -172,7 +177,7 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
         </div>
 
         <div className="dark:text-white">
-          {currentData?.slice(0, 3).map((item: any, index: number) => (
+          {currentData?.slice(0, 3).map((item: LeaderboardEntry, index: number) => (
             <div
               key={index}
               className={`flex items-center justify-between py-2 text-sm ${index > 0 ? 'border-t border-gray-200' : ''}`}
@@ -192,10 +197,11 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
 export default function HomePage() {
   const { data: homeData, isLoading: homeLoading } = useGetHome();
 
-  const dbInfo = homeData?.data?.database_info;
-  const streaks = homeData?.data?.streaks?.streaks;
-  const graphData = homeData?.data?.graph_data?.graph_data;
-  const userStats = homeData?.data?.user_statistics;
+  const homeResponse = homeData?.status === 200 ? (homeData.data as HomeResponse) : null;
+  const dbInfo = homeResponse?.database_info;
+  const streaks = homeResponse?.streaks?.streaks;
+  const graphData = homeResponse?.graph_data?.graph_data;
+  const userStats = homeResponse?.user_statistics;
 
   if (homeLoading) {
     return <div className="text-gray-500 dark:text-white">Loading...</div>;
@@ -223,7 +229,7 @@ export default function HomePage() {
 
       {/* Streak Cards */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {streaks?.map((streak: any, index) => (
+        {streaks?.map((streak: UserStreak, index: number) => (
           <StreakCard
             key={index}
             window={streak.window as 'DAY' | 'WEEK'}
