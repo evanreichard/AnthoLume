@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { getSVGGraphData } from './ReadingHistoryGraph';
 
 // Test data matching Go test exactly

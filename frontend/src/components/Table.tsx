@@ -2,14 +2,14 @@ import React from 'react';
 import { Skeleton } from './Skeleton';
 import { cn } from '../utils/cn';
 
-export interface Column<T extends Record<string, unknown>> {
+export interface Column<T extends object> {
   key: keyof T;
   header: string;
   render?: (value: T[keyof T], _row: T, _index: number) => React.ReactNode;
   className?: string;
 }
 
-export interface TableProps<T extends Record<string, unknown>> {
+export interface TableProps<T extends object> {
   columns: Column<T>[];
   data: T[];
   loading?: boolean;
@@ -17,7 +17,6 @@ export interface TableProps<T extends Record<string, unknown>> {
   rowKey?: keyof T | ((row: T) => string);
 }
 
-// Skeleton table component for loading state
 function SkeletonTable({
   rows = 5,
   columns = 4,
@@ -28,7 +27,7 @@ function SkeletonTable({
   className?: string;
 }) {
   return (
-    <div className={cn('bg-white dark:bg-gray-700 rounded-lg overflow-hidden', className)}>
+    <div className={cn('overflow-hidden rounded-lg bg-white dark:bg-gray-700', className)}>
       <table className="min-w-full">
         <thead>
           <tr className="border-b dark:border-gray-600">
@@ -58,19 +57,19 @@ function SkeletonTable({
   );
 }
 
-export function Table<T extends Record<string, unknown>>({
+export function Table<T extends object>({
   columns,
   data,
   loading = false,
   emptyMessage = 'No Results',
   rowKey,
 }: TableProps<T>) {
-  const getRowKey = (_row: T, index: number): string => {
+  const getRowKey = (row: T, index: number): string => {
     if (typeof rowKey === 'function') {
-      return rowKey(_row);
+      return rowKey(row);
     }
     if (rowKey) {
-      return String(_row[rowKey] ?? index);
+      return String(row[rowKey] ?? index);
     }
     return `row-${index}`;
   };
@@ -113,7 +112,9 @@ export function Table<T extends Record<string, unknown>>({
                       key={`${getRowKey(row, index)}-${String(column.key)}`}
                       className={`p-3 text-gray-700 dark:text-gray-300 ${column.className || ''}`}
                     >
-                      {column.render ? column.render(row[column.key], row, index) : row[column.key]}
+                      {column.render
+                        ? column.render(row[column.key], row, index)
+                        : (row[column.key] as React.ReactNode)}
                     </td>
                   ))}
                 </tr>

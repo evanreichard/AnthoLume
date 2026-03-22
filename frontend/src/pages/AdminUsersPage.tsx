@@ -1,5 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { useGetUsers, useUpdateUser } from '../generated/anthoLumeAPIV1';
+import type { User, UsersResponse } from '../generated/model';
 import { AddIcon, DeleteIcon } from '../icons';
 import { useToasts } from '../components/ToastContext';
 import { getErrorMessage } from '../utils/errors';
@@ -14,7 +15,7 @@ export default function AdminUsersPage() {
   const [newPassword, setNewPassword] = useState('');
   const [newIsAdmin, setNewIsAdmin] = useState(false);
 
-  const users = usersData?.data?.users || [];
+  const users = usersData?.status === 200 ? ((usersData.data as UsersResponse).users ?? []) : [];
 
   const handleCreateUser = (e: FormEvent) => {
     e.preventDefault();
@@ -73,7 +74,7 @@ export default function AdminUsersPage() {
         data: {
           operation: 'UPDATE',
           user: userId,
-          password: password,
+          password,
         },
       },
       {
@@ -116,7 +117,6 @@ export default function AdminUsersPage() {
 
   return (
     <div className="relative h-full overflow-x-auto">
-      {/* Add User Form */}
       {showAddForm && (
         <div className="absolute left-10 top-10 rounded bg-gray-200 p-3 shadow-lg shadow-gray-500 transition-all duration-200 dark:bg-gray-600 dark:shadow-gray-900">
           <form
@@ -156,7 +156,6 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      {/* Users Table */}
       <div className="min-w-full overflow-scroll rounded shadow">
         <table className="min-w-full bg-white text-sm leading-normal dark:bg-gray-700">
           <thead className="text-gray-800 dark:text-gray-400">
@@ -188,19 +187,16 @@ export default function AdminUsersPage() {
                 </td>
               </tr>
             ) : (
-              users.map(user => (
+              users.map((user: User) => (
                 <tr key={user.id}>
-                  {/* Delete Button */}
                   <td className="relative cursor-pointer border-b border-gray-200 p-3 text-gray-800 dark:text-gray-400">
                     <button onClick={() => handleDeleteUser(user.id)}>
                       <DeleteIcon size={20} />
                     </button>
                   </td>
-                  {/* User ID */}
                   <td className="border-b border-gray-200 p-3">
                     <p>{user.id}</p>
                   </td>
-                  {/* Password Reset */}
                   <td className="border-b border-gray-200 px-3">
                     <button
                       onClick={() => {
@@ -212,7 +208,6 @@ export default function AdminUsersPage() {
                       Reset
                     </button>
                   </td>
-                  {/* Admin Toggle */}
                   <td className="flex min-w-40 justify-center gap-2 border-b border-gray-200 p-3 text-center">
                     <button
                       onClick={() => handleToggleAdmin(user.id, true)}
@@ -237,7 +232,6 @@ export default function AdminUsersPage() {
                       user
                     </button>
                   </td>
-                  {/* Created Date */}
                   <td className="border-b border-gray-200 p-3">
                     <p>{user.created_at}</p>
                   </td>

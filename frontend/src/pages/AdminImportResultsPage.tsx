@@ -1,10 +1,11 @@
 import { useGetImportResults } from '../generated/anthoLumeAPIV1';
-import type { ImportResult } from '../generated/model/importResult';
+import type { ImportResult, ImportResultsResponse } from '../generated/model';
 import { Link } from 'react-router-dom';
 
 export default function AdminImportResultsPage() {
   const { data: resultsData, isLoading } = useGetImportResults();
-  const results = resultsData?.data?.results || [];
+  const results =
+    resultsData?.status === 200 ? (resultsData.data as ImportResultsResponse).results || [] : [];
 
   if (isLoading) {
     return <div className="text-gray-500 dark:text-white">Loading...</div>;

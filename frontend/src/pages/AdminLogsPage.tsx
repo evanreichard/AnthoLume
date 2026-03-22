@@ -1,5 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { useGetLogs } from '../generated/anthoLumeAPIV1';
+import type { LogsResponse } from '../generated/model';
 import { Button } from '../components/Button';
 import { SearchIcon } from '../icons';
 
@@ -8,7 +9,7 @@ export default function AdminLogsPage() {
 
   const { data: logsData, isLoading, refetch } = useGetLogs(filter ? { filter } : {});
 
-  const logs = logsData?.data?.logs || [];
+  const logs = logsData?.status === 200 ? ((logsData.data as LogsResponse).logs ?? []) : [];
 
   const handleFilterSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -21,7 +22,6 @@ export default function AdminLogsPage() {
 
   return (
     <div>
-      {/* Filter Form */}
       <div className="mb-4 flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white">
         <form className="flex flex-col gap-4 lg:flex-row" onSubmit={handleFilterSubmit}>
           <div className="flex w-full grow flex-col">
@@ -46,14 +46,13 @@ export default function AdminLogsPage() {
         </form>
       </div>
 
-      {/* Log Display */}
       <div
         className="flex w-full flex-col-reverse overflow-scroll text-black dark:text-white"
         style={{ fontFamily: 'monospace' }}
       >
-        {logs.map((log: string, index: number) => (
+        {logs.map((log, index) => (
           <span key={index} className="whitespace-nowrap hover:whitespace-pre">
-            {log}
+            {typeof log === 'string' ? log : JSON.stringify(log)}
           </span>
         ))}
       </div>

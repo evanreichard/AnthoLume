@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useGetImportDirectory, usePostImport } from '../generated/anthoLumeAPIV1';
+import type { DirectoryItem, DirectoryListResponse } from '../generated/model';
 import { getErrorMessage } from '../utils/errors';
 import { Button } from '../components/Button';
 import { FolderOpenIcon } from '../icons';
@@ -17,8 +18,10 @@ export default function AdminImportPage() {
 
   const postImport = usePostImport();
 
-  const directories = directoryData?.data?.items || [];
-  const currentPathDisplay = directoryData?.data?.current_path ?? currentPath ?? '/data';
+  const directoryResponse =
+    directoryData?.status === 200 ? (directoryData.data as DirectoryListResponse) : null;
+  const directories = directoryResponse?.items ?? [];
+  const currentPathDisplay = directoryResponse?.current_path ?? currentPath ?? '/data';
 
   const handleSelectDirectory = (directory: string) => {
     setSelectedDirectory(`${currentPath}/${directory}`);
@@ -148,7 +151,7 @@ export default function AdminImportPage() {
                 </td>
               </tr>
             ) : (
-              directories.map(item => (
+              directories.map((item: DirectoryItem) => (
                 <tr key={item.name}>
                   <td className="border-b border-gray-200 p-3 text-gray-800 dark:text-gray-400">
                     <button onClick={() => item.name && handleSelectDirectory(item.name)}>
