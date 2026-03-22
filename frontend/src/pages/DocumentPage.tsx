@@ -159,54 +159,54 @@ export default function DocumentPage() {
               </div>
             </div>
 
+            {/* Edit Cover Dropdown */}
+            <div className="relative">
+              <input
+                type="checkbox"
+                id="edit-cover-checkbox"
+                className="hidden"
+                checked={showEditCover}
+                onChange={e => setShowEditCover(e.target.checked)}
+              />
+              <div
+                className={`absolute left-0 top-0 z-30 flex flex-col gap-2 rounded bg-gray-200 p-3 shadow-lg transition-all duration-200 dark:bg-gray-600 ${
+                  showEditCover ? 'opacity-100' : 'pointer-events-none opacity-0'
+                }`}
+              >
+                <form className="flex w-72 flex-col gap-2 text-sm text-black dark:text-white">
+                  <input
+                    type="file"
+                    id="cover_file"
+                    name="cover_file"
+                    className="bg-gray-300 p-2"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded bg-blue-700 px-2 py-1 text-sm font-medium text-white hover:bg-blue-800 dark:bg-blue-600"
+                  >
+                    Upload Cover
+                  </button>
+                </form>
+                <form className="flex w-72 flex-col gap-2 text-sm text-black dark:text-white">
+                  <input
+                    type="checkbox"
+                    checked
+                    id="remove_cover"
+                    name="remove_cover"
+                    className="hidden"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded bg-blue-700 px-2 py-1 text-sm font-medium text-white hover:bg-blue-800 dark:bg-blue-600"
+                  >
+                    Remove Cover
+                  </button>
+                </form>
+              </div>
+            </div>
+
             {/* Icons Container */}
             <div className="relative my-auto flex grow justify-between text-gray-500 dark:text-gray-500">
-              {/* Edit Cover Dropdown */}
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  id="edit-cover-checkbox"
-                  className="hidden"
-                  checked={showEditCover}
-                  onChange={e => setShowEditCover(e.target.checked)}
-                />
-                <div
-                  className={`absolute left-0 top-0 z-30 flex flex-col gap-2 rounded bg-gray-200 p-3 shadow-lg transition-all duration-200 dark:bg-gray-600 ${
-                    showEditCover ? 'opacity-100' : 'pointer-events-none opacity-0'
-                  }`}
-                >
-                  <form className="flex w-72 flex-col gap-2 text-sm text-black dark:text-white">
-                    <input
-                      type="file"
-                      id="cover_file"
-                      name="cover_file"
-                      className="bg-gray-300 p-2"
-                    />
-                    <button
-                      type="submit"
-                      className="rounded bg-blue-700 px-2 py-1 text-sm font-medium text-white hover:bg-blue-800 dark:bg-blue-600"
-                    >
-                      Upload Cover
-                    </button>
-                  </form>
-                  <form className="flex w-72 flex-col gap-2 text-sm text-black dark:text-white">
-                    <input
-                      type="checkbox"
-                      checked
-                      id="remove_cover"
-                      name="remove_cover"
-                      className="hidden"
-                    />
-                    <button
-                      type="submit"
-                      className="rounded bg-blue-700 px-2 py-1 text-sm font-medium text-white hover:bg-blue-800 dark:bg-blue-600"
-                    >
-                      Remove Cover
-                    </button>
-                  </form>
-                </div>
-              </div>
-
               {/* Delete Button */}
               <div className="relative">
                 <button
@@ -320,7 +320,7 @@ export default function DocumentPage() {
                 <FieldLabel>Title</FieldLabel>
                 <FieldActions>
                   {isEditingTitle ? (
-                    <>
+                    <div className="flex gap-1">
                       <button
                         type="button"
                         onClick={() => setIsEditingTitle(false)}
@@ -337,7 +337,7 @@ export default function DocumentPage() {
                       >
                         <CheckIcon size={18} />
                       </button>
-                    </>
+                    </div>
                   ) : (
                     <button
                       type="button"
@@ -361,7 +361,7 @@ export default function DocumentPage() {
                   type="text"
                   value={editTitle}
                   onChange={e => setEditTitle(e.target.value)}
-                  className="grow rounded border border-blue-200 bg-blue-50 p-2 text-lg font-medium text-black focus:outline-none focus:ring-2 focus:ring-blue-400 dark:border-blue-700 dark:bg-blue-900/20 dark:text-white dark:focus:ring-blue-500"
+                  className="w-full rounded border border-blue-200 bg-blue-50 p-2 text-lg font-medium text-black focus:outline-none focus:ring-2 focus:ring-blue-400 dark:border-blue-700 dark:bg-blue-900/20 dark:text-white dark:focus:ring-blue-500"
                 />
               </div>
             ) : (
@@ -418,7 +418,7 @@ export default function DocumentPage() {
                   type="text"
                   value={editAuthor}
                   onChange={e => setEditAuthor(e.target.value)}
-                  className="grow rounded border border-blue-200 bg-blue-50 p-2 text-lg font-medium text-black focus:outline-none focus:ring-2 focus:ring-blue-400 dark:border-blue-700 dark:bg-blue-900/20 dark:text-white dark:focus:ring-blue-500"
+                  className="w-full rounded border border-blue-200 bg-blue-50 p-2 text-lg font-medium text-black focus:outline-none focus:ring-2 focus:ring-blue-400 dark:border-blue-700 dark:bg-blue-900/20 dark:text-white dark:focus:ring-blue-500"
                 />
               </div>
             ) : (

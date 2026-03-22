@@ -6,7 +6,7 @@ interface FieldProps {
   isEditing?: boolean;
 }
 
-export function Field({ label, children, isEditing = false }: FieldProps) {
+export function Field({ label, children, isEditing: _isEditing = false }: FieldProps) {
   return (
     <div className="relative rounded">
       <div className="relative inline-flex gap-2 text-gray-500">{label}</div>
