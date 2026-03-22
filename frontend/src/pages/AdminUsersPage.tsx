@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { useGetUsers, useUpdateUser } from '../generated/anthoLumeAPIV1';
-import { Plus, Trash2 } from 'lucide-react';
+import { AddIcon, DeleteIcon } from '../icons';
 import { useToasts } from '../components/ToastContext';
 
 export default function AdminUsersPage() {
@@ -162,7 +162,7 @@ export default function AdminUsersPage() {
             <tr>
               <th className="w-12 border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
                 <button onClick={() => setShowAddForm(!showAddForm)}>
-                  <Plus size={20} />
+                  <AddIcon size={20} />
                 </button>
               </th>
               <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
@@ -192,7 +192,7 @@ export default function AdminUsersPage() {
                   {/* Delete Button */}
                   <td className="relative cursor-pointer border-b border-gray-200 p-3 text-gray-800 dark:text-gray-400">
                     <button onClick={() => handleDeleteUser(user.id)}>
-                      <Trash2 size={20} />
+                      <DeleteIcon size={20} />
                     </button>
                   </td>
                   {/* User ID */}

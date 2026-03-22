@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, FileText, Activity, Search, Settings } from 'lucide-react';
+import { HomeIcon, DocumentsIcon, ActivityIcon, SearchIcon, SettingsIcon } from '../icons';
 import { useAuth } from '../auth/AuthContext';
 import { useGetInfo } from '../generated/anthoLumeAPIV1';
 
@@ -12,18 +12,18 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { path: '/', label: 'Home', icon: Home, title: 'Home' },
-  { path: '/documents', label: 'Documents', icon: FileText, title: 'Documents' },
-  { path: '/progress', label: 'Progress', icon: Activity, title: 'Progress' },
-  { path: '/activity', label: 'Activity', icon: Activity, title: 'Activity' },
-  { path: '/search', label: 'Search', icon: Search, title: 'Search' },
+  { path: '/', label: 'Home', icon: HomeIcon, title: 'Home' },
+  { path: '/documents', label: 'Documents', icon: DocumentsIcon, title: 'Documents' },
+  { path: '/progress', label: 'Progress', icon: ActivityIcon, title: 'Progress' },
+  { path: '/activity', label: 'Activity', icon: ActivityIcon, title: 'Activity' },
+  { path: '/search', label: 'Search', icon: SearchIcon, title: 'Search' },
 ];
 
 const adminSubItems: NavItem[] = [
-  { path: '/admin', label: 'General', icon: Settings, title: 'General' },
-  { path: '/admin/import', label: 'Import', icon: Settings, title: 'Import' },
-  { path: '/admin/users', label: 'Users', icon: Settings, title: 'Users' },
-  { path: '/admin/logs', label: 'Logs', icon: Settings, title: 'Logs' },
+  { path: '/admin', label: 'General', icon: SettingsIcon, title: 'General' },
+  { path: '/admin/import', label: 'Import', icon: SettingsIcon, title: 'Import' },
+  { path: '/admin/users', label: 'Users', icon: SettingsIcon, title: 'Users' },
+  { path: '/admin/logs', label: 'Logs', icon: SettingsIcon, title: 'Logs' },
 ];
 
 // Helper function to check if pathname has a prefix
@@ -152,7 +152,7 @@ export default function HamburgerMenu() {
                     : 'text-gray-400 hover:text-gray-800 dark:hover:text-gray-100'
                 }`}
               >
-                <Settings size={20} />
+                <SettingsIcon size={20} />
                 <span className="mx-4 text-sm font-normal">Admin</span>
               </Link>
 

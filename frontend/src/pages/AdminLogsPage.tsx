@@ -1,7 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { useGetLogs } from '../generated/anthoLumeAPIV1';
 import { Button } from '../components/Button';
-import { Search } from 'lucide-react';
+import { SearchIcon } from '../icons';
 
 export default function AdminLogsPage() {
   const [filter, setFilter] = useState('');
@@ -27,7 +27,7 @@ export default function AdminLogsPage() {
           <div className="flex w-full grow flex-col">
             <div className="relative flex">
               <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
-                <Search size={15} />
+                <SearchIcon size={15} />
               </span>
               <input
                 type="text"

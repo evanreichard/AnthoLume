@@ -6,9 +6,7 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { GraphDataPoint } from './graphDataPoint';
-import type { UserData } from './userData';
 
 export interface GraphDataResponse {
   graph_data: GraphDataPoint[];
-  user: UserData;
 }

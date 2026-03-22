@@ -52,7 +52,10 @@ func (s *Server) Login(ctx context.Context, request LoginRequestObject) (LoginRe
 		}
 	}
 
-	session, _ := store.Get(r, "token")
+	session, err := store.Get(r, "token")
+	if err != nil {
+		return Login401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
+	}
 
 	// Configure cookie options to work with Vite proxy
 	// For localhost development, we need SameSite to allow cookies across ports
@@ -101,7 +104,10 @@ func (s *Server) Logout(ctx context.Context, request LogoutRequestObject) (Logou
 		}
 	}
 
-	session, _ := store.Get(r, "token")
+	session, err := store.Get(r, "token")
+	if err != nil {
+		return Logout401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
+	}
 
 	// Configure cookie options (same as login)
 	session.Options.SameSite = http.SameSiteLaxMode
@@ -141,6 +147,15 @@ func (s *Server) getSessionFromContext(ctx context.Context) (authData, bool) {
 		return authData{}, false
 	}
 	return auth, true
+}
+
+// isAdmin checks if a user has admin privileges
+func (s *Server) isAdmin(ctx context.Context) bool {
+	auth, ok := s.getSessionFromContext(ctx)
+	if !ok {
+		return false
+	}
+	return auth.IsAdmin
 }
 
 // getRequestFromContext extracts the HTTP request from context

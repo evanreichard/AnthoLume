@@ -1,7 +1,8 @@
 import { useState, FormEvent } from 'react';
 import { useGetSearch } from '../generated/anthoLumeAPIV1';
 import { GetSearchSource } from '../generated/model/getSearchSource';
-import { Search, Book, Download } from 'lucide-react';
+import { SearchIcon, DownloadIcon } from '../icons';
+import { Book } from 'lucide-react';
 import { Button } from '../components/Button';
 
 export default function SearchPage() {
@@ -25,7 +26,7 @@ export default function SearchPage() {
             <div className="flex w-full grow flex-col">
               <div className="relative flex">
                 <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
-                  <Search size={15} />
+                  <SearchIcon size={15} />
                 </span>
                 <input
                   type="text"
@@ -101,7 +102,7 @@ export default function SearchPage() {
                   <tr key={item.id}>
                     <td className="border-b border-gray-200 p-3 text-gray-500 dark:text-gray-500">
                       <button className="hover:text-purple-600" title="Download">
-                        <Download size={15} />
+                        <DownloadIcon size={15} />
                       </button>
                     </td>
                     <td className="border-b border-gray-200 p-3">

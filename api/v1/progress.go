@@ -70,7 +70,6 @@ func (s *Server) GetProgressList(ctx context.Context, request GetProgressListReq
 
 	response := ProgressListResponse{
 		Progress:     &apiProgress,
-		User:         &UserData{Username: auth.UserName, IsAdmin: auth.IsAdmin},
 		Page:         &page,
 		Limit:        &limit,
 		NextPage:     nextPage,
@@ -119,7 +118,6 @@ func (s *Server) GetProgress(ctx context.Context, request GetProgressRequestObje
 
 	response := ProgressResponse{
 		Progress: &apiProgress,
-		User:     &UserData{Username: auth.UserName, IsAdmin: auth.IsAdmin},
 	}
 
 	return GetProgress200JSONResponse(response), nil

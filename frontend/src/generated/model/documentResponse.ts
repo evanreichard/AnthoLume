@@ -7,10 +7,8 @@
  */
 import type { Document } from './document';
 import type { Progress } from './progress';
-import type { UserData } from './userData';
 
 export interface DocumentResponse {
   document: Document;
-  user: UserData;
   progress?: Progress;
 }

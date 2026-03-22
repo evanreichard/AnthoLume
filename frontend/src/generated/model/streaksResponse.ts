@@ -5,10 +5,8 @@
  * REST API for AnthoLume document management system
  * OpenAPI spec version: 1.0.0
  */
-import type { UserData } from './userData';
 import type { UserStreak } from './userStreak';
 
 export interface StreaksResponse {
   streaks: UserStreak[];
-  user: UserData;
 }

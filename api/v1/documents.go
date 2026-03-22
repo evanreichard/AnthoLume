@@ -154,10 +154,109 @@ func (s *Server) GetDocument(ctx context.Context, request GetDocumentRequestObje
 
 	response := DocumentResponse{
 		Document: apiDoc,
-		User:     UserData{Username: auth.UserName, IsAdmin: auth.IsAdmin},
 		Progress: progress,
 	}
 	return GetDocument200JSONResponse(response), nil
+}
+
+// POST /documents/{id}
+func (s *Server) EditDocument(ctx context.Context, request EditDocumentRequestObject) (EditDocumentResponseObject, error) {
+	auth, ok := s.getSessionFromContext(ctx)
+	if !ok {
+		return EditDocument401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
+	}
+
+	if request.Body == nil {
+		return EditDocument400JSONResponse{Code: 400, Message: "Missing request body"}, nil
+	}
+
+	// Validate document exists and get current state
+	currentDoc, err := s.db.Queries.GetDocument(ctx, request.Id)
+	if err != nil {
+		return EditDocument404JSONResponse{Code: 404, Message: "Document not found"}, nil
+	}
+
+	// Validate at least one editable field is provided
+	if request.Body.Title == nil &&
+		request.Body.Author == nil &&
+		request.Body.Description == nil &&
+		request.Body.Isbn10 == nil &&
+		request.Body.Isbn13 == nil &&
+		request.Body.CoverGbid == nil {
+		return EditDocument400JSONResponse{Code: 400, Message: "No editable fields provided"}, nil
+	}
+
+	// Handle cover via Google Books ID
+	var coverFileName *string
+	if request.Body.CoverGbid != nil {
+		coverDir := filepath.Join(s.cfg.DataPath, "covers")
+		fileName, err := metadata.CacheCoverWithContext(ctx, *request.Body.CoverGbid, coverDir, request.Id, true)
+		if err == nil {
+			coverFileName = fileName
+		}
+	}
+
+	// Update document with provided editable fields only
+	updatedDoc, err := s.db.Queries.UpsertDocument(ctx, database.UpsertDocumentParams{
+		ID:          request.Id,
+		Title:       request.Body.Title,
+		Author:      request.Body.Author,
+		Description: request.Body.Description,
+		Isbn10:      request.Body.Isbn10,
+		Isbn13:      request.Body.Isbn13,
+		Coverfile:   coverFileName,
+		// Preserve existing values for non-editable fields
+		Md5:        currentDoc.Md5,
+		Basepath:    currentDoc.Basepath,
+		Filepath:    currentDoc.Filepath,
+		Words:       currentDoc.Words,
+	})
+	if err != nil {
+		log.Error("UpsertDocument DB Error:", err)
+		return EditDocument500JSONResponse{Code: 500, Message: "Failed to update document"}, nil
+	}
+
+	// Get progress for the document
+	progressRow, err := s.db.Queries.GetDocumentProgress(ctx, database.GetDocumentProgressParams{
+		UserID:     auth.UserName,
+		DocumentID: request.Id,
+	})
+	var progress *Progress
+	if err == nil {
+		progress = &Progress{
+			UserId:     &progressRow.UserID,
+			DocumentId: &progressRow.DocumentID,
+			DeviceName: &progressRow.DeviceName,
+			Percentage: &progressRow.Percentage,
+			CreatedAt:  ptrOf(parseTime(progressRow.CreatedAt)),
+		}
+	}
+
+	var percentage *float32
+	if progress != nil && progress.Percentage != nil {
+		percentage = ptrOf(float32(*progress.Percentage))
+	}
+
+	apiDoc := Document{
+		Id:         updatedDoc.ID,
+		Title:      *updatedDoc.Title,
+		Author:     *updatedDoc.Author,
+		Description: updatedDoc.Description,
+		Isbn10:     updatedDoc.Isbn10,
+		Isbn13:     updatedDoc.Isbn13,
+		Words:      updatedDoc.Words,
+		Filepath:    updatedDoc.Filepath,
+		CreatedAt:  parseTime(updatedDoc.CreatedAt),
+		UpdatedAt:   parseTime(updatedDoc.UpdatedAt),
+		Deleted:    updatedDoc.Deleted,
+		Percentage: percentage,
+	}
+
+	response := DocumentResponse{
+		Document: apiDoc,
+		Progress: progress,
+	}
+	return EditDocument200JSONResponse(response), nil
 }
 
 // deriveBaseFileName builds the base filename for a given MetadataInfo object.
@@ -296,8 +395,12 @@ func (s *Server) GetDocumentCover(ctx context.Context, request GetDocumentCoverR
 	var coverDir string = filepath.Join(s.cfg.DataPath, "covers")
 
 	if needMetadataFetch {
+		// Create context with timeout for metadata service calls
+		metadataCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+
 		// Identify Documents & Save Covers
-		metadataResults, err := metadata.SearchMetadata(metadata.SOURCE_GBOOK, metadata.MetadataInfo{
+		metadataResults, err := metadata.SearchMetadataWithContext(metadataCtx, metadata.SOURCE_GBOOK, metadata.MetadataInfo{
 			Title:  document.Title,
 			Author: document.Author,
 		})
@@ -306,7 +409,7 @@ func (s *Server) GetDocumentCover(ctx context.Context, request GetDocumentCoverR
 			firstResult := metadataResults[0]
 
 			// Save Cover
-			fileName, err := metadata.CacheCover(*firstResult.ID, coverDir, document.ID, false)
+			fileName, err := metadata.CacheCoverWithContext(metadataCtx, *firstResult.ID, coverDir, document.ID, false)
 			if err == nil {
 				cachedCoverFile = *fileName
 			}
@@ -368,6 +471,136 @@ func (s *Server) GetDocumentCover(ctx context.Context, request GetDocumentCoverR
 	}, nil
 }
 
+// POST /documents/{id}/cover
+func (s *Server) UploadDocumentCover(ctx context.Context, request UploadDocumentCoverRequestObject) (UploadDocumentCoverResponseObject, error) {
+	auth, ok := s.getSessionFromContext(ctx)
+	if !ok {
+		return UploadDocumentCover401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
+	}
+
+	if request.Body == nil {
+		return UploadDocumentCover400JSONResponse{Code: 400, Message: "Missing request body"}, nil
+	}
+
+	// Validate document exists
+	_, err := s.db.Queries.GetDocument(ctx, request.Id)
+	if err != nil {
+		return UploadDocumentCover404JSONResponse{Code: 404, Message: "Document not found"}, nil
+	}
+
+	// Read multipart form
+	form, err := request.Body.ReadForm(32 << 20) // 32MB max
+	if err != nil {
+		log.Error("ReadForm error:", err)
+		return UploadDocumentCover500JSONResponse{Code: 500, Message: "Failed to read form"}, nil
+	}
+
+	// Get file from form
+	fileField := form.File["cover_file"]
+	if len(fileField) == 0 {
+		return UploadDocumentCover400JSONResponse{Code: 400, Message: "No file provided"}, nil
+	}
+
+	file := fileField[0]
+
+	// Validate file extension
+	if !strings.HasSuffix(strings.ToLower(file.Filename), ".jpg") && !strings.HasSuffix(strings.ToLower(file.Filename), ".png") {
+		return UploadDocumentCover400JSONResponse{Code: 400, Message: "Only JPG and PNG files are allowed"}, nil
+	}
+
+	// Open file
+	f, err := file.Open()
+	if err != nil {
+		log.Error("Open file error:", err)
+		return UploadDocumentCover500JSONResponse{Code: 500, Message: "Failed to open file"}, nil
+	}
+	defer f.Close()
+
+	// Read file content
+	data, err := io.ReadAll(f)
+	if err != nil {
+		log.Error("Read file error:", err)
+		return UploadDocumentCover500JSONResponse{Code: 500, Message: "Failed to read file"}, nil
+	}
+
+	// Validate actual content type
+	contentType := http.DetectContentType(data)
+	allowedTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/png":  true,
+	}
+	if !allowedTypes[contentType] {
+		return UploadDocumentCover400JSONResponse{
+			Code:    400,
+			Message: fmt.Sprintf("Invalid file type: %s. Only JPG and PNG files are allowed.", contentType),
+		}, nil
+	}
+
+	// Derive storage path
+	coverDir := filepath.Join(s.cfg.DataPath, "covers")
+	fileName := fmt.Sprintf("%s%s", request.Id, strings.ToLower(filepath.Ext(file.Filename)))
+	safePath := filepath.Join(coverDir, fileName)
+
+	// Save file
+	err = os.WriteFile(safePath, data, 0644)
+	if err != nil {
+		log.Error("Save file error:", err)
+		return UploadDocumentCover500JSONResponse{Code: 500, Message: "Unable to save cover"}, nil
+	}
+
+	// Upsert document with new cover
+	updatedDoc, err := s.db.Queries.UpsertDocument(ctx, database.UpsertDocumentParams{
+		ID:        request.Id,
+		Coverfile: &fileName,
+	})
+	if err != nil {
+		log.Error("UpsertDocument DB error:", err)
+		return UploadDocumentCover500JSONResponse{Code: 500, Message: "Failed to save cover"}, nil
+	}
+
+	// Get progress for the document
+	progressRow, err := s.db.Queries.GetDocumentProgress(ctx, database.GetDocumentProgressParams{
+		UserID:     auth.UserName,
+		DocumentID: request.Id,
+	})
+	var progress *Progress
+	if err == nil {
+		progress = &Progress{
+			UserId:     &progressRow.UserID,
+			DocumentId: &progressRow.DocumentID,
+			DeviceName: &progressRow.DeviceName,
+			Percentage: &progressRow.Percentage,
+			CreatedAt:  ptrOf(parseTime(progressRow.CreatedAt)),
+		}
+	}
+
+	var percentage *float32
+	if progress != nil && progress.Percentage != nil {
+		percentage = ptrOf(float32(*progress.Percentage))
+	}
+
+	apiDoc := Document{
+		Id:         updatedDoc.ID,
+		Title:      *updatedDoc.Title,
+		Author:     *updatedDoc.Author,
+		Description: updatedDoc.Description,
+		Isbn10:     updatedDoc.Isbn10,
+		Isbn13:     updatedDoc.Isbn13,
+		Words:      updatedDoc.Words,
+		Filepath:    updatedDoc.Filepath,
+		CreatedAt:  parseTime(updatedDoc.CreatedAt),
+		UpdatedAt:   parseTime(updatedDoc.UpdatedAt),
+		Deleted:    updatedDoc.Deleted,
+		Percentage: percentage,
+	}
+
+	response := DocumentResponse{
+		Document: apiDoc,
+		Progress: progress,
+	}
+	return UploadDocumentCover200JSONResponse(response), nil
+}
+
 // GET /documents/{id}/file
 func (s *Server) GetDocumentFile(ctx context.Context, request GetDocumentFileRequestObject) (GetDocumentFileResponseObject, error) {
 	// Authentication is handled by middleware, which also adds auth data to context
@@ -416,7 +649,7 @@ func (s *Server) GetDocumentFile(ctx context.Context, request GetDocumentFileReq
 
 // POST /documents
 func (s *Server) CreateDocument(ctx context.Context, request CreateDocumentRequestObject) (CreateDocumentResponseObject, error) {
-	auth, ok := s.getSessionFromContext(ctx)
+	_, ok := s.getSessionFromContext(ctx)
 	if !ok {
 		return CreateDocument401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
 	}
@@ -458,6 +691,15 @@ func (s *Server) CreateDocument(ctx context.Context, request CreateDocumentReque
 	if err != nil {
 		log.Error("Read file error:", err)
 		return CreateDocument500JSONResponse{Code: 500, Message: "Failed to read file"}, nil
+	}
+
+	// Validate actual content type
+	contentType := http.DetectContentType(data)
+	if contentType != "application/epub+zip" && contentType != "application/zip" {
+		return CreateDocument400JSONResponse{
+			Code:    400,
+			Message: fmt.Sprintf("Invalid file type: %s. Only EPUB files are allowed.", contentType),
+		}, nil
 	}
 
 	// Create temp file to get metadata
@@ -502,7 +744,6 @@ func (s *Server) CreateDocument(ctx context.Context, request CreateDocumentReque
 		}
 		response := DocumentResponse{
 			Document: apiDoc,
-			User:     UserData{Username: auth.UserName, IsAdmin: auth.IsAdmin},
 		}
 		return CreateDocument200JSONResponse(response), nil
 	}
@@ -551,7 +792,6 @@ func (s *Server) CreateDocument(ctx context.Context, request CreateDocumentReque
 
 	response := DocumentResponse{
 		Document: apiDoc,
-		User:     UserData{Username: auth.UserName, IsAdmin: auth.IsAdmin},
 	}
 
 	return CreateDocument200JSONResponse(response), nil

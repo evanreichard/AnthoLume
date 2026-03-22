@@ -69,7 +69,6 @@ func (s *Server) GetActivity(ctx context.Context, request GetActivityRequestObje
 
 	response := ActivityResponse{
 		Activities: apiActivities,
-		User:       UserData{Username: auth.UserName, IsAdmin: auth.IsAdmin},
 	}
 	return GetActivity200JSONResponse(response), nil
 }

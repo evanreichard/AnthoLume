@@ -8,7 +8,6 @@
 import type { DatabaseInfo } from './databaseInfo';
 import type { GraphDataResponse } from './graphDataResponse';
 import type { StreaksResponse } from './streaksResponse';
-import type { UserData } from './userData';
 import type { UserStatisticsResponse } from './userStatisticsResponse';
 
 export interface HomeResponse {
@@ -16,5 +15,4 @@ export interface HomeResponse {
   streaks: StreaksResponse;
   graph_data: GraphDataResponse;
   user_statistics: UserStatisticsResponse;
-  user: UserData;
 }

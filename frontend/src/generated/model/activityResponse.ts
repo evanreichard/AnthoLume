@@ -6,9 +6,7 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { Activity } from './activity';
-import type { UserData } from './userData';
 
 export interface ActivityResponse {
   activities: Activity[];
-  user: UserData;
 }

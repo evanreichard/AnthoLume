@@ -1,6 +1,6 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useGetSettings, useUpdateSettings } from '../generated/anthoLumeAPIV1';
-import { User, Lock, Clock } from 'lucide-react';
+import { UserIcon, PasswordIcon, ClockIcon } from '../icons';
 import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
 
@@ -108,7 +108,7 @@ export default function SettingsPage() {
       {/* User Profile Card */}
       <div>
         <div className="flex flex-col items-center rounded bg-white p-4 text-gray-500 shadow-lg md:w-60 lg:w-80 dark:bg-gray-700 dark:text-white">
-          <User size={60} />
+          <UserIcon size={60} />
           <p className="text-lg">{settingsData?.data.user.username || 'N/A'}</p>
         </div>
       </div>
@@ -121,7 +121,7 @@ export default function SettingsPage() {
             <div className="flex grow flex-col">
               <div className="relative flex">
                 <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
-                  <Lock size={15} />
+                  <PasswordIcon size={15} />
                 </span>
                 <input
                   type="password"
@@ -135,7 +135,7 @@ export default function SettingsPage() {
             <div className="flex grow flex-col">
               <div className="relative flex">
                 <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
-                  <Lock size={15} />
+                  <PasswordIcon size={15} />
                 </span>
                 <input
                   type="password"
@@ -160,7 +160,7 @@ export default function SettingsPage() {
           <form className="flex flex-col gap-4 lg:flex-row" onSubmit={handleTimezoneSubmit}>
             <div className="relative flex grow">
               <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
-                <Clock size={15} />
+                <ClockIcon size={15} />
               </span>
               <select
                 value={timezone || 'UTC'}

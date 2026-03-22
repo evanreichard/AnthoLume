@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,10 +41,14 @@ const GBOOKS_GBID_INFO_URL string = "https://www.googleapis.com/books/v1/volumes
 const GBOOKS_GBID_COVER_URL string = "https://books.google.com/books/content/images/frontcover/%s?fife=w480-h690"
 
 func getGBooksMetadata(metadataSearch MetadataInfo) ([]MetadataInfo, error) {
+	return getGBooksMetadataWithContext(context.Background(), metadataSearch)
+}
+
+func getGBooksMetadataWithContext(ctx context.Context, metadataSearch MetadataInfo) ([]MetadataInfo, error) {
 	var queryResults []gBooksQueryItem
 	if metadataSearch.ID != nil {
 		// Use GBID
-		resp, err := performGBIDRequest(*metadataSearch.ID)
+		resp, err := performGBIDRequestWithContext(ctx, *metadataSearch.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -51,7 +56,7 @@ func getGBooksMetadata(metadataSearch MetadataInfo) ([]MetadataInfo, error) {
 		queryResults = []gBooksQueryItem{*resp}
 	} else if metadataSearch.ISBN13 != nil {
 		searchQuery := "isbn:" + *metadataSearch.ISBN13
-		resp, err := performSearchRequest(searchQuery)
+		resp, err := performSearchRequestWithContext(ctx, searchQuery)
 		if err != nil {
 			return nil, err
 		}
@@ -59,7 +64,7 @@ func getGBooksMetadata(metadataSearch MetadataInfo) ([]MetadataInfo, error) {
 		queryResults = resp.Items
 	} else if metadataSearch.ISBN10 != nil {
 		searchQuery := "isbn:" + *metadataSearch.ISBN10
-		resp, err := performSearchRequest(searchQuery)
+		resp, err := performSearchRequestWithContext(ctx, searchQuery)
 		if err != nil {
 			return nil, err
 		}
@@ -76,7 +81,7 @@ func getGBooksMetadata(metadataSearch MetadataInfo) ([]MetadataInfo, error) {
 
 		// Escape & Trim
 		searchQuery = url.QueryEscape(strings.TrimSpace(searchQuery))
-		resp, err := performSearchRequest(searchQuery)
+		resp, err := performSearchRequestWithContext(ctx, searchQuery)
 		if err != nil {
 			return nil, err
 		}
@@ -119,6 +124,10 @@ func getGBooksMetadata(metadataSearch MetadataInfo) ([]MetadataInfo, error) {
 }
 
 func saveGBooksCover(gbid string, coverFilePath string, overwrite bool) error {
+	return saveGBooksCoverWithContext(context.Background(), gbid, coverFilePath, overwrite)
+}
+
+func saveGBooksCoverWithContext(ctx context.Context, gbid string, coverFilePath string, overwrite bool) error {
 	// Validate File Doesn't Exists
 	_, err := os.Stat(coverFilePath)
 	if err == nil && !overwrite {
@@ -137,7 +146,14 @@ func saveGBooksCover(gbid string, coverFilePath string, overwrite bool) error {
 	// Download File
 	log.Info("Downloading Cover")
 	coverURL := fmt.Sprintf(GBOOKS_GBID_COVER_URL, gbid)
-	resp, err := http.Get(coverURL)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", coverURL, nil)
+	if err != nil {
+		log.Error("Cover URL API Failure")
+		return errors.New("API Failure")
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Error("Cover URL API Failure")
 		return errors.New("API Failure")
@@ -156,9 +172,20 @@ func saveGBooksCover(gbid string, coverFilePath string, overwrite bool) error {
 }
 
 func performSearchRequest(searchQuery string) (*gBooksQueryResponse, error) {
+	return performSearchRequestWithContext(context.Background(), searchQuery)
+}
+
+func performSearchRequestWithContext(ctx context.Context, searchQuery string) (*gBooksQueryResponse, error) {
 	apiQuery := fmt.Sprintf(GBOOKS_QUERY_URL, searchQuery)
 	log.Info("Acquiring Metadata: ", apiQuery)
-	resp, err := http.Get(apiQuery)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", apiQuery, nil)
+	if err != nil {
+		log.Error("Google Books Query URL API Failure")
+		return nil, errors.New("API Failure")
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Error("Google Books Query URL API Failure")
 		return nil, errors.New("API Failure")
@@ -166,6 +193,7 @@ func performSearchRequest(searchQuery string) (*gBooksQueryResponse, error) {
 
 	parsedResp := gBooksQueryResponse{}
 	err = json.NewDecoder(resp.Body).Decode(&parsedResp)
+	resp.Body.Close()
 	if err != nil {
 		log.Error("Google Books Query API Decode Failure")
 		return nil, errors.New("API Failure")
@@ -180,10 +208,21 @@ func performSearchRequest(searchQuery string) (*gBooksQueryResponse, error) {
 }
 
 func performGBIDRequest(id string) (*gBooksQueryItem, error) {
+	return performGBIDRequestWithContext(context.Background(), id)
+}
+
+func performGBIDRequestWithContext(ctx context.Context, id string) (*gBooksQueryItem, error) {
 	apiQuery := fmt.Sprintf(GBOOKS_GBID_INFO_URL, id)
 
 	log.Info("Acquiring CoverID")
-	resp, err := http.Get(apiQuery)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", apiQuery, nil)
+	if err != nil {
+		log.Error("Cover URL API Failure")
+		return nil, errors.New("API Failure")
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Error("Cover URL API Failure")
 		return nil, errors.New("API Failure")
@@ -191,6 +230,7 @@ func performGBIDRequest(id string) (*gBooksQueryItem, error) {
 
 	parsedResp := gBooksQueryItem{}
 	err = json.NewDecoder(resp.Body).Decode(&parsedResp)
+	resp.Body.Close()
 	if err != nil {
 		log.Error("Google Books ID API Decode Failure")
 		return nil, errors.New("API Failure")

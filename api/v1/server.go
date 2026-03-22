@@ -60,6 +60,28 @@ func (s *Server) authMiddleware(handler StrictHandlerFunc, operationID string) S
 			return nil, nil
 		}
 
+		// Check admin status for admin-only endpoints
+		adminEndpoints := []string{
+			"GetAdmin",
+			"PostAdminAction",
+			"GetUsers",
+			"UpdateUser",
+			"GetImportDirectory",
+			"PostImport",
+			"GetImportResults",
+			"GetLogs",
+		}
+
+		for _, adminEndpoint := range adminEndpoints {
+			if operationID == adminEndpoint && !auth.IsAdmin {
+				// Write 403 response directly
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(403)
+				json.NewEncoder(w).Encode(ErrorResponse{Code: 403, Message: "Admin privileges required"})
+				return nil, nil
+			}
+		}
+
 		// Store auth in context for handlers to access
 		ctx = context.WithValue(ctx, "auth", auth)
 

@@ -6,11 +6,9 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { LeaderboardData } from './leaderboardData';
-import type { UserData } from './userData';
 
 export interface UserStatisticsResponse {
   wpm: LeaderboardData;
   duration: LeaderboardData;
   words: LeaderboardData;
-  user: UserData;
 }

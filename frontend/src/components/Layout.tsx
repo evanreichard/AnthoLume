@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, Outlet, Navigate } from 'react-router-dom';
 import { useGetMe } from '../generated/anthoLumeAPIV1';
 import { useAuth } from '../auth/AuthContext';
-import { User, ChevronDown } from 'lucide-react';
+import { UserIcon } from '../icons';
+import { ChevronDown } from 'lucide-react';
 import HamburgerMenu from './HamburgerMenu';
 
 export default function Layout() {
@@ -73,7 +74,7 @@ export default function Layout() {
             onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
             className="relative block text-gray-800 dark:text-gray-200"
           >
-            <User size={20} />
+            <UserIcon size={20} />
           </button>
 
           {isUserDropdownOpen && (
@@ -113,7 +114,7 @@ export default function Layout() {
             onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
             className="flex cursor-pointer items-center gap-2 py-4 text-gray-500 dark:text-white"
           >
-            <span>{userData?.username || 'User'}</span>
+            <span>{userData ? ('username' in userData ? userData.username : 'User') : 'User'}</span>
             <span
               className="text-gray-800 transition-transform duration-200 dark:text-gray-200"
               style={{ transform: isUserDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}

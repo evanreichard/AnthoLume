@@ -30,6 +30,7 @@ import type {
   DirectoryListResponse,
   DocumentResponse,
   DocumentsResponse,
+  EditDocumentBody,
   ErrorResponse,
   GetActivityParams,
   GetAdmin200,
@@ -56,6 +57,7 @@ import type {
   StreaksResponse,
   UpdateSettingsRequest,
   UpdateUserBody,
+  UploadDocumentCoverBody,
   UserStatisticsResponse,
   UsersResponse
 } from './model';
@@ -443,6 +445,118 @@ export function useGetDocument<TData = Awaited<ReturnType<typeof getDocument>>, 
 
 
 /**
+ * @summary Update document editable fields
+ */
+export type editDocumentResponse200 = {
+  data: DocumentResponse
+  status: 200
+}
+
+export type editDocumentResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type editDocumentResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type editDocumentResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type editDocumentResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type editDocumentResponseSuccess = (editDocumentResponse200) & {
+  headers: Headers;
+};
+export type editDocumentResponseError = (editDocumentResponse400 | editDocumentResponse401 | editDocumentResponse404 | editDocumentResponse500) & {
+  headers: Headers;
+};
+
+export type editDocumentResponse = (editDocumentResponseSuccess | editDocumentResponseError)
+
+export const getEditDocumentUrl = (id: string,) => {
+
+
+  
+
+  return `/api/v1/documents/${id}`
+}
+
+export const editDocument = async (id: string,
+    editDocumentBody: EditDocumentBody, options?: RequestInit): Promise<editDocumentResponse> => {
+  
+  const res = await fetch(getEditDocumentUrl(id),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      editDocumentBody,)
+  }
+)
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  
+  const data: editDocumentResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as editDocumentResponse
+}
+  
+
+
+
+export const getEditDocumentMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof editDocument>>, TError,{id: string;data: EditDocumentBody}, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof editDocument>>, TError,{id: string;data: EditDocumentBody}, TContext> => {
+
+const mutationKey = ['editDocument'];
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof editDocument>>, {id: string;data: EditDocumentBody}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  editDocument(id,data,fetchOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EditDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof editDocument>>>
+    export type EditDocumentMutationBody = EditDocumentBody
+    export type EditDocumentMutationError = ErrorResponse
+
+    /**
+ * @summary Update document editable fields
+ */
+export const useEditDocument = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof editDocument>>, TError,{id: string;data: EditDocumentBody}, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof editDocument>>,
+        TError,
+        {id: string;data: EditDocumentBody},
+        TContext
+      > => {
+      return useMutation(getEditDocumentMutationOptions(options), queryClient);
+    }
+    
+/**
  * @summary Get document cover image
  */
 export type getDocumentCoverResponse200ImageJpeg = {
@@ -581,6 +695,120 @@ export function useGetDocumentCover<TData = Awaited<ReturnType<typeof getDocumen
 
 
 
+/**
+ * @summary Upload document cover image
+ */
+export type uploadDocumentCoverResponse200 = {
+  data: DocumentResponse
+  status: 200
+}
+
+export type uploadDocumentCoverResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type uploadDocumentCoverResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type uploadDocumentCoverResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type uploadDocumentCoverResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type uploadDocumentCoverResponseSuccess = (uploadDocumentCoverResponse200) & {
+  headers: Headers;
+};
+export type uploadDocumentCoverResponseError = (uploadDocumentCoverResponse400 | uploadDocumentCoverResponse401 | uploadDocumentCoverResponse404 | uploadDocumentCoverResponse500) & {
+  headers: Headers;
+};
+
+export type uploadDocumentCoverResponse = (uploadDocumentCoverResponseSuccess | uploadDocumentCoverResponseError)
+
+export const getUploadDocumentCoverUrl = (id: string,) => {
+
+
+  
+
+  return `/api/v1/documents/${id}/cover`
+}
+
+export const uploadDocumentCover = async (id: string,
+    uploadDocumentCoverBody: UploadDocumentCoverBody, options?: RequestInit): Promise<uploadDocumentCoverResponse> => {
+    const formData = new FormData();
+formData.append(`cover_file`, uploadDocumentCoverBody.cover_file);
+
+  const res = await fetch(getUploadDocumentCoverUrl(id),
+  {      
+    ...options,
+    method: 'POST'
+    ,
+    body: 
+      formData,
+  }
+)
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  
+  const data: uploadDocumentCoverResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as uploadDocumentCoverResponse
+}
+  
+
+
+
+export const getUploadDocumentCoverMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadDocumentCover>>, TError,{id: string;data: UploadDocumentCoverBody}, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadDocumentCover>>, TError,{id: string;data: UploadDocumentCoverBody}, TContext> => {
+
+const mutationKey = ['uploadDocumentCover'];
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadDocumentCover>>, {id: string;data: UploadDocumentCoverBody}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  uploadDocumentCover(id,data,fetchOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadDocumentCoverMutationResult = NonNullable<Awaited<ReturnType<typeof uploadDocumentCover>>>
+    export type UploadDocumentCoverMutationBody = UploadDocumentCoverBody
+    export type UploadDocumentCoverMutationError = ErrorResponse
+
+    /**
+ * @summary Upload document cover image
+ */
+export const useUploadDocumentCover = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadDocumentCover>>, TError,{id: string;data: UploadDocumentCoverBody}, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof uploadDocumentCover>>,
+        TError,
+        {id: string;data: UploadDocumentCoverBody},
+        TContext
+      > => {
+      return useMutation(getUploadDocumentCoverMutationOptions(options), queryClient);
+    }
+    
 /**
  * @summary Download document file
  */

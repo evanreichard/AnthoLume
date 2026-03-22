@@ -159,7 +159,6 @@ type Activity struct {
 // ActivityResponse defines model for ActivityResponse.
 type ActivityResponse struct {
 	Activities []Activity `json:"activities"`
-	User       UserData   `json:"user"`
 }
 
 // BackupType defines model for BackupType.
@@ -217,7 +216,6 @@ type Document struct {
 type DocumentResponse struct {
 	Document Document  `json:"document"`
 	Progress *Progress `json:"progress,omitempty"`
-	User     UserData  `json:"user"`
 }
 
 // DocumentsResponse defines model for DocumentsResponse.
@@ -248,7 +246,6 @@ type GraphDataPoint struct {
 // GraphDataResponse defines model for GraphDataResponse.
 type GraphDataResponse struct {
 	GraphData []GraphDataPoint `json:"graph_data"`
-	User      UserData         `json:"user"`
 }
 
 // HomeResponse defines model for HomeResponse.
@@ -256,7 +253,6 @@ type HomeResponse struct {
 	DatabaseInfo   DatabaseInfo           `json:"database_info"`
 	GraphData      GraphDataResponse      `json:"graph_data"`
 	Streaks        StreaksResponse        `json:"streaks"`
-	User           UserData               `json:"user"`
 	UserStatistics UserStatisticsResponse `json:"user_statistics"`
 }
 
@@ -349,13 +345,11 @@ type ProgressListResponse struct {
 	PreviousPage *int64      `json:"previous_page,omitempty"`
 	Progress     *[]Progress `json:"progress,omitempty"`
 	Total        *int64      `json:"total,omitempty"`
-	User         *UserData   `json:"user,omitempty"`
 }
 
 // ProgressResponse defines model for ProgressResponse.
 type ProgressResponse struct {
 	Progress *Progress `json:"progress,omitempty"`
-	User     *UserData `json:"user,omitempty"`
 }
 
 // SearchItem defines model for SearchItem.
@@ -387,7 +381,6 @@ type SettingsResponse struct {
 // StreaksResponse defines model for StreaksResponse.
 type StreaksResponse struct {
 	Streaks []UserStreak `json:"streaks"`
-	User    UserData     `json:"user"`
 }
 
 // UpdateSettingsRequest defines model for UpdateSettingsRequest.
@@ -413,7 +406,6 @@ type UserData struct {
 // UserStatisticsResponse defines model for UserStatisticsResponse.
 type UserStatisticsResponse struct {
 	Duration LeaderboardData `json:"duration"`
-	User     UserData        `json:"user"`
 	Words    LeaderboardData `json:"words"`
 	Wpm      LeaderboardData `json:"wpm"`
 }
@@ -495,6 +487,21 @@ type CreateDocumentMultipartBody struct {
 	DocumentFile openapi_types.File `json:"document_file"`
 }
 
+// EditDocumentJSONBody defines parameters for EditDocument.
+type EditDocumentJSONBody struct {
+	Author      *string `json:"author,omitempty"`
+	CoverGbid   *string `json:"cover_gbid,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Isbn10      *string `json:"isbn10,omitempty"`
+	Isbn13      *string `json:"isbn13,omitempty"`
+	Title       *string `json:"title,omitempty"`
+}
+
+// UploadDocumentCoverMultipartBody defines parameters for UploadDocumentCover.
+type UploadDocumentCoverMultipartBody struct {
+	CoverFile openapi_types.File `json:"cover_file"`
+}
+
 // GetProgressListParams defines parameters for GetProgressList.
 type GetProgressListParams struct {
 	Page     *int64  `form:"page,omitempty" json:"page,omitempty"`
@@ -533,6 +540,12 @@ type LoginJSONRequestBody = LoginRequest
 
 // CreateDocumentMultipartRequestBody defines body for CreateDocument for multipart/form-data ContentType.
 type CreateDocumentMultipartRequestBody CreateDocumentMultipartBody
+
+// EditDocumentJSONRequestBody defines body for EditDocument for application/json ContentType.
+type EditDocumentJSONRequestBody EditDocumentJSONBody
+
+// UploadDocumentCoverMultipartRequestBody defines body for UploadDocumentCover for multipart/form-data ContentType.
+type UploadDocumentCoverMultipartRequestBody UploadDocumentCoverMultipartBody
 
 // PostSearchFormdataRequestBody defines body for PostSearch for application/x-www-form-urlencoded ContentType.
 type PostSearchFormdataRequestBody PostSearchFormdataBody
@@ -587,9 +600,15 @@ type ServerInterface interface {
 	// Get a single document
 	// (GET /documents/{id})
 	GetDocument(w http.ResponseWriter, r *http.Request, id string)
+	// Update document editable fields
+	// (POST /documents/{id})
+	EditDocument(w http.ResponseWriter, r *http.Request, id string)
 	// Get document cover image
 	// (GET /documents/{id}/cover)
 	GetDocumentCover(w http.ResponseWriter, r *http.Request, id string)
+	// Upload document cover image
+	// (POST /documents/{id}/cover)
+	UploadDocumentCover(w http.ResponseWriter, r *http.Request, id string)
 	// Download document file
 	// (GET /documents/{id}/file)
 	GetDocumentFile(w http.ResponseWriter, r *http.Request, id string)
@@ -1042,6 +1061,37 @@ func (siw *ServerInterfaceWrapper) GetDocument(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// EditDocument operation middleware
+func (siw *ServerInterfaceWrapper) EditDocument(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EditDocument(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetDocumentCover operation middleware
 func (siw *ServerInterfaceWrapper) GetDocumentCover(w http.ResponseWriter, r *http.Request) {
 
@@ -1064,6 +1114,37 @@ func (siw *ServerInterfaceWrapper) GetDocumentCover(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetDocumentCover(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UploadDocumentCover operation middleware
+func (siw *ServerInterfaceWrapper) UploadDocumentCover(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UploadDocumentCover(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1528,7 +1609,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/documents", wrapper.GetDocuments)
 	m.HandleFunc("POST "+options.BaseURL+"/documents", wrapper.CreateDocument)
 	m.HandleFunc("GET "+options.BaseURL+"/documents/{id}", wrapper.GetDocument)
+	m.HandleFunc("POST "+options.BaseURL+"/documents/{id}", wrapper.EditDocument)
 	m.HandleFunc("GET "+options.BaseURL+"/documents/{id}/cover", wrapper.GetDocumentCover)
+	m.HandleFunc("POST "+options.BaseURL+"/documents/{id}/cover", wrapper.UploadDocumentCover)
 	m.HandleFunc("GET "+options.BaseURL+"/documents/{id}/file", wrapper.GetDocumentFile)
 	m.HandleFunc("GET "+options.BaseURL+"/home", wrapper.GetHome)
 	m.HandleFunc("GET "+options.BaseURL+"/home/graph", wrapper.GetGraphData)
@@ -2112,6 +2195,60 @@ func (response GetDocument500JSONResponse) VisitGetDocumentResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type EditDocumentRequestObject struct {
+	Id   string `json:"id"`
+	Body *EditDocumentJSONRequestBody
+}
+
+type EditDocumentResponseObject interface {
+	VisitEditDocumentResponse(w http.ResponseWriter) error
+}
+
+type EditDocument200JSONResponse DocumentResponse
+
+func (response EditDocument200JSONResponse) VisitEditDocumentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EditDocument400JSONResponse ErrorResponse
+
+func (response EditDocument400JSONResponse) VisitEditDocumentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EditDocument401JSONResponse ErrorResponse
+
+func (response EditDocument401JSONResponse) VisitEditDocumentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EditDocument404JSONResponse ErrorResponse
+
+func (response EditDocument404JSONResponse) VisitEditDocumentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EditDocument500JSONResponse ErrorResponse
+
+func (response EditDocument500JSONResponse) VisitEditDocumentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetDocumentCoverRequestObject struct {
 	Id string `json:"id"`
 }
@@ -2179,6 +2316,60 @@ func (response GetDocumentCover404JSONResponse) VisitGetDocumentCoverResponse(w 
 type GetDocumentCover500JSONResponse ErrorResponse
 
 func (response GetDocumentCover500JSONResponse) VisitGetDocumentCoverResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadDocumentCoverRequestObject struct {
+	Id   string `json:"id"`
+	Body *multipart.Reader
+}
+
+type UploadDocumentCoverResponseObject interface {
+	VisitUploadDocumentCoverResponse(w http.ResponseWriter) error
+}
+
+type UploadDocumentCover200JSONResponse DocumentResponse
+
+func (response UploadDocumentCover200JSONResponse) VisitUploadDocumentCoverResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadDocumentCover400JSONResponse ErrorResponse
+
+func (response UploadDocumentCover400JSONResponse) VisitUploadDocumentCoverResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadDocumentCover401JSONResponse ErrorResponse
+
+func (response UploadDocumentCover401JSONResponse) VisitUploadDocumentCoverResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadDocumentCover404JSONResponse ErrorResponse
+
+func (response UploadDocumentCover404JSONResponse) VisitUploadDocumentCoverResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadDocumentCover500JSONResponse ErrorResponse
+
+func (response UploadDocumentCover500JSONResponse) VisitUploadDocumentCoverResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -2682,9 +2873,15 @@ type StrictServerInterface interface {
 	// Get a single document
 	// (GET /documents/{id})
 	GetDocument(ctx context.Context, request GetDocumentRequestObject) (GetDocumentResponseObject, error)
+	// Update document editable fields
+	// (POST /documents/{id})
+	EditDocument(ctx context.Context, request EditDocumentRequestObject) (EditDocumentResponseObject, error)
 	// Get document cover image
 	// (GET /documents/{id}/cover)
 	GetDocumentCover(ctx context.Context, request GetDocumentCoverRequestObject) (GetDocumentCoverResponseObject, error)
+	// Upload document cover image
+	// (POST /documents/{id}/cover)
+	UploadDocumentCover(ctx context.Context, request UploadDocumentCoverRequestObject) (UploadDocumentCoverResponseObject, error)
 	// Download document file
 	// (GET /documents/{id}/file)
 	GetDocumentFile(ctx context.Context, request GetDocumentFileRequestObject) (GetDocumentFileResponseObject, error)
@@ -3165,6 +3362,39 @@ func (sh *strictHandler) GetDocument(w http.ResponseWriter, r *http.Request, id 
 	}
 }
 
+// EditDocument operation middleware
+func (sh *strictHandler) EditDocument(w http.ResponseWriter, r *http.Request, id string) {
+	var request EditDocumentRequestObject
+
+	request.Id = id
+
+	var body EditDocumentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EditDocument(ctx, request.(EditDocumentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EditDocument")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EditDocumentResponseObject); ok {
+		if err := validResponse.VisitEditDocumentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetDocumentCover operation middleware
 func (sh *strictHandler) GetDocumentCover(w http.ResponseWriter, r *http.Request, id string) {
 	var request GetDocumentCoverRequestObject
@@ -3184,6 +3414,39 @@ func (sh *strictHandler) GetDocumentCover(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetDocumentCoverResponseObject); ok {
 		if err := validResponse.VisitGetDocumentCoverResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UploadDocumentCover operation middleware
+func (sh *strictHandler) UploadDocumentCover(w http.ResponseWriter, r *http.Request, id string) {
+	var request UploadDocumentCoverRequestObject
+
+	request.Id = id
+
+	if reader, err := r.MultipartReader(); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode multipart body: %w", err))
+		return
+	} else {
+		request.Body = reader
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UploadDocumentCover(ctx, request.(UploadDocumentCoverRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UploadDocumentCover")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UploadDocumentCoverResponseObject); ok {
+		if err := validResponse.VisitUploadDocumentCoverResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useGetHome, useGetDocuments } from '../generated/anthoLumeAPIV1';
+import { useGetHome } from '../generated/anthoLumeAPIV1';
 import type { LeaderboardData } from '../generated/model';
 import ReadingHistoryGraph from '../components/ReadingHistoryGraph';
 import { formatNumber, formatDuration } from '../utils/formatters';
@@ -191,15 +191,13 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
 
 export default function HomePage() {
   const { data: homeData, isLoading: homeLoading } = useGetHome();
-  const { data: docsData, isLoading: docsLoading } = useGetDocuments({ page: 1, limit: 9 });
 
-  const docs = docsData?.data?.documents;
   const dbInfo = homeData?.data?.database_info;
   const streaks = homeData?.data?.streaks?.streaks;
   const graphData = homeData?.data?.graph_data?.graph_data;
   const userStats = homeData?.data?.user_statistics;
 
-  if (homeLoading || docsLoading) {
+  if (homeLoading) {
     return <div className="text-gray-500 dark:text-white">Loading...</div>;
   }
 
@@ -253,25 +251,6 @@ export default function HomePage() {
           name="Words"
           data={userStats?.words || { all: [], year: [], month: [], week: [] }}
         />
-      </div>
-
-      {/* Recent Documents */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {docs?.slice(0, 6).map((doc: any) => (
-          <div
-            key={doc.id}
-            className="flex flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white"
-          >
-            <h3 className="text-lg font-medium">{doc.title}</h3>
-            <p className="text-sm">{doc.author}</p>
-            <Link
-              to={`/documents/${doc.id}`}
-              className="rounded bg-blue-700 py-1 text-center text-sm font-medium text-white hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700"
-            >
-              View Document
-            </Link>
-          </div>
-        ))}
       </div>
     </div>
   );

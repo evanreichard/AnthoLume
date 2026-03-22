@@ -6,11 +6,9 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { Progress } from './progress';
-import type { UserData } from './userData';
 
 export interface ProgressListResponse {
   progress?: Progress[];
-  user?: UserData;
   page?: number;
   limit?: number;
   next_page?: number;

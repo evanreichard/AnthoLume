@@ -54,23 +54,11 @@ func (s *Server) GetHome(ctx context.Context, request GetHomeRequestObject) (Get
 		},
 		Streaks: StreaksResponse{
 			Streaks: convertStreaks(streaks),
-			User: UserData{
-				Username: auth.UserName,
-				IsAdmin:  auth.IsAdmin,
-			},
 		},
 		GraphData: GraphDataResponse{
 			GraphData: convertGraphData(graphData),
-			User: UserData{
-				Username: auth.UserName,
-				IsAdmin:  auth.IsAdmin,
-			},
 		},
 		UserStatistics: arrangeUserStatistics(userStats),
-		User: UserData{
-			Username: auth.UserName,
-			IsAdmin:  auth.IsAdmin,
-		},
 	}
 
 	return GetHome200JSONResponse(response), nil
@@ -91,10 +79,6 @@ func (s *Server) GetStreaks(ctx context.Context, request GetStreaksRequestObject
 
 	response := StreaksResponse{
 		Streaks: convertStreaks(streaks),
-		User: UserData{
-			Username: auth.UserName,
-			IsAdmin:  auth.IsAdmin,
-		},
 	}
 
 	return GetStreaks200JSONResponse(response), nil
@@ -115,10 +99,6 @@ func (s *Server) GetGraphData(ctx context.Context, request GetGraphDataRequestOb
 
 	response := GraphDataResponse{
 		GraphData: convertGraphData(graphData),
-		User: UserData{
-			Username: auth.UserName,
-			IsAdmin:  auth.IsAdmin,
-		},
 	}
 
 	return GetGraphData200JSONResponse(response), nil
@@ -126,7 +106,7 @@ func (s *Server) GetGraphData(ctx context.Context, request GetGraphDataRequestOb
 
 // GET /home/statistics
 func (s *Server) GetUserStatistics(ctx context.Context, request GetUserStatisticsRequestObject) (GetUserStatisticsResponseObject, error) {
-	auth, ok := s.getSessionFromContext(ctx)
+	_, ok := s.getSessionFromContext(ctx)
 	if !ok {
 		return GetUserStatistics401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
 	}
@@ -138,11 +118,6 @@ func (s *Server) GetUserStatistics(ctx context.Context, request GetUserStatistic
 	}
 
 	response := arrangeUserStatistics(userStats)
-	response.User = UserData{
-		Username: auth.UserName,
-		IsAdmin:  auth.IsAdmin,
-	}
-
 	return GetUserStatistics200JSONResponse(response), nil
 }
 

@@ -40,15 +40,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (meData?.data && meData.status === 200) {
         // User is authenticated - check that response has valid data
         console.log('[AuthContext] User authenticated:', meData.data);
+        const userData = 'username' in meData.data ? meData.data : null;
         return {
           isAuthenticated: true,
-          user: meData.data,
+          user: userData as { username: string; is_admin: boolean } | null,
           isCheckingAuth: false,
         };
       } else if (
         meError ||
-        (meData && meData.status === 401) ||
-        (meData && meData.status === 403)
+        (meData && meData.status === 401)
       ) {
         // User is not authenticated or error occurred
         console.log('[AuthContext] User not authenticated:', meError?.message || String(meError));
@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // The session cookie is automatically set by the browser
         setAuthState({
           isAuthenticated: true,
-          user: response.data,
+          user: 'username' in response.data ? response.data as { username: string; is_admin: boolean } : null,
           isCheckingAuth: false,
         });
 

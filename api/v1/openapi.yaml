@@ -233,13 +233,10 @@ components:
       properties:
         document:
           $ref: '#/components/schemas/Document'
-        user:
-          $ref: '#/components/schemas/UserData'
         progress:
           $ref: '#/components/schemas/Progress'
       required:
         - document
-        - user
 
     ProgressListResponse:
       type: object
@@ -248,8 +245,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Progress'
-        user:
-          $ref: '#/components/schemas/UserData'
         page:
           type: integer
           format: int64
@@ -271,8 +266,6 @@ components:
       properties:
         progress:
           $ref: '#/components/schemas/Progress'
-        user:
-          $ref: '#/components/schemas/UserData'
 
     ActivityResponse:
       type: object
@@ -281,11 +274,8 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Activity'
-        user:
-          $ref: '#/components/schemas/UserData'
       required:
         - activities
-        - user
 
     Device:
       type: object
@@ -423,11 +413,8 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/UserStreak'
-        user:
-          $ref: '#/components/schemas/UserData'
       required:
         - streaks
-        - user
 
     GraphDataPoint:
       type: object
@@ -448,11 +435,8 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/GraphDataPoint'
-        user:
-          $ref: '#/components/schemas/UserData'
       required:
         - graph_data
-        - user
 
     LeaderboardEntry:
       type: object
@@ -500,13 +484,10 @@ components:
           $ref: '#/components/schemas/LeaderboardData'
         words:
           $ref: '#/components/schemas/LeaderboardData'
-        user:
-          $ref: '#/components/schemas/UserData'
       required:
         - wpm
         - duration
         - words
-        - user
 
     HomeResponse:
       type: object
@@ -519,14 +500,11 @@ components:
           $ref: '#/components/schemas/GraphDataResponse'
         user_statistics:
           $ref: '#/components/schemas/UserStatisticsResponse'
-        user:
-          $ref: '#/components/schemas/UserData'
       required:
         - database_info
         - streaks
         - graph_data
         - user_statistics
-        - user
 
     BackupType:
       type: string
@@ -765,6 +743,69 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Update document editable fields
+      operationId: editDocument
+      tags:
+        - Documents
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                author:
+                  type: string
+                description:
+                  type: string
+                isbn10:
+                  type: string
+                isbn13:
+                  type: string
+                cover_gbid:
+                  type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        404:
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /documents/{id}/cover:
     get:
@@ -786,6 +827,62 @@ paths:
           content:
             image/jpeg: {}
             image/png: {}
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        404:
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Upload document cover image
+      operationId: uploadDocumentCover
+      tags:
+        - Documents
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                cover_file:
+                  type: string
+                  format: binary
+              required:
+                - cover_file
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Cover uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         401:
           description: Unauthorized
           content:

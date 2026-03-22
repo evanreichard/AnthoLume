@@ -1,7 +1,7 @@
 import { useState, FormEvent, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useGetDocuments, useCreateDocument } from '../generated/anthoLumeAPIV1';
-import { Activity, Download, Search, Upload } from 'lucide-react';
+import { ActivityIcon, DownloadIcon, SearchIcon, UploadIcon } from '../icons';
 import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
 import { formatDuration } from '../utils/formatters';
@@ -64,14 +64,14 @@ function DocumentCard({ doc }: DocumentCardProps) {
         </div>
         <div className="absolute bottom-4 right-4 flex flex-col gap-2 text-gray-500 dark:text-gray-400">
           <Link to={`/activity?document=${doc.id}`}>
-            <Activity size={20} />
+            <ActivityIcon size={20} />
           </Link>
           {doc.filepath ? (
             <a href={`/api/v1/documents/${doc.id}/file`}>
-              <Download size={20} />
+              <DownloadIcon size={20} />
             </a>
           ) : (
-            <Download size={20} className="text-gray-400" />
+            <DownloadIcon size={20} disabled />
           )}
         </div>
       </div>
@@ -140,7 +140,7 @@ export default function DocumentsPage() {
           <div className="flex w-full grow flex-col">
             <div className="relative flex">
               <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
-                <Search size={15} />
+                <SearchIcon size={15} />
               </span>
               <input
                 type="text"
@@ -232,7 +232,7 @@ export default function DocumentsPage() {
           className="flex size-16 cursor-pointer items-center justify-center rounded-full bg-gray-800 opacity-30 transition-all duration-200 hover:opacity-100 dark:bg-gray-200"
           htmlFor="upload-file-button"
         >
-          <Upload size={34} />
+          <UploadIcon size={34} />
         </label>
       </div>
     </div>
