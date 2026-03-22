@@ -1,6 +1,7 @@
 package search
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -9,14 +10,34 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
+const ANNAS_ARCHIVE_SEARCH_URL = "https://%s/search?index=&q=%s&ext=epub&sort=&lang=en"
+
+var annasArchiveDomains []string = []string{
+	"annas-archive.gl",
+	"annas-archive.pk",
+	"annas-archive.gd",
+}
+
 func searchAnnasArchive(query string) ([]SearchItem, error) {
-	searchURL := "https://annas-archive.li/search?index=&q=%s&ext=epub&sort=&lang=en"
-	url := fmt.Sprintf(searchURL, url.QueryEscape(query))
-	body, err := getPage(url)
-	if err != nil {
-		return nil, err
+	var allErrors []error
+
+	for _, domain := range annasArchiveDomains {
+		url := fmt.Sprintf(ANNAS_ARCHIVE_SEARCH_URL, domain, url.QueryEscape(query))
+		body, err := getPage(url)
+		if err != nil {
+			allErrors = append(allErrors, err)
+			continue
+		}
+
+		parsedItem, err := parseAnnasArchive(body)
+		if err != nil {
+			allErrors = append(allErrors, err)
+			continue
+		}
+		return parsedItem, nil
 	}
-	return parseAnnasArchive(body)
+
+	return nil, fmt.Errorf("could not query annas-archive: %w", errors.Join(allErrors...))
 }
 
 func parseAnnasArchive(body io.ReadCloser) ([]SearchItem, error) {
