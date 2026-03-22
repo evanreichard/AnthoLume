@@ -48,7 +48,6 @@ export default function AdminImportPage() {
       {
         onSuccess: _response => {
           showInfo('Import completed successfully');
-          // Redirect to import results page after a short delay
           setTimeout(() => {
             window.location.href = '/admin/import-results';
           }, 1500);
@@ -65,22 +64,22 @@ export default function AdminImportPage() {
   };
 
   if (isLoading && !currentPath) {
-    return <div className="text-gray-500 dark:text-white">Loading...</div>;
+    return <div className="text-content-muted">Loading...</div>;
   }
 
   if (selectedDirectory) {
     return (
       <div className="overflow-x-auto">
         <div className="inline-block min-w-full overflow-hidden rounded shadow">
-          <div className="flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white">
-            <p className="text-lg font-semibold text-gray-500">Selected Import Directory</p>
+          <div className="flex grow flex-col gap-2 rounded bg-surface p-4 text-content-muted shadow-lg">
+            <p className="text-lg font-semibold text-content">Selected Import Directory</p>
             <form className="flex flex-col gap-4" onSubmit={handleImport}>
               <div className="flex w-full justify-between gap-4">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 text-content">
                   <FolderOpenIcon size={20} />
                   <p className="break-all text-lg font-medium">{selectedDirectory}</p>
                 </div>
-                <div className="mr-4 flex flex-col justify-around gap-2">
+                <div className="mr-4 flex flex-col justify-around gap-2 text-content">
                   <div className="inline-flex items-center gap-2">
                     <input
                       type="radio"
@@ -124,20 +123,20 @@ export default function AdminImportPage() {
   return (
     <div className="overflow-x-auto">
       <div className="inline-block min-w-full overflow-hidden rounded shadow">
-        <table className="min-w-full bg-white text-sm leading-normal dark:bg-gray-700">
-          <thead className="text-gray-800 dark:text-gray-400">
+        <table className="min-w-full bg-surface text-sm leading-normal text-content">
+          <thead className="text-content-muted">
             <tr>
-              <th className="w-12 border-b border-gray-200 p-3 text-left font-normal dark:border-gray-800"></th>
-              <th className="break-all border-b border-gray-200 p-3 text-left font-normal dark:border-gray-800">
+              <th className="w-12 border-b border-border p-3 text-left font-normal"></th>
+              <th className="break-all border-b border-border p-3 text-left font-normal">
                 {currentPath}
               </th>
             </tr>
           </thead>
-          <tbody className="text-black dark:text-white">
+          <tbody>
             {currentPath !== '/' && (
               <tr>
-                <td className="border-b border-gray-200 p-3 text-gray-800 dark:text-gray-400"></td>
-                <td className="border-b border-gray-200 p-3">
+                <td className="border-b border-border p-3 text-content-muted"></td>
+                <td className="border-b border-border p-3">
                   <button onClick={handleNavigateUp}>
                     <p>../</p>
                   </button>
@@ -153,12 +152,12 @@ export default function AdminImportPage() {
             ) : (
               directories.map((item: DirectoryItem) => (
                 <tr key={item.name}>
-                  <td className="border-b border-gray-200 p-3 text-gray-800 dark:text-gray-400">
+                  <td className="border-b border-border p-3 text-content-muted">
                     <button onClick={() => item.name && handleSelectDirectory(item.name)}>
                       <FolderOpenIcon size={20} />
                     </button>
                   </td>
-                  <td className="border-b border-gray-200 p-3">
+                  <td className="border-b border-border p-3">
                     <button onClick={() => item.name && handleSelectDirectory(item.name)}>
                       <p>{item.name ?? ''}</p>
                     </button>

@@ -13,10 +13,7 @@ export default function ActivityPage() {
       key: 'document_id' as const,
       header: 'Document',
       render: (_value, row) => (
-        <Link
-          to={`/documents/${row.document_id}`}
-          className="text-blue-600 hover:underline dark:text-blue-400"
-        >
+        <Link to={`/documents/${row.document_id}`} className="text-secondary-600 hover:underline">
           {row.author || 'Unknown'} - {row.title || 'Unknown'}
         </Link>
       ),
@@ -29,9 +26,7 @@ export default function ActivityPage() {
     {
       key: 'duration' as const,
       header: 'Duration',
-      render: value => {
-        return formatDuration(typeof value === 'number' ? value : 0);
-      },
+      render: value => formatDuration(typeof value === 'number' ? value : 0),
     },
     {
       key: 'end_percentage' as const,

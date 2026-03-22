@@ -124,10 +124,7 @@ export function getSVGGraphData(
     const itemY = svgHeight - itemSize;
     const lineX = (idx + 1) * blockOffset;
 
-    linePoints.push({
-      x: lineX,
-      y: itemY,
-    });
+    linePoints.push({ x: lineX, y: itemY });
 
     if (lineX > maxBX) {
       maxBX = lineX;
@@ -164,8 +161,8 @@ export default function ReadingHistoryGraph({ data }: ReadingHistoryGraphProps) 
 
   if (!data || data.length < 2) {
     return (
-      <div className="relative flex h-24 items-center justify-center bg-gray-100 dark:bg-gray-600">
-        <p className="text-gray-400 dark:text-gray-300">No data available</p>
+      <div className="relative flex h-24 items-center justify-center bg-surface-muted">
+        <p className="text-content-subtle">No data available</p>
       </div>
     );
   }
@@ -175,8 +172,8 @@ export default function ReadingHistoryGraph({ data }: ReadingHistoryGraphProps) 
   return (
     <div className="relative">
       <svg viewBox={`26 0 755 ${svgHeight}`} preserveAspectRatio="none" width="100%" height="6em">
-        <path fill="#316BBE" fillOpacity="0.5" stroke="none" d={`${BezierPath} ${BezierFill}`} />
-        <path fill="none" stroke="#316BBE" d={BezierPath} />
+        <path fill="rgb(var(--secondary-600))" fillOpacity="0.5" stroke="none" d={`${BezierPath} ${BezierFill}`} />
+        <path fill="none" stroke="rgb(var(--secondary-600))" d={BezierPath} />
       </svg>
       <div
         className="absolute top-0 flex size-full"
@@ -196,11 +193,10 @@ export default function ReadingHistoryGraph({ data }: ReadingHistoryGraphProps) 
             }}
           >
             <div
-              className="pointer-events-none absolute top-3 flex flex-col items-center rounded p-2 text-xs dark:text-white"
+              className="pointer-events-none absolute top-3 flex flex-col items-center rounded bg-surface/80 p-2 text-xs text-content"
               style={{
                 transform: 'translateX(-50%)',
                 left: '50%',
-                backgroundColor: 'rgba(128, 128, 128, 0.2)',
               }}
             >
               <span>{formatDate(point.date)}</span>

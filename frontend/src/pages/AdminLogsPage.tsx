@@ -26,18 +26,18 @@ export default function AdminLogsPage() {
 
   return (
     <div>
-      <div className="mb-4 flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white">
+      <div className="mb-4 flex grow flex-col gap-2 rounded bg-surface p-4 text-content-muted shadow-lg">
         <form className="flex flex-col gap-4 lg:flex-row" onSubmit={handleFilterSubmit}>
           <div className="flex w-full grow flex-col">
             <div className="relative flex">
-              <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
+              <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-sm">
                 <Search2Icon size={15} hoverable={false} />
               </span>
               <input
                 type="text"
                 value={filter}
                 onChange={e => setFilter(e.target.value)}
-                className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white p-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
+                className="w-full flex-1 appearance-none rounded-none border border-border bg-surface p-2 text-base text-content shadow-sm placeholder:text-content-subtle focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-600"
                 placeholder="JQ Filter"
               />
             </div>
@@ -51,7 +51,7 @@ export default function AdminLogsPage() {
       </div>
 
       <div
-        className="flex w-full flex-col-reverse overflow-scroll text-black dark:text-white"
+        className="flex w-full flex-col-reverse overflow-scroll text-content"
         style={{ fontFamily: 'monospace' }}
       >
         {isLoading ? (

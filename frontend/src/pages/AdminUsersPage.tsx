@@ -39,9 +39,7 @@ export default function AdminUsersPage() {
           setNewIsAdmin(false);
           refetch();
         },
-        onError: error => {
-          showError('Failed to create user: ' + getErrorMessage(error));
-        },
+        onError: error => showError('Failed to create user: ' + getErrorMessage(error)),
       }
     );
   };
@@ -49,19 +47,14 @@ export default function AdminUsersPage() {
   const handleDeleteUser = (userId: string) => {
     updateUser.mutate(
       {
-        data: {
-          operation: 'DELETE',
-          user: userId,
-        },
+        data: { operation: 'DELETE', user: userId },
       },
       {
         onSuccess: () => {
           showInfo('User deleted successfully');
           refetch();
         },
-        onError: error => {
-          showError('Failed to delete user: ' + getErrorMessage(error));
-        },
+        onError: error => showError('Failed to delete user: ' + getErrorMessage(error)),
       }
     );
   };
@@ -71,20 +64,14 @@ export default function AdminUsersPage() {
 
     updateUser.mutate(
       {
-        data: {
-          operation: 'UPDATE',
-          user: userId,
-          password,
-        },
+        data: { operation: 'UPDATE', user: userId, password },
       },
       {
         onSuccess: () => {
           showInfo('Password updated successfully');
           refetch();
         },
-        onError: error => {
-          showError('Failed to update password: ' + getErrorMessage(error));
-        },
+        onError: error => showError('Failed to update password: ' + getErrorMessage(error)),
       }
     );
   };
@@ -92,50 +79,40 @@ export default function AdminUsersPage() {
   const handleToggleAdmin = (userId: string, isAdmin: boolean) => {
     updateUser.mutate(
       {
-        data: {
-          operation: 'UPDATE',
-          user: userId,
-          is_admin: isAdmin,
-        },
+        data: { operation: 'UPDATE', user: userId, is_admin: isAdmin },
       },
       {
         onSuccess: () => {
-          const role = isAdmin ? 'admin' : 'user';
-          showInfo(`User permissions updated to ${role}`);
+          showInfo(`User permissions updated to ${isAdmin ? 'admin' : 'user'}`);
           refetch();
         },
-        onError: error => {
-          showError('Failed to update admin status: ' + getErrorMessage(error));
-        },
+        onError: error => showError('Failed to update admin status: ' + getErrorMessage(error)),
       }
     );
   };
 
   if (isLoading) {
-    return <div className="text-gray-500 dark:text-white">Loading...</div>;
+    return <div className="text-content-muted">Loading...</div>;
   }
 
   return (
     <div className="relative h-full overflow-x-auto">
       {showAddForm && (
-        <div className="absolute left-10 top-10 rounded bg-gray-200 p-3 shadow-lg shadow-gray-500 transition-all duration-200 dark:bg-gray-600 dark:shadow-gray-900">
-          <form
-            onSubmit={handleCreateUser}
-            className="flex flex-col gap-2 text-sm text-black dark:text-white"
-          >
+        <div className="absolute left-10 top-10 rounded bg-surface-strong p-3 shadow-lg transition-all duration-200">
+          <form onSubmit={handleCreateUser} className="flex flex-col gap-2 text-sm text-content">
             <input
               type="text"
               value={newUsername}
               onChange={e => setNewUsername(e.target.value)}
               placeholder="Username"
-              className="bg-gray-300 p-2 text-black dark:bg-gray-700 dark:text-white"
+              className="bg-surface p-2 text-content"
             />
             <input
               type="password"
               value={newPassword}
               onChange={e => setNewPassword(e.target.value)}
               placeholder="Password"
-              className="bg-gray-300 p-2 text-black dark:bg-gray-700 dark:text-white"
+              className="bg-surface p-2 text-content"
             />
             <div className="flex items-center gap-2">
               <input
@@ -147,7 +124,7 @@ export default function AdminUsersPage() {
               <label htmlFor="new_is_admin">Admin</label>
             </div>
             <button
-              className="bg-gray-500 px-2 py-1 font-medium text-white hover:bg-gray-800 dark:text-gray-800 dark:hover:bg-gray-100"
+              className="bg-primary-500 px-2 py-1 font-medium text-primary-foreground hover:bg-primary-700"
               type="submit"
             >
               Create
@@ -157,29 +134,25 @@ export default function AdminUsersPage() {
       )}
 
       <div className="min-w-full overflow-scroll rounded shadow">
-        <table className="min-w-full bg-white text-sm leading-normal dark:bg-gray-700">
-          <thead className="text-gray-800 dark:text-gray-400">
+        <table className="min-w-full bg-surface text-sm leading-normal text-content">
+          <thead className="text-content-muted">
             <tr>
-              <th className="w-12 border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
+              <th className="w-12 border-b border-border p-3 text-left font-normal uppercase">
                 <button onClick={() => setShowAddForm(!showAddForm)}>
                   <AddIcon size={20} />
                 </button>
               </th>
-              <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
-                User
-              </th>
-              <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
-                Password
-              </th>
-              <th className="border-b border-gray-200 p-3 text-center font-normal uppercase dark:border-gray-800">
+              <th className="border-b border-border p-3 text-left font-normal uppercase">User</th>
+              <th className="border-b border-border p-3 text-left font-normal uppercase">Password</th>
+              <th className="border-b border-border p-3 text-center font-normal uppercase">
                 Permissions
               </th>
-              <th className="w-48 border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
+              <th className="w-48 border-b border-border p-3 text-left font-normal uppercase">
                 Created
               </th>
             </tr>
           </thead>
-          <tbody className="text-black dark:text-white">
+          <tbody>
             {users.length === 0 ? (
               <tr>
                 <td className="p-3 text-center" colSpan={5}>
@@ -189,33 +162,33 @@ export default function AdminUsersPage() {
             ) : (
               users.map((user: User) => (
                 <tr key={user.id}>
-                  <td className="relative cursor-pointer border-b border-gray-200 p-3 text-gray-800 dark:text-gray-400">
+                  <td className="relative cursor-pointer border-b border-border p-3 text-content-muted">
                     <button onClick={() => handleDeleteUser(user.id)}>
                       <DeleteIcon size={20} />
                     </button>
                   </td>
-                  <td className="border-b border-gray-200 p-3">
+                  <td className="border-b border-border p-3">
                     <p>{user.id}</p>
                   </td>
-                  <td className="border-b border-gray-200 px-3">
+                  <td className="border-b border-border px-3">
                     <button
                       onClick={() => {
                         const password = prompt(`Enter new password for ${user.id}`);
                         if (password) handleUpdatePassword(user.id, password);
                       }}
-                      className="bg-gray-500 px-2 py-1 font-medium text-white hover:bg-gray-800 dark:text-gray-800 dark:hover:bg-gray-100"
+                      className="bg-primary-500 px-2 py-1 font-medium text-primary-foreground hover:bg-primary-700"
                     >
                       Reset
                     </button>
                   </td>
-                  <td className="flex min-w-40 justify-center gap-2 border-b border-gray-200 p-3 text-center">
+                  <td className="flex min-w-40 justify-center gap-2 border-b border-border p-3 text-center">
                     <button
                       onClick={() => handleToggleAdmin(user.id, true)}
                       disabled={user.admin}
-                      className={`rounded-md px-2 py-1 text-white dark:text-black ${
+                      className={`rounded-md px-2 py-1 ${
                         user.admin
-                          ? 'cursor-default bg-gray-800 dark:bg-gray-100'
-                          : 'cursor-pointer bg-gray-400 dark:bg-gray-600'
+                          ? 'cursor-default bg-content text-content-inverse'
+                          : 'cursor-pointer bg-surface-strong text-content'
                       }`}
                     >
                       admin
@@ -223,16 +196,16 @@ export default function AdminUsersPage() {
                     <button
                       onClick={() => handleToggleAdmin(user.id, false)}
                       disabled={!user.admin}
-                      className={`rounded-md px-2 py-1 text-white dark:text-black ${
+                      className={`rounded-md px-2 py-1 ${
                         !user.admin
-                          ? 'cursor-default bg-gray-800 dark:bg-gray-100'
-                          : 'cursor-pointer bg-gray-400 dark:bg-gray-600'
+                          ? 'cursor-default bg-content text-content-inverse'
+                          : 'cursor-pointer bg-surface-strong text-content'
                       }`}
                     >
                       user
                     </button>
                   </td>
-                  <td className="border-b border-gray-200 p-3">
+                  <td className="border-b border-border p-3">
                     <p>{user.created_at}</p>
                   </td>
                 </tr>

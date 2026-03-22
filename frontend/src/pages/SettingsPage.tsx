@@ -74,42 +74,42 @@ export default function SettingsPage() {
       <div className="flex w-full flex-col gap-4 md:flex-row">
         <div>
           <div className="flex flex-col items-center rounded bg-surface p-4 shadow-lg md:w-60 lg:w-80">
-            <div className="mb-4 size-16 rounded-full bg-gray-200 dark:bg-gray-600" />
-            <div className="h-6 w-32 rounded bg-gray-200 dark:bg-gray-600" />
+            <div className="mb-4 size-16 rounded-full bg-surface-strong" />
+            <div className="h-6 w-32 rounded bg-surface-strong" />
           </div>
         </div>
         <div className="flex grow flex-col gap-4">
           <div className="flex flex-col gap-2 rounded bg-surface p-4 shadow-lg">
-            <div className="mb-4 h-6 w-48 rounded bg-gray-200 dark:bg-gray-600" />
+            <div className="mb-4 h-6 w-48 rounded bg-surface-strong" />
             <div className="flex gap-4">
-              <div className="h-12 flex-1 rounded bg-gray-200 dark:bg-gray-600" />
-              <div className="h-12 flex-1 rounded bg-gray-200 dark:bg-gray-600" />
-              <div className="h-10 w-40 rounded bg-gray-200 dark:bg-gray-600" />
+              <div className="h-12 flex-1 rounded bg-surface-strong" />
+              <div className="h-12 flex-1 rounded bg-surface-strong" />
+              <div className="h-10 w-40 rounded bg-surface-strong" />
             </div>
           </div>
           <div className="flex flex-col gap-2 rounded bg-surface p-4 shadow-lg">
-            <div className="mb-4 h-6 w-48 rounded bg-gray-200 dark:bg-gray-600" />
+            <div className="mb-4 h-6 w-48 rounded bg-surface-strong" />
             <div className="flex gap-4">
-              <div className="h-12 flex-1 rounded bg-gray-200 dark:bg-gray-600" />
-              <div className="h-10 w-40 rounded bg-gray-200 dark:bg-gray-600" />
+              <div className="h-12 flex-1 rounded bg-surface-strong" />
+              <div className="h-10 w-40 rounded bg-surface-strong" />
             </div>
           </div>
           <div className="flex flex-col gap-2 rounded bg-surface p-4 shadow-lg">
-            <div className="mb-4 h-6 w-48 rounded bg-gray-200 dark:bg-gray-600" />
+            <div className="mb-4 h-6 w-48 rounded bg-surface-strong" />
             <div className="grid gap-3 md:grid-cols-3">
               {themeModes.map(mode => (
-                <div key={mode.value} className="h-24 rounded bg-gray-200 dark:bg-gray-600" />
+                <div key={mode.value} className="h-24 rounded bg-surface-strong" />
               ))}
             </div>
           </div>
           <div className="flex flex-col rounded bg-surface p-4 shadow-lg">
-            <div className="mb-4 h-6 w-24 rounded bg-gray-200 dark:bg-gray-600" />
+            <div className="mb-4 h-6 w-24 rounded bg-surface-strong" />
             <div className="mb-4 flex gap-4">
-              <div className="h-6 flex-1 rounded bg-gray-200 dark:bg-gray-600" />
-              <div className="h-6 flex-1 rounded bg-gray-200 dark:bg-gray-600" />
-              <div className="h-6 flex-1 rounded bg-gray-200 dark:bg-gray-600" />
+              <div className="h-6 flex-1 rounded bg-surface-strong" />
+              <div className="h-6 flex-1 rounded bg-surface-strong" />
+              <div className="h-6 flex-1 rounded bg-surface-strong" />
             </div>
-            <div className="h-32 flex-1 rounded bg-gray-200 dark:bg-gray-600" />
+            <div className="h-32 flex-1 rounded bg-surface-strong" />
           </div>
         </div>
       </div>

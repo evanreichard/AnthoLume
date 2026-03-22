@@ -38,17 +38,16 @@ export default function ComponentDemoPage() {
   };
 
   return (
-    <div className="space-y-8 p-4">
-      <h1 className="text-2xl font-bold dark:text-white">UI Components Demo</h1>
+    <div className="space-y-8 p-4 text-content">
+      <h1 className="text-2xl font-bold">UI Components Demo</h1>
 
-      {/* Toast Demos */}
-      <section className="rounded-lg bg-white p-6 shadow dark:bg-gray-700">
-        <h2 className="mb-4 text-xl font-semibold dark:text-white">Toast Notifications</h2>
+      <section className="rounded-lg bg-surface p-6 shadow">
+        <h2 className="mb-4 text-xl font-semibold">Toast Notifications</h2>
         <div className="flex flex-wrap gap-4">
           <button
             onClick={handleDemoClick}
             disabled={isLoading}
-            className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded bg-secondary-500 px-4 py-2 text-secondary-foreground hover:bg-secondary-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isLoading ? <InlineLoader size="sm" /> : 'Show Info Toast'}
           </button>
@@ -66,21 +65,19 @@ export default function ComponentDemoPage() {
           </button>
           <button
             onClick={handleCustomToast}
-            className="rounded bg-purple-500 px-4 py-2 text-white hover:bg-purple-600"
+            className="rounded bg-primary-500 px-4 py-2 text-primary-foreground hover:bg-primary-600"
           >
             Show Custom Toast
           </button>
         </div>
       </section>
 
-      {/* Skeleton Demos */}
-      <section className="rounded-lg bg-white p-6 shadow dark:bg-gray-700">
-        <h2 className="mb-4 text-xl font-semibold dark:text-white">Skeleton Loading Components</h2>
+      <section className="rounded-lg bg-surface p-6 shadow">
+        <h2 className="mb-4 text-xl font-semibold">Skeleton Loading Components</h2>
 
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-          {/* Basic Skeletons */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium dark:text-gray-300">Basic Skeletons</h3>
+            <h3 className="text-lg font-medium text-content-muted">Basic Skeletons</h3>
             <div className="space-y-2">
               <Skeleton className="h-8 w-full" />
               <Skeleton variant="text" className="w-3/4" />
@@ -92,16 +89,14 @@ export default function ComponentDemoPage() {
             </div>
           </div>
 
-          {/* Skeleton Text */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium dark:text-gray-300">Skeleton Text</h3>
+            <h3 className="text-lg font-medium text-content-muted">Skeleton Text</h3>
             <SkeletonText lines={3} />
             <SkeletonText lines={5} className="max-w-md" />
           </div>
 
-          {/* Skeleton Avatar */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium dark:text-gray-300">Skeleton Avatar</h3>
+            <h3 className="text-lg font-medium text-content-muted">Skeleton Avatar</h3>
             <div className="flex items-center gap-4">
               <SkeletonAvatar size="sm" />
               <SkeletonAvatar size="md" />
@@ -110,9 +105,8 @@ export default function ComponentDemoPage() {
             </div>
           </div>
 
-          {/* Skeleton Button */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium dark:text-gray-300">Skeleton Button</h3>
+            <h3 className="text-lg font-medium text-content-muted">Skeleton Button</h3>
             <div className="flex flex-wrap gap-2">
               <SkeletonButton width={120} />
               <SkeletonButton className="w-full max-w-xs" />
@@ -121,9 +115,8 @@ export default function ComponentDemoPage() {
         </div>
       </section>
 
-      {/* Skeleton Card Demo */}
-      <section className="rounded-lg bg-white p-6 shadow dark:bg-gray-700">
-        <h2 className="mb-4 text-xl font-semibold dark:text-white">Skeleton Cards</h2>
+      <section className="rounded-lg bg-surface p-6 shadow">
+        <h2 className="mb-4 text-xl font-semibold">Skeleton Cards</h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <SkeletonCard />
           <SkeletonCard showAvatar />
@@ -131,33 +124,30 @@ export default function ComponentDemoPage() {
         </div>
       </section>
 
-      {/* Skeleton Table Demo */}
-      <section className="rounded-lg bg-white p-6 shadow dark:bg-gray-700">
-        <h2 className="mb-4 text-xl font-semibold dark:text-white">Skeleton Table</h2>
+      <section className="rounded-lg bg-surface p-6 shadow">
+        <h2 className="mb-4 text-xl font-semibold">Skeleton Table</h2>
         <SkeletonTable rows={5} columns={4} />
       </section>
 
-      {/* Page Loader Demo */}
-      <section className="rounded-lg bg-white p-6 shadow dark:bg-gray-700">
-        <h2 className="mb-4 text-xl font-semibold dark:text-white">Page Loader</h2>
+      <section className="rounded-lg bg-surface p-6 shadow">
+        <h2 className="mb-4 text-xl font-semibold">Page Loader</h2>
         <PageLoader message="Loading demo content..." />
       </section>
 
-      {/* Inline Loader Demo */}
-      <section className="rounded-lg bg-white p-6 shadow dark:bg-gray-700">
-        <h2 className="mb-4 text-xl font-semibold dark:text-white">Inline Loader</h2>
+      <section className="rounded-lg bg-surface p-6 shadow">
+        <h2 className="mb-4 text-xl font-semibold">Inline Loader</h2>
         <div className="flex items-center gap-8">
           <div className="text-center">
             <InlineLoader size="sm" />
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Small</p>
+            <p className="mt-2 text-sm text-content-muted">Small</p>
           </div>
           <div className="text-center">
             <InlineLoader size="md" />
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Medium</p>
+            <p className="mt-2 text-sm text-content-muted">Medium</p>
           </div>
           <div className="text-center">
             <InlineLoader size="lg" />
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Large</p>
+            <p className="mt-2 text-sm text-content-muted">Large</p>
           </div>
         </div>
       </section>

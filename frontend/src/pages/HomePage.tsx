@@ -17,29 +17,24 @@ interface InfoCardProps {
 }
 
 function InfoCard({ title, size, link }: InfoCardProps) {
+  const content = (
+    <div className="flex w-full gap-4 rounded bg-surface p-4 shadow-lg">
+      <div className="flex w-full flex-col justify-around text-sm text-content">
+        <p className="text-2xl font-bold">{size}</p>
+        <p className="text-sm text-content-subtle">{title}</p>
+      </div>
+    </div>
+  );
+
   if (link) {
     return (
       <Link to={link} className="w-full">
-        <div className="flex w-full gap-4 rounded bg-white p-4 shadow-lg dark:bg-gray-700">
-          <div className="flex w-full flex-col justify-around text-sm dark:text-white">
-            <p className="text-2xl font-bold text-black dark:text-white">{size}</p>
-            <p className="text-sm text-gray-400">{title}</p>
-          </div>
-        </div>
+        {content}
       </Link>
     );
   }
 
-  return (
-    <div className="w-full">
-      <div className="flex w-full gap-4 rounded bg-white p-4 shadow-lg dark:bg-gray-700">
-        <div className="flex w-full flex-col justify-around text-sm dark:text-white">
-          <p className="text-2xl font-bold text-black dark:text-white">{size}</p>
-          <p className="text-sm text-gray-400">{title}</p>
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="w-full">{content}</div>;
 }
 
 interface StreakCardProps {
@@ -63,18 +58,18 @@ function StreakCard({
 }: StreakCardProps) {
   return (
     <div className="w-full">
-      <div className="relative w-full rounded bg-white px-4 py-6 shadow-lg dark:bg-gray-700">
-        <p className="w-max border-b border-gray-200 text-sm font-semibold text-gray-700 dark:border-gray-500 dark:text-white">
+      <div className="relative w-full rounded bg-surface px-4 py-6 text-content shadow-lg">
+        <p className="w-max border-b border-border text-sm font-semibold text-content-muted">
           {window === 'WEEK' ? 'Weekly Read Streak' : 'Daily Read Streak'}
         </p>
         <div className="my-6 flex items-end space-x-2">
-          <p className="text-5xl font-bold text-black dark:text-white">{currentStreak}</p>
+          <p className="text-5xl font-bold">{currentStreak}</p>
         </div>
-        <div className="dark:text-white">
-          <div className="mb-2 flex items-center justify-between border-b border-gray-200 pb-2 text-sm">
+        <div>
+          <div className="mb-2 flex items-center justify-between border-b border-border pb-2 text-sm">
             <div>
               <p>{window === 'WEEK' ? 'Current Weekly Streak' : 'Current Daily Streak'}</p>
-              <div className="flex items-end text-sm text-gray-400">
+              <div className="flex items-end text-sm text-content-subtle">
                 {currentStreakStartDate} ➞ {currentStreakEndDate}
               </div>
             </div>
@@ -83,7 +78,7 @@ function StreakCard({
           <div className="mb-2 flex items-center justify-between pb-2 text-sm">
             <div>
               <p>{window === 'WEEK' ? 'Best Weekly Streak' : 'Best Daily Streak'}</p>
-              <div className="flex items-end text-sm text-gray-400">
+              <div className="flex items-end text-sm text-content-subtle">
                 {maxStreakStartDate} ➞ {maxStreakEndDate}
               </div>
             </div>
@@ -120,67 +115,47 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
 
   const currentData = data[selectedPeriod];
 
-  const handlePeriodChange = (period: TimePeriod) => {
-    setSelectedPeriod(period);
-  };
+  const getPeriodClassName = (period: TimePeriod) =>
+    `cursor-pointer ${selectedPeriod === period ? 'text-content' : 'text-content-subtle hover:text-content'}`;
 
   return (
     <div className="w-full">
-      <div className="flex size-full flex-col justify-between rounded bg-white px-4 py-6 shadow-lg dark:bg-gray-700">
+      <div className="flex size-full flex-col justify-between rounded bg-surface px-4 py-6 text-content shadow-lg">
         <div>
           <div className="flex justify-between">
-            <p className="w-max border-b border-gray-200 text-sm font-semibold text-gray-700 dark:border-gray-500 dark:text-white">
+            <p className="w-max border-b border-border text-sm font-semibold text-content-muted">
               {name} Leaderboard
             </p>
-            <div className="flex items-center gap-2 text-xs text-gray-400">
-              <button
-                type="button"
-                onClick={() => handlePeriodChange('all')}
-                className={`cursor-pointer hover:text-black dark:hover:text-white ${selectedPeriod === 'all' ? '!text-black dark:!text-white' : ''}`}
-              >
+            <div className="flex items-center gap-2 text-xs">
+              <button type="button" onClick={() => setSelectedPeriod('all')} className={getPeriodClassName('all')}>
                 all
               </button>
-              <button
-                type="button"
-                onClick={() => handlePeriodChange('year')}
-                className={`cursor-pointer hover:text-black dark:hover:text-white ${selectedPeriod === 'year' ? '!text-black dark:!text-white' : ''}`}
-              >
+              <button type="button" onClick={() => setSelectedPeriod('year')} className={getPeriodClassName('year')}>
                 year
               </button>
-              <button
-                type="button"
-                onClick={() => handlePeriodChange('month')}
-                className={`cursor-pointer hover:text-black dark:hover:text-white ${selectedPeriod === 'month' ? '!text-black dark:!text-white' : ''}`}
-              >
+              <button type="button" onClick={() => setSelectedPeriod('month')} className={getPeriodClassName('month')}>
                 month
               </button>
-              <button
-                type="button"
-                onClick={() => handlePeriodChange('week')}
-                className={`cursor-pointer hover:text-black dark:hover:text-white ${selectedPeriod === 'week' ? '!text-black dark:!text-white' : ''}`}
-              >
+              <button type="button" onClick={() => setSelectedPeriod('week')} className={getPeriodClassName('week')}>
                 week
               </button>
             </div>
           </div>
         </div>
 
-        {/* Current period data */}
         <div className="my-6 flex items-end space-x-2">
           {currentData?.length === 0 ? (
-            <p className="text-5xl font-bold text-black dark:text-white">N/A</p>
+            <p className="text-5xl font-bold">N/A</p>
           ) : (
-            <p className="text-5xl font-bold text-black dark:text-white">
-              {currentData[0]?.user_id || 'N/A'}
-            </p>
+            <p className="text-5xl font-bold">{currentData[0]?.user_id || 'N/A'}</p>
           )}
         </div>
 
-        <div className="dark:text-white">
+        <div>
           {currentData?.slice(0, 3).map((item: LeaderboardEntry, index: number) => (
             <div
               key={index}
-              className={`flex items-center justify-between py-2 text-sm ${index > 0 ? 'border-t border-gray-200' : ''}`}
+              className={`flex items-center justify-between py-2 text-sm ${index > 0 ? 'border-t border-border' : ''}`}
             >
               <div>
                 <p>{item.user_id}</p>
@@ -204,22 +179,20 @@ export default function HomePage() {
   const userStats = homeResponse?.user_statistics;
 
   if (homeLoading) {
-    return <div className="text-gray-500 dark:text-white">Loading...</div>;
+    return <div className="text-content-muted">Loading...</div>;
   }
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Daily Read Totals Graph */}
       <div className="w-full">
-        <div className="relative w-full rounded bg-white shadow-lg dark:bg-gray-700">
-          <p className="absolute left-5 top-3 w-max border-b border-gray-200 text-sm font-semibold text-gray-700 dark:border-gray-500 dark:text-white">
+        <div className="relative w-full rounded bg-surface shadow-lg">
+          <p className="absolute left-5 top-3 w-max border-b border-border text-sm font-semibold text-content-muted">
             Daily Read Totals
           </p>
           <ReadingHistoryGraph data={graphData || []} />
         </div>
       </div>
 
-      {/* Info Cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <InfoCard title="Documents" size={dbInfo?.documents_size || 0} link="./documents" />
         <InfoCard title="Activity Records" size={dbInfo?.activity_size || 0} link="./activity" />
@@ -227,7 +200,6 @@ export default function HomePage() {
         <InfoCard title="Devices" size={dbInfo?.devices_size || 0} />
       </div>
 
-      {/* Streak Cards */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {streaks?.map((streak: UserStreak, index: number) => (
           <StreakCard
@@ -243,7 +215,6 @@ export default function HomePage() {
         ))}
       </div>
 
-      {/* Leaderboard Cards */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         <LeaderboardCard
           name="WPM"

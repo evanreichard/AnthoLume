@@ -15,7 +15,7 @@ export function Skeleton({
   height,
   animation = 'pulse',
 }: SkeletonProps) {
-  const baseClasses = 'bg-gray-200 dark:bg-gray-600';
+  const baseClasses = 'bg-surface-strong';
 
   const variantClasses = {
     default: 'rounded',
@@ -184,7 +184,7 @@ export function PageLoader({ message = 'Loading...', className = '' }: PageLoade
   return (
     <div className={cn('flex min-h-[400px] flex-col items-center justify-center gap-4', className)}>
       <div className="relative">
-        <div className="size-12 animate-spin rounded-full border-4 border-gray-200 border-t-secondary-500 dark:border-gray-600" />
+        <div className="size-12 animate-spin rounded-full border-4 border-surface-strong border-t-secondary-500" />
       </div>
       <p className="text-sm font-medium text-content-muted">{message}</p>
     </div>
@@ -206,7 +206,7 @@ export function InlineLoader({ size = 'md', className = '' }: InlineLoaderProps)
   return (
     <div className={cn('flex items-center justify-center', className)}>
       <div
-        className={`${sizeMap[size]} animate-spin rounded-full border-gray-200 border-t-secondary-500 dark:border-gray-600`}
+        className={`${sizeMap[size]} animate-spin rounded-full border-surface-strong border-t-secondary-500`}
       />
     </div>
   );

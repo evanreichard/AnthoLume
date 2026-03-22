@@ -49,30 +49,30 @@ export function SearchPageView({
   return (
     <div className="flex w-full flex-col gap-4 md:flex-row">
       <div className="flex grow flex-col gap-4">
-        <div className="flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white">
+        <div className="flex grow flex-col gap-2 rounded bg-surface p-4 text-content-muted shadow-lg">
           <form className="flex flex-col gap-4 lg:flex-row" onSubmit={onSubmit}>
             <div className="flex w-full grow flex-col">
               <div className="relative flex">
-                <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
+                <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-sm">
                   <Search2Icon size={15} hoverable={false} />
                 </span>
                 <input
                   type="text"
                   value={query}
                   onChange={e => onQueryChange(e.target.value)}
-                  className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
+                  className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-sm placeholder:text-content-subtle focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-600"
                   placeholder="Query"
                 />
               </div>
             </div>
             <div className="relative flex min-w-[12em]">
-              <span className="inline-flex items-center border-y border-l border-gray-300 bg-white px-3 text-sm text-gray-500 shadow-sm">
+              <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-sm">
                 <BookIcon size={15} />
               </span>
               <select
                 value={source}
                 onChange={e => onSourceChange(e.target.value as GetSearchSource)}
-                className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
+                className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-sm placeholder:text-content-subtle focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-600"
               >
                 <option value={GetSearchSource.LibGen}>Library Genesis</option>
                 <option value={GetSearchSource.Annas_Archive}>Annas Archive</option>
@@ -87,28 +87,28 @@ export function SearchPageView({
         </div>
 
         <div className="inline-block min-w-full overflow-hidden rounded shadow">
-          <table className="min-w-full bg-white text-sm leading-normal md:text-sm dark:bg-gray-700">
-            <thead className="text-gray-800 dark:text-gray-400">
+          <table className="min-w-full bg-surface text-sm leading-normal text-content md:text-sm">
+            <thead className="text-content-muted">
               <tr>
-                <th className="w-12 border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800"></th>
-                <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
+                <th className="w-12 border-b border-border p-3 text-left font-normal uppercase"></th>
+                <th className="border-b border-border p-3 text-left font-normal uppercase">
                   Document
                 </th>
-                <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
+                <th className="border-b border-border p-3 text-left font-normal uppercase">
                   Series
                 </th>
-                <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
+                <th className="border-b border-border p-3 text-left font-normal uppercase">
                   Type
                 </th>
-                <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
+                <th className="border-b border-border p-3 text-left font-normal uppercase">
                   Size
                 </th>
-                <th className="hidden border-b border-gray-200 p-3 text-left font-normal uppercase md:block dark:border-gray-800">
+                <th className="hidden border-b border-border p-3 text-left font-normal uppercase md:table-cell">
                   Date
                 </th>
               </tr>
             </thead>
-            <tbody className="text-black dark:text-white">
+            <tbody>
               {isLoading && (
                 <tr>
                   <td className="p-3 text-center" colSpan={6}>
@@ -126,24 +126,24 @@ export function SearchPageView({
               {!isLoading &&
                 results.map(item => (
                   <tr key={item.id}>
-                    <td className="border-b border-gray-200 p-3 text-gray-500 dark:text-gray-500">
-                      <button className="hover:text-purple-600" title="Download">
+                    <td className="border-b border-border p-3 text-content-muted">
+                      <button className="hover:text-primary-600" title="Download">
                         <DownloadIcon size={15} />
                       </button>
                     </td>
-                    <td className="border-b border-gray-200 p-3">
+                    <td className="border-b border-border p-3">
                       {item.author || 'N/A'} - {item.title || 'N/A'}
                     </td>
-                    <td className="border-b border-gray-200 p-3">
+                    <td className="border-b border-border p-3">
                       <p>{item.series || 'N/A'}</p>
                     </td>
-                    <td className="border-b border-gray-200 p-3">
+                    <td className="border-b border-border p-3">
                       <p>{item.file_type || 'N/A'}</p>
                     </td>
-                    <td className="border-b border-gray-200 p-3">
+                    <td className="border-b border-border p-3">
                       <p>{item.file_size || 'N/A'}</p>
                     </td>
-                    <td className="hidden border-b border-gray-200 p-3 md:table-cell">
+                    <td className="hidden border-b border-border p-3 md:table-cell">
                       <p>{item.upload_date || 'N/A'}</p>
                     </td>
                   </tr>
@@ -172,7 +172,7 @@ export default function SearchPage() {
       query: {
         enabled: activeQuery.trim().length > 0,
       },
-    },
+    }
   );
   const results = getSearchResults(data);
 

@@ -12,10 +12,7 @@ export default function ProgressPage() {
       key: 'document_id' as const,
       header: 'Document',
       render: (_value, row) => (
-        <Link
-          to={`/documents/${row.document_id}`}
-          className="text-blue-600 hover:underline dark:text-blue-400"
-        >
+        <Link to={`/documents/${row.document_id}`} className="text-secondary-600 hover:underline">
           {row.author || 'Unknown'} - {row.title || 'Unknown'}
         </Link>
       ),

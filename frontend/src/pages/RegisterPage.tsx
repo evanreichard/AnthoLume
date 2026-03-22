@@ -49,7 +49,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-800 dark:text-white">
+    <div className="min-h-screen bg-canvas text-content">
       <div className="flex w-full flex-wrap">
         <div className="flex w-full flex-col md:w-1/2">
           <div className="my-auto flex flex-col justify-center px-8 pt-8 md:justify-start md:px-24 md:pt-0 lg:px-32">
@@ -61,7 +61,7 @@ export default function RegisterPage() {
                     type="text"
                     value={username}
                     onChange={e => setUsername(e.target.value)}
-                    className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-sm placeholder:text-content-subtle focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-600"
                     placeholder="Username"
                     required
                     disabled={isLoading || isLoadingInfo || !registrationEnabled}
@@ -74,7 +74,7 @@ export default function RegisterPage() {
                     type="password"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    className="w-full flex-1 appearance-none rounded-none border border-gray-300 bg-white px-4 py-2 text-base text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-sm placeholder:text-content-subtle focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-600"
                     placeholder="Password"
                     required
                     disabled={isLoading || isLoadingInfo || !registrationEnabled}
@@ -106,8 +106,8 @@ export default function RegisterPage() {
           </div>
         </div>
         <div className="relative hidden h-screen w-1/2 shadow-2xl md:block">
-          <div className="left-0 top-0 flex h-screen w-full items-center justify-center bg-gray-300 object-cover ease-in-out">
-            <span className="text-gray-500">AnthoLume</span>
+          <div className="left-0 top-0 flex h-screen w-full items-center justify-center bg-surface-strong object-cover ease-in-out">
+            <span className="text-content-muted">AnthoLume</span>
           </div>
         </div>
       </div>

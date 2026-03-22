@@ -90,7 +90,7 @@ export default function Layout() {
 
           {isUserDropdownOpen && (
             <div className="absolute right-4 top-16 z-20 pt-4 transition duration-200">
-              <div className="w-64 origin-top-right rounded-md bg-surface shadow-lg ring-1 ring-black/5 dark:shadow-gray-800">
+              <div className="w-64 origin-top-right rounded-md bg-surface shadow-lg ring-1 ring-border/30">
                 <div
                   className="border-b border-border px-4 py-3"
                   role="group"

@@ -8,27 +8,27 @@ export default function AdminImportResultsPage() {
     resultsData?.status === 200 ? (resultsData.data as ImportResultsResponse).results || [] : [];
 
   if (isLoading) {
-    return <div className="text-gray-500 dark:text-white">Loading...</div>;
+    return <div className="text-content-muted">Loading...</div>;
   }
 
   return (
     <div className="overflow-x-auto">
       <div className="inline-block min-w-full overflow-hidden rounded shadow">
-        <table className="min-w-full bg-white text-sm leading-normal dark:bg-gray-700">
-          <thead className="text-gray-800 dark:text-gray-400">
+        <table className="min-w-full bg-surface text-sm leading-normal text-content">
+          <thead className="text-content-muted">
             <tr>
-              <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
+              <th className="border-b border-border p-3 text-left font-normal uppercase">
                 Document
               </th>
-              <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
+              <th className="border-b border-border p-3 text-left font-normal uppercase">
                 Status
               </th>
-              <th className="border-b border-gray-200 p-3 text-left font-normal uppercase dark:border-gray-800">
+              <th className="border-b border-border p-3 text-left font-normal uppercase">
                 Error
               </th>
             </tr>
           </thead>
-          <tbody className="text-black dark:text-white">
+          <tbody>
             {results.length === 0 ? (
               <tr>
                 <td className="p-3 text-center" colSpan={3}>
@@ -39,22 +39,24 @@ export default function AdminImportResultsPage() {
               results.map((result: ImportResult, index: number) => (
                 <tr key={index}>
                   <td
-                    className="grid border-b border-gray-200 p-3"
+                    className="grid border-b border-border p-3"
                     style={{ gridTemplateColumns: '4rem auto' }}
                   >
-                    <span className="text-gray-800 dark:text-gray-400">Name:</span>
+                    <span className="text-content-muted">Name:</span>
                     {result.id ? (
-                      <Link to={`/documents/${result.id}`}>{result.name}</Link>
+                      <Link to={`/documents/${result.id}`} className="text-secondary-600 hover:underline">
+                        {result.name}
+                      </Link>
                     ) : (
                       <span>N/A</span>
                     )}
-                    <span className="text-gray-800 dark:text-gray-400">File:</span>
+                    <span className="text-content-muted">File:</span>
                     <span>{result.path}</span>
                   </td>
-                  <td className="border-b border-gray-200 p-3">
+                  <td className="border-b border-border p-3">
                     <p>{result.status}</p>
                   </td>
-                  <td className="border-b border-gray-200 p-3">
+                  <td className="border-b border-border p-3">
                     <p>{result.error || ''}</p>
                   </td>
                 </tr>

@@ -42,19 +42,14 @@ export default function AdminPage() {
 
       const filename = `AnthoLumeBackup_${new Date().toISOString().replace(/[:.]/g, '')}.zip`;
 
-      // Stream the response directly to disk using File System Access API
-      // This avoids loading multi-GB files into browser memory
       if ('showSaveFilePicker' in window && typeof window.showSaveFilePicker === 'function') {
         try {
-          // Modern browsers: Use File System Access API for direct disk writes
           const handle = await window.showSaveFilePicker({
             suggestedName: filename,
             types: [{ description: 'ZIP Archive', accept: { 'application/zip': ['.zip'] } }],
           });
 
           const writable = await handle.createWritable();
-
-          // Stream response body directly to file without buffering
           const reader = response.body?.getReader();
           if (!reader) throw new Error('Unable to read response');
 
@@ -67,13 +62,11 @@ export default function AdminPage() {
           await writable.close();
           showInfo('Backup completed successfully');
         } catch (err) {
-          // User cancelled or error
           if ((err as Error).name !== 'AbortError') {
             showError('Backup failed: ' + (err as Error).message);
           }
         }
       } else {
-        // Fallback for older browsers
         showError(
           'Your browser does not support large file downloads. Please use Chrome, Edge, or Safari.'
         );
@@ -113,52 +106,34 @@ export default function AdminPage() {
 
   const handleMetadataMatch = () => {
     postAdminAction.mutate(
+      { data: { action: 'METADATA_MATCH' } },
       {
-        data: {
-          action: 'METADATA_MATCH',
-        },
-      },
-      {
-        onSuccess: () => {
-          showInfo('Metadata matching started');
-        },
-        onError: error => {
-          showError('Metadata matching failed: ' + getErrorMessage(error));
-        },
+        onSuccess: () => showInfo('Metadata matching started'),
+        onError: error => showError('Metadata matching failed: ' + getErrorMessage(error)),
       }
     );
   };
 
   const handleCacheTables = () => {
     postAdminAction.mutate(
+      { data: { action: 'CACHE_TABLES' } },
       {
-        data: {
-          action: 'CACHE_TABLES',
-        },
-      },
-      {
-        onSuccess: () => {
-          showInfo('Cache tables started');
-        },
-        onError: error => {
-          showError('Cache tables failed: ' + getErrorMessage(error));
-        },
+        onSuccess: () => showInfo('Cache tables started'),
+        onError: error => showError('Cache tables failed: ' + getErrorMessage(error)),
       }
     );
   };
 
   if (isLoading) {
-    return <div className="text-gray-500 dark:text-white">Loading...</div>;
+    return <div className="text-content-muted">Loading...</div>;
   }
 
   return (
     <div className="flex w-full grow flex-col gap-4">
-      {/* Backup & Restore Card */}
-      <div className="flex grow flex-col gap-2 rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white">
-        <p className="mb-2 text-lg font-semibold">Backup & Restore</p>
+      <div className="flex grow flex-col gap-2 rounded bg-surface p-4 text-content-muted shadow-lg">
+        <p className="mb-2 text-lg font-semibold text-content">Backup & Restore</p>
         <div className="flex flex-col gap-4">
-          {/* Backup Form */}
-          <form className="flex justify-between" onSubmit={handleBackupSubmit}>
+          <form className="flex justify-between text-content" onSubmit={handleBackupSubmit}>
             <div className="flex items-center gap-8">
               <div>
                 <input
@@ -186,8 +161,7 @@ export default function AdminPage() {
             </div>
           </form>
 
-          {/* Restore Form */}
-          <form onSubmit={handleRestoreSubmit} className="flex grow justify-between">
+          <form onSubmit={handleRestoreSubmit} className="flex grow justify-between text-content">
             <div className="flex w-1/2 items-center">
               <input
                 type="file"
@@ -205,11 +179,10 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Tasks Card */}
-      <div className="flex grow flex-col rounded bg-white p-4 text-gray-500 shadow-lg dark:bg-gray-700 dark:text-white">
-        <p className="text-lg font-semibold">Tasks</p>
-        <table className="min-w-full bg-white text-sm dark:bg-gray-700">
-          <tbody className="text-black dark:text-white">
+      <div className="flex grow flex-col rounded bg-surface p-4 text-content-muted shadow-lg">
+        <p className="text-lg font-semibold text-content">Tasks</p>
+        <table className="min-w-full bg-surface text-sm text-content">
+          <tbody>
             <tr>
               <td className="pl-0">
                 <p>Metadata Matching</p>
