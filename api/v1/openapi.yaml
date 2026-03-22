@@ -626,8 +626,9 @@ components:
 
   securitySchemes:
     BearerAuth:
-      type: http
-      scheme: bearer
+      type: apiKey
+      in: cookie
+      name: token
 
 paths:
   /documents:
@@ -1174,6 +1175,11 @@ paths:
       responses:
         200:
           description: Successful login
+          headers:
+            Set-Cookie:
+              description: HttpOnly session cookie for authenticated requests.
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -1212,6 +1218,11 @@ paths:
       responses:
         201:
           description: Successful registration
+          headers:
+            Set-Cookie:
+              description: HttpOnly session cookie for authenticated requests.
+              schema:
+                type: string
           content:
             application/json:
               schema:

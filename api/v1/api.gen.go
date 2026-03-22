@@ -2031,13 +2031,21 @@ type LoginResponseObject interface {
 	VisitLoginResponse(w http.ResponseWriter) error
 }
 
-type Login200JSONResponse LoginResponse
+type Login200ResponseHeaders struct {
+	SetCookie string
+}
+
+type Login200JSONResponse struct {
+	Body    LoginResponse
+	Headers Login200ResponseHeaders
+}
 
 func (response Login200JSONResponse) VisitLoginResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Set-Cookie", fmt.Sprint(response.Headers.SetCookie))
 	w.WriteHeader(200)
 
-	return json.NewEncoder(w).Encode(response)
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type Login400JSONResponse ErrorResponse
@@ -2124,13 +2132,21 @@ type RegisterResponseObject interface {
 	VisitRegisterResponse(w http.ResponseWriter) error
 }
 
-type Register201JSONResponse LoginResponse
+type Register201ResponseHeaders struct {
+	SetCookie string
+}
+
+type Register201JSONResponse struct {
+	Body    LoginResponse
+	Headers Register201ResponseHeaders
+}
 
 func (response Register201JSONResponse) VisitRegisterResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Set-Cookie", fmt.Sprint(response.Headers.SetCookie))
 	w.WriteHeader(201)
 
-	return json.NewEncoder(w).Encode(response)
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type Register400JSONResponse ErrorResponse

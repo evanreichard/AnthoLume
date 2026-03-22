@@ -41,8 +41,13 @@ func (s *Server) Login(ctx context.Context, request LoginRequestObject) (LoginRe
 	}
 
 	return Login200JSONResponse{
-		Username: user.ID,
-		IsAdmin:  user.Admin,
+		Body: LoginResponse{
+			Username: user.ID,
+			IsAdmin:  user.Admin,
+		},
+		Headers: Login200ResponseHeaders{
+			SetCookie: s.getSetCookieFromContext(ctx),
+		},
 	}, nil
 }
 
@@ -81,8 +86,13 @@ func (s *Server) Register(ctx context.Context, request RegisterRequestObject) (R
 	}
 
 	return Register201JSONResponse{
-		Username: user.ID,
-		IsAdmin:  user.Admin,
+		Body: LoginResponse{
+			Username: user.ID,
+			IsAdmin:  user.Admin,
+		},
+		Headers: Register201ResponseHeaders{
+			SetCookie: s.getSetCookieFromContext(ctx),
+		},
 	}, nil
 }
 
@@ -205,6 +215,14 @@ func (s *Server) getResponseWriterFromContext(ctx context.Context) http.Response
 		return nil
 	}
 	return w
+}
+
+func (s *Server) getSetCookieFromContext(ctx context.Context) string {
+	w := s.getResponseWriterFromContext(ctx)
+	if w == nil {
+		return ""
+	}
+	return w.Header().Get("Set-Cookie")
 }
 
 // getSession retrieves auth data from the session cookie

@@ -66,6 +66,13 @@ func (suite *AuthTestSuite) createTestUser(username, password string) {
 	suite.Require().NoError(err)
 }
 
+func (suite *AuthTestSuite) assertSessionCookie(cookie *http.Cookie) {
+	suite.Require().NotNil(cookie)
+	suite.Equal("token", cookie.Name)
+	suite.NotEmpty(cookie.Value)
+	suite.True(cookie.HttpOnly)
+}
+
 func (suite *AuthTestSuite) login(username, password string) *http.Cookie {
 	reqBody := LoginRequest{
 		Username: username,
@@ -86,6 +93,7 @@ func (suite *AuthTestSuite) login(username, password string) *http.Cookie {
 
 	cookies := w.Result().Cookies()
 	suite.Require().Len(cookies, 1, "should have session cookie")
+	suite.assertSessionCookie(cookies[0])
 
 	return cookies[0]
 }
@@ -109,6 +117,10 @@ func (suite *AuthTestSuite) TestAPILogin() {
 	var resp LoginResponse
 	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &resp))
 	suite.Equal("testuser", resp.Username)
+
+	cookies := w.Result().Cookies()
+	suite.Require().Len(cookies, 1)
+	suite.assertSessionCookie(cookies[0])
 }
 
 func (suite *AuthTestSuite) TestAPILoginInvalidCredentials() {
@@ -146,7 +158,8 @@ func (suite *AuthTestSuite) TestAPIRegister() {
 	suite.True(resp.IsAdmin, "first registered user should mirror legacy admin bootstrap behavior")
 
 	cookies := w.Result().Cookies()
-	suite.Require().NotEmpty(cookies, "register should set a session cookie")
+	suite.Require().Len(cookies, 1, "register should set a session cookie")
+	suite.assertSessionCookie(cookies[0])
 
 	user, err := suite.db.Queries.GetUser(suite.T().Context(), "newuser")
 	suite.Require().NoError(err)
@@ -182,6 +195,10 @@ func (suite *AuthTestSuite) TestAPILogout() {
 	suite.srv.ServeHTTP(w, req)
 
 	suite.Equal(http.StatusOK, w.Code)
+
+	cookies := w.Result().Cookies()
+	suite.Require().Len(cookies, 1)
+	suite.Equal("token", cookies[0].Name)
 }
 
 func (suite *AuthTestSuite) TestAPIGetMe() {

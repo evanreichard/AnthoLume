@@ -24,6 +24,9 @@ Regenerate:
 - `go generate ./api/v1/generate.go`
 - `cd frontend && bun run generate:api`
 
+Notes:
+- If you add response headers in `api/v1/openapi.yaml` (for example `Set-Cookie`), `oapi-codegen` will generate typed response header structs in `api/v1/api.gen.go`; update the handler response values to populate those headers explicitly.
+
 Examples of generated files:
 - `api/v1/api.gen.go`
 - `frontend/src/generated/**/*.ts`
