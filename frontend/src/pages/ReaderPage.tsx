@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useGetDocument, useGetProgress } from '../generated/anthoLumeAPIV1';
 import { LoadingState } from '../components/LoadingState';
@@ -22,7 +22,7 @@ const fontFamilies: ReaderFontFamily[] = ['Serif', 'Open Sans', 'Arbutus Slab', 
 export default function ReaderPage() {
   const { id } = useParams<{ id: string }>();
   const [isTopBarOpen, setIsTopBarOpen] = useState(false);
-  const [isBottomBarOpen, setIsBottomBarOpen] = useState(true);
+  const [isBottomBarOpen, setIsBottomBarOpen] = useState(false);
   const [colorScheme, setColorSchemeState] = useState<ReaderColorScheme>(getReaderColorScheme());
   const [fontFamily, setFontFamilyState] = useState<ReaderFontFamily>(getReaderFontFamily());
   const [fontSize, setFontSizeState] = useState<number>(getReaderFontSize());
@@ -41,6 +41,31 @@ export default function ReaderPage() {
   const deviceId = defaultDeviceId;
   const deviceName = defaultDeviceName;
 
+  const handleSwipeDown = useCallback(() => {
+    if (isBottomBarOpen) {
+      setIsBottomBarOpen(false);
+      return;
+    }
+    if (!isTopBarOpen) {
+      setIsTopBarOpen(true);
+    }
+  }, [isBottomBarOpen, isTopBarOpen]);
+
+  const handleSwipeUp = useCallback(() => {
+    if (isTopBarOpen) {
+      setIsTopBarOpen(false);
+      return;
+    }
+    if (!isBottomBarOpen) {
+      setIsBottomBarOpen(true);
+    }
+  }, [isBottomBarOpen, isTopBarOpen]);
+
+  const handleCenterTap = useCallback(() => {
+    setIsTopBarOpen(false);
+    setIsBottomBarOpen(false);
+  }, []);
+
   const reader = useEpubReader({
     documentId: id || '',
     initialProgress: progress?.progress,
@@ -49,6 +74,10 @@ export default function ReaderPage() {
     colorScheme,
     fontFamily,
     fontSize,
+    isPaginationDisabled: useCallback(() => isTopBarOpen || isBottomBarOpen, [isTopBarOpen, isBottomBarOpen]),
+    onSwipeDown: handleSwipeDown,
+    onSwipeUp: handleSwipeUp,
+    onCenterTap: handleCenterTap,
   });
 
   useEffect(() => {
@@ -60,6 +89,17 @@ export default function ReaderPage() {
   useEffect(() => {
     reader.setTheme({ colorScheme, fontFamily, fontSize });
   }, [colorScheme, fontFamily, fontSize, reader.setTheme]);
+
+  useEffect(() => {
+    if (isTopBarOpen || isBottomBarOpen) {
+      return;
+    }
+
+    const activeElement = window.document.activeElement;
+    if (activeElement instanceof HTMLElement) {
+      activeElement.blur();
+    }
+  }, [isBottomBarOpen, isTopBarOpen]);
 
   if (isDocumentLoading || isProgressLoading) {
     return <LoadingState className="min-h-screen bg-canvas" message="Loading reader..." />;
@@ -77,7 +117,7 @@ export default function ReaderPage() {
             isTopBarOpen ? 'translate-y-0' : '-translate-y-full'
           }`}
         >
-          <div className="mx-auto flex max-h-[70vh] w-full max-w-6xl flex-col gap-4 overflow-auto p-4">
+          <div className="mx-auto flex max-h-[70vh] min-h-0 w-full max-w-6xl flex-col gap-4 p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="flex min-w-0 items-start gap-4">
                 <Link to={`/documents/${document.id}`} className="block shrink-0">
@@ -113,7 +153,7 @@ export default function ReaderPage() {
               </div>
             </div>
 
-            <div className="grid gap-2 pb-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid min-h-0 flex-1 auto-rows-min gap-2 overflow-y-auto pb-2 sm:grid-cols-2 lg:grid-cols-3">
               {reader.toc.map(item => (
                 <button
                   key={`${item.href}-${item.title}`}
@@ -129,23 +169,6 @@ export default function ReaderPage() {
               ))}
             </div>
           </div>
-        </div>
-
-        <div className="absolute left-4 top-4 z-10 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setIsTopBarOpen(open => !open)}
-            className="rounded bg-surface/90 px-3 py-2 text-sm font-medium text-content shadow backdrop-blur hover:bg-surface"
-          >
-            Contents
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsBottomBarOpen(open => !open)}
-            className="rounded bg-surface/90 px-3 py-2 text-sm font-medium text-content shadow backdrop-blur hover:bg-surface"
-          >
-            Controls
-          </button>
         </div>
 
         <div className="absolute inset-0 pt-[env(safe-area-inset-top)]">
@@ -169,8 +192,8 @@ export default function ReaderPage() {
             isBottomBarOpen ? 'translate-y-0' : 'translate-y-full'
           }`}
         >
-          <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-content-muted">
+          <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-3 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-content-muted sm:text-sm">
               <div>
                 <span className="text-content-subtle">Chapter:</span> {reader.stats.chapterName}
               </div>
@@ -184,17 +207,17 @@ export default function ReaderPage() {
               </div>
             </div>
 
-            <div className="h-2 overflow-hidden rounded-full bg-surface-strong">
+            <div className="h-1.5 overflow-hidden rounded-full bg-surface-strong">
               <div
                 className="h-full bg-tertiary-500 transition-all"
                 style={{ width: `${reader.stats.percentage}%` }}
               />
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_auto]">
-              <div>
-                <p className="mb-2 text-xs uppercase tracking-wide text-content-subtle">Theme</p>
-                <div className="flex flex-wrap gap-2">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_auto] lg:items-start">
+              <div className="min-w-0">
+                <p className="mb-1 text-[10px] uppercase tracking-wide text-content-subtle">Theme</p>
+                <div className="grid w-full grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
                   {colorSchemes.map(option => (
                     <button
                       key={option}
@@ -203,7 +226,7 @@ export default function ReaderPage() {
                         setColorSchemeState(option);
                         setReaderColorScheme(option);
                       }}
-                      className={`rounded border px-3 py-2 text-sm capitalize ${
+                      className={`rounded border px-2 py-1.5 text-xs capitalize sm:text-sm ${
                         colorScheme === option
                           ? 'border-primary-500 bg-primary-500/10 text-content'
                           : 'border-border text-content-muted hover:bg-surface-muted hover:text-content'
@@ -215,9 +238,9 @@ export default function ReaderPage() {
                 </div>
               </div>
 
-              <div>
-                <p className="mb-2 text-xs uppercase tracking-wide text-content-subtle">Font</p>
-                <div className="flex flex-wrap gap-2">
+              <div className="min-w-0">
+                <p className="mb-1 text-[10px] uppercase tracking-wide text-content-subtle">Font</p>
+                <div className="grid w-full grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
                   {fontFamilies.map(option => (
                     <button
                       key={option}
@@ -226,7 +249,7 @@ export default function ReaderPage() {
                         setFontFamilyState(option);
                         setReaderFontFamily(option);
                       }}
-                      className={`rounded border px-3 py-2 text-sm ${
+                      className={`rounded border px-2 py-1.5 text-xs sm:text-sm ${
                         fontFamily === option
                           ? 'border-primary-500 bg-primary-500/10 text-content'
                           : 'border-border text-content-muted hover:bg-surface-muted hover:text-content'
@@ -239,10 +262,10 @@ export default function ReaderPage() {
               </div>
 
               <div>
-                <p className="mb-2 text-xs uppercase tracking-wide text-content-subtle">
+                <p className="mb-1 text-[10px] uppercase tracking-wide text-content-subtle">
                   Font Size
                 </p>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 lg:justify-end">
                   <button
                     type="button"
                     onClick={() => {
@@ -250,11 +273,11 @@ export default function ReaderPage() {
                       setFontSizeState(nextSize);
                       setReaderFontSize(nextSize);
                     }}
-                    className="rounded border border-border px-3 py-2 text-content-muted hover:bg-surface-muted hover:text-content"
+                    className="rounded border border-border px-2.5 py-1.5 text-sm text-content-muted hover:bg-surface-muted hover:text-content"
                   >
                     -
                   </button>
-                  <div className="min-w-16 text-center text-sm text-content">
+                  <div className="min-w-12 text-center text-xs text-content sm:text-sm">
                     {fontSize.toFixed(1)}x
                   </div>
                   <button
@@ -264,30 +287,11 @@ export default function ReaderPage() {
                       setFontSizeState(nextSize);
                       setReaderFontSize(nextSize);
                     }}
-                    className="rounded border border-border px-3 py-2 text-content-muted hover:bg-surface-muted hover:text-content"
+                    className="rounded border border-border px-2.5 py-1.5 text-sm text-content-muted hover:bg-surface-muted hover:text-content"
                   >
                     +
                   </button>
                 </div>
-              </div>
-
-              <div className="flex items-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => void reader.prevPage()}
-                  disabled={!reader.isReady}
-                  className="rounded bg-secondary-700 px-4 py-2 text-sm font-medium text-white hover:bg-secondary-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void reader.nextPage()}
-                  disabled={!reader.isReady}
-                  className="rounded bg-secondary-700 px-4 py-2 text-sm font-medium text-white hover:bg-secondary-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Next
-                </button>
               </div>
             </div>
           </div>

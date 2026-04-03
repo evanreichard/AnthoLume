@@ -1,5 +1,7 @@
 import ePub from 'epubjs';
 import NoSleep from 'nosleep.js';
+import type { CreateActivityRequest } from '../../generated/model/createActivityRequest';
+import type { UpdateProgressRequest } from '../../generated/model/updateProgressRequest';
 import type { ReaderColorScheme, ReaderFontFamily } from '../../utils/localSettings';
 
 const THEMES: ReaderColorScheme[] = ['light', 'tan', 'blue', 'gray', 'black'];
@@ -139,6 +141,7 @@ interface ReaderSettings {
 
 interface EBookReaderOptions {
   container: HTMLElement;
+  bookUrl: string;
   documentId: string;
   initialProgress?: string;
   deviceId: string;
@@ -151,10 +154,17 @@ interface EBookReaderOptions {
   onError: (_message: string) => void;
   onStats: (_stats: ReaderStats) => void;
   onToc: (_toc: ReaderTocItem[]) => void;
+  onSaveProgress: (_payload: UpdateProgressRequest) => Promise<void>;
+  onCreateActivity: (_payload: CreateActivityRequest) => Promise<void>;
+  isPaginationDisabled: () => boolean;
+  onSwipeDown: () => void;
+  onSwipeUp: () => void;
+  onCenterTap: () => void;
 }
 
 export class EBookReader {
   private container: HTMLElement;
+  private bookUrl: string;
   private documentId: string;
   private deviceId: string;
   private deviceName: string;
@@ -170,10 +180,18 @@ export class EBookReader {
   private onError: (_message: string) => void;
   private onStats: (_stats: ReaderStats) => void;
   private onToc: (_toc: ReaderTocItem[]) => void;
+  private onSaveProgress: (_payload: UpdateProgressRequest) => Promise<void>;
+  private onCreateActivity: (_payload: CreateActivityRequest) => Promise<void>;
+  private isPaginationDisabled: () => boolean;
+  private onSwipeDown: () => void;
+  private onSwipeUp: () => void;
+  private onCenterTap: () => void;
   private keyupHandler: ((event: KeyboardEvent) => void) | null = null;
+  private wheelTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: EBookReaderOptions) {
     this.container = options.container;
+    this.bookUrl = options.bookUrl;
     this.documentId = options.documentId;
     this.deviceId = options.deviceId;
     this.deviceName = options.deviceName;
@@ -182,6 +200,12 @@ export class EBookReader {
     this.onError = options.onError;
     this.onStats = options.onStats;
     this.onToc = options.onToc;
+    this.onSaveProgress = options.onSaveProgress;
+    this.onCreateActivity = options.onCreateActivity;
+    this.isPaginationDisabled = options.isPaginationDisabled;
+    this.onSwipeDown = options.onSwipeDown;
+    this.onSwipeUp = options.onSwipeUp;
+    this.onCenterTap = options.onCenterTap;
 
     this.bookState = {
       pages: 0,
@@ -201,7 +225,7 @@ export class EBookReader {
     };
 
     this.onLoading(true);
-    this.book = ePub(`/api/v1/documents/${this.documentId}/file`, { openAs: 'epub' }) as EpubBook;
+    this.book = ePub(this.bookUrl, { openAs: 'epub' }) as EpubBook;
     this.rendition = this.book.renderTo(this.container, {
       manager: 'default',
       flow: 'paginated',
@@ -216,15 +240,13 @@ export class EBookReader {
     this.initViewerListeners();
     this.initDocumentListeners();
 
-    this.book.ready
-      .then(this.setupReader.bind(this))
-      .catch(error => {
-        if (this.destroyed) {
-          return;
-        }
-        this.onError(error instanceof Error ? error.message : 'Unable to initialize reader');
-        this.onLoading(false);
-      });
+    this.book.ready.then(this.setupReader.bind(this)).catch(error => {
+      if (this.destroyed) {
+        return;
+      }
+      this.onError(error instanceof Error ? error.message : 'Unable to initialize reader');
+      this.onLoading(false);
+    });
   }
 
   private loadSettings() {
@@ -246,9 +268,12 @@ export class EBookReader {
     if (this.wakeTimeoutId) {
       clearTimeout(this.wakeTimeoutId);
     }
-    this.wakeTimeoutId = setTimeout(() => {
-      void this.noSleep?.disable();
-    }, 1000 * 60 * 10);
+    this.wakeTimeoutId = setTimeout(
+      () => {
+        void this.noSleep?.disable();
+      },
+      1000 * 60 * 10
+    );
 
     void this.noSleep.enable();
   };
@@ -277,7 +302,9 @@ export class EBookReader {
       this.rendition.getContents().forEach(content => {
         const existing = content.document.getElementById('reader-fonts');
         if (!existing) {
-          const nextLink = content.document.head.appendChild(content.document.createElement('link'));
+          const nextLink = content.document.head.appendChild(
+            content.document.createElement('link')
+          );
           nextLink.id = 'reader-fonts';
           nextLink.rel = 'stylesheet';
           nextLink.href = FONT_FILE;
@@ -312,6 +339,41 @@ export class EBookReader {
     const nextPage = this.nextPage.bind(this);
     const prevPage = this.prevPage.bind(this);
 
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchEndX = 0;
+    let touchEndY = 0;
+
+    const handleSwipeDown = () => {
+      this.resetWheelCooldown();
+      this.onSwipeDown();
+    };
+
+    const handleSwipeUp = () => {
+      this.resetWheelCooldown();
+      this.onSwipeUp();
+    };
+
+    const handleGesture = () => {
+      const drasticity = 50;
+
+      if (touchEndY - drasticity > touchStartY) {
+        return handleSwipeDown();
+      }
+
+      if (touchEndY + drasticity < touchStartY) {
+        return handleSwipeUp();
+      }
+
+      if (!this.isPaginationDisabled() && touchEndX + drasticity < touchStartX) {
+        void nextPage();
+      }
+
+      if (!this.isPaginationDisabled() && touchEndX - drasticity > touchStartX) {
+        void prevPage();
+      }
+    };
+
     this.rendition.hooks.render.register((contents: EpubContents) => {
       const renderDoc = contents.document;
 
@@ -335,16 +397,63 @@ export class EBookReader {
         const yCoord = event.clientY;
         const xCoord = event.clientX - leftOffset;
 
-        if (yCoord < top || yCoord > bottom) {
-          return;
-        }
-        if (xCoord < left) {
+        if (yCoord < top) {
+          handleSwipeDown();
+        } else if (yCoord > bottom) {
+          handleSwipeUp();
+        } else if (!this.isPaginationDisabled() && xCoord < left) {
           void prevPage();
-        } else if (xCoord > right) {
+        } else if (!this.isPaginationDisabled() && xCoord > right) {
           void nextPage();
+        } else {
+          this.onCenterTap();
         }
       });
+
+      renderDoc.addEventListener('wheel', (event: WheelEvent) => {
+        if (this.wheelTimeoutId) {
+          return;
+        }
+
+        if (event.deltaY > 25) {
+          handleSwipeUp();
+          return;
+        }
+        if (event.deltaY < -25) {
+          handleSwipeDown();
+        }
+      });
+
+      renderDoc.addEventListener(
+        'touchstart',
+        (event: TouchEvent) => {
+          touchStartX = event.changedTouches[0]?.screenX ?? 0;
+          touchStartY = event.changedTouches[0]?.screenY ?? 0;
+        },
+        false
+      );
+
+      renderDoc.addEventListener(
+        'touchend',
+        (event: TouchEvent) => {
+          touchEndX = event.changedTouches[0]?.screenX ?? 0;
+          touchEndY = event.changedTouches[0]?.screenY ?? 0;
+          handleGesture();
+        },
+        false
+      );
     });
+  }
+
+  private resetWheelCooldown() {
+    if (this.wheelTimeoutId) {
+      clearTimeout(this.wheelTimeoutId);
+      this.wheelTimeoutId = null;
+    }
+
+    this.wheelTimeoutId = setTimeout(() => {
+      this.wheelTimeoutId = null;
+    }, 400);
   }
 
   private initDocumentListeners() {
@@ -411,11 +520,7 @@ export class EBookReader {
     }, []);
   }
 
-  setTheme(newTheme?: {
-    colorScheme?: ReaderColorScheme;
-    fontFamily?: string;
-    fontSize?: number;
-  }) {
+  setTheme(newTheme?: { colorScheme?: ReaderColorScheme; fontFamily?: string; fontSize?: number }) {
     this.readerSettings.theme =
       typeof this.readerSettings.theme === 'object' && this.readerSettings.theme !== null
         ? this.readerSettings.theme
@@ -468,7 +573,9 @@ export class EBookReader {
       });
     });
 
-    const backgroundColor = getComputedStyle(this.bookState.progressElement.ownerDocument.body).backgroundColor;
+    const backgroundColor = getComputedStyle(
+      this.bookState.progressElement.ownerDocument.body
+    ).backgroundColor;
 
     Object.assign((this.bookState.progressElement as HTMLElement).style, {
       background: backgroundColor,
@@ -478,7 +585,12 @@ export class EBookReader {
   }
 
   async nextPage() {
-    await this.createActivity();
+    try {
+      await this.createActivity();
+    } catch (error) {
+      this.onError(error instanceof Error ? error.message : 'Unable to save reader activity');
+    }
+
     await this.rendition.next();
     this.bookState.pageStart = Date.now();
     const stats = await this.getBookStats();
@@ -541,30 +653,35 @@ export class EBookReader {
       elapsedTime = (pageWords / WPM_MIN) * 60000;
     }
 
+    if (!Number.isFinite(percentRead) || percentRead <= 0 || this.bookState.words <= 0) {
+      return;
+    }
+
     const totalPages = Math.round(1 / percentRead);
-    if (totalPages === 0) {
+    if (!Number.isFinite(totalPages) || totalPages <= 0) {
       return;
     }
 
     const currentPage = Math.round((currentWord * totalPages) / this.bookState.words);
+    if (!Number.isFinite(currentPage) || currentPage < 0) {
+      return;
+    }
 
-    await fetch('/api/v1/activity', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        device_id: this.deviceId,
-        device_name: this.deviceName,
-        activity: [
-          {
-            document_id: this.documentId,
-            duration: Math.round(elapsedTime / 1000),
-            start_time: Math.round(pageStart / 1000),
-            page: currentPage,
-            pages: totalPages,
-          },
-        ],
-      }),
-    });
+    const payload: CreateActivityRequest = {
+      device_id: this.deviceId,
+      device_name: this.deviceName,
+      activity: [
+        {
+          document_id: this.documentId,
+          duration: Math.round(elapsedTime / 1000),
+          start_time: Math.round(pageStart / 1000),
+          page: currentPage,
+          pages: totalPages,
+        },
+      ],
+    };
+
+    await this.onCreateActivity(payload);
   }
 
   async createProgress() {
@@ -580,17 +697,19 @@ export class EBookReader {
         : 0;
     this.bookState.percentage = Math.round(percentage * 10000) / 100;
 
-    await fetch('/api/v1/progress', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        document_id: this.documentId,
-        device_id: this.deviceId,
-        device_name: this.deviceName,
-        percentage,
-        progress: this.bookState.progress,
-      }),
-    });
+    const payload: UpdateProgressRequest = {
+      document_id: this.documentId,
+      device_id: this.deviceId,
+      device_name: this.deviceName,
+      percentage,
+      progress: this.bookState.progress,
+    };
+
+    try {
+      await this.onSaveProgress(payload);
+    } catch (error) {
+      this.onError(error instanceof Error ? error.message : 'Unable to save reader progress');
+    }
   }
 
   sectionProgress() {
@@ -626,7 +745,9 @@ export class EBookReader {
 
     const currentLocation = await this.rendition.currentLocation();
     const currentWord = await this.getBookWordPosition();
-    const currentTOC = this.book.navigation?.toc?.find(item => item.href === currentLocation.start.href);
+    const currentTOC = this.book.navigation?.toc?.find(
+      item => item.href === currentLocation.start.href
+    );
 
     return {
       sectionPage: currentProgress.sectionCurrentPage,
@@ -720,37 +841,36 @@ export class EBookReader {
     const derivedSelectorElement = remainingXPath
       .replace(/^\/html\/body/, 'body')
       .split('/')
-      .reduce((element: ParentNode | null, item: string) => {
-        if (!element) {
-          return null;
-        }
+      .reduce(
+        (element: ParentNode | null, item: string) => {
+          if (!element) {
+            return null;
+          }
 
-        const indexMatch = item.match(/(\w+)\[(\d+)\]$/);
-        if (!indexMatch) {
-          return element.querySelector(item);
-        }
+          const indexMatch = item.match(/(\w+)\[(\d+)\]$/);
+          if (!indexMatch) {
+            return element.querySelector(item);
+          }
 
-        const [, tag, rawIndex] = indexMatch;
-        if (!tag || !rawIndex) {
-          return null;
-        }
-        return element.querySelectorAll(tag)[Number.parseInt(rawIndex, 10) - 1] ?? null;
-      }, docItem as ParentNode | null);
+          const [, tag, rawIndex] = indexMatch;
+          if (!tag || !rawIndex) {
+            return null;
+          }
+          return element.querySelectorAll(tag)[Number.parseInt(rawIndex, 10) - 1] ?? null;
+        },
+        docItem as ParentNode | null
+      );
 
     if (namespaceURI) {
       remainingXPath = remainingXPath.split('/').join('/ns:');
     }
 
-    const docSearch = docItem.evaluate(
-      remainingXPath,
-      docItem,
-      prefix => {
-        if (prefix === 'ns') {
-          return namespaceURI;
-        }
-        return null;
+    const docSearch = docItem.evaluate(remainingXPath, docItem, prefix => {
+      if (prefix === 'ns') {
+        return namespaceURI;
       }
-    );
+      return null;
+    });
 
     const xpathElement = docSearch.iterateNext();
     const element = xpathElement || derivedSelectorElement;
@@ -771,7 +891,7 @@ export class EBookReader {
 
   async getVisibleWordCount() {
     const visibleText = await this.getVisibleText();
-    return visibleText.trim().split(/\s+/).filter(Boolean).length;
+    return visibleText.trim().split(/\s+/).length;
   }
 
   async getBookWordPosition() {
@@ -791,7 +911,7 @@ export class EBookReader {
     const cfiRange = this.getCFIRange(firstCFI, currentLocation.start.cfi);
     const textRange = await this.book.getRange(cfiRange);
     const chapterText = textRange.toString();
-    const chapterWordPosition = chapterText.trim().split(/\s+/).filter(Boolean).length;
+    const chapterWordPosition = chapterText.trim().split(/\s+/).length;
     const preChapterWordPosition = this.book.spine.spineItems
       .slice(0, contents.sectionIndex ?? 0)
       .reduce((totalCount, item) => totalCount + (item.wordCount ?? 0), 0);
@@ -853,8 +973,7 @@ export class EBookReader {
         const newDoc = await item.load(this.book.load.bind(this.book));
         const spineWords = ((newDoc as unknown as HTMLElement).innerText || '')
           .trim()
-          .split(/\s+/)
-          .filter(Boolean).length;
+          .split(/\s+/).length;
         item.wordCount = spineWords;
         return spineWords;
       })
@@ -871,6 +990,9 @@ export class EBookReader {
     document.removeEventListener('wakelock', this.handleWakeLock);
     if (this.wakeTimeoutId) {
       clearTimeout(this.wakeTimeoutId);
+    }
+    if (this.wheelTimeoutId) {
+      clearTimeout(this.wheelTimeoutId);
     }
     void this.noSleep?.disable();
     this.rendition.destroy?.();
