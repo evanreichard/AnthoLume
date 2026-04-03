@@ -125,7 +125,7 @@ export default function DocumentPage() {
 
           {document.filepath && (
             <a
-              href={`/reader#id=${document.id}&type=REMOTE`}
+              href={`/reader/${document.id}`}
               className="z-10 mt-2 w-full rounded bg-secondary-700 py-1 text-center text-sm font-medium text-white hover:bg-secondary-800 focus:outline-none focus:ring-4 focus:ring-secondary-300 dark:bg-secondary-600 dark:hover:bg-secondary-700"
             >
               Read

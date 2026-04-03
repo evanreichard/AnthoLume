@@ -14,6 +14,7 @@ import AdminImportPage from './pages/AdminImportPage';
 import AdminImportResultsPage from './pages/AdminImportResultsPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminLogsPage from './pages/AdminLogsPage';
+import ReaderPage from './pages/ReaderPage';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 
 export function Routes() {
@@ -118,6 +119,14 @@ export function Routes() {
           }
         />
       </Route>
+      <Route
+        path="/reader/:id"
+        element={
+          <ProtectedRoute>
+            <ReaderPage />
+          </ProtectedRoute>
+        }
+      />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
     </ReactRoutes>
