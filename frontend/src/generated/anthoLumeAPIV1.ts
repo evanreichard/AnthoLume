@@ -26,6 +26,8 @@ import type {
 
 import type {
   ActivityResponse,
+  CreateActivityRequest,
+  CreateActivityResponse,
   CreateDocumentBody,
   DirectoryListResponse,
   DocumentResponse,
@@ -55,6 +57,8 @@ import type {
   SearchResponse,
   SettingsResponse,
   StreaksResponse,
+  UpdateProgressRequest,
+  UpdateProgressResponse,
   UpdateSettingsRequest,
   UpdateUserBody,
   UploadDocumentCoverBody,
@@ -1080,6 +1084,112 @@ export function useGetProgressList<TData = Awaited<ReturnType<typeof getProgress
 
 
 /**
+ * @summary Update document progress
+ */
+export type updateProgressResponse200 = {
+  data: UpdateProgressResponse
+  status: 200
+}
+
+export type updateProgressResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updateProgressResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type updateProgressResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updateProgressResponseSuccess = (updateProgressResponse200) & {
+  headers: Headers;
+};
+export type updateProgressResponseError = (updateProgressResponse400 | updateProgressResponse401 | updateProgressResponse500) & {
+  headers: Headers;
+};
+
+export type updateProgressResponse = (updateProgressResponseSuccess | updateProgressResponseError)
+
+export const getUpdateProgressUrl = () => {
+
+
+  
+
+  return `/api/v1/progress`
+}
+
+export const updateProgress = async (updateProgressRequest: UpdateProgressRequest, options?: RequestInit): Promise<updateProgressResponse> => {
+  
+  const res = await fetch(getUpdateProgressUrl(),
+  {      
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateProgressRequest,)
+  }
+)
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  
+  const data: updateProgressResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as updateProgressResponse
+}
+  
+
+
+
+export const getUpdateProgressMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateProgress>>, TError,{data: UpdateProgressRequest}, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof updateProgress>>, TError,{data: UpdateProgressRequest}, TContext> => {
+
+const mutationKey = ['updateProgress'];
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateProgress>>, {data: UpdateProgressRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateProgress(data,fetchOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateProgressMutationResult = NonNullable<Awaited<ReturnType<typeof updateProgress>>>
+    export type UpdateProgressMutationBody = UpdateProgressRequest
+    export type UpdateProgressMutationError = ErrorResponse
+
+    /**
+ * @summary Update document progress
+ */
+export const useUpdateProgress = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateProgress>>, TError,{data: UpdateProgressRequest}, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateProgress>>,
+        TError,
+        {data: UpdateProgressRequest},
+        TContext
+      > => {
+      return useMutation(getUpdateProgressMutationOptions(options), queryClient);
+    }
+    
+/**
  * @summary Get document progress
  */
 export type getProgressResponse200 = {
@@ -1349,6 +1459,112 @@ export function useGetActivity<TData = Awaited<ReturnType<typeof getActivity>>, 
 
 
 
+/**
+ * @summary Create activity records
+ */
+export type createActivityResponse200 = {
+  data: CreateActivityResponse
+  status: 200
+}
+
+export type createActivityResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type createActivityResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type createActivityResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type createActivityResponseSuccess = (createActivityResponse200) & {
+  headers: Headers;
+};
+export type createActivityResponseError = (createActivityResponse400 | createActivityResponse401 | createActivityResponse500) & {
+  headers: Headers;
+};
+
+export type createActivityResponse = (createActivityResponseSuccess | createActivityResponseError)
+
+export const getCreateActivityUrl = () => {
+
+
+  
+
+  return `/api/v1/activity`
+}
+
+export const createActivity = async (createActivityRequest: CreateActivityRequest, options?: RequestInit): Promise<createActivityResponse> => {
+  
+  const res = await fetch(getCreateActivityUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      createActivityRequest,)
+  }
+)
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  
+  const data: createActivityResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as createActivityResponse
+}
+  
+
+
+
+export const getCreateActivityMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createActivity>>, TError,{data: CreateActivityRequest}, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof createActivity>>, TError,{data: CreateActivityRequest}, TContext> => {
+
+const mutationKey = ['createActivity'];
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createActivity>>, {data: CreateActivityRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createActivity(data,fetchOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateActivityMutationResult = NonNullable<Awaited<ReturnType<typeof createActivity>>>
+    export type CreateActivityMutationBody = CreateActivityRequest
+    export type CreateActivityMutationError = ErrorResponse
+
+    /**
+ * @summary Create activity records
+ */
+export const useCreateActivity = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createActivity>>, TError,{data: CreateActivityRequest}, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createActivity>>,
+        TError,
+        {data: CreateActivityRequest},
+        TContext
+      > => {
+      return useMutation(getCreateActivityMutationOptions(options), queryClient);
+    }
+    
 /**
  * @summary Get user settings
  */

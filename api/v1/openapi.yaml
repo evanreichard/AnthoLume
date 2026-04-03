@@ -92,9 +92,13 @@ components:
           type: string
         device_name:
           type: string
+        device_id:
+          type: string
         percentage:
           type: number
           format: double
+        progress:
+          type: string
         document_id:
           type: string
         user_id:
@@ -102,6 +106,88 @@ components:
         created_at:
           type: string
           format: date-time
+
+    UpdateProgressRequest:
+      type: object
+      properties:
+        document_id:
+          type: string
+        percentage:
+          type: number
+          format: double
+        progress:
+          type: string
+        device_id:
+          type: string
+        device_name:
+          type: string
+      required:
+        - document_id
+        - percentage
+        - progress
+        - device_id
+        - device_name
+
+    UpdateProgressResponse:
+      type: object
+      properties:
+        document_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - document_id
+        - timestamp
+
+    CreateActivityItem:
+      type: object
+      properties:
+        document_id:
+          type: string
+        start_time:
+          type: integer
+          format: int64
+        duration:
+          type: integer
+          format: int64
+        page:
+          type: integer
+          format: int64
+        pages:
+          type: integer
+          format: int64
+      required:
+        - document_id
+        - start_time
+        - duration
+        - page
+        - pages
+
+    CreateActivityRequest:
+      type: object
+      properties:
+        device_id:
+          type: string
+        device_name:
+          type: string
+        activity:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateActivityItem'
+      required:
+        - device_id
+        - device_name
+        - activity
+
+    CreateActivityResponse:
+      type: object
+      properties:
+        added:
+          type: integer
+          format: int64
+      required:
+        - added
 
     Activity:
       type: object
@@ -1003,6 +1089,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Update document progress
+      operationId: updateProgress
+      tags:
+        - Progress
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProgressRequest'
+      responses:
+        200:
+          description: Progress updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateProgressResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /progress/{id}:
     get:
@@ -1081,6 +1205,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ActivityResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create activity records
+      operationId: createActivity
+      tags:
+        - Activity
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateActivityRequest'
+      responses:
+        200:
+          description: Activity created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateActivityResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         401:
           description: Unauthorized
           content:

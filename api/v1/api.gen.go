@@ -164,6 +164,27 @@ type ActivityResponse struct {
 // BackupType defines model for BackupType.
 type BackupType string
 
+// CreateActivityItem defines model for CreateActivityItem.
+type CreateActivityItem struct {
+	DocumentId string `json:"document_id"`
+	Duration   int64  `json:"duration"`
+	Page       int64  `json:"page"`
+	Pages      int64  `json:"pages"`
+	StartTime  int64  `json:"start_time"`
+}
+
+// CreateActivityRequest defines model for CreateActivityRequest.
+type CreateActivityRequest struct {
+	Activity   []CreateActivityItem `json:"activity"`
+	DeviceId   string               `json:"device_id"`
+	DeviceName string               `json:"device_name"`
+}
+
+// CreateActivityResponse defines model for CreateActivityResponse.
+type CreateActivityResponse struct {
+	Added int64 `json:"added"`
+}
+
 // DatabaseInfo defines model for DatabaseInfo.
 type DatabaseInfo struct {
 	ActivitySize  int64 `json:"activity_size"`
@@ -335,9 +356,11 @@ type OperationType string
 type Progress struct {
 	Author     *string    `json:"author,omitempty"`
 	CreatedAt  *time.Time `json:"created_at,omitempty"`
+	DeviceId   *string    `json:"device_id,omitempty"`
 	DeviceName *string    `json:"device_name,omitempty"`
 	DocumentId *string    `json:"document_id,omitempty"`
 	Percentage *float64   `json:"percentage,omitempty"`
+	Progress   *string    `json:"progress,omitempty"`
 	Title      *string    `json:"title,omitempty"`
 	UserId     *string    `json:"user_id,omitempty"`
 }
@@ -386,6 +409,21 @@ type SettingsResponse struct {
 // StreaksResponse defines model for StreaksResponse.
 type StreaksResponse struct {
 	Streaks []UserStreak `json:"streaks"`
+}
+
+// UpdateProgressRequest defines model for UpdateProgressRequest.
+type UpdateProgressRequest struct {
+	DeviceId   string  `json:"device_id"`
+	DeviceName string  `json:"device_name"`
+	DocumentId string  `json:"document_id"`
+	Percentage float64 `json:"percentage"`
+	Progress   string  `json:"progress"`
+}
+
+// UpdateProgressResponse defines model for UpdateProgressResponse.
+type UpdateProgressResponse struct {
+	DocumentId string    `json:"document_id"`
+	Timestamp  time.Time `json:"timestamp"`
 }
 
 // UpdateSettingsRequest defines model for UpdateSettingsRequest.
@@ -533,6 +571,9 @@ type PostSearchFormdataBody struct {
 	Title  string `form:"title" json:"title"`
 }
 
+// CreateActivityJSONRequestBody defines body for CreateActivity for application/json ContentType.
+type CreateActivityJSONRequestBody = CreateActivityRequest
+
 // PostAdminActionMultipartRequestBody defines body for PostAdminAction for multipart/form-data ContentType.
 type PostAdminActionMultipartRequestBody PostAdminActionMultipartBody
 
@@ -557,6 +598,9 @@ type EditDocumentJSONRequestBody EditDocumentJSONBody
 // UploadDocumentCoverMultipartRequestBody defines body for UploadDocumentCover for multipart/form-data ContentType.
 type UploadDocumentCoverMultipartRequestBody UploadDocumentCoverMultipartBody
 
+// UpdateProgressJSONRequestBody defines body for UpdateProgress for application/json ContentType.
+type UpdateProgressJSONRequestBody = UpdateProgressRequest
+
 // PostSearchFormdataRequestBody defines body for PostSearch for application/x-www-form-urlencoded ContentType.
 type PostSearchFormdataRequestBody PostSearchFormdataBody
 
@@ -568,6 +612,9 @@ type ServerInterface interface {
 	// Get activity data
 	// (GET /activity)
 	GetActivity(w http.ResponseWriter, r *http.Request, params GetActivityParams)
+	// Create activity records
+	// (POST /activity)
+	CreateActivity(w http.ResponseWriter, r *http.Request)
 	// Get admin page data
 	// (GET /admin)
 	GetAdmin(w http.ResponseWriter, r *http.Request)
@@ -643,6 +690,9 @@ type ServerInterface interface {
 	// List progress records
 	// (GET /progress)
 	GetProgressList(w http.ResponseWriter, r *http.Request, params GetProgressListParams)
+	// Update document progress
+	// (PUT /progress)
+	UpdateProgress(w http.ResponseWriter, r *http.Request)
 	// Get document progress
 	// (GET /progress/{id})
 	GetProgress(w http.ResponseWriter, r *http.Request, id string)
@@ -717,6 +767,26 @@ func (siw *ServerInterfaceWrapper) GetActivity(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetActivity(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateActivity operation middleware
+func (siw *ServerInterfaceWrapper) CreateActivity(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateActivity(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1371,6 +1441,26 @@ func (siw *ServerInterfaceWrapper) GetProgressList(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// UpdateProgress operation middleware
+func (siw *ServerInterfaceWrapper) UpdateProgress(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateProgress(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProgress operation middleware
 func (siw *ServerInterfaceWrapper) GetProgress(w http.ResponseWriter, r *http.Request) {
 
@@ -1638,6 +1728,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc("GET "+options.BaseURL+"/activity", wrapper.GetActivity)
+	m.HandleFunc("POST "+options.BaseURL+"/activity", wrapper.CreateActivity)
 	m.HandleFunc("GET "+options.BaseURL+"/admin", wrapper.GetAdmin)
 	m.HandleFunc("POST "+options.BaseURL+"/admin", wrapper.PostAdminAction)
 	m.HandleFunc("GET "+options.BaseURL+"/admin/import", wrapper.GetImportDirectory)
@@ -1663,6 +1754,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/home/streaks", wrapper.GetStreaks)
 	m.HandleFunc("GET "+options.BaseURL+"/info", wrapper.GetInfo)
 	m.HandleFunc("GET "+options.BaseURL+"/progress", wrapper.GetProgressList)
+	m.HandleFunc("PUT "+options.BaseURL+"/progress", wrapper.UpdateProgress)
 	m.HandleFunc("GET "+options.BaseURL+"/progress/{id}", wrapper.GetProgress)
 	m.HandleFunc("GET "+options.BaseURL+"/search", wrapper.GetSearch)
 	m.HandleFunc("POST "+options.BaseURL+"/search", wrapper.PostSearch)
@@ -1701,6 +1793,50 @@ func (response GetActivity401JSONResponse) VisitGetActivityResponse(w http.Respo
 type GetActivity500JSONResponse ErrorResponse
 
 func (response GetActivity500JSONResponse) VisitGetActivityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateActivityRequestObject struct {
+	Body *CreateActivityJSONRequestBody
+}
+
+type CreateActivityResponseObject interface {
+	VisitCreateActivityResponse(w http.ResponseWriter) error
+}
+
+type CreateActivity200JSONResponse CreateActivityResponse
+
+func (response CreateActivity200JSONResponse) VisitCreateActivityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateActivity400JSONResponse ErrorResponse
+
+func (response CreateActivity400JSONResponse) VisitCreateActivityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateActivity401JSONResponse ErrorResponse
+
+func (response CreateActivity401JSONResponse) VisitCreateActivityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateActivity500JSONResponse ErrorResponse
+
+func (response CreateActivity500JSONResponse) VisitCreateActivityResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -2730,6 +2866,50 @@ func (response GetProgressList500JSONResponse) VisitGetProgressListResponse(w ht
 	return json.NewEncoder(w).Encode(response)
 }
 
+type UpdateProgressRequestObject struct {
+	Body *UpdateProgressJSONRequestBody
+}
+
+type UpdateProgressResponseObject interface {
+	VisitUpdateProgressResponse(w http.ResponseWriter) error
+}
+
+type UpdateProgress200JSONResponse UpdateProgressResponse
+
+func (response UpdateProgress200JSONResponse) VisitUpdateProgressResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateProgress400JSONResponse ErrorResponse
+
+func (response UpdateProgress400JSONResponse) VisitUpdateProgressResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateProgress401JSONResponse ErrorResponse
+
+func (response UpdateProgress401JSONResponse) VisitUpdateProgressResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateProgress500JSONResponse ErrorResponse
+
+func (response UpdateProgress500JSONResponse) VisitUpdateProgressResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetProgressRequestObject struct {
 	Id string `json:"id"`
 }
@@ -2935,6 +3115,9 @@ type StrictServerInterface interface {
 	// Get activity data
 	// (GET /activity)
 	GetActivity(ctx context.Context, request GetActivityRequestObject) (GetActivityResponseObject, error)
+	// Create activity records
+	// (POST /activity)
+	CreateActivity(ctx context.Context, request CreateActivityRequestObject) (CreateActivityResponseObject, error)
 	// Get admin page data
 	// (GET /admin)
 	GetAdmin(ctx context.Context, request GetAdminRequestObject) (GetAdminResponseObject, error)
@@ -3010,6 +3193,9 @@ type StrictServerInterface interface {
 	// List progress records
 	// (GET /progress)
 	GetProgressList(ctx context.Context, request GetProgressListRequestObject) (GetProgressListResponseObject, error)
+	// Update document progress
+	// (PUT /progress)
+	UpdateProgress(ctx context.Context, request UpdateProgressRequestObject) (UpdateProgressResponseObject, error)
 	// Get document progress
 	// (GET /progress/{id})
 	GetProgress(ctx context.Context, request GetProgressRequestObject) (GetProgressResponseObject, error)
@@ -3075,6 +3261,37 @@ func (sh *strictHandler) GetActivity(w http.ResponseWriter, r *http.Request, par
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetActivityResponseObject); ok {
 		if err := validResponse.VisitGetActivityResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateActivity operation middleware
+func (sh *strictHandler) CreateActivity(w http.ResponseWriter, r *http.Request) {
+	var request CreateActivityRequestObject
+
+	var body CreateActivityJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateActivity(ctx, request.(CreateActivityRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateActivity")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateActivityResponseObject); ok {
+		if err := validResponse.VisitCreateActivityResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -3757,6 +3974,37 @@ func (sh *strictHandler) GetProgressList(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetProgressListResponseObject); ok {
 		if err := validResponse.VisitGetProgressListResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateProgress operation middleware
+func (sh *strictHandler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
+	var request UpdateProgressRequestObject
+
+	var body UpdateProgressJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateProgress(ctx, request.(UpdateProgressRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateProgress")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateProgressResponseObject); ok {
+		if err := validResponse.VisitUpdateProgressResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

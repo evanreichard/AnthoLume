@@ -10,7 +10,9 @@ export interface Progress {
   title?: string;
   author?: string;
   device_name?: string;
+  device_id?: string;
   percentage?: number;
+  progress?: string;
   document_id?: string;
   user_id?: string;
   created_at?: string;
