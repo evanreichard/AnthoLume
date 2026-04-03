@@ -63,7 +63,6 @@ func (s *Server) GetDocuments(ctx context.Context, request GetDocumentsRequestOb
 	}
 
 	apiDocuments := make([]Document, len(rows))
-	wordCounts := make([]WordCount, 0, len(rows))
 	for i, row := range rows {
 		apiDocuments[i] = Document{
 			Id:                row.ID,
@@ -83,12 +82,6 @@ func (s *Server) GetDocuments(ctx context.Context, request GetDocumentsRequestOb
 			UpdatedAt:         time.Now(), // Will be overwritten if we had a proper updated_at from DB
 			Deleted:           false,      // Default, should be overridden if available
 		}
-		if row.Words != nil {
-			wordCounts = append(wordCounts, WordCount{
-				DocumentId: row.ID,
-				Count:      *row.Words,
-			})
-		}
 	}
 
 	response := DocumentsResponse{
@@ -99,8 +92,6 @@ func (s *Server) GetDocuments(ctx context.Context, request GetDocumentsRequestOb
 		NextPage:     nextPage,
 		PreviousPage: previousPage,
 		Search:       request.Params.Search,
-		User:         UserData{Username: auth.UserName, IsAdmin: auth.IsAdmin},
-		WordCounts:   wordCounts,
 	}
 	return GetDocuments200JSONResponse(response), nil
 }
@@ -129,21 +120,6 @@ func (s *Server) GetDocument(ctx context.Context, request GetDocumentRequestObje
 
 	doc := docs[0]
 
-	progressRow, err := s.db.Queries.GetDocumentProgress(ctx, database.GetDocumentProgressParams{
-		UserID:     auth.UserName,
-		DocumentID: request.Id,
-	})
-	var progress *Progress
-	if err == nil {
-		progress = &Progress{
-			UserId:     &progressRow.UserID,
-			DocumentId: &progressRow.DocumentID,
-			DeviceName: &progressRow.DeviceName,
-			Percentage: &progressRow.Percentage,
-			CreatedAt:  ptrOf(parseTime(progressRow.CreatedAt)),
-		}
-	}
-
 	apiDoc := Document{
 		Id:                doc.ID,
 		Title:             *doc.Title,
@@ -165,7 +141,6 @@ func (s *Server) GetDocument(ctx context.Context, request GetDocumentRequestObje
 
 	response := DocumentResponse{
 		Document: apiDoc,
-		Progress: progress,
 	}
 	return GetDocument200JSONResponse(response), nil
 }
@@ -244,20 +219,6 @@ func (s *Server) EditDocument(ctx context.Context, request EditDocumentRequestOb
 
 	doc := docs[0]
 
-	progressRow, err := s.db.Queries.GetDocumentProgress(ctx, database.GetDocumentProgressParams{
-		UserID:     auth.UserName,
-		DocumentID: request.Id,
-	})
-	var progress *Progress
-	if err == nil {
-		progress = &Progress{
-			UserId:     &progressRow.UserID,
-			DocumentId: &progressRow.DocumentID,
-			DeviceName: &progressRow.DeviceName,
-			Percentage: &progressRow.Percentage,
-			CreatedAt:  ptrOf(parseTime(progressRow.CreatedAt)),
-		}
-	}
 
 	apiDoc := Document{
 		Id:                doc.ID,
@@ -280,7 +241,6 @@ func (s *Server) EditDocument(ctx context.Context, request EditDocumentRequestOb
 
 	response := DocumentResponse{
 		Document: apiDoc,
-		Progress: progress,
 	}
 	return EditDocument200JSONResponse(response), nil
 }
@@ -601,20 +561,6 @@ func (s *Server) UploadDocumentCover(ctx context.Context, request UploadDocument
 
 	doc := docs[0]
 
-	progressRow, err := s.db.Queries.GetDocumentProgress(ctx, database.GetDocumentProgressParams{
-		UserID:     auth.UserName,
-		DocumentID: request.Id,
-	})
-	var progress *Progress
-	if err == nil {
-		progress = &Progress{
-			UserId:     &progressRow.UserID,
-			DocumentId: &progressRow.DocumentID,
-			DeviceName: &progressRow.DeviceName,
-			Percentage: &progressRow.Percentage,
-			CreatedAt:  ptrOf(parseTime(progressRow.CreatedAt)),
-		}
-	}
 
 	apiDoc := Document{
 		Id:                doc.ID,
@@ -637,7 +583,6 @@ func (s *Server) UploadDocumentCover(ctx context.Context, request UploadDocument
 
 	response := DocumentResponse{
 		Document: apiDoc,
-		Progress: progress,
 	}
 	return UploadDocumentCover200JSONResponse(response), nil
 }

@@ -6,8 +6,6 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { Document } from './document';
-import type { UserData } from './userData';
-import type { WordCount } from './wordCount';
 
 export interface DocumentsResponse {
   documents: Document[];
@@ -17,6 +15,4 @@ export interface DocumentsResponse {
   next_page?: number;
   previous_page?: number;
   search?: string;
-  user: UserData;
-  word_counts: WordCount[];
 }

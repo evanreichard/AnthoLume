@@ -235,21 +235,18 @@ type Document struct {
 
 // DocumentResponse defines model for DocumentResponse.
 type DocumentResponse struct {
-	Document Document  `json:"document"`
-	Progress *Progress `json:"progress,omitempty"`
+	Document Document `json:"document"`
 }
 
 // DocumentsResponse defines model for DocumentsResponse.
 type DocumentsResponse struct {
-	Documents    []Document  `json:"documents"`
-	Limit        int64       `json:"limit"`
-	NextPage     *int64      `json:"next_page,omitempty"`
-	Page         int64       `json:"page"`
-	PreviousPage *int64      `json:"previous_page,omitempty"`
-	Search       *string     `json:"search,omitempty"`
-	Total        int64       `json:"total"`
-	User         UserData    `json:"user"`
-	WordCounts   []WordCount `json:"word_counts"`
+	Documents    []Document `json:"documents"`
+	Limit        int64      `json:"limit"`
+	NextPage     *int64     `json:"next_page,omitempty"`
+	Page         int64      `json:"page"`
+	PreviousPage *int64     `json:"previous_page,omitempty"`
+	Search       *string    `json:"search,omitempty"`
+	Total        int64      `json:"total"`
 }
 
 // ErrorResponse defines model for ErrorResponse.
@@ -467,12 +464,6 @@ type UserStreak struct {
 // UsersResponse defines model for UsersResponse.
 type UsersResponse struct {
 	Users *[]User `json:"users,omitempty"`
-}
-
-// WordCount defines model for WordCount.
-type WordCount struct {
-	Count      int64  `json:"count"`
-	DocumentId string `json:"document_id"`
 }
 
 // GetActivityParams defines parameters for GetActivity.

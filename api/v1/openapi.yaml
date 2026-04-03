@@ -300,27 +300,17 @@ components:
           format: int64
         search:
           type: string
-        user:
-          $ref: '#/components/schemas/UserData'
-        word_counts:
-          type: array
-          items:
-            $ref: '#/components/schemas/WordCount'
       required:
         - documents
         - total
         - page
         - limit
-        - user
-        - word_counts
 
     DocumentResponse:
       type: object
       properties:
         document:
           $ref: '#/components/schemas/Document'
-        progress:
-          $ref: '#/components/schemas/Progress'
       required:
         - document
 

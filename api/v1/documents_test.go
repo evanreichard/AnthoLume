@@ -108,7 +108,6 @@ func (suite *DocumentsTestSuite) TestAPIGetDocuments() {
 	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &resp))
 	suite.Equal(int64(1), resp.Page)
 	suite.Equal(int64(9), resp.Limit)
-	suite.Equal("testuser", resp.User.Username)
 }
 
 func (suite *DocumentsTestSuite) TestAPIGetDocumentsUnauthenticated() {

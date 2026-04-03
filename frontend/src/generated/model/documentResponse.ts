@@ -6,9 +6,7 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { Document } from './document';
-import type { Progress } from './progress';
 
 export interface DocumentResponse {
   document: Document;
-  progress?: Progress;
 }

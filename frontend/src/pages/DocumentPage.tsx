@@ -7,7 +7,6 @@ import {
   getGetDocumentQueryKey,
 } from '../generated/anthoLumeAPIV1';
 import { Document } from '../generated/model/document';
-import { Progress } from '../generated/model/progress';
 import { formatDuration } from '../utils/formatters';
 import {
   DeleteIcon,
@@ -54,15 +53,12 @@ export default function DocumentPage() {
   }
 
   const document = docData.data.document as Document;
-  const progress =
-    docData?.status === 200 ? (docData.data.progress as Progress | undefined) : undefined;
 
   if (!document) {
     return <div className="text-content-muted">Document not found</div>;
   }
 
-  const percentage =
-    document.percentage ?? (progress?.percentage ? progress.percentage * 100 : 0) ?? 0;
+  const percentage = document.percentage ?? 0;
   const secondsPerPercent = document.seconds_per_percent || 0;
   const totalTimeLeftSeconds = Math.round((100 - percentage) * secondsPerPercent);
 
