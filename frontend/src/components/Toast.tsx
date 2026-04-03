@@ -16,21 +16,21 @@ const getToastStyles = (_type: ToastType) => {
     'flex items-center gap-3 rounded-lg border-l-4 p-4 shadow-lg transition-all duration-300';
 
   const typeStyles = {
-    info: 'border-secondary-500 bg-secondary-50 dark:bg-secondary-100/20',
-    warning: 'border-yellow-500 bg-yellow-50 dark:bg-yellow-100/20',
-    error: 'border-red-500 bg-red-50 dark:bg-red-100/20',
+    info: 'border-secondary-500 bg-secondary-100',
+    warning: 'border-yellow-500 bg-yellow-100',
+    error: 'border-red-500 bg-red-100',
   };
 
   const iconStyles = {
-    info: 'text-secondary-600 dark:text-secondary-500',
-    warning: 'text-yellow-700 dark:text-yellow-500',
-    error: 'text-red-600 dark:text-red-400',
+    info: 'text-secondary-700',
+    warning: 'text-yellow-700',
+    error: 'text-red-700',
   };
 
   const textStyles = {
-    info: 'text-secondary-900 dark:text-secondary-700',
-    warning: 'text-yellow-900 dark:text-yellow-700',
-    error: 'text-red-900 dark:text-red-700',
+    info: 'text-secondary-900',
+    warning: 'text-yellow-900',
+    error: 'text-red-900',
   };
 
   return { baseStyles, typeStyles, iconStyles, textStyles };

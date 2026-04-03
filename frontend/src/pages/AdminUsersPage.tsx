@@ -31,7 +31,12 @@ export default function AdminUsersPage() {
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: response => {
+          if (response.status < 200 || response.status >= 300) {
+            showError('Failed to create user: ' + getErrorMessage(response.data));
+            return;
+          }
+
           showInfo('User created successfully');
           setShowAddForm(false);
           setNewUsername('');
@@ -50,7 +55,12 @@ export default function AdminUsersPage() {
         data: { operation: 'DELETE', user: userId },
       },
       {
-        onSuccess: () => {
+        onSuccess: response => {
+          if (response.status < 200 || response.status >= 300) {
+            showError('Failed to delete user: ' + getErrorMessage(response.data));
+            return;
+          }
+
           showInfo('User deleted successfully');
           refetch();
         },
@@ -67,7 +77,12 @@ export default function AdminUsersPage() {
         data: { operation: 'UPDATE', user: userId, password },
       },
       {
-        onSuccess: () => {
+        onSuccess: response => {
+          if (response.status < 200 || response.status >= 300) {
+            showError('Failed to update password: ' + getErrorMessage(response.data));
+            return;
+          }
+
           showInfo('Password updated successfully');
           refetch();
         },
@@ -82,7 +97,12 @@ export default function AdminUsersPage() {
         data: { operation: 'UPDATE', user: userId, is_admin: isAdmin },
       },
       {
-        onSuccess: () => {
+        onSuccess: response => {
+          if (response.status < 200 || response.status >= 300) {
+            showError('Failed to update admin status: ' + getErrorMessage(response.data));
+            return;
+          }
+
           showInfo(`User permissions updated to ${isAdmin ? 'admin' : 'user'}`);
           refetch();
         },

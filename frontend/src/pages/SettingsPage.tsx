@@ -40,15 +40,21 @@ export default function SettingsPage() {
     }
 
     try {
-      await updateSettings.mutateAsync({
+      const response = await updateSettings.mutateAsync({
         data: {
           password,
           new_password: newPassword,
         },
       });
-      showInfo('Password updated successfully');
-      setPassword('');
-      setNewPassword('');
+
+      if (response.status >= 200 && response.status < 300) {
+        showInfo('Password updated successfully');
+        setPassword('');
+        setNewPassword('');
+        return;
+      }
+
+      showError('Failed to update password: ' + getErrorMessage(response.data));
     } catch (error) {
       showError('Failed to update password: ' + getErrorMessage(error));
     }
@@ -58,12 +64,18 @@ export default function SettingsPage() {
     e.preventDefault();
 
     try {
-      await updateSettings.mutateAsync({
+      const response = await updateSettings.mutateAsync({
         data: {
           timezone,
         },
       });
-      showInfo('Timezone updated successfully');
+
+      if (response.status >= 200 && response.status < 300) {
+        showInfo('Timezone updated successfully');
+        return;
+      }
+
+      showError('Failed to update timezone: ' + getErrorMessage(response.data));
     } catch (error) {
       showError('Failed to update timezone: ' + getErrorMessage(error));
     }
