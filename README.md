@@ -134,7 +134,12 @@ go install github.com/pressly/goose/v3/cmd/goose@latest
 Run Development:
 
 ```bash
-CONFIG_PATH=./data DATA_PATH=./data REGISTRATION_ENABLED=true go run main.go serve
+# Backend API/server on :8585 plus Vite frontend on :5173
+make dev
+
+# Or run one side only
+make dev_backend
+make dev_frontend
 ```
 
 ## Building
@@ -152,8 +157,8 @@ make docker_build_local
 make docker_build_release_latest
 make docker_build_release_dev
 
-# Generate Tailwind CSS
-make build_tailwind
+# Generate legacy Tailwind CSS for server-rendered templates
+make legacy_tailwind
 
 # Clean Local Build
 make clean

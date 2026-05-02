@@ -41,11 +41,13 @@ Regenerate:
 ## 4) Backend / Assets
 
 ### Common commands
-- Dev server: `make dev`
-- Direct dev run: `CONFIG_PATH=./data DATA_PATH=./data REGISTRATION_ENABLED=true go run main.go serve`
+- Full dev stack: `make dev` (backend on `:8585` + Vite frontend on `:5173`)
+- Backend only: `make dev_backend`
+- Frontend only: `make dev_frontend`
+- Direct backend run: `CONFIG_PATH=./data DATA_PATH=./data REGISTRATION_ENABLED=true go run main.go serve`
 - No-auth dev run: `CONFIG_PATH=./data DATA_PATH=./data REGISTRATION_ENABLED=true DISABLE_AUTH=true DISABLE_AUTH_USER=evan go run main.go serve`
 - Tests: `make tests`
-- Tailwind asset build: `make build_tailwind`
+- Legacy server-rendered Tailwind asset build: `make legacy_tailwind`
 
 ### Notes
 - The Go server embeds `templates/*` and `assets/*`.
