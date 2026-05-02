@@ -1,11 +1,16 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useGetProgressList } from '../generated/anthoLumeAPIV1';
 import type { Progress } from '../generated/model';
+import { Pagination } from '../components';
 import { Table, type Column } from '../components/Table';
 
 export default function ProgressPage() {
-  const { data, isLoading } = useGetProgressList({ page: 1, limit: 15 });
-  const progress = data?.status === 200 ? (data.data.progress ?? []) : [];
+  const [page, setPage] = useState(1);
+  const limit = 15;
+  const { data, isLoading } = useGetProgressList({ page, limit });
+  const response = data?.status === 200 ? data.data : undefined;
+  const progress = response?.progress ?? [];
 
   const columns: Column<Progress>[] = [
     {
@@ -35,5 +40,17 @@ export default function ProgressPage() {
     },
   ];
 
-  return <Table columns={columns} data={progress || []} loading={isLoading} />;
+  return (
+    <div className="flex flex-col gap-4">
+      <Table columns={columns} data={progress} loading={isLoading} />
+      <Pagination
+        page={page}
+        previousPage={response?.previous_page}
+        nextPage={response?.next_page}
+        total={response?.total}
+        limit={limit}
+        onPageChange={setPage}
+      />
+    </div>
+  );
 }

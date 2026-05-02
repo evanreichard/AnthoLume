@@ -1,12 +1,29 @@
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useGetActivity } from '../generated/anthoLumeAPIV1';
 import type { Activity } from '../generated/model';
+import { Pagination } from '../components';
 import { Table, type Column } from '../components/Table';
 import { formatDuration } from '../utils/formatters';
 
 export default function ActivityPage() {
-  const { data, isLoading } = useGetActivity({ offset: 0, limit: 100 });
-  const activities = data?.status === 200 ? data.data.activities : [];
+  const [searchParams] = useSearchParams();
+  const documentID = searchParams.get('document') || undefined;
+  const [page, setPage] = useState(1);
+  const limit = 25;
+
+  useEffect(() => {
+    setPage(1);
+  }, [documentID]);
+
+  const { data, isLoading } = useGetActivity({
+    doc_filter: Boolean(documentID),
+    document_id: documentID,
+    page,
+    limit,
+  });
+  const response = data?.status === 200 ? data.data : undefined;
+  const activities = response?.activities ?? [];
 
   const columns: Column<Activity>[] = [
     {
@@ -35,5 +52,17 @@ export default function ActivityPage() {
     },
   ];
 
-  return <Table columns={columns} data={activities || []} loading={isLoading} />;
+  return (
+    <div className="flex flex-col gap-4">
+      <Table columns={columns} data={activities} loading={isLoading} />
+      <Pagination
+        page={page}
+        previousPage={response?.previous_page}
+        nextPage={response?.next_page}
+        total={response?.total}
+        limit={limit}
+        onPageChange={setPage}
+      />
+    </div>
+  );
 }

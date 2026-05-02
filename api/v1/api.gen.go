@@ -158,7 +158,12 @@ type Activity struct {
 
 // ActivityResponse defines model for ActivityResponse.
 type ActivityResponse struct {
-	Activities []Activity `json:"activities"`
+	Activities   []Activity `json:"activities"`
+	Limit        int64      `json:"limit"`
+	NextPage     *int64     `json:"next_page,omitempty"`
+	Page         int64      `json:"page"`
+	PreviousPage *int64     `json:"previous_page,omitempty"`
+	Total        int64      `json:"total"`
 }
 
 // BackupType defines model for BackupType.
@@ -470,7 +475,7 @@ type UsersResponse struct {
 type GetActivityParams struct {
 	DocFilter  *bool   `form:"doc_filter,omitempty" json:"doc_filter,omitempty"`
 	DocumentId *string `form:"document_id,omitempty" json:"document_id,omitempty"`
-	Offset     *int64  `form:"offset,omitempty" json:"offset,omitempty"`
+	Page       *int64  `form:"page,omitempty" json:"page,omitempty"`
 	Limit      *int64  `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
@@ -740,11 +745,11 @@ func (siw *ServerInterfaceWrapper) GetActivity(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// ------------- Optional query parameter "offset" -------------
+	// ------------- Optional query parameter "page" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "offset", r.URL.Query(), &params.Offset, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
 		return
 	}
 

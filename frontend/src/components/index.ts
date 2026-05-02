@@ -18,6 +18,7 @@ export {
   InlineLoader,
 } from './Skeleton';
 export { LoadingState } from './LoadingState';
+export { Pagination } from './Pagination';
 
 // Field components
 export { Field, FieldLabel, FieldValue, FieldActions } from './Field';

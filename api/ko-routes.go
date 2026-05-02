@@ -407,7 +407,10 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 		return
 	}
 
-	wantedDocs, err := api.db.Queries.GetWantedDocuments(c, string(jsonHaves))
+	wantedDocs, err := api.db.Queries.GetWantedDocuments(c, database.GetWantedDocumentsParams{
+		JsonEach:    string(jsonHaves),
+		DocumentIds: string(jsonHaves),
+	})
 	if err != nil {
 		log.Error("GetWantedDocuments DB Error", err)
 		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")

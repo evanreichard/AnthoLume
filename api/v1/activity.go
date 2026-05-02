@@ -25,12 +25,12 @@ func (s *Server) GetActivity(ctx context.Context, request GetActivityRequestObje
 		documentID = *request.Params.DocumentId
 	}
 
-	offset := int64(0)
-	if request.Params.Offset != nil {
-		offset = *request.Params.Offset
+	page := int64(1)
+	if request.Params.Page != nil {
+		page = *request.Params.Page
 	}
 
-	limit := int64(100)
+	limit := int64(25)
 	if request.Params.Limit != nil {
 		limit = *request.Params.Limit
 	}
@@ -39,11 +39,31 @@ func (s *Server) GetActivity(ctx context.Context, request GetActivityRequestObje
 		UserID:     auth.UserName,
 		DocFilter:  docFilter,
 		DocumentID: documentID,
-		Offset:     offset,
+		Offset:     (page - 1) * limit,
 		Limit:      limit,
 	})
 	if err != nil {
 		return GetActivity500JSONResponse{Code: 500, Message: err.Error()}, nil
+	}
+
+	// Get Total Count
+	total, err := s.db.Queries.GetActivityCount(ctx, database.GetActivityCountParams{
+		UserID:     auth.UserName,
+		DocFilter:  docFilter,
+		DocumentID: documentID,
+	})
+	if err != nil {
+		return GetActivity500JSONResponse{Code: 500, Message: err.Error()}, nil
+	}
+
+	// Calculate Pagination
+	var nextPage *int64
+	var previousPage *int64
+	if page*limit < total {
+		nextPage = ptrOf(page + 1)
+	}
+	if page > 1 {
+		previousPage = ptrOf(page - 1)
 	}
 
 	apiActivities := make([]Activity, len(activities))
@@ -70,7 +90,12 @@ func (s *Server) GetActivity(ctx context.Context, request GetActivityRequestObje
 	}
 
 	response := ActivityResponse{
-		Activities: apiActivities,
+		Activities:   apiActivities,
+		Page:         page,
+		Limit:        limit,
+		Total:        total,
+		NextPage:     nextPage,
+		PreviousPage: previousPage,
 	}
 	return GetActivity200JSONResponse(response), nil
 }

@@ -9,4 +9,9 @@ import type { Activity } from './activity';
 
 export interface ActivityResponse {
   activities: Activity[];
+  page: number;
+  limit: number;
+  next_page?: number;
+  previous_page?: number;
+  total: number;
 }

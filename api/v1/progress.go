@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"math"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -43,13 +42,21 @@ func (s *Server) GetProgressList(ctx context.Context, request GetProgressListReq
 		return GetProgressList500JSONResponse{Code: 500, Message: "Database error"}, nil
 	}
 
-	total := int64(len(progress))
+	// Get Total Count
+	total, err := s.db.Queries.GetProgressCount(ctx, database.GetProgressCountParams{
+		UserID:     auth.UserName,
+		DocFilter:  filter.DocFilter,
+		DocumentID: filter.DocumentID,
+	})
+	if err != nil {
+		log.Error("GetProgressCount DB Error:", err)
+		return GetProgressList500JSONResponse{Code: 500, Message: "Database error"}, nil
+	}
+
+	// Calculate Pagination
 	var nextPage *int64
 	var previousPage *int64
-
-	// Calculate total pages
-	totalPages := int64(math.Ceil(float64(total) / float64(limit)))
-	if page < totalPages {
+	if page*limit < total {
 		nextPage = ptrOf(page + 1)
 	}
 	if page > 1 {

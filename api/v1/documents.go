@@ -33,16 +33,16 @@ func (s *Server) GetDocuments(ctx context.Context, request GetDocumentsRequestOb
 		limit = *request.Params.Limit
 	}
 
-	search := ""
-	if request.Params.Search != nil {
-		search = "%" + *request.Params.Search + "%"
+	var search *string
+	if request.Params.Search != nil && *request.Params.Search != "" {
+		search = ptrOf("%" + *request.Params.Search + "%")
 	}
 
 	rows, err := s.db.Queries.GetDocumentsWithStats(
 		ctx,
 		database.GetDocumentsWithStatsParams{
 			UserID:  auth.UserName,
-			Query:   &search,
+			Query:   search,
 			Deleted: ptrOf(false),
 			Offset:  (page - 1) * limit,
 			Limit:   limit,
@@ -52,7 +52,19 @@ func (s *Server) GetDocuments(ctx context.Context, request GetDocumentsRequestOb
 		return GetDocuments500JSONResponse{Code: 500, Message: err.Error()}, nil
 	}
 
-	total := int64(len(rows))
+	// Get Total Count
+	total, err := s.db.Queries.GetDocumentsWithStatsCount(
+		ctx,
+		database.GetDocumentsWithStatsCountParams{
+			Query:   search,
+			Deleted: ptrOf(false),
+		},
+	)
+	if err != nil {
+		return GetDocuments500JSONResponse{Code: 500, Message: err.Error()}, nil
+	}
+
+	// Calculate Pagination
 	var nextPage *int64
 	var previousPage *int64
 	if page*limit < total {
@@ -218,7 +230,6 @@ func (s *Server) EditDocument(ctx context.Context, request EditDocumentRequestOb
 	}
 
 	doc := docs[0]
-
 
 	apiDoc := Document{
 		Id:                doc.ID,
@@ -560,7 +571,6 @@ func (s *Server) UploadDocumentCover(ctx context.Context, request UploadDocument
 	}
 
 	doc := docs[0]
-
 
 	apiDoc := Document{
 		Id:                doc.ID,

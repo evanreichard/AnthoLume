@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useGetDocuments, useCreateDocument } from '../generated/anthoLumeAPIV1';
 import type { Document, DocumentsResponse } from '../generated/model';
 import { ActivityIcon, DownloadIcon, Search2Icon, UploadIcon } from '../icons';
-import { LoadingState } from '../components';
+import { LoadingState, Pagination } from '../components';
 import { useToasts } from '../components/ToastContext';
 import { formatDuration } from '../utils/formatters';
 import { useDebounce } from '../hooks/useDebounce';
@@ -272,24 +272,14 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      <div className="mt-4 flex w-full justify-center gap-4 text-content">
-        {previousPage && previousPage > 0 && (
-          <button
-            onClick={() => setPage(page - 1)}
-            className="w-24 rounded bg-surface p-2 text-center text-sm font-medium shadow-lg hover:bg-surface-strong focus:outline-none"
-          >
-            ◄
-          </button>
-        )}
-        {nextPage && nextPage > 0 && (
-          <button
-            onClick={() => setPage(page + 1)}
-            className="w-24 rounded bg-surface p-2 text-center text-sm font-medium shadow-lg hover:bg-surface-strong focus:outline-none"
-          >
-            ►
-          </button>
-        )}
-      </div>
+      <Pagination
+        page={page}
+        previousPage={previousPage}
+        nextPage={nextPage}
+        total={(data?.data as DocumentsResponse | undefined)?.total}
+        limit={limit}
+        onPageChange={setPage}
+      />
 
       <div className="fixed bottom-6 right-6 flex items-center justify-center rounded-full">
         <input
