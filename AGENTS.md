@@ -42,7 +42,7 @@ Regenerate:
 
 ### Common commands
 - Full dev stack: `make dev` (backend on `:8585` + Vite frontend on `:5173`)
-- Backend only: `make dev_backend`
+- Backend only: `make dev_backend` (live-reloads with Air)
 - Frontend only: `make dev_frontend`
 - Direct backend run: `CONFIG_PATH=./data DATA_PATH=./data REGISTRATION_ENABLED=true go run main.go serve`
 - No-auth dev run: `CONFIG_PATH=./data DATA_PATH=./data REGISTRATION_ENABLED=true DISABLE_AUTH=true DISABLE_AUTH_USER=evan go run main.go serve`

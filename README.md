@@ -138,7 +138,7 @@ Run Development:
 make dev
 
 # Or run one side only
-make dev_backend
+make dev_backend  # live-reloads with air
 make dev_frontend
 ```
 

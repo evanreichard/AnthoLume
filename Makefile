@@ -46,7 +46,7 @@ dev:
 	$(MAKE) -j2 dev_backend dev_frontend
 
 dev_backend:
-	$(DEV_ENV) go run main.go serve
+	$(DEV_ENV) air
 
 dev_frontend:
 	cd frontend && bun run dev
