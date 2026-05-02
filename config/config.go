@@ -28,6 +28,8 @@ type Config struct {
 	RegistrationEnabled bool
 	SearchEnabled       bool
 	DemoMode            bool
+	DisableAuth         bool
+	DisableAuthUser     string
 	LogLevel            string
 
 	// Cookie Settings
@@ -63,6 +65,8 @@ func Load() *Config {
 		DBName:              trimLowerString(getEnv("DATABASE_NAME", "antholume")),
 		RegistrationEnabled: trimLowerString(getEnv("REGISTRATION_ENABLED", "false")) == "true",
 		DemoMode:            trimLowerString(getEnv("DEMO_MODE", "false")) == "true",
+		DisableAuth:         trimLowerString(getEnv("DISABLE_AUTH", "false")) == "true",
+		DisableAuthUser:     strings.TrimSpace(getEnv("DISABLE_AUTH_USER", "")),
 		SearchEnabled:       trimLowerString(getEnv("SEARCH_ENABLED", "false")) == "true",
 		CookieAuthKey:       trimLowerString(getEnv("COOKIE_AUTH_KEY", "")),
 		CookieEncKey:        trimLowerString(getEnv("COOKIE_ENC_KEY", "")),

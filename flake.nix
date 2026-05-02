@@ -27,6 +27,7 @@
             bun
             nodejs
             tailwindcss
+            typescript-language-server
           ];
           shellHook = ''
             export PATH=$PATH:~/go/bin

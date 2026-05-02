@@ -64,7 +64,18 @@ Also follow the repository root guide at `../AGENTS.md`.
 - `bun run build` still runs `tsc && vite build`, so unrelated TypeScript issues elsewhere in `src/` can fail the build.
 - When possible, validate changed files directly before escalating to full-project fixes.
 
-## 7) Updating This File
+## 7) Live Dev Server Debugging
+
+- Use `glimpse` to inspect the running Vite dev server at `localhost:5173`:
+  ```bash
+  glimpse snapshot http://localhost:5173/some-page --wait-until=complete --timeout=15000
+  glimpse screenshot http://localhost:5173/some-page --wait-until=complete --output=_scratch/page.png
+  glimpse exec http://localhost:5173/some-page --wait-until=complete --timeout=20000 --js='return document.title'
+  ```
+- Use `curl` for API endpoint testing (both `localhost:5173` via proxy and `localhost:8585` directly).
+- Do not monkey-patch `window.fetch` in `glimpse exec`; Firefox rejects it. Test API calls with `curl` instead.
+
+## 8) Updating This File
 
 After completing a frontend task, update this file if you learned something general that would help future frontend agents.
 

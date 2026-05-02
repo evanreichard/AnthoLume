@@ -43,6 +43,7 @@ Regenerate:
 ### Common commands
 - Dev server: `make dev`
 - Direct dev run: `CONFIG_PATH=./data DATA_PATH=./data REGISTRATION_ENABLED=true go run main.go serve`
+- No-auth dev run: `CONFIG_PATH=./data DATA_PATH=./data REGISTRATION_ENABLED=true DISABLE_AUTH=true DISABLE_AUTH_USER=evan go run main.go serve`
 - Tests: `make tests`
 - Tailwind asset build: `make build_tailwind`
 
@@ -51,6 +52,7 @@ Regenerate:
 - Root Tailwind output is built to `assets/style.css`.
 - Be mindful of whether a change affects the embedded server-rendered app, the React frontend, or both.
 - SQLite timestamps are stored as RFC3339 strings (usually with a trailing `Z`); prefer `parseTime` / `parseTimePtr` instead of ad-hoc `time.Parse` layouts.
+- `DISABLE_AUTH=true` bypasses authentication on **all** routes (v1 API, legacy web app, KOSync, OPDS). Set `DISABLE_AUTH_USER=<username>` to control which database user the session impersonates (defaults to the first user in the DB). The user must already exist.
 
 ## 5) Frontend
 
@@ -63,7 +65,24 @@ For frontend-specific implementation notes and commands, also read:
 - Frontend API client: `cd frontend && bun run generate:api`
 - SQLC: `sqlc generate`
 
-## 7) Updating This File
+## 7) Live Dev Server Debugging
+
+- The Vite dev server runs on `localhost:5173` and proxies `/api` to the Go backend on `localhost:8585`.
+- Use `glimpse` to interact with the running frontend for visual debugging:
+  ```bash
+  # Snapshot rendered page state (text, links, forms, buttons)
+  glimpse snapshot http://localhost:5173/some-page --wait-until=complete --timeout=15000
+
+  # Screenshot for visual inspection
+  glimpse screenshot http://localhost:5173/some-page --wait-until=complete --output=_scratch/page.png
+
+  # Execute JS in the browser context (e.g. fill forms, click buttons, read state)
+  glimpse exec http://localhost:5173/some-page --wait-until=complete --timeout=20000 --js='return document.title'
+  ```
+- Use `curl` for direct API testing (both `localhost:5173` via Vite proxy and `localhost:8585` directly work).
+- **Caveat:** Monkey-patching `window.fetch` inside `glimpse exec` breaks in Firefox with `TypeError: 'fetch' called on an object that does not implement interface Window.`. Avoid fetch interception; instead test API calls separately with `curl`.
+
+## 8) Updating This File
 
 After completing a task, update this `AGENTS.md` if you learned something general that would help future agents.
 
