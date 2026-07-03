@@ -7,6 +7,105 @@ import type { User } from '../generated/model';
 import { AddIcon, DeleteIcon } from '../icons';
 import { useMutationWithToast } from '../hooks/useMutationWithToast';
 import { useToasts } from '../components/ToastContext';
+import { dataForStatus } from '../utils/apiResponses';
+
+interface AddUserFormProps {
+  onCreate: (_username: string, _password: string, _isAdmin: boolean) => void;
+}
+
+function AddUserForm({ onCreate }: AddUserFormProps) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const handleSubmit = (e: SyntheticEvent) => {
+    e.preventDefault();
+    onCreate(username, password, isAdmin);
+  };
+
+  return (
+    <div className="absolute left-10 top-10 rounded bg-surface-strong p-3 shadow-lg transition-all duration-200">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2 text-sm text-content">
+        <TextInput
+          type="text"
+          value={username}
+          onChange={e => setUsername(e.target.value)}
+          placeholder="Username"
+          className="p-2"
+        />
+        <TextInput
+          type="password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          placeholder="Password"
+          className="p-2"
+        />
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="new_is_admin"
+            checked={isAdmin}
+            onChange={e => setIsAdmin(e.target.checked)}
+          />
+          <label htmlFor="new_is_admin">Admin</label>
+        </div>
+        <Button type="submit">Create</Button>
+      </form>
+    </div>
+  );
+}
+
+interface ResetPasswordDialogProps {
+  userId: string;
+  onClose: () => void;
+  onSave: (_userId: string, _password: string) => void;
+}
+
+function ResetPasswordDialog({ userId, onClose, onSave }: ResetPasswordDialogProps) {
+  const [password, setPassword] = useState('');
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/50"
+      onClick={onClose}
+    >
+      <form
+        className="w-80 rounded bg-surface p-4 shadow-lg"
+        onClick={e => e.stopPropagation()}
+        onSubmit={e => {
+          e.preventDefault();
+          if (!password) return;
+          onSave(userId, password);
+          onClose();
+        }}
+      >
+        <p className="mb-3 text-content">Reset password for {userId}</p>
+        <TextInput
+          type="password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          placeholder="New password"
+          autoFocus
+        />
+        <div className="mt-3 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={!password}>
+            Save
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+const permissionButtonClass = (active: boolean) =>
+  `rounded-md px-2 py-1 ${
+    active
+      ? 'cursor-default bg-content text-content-inverse'
+      : 'cursor-pointer bg-surface-strong text-content'
+  }`;
 
 export default function AdminUsersPage() {
   const { data: usersData, isLoading, refetch } = useGetUsers({});
@@ -15,17 +114,12 @@ export default function AdminUsersPage() {
   const { showError } = useToasts();
 
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newUsername, setNewUsername] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [newIsAdmin, setNewIsAdmin] = useState(false);
   const [resetUserId, setResetUserId] = useState<string | null>(null);
-  const [resetPassword, setResetPassword] = useState('');
 
-  const users = usersData?.status === 200 ? (usersData.data.users ?? []) : [];
+  const users = dataForStatus(usersData, 200)?.users ?? [];
 
-  const handleCreateUser = (e: SyntheticEvent) => {
-    e.preventDefault();
-    if (!newUsername || !newPassword) {
+  const handleCreateUser = (username: string, password: string, isAdmin: boolean) => {
+    if (!username || !password) {
       showError('Please enter username and password');
       return;
     }
@@ -34,9 +128,9 @@ export default function AdminUsersPage() {
       {
         data: {
           operation: 'CREATE',
-          user: newUsername,
-          password: newPassword,
-          is_admin: newIsAdmin,
+          user: username,
+          password,
+          is_admin: isAdmin,
         },
       },
       toastMutationOptions({
@@ -44,9 +138,6 @@ export default function AdminUsersPage() {
         error: 'Failed to create user',
         onSuccess: () => {
           setShowAddForm(false);
-          setNewUsername('');
-          setNewPassword('');
-          setNewIsAdmin(false);
           refetch();
         },
       })
@@ -94,13 +185,6 @@ export default function AdminUsersPage() {
     );
   };
 
-  const permissionButtonClass = (active: boolean) =>
-    `rounded-md px-2 py-1 ${
-      active
-        ? 'cursor-default bg-content text-content-inverse'
-        : 'cursor-pointer bg-surface-strong text-content'
-    }`;
-
   const userColumns: Column<User>[] = [
     {
       id: 'actions',
@@ -124,7 +208,6 @@ export default function AdminUsersPage() {
         <Button
           onClick={() => {
             setResetUserId(user.id);
-            setResetPassword('');
           }}
           className="px-2 py-1"
         >
@@ -164,72 +247,16 @@ export default function AdminUsersPage() {
 
   return (
     <div className="relative h-full overflow-x-auto">
-      {showAddForm && (
-        <div className="absolute left-10 top-10 rounded bg-surface-strong p-3 shadow-lg transition-all duration-200">
-          <form onSubmit={handleCreateUser} className="flex flex-col gap-2 text-sm text-content">
-            <TextInput
-              type="text"
-              value={newUsername}
-              onChange={e => setNewUsername(e.target.value)}
-              placeholder="Username"
-              className="p-2"
-            />
-            <TextInput
-              type="password"
-              value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
-              placeholder="Password"
-              className="p-2"
-            />
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="new_is_admin"
-                checked={newIsAdmin}
-                onChange={e => setNewIsAdmin(e.target.checked)}
-              />
-              <label htmlFor="new_is_admin">Admin</label>
-            </div>
-            <Button type="submit">Create</Button>
-          </form>
-        </div>
-      )}
+      {showAddForm && <AddUserForm onCreate={handleCreateUser} />}
 
       <Table columns={userColumns} data={users} rowKey="id" />
 
       {resetUserId && (
-        <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-black/50"
-          onClick={() => setResetUserId(null)}
-        >
-          <form
-            className="w-80 rounded bg-surface p-4 shadow-lg"
-            onClick={e => e.stopPropagation()}
-            onSubmit={e => {
-              e.preventDefault();
-              if (!resetPassword) return;
-              handleUpdatePassword(resetUserId, resetPassword);
-              setResetUserId(null);
-            }}
-          >
-            <p className="mb-3 text-content">Reset password for {resetUserId}</p>
-            <TextInput
-              type="password"
-              value={resetPassword}
-              onChange={e => setResetPassword(e.target.value)}
-              placeholder="New password"
-              autoFocus
-            />
-            <div className="mt-3 flex justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => setResetUserId(null)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={!resetPassword}>
-                Save
-              </Button>
-            </div>
-          </form>
-        </div>
+        <ResetPasswordDialog
+          userId={resetUserId}
+          onClose={() => setResetUserId(null)}
+          onSave={handleUpdatePassword}
+        />
       )}
     </div>
   );

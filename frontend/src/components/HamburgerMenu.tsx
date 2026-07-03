@@ -4,9 +4,36 @@ import { SettingsIcon, GitIcon } from '../icons';
 import { useAuth } from '../auth/AuthContext';
 import { useGetInfo } from '../generated/anthoLumeAPIV1';
 import { navItems, adminNavItems } from './navigation';
+import { dataForStatus } from '../utils/apiResponses';
+import { cn } from '../utils/cn';
 
 function hasPrefix(path: string, prefix: string): boolean {
   return path.startsWith(prefix);
+}
+
+function NavToggleIcon({ isOpen }: { isOpen: boolean }) {
+  return (
+    <span className="relative block size-7" aria-hidden="true">
+      <span
+        className={cn(
+          'absolute left-0 top-1 h-0.5 w-7 bg-content transition-transform duration-200',
+          isOpen && 'translate-y-2 rotate-45'
+        )}
+      />
+      <span
+        className={cn(
+          'absolute left-0 top-3 h-0.5 w-7 bg-content transition-opacity duration-200',
+          isOpen && 'opacity-0'
+        )}
+      />
+      <span
+        className={cn(
+          'absolute left-0 top-5 h-0.5 w-7 bg-content transition-transform duration-200',
+          isOpen && '-translate-y-2 -rotate-45'
+        )}
+      />
+    </span>
+  );
 }
 
 export default function HamburgerMenu() {
@@ -20,82 +47,47 @@ export default function HamburgerMenu() {
       staleTime: Infinity,
     },
   });
-  const version =
-    infoData && 'data' in infoData && infoData.data && 'version' in infoData.data
-      ? infoData.data.version
-      : 'v1.0.0';
+  const version = dataForStatus(infoData, 200)?.version ?? 'v1.0.0';
+  const closeMenu = () => setIsOpen(false);
 
   return (
     <div className="relative z-40 ml-6 flex flex-col">
-      <input
-        type="checkbox"
-        className="absolute -top-2 z-50 flex size-7 cursor-pointer opacity-0 lg:hidden"
-        id="mobile-nav-checkbox"
-        checked={isOpen}
-        onChange={e => setIsOpen(e.target.checked)}
-      />
-
-      <span
-        className="z-40 mt-0.5 h-0.5 w-7 bg-content transition-opacity duration-500 lg:hidden"
-        style={{
-          transformOrigin: '5px 0px',
-          transition:
-            'transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), background 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), opacity 0.55s ease',
-          transform: isOpen ? 'rotate(45deg) translate(2px, -2px)' : 'none',
-        }}
-      />
-      <span
-        className="z-40 mt-1 h-0.5 w-7 bg-content transition-opacity duration-500 lg:hidden"
-        style={{
-          transformOrigin: '0% 100%',
-          transition:
-            'transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), background 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), opacity 0.55s ease',
-          opacity: isOpen ? 0 : 1,
-          transform: isOpen ? 'rotate(0deg) scale(0.2, 0.2)' : 'none',
-        }}
-      />
-      <span
-        className="z-40 mt-1 h-0.5 w-7 bg-content transition-opacity duration-500 lg:hidden"
-        style={{
-          transformOrigin: '0% 0%',
-          transition:
-            'transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), background 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), opacity 0.55s ease',
-          transform: isOpen ? 'rotate(-45deg) translate(0, 6px)' : 'none',
-        }}
-      />
+      <button
+        type="button"
+        className="relative z-50 flex size-8 items-center justify-center lg:hidden"
+        aria-label="Toggle navigation"
+        aria-expanded={isOpen}
+        aria-controls="mobile-navigation"
+        onClick={() => setIsOpen(open => !open)}
+      >
+        <NavToggleIcon isOpen={isOpen} />
+      </button>
 
       <div
-        id="menu"
-        className="fixed -ml-6 h-full w-56 bg-surface shadow-lg lg:w-48"
-        style={{
-          top: 0,
-          paddingTop: 'env(safe-area-inset-top)',
-          transformOrigin: '0% 0%',
-          transform: isOpen ? 'none' : 'translate(-100%, 0)',
-          transition: 'transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1)',
-        }}
+        id="mobile-navigation"
+        className={cn(
+          'fixed -ml-6 h-full w-56 bg-surface shadow-lg transition-transform duration-200 lg:w-48 lg:translate-x-0',
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        )}
+        style={{ top: 0, paddingTop: 'env(safe-area-inset-top)' }}
       >
-        <style>{`
-          @media (min-width: 1024px) {
-            #menu {
-              transform: none !important;
-            }
-          }
-        `}</style>
         <div className="flex h-16 justify-end lg:justify-around">
-          <p className="my-auto pr-8 text-right text-xl font-bold text-content lg:pr-0">AnthoLume</p>
+          <p className="my-auto pr-8 text-right text-xl font-bold text-content lg:pr-0">
+            AnthoLume
+          </p>
         </div>
         <nav>
           {navItems.map(item => (
             <Link
               key={item.path}
               to={item.path}
-              onClick={() => setIsOpen(false)}
-              className={`my-2 flex w-full items-center justify-start border-l-4 p-2 pl-6 transition-colors duration-200 ${
+              onClick={closeMenu}
+              className={cn(
+                'my-2 flex w-full items-center justify-start border-l-4 p-2 pl-6 transition-colors duration-200',
                 location.pathname === item.path
                   ? 'border-primary-500 text-content'
                   : 'border-transparent text-content-subtle hover:text-content'
-              }`}
+              )}
             >
               <item.icon size={20} />
               <span className="mx-4 text-sm font-normal">{item.label}</span>
@@ -104,20 +96,22 @@ export default function HamburgerMenu() {
 
           {isAdmin && (
             <div
-              className={`my-2 flex flex-col gap-4 border-l-4 p-2 pl-6 transition-colors duration-200 ${
+              className={cn(
+                'my-2 flex flex-col gap-4 border-l-4 p-2 pl-6 transition-colors duration-200',
                 hasPrefix(location.pathname, '/admin')
                   ? 'border-primary-500 text-content'
                   : 'border-transparent text-content-subtle'
-              }`}
+              )}
             >
               <Link
                 to="/admin"
-                onClick={() => setIsOpen(false)}
-                className={`flex w-full justify-start ${
+                onClick={closeMenu}
+                className={cn(
+                  'flex w-full justify-start',
                   location.pathname === '/admin' && !hasPrefix(location.pathname, '/admin/')
                     ? 'text-content'
                     : 'text-content-subtle hover:text-content'
-                }`}
+                )}
               >
                 <SettingsIcon size={20} />
                 <span className="mx-4 text-sm font-normal">Admin</span>
@@ -129,13 +123,13 @@ export default function HamburgerMenu() {
                     <Link
                       key={item.path}
                       to={item.path}
-                      onClick={() => setIsOpen(false)}
-                      className={`flex w-full justify-start ${
+                      onClick={closeMenu}
+                      className={cn(
+                        'flex w-full justify-start pl-7',
                         location.pathname === item.path
                           ? 'text-content'
                           : 'text-content-subtle hover:text-content'
-                      }`}
-                      style={{ paddingLeft: '1.75em' }}
+                      )}
                     >
                       <span className="mx-4 text-sm font-normal">{item.label}</span>
                     </Link>

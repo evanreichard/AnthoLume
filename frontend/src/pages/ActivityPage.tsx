@@ -5,6 +5,7 @@ import type { Activity } from '../generated/model';
 import { Pagination } from '../components';
 import { Table, type Column } from '../components/Table';
 import { formatDuration } from '../utils/formatters';
+import { dataForStatus } from '../utils/apiResponses';
 
 const ACTIVITY_PAGE_SIZE = 25;
 
@@ -24,7 +25,7 @@ export default function ActivityPage() {
     page,
     limit,
   });
-  const response = data?.status === 200 ? data.data : undefined;
+  const response = dataForStatus(data, 200);
   const activities = response?.activities ?? [];
 
   const columns: Column<Activity>[] = [

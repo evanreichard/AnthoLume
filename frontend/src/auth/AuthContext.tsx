@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { createContext, useContext, ReactNode, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -10,7 +10,6 @@ import {
 } from '../generated/anthoLumeAPIV1';
 import {
   type AuthState,
-  getAuthenticatedAuthState,
   getUnauthenticatedAuthState,
   resolveAuthStateFromMe,
   authUserFromMutation,
@@ -25,15 +24,9 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const initialAuthState: AuthState = {
-  isAuthenticated: false,
-  user: null,
-  isCheckingAuth: true,
-};
+const unauthenticatedState = getUnauthenticatedAuthState();
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [authState, setAuthState] = useState<AuthState>(initialAuthState);
-
   const loginMutation = useLogin();
   const registerMutation = useRegister();
   const logoutMutation = useLogout();
@@ -43,16 +36,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    setAuthState(prev =>
+  const authState = useMemo(
+    () =>
       resolveAuthStateFromMe({
         meData,
         meError,
         meLoading,
-        previousState: prev,
-      })
-    );
-  }, [meData, meError, meLoading]);
+        previousState: unauthenticatedState,
+      }),
+    [meData, meError, meLoading]
+  );
 
   const login = useCallback(
     async (username: string, password: string) => {
@@ -66,16 +59,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const user = authUserFromMutation(response);
         if (!user) {
-          setAuthState(getUnauthenticatedAuthState());
           throw new Error(getResponseError(response) ?? 'Login failed');
         }
 
-        setAuthState(getAuthenticatedAuthState(user));
-
+        queryClient.setQueryData(getGetMeQueryKey(), response);
         await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
         navigate('/');
       } catch (error) {
-        setAuthState(getUnauthenticatedAuthState());
+        queryClient.setQueryData(getGetMeQueryKey(), undefined);
         throw error instanceof Error ? error : new Error('Login failed');
       }
     },
@@ -94,16 +85,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const user = authUserFromMutation(response);
         if (!user) {
-          setAuthState(getUnauthenticatedAuthState());
           throw new Error(getResponseError(response) ?? 'Registration failed');
         }
 
-        setAuthState(getAuthenticatedAuthState(user));
-
+        queryClient.setQueryData(getGetMeQueryKey(), response);
         await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
         navigate('/');
       } catch (error) {
-        setAuthState(getUnauthenticatedAuthState());
+        queryClient.setQueryData(getGetMeQueryKey(), undefined);
         throw error instanceof Error ? error : new Error('Registration failed');
       }
     },
@@ -112,9 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     logoutMutation.mutate(undefined, {
-      onSuccess: async () => {
-        setAuthState(getUnauthenticatedAuthState());
-        queryClient.removeQueries({ queryKey: getGetMeQueryKey() });
+      onSettled: () => {
+        queryClient.clear();
         navigate('/login');
       },
     });

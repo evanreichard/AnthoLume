@@ -13,6 +13,7 @@ import {
   useLocalSetting,
 } from '../utils/localSettings';
 import { useEpubReader } from '../hooks/useEpubReader';
+import { dataForStatus } from '../utils/apiResponses';
 
 const READER_SEGMENT_BUTTON = 'rounded border px-2 py-1.5 text-xs sm:text-sm';
 const READER_SEGMENT_ACTIVE = 'border-primary-500 bg-primary-500/10 text-content';
@@ -39,8 +40,8 @@ export default function ReaderPage() {
       enabled: Boolean(id),
     },
   });
-  const document = documentResponse?.status === 200 ? documentResponse.data.document : null;
-  const progress = progressResponse?.status === 200 ? progressResponse.data.progress : undefined;
+  const document = dataForStatus(documentResponse, 200)?.document;
+  const progress = dataForStatus(progressResponse, 200)?.progress;
 
   const deviceId = defaultDeviceId;
   const deviceName = defaultDeviceName;
@@ -108,7 +109,7 @@ export default function ReaderPage() {
     return <LoadingState className="min-h-screen bg-canvas" message="Loading reader..." />;
   }
 
-  if (!id || !document || documentResponse?.status !== 200) {
+  if (!id || !document) {
     return <div className="p-6 text-content-muted">Document not found</div>;
   }
 

@@ -2,10 +2,11 @@ import { useGetImportResults } from '../generated/anthoLumeAPIV1';
 import { Table, type Column } from '../components';
 import type { ImportResult } from '../generated/model';
 import { Link } from 'react-router-dom';
+import { dataForStatus } from '../utils/apiResponses';
 
 export default function AdminImportResultsPage() {
   const { data: resultsData, isLoading } = useGetImportResults();
-  const results = resultsData?.status === 200 ? (resultsData.data.results ?? []) : [];
+  const results = dataForStatus(resultsData, 200)?.results ?? [];
 
   const columns: Column<ImportResult>[] = [
     {

@@ -10,6 +10,7 @@ import { formatDuration } from '../utils/formatters';
 import { cn } from '../utils/cn';
 import { useDebouncedState } from '../hooks/useDebouncedState';
 import { useLocalSetting, type DocumentsViewMode } from '../utils/localSettings';
+import { dataForStatus } from '../utils/apiResponses';
 
 const DOCUMENTS_PAGE_SIZE = 9;
 
@@ -21,14 +22,16 @@ interface DocumentItemProps {
 function DocumentItem({ doc, layout }: DocumentItemProps) {
   const percentage = doc.percentage || 0;
   const totalTimeSeconds = doc.total_time_seconds || 0;
+  const documentPath = `/documents/${doc.id}`;
+  const title = doc.title || 'Unknown';
 
-  const icons = (
-    <div className="flex shrink-0 items-center justify-end gap-4 text-content-muted pointer-events-auto">
-      <Link to={`/activity?document=${doc.id}`}>
+  const actions = (
+    <div className="flex shrink-0 items-center justify-end gap-4 text-content-muted">
+      <Link to={`/activity?document=${doc.id}`} aria-label={`View activity for ${title}`}>
         <ActivityIcon size={20} />
       </Link>
       {doc.filepath ? (
-        <a href={`/api/v1/documents/${doc.id}/file`}>
+        <a href={`/api/v1/documents/${doc.id}/file`} aria-label={`Download ${title}`}>
           <DownloadIcon size={20} />
         </a>
       ) : (
@@ -38,63 +41,54 @@ function DocumentItem({ doc, layout }: DocumentItemProps) {
   );
 
   const fields = [
-    { label: 'Title', value: doc.title || 'Unknown' },
+    { label: 'Title', value: title, link: true },
     { label: 'Author', value: doc.author || 'Unknown' },
     { label: 'Progress', value: `${percentage}%` },
     { label: 'Time Read', value: formatDuration(totalTimeSeconds) },
   ];
 
+  const fieldList = (
+    <div
+      className={cn('grid flex-1 grid-cols-1 gap-3 text-sm', layout === 'list' && 'md:grid-cols-4')}
+    >
+      {fields.map(field => (
+        <div key={field.label}>
+          <p className="text-content-subtle">{field.label}</p>
+          {field.link ? (
+            <Link to={documentPath} className="font-medium hover:underline">
+              {field.value}
+            </Link>
+          ) : (
+            <p className="font-medium">{field.value}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
   if (layout === 'grid') {
     return (
-      <div className="relative flex size-full gap-4 rounded bg-surface p-4 shadow-lg transition-colors hover:bg-surface-muted">
-        {/* Stretched Link - Covers the whole card; display content is pointer-events-none so clicks fall through to navigate. */}
-        <Link
-          to={`/documents/${doc.id}`}
-          aria-label={`Open ${doc.title || 'document'}`}
-          className="absolute inset-0"
-        />
-        <div className="pointer-events-none my-auto h-48 min-w-fit">
+      <div className="flex size-full gap-4 rounded bg-surface p-4 text-content shadow-lg transition-colors hover:bg-surface-muted">
+        <Link to={documentPath} className="my-auto h-48 min-w-fit" aria-label={`Open ${title}`}>
           <img
             className="h-full rounded object-cover"
             src={`/api/v1/documents/${doc.id}/cover`}
-            alt={doc.title}
+            alt={title}
           />
-        </div>
-        <div className="pointer-events-none flex w-full flex-col justify-around text-sm text-content">
-          {fields.map(f => (
-            <div key={f.label} className="inline-flex shrink-0 items-center">
-              <div>
-                <p className="text-content-subtle">{f.label}</p>
-                <p className="font-medium">{f.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="absolute bottom-4 right-4 flex flex-col gap-2 text-content-muted">
-          {icons}
+        </Link>
+        <div className="flex w-full flex-col justify-between gap-4">
+          {fieldList}
+          {actions}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative block rounded bg-surface p-4 text-content shadow-lg transition-colors hover:bg-surface-muted">
-      {/* Stretched Link - Covers the whole card; display content is pointer-events-none so clicks fall through to navigate. */}
-      <Link
-        to={`/documents/${doc.id}`}
-        aria-label={`Open ${doc.title || 'document'}`}
-        className="absolute inset-0"
-      />
-      <div className="pointer-events-none flex flex-col gap-4 sm:flex-row sm:items-center">
-        <div className="grid flex-1 grid-cols-1 gap-3 text-sm md:grid-cols-4">
-          {fields.map(f => (
-            <div key={f.label}>
-              <p className="text-content-subtle">{f.label}</p>
-              <p className="font-medium">{f.value}</p>
-            </div>
-          ))}
-        </div>
-        {icons}
+    <div className="rounded bg-surface p-4 text-content shadow-lg transition-colors hover:bg-surface-muted">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        {fieldList}
+        {actions}
       </div>
     </div>
   );
@@ -126,7 +120,7 @@ export default function DocumentsPage() {
 
   const { data, isLoading, refetch } = useGetDocuments({ page, limit, search: debouncedSearch });
   const createMutation = useCreateDocument();
-  const documentsResponse = data?.status === 200 ? data.data : undefined;
+  const documentsResponse = dataForStatus(data, 200);
   const docs = documentsResponse?.documents;
   const previousPage = documentsResponse?.previous_page;
   const nextPage = documentsResponse?.next_page;

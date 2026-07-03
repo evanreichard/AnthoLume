@@ -5,6 +5,7 @@ import { useGetHome } from '../generated/anthoLumeAPIV1';
 import type { LeaderboardData, LeaderboardEntry, UserStreak } from '../generated/model';
 import ReadingHistoryGraph from '../components/ReadingHistoryGraph';
 import { formatNumber, formatDuration } from '../utils/formatters';
+import { dataForStatus } from '../utils/apiResponses';
 
 interface InfoCardProps {
   title: string;
@@ -166,7 +167,7 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
 export default function HomePage() {
   const { data: homeData, isLoading: homeLoading } = useGetHome();
 
-  const homeResponse = homeData?.status === 200 ? homeData.data : null;
+  const homeResponse = dataForStatus(homeData, 200);
   const dbInfo = homeResponse?.database_info;
   const streaks = homeResponse?.streaks?.streaks;
   const graphData = homeResponse?.graph_data?.graph_data;
