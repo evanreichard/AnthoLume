@@ -2,6 +2,7 @@ TODO.md
 .DS_Store
 data/
 build/
+tmp/
 .direnv/
 cover.html
 node_modules

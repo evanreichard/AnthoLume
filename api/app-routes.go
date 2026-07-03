@@ -124,10 +124,13 @@ func (api *API) appGetDocuments(c *gin.Context) {
 		return
 	}
 
-	length, err := api.db.Queries.GetDocumentsSize(c, query)
+	length, err := api.db.Queries.GetDocumentsWithStatsCount(c, database.GetDocumentsWithStatsCountParams{
+		Deleted: ptr.Of(false),
+		Query:   query,
+	})
 	if err != nil {
-		log.Error("GetDocumentsSize DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsSize DB Error: %v", err))
+		log.Error("GetDocumentsWithStatsCount DB Error: ", err)
+		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentsWithStatsCount DB Error: %v", err))
 		return
 	}
 

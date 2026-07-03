@@ -1,0 +1,226 @@
+package v1
+
+import (
+	"context"
+	"sort"
+
+	log "github.com/sirupsen/logrus"
+	"reichard.io/antholume/database"
+	"reichard.io/antholume/graph"
+)
+
+// GET /home
+func (s *Server) GetHome(ctx context.Context, request GetHomeRequestObject) (GetHomeResponseObject, error) {
+	auth, ok := s.getSessionFromContext(ctx)
+	if !ok {
+		return GetHome401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
+	}
+
+	// Get database info
+	dbInfo, err := s.db.Queries.GetDatabaseInfo(ctx, auth.UserName)
+	if err != nil {
+		log.Error("GetDatabaseInfo DB Error:", err)
+		return GetHome500JSONResponse{Code: 500, Message: "Database error"}, nil
+	}
+
+	// Get streaks
+	streaks, err := s.db.Queries.GetUserStreaks(ctx, auth.UserName)
+	if err != nil {
+		log.Error("GetUserStreaks DB Error:", err)
+		return GetHome500JSONResponse{Code: 500, Message: "Database error"}, nil
+	}
+
+	// Get graph data
+	graphData, err := s.db.Queries.GetDailyReadStats(ctx, auth.UserName)
+	if err != nil {
+		log.Error("GetDailyReadStats DB Error:", err)
+		return GetHome500JSONResponse{Code: 500, Message: "Database error"}, nil
+	}
+
+	// Get user statistics
+	userStats, err := s.db.Queries.GetUserStatistics(ctx)
+	if err != nil {
+		log.Error("GetUserStatistics DB Error:", err)
+		return GetHome500JSONResponse{Code: 500, Message: "Database error"}, nil
+	}
+
+	// Build response
+	response := HomeResponse{
+		DatabaseInfo: DatabaseInfo{
+			DocumentsSize: dbInfo.DocumentsSize,
+			ActivitySize:  dbInfo.ActivitySize,
+			ProgressSize:  dbInfo.ProgressSize,
+			DevicesSize:   dbInfo.DevicesSize,
+		},
+		Streaks: StreaksResponse{
+			Streaks: convertStreaks(streaks),
+		},
+		GraphData: GraphDataResponse{
+			GraphData: convertGraphData(graphData),
+		},
+		UserStatistics: arrangeUserStatistics(userStats),
+	}
+
+	return GetHome200JSONResponse(response), nil
+}
+
+// GET /home/streaks
+func (s *Server) GetStreaks(ctx context.Context, request GetStreaksRequestObject) (GetStreaksResponseObject, error) {
+	auth, ok := s.getSessionFromContext(ctx)
+	if !ok {
+		return GetStreaks401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
+	}
+
+	streaks, err := s.db.Queries.GetUserStreaks(ctx, auth.UserName)
+	if err != nil {
+		log.Error("GetUserStreaks DB Error:", err)
+		return GetStreaks500JSONResponse{Code: 500, Message: "Database error"}, nil
+	}
+
+	response := StreaksResponse{
+		Streaks: convertStreaks(streaks),
+	}
+
+	return GetStreaks200JSONResponse(response), nil
+}
+
+// GET /home/graph
+func (s *Server) GetGraphData(ctx context.Context, request GetGraphDataRequestObject) (GetGraphDataResponseObject, error) {
+	auth, ok := s.getSessionFromContext(ctx)
+	if !ok {
+		return GetGraphData401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
+	}
+
+	graphData, err := s.db.Queries.GetDailyReadStats(ctx, auth.UserName)
+	if err != nil {
+		log.Error("GetDailyReadStats DB Error:", err)
+		return GetGraphData500JSONResponse{Code: 500, Message: "Database error"}, nil
+	}
+
+	response := GraphDataResponse{
+		GraphData: convertGraphData(graphData),
+	}
+
+	return GetGraphData200JSONResponse(response), nil
+}
+
+// GET /home/statistics
+func (s *Server) GetUserStatistics(ctx context.Context, request GetUserStatisticsRequestObject) (GetUserStatisticsResponseObject, error) {
+	_, ok := s.getSessionFromContext(ctx)
+	if !ok {
+		return GetUserStatistics401JSONResponse{Code: 401, Message: "Unauthorized"}, nil
+	}
+
+	userStats, err := s.db.Queries.GetUserStatistics(ctx)
+	if err != nil {
+		log.Error("GetUserStatistics DB Error:", err)
+		return GetUserStatistics500JSONResponse{Code: 500, Message: "Database error"}, nil
+	}
+
+	response := arrangeUserStatistics(userStats)
+	return GetUserStatistics200JSONResponse(response), nil
+}
+
+func convertStreaks(streaks []database.UserStreak) []UserStreak {
+	result := make([]UserStreak, len(streaks))
+	for i, streak := range streaks {
+		result[i] = UserStreak{
+			Window:               streak.Window,
+			MaxStreak:            streak.MaxStreak,
+			MaxStreakStartDate:   streak.MaxStreakStartDate,
+			MaxStreakEndDate:     streak.MaxStreakEndDate,
+			CurrentStreak:        streak.CurrentStreak,
+			CurrentStreakStartDate: streak.CurrentStreakStartDate,
+			CurrentStreakEndDate:   streak.CurrentStreakEndDate,
+		}
+	}
+	return result
+}
+
+func convertGraphData(graphData []database.GetDailyReadStatsRow) []GraphDataPoint {
+	result := make([]GraphDataPoint, len(graphData))
+	for i, data := range graphData {
+		result[i] = GraphDataPoint{
+			Date:        data.Date,
+			MinutesRead: data.MinutesRead,
+		}
+	}
+	return result
+}
+
+func arrangeUserStatistics(userStatistics []database.GetUserStatisticsRow) UserStatisticsResponse {
+	// Sort by WPM for each period
+	sortByWPM := func(stats []database.GetUserStatisticsRow, getter func(database.GetUserStatisticsRow) float64) []LeaderboardEntry {
+		sorted := append([]database.GetUserStatisticsRow(nil), stats...)
+		sort.SliceStable(sorted, func(i, j int) bool {
+			return getter(sorted[i]) > getter(sorted[j])
+		})
+
+		result := make([]LeaderboardEntry, len(sorted))
+		for i, item := range sorted {
+			result[i] = LeaderboardEntry{UserId: item.UserID, Value: getter(item)}
+		}
+		return result
+	}
+
+	// Sort by duration (seconds) for each period
+	sortByDuration := func(stats []database.GetUserStatisticsRow, getter func(database.GetUserStatisticsRow) int64) []LeaderboardEntry {
+		sorted := append([]database.GetUserStatisticsRow(nil), stats...)
+		sort.SliceStable(sorted, func(i, j int) bool {
+			return getter(sorted[i]) > getter(sorted[j])
+		})
+
+		result := make([]LeaderboardEntry, len(sorted))
+		for i, item := range sorted {
+			result[i] = LeaderboardEntry{UserId: item.UserID, Value: float64(getter(item))}
+		}
+		return result
+	}
+
+	// Sort by words for each period
+	sortByWords := func(stats []database.GetUserStatisticsRow, getter func(database.GetUserStatisticsRow) int64) []LeaderboardEntry {
+		sorted := append([]database.GetUserStatisticsRow(nil), stats...)
+		sort.SliceStable(sorted, func(i, j int) bool {
+			return getter(sorted[i]) > getter(sorted[j])
+		})
+
+		result := make([]LeaderboardEntry, len(sorted))
+		for i, item := range sorted {
+			result[i] = LeaderboardEntry{UserId: item.UserID, Value: float64(getter(item))}
+		}
+		return result
+	}
+
+	return UserStatisticsResponse{
+		Wpm: LeaderboardData{
+			All:   sortByWPM(userStatistics, func(s database.GetUserStatisticsRow) float64 { return s.TotalWpm }),
+			Year:  sortByWPM(userStatistics, func(s database.GetUserStatisticsRow) float64 { return s.YearlyWpm }),
+			Month: sortByWPM(userStatistics, func(s database.GetUserStatisticsRow) float64 { return s.MonthlyWpm }),
+			Week:  sortByWPM(userStatistics, func(s database.GetUserStatisticsRow) float64 { return s.WeeklyWpm }),
+		},
+		Duration: LeaderboardData{
+			All:   sortByDuration(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.TotalSeconds }),
+			Year:  sortByDuration(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.YearlySeconds }),
+			Month: sortByDuration(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.MonthlySeconds }),
+			Week:  sortByDuration(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.WeeklySeconds }),
+		},
+		Words: LeaderboardData{
+			All:   sortByWords(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.TotalWordsRead }),
+			Year:  sortByWords(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.YearlyWordsRead }),
+			Month: sortByWords(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.MonthlyWordsRead }),
+			Week:  sortByWords(userStatistics, func(s database.GetUserStatisticsRow) int64 { return s.WeeklyWordsRead }),
+		},
+	}
+}
+
+// GetSVGGraphData generates SVG bezier path for graph visualization
+func GetSVGGraphData(inputData []GraphDataPoint, svgWidth int, svgHeight int) graph.SVGGraphData {
+	// Convert to int64 slice expected by graph package
+	intData := make([]int64, len(inputData))
+	
+	for i, data := range inputData {
+		intData[i] = int64(data.MinutesRead)
+	}
+	
+	return graph.GetSVGGraphData(intData, svgWidth, svgHeight)
+}

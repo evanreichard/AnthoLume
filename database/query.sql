@@ -202,6 +202,7 @@ SELECT
     END AS REAL), 2) AS percentage,
     CAST(CASE
         WHEN dus.total_time_seconds IS NULL THEN 0.0
+        WHEN dus.read_percentage IS NULL OR dus.read_percentage <= 0 THEN 0.0
         ELSE
             CAST(dus.total_time_seconds AS REAL)
             / (dus.read_percentage * 100.0)
@@ -215,10 +216,10 @@ WHERE
     (docs.id = sqlc.narg('id') OR $id IS NULL)
     AND (docs.deleted = sqlc.narg(deleted) OR $deleted IS NULL)
     AND (
-        (
+        $query IS NULL OR (
             docs.title LIKE sqlc.narg('query') OR
-            docs.author LIKE $query
-        ) OR $query IS NULL
+            docs.author LIKE sqlc.narg('query')
+        )
     )
 ORDER BY dus.last_read DESC, docs.created_at DESC
 LIMIT $limit
@@ -396,3 +397,40 @@ SET
     isbn10 =        COALESCE(excluded.isbn10, isbn10),
     isbn13 =        COALESCE(excluded.isbn13, isbn13)
 RETURNING *;
+
+-- name: GetDocumentsWithStatsCount :one
+SELECT COUNT(*) AS count
+FROM documents AS docs
+WHERE
+    (docs.id = sqlc.narg('id') OR $id IS NULL)
+    AND (docs.deleted = sqlc.narg(deleted) OR $deleted IS NULL)
+    AND (
+        (
+            docs.title LIKE sqlc.narg('query') OR
+            docs.author LIKE $query
+        ) OR $query IS NULL
+    );
+
+-- name: GetProgressCount :one
+SELECT COUNT(*) AS count
+FROM document_progress AS progress
+WHERE
+    progress.user_id = $user_id
+    AND (
+        (
+            CAST($doc_filter AS BOOLEAN) = TRUE
+            AND document_id = $document_id
+        ) OR $doc_filter = FALSE
+    );
+
+-- name: GetActivityCount :one
+SELECT COUNT(*) AS count
+FROM activity
+WHERE
+    activity.user_id = $user_id
+    AND (
+        (
+            CAST($doc_filter AS BOOLEAN) = TRUE
+            AND document_id = $document_id
+        ) OR $doc_filter = FALSE
+    );

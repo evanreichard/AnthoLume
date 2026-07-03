@@ -1,0 +1,17 @@
+root = "."
+tmp_dir = "_scratch/air"
+
+[build]
+cmd = "go build -o ./_scratch/air/antholume ."
+full_bin = "./_scratch/air/antholume serve"
+delay = 1000
+include_ext = ["go", "tpl", "tmpl", "html", "css", "js", "yaml", "yml"]
+exclude_dir = ["_scratch", "build", "data", "frontend", "node_modules"]
+exclude_file = ["assets/style.css"]
+stop_on_error = true
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = true

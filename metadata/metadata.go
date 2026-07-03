@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -45,12 +46,17 @@ type MetadataInfo struct {
 
 // Downloads the Google Books cover file and saves it to the provided directory.
 func CacheCover(gbid string, coverDir string, documentID string, overwrite bool) (*string, error) {
+	return CacheCoverWithContext(context.Background(), gbid, coverDir, documentID, overwrite)
+}
+
+// CacheCoverWithContext downloads the Google Books cover file and saves it to the provided directory with context support.
+func CacheCoverWithContext(ctx context.Context, gbid string, coverDir string, documentID string, overwrite bool) (*string, error) {
 	// Get Filepath
 	coverFile := "." + filepath.Clean(fmt.Sprintf("/%s.jpg", documentID))
 	coverFilePath := filepath.Join(coverDir, coverFile)
 
 	// Save Google Books
-	if err := saveGBooksCover(gbid, coverFilePath, overwrite); err != nil {
+	if err := saveGBooksCoverWithContext(ctx, gbid, coverFilePath, overwrite); err != nil {
 		return nil, err
 	}
 
@@ -61,9 +67,14 @@ func CacheCover(gbid string, coverDir string, documentID string, overwrite bool)
 
 // Searches source for metadata based on the provided information.
 func SearchMetadata(s Source, metadataSearch MetadataInfo) ([]MetadataInfo, error) {
+	return SearchMetadataWithContext(context.Background(), s, metadataSearch)
+}
+
+// SearchMetadataWithContext searches source for metadata based on the provided information with context support.
+func SearchMetadataWithContext(ctx context.Context, s Source, metadataSearch MetadataInfo) ([]MetadataInfo, error) {
 	switch s {
 	case SOURCE_GBOOK:
-		return getGBooksMetadata(metadataSearch)
+		return getGBooksMetadataWithContext(ctx, metadataSearch)
 	case SOURCE_OLIB:
 		return nil, errors.New("not implemented")
 	default:

@@ -20,12 +20,15 @@
       {
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
+            air
             go
-            gopls
             golangci-lint
+            gopls
+
+            bun
             nodejs
             tailwindcss
-            python311Packages.grip
+            typescript-language-server
           ];
           shellHook = ''
             export PATH=$PATH:~/go/bin

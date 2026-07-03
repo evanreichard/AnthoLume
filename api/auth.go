@@ -49,7 +49,45 @@ func (api *API) authorizeCredentials(ctx context.Context, username string, passw
 	}
 }
 
+// resolveDevAuth returns an authData for the dev user when DISABLE_AUTH is
+// set. If DISABLE_AUTH_USER names a specific user, that user is looked up;
+// otherwise the first user in the database is used.
+func (api *API) resolveDevAuth(c *gin.Context) (authData, bool) {
+	if api.cfg.DisableAuthUser != "" {
+		user, err := api.db.Queries.GetUser(c, api.cfg.DisableAuthUser)
+		if err != nil {
+			log.Errorf("DISABLE_AUTH_USER=%q not found in database: %v", api.cfg.DisableAuthUser, err)
+			return authData{}, false
+		}
+		return authData{
+			UserName: user.ID,
+			IsAdmin:  user.Admin,
+			AuthHash: *user.AuthHash,
+		}, true
+	}
+
+	users, err := api.db.Queries.GetUsers(c)
+	if err != nil || len(users) == 0 {
+		return authData{}, false
+	}
+	return authData{
+		UserName: users[0].ID,
+		IsAdmin:  users[0].Admin,
+		AuthHash: *users[0].AuthHash,
+	}, true
+}
+
 func (api *API) authKOMiddleware(c *gin.Context) {
+	// Dev Auth Bypass
+	if api.cfg.DisableAuth {
+		if auth, ok := api.resolveDevAuth(c); ok {
+			c.Set("Authorization", auth)
+			c.Header("Cache-Control", "private")
+			c.Next()
+			return
+		}
+	}
+
 	session := sessions.Default(c)
 
 	// Check Session First
@@ -89,6 +127,16 @@ func (api *API) authKOMiddleware(c *gin.Context) {
 }
 
 func (api *API) authOPDSMiddleware(c *gin.Context) {
+	// Dev Auth Bypass
+	if api.cfg.DisableAuth {
+		if auth, ok := api.resolveDevAuth(c); ok {
+			c.Set("Authorization", auth)
+			c.Header("Cache-Control", "private")
+			c.Next()
+			return
+		}
+	}
+
 	c.Header("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
 
 	user, rawPassword, hasAuth := c.Request.BasicAuth()
@@ -113,6 +161,16 @@ func (api *API) authOPDSMiddleware(c *gin.Context) {
 }
 
 func (api *API) authWebAppMiddleware(c *gin.Context) {
+	// Dev Auth Bypass
+	if api.cfg.DisableAuth {
+		if auth, ok := api.resolveDevAuth(c); ok {
+			c.Set("Authorization", auth)
+			c.Header("Cache-Control", "private")
+			c.Next()
+			return
+		}
+	}
+
 	session := sessions.Default(c)
 
 	// Check Session

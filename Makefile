@@ -1,4 +1,15 @@
-build_local: build_tailwind
+.PHONY: build_local docker_build_local docker_build_release_dev docker_build_release_latest build_tailwind legacy_tailwind dev dev_backend dev_frontend clean tests
+
+DEV_ENV = GIN_MODE=release \
+	CONFIG_PATH=./data \
+	DATA_PATH=./data \
+	SEARCH_ENABLED=true \
+	REGISTRATION_ENABLED=true \
+	COOKIE_SECURE=false \
+	COOKIE_AUTH_KEY=1234 \
+	LOG_LEVEL=debug
+
+build_local: legacy_tailwind
 	go mod download
 	rm -r ./build || true
 	mkdir -p ./build
@@ -8,17 +19,17 @@ build_local: build_tailwind
 	env GOOS=darwin GOARCH=arm64 go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/server_darwin_arm64
 	env GOOS=darwin GOARCH=amd64 go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/server_darwin_amd64
 
-docker_build_local: build_tailwind
+docker_build_local: legacy_tailwind
 	docker build -t antholume:latest .
 
-docker_build_release_dev: build_tailwind
+docker_build_release_dev: legacy_tailwind
 	docker buildx build \
 		--platform linux/amd64,linux/arm64 \
 		-t gitea.va.reichard.io/evan/antholume:dev \
 		-f Dockerfile-BuildKit \
 		--push .
 
-docker_build_release_latest: build_tailwind
+docker_build_release_latest: legacy_tailwind
 	docker buildx build \
 		--platform linux/amd64,linux/arm64 \
 		-t gitea.va.reichard.io/evan/antholume:latest \
@@ -26,18 +37,19 @@ docker_build_release_latest: build_tailwind
 		-f Dockerfile-BuildKit \
 		--push .
 
-build_tailwind:
+build_tailwind: legacy_tailwind
+
+legacy_tailwind:
 	tailwindcss build -o ./assets/style.css --minify
 
-dev: build_tailwind
-	GIN_MODE=release \
-	CONFIG_PATH=./data \
-	DATA_PATH=./data \
-	SEARCH_ENABLED=true \
-	REGISTRATION_ENABLED=true \
-	COOKIE_SECURE=false \
-	COOKIE_AUTH_KEY=1234 \
-	LOG_LEVEL=debug go run main.go serve
+dev:
+	$(MAKE) -j2 dev_backend dev_frontend
+
+dev_backend:
+	$(DEV_ENV) air
+
+dev_frontend:
+	cd frontend && bun run dev
 
 clean:
 	rm -rf ./build

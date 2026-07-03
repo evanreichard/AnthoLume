@@ -1,0 +1,1995 @@
+openapi: 3.0.3
+info:
+  title: AnthoLume API v1
+  version: 1.0.0
+  description: REST API for AnthoLume document management system
+
+servers:
+  - url: /api/v1
+
+components:
+  schemas:
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        author:
+          type: string
+        description:
+          type: string
+        isbn10:
+          type: string
+        isbn13:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        deleted:
+          type: boolean
+        words:
+          type: integer
+          format: int64
+        filepath:
+          type: string
+        percentage:
+          type: number
+          format: float
+        total_time_seconds:
+          type: integer
+          format: int64
+        wpm:
+          type: number
+          format: float
+        seconds_per_percent:
+          type: integer
+          format: int64
+        last_read:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - author
+        - created_at
+        - updated_at
+        - deleted
+
+    UserData:
+      type: object
+      properties:
+        username:
+          type: string
+        is_admin:
+          type: boolean
+      required:
+        - username
+        - is_admin
+
+    WordCount:
+      type: object
+      properties:
+        document_id:
+          type: string
+        count:
+          type: integer
+          format: int64
+      required:
+        - document_id
+        - count
+
+    Progress:
+      type: object
+      properties:
+        title:
+          type: string
+        author:
+          type: string
+        device_name:
+          type: string
+        device_id:
+          type: string
+        percentage:
+          type: number
+          format: double
+        progress:
+          type: string
+        document_id:
+          type: string
+        user_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    UpdateProgressRequest:
+      type: object
+      properties:
+        document_id:
+          type: string
+        percentage:
+          type: number
+          format: double
+        progress:
+          type: string
+        device_id:
+          type: string
+        device_name:
+          type: string
+      required:
+        - document_id
+        - percentage
+        - progress
+        - device_id
+        - device_name
+
+    UpdateProgressResponse:
+      type: object
+      properties:
+        document_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - document_id
+        - timestamp
+
+    CreateActivityItem:
+      type: object
+      properties:
+        document_id:
+          type: string
+        start_time:
+          type: integer
+          format: int64
+        duration:
+          type: integer
+          format: int64
+        page:
+          type: integer
+          format: int64
+        pages:
+          type: integer
+          format: int64
+      required:
+        - document_id
+        - start_time
+        - duration
+        - page
+        - pages
+
+    CreateActivityRequest:
+      type: object
+      properties:
+        device_id:
+          type: string
+        device_name:
+          type: string
+        activity:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateActivityItem'
+      required:
+        - device_id
+        - device_name
+        - activity
+
+    CreateActivityResponse:
+      type: object
+      properties:
+        added:
+          type: integer
+          format: int64
+      required:
+        - added
+
+    Activity:
+      type: object
+      properties:
+        document_id:
+          type: string
+        device_id:
+          type: string
+        start_time:
+          type: string
+        title:
+          type: string
+        author:
+          type: string
+        duration:
+          type: integer
+          format: int64
+        start_percentage:
+          type: number
+          format: float
+        end_percentage:
+          type: number
+          format: float
+        read_percentage:
+          type: number
+          format: float
+      required:
+        - document_id
+        - device_id
+        - start_time
+        - duration
+        - start_percentage
+        - end_percentage
+        - read_percentage
+
+    SearchItem:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        author:
+          type: string
+        language:
+          type: string
+        series:
+          type: string
+        file_type:
+          type: string
+        file_size:
+          type: string
+        upload_date:
+          type: string
+
+    SearchResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchItem'
+        source:
+          type: string
+        query:
+          type: string
+      required:
+        - results
+        - source
+        - query
+
+    Setting:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        key:
+          type: string
+        value:
+          type: string
+      required:
+        - id
+        - user_id
+        - key
+        - value
+
+    DocumentsResponse:
+      type: object
+      properties:
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+        total:
+          type: integer
+          format: int64
+        page:
+          type: integer
+          format: int64
+        limit:
+          type: integer
+          format: int64
+        next_page:
+          type: integer
+          format: int64
+        previous_page:
+          type: integer
+          format: int64
+        search:
+          type: string
+      required:
+        - documents
+        - total
+        - page
+        - limit
+
+    DocumentResponse:
+      type: object
+      properties:
+        document:
+          $ref: '#/components/schemas/Document'
+      required:
+        - document
+
+    ProgressListResponse:
+      type: object
+      properties:
+        progress:
+          type: array
+          items:
+            $ref: '#/components/schemas/Progress'
+        page:
+          type: integer
+          format: int64
+        limit:
+          type: integer
+          format: int64
+        next_page:
+          type: integer
+          format: int64
+        previous_page:
+          type: integer
+          format: int64
+        total:
+          type: integer
+          format: int64
+
+    ProgressResponse:
+      type: object
+      properties:
+        progress:
+          $ref: '#/components/schemas/Progress'
+
+    ActivityResponse:
+      type: object
+      properties:
+        activities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Activity'
+        page:
+          type: integer
+          format: int64
+        limit:
+          type: integer
+          format: int64
+        next_page:
+          type: integer
+          format: int64
+        previous_page:
+          type: integer
+          format: int64
+        total:
+          type: integer
+          format: int64
+      required:
+        - activities
+        - page
+        - limit
+        - total
+
+    Device:
+      type: object
+      properties:
+        id:
+          type: string
+        device_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_synced:
+          type: string
+          format: date-time
+
+    SettingsResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/UserData'
+        timezone:
+          type: string
+        devices:
+          type: array
+          items:
+            $ref: '#/components/schemas/Device'
+      required:
+        - settings
+        - user
+
+    UpdateSettingsRequest:
+      type: object
+      properties:
+        password:
+          type: string
+        new_password:
+          type: string
+        timezone:
+          type: string
+
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+        - username
+        - password
+
+    LoginResponse:
+      type: object
+      properties:
+        username:
+          type: string
+        is_admin:
+          type: boolean
+      required:
+        - username
+        - is_admin
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+      required:
+        - code
+        - message
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    DatabaseInfo:
+      type: object
+      properties:
+        documents_size:
+          type: integer
+          format: int64
+        activity_size:
+          type: integer
+          format: int64
+        progress_size:
+          type: integer
+          format: int64
+        devices_size:
+          type: integer
+          format: int64
+      required:
+        - documents_size
+        - activity_size
+        - progress_size
+        - devices_size
+
+    UserStreak:
+      type: object
+      properties:
+        window:
+          type: string
+        max_streak:
+          type: integer
+          format: int64
+        max_streak_start_date:
+          type: string
+        max_streak_end_date:
+          type: string
+        current_streak:
+          type: integer
+          format: int64
+        current_streak_start_date:
+          type: string
+        current_streak_end_date:
+          type: string
+      required:
+        - window
+        - max_streak
+        - max_streak_start_date
+        - max_streak_end_date
+        - current_streak
+        - current_streak_start_date
+        - current_streak_end_date
+
+    StreaksResponse:
+      type: object
+      properties:
+        streaks:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserStreak'
+      required:
+        - streaks
+
+    GraphDataPoint:
+      type: object
+      properties:
+        date:
+          type: string
+        minutes_read:
+          type: integer
+          format: int64
+      required:
+        - date
+        - minutes_read
+
+    GraphDataResponse:
+      type: object
+      properties:
+        graph_data:
+          type: array
+          items:
+            $ref: '#/components/schemas/GraphDataPoint'
+      required:
+        - graph_data
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        user_id:
+          type: string
+        value:
+          type: number
+          format: double
+      required:
+        - user_id
+        - value
+
+    LeaderboardData:
+      type: object
+      properties:
+        all:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
+        year:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
+        month:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
+        week:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
+      required:
+        - all
+        - year
+        - month
+        - week
+
+    UserStatisticsResponse:
+      type: object
+      properties:
+        wpm:
+          $ref: '#/components/schemas/LeaderboardData'
+        duration:
+          $ref: '#/components/schemas/LeaderboardData'
+        words:
+          $ref: '#/components/schemas/LeaderboardData'
+      required:
+        - wpm
+        - duration
+        - words
+
+    HomeResponse:
+      type: object
+      properties:
+        database_info:
+          $ref: '#/components/schemas/DatabaseInfo'
+        streaks:
+          $ref: '#/components/schemas/StreaksResponse'
+        graph_data:
+          $ref: '#/components/schemas/GraphDataResponse'
+        user_statistics:
+          $ref: '#/components/schemas/UserStatisticsResponse'
+      required:
+        - database_info
+        - streaks
+        - graph_data
+        - user_statistics
+
+    BackupType:
+      type: string
+      enum: [COVERS, DOCUMENTS]
+
+    ImportType:
+      type: string
+      enum: [DIRECT, COPY]
+
+    OperationType:
+      type: string
+      enum: [CREATE, UPDATE, DELETE]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        admin:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - admin
+        - created_at
+
+    UsersResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+
+    ImportResult:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        path:
+          type: string
+        status:
+          type: string
+          enum: [FAILED, SUCCESS, EXISTS]
+        error:
+          type: string
+
+    ImportResultsResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportResult'
+
+    DirectoryItem:
+      type: object
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+
+    DirectoryListResponse:
+      type: object
+      properties:
+        current_path:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DirectoryItem'
+
+    LogEntry:
+      type: string
+
+    LogsResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogEntry'
+        filter:
+          type: string
+        page:
+          type: integer
+          format: int64
+        limit:
+          type: integer
+          format: int64
+        next_page:
+          type: integer
+          format: int64
+        previous_page:
+          type: integer
+          format: int64
+        total:
+          type: integer
+          format: int64
+
+    InfoResponse:
+      type: object
+      properties:
+        version:
+          type: string
+        search_enabled:
+          type: boolean
+        registration_enabled:
+          type: boolean
+      required:
+        - version
+        - search_enabled
+        - registration_enabled
+
+  securitySchemes:
+    BearerAuth:
+      type: apiKey
+      in: cookie
+      name: token
+
+paths:
+  /documents:
+    get:
+      summary: List documents
+      operationId: getDocuments
+      tags:
+        - Documents
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            format: int64
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            format: int64
+            default: 9
+        - name: search
+          in: query
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentsResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Upload a new document
+      operationId: createDocument
+      tags:
+        - Documents
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                document_file:
+                  type: string
+                  format: binary
+              required:
+                - document_file
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents/{id}:
+    get:
+      summary: Get a single document
+      operationId: getDocument
+      tags:
+        - Documents
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        404:
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Update document editable fields
+      operationId: editDocument
+      tags:
+        - Documents
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                author:
+                  type: string
+                description:
+                  type: string
+                isbn10:
+                  type: string
+                isbn13:
+                  type: string
+                cover_gbid:
+                  type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        404:
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents/{id}/cover:
+    get:
+      summary: Get document cover image
+      operationId: getDocumentCover
+      tags:
+        - Documents
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Cover image
+          content:
+            image/jpeg: {}
+            image/png: {}
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        404:
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Upload document cover image
+      operationId: uploadDocumentCover
+      tags:
+        - Documents
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                cover_file:
+                  type: string
+                  format: binary
+              required:
+                - cover_file
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Cover uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        404:
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents/{id}/file:
+    get:
+      summary: Download document file
+      operationId: getDocumentFile
+      tags:
+        - Documents
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Document file download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        404:
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /progress:
+    get:
+      summary: List progress records
+      operationId: getProgressList
+      tags:
+        - Progress
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            format: int64
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            format: int64
+            default: 15
+        - name: document
+          in: query
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressListResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Update document progress
+      operationId: updateProgress
+      tags:
+        - Progress
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProgressRequest'
+      responses:
+        200:
+          description: Progress updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateProgressResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /progress/{id}:
+    get:
+      summary: Get document progress
+      operationId: getProgress
+      tags:
+        - Progress
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        404:
+          description: Progress not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /activity:
+    get:
+      summary: Get activity data
+      operationId: getActivity
+      tags:
+        - Activity
+      parameters:
+        - name: doc_filter
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: document_id
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            format: int64
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            format: int64
+            default: 25
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create activity records
+      operationId: createActivity
+      tags:
+        - Activity
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateActivityRequest'
+      responses:
+        200:
+          description: Activity created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateActivityResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /settings:
+    get:
+      summary: Get user settings
+      operationId: getSettings
+      tags:
+        - Settings
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Update user settings
+      operationId: updateSettings
+      tags:
+        - Settings
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettingsRequest'
+      responses:
+        200:
+          description: Settings updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      summary: User login
+      operationId: login
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        200:
+          description: Successful login
+          headers:
+            Set-Cookie:
+              description: HttpOnly session cookie for authenticated requests.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/register:
+    post:
+      summary: User registration
+      operationId: register
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        201:
+          description: Successful registration
+          headers:
+            Set-Cookie:
+              description: HttpOnly session cookie for authenticated requests.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        403:
+          description: Registration disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      summary: User logout
+      operationId: logout
+      tags:
+        - Auth
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful logout
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/me:
+    get:
+      summary: Get current user info
+      operationId: getMe
+      tags:
+        - Auth
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /info:
+    get:
+      summary: Get server information
+      operationId: getInfo
+      tags:
+        - Info
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InfoResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /home:
+    get:
+      summary: Get home page data
+      operationId: getHome
+      tags:
+        - Home
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /home/streaks:
+    get:
+      summary: Get user streaks
+      operationId: getStreaks
+      tags:
+        - Home
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StreaksResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /home/graph:
+    get:
+      summary: Get daily read stats graph data
+      operationId: getGraphData
+      tags:
+        - Home
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphDataResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /home/statistics:
+    get:
+      summary: Get user statistics (leaderboards)
+      operationId: getUserStatistics
+      tags:
+        - Home
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserStatisticsResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /search:
+    get:
+      summary: Search external book sources
+      operationId: getSearch
+      tags:
+        - Search
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: source
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [LibGen, Annas Archive]
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        400:
+          description: Invalid query
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Search error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Download search result
+      operationId: postSearch
+      tags:
+        - Search
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                source:
+                  type: string
+                title:
+                  type: string
+                author:
+                  type: string
+                id:
+                  type: string
+              required:
+                - source
+                - title
+                - author
+                - id
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Download initiated
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Download error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin:
+    get:
+      summary: Get admin page data
+      operationId: getAdmin
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  database_info:
+                    $ref: '#/components/schemas/DatabaseInfo'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Perform admin action (backup, restore, etc.)
+      operationId: postAdminAction
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [BACKUP, RESTORE, METADATA_MATCH, CACHE_TABLES]
+                backup_types:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/BackupType'
+                restore_file:
+                  type: string
+                  format: binary
+              required:
+                - action
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Action completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/users:
+    get:
+      summary: Get all users
+      operationId: getUsers
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsersResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Create, update, or delete user
+      operationId: updateUser
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                operation:
+                  $ref: '#/components/schemas/OperationType'
+                user:
+                  type: string
+                password:
+                  type: string
+                is_admin:
+                  type: boolean
+              required:
+                - operation
+                - user
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsersResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/import:
+    get:
+      summary: Get import directory list
+      operationId: getImportDirectory
+      tags:
+        - Admin
+      parameters:
+        - name: directory
+          in: query
+          schema:
+            type: string
+        - name: select
+          in: query
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DirectoryListResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Perform import
+      operationId: postImport
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                directory:
+                  type: string
+                type:
+                  $ref: '#/components/schemas/ImportType'
+              required:
+                - directory
+                - type
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Import completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResultsResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/import-results:
+    get:
+      summary: Get import results
+      operationId: getImportResults
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResultsResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/logs:
+    get:
+      summary: Get logs with optional filter
+      operationId: getLogs
+      tags:
+        - Admin
+      parameters:
+        - name: filter
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogsResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
