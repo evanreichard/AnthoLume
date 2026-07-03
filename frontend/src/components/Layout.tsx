@@ -3,11 +3,9 @@ import { Link, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { UserIcon, DropdownIcon } from '../icons';
 import { useTheme } from '../theme/ThemeProvider';
-import type { ThemeMode } from '../utils/localSettings';
+import { THEME_MODES } from '../utils/localSettings';
 import HamburgerMenu from './HamburgerMenu';
 import { getPageTitle } from './navigation';
-
-const themeModes: ThemeMode[] = ['light', 'dark', 'system'];
 
 export default function Layout() {
   const location = useLocation();
@@ -72,7 +70,7 @@ export default function Layout() {
                     Theme
                   </p>
                   <div className="inline-flex w-full rounded border border-border bg-surface-muted p-1">
-                    {themeModes.map(mode => (
+                    {THEME_MODES.map(mode => (
                       <button
                         key={mode}
                         type="button"

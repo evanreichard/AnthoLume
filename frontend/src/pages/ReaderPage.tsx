@@ -4,28 +4,20 @@ import { useGetDocument, useGetProgress } from '../generated/anthoLumeAPIV1';
 import { LoadingState } from '../components/LoadingState';
 import { CloseIcon } from '../icons';
 import {
-  getReaderColorScheme,
+  READER_COLOR_SCHEMES,
+  READER_FONT_FAMILIES,
   getReaderDevice,
-  getReaderFontFamily,
-  getReaderFontSize,
-  setReaderColorScheme,
-  setReaderFontFamily,
-  setReaderFontSize,
-  type ReaderColorScheme,
-  type ReaderFontFamily,
+  useLocalSetting,
 } from '../utils/localSettings';
 import { useEpubReader } from '../hooks/useEpubReader';
-
-const colorSchemes: ReaderColorScheme[] = ['light', 'tan', 'blue', 'gray', 'black'];
-const fontFamilies: ReaderFontFamily[] = ['Serif', 'Open Sans', 'Arbutus Slab', 'Lato'];
 
 export default function ReaderPage() {
   const { id } = useParams<{ id: string }>();
   const [isTopBarOpen, setIsTopBarOpen] = useState(false);
   const [isBottomBarOpen, setIsBottomBarOpen] = useState(false);
-  const [colorScheme, setColorSchemeState] = useState<ReaderColorScheme>(getReaderColorScheme());
-  const [fontFamily, setFontFamilyState] = useState<ReaderFontFamily>(getReaderFontFamily());
-  const [fontSize, setFontSizeState] = useState<number>(getReaderFontSize());
+  const [colorScheme, setColorScheme] = useLocalSetting('readerColorScheme', 'tan');
+  const [fontFamily, setFontFamily] = useLocalSetting('readerFontFamily', 'Serif');
+  const [fontSize, setFontSize] = useLocalSetting('readerFontSize', 1);
 
   const { id: defaultDeviceId, name: defaultDeviceName } = useMemo(() => getReaderDevice(), []);
 
@@ -219,14 +211,11 @@ export default function ReaderPage() {
                   Theme
                 </p>
                 <div className="grid w-full grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
-                  {colorSchemes.map(option => (
+                  {READER_COLOR_SCHEMES.map(option => (
                     <button
                       key={option}
                       type="button"
-                      onClick={() => {
-                        setColorSchemeState(option);
-                        setReaderColorScheme(option);
-                      }}
+                      onClick={() => setColorScheme(option)}
                       className={`rounded border px-2 py-1.5 text-xs capitalize sm:text-sm ${
                         colorScheme === option
                           ? 'border-primary-500 bg-primary-500/10 text-content'
@@ -242,14 +231,11 @@ export default function ReaderPage() {
               <div className="min-w-0">
                 <p className="mb-1 text-[10px] uppercase tracking-wide text-content-subtle">Font</p>
                 <div className="grid w-full grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
-                  {fontFamilies.map(option => (
+                  {READER_FONT_FAMILIES.map(option => (
                     <button
                       key={option}
                       type="button"
-                      onClick={() => {
-                        setFontFamilyState(option);
-                        setReaderFontFamily(option);
-                      }}
+                      onClick={() => setFontFamily(option)}
                       className={`rounded border px-2 py-1.5 text-xs sm:text-sm ${
                         fontFamily === option
                           ? 'border-primary-500 bg-primary-500/10 text-content'
@@ -269,11 +255,9 @@ export default function ReaderPage() {
                 <div className="flex items-center gap-1.5 lg:justify-end">
                   <button
                     type="button"
-                    onClick={() => {
-                      const nextSize = Math.max(0.8, Number((fontSize - 0.1).toFixed(2)));
-                      setFontSizeState(nextSize);
-                      setReaderFontSize(nextSize);
-                    }}
+                    onClick={() =>
+                      setFontSize(Math.max(0.8, Number((fontSize - 0.1).toFixed(2))))
+                    }
                     className="rounded border border-border px-2.5 py-1.5 text-sm text-content-muted hover:bg-surface-muted hover:text-content"
                   >
                     -
@@ -283,11 +267,9 @@ export default function ReaderPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      const nextSize = Math.min(2.2, Number((fontSize + 0.1).toFixed(2)));
-                      setFontSizeState(nextSize);
-                      setReaderFontSize(nextSize);
-                    }}
+                    onClick={() =>
+                      setFontSize(Math.min(2.2, Number((fontSize + 0.1).toFixed(2))))
+                    }
                     className="rounded border border-border px-2.5 py-1.5 text-sm text-content-muted hover:bg-surface-muted hover:text-content"
                   >
                     +

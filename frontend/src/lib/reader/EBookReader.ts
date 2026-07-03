@@ -2,124 +2,26 @@ import ePub from 'epubjs';
 import NoSleep from 'nosleep.js';
 import type { CreateActivityRequest } from '../../generated/model/createActivityRequest';
 import type { UpdateProgressRequest } from '../../generated/model/updateProgressRequest';
-import type { ReaderColorScheme, ReaderFontFamily } from '../../utils/localSettings';
+import {
+  READER_COLOR_SCHEMES,
+  type ReaderColorScheme,
+  type ReaderFontFamily,
+} from '../../utils/localSettings';
+import type { EpubBook, EpubRendition, ReaderStats, ReaderTocItem } from './types';
+import {
+  countWords,
+  getBookWordPosition,
+  getCFIFromXPath,
+  getParsedTOC,
+  getVisibleWordCount,
+  getXPathFromCFI,
+} from './epubUtils';
+import { registerRenditionGestures } from './gestures';
 
-const THEMES: ReaderColorScheme[] = ['light', 'tan', 'blue', 'gray', 'black'];
+export type { ReaderStats, ReaderTocItem } from './types';
+
 const THEME_FILE = '/assets/reader/themes.css';
 const FONT_FILE = '/assets/reader/fonts.css';
-
-interface TocNode {
-  href: string;
-  label?: string;
-  subitems?: TocNode[];
-}
-
-interface EpubContents {
-  document: Document;
-  sectionIndex?: number;
-  range: (cfi: string) => Range;
-}
-
-interface EpubVisibleSection {
-  index: number;
-  layout: { width: number; divisor: number };
-  width: () => number;
-  expand: () => void;
-}
-
-interface EpubLocation {
-  start: {
-    cfi: string;
-    href?: string;
-  };
-  end: {
-    cfi: string;
-  };
-}
-
-interface EpubNavigation {
-  toc?: TocNode[];
-}
-
-interface EpubSpineItem {
-  cfiBase: string;
-  index: number;
-  document: Document;
-  load: (_loader: unknown) => Promise<Document>;
-  cfiFromElement: (element: Element) => string;
-  wordCount?: number;
-}
-
-interface EpubBook {
-  ready: Promise<void>;
-  navigation?: EpubNavigation;
-  loaded: { navigation: Promise<EpubNavigation> };
-  spine: {
-    spineItems: EpubSpineItem[];
-    get: (index: number) => EpubSpineItem;
-    hooks: {
-      content: { register: (_callback: (output: Document) => void) => void };
-    };
-  };
-  load: (...args: unknown[]) => unknown;
-  renderTo: (element: HTMLElement, options: Record<string, unknown>) => EpubRendition;
-  getRange: (cfiRange: string) => Promise<Range>;
-  destroy?: () => void;
-}
-
-interface EpubRendition {
-  next: () => Promise<void>;
-  prev: () => Promise<void>;
-  display: (target?: string) => Promise<void>;
-  currentLocation: () => Promise<EpubLocation>;
-  getContents: () => EpubContents[];
-  themes: {
-    default: (styles: Record<string, unknown>) => void;
-    register: (name: string, styles: Record<string, unknown> | string) => void;
-    select: (name: string) => void;
-  };
-  hooks: {
-    content: { register: (_callback: () => void) => void };
-    render: { register: (_callback: (contents: EpubContents) => void) => void };
-  };
-  manager?: {
-    visible?: () => EpubVisibleSection[];
-  };
-  views: () => { container: { scrollLeft: number } };
-  destroy?: () => void;
-}
-
-interface ParsedCfiPath {
-  steps: unknown[];
-  terminal: unknown;
-}
-
-interface ParsedCfi {
-  base: unknown;
-  path: ParsedCfiPath;
-}
-
-interface EpubCfiHelper {
-  parse: (_value: string) => ParsedCfi;
-  equalStep: (_a: unknown, _b: unknown) => boolean;
-  segmentString: (_value: unknown) => string;
-}
-
-interface EpubWithCfiConstructor {
-  CFI: new () => EpubCfiHelper;
-}
-
-export interface ReaderStats {
-  chapterName: string;
-  sectionPage: number;
-  sectionTotalPages: number;
-  percentage: number;
-}
-
-export interface ReaderTocItem {
-  title: string;
-  href: string;
-}
 
 interface BookState {
   pages: number;
@@ -174,6 +76,7 @@ export class EBookReader {
   private rendition: EpubRendition;
   private noSleep: NoSleep | null = null;
   private wakeTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private gestureDispose: (() => void) | null = null;
   private destroyed = false;
   private onReady: () => void;
   private onLoading: (_loading: boolean) => void;
@@ -187,7 +90,6 @@ export class EBookReader {
   private onSwipeUp: () => void;
   private onCenterTap: () => void;
   private keyupHandler: ((event: KeyboardEvent) => void) | null = null;
-  private wheelTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: EBookReaderOptions) {
     this.container = options.container;
@@ -217,7 +119,6 @@ export class EBookReader {
       pageStart: Date.now(),
     };
 
-    this.loadSettings();
     this.readerSettings.theme = {
       colorScheme: options.colorScheme,
       fontFamily: options.fontFamily,
@@ -237,7 +138,16 @@ export class EBookReader {
     this.initCSP();
     this.initWakeLock();
     this.initThemes();
-    this.initViewerListeners();
+
+    this.gestureDispose = registerRenditionGestures(this.rendition, {
+      isPaginationDisabled: () => this.isPaginationDisabled(),
+      nextPage: () => this.nextPage(),
+      prevPage: () => this.prevPage(),
+      onSwipeDown: () => this.onSwipeDown(),
+      onSwipeUp: () => this.onSwipeUp(),
+      onCenterTap: () => this.onCenterTap(),
+    });
+
     this.initDocumentListeners();
 
     this.book.ready.then(this.setupReader.bind(this)).catch(error => {
@@ -247,12 +157,6 @@ export class EBookReader {
       this.onError(error instanceof Error ? error.message : 'Unable to initialize reader');
       this.onLoading(false);
     });
-  }
-
-  private loadSettings() {
-    this.readerSettings = {
-      theme: this.readerSettings.theme ?? {},
-    };
   }
 
   private initWakeLock() {
@@ -279,7 +183,7 @@ export class EBookReader {
   };
 
   private initThemes() {
-    THEMES.forEach(theme => this.rendition.themes.register(theme, THEME_FILE));
+    READER_COLOR_SCHEMES.forEach(theme => this.rendition.themes.register(theme, THEME_FILE));
 
     let themeLinkEl = document.querySelector('#themes') as HTMLLinkElement | null;
     if (!themeLinkEl) {
@@ -335,127 +239,6 @@ export class EBookReader {
     });
   }
 
-  private initViewerListeners() {
-    const nextPage = this.nextPage.bind(this);
-    const prevPage = this.prevPage.bind(this);
-
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let touchEndX = 0;
-    let touchEndY = 0;
-
-    const handleSwipeDown = () => {
-      this.resetWheelCooldown();
-      this.onSwipeDown();
-    };
-
-    const handleSwipeUp = () => {
-      this.resetWheelCooldown();
-      this.onSwipeUp();
-    };
-
-    const handleGesture = () => {
-      const drasticity = 50;
-
-      if (touchEndY - drasticity > touchStartY) {
-        return handleSwipeDown();
-      }
-
-      if (touchEndY + drasticity < touchStartY) {
-        return handleSwipeUp();
-      }
-
-      if (!this.isPaginationDisabled() && touchEndX + drasticity < touchStartX) {
-        void nextPage();
-      }
-
-      if (!this.isPaginationDisabled() && touchEndX - drasticity > touchStartX) {
-        void prevPage();
-      }
-    };
-
-    this.rendition.hooks.render.register((contents: EpubContents) => {
-      const renderDoc = contents.document;
-
-      const wakeLockListener = () => {
-        renderDoc.dispatchEvent(new CustomEvent('wakelock'));
-      };
-      renderDoc.addEventListener('click', wakeLockListener);
-      renderDoc.addEventListener('gesturechange', wakeLockListener);
-      renderDoc.addEventListener('touchstart', wakeLockListener);
-
-      renderDoc.addEventListener('click', (event: MouseEvent) => {
-        const windowWidth = window.innerWidth;
-        const windowHeight = window.innerHeight;
-        const barPixels = windowHeight * 0.2;
-        const pagePixels = windowWidth * 0.2;
-        const top = barPixels;
-        const bottom = window.innerHeight - top;
-        const left = pagePixels;
-        const right = windowWidth - left;
-        const leftOffset = this.rendition.views().container.scrollLeft;
-        const yCoord = event.clientY;
-        const xCoord = event.clientX - leftOffset;
-
-        if (yCoord < top) {
-          handleSwipeDown();
-        } else if (yCoord > bottom) {
-          handleSwipeUp();
-        } else if (!this.isPaginationDisabled() && xCoord < left) {
-          void prevPage();
-        } else if (!this.isPaginationDisabled() && xCoord > right) {
-          void nextPage();
-        } else {
-          this.onCenterTap();
-        }
-      });
-
-      renderDoc.addEventListener('wheel', (event: WheelEvent) => {
-        if (this.wheelTimeoutId) {
-          return;
-        }
-
-        if (event.deltaY > 25) {
-          handleSwipeUp();
-          return;
-        }
-        if (event.deltaY < -25) {
-          handleSwipeDown();
-        }
-      });
-
-      renderDoc.addEventListener(
-        'touchstart',
-        (event: TouchEvent) => {
-          touchStartX = event.changedTouches[0]?.screenX ?? 0;
-          touchStartY = event.changedTouches[0]?.screenY ?? 0;
-        },
-        false
-      );
-
-      renderDoc.addEventListener(
-        'touchend',
-        (event: TouchEvent) => {
-          touchEndX = event.changedTouches[0]?.screenX ?? 0;
-          touchEndY = event.changedTouches[0]?.screenY ?? 0;
-          handleGesture();
-        },
-        false
-      );
-    });
-  }
-
-  private resetWheelCooldown() {
-    if (this.wheelTimeoutId) {
-      clearTimeout(this.wheelTimeoutId);
-      this.wheelTimeoutId = null;
-    }
-
-    this.wheelTimeoutId = setTimeout(() => {
-      this.wheelTimeoutId = null;
-    }, 400);
-  }
-
   private initDocumentListeners() {
     const nextPage = this.nextPage.bind(this);
     const prevPage = this.prevPage.bind(this);
@@ -469,9 +252,11 @@ export class EBookReader {
       }
       if ((event.keyCode || event.which) === 84) {
         const currentTheme = this.readerSettings.theme?.colorScheme || 'tan';
-        const currentThemeIdx = THEMES.indexOf(currentTheme);
+        const currentThemeIdx = READER_COLOR_SCHEMES.indexOf(currentTheme);
         const colorScheme =
-          THEMES.length === currentThemeIdx + 1 ? THEMES[0] : THEMES[currentThemeIdx + 1];
+          READER_COLOR_SCHEMES.length === currentThemeIdx + 1
+            ? READER_COLOR_SCHEMES[0]
+            : READER_COLOR_SCHEMES[currentThemeIdx + 1];
         if (colorScheme) {
           this.setTheme({ colorScheme });
         }
@@ -482,42 +267,18 @@ export class EBookReader {
   }
 
   private async setupReader() {
-    this.bookState.words = await this.countWords();
-    const { cfi } = await this.getCFIFromXPath(this.bookState.progress);
+    this.bookState.words = await countWords(this.book);
+    const { cfi } = await getCFIFromXPath(this.book, this.rendition, this.bookState.progress);
     await this.setPosition(cfi);
-    const { element } = await this.getCFIFromXPath(this.bookState.progress);
+    const { element } = await getCFIFromXPath(this.book, this.rendition, this.bookState.progress);
     this.bookState.progressElement = element ?? null;
     this.highlightPositionMarker();
     const stats = await this.getBookStats();
     this.onStats(stats);
     this.bookState.pageStart = Date.now();
-    this.onToc(this.getParsedTOC());
+    this.onToc(getParsedTOC(this.book));
     this.onLoading(false);
     this.onReady();
-  }
-
-  private getParsedTOC(): ReaderTocItem[] {
-    if (!this.book.navigation?.toc) {
-      return [];
-    }
-
-    return this.book.navigation.toc.reduce((agg: ReaderTocItem[], item) => {
-      const sectionTitle = item.label?.trim() ?? '';
-      agg.push({ title: sectionTitle || 'Untitled', href: item.href });
-      if (!item.subitems || item.subitems.length === 0) {
-        return agg;
-      }
-
-      const allSubSections = item.subitems.map(subitem => {
-        let itemTitle = subitem.label?.trim() ?? 'Untitled';
-        if (sectionTitle !== '') {
-          itemTitle = `${sectionTitle} - ${itemTitle}`;
-        }
-        return { title: itemTitle, href: subitem.href };
-      });
-      agg.push(...allSubSections);
-      return agg;
-    }, []);
   }
 
   setTheme(newTheme?: { colorScheme?: ReaderColorScheme; fontFamily?: string; fontSize?: number }) {
@@ -615,6 +376,8 @@ export class EBookReader {
       return;
     }
 
+    // Triple Display - epubjs occasionally renders at the wrong position on a single display()
+    // when restoring a CFI; calling it three times is a known workaround to land on the exact page.
     await this.rendition.display(cfi);
     await this.rendition.display(cfi);
     await this.rendition.display(cfi);
@@ -627,10 +390,10 @@ export class EBookReader {
     fontSize?: number;
   }) {
     const currentProgress = this.bookState.progress;
-    const { cfi } = await this.getCFIFromXPath(currentProgress);
+    const { cfi } = await getCFIFromXPath(this.book, this.rendition, currentProgress);
     this.setTheme(newTheme);
     await this.setPosition(cfi);
-    const { element } = await this.getCFIFromXPath(currentProgress);
+    const { element } = await getCFIFromXPath(this.book, this.rendition, currentProgress);
     this.bookState.progressElement = element ?? null;
     this.highlightPositionMarker();
   }
@@ -641,8 +404,8 @@ export class EBookReader {
 
     const pageStart = this.bookState.pageStart;
     let elapsedTime = Date.now() - pageStart;
-    const pageWords = await this.getVisibleWordCount();
-    const currentWord = await this.getBookWordPosition();
+    const pageWords = await getVisibleWordCount(this.book, this.rendition);
+    const currentWord = await getBookWordPosition(this.book, this.rendition);
     const percentRead = pageWords / this.bookState.words;
     const pageWPM = pageWords / (elapsedTime / 60000);
 
@@ -686,8 +449,8 @@ export class EBookReader {
 
   async createProgress() {
     const currentCFI = await this.rendition.currentLocation();
-    const { element, xpath } = await this.getXPathFromCFI(currentCFI.start.cfi);
-    const currentWord = await this.getBookWordPosition();
+    const { element, xpath } = await getXPathFromCFI(this.book, this.rendition, currentCFI.start.cfi);
+    const currentWord = await getBookWordPosition(this.book, this.rendition);
     this.bookState.progress = xpath ?? '';
     this.bookState.progressElement = element ?? null;
 
@@ -744,7 +507,7 @@ export class EBookReader {
     }
 
     const currentLocation = await this.rendition.currentLocation();
-    const currentWord = await this.getBookWordPosition();
+    const currentWord = await getBookWordPosition(this.book, this.rendition);
     const currentTOC = this.book.navigation?.toc?.find(
       item => item.href === currentLocation.start.href
     );
@@ -760,228 +523,6 @@ export class EBookReader {
     };
   }
 
-  async getXPathFromCFI(cfi: string) {
-    const cfiBaseMatch = cfi.match(/\(([^!]+)/);
-    if (!cfiBaseMatch?.[1]) {
-      return {} as { xpath?: string; element?: Element | null };
-    }
-    const startCFI = cfiBaseMatch[1];
-
-    const docFragmentIndex =
-      (this.book.spine.spineItems.find(item => item.cfiBase === startCFI)?.index ?? -1) + 1;
-    if (docFragmentIndex <= 0) {
-      return {} as { xpath?: string; element?: Element | null };
-    }
-
-    const basePos = `/body/DocFragment[${docFragmentIndex}]/body`;
-    const contents = this.rendition.getContents()[0];
-    const currentNodeStart = contents?.range(cfi).startContainer;
-    if (!currentNodeStart) {
-      return {} as { xpath?: string; element?: Element | null };
-    }
-
-    let currentNode: Node | null = currentNodeStart;
-    const element =
-      currentNode.nodeType === Node.ELEMENT_NODE
-        ? (currentNode as Element)
-        : currentNode.parentElement;
-
-    let allPos = '';
-    while (currentNode && currentNode.nodeName !== 'BODY') {
-      let parentElement: Element | null = currentNode.parentElement;
-      if (!parentElement) {
-        break;
-      }
-
-      if (currentNode.nodeType !== Node.ELEMENT_NODE) {
-        currentNode = parentElement;
-        continue;
-      }
-
-      while (parentElement.nodeName === 'A' && parentElement.parentElement) {
-        parentElement = parentElement.parentElement;
-      }
-
-      const currentElement = currentNode as Element;
-      const allDescendents = parentElement.querySelectorAll(currentElement.nodeName);
-      const relativeIndex = Array.from(allDescendents).indexOf(currentElement) + 1;
-      const nodePos = `${currentElement.nodeName.toLowerCase()}[${relativeIndex}]`;
-      currentNode = parentElement;
-      allPos = `/${nodePos}${allPos}`;
-    }
-
-    return { xpath: `${basePos}${allPos}`, element };
-  }
-
-  async getCFIFromXPath(xpath?: string) {
-    if (!xpath) {
-      return {} as { cfi?: string; element?: Element | null };
-    }
-
-    const fragMatch = xpath.match(/^\/body\/DocFragment\[(\d+)\]/);
-    if (!fragMatch?.[1]) {
-      return {} as { cfi?: string; element?: Element | null };
-    }
-
-    const spinePosition = Number.parseInt(fragMatch[1], 10) - 1;
-    const sectionItem = this.book.spine.get(spinePosition);
-    await sectionItem.load(this.book.load.bind(this.book));
-
-    const renderedContent = this.rendition
-      .getContents()
-      .find(item => item.sectionIndex == spinePosition);
-    const docItem = renderedContent?.document || sectionItem.document;
-
-    const namespaceURI = docItem.documentElement.namespaceURI;
-    let remainingXPath = xpath
-      .replace(fragMatch[0], '/html')
-      .replace(/\.(\d+)$/, '')
-      .replace(/\/text\(\)(\[\d+\])?$/, '');
-
-    const derivedSelectorElement = remainingXPath
-      .replace(/^\/html\/body/, 'body')
-      .split('/')
-      .reduce(
-        (element: ParentNode | null, item: string) => {
-          if (!element) {
-            return null;
-          }
-
-          const indexMatch = item.match(/(\w+)\[(\d+)\]$/);
-          if (!indexMatch) {
-            return element.querySelector(item);
-          }
-
-          const [, tag, rawIndex] = indexMatch;
-          if (!tag || !rawIndex) {
-            return null;
-          }
-          return element.querySelectorAll(tag)[Number.parseInt(rawIndex, 10) - 1] ?? null;
-        },
-        docItem as ParentNode | null
-      );
-
-    if (namespaceURI) {
-      remainingXPath = remainingXPath.split('/').join('/ns:');
-    }
-
-    const docSearch = docItem.evaluate(remainingXPath, docItem, prefix => {
-      if (prefix === 'ns') {
-        return namespaceURI;
-      }
-      return null;
-    });
-
-    const xpathElement = docSearch.iterateNext();
-    const element = xpathElement || derivedSelectorElement;
-    const isElementNode = Boolean(element && (element as Node).nodeType === Node.ELEMENT_NODE);
-    if (!isElementNode) {
-      return {} as { cfi?: string; element?: Element | null };
-    }
-
-    const resolvedElement = element as Element;
-
-    let cfi = sectionItem.cfiFromElement(resolvedElement);
-    if (cfi.endsWith('!/)')) {
-      cfi = `${cfi.slice(0, -1)}0)`;
-    }
-
-    return { cfi, element: resolvedElement };
-  }
-
-  async getVisibleWordCount() {
-    const visibleText = await this.getVisibleText();
-    return visibleText.trim().split(/\s+/).length;
-  }
-
-  async getBookWordPosition() {
-    const contents = this.rendition.getContents()[0];
-    if (!contents) {
-      return 0;
-    }
-
-    const spineItem = this.book.spine.get(contents.sectionIndex ?? 0);
-    const firstElement = spineItem.document.body.children[0];
-    if (!firstElement) {
-      return 0;
-    }
-
-    const firstCFI = spineItem.cfiFromElement(firstElement);
-    const currentLocation = await this.rendition.currentLocation();
-    const cfiRange = this.getCFIRange(firstCFI, currentLocation.start.cfi);
-    const textRange = await this.book.getRange(cfiRange);
-    const chapterText = textRange.toString();
-    const chapterWordPosition = chapterText.trim().split(/\s+/).length;
-    const preChapterWordPosition = this.book.spine.spineItems
-      .slice(0, contents.sectionIndex ?? 0)
-      .reduce((totalCount, item) => totalCount + (item.wordCount ?? 0), 0);
-
-    return chapterWordPosition + preChapterWordPosition;
-  }
-
-  async getVisibleText() {
-    this.rendition.manager?.visible?.()?.forEach(item => item.expand());
-    const currentLocation = await this.rendition.currentLocation();
-    const cfiRange = this.getCFIRange(currentLocation.start.cfi, currentLocation.end.cfi);
-    const textRange = await this.book.getRange(cfiRange);
-    return textRange.toString();
-  }
-
-  getCFIRange(a: string, b: string) {
-    const CFI = new (ePub as unknown as EpubWithCfiConstructor).CFI();
-    const start = CFI.parse(a);
-    const end = CFI.parse(b);
-    const cfi: {
-      range: boolean;
-      base: unknown;
-      path: ParsedCfiPath;
-      start: ParsedCfiPath;
-      end: ParsedCfiPath;
-    } = {
-      range: true,
-      base: start.base,
-      path: { steps: [], terminal: null },
-      start: start.path,
-      end: end.path,
-    };
-
-    const len = cfi.start.steps.length;
-    for (let i = 0; i < len; i += 1) {
-      if (CFI.equalStep(cfi.start.steps[i], cfi.end.steps[i])) {
-        if (i === len - 1) {
-          if (cfi.start.terminal === cfi.end.terminal) {
-            cfi.path.steps.push(cfi.start.steps[i]);
-            cfi.range = false;
-          }
-        } else {
-          cfi.path.steps.push(cfi.start.steps[i]);
-        }
-      } else {
-        break;
-      }
-    }
-
-    cfi.start.steps = cfi.start.steps.slice(cfi.path.steps.length);
-    cfi.end.steps = cfi.end.steps.slice(cfi.path.steps.length);
-
-    return `epubcfi(${CFI.segmentString(cfi.base)}!${CFI.segmentString(cfi.path)},${CFI.segmentString(cfi.start)},${CFI.segmentString(cfi.end)})`;
-  }
-
-  async countWords() {
-    const spineWC = await Promise.all(
-      this.book.spine.spineItems.map(async item => {
-        const newDoc = await item.load(this.book.load.bind(this.book));
-        const spineWords = ((newDoc as unknown as HTMLElement).innerText || '')
-          .trim()
-          .split(/\s+/).length;
-        item.wordCount = spineWords;
-        return spineWords;
-      })
-    );
-
-    return spineWC.reduce((totalCount, itemCount) => totalCount + itemCount, 0);
-  }
-
   destroy() {
     this.destroyed = true;
     if (this.keyupHandler) {
@@ -991,9 +532,7 @@ export class EBookReader {
     if (this.wakeTimeoutId) {
       clearTimeout(this.wakeTimeoutId);
     }
-    if (this.wheelTimeoutId) {
-      clearTimeout(this.wheelTimeoutId);
-    }
+    this.gestureDispose?.();
     void this.noSleep?.disable();
     this.rendition.destroy?.();
     this.book.destroy?.();

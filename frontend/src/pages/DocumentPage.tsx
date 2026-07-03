@@ -8,7 +8,7 @@ import {
 } from '../generated/anthoLumeAPIV1';
 import type { EditDocumentBody } from '../generated/model';
 import { formatDuration } from '../utils/formatters';
-import { getErrorMessage } from '../utils/errors';
+import { getErrorMessage, getResponseError } from '../utils/errors';
 import { ActivityIcon, DownloadIcon, EditIcon, InfoIcon, CloseIcon, CheckIcon } from '../icons';
 import { Field, FieldLabel, FieldValue, FieldActions, LoadingState } from '../components';
 import { useToasts } from '../components/ToastContext';
@@ -137,8 +137,9 @@ export default function DocumentPage() {
   const save = async (data: EditDocumentBody): Promise<boolean> => {
     try {
       const response = await editMutation.mutateAsync({ id: document.id, data });
-      if (response.status !== 200) {
-        showError('Failed to save: ' + getErrorMessage(response.data));
+      const message = getResponseError(response);
+      if (message) {
+        showError('Failed to save: ' + message);
         return false;
       }
       queryClient.setQueryData(getGetDocumentQueryKey(document.id), response);

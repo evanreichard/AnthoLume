@@ -1,25 +1,38 @@
-export type ThemeMode = 'light' | 'dark' | 'system';
-export type DocumentsViewMode = 'grid' | 'list';
-export type ReaderColorScheme = 'light' | 'tan' | 'blue' | 'gray' | 'black';
-export type ReaderFontFamily = 'Serif' | 'Open Sans' | 'Arbutus Slab' | 'Lato';
+import { useCallback, useEffect, useState } from 'react';
+
+// Value arrays are the single source of truth; the union types derive from them so the
+// runtime iteration lists (reader theme picker, nav, etc.) and the schema can't drift.
+export const THEME_MODES = ['light', 'dark', 'system'] as const;
+export type ThemeMode = (typeof THEME_MODES)[number];
+
+export const DOCUMENTS_VIEW_MODES = ['grid', 'list'] as const;
+export type DocumentsViewMode = (typeof DOCUMENTS_VIEW_MODES)[number];
+
+export const READER_COLOR_SCHEMES = ['light', 'tan', 'blue', 'gray', 'black'] as const;
+export type ReaderColorScheme = (typeof READER_COLOR_SCHEMES)[number];
+
+export const READER_FONT_FAMILIES = ['Serif', 'Open Sans', 'Arbutus Slab', 'Lato'] as const;
+export type ReaderFontFamily = (typeof READER_FONT_FAMILIES)[number];
 
 export const LOCAL_SETTINGS_KEY = 'antholume:settings';
 
-interface LocalSettings {
-  themeMode?: ThemeMode;
-  documentsViewMode?: DocumentsViewMode;
-  readerColorScheme?: ReaderColorScheme;
-  readerFontFamily?: ReaderFontFamily;
-  readerFontSize?: number;
-  readerDeviceId?: string;
-  readerDeviceName?: string;
+interface LocalSettingsMap {
+  themeMode: ThemeMode;
+  documentsViewMode: DocumentsViewMode;
+  readerColorScheme: ReaderColorScheme;
+  readerFontFamily: ReaderFontFamily;
+  readerFontSize: number;
+  readerDeviceId: string;
+  readerDeviceName: string;
 }
+
+type LocalSettingKey = keyof LocalSettingsMap;
 
 function canUseLocalStorage(): boolean {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 }
 
-function readLocalSettings(): LocalSettings {
+function readRawSettings(): Record<string, unknown> {
   if (!canUseLocalStorage()) {
     return {};
   }
@@ -37,111 +50,103 @@ function readLocalSettings(): LocalSettings {
   }
 }
 
-function writeLocalSettings(settings: LocalSettings): void {
+function writeRawSettings(settings: Record<string, unknown>): void {
   if (!canUseLocalStorage()) {
     return;
   }
-
   window.localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(settings));
 }
 
-function updateLocalSettings(partialSettings: LocalSettings): void {
-  writeLocalSettings({
-    ...readLocalSettings(),
-    ...partialSettings,
-  });
-}
-
-export function getThemeMode(): ThemeMode {
-  const settings = readLocalSettings();
-  return settings.themeMode === 'light' || settings.themeMode === 'dark'
-    ? settings.themeMode
-    : 'system';
-}
-
-export function setThemeMode(themeMode: ThemeMode): void {
-  updateLocalSettings({ themeMode });
-}
-
-export function getDocumentsViewMode(): DocumentsViewMode {
-  const settings = readLocalSettings();
-  return settings.documentsViewMode === 'list' ? 'list' : 'grid';
-}
-
-export function setDocumentsViewMode(documentsViewMode: DocumentsViewMode): void {
-  updateLocalSettings({ documentsViewMode });
-}
-
-export function getReaderColorScheme(): ReaderColorScheme {
-  const settings = readLocalSettings();
-  switch (settings.readerColorScheme) {
-    case 'light':
-    case 'tan':
-    case 'blue':
-    case 'gray':
-    case 'black':
-      return settings.readerColorScheme;
+function isValidValue(key: LocalSettingKey, value: unknown): boolean {
+  switch (key) {
+    case 'themeMode':
+      return (THEME_MODES as readonly unknown[]).includes(value);
+    case 'documentsViewMode':
+      return (DOCUMENTS_VIEW_MODES as readonly unknown[]).includes(value);
+    case 'readerColorScheme':
+      return (READER_COLOR_SCHEMES as readonly unknown[]).includes(value);
+    case 'readerFontFamily':
+      return (READER_FONT_FAMILIES as readonly unknown[]).includes(value);
+    case 'readerFontSize':
+      return typeof value === 'number' && value > 0;
+    case 'readerDeviceId':
+    case 'readerDeviceName':
+      return typeof value === 'string' && value.length > 0;
     default:
-      return 'tan';
+      return false;
   }
 }
 
-export function setReaderColorScheme(readerColorScheme: ReaderColorScheme): void {
-  updateLocalSettings({ readerColorScheme });
+export function readLocalSetting<K extends LocalSettingKey>(
+  key: K,
+  defaultValue: LocalSettingsMap[K]
+): LocalSettingsMap[K] {
+  const value = readRawSettings()[key];
+  return isValidValue(key, value) ? (value as LocalSettingsMap[K]) : defaultValue;
 }
 
-export function getReaderFontFamily(): ReaderFontFamily {
-  const settings = readLocalSettings();
-  switch (settings.readerFontFamily) {
-    case 'Serif':
-    case 'Open Sans':
-    case 'Arbutus Slab':
-    case 'Lato':
-      return settings.readerFontFamily;
-    default:
-      return 'Serif';
-  }
+export function writeLocalSetting<K extends LocalSettingKey>(
+  key: K,
+  value: LocalSettingsMap[K]
+): void {
+  writeRawSettings({ ...readRawSettings(), [key]: value });
 }
 
-export function setReaderFontFamily(readerFontFamily: ReaderFontFamily): void {
-  updateLocalSettings({ readerFontFamily });
+/**
+ * Stateful accessor for a single localStorage-backed setting. Persists on change and re-reads
+ * on cross-tab `storage` events. Validation rejects stale/invalid stored values in favor of
+ * `defaultValue`, so callers never need their own get/set/validate pair.
+ */
+export function useLocalSetting<K extends LocalSettingKey>(
+  key: K,
+  defaultValue: LocalSettingsMap[K]
+) {
+  const [value, setValue] = useState<LocalSettingsMap[K]>(() => readLocalSetting(key, defaultValue));
+
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key && event.key !== LOCAL_SETTINGS_KEY) {
+        return;
+      }
+      setValue(readLocalSetting(key, defaultValue));
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [key, defaultValue]);
+
+  const setValuePersisted = useCallback(
+    (next: LocalSettingsMap[K]) => {
+      writeLocalSetting(key, next);
+      setValue(next);
+    },
+    [key]
+  );
+
+  return [value, setValuePersisted] as const;
 }
 
-export function getReaderFontSize(): number {
-  const settings = readLocalSettings();
-  return typeof settings.readerFontSize === 'number' && settings.readerFontSize > 0
-    ? settings.readerFontSize
-    : 1;
-}
-
-export function setReaderFontSize(readerFontSize: number): void {
-  updateLocalSettings({ readerFontSize });
-}
-
+// Reader Device - First-run UUID registration is a read side-effect that doesn't fit a value hook.
 export function getReaderDevice(): { id: string; name: string } {
-  const settings = readLocalSettings();
-  const id =
-    typeof settings.readerDeviceId === 'string' && settings.readerDeviceId.length > 0
-      ? settings.readerDeviceId
-      : crypto.randomUUID();
-  const name =
-    typeof settings.readerDeviceName === 'string' && settings.readerDeviceName.length > 0
-      ? settings.readerDeviceName
-      : 'Web Reader';
+  const raw = readRawSettings();
+  const id = isValidValue('readerDeviceId', raw.readerDeviceId)
+    ? (raw.readerDeviceId as string)
+    : crypto.randomUUID();
+  const name = isValidValue('readerDeviceName', raw.readerDeviceName)
+    ? (raw.readerDeviceName as string)
+    : 'Web Reader';
 
-  if (id !== settings.readerDeviceId || name !== settings.readerDeviceName) {
-    updateLocalSettings({
-      readerDeviceId: id,
-      readerDeviceName: name,
-    });
+  if (id !== raw.readerDeviceId || name !== raw.readerDeviceName) {
+    writeLocalSetting('readerDeviceId', id);
+    writeLocalSetting('readerDeviceName', name);
   }
 
   return { id, name };
 }
 
 export function setReaderDevice(name: string, id?: string): void {
-  updateLocalSettings({
-    readerDeviceId: id ?? crypto.randomUUID(),
-    readerDeviceName: name,
-  });
+  writeLocalSetting('readerDeviceName', name);
+  writeLocalSetting('readerDeviceId', id ?? crypto.randomUUID());
 }

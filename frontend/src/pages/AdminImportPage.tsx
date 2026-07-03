@@ -3,17 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { LoadingState } from '../components';
 import { useGetImportDirectory, usePostImport } from '../generated/anthoLumeAPIV1';
 import type { DirectoryItem } from '../generated/model';
-import { getErrorMessage } from '../utils/errors';
 import { Button } from '../components/Button';
 import { FolderOpenIcon } from '../icons';
-import { useToasts } from '../components/ToastContext';
+import { useMutationWithToast } from '../hooks/useMutationWithToast';
 
 export default function AdminImportPage() {
   const [currentPath, setCurrentPath] = useState<string>('');
   const [selectedDirectory, setSelectedDirectory] = useState<string>('');
   const [importType, setImportType] = useState<'DIRECT' | 'COPY'>('DIRECT');
-  const { showInfo, showError } = useToasts();
   const navigate = useNavigate();
+  const toastMutationOptions = useMutationWithToast();
 
   const { data: directoryData, isLoading } = useGetImportDirectory(
     currentPath ? { directory: currentPath } : {}
@@ -48,15 +47,11 @@ export default function AdminImportPage() {
           type: importType,
         },
       },
-      {
-        onSuccess: _response => {
-          showInfo('Import completed successfully');
-          navigate('/admin/import-results');
-        },
-        onError: error => {
-          showError('Import failed: ' + getErrorMessage(error));
-        },
-      }
+      toastMutationOptions({
+        success: 'Import completed successfully',
+        error: 'Import failed',
+        onSuccess: () => navigate('/admin/import-results'),
+      })
     );
   };
 

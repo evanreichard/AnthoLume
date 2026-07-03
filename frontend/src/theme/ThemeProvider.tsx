@@ -1,6 +1,5 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -8,9 +7,8 @@ import {
   type ReactNode,
 } from 'react';
 import {
-  getThemeMode,
-  setThemeMode,
-  LOCAL_SETTINGS_KEY,
+  useLocalSetting,
+  readLocalSetting,
   type ThemeMode,
 } from '../utils/localSettings';
 
@@ -49,23 +47,23 @@ export function applyThemeMode(themeMode: ThemeMode): ResolvedThemeMode {
 }
 
 export function initializeThemeMode(): ResolvedThemeMode {
-  return applyThemeMode(getThemeMode());
+  return applyThemeMode(readLocalSetting('themeMode', 'system'));
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [themeModeState, setThemeModeState] = useState<ThemeMode>(() => getThemeMode());
+  const [themeMode, setThemeMode] = useLocalSetting('themeMode', 'system');
   const [resolvedThemeMode, setResolvedThemeMode] = useState<ResolvedThemeMode>(() =>
-    resolveThemeMode(getThemeMode())
+    resolveThemeMode(themeMode)
   );
 
-  // Single Source Of Truth - The mode effect is the only place that applies the theme to the DOM and resolves it into state. Every other code path just sets `themeModeState`.
+  // Single Source Of Truth - The mode effect is the only place that applies the theme to the DOM and resolves it into state. Every other code path just calls `setThemeMode`.
   useEffect(() => {
-    setResolvedThemeMode(applyThemeMode(themeModeState));
-  }, [themeModeState]);
+    setResolvedThemeMode(applyThemeMode(themeMode));
+  }, [themeMode]);
 
-  // System Preference - When the user follows 'system', the resolved theme must react to OS changes even though `themeModeState` is unchanged.
+  // System Preference - When the user follows 'system', the resolved theme must react to OS changes even though `themeMode` is unchanged.
   useEffect(() => {
-    if (typeof window === 'undefined' || themeModeState !== 'system') {
+    if (typeof window === 'undefined' || themeMode !== 'system') {
       return undefined;
     }
 
@@ -78,39 +76,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => {
       mediaQueryList.removeEventListener('change', handleSystemThemeChange);
     };
-  }, [themeModeState]);
-
-  // Cross-Tab Sync - Another tab changed the persisted theme; adopt its mode and let the mode effect apply it.
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return undefined;
-    }
-
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key && event.key !== LOCAL_SETTINGS_KEY) {
-        return;
-      }
-      setThemeModeState(getThemeMode());
-    };
-
-    window.addEventListener('storage', handleStorage);
-    return () => {
-      window.removeEventListener('storage', handleStorage);
-    };
-  }, []);
-
-  const updateThemeMode = useCallback((nextThemeMode: ThemeMode) => {
-    setThemeMode(nextThemeMode);
-    setThemeModeState(nextThemeMode);
-  }, []);
+  }, [themeMode]);
 
   const value = useMemo(
     () => ({
-      themeMode: themeModeState,
+      themeMode,
       resolvedThemeMode,
-      setThemeMode: updateThemeMode,
+      setThemeMode,
     }),
-    [resolvedThemeMode, themeModeState, updateThemeMode]
+    [resolvedThemeMode, themeMode, setThemeMode]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

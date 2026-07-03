@@ -4,6 +4,8 @@ import type { CreateActivityRequest } from '../generated/model/createActivityReq
 import type { UpdateProgressRequest } from '../generated/model/updateProgressRequest';
 import { EBookReader, type ReaderStats, type ReaderTocItem } from '../lib/reader/EBookReader';
 import type { ReaderColorScheme, ReaderFontFamily } from '../utils/localSettings';
+import { useToasts } from '../components/ToastContext';
+import { getErrorMessage, getResponseError } from '../utils/errors';
 
 interface UseEpubReaderOptions {
   documentId: string;
@@ -60,6 +62,7 @@ export function useEpubReader({
     sectionTotalPages: 0,
     percentage: 0,
   });
+  const { showError } = useToasts();
 
   useEffect(() => {
     isPaginationDisabledRef.current = isPaginationDisabled;
@@ -90,20 +93,28 @@ export function useEpubReader({
     });
 
     const saveProgress = async (payload: UpdateProgressRequest) => {
-      const response = await updateProgress(payload);
-      if (response.status >= 400) {
-        throw new Error(
-          'message' in response.data ? response.data.message : 'Unable to save reader progress'
-        );
+      // Swallow Save Failures - Transient progress-save errors must not take down the reader
+      // (they previously routed to onError, which hides the whole book behind an error overlay).
+      try {
+        const response = await updateProgress(payload);
+        const message = getResponseError(response);
+        if (message) {
+          showError(`Failed to save progress: ${message}`);
+        }
+      } catch (err) {
+        showError(`Failed to save progress: ${getErrorMessage(err)}`);
       }
     };
 
     const saveActivity = async (payload: CreateActivityRequest) => {
-      const response = await createActivity(payload);
-      if (response.status >= 400) {
-        throw new Error(
-          'message' in response.data ? response.data.message : 'Unable to save reader activity'
-        );
+      try {
+        const response = await createActivity(payload);
+        const message = getResponseError(response);
+        if (message) {
+          showError(`Failed to save activity: ${message}`);
+        }
+      } catch (err) {
+        showError(`Failed to save activity: ${getErrorMessage(err)}`);
       }
     };
 

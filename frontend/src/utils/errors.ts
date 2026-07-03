@@ -12,3 +12,20 @@ export function getErrorMessage(error: unknown, fallback = 'Unknown error'): str
 
   return fallback;
 }
+
+export interface ApiResponseLike {
+  status: number;
+  data: unknown;
+}
+
+/**
+ * Non-2xx Check - The generated client resolves non-2xx instead of throwing; this returns the
+ * extracted error message for failure responses, or null for success (2xx) so callers can branch.
+ */
+export function getResponseError(response: ApiResponseLike): string | null {
+  if (response.status >= 200 && response.status < 300) {
+    return null;
+  }
+
+  return getErrorMessage(response.data, 'Request failed');
+}

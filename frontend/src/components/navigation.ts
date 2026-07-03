@@ -1,5 +1,5 @@
 import type { ElementType } from 'react';
-import { HomeIcon, DocumentsIcon, ActivityIcon, SearchIcon, SettingsIcon } from '../icons';
+import { HomeIcon, DocumentsIcon, ActivityIcon, SearchIcon, ClockIcon } from '../icons';
 
 export interface NavItem {
   path: string;
@@ -10,16 +10,16 @@ export interface NavItem {
 export const navItems: NavItem[] = [
   { path: '/', label: 'Home', icon: HomeIcon },
   { path: '/documents', label: 'Documents', icon: DocumentsIcon },
-  { path: '/progress', label: 'Progress', icon: ActivityIcon },
+  { path: '/progress', label: 'Progress', icon: ClockIcon },
   { path: '/activity', label: 'Activity', icon: ActivityIcon },
   { path: '/search', label: 'Search', icon: SearchIcon },
 ];
 
-export const adminNavItems: NavItem[] = [
-  { path: '/admin', label: 'General', icon: SettingsIcon },
-  { path: '/admin/import', label: 'Import', icon: SettingsIcon },
-  { path: '/admin/users', label: 'Users', icon: SettingsIcon },
-  { path: '/admin/logs', label: 'Logs', icon: SettingsIcon },
+export const adminNavItems: { path: string; label: string }[] = [
+  { path: '/admin', label: 'General' },
+  { path: '/admin/import', label: 'Import' },
+  { path: '/admin/users', label: 'Users' },
+  { path: '/admin/logs', label: 'Logs' },
 ];
 
 // Ordered most-specific-first so prefix matching resolves nested routes correctly.

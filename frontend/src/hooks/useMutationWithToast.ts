@@ -1,10 +1,5 @@
 import { useToasts } from '../components/ToastContext';
-import { getErrorMessage } from '../utils/errors';
-
-interface ApiResponse {
-  status: number;
-  data: unknown;
-}
+import { getErrorMessage, getResponseError, type ApiResponseLike } from '../utils/errors';
 
 interface ToastMutationOptions {
   success: string;
@@ -21,9 +16,10 @@ export function useMutationWithToast() {
 
   return function toastMutationOptions({ success, error, onSuccess }: ToastMutationOptions) {
     return {
-      onSuccess: (response: ApiResponse) => {
-        if (response.status < 200 || response.status >= 300) {
-          showError(`${error}: ${getErrorMessage(response.data)}`);
+      onSuccess: (response: ApiResponseLike) => {
+        const message = getResponseError(response);
+        if (message) {
+          showError(`${error}: ${message}`);
           return;
         }
         onSuccess?.();

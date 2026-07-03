@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useGetDocuments, useCreateDocument } from '../generated/anthoLumeAPIV1';
 import type { Document } from '../generated/model';
 import { ActivityIcon, DownloadIcon, Search2Icon, UploadIcon } from '../icons';
@@ -8,11 +8,7 @@ import { useToasts } from '../components/ToastContext';
 import { useMutationWithToast } from '../hooks/useMutationWithToast';
 import { formatDuration } from '../utils/formatters';
 import { useDebouncedState } from '../hooks/useDebouncedState';
-import {
-  getDocumentsViewMode,
-  setDocumentsViewMode,
-  type DocumentsViewMode,
-} from '../utils/localSettings';
+import { useLocalSetting, type DocumentsViewMode } from '../utils/localSettings';
 
 const DOCUMENTS_PAGE_SIZE = 9;
 
@@ -22,25 +18,16 @@ interface DocumentItemProps {
 }
 
 function DocumentItem({ doc, layout }: DocumentItemProps) {
-  const navigate = useNavigate();
   const percentage = doc.percentage || 0;
   const totalTimeSeconds = doc.total_time_seconds || 0;
 
-  const open = () => navigate(`/documents/${doc.id}`);
-  const onKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      open();
-    }
-  };
-
   const icons = (
-    <div className="flex shrink-0 items-center justify-end gap-4 text-content-muted">
-      <Link to={`/activity?document=${doc.id}`} onClick={e => e.stopPropagation()}>
+    <div className="flex shrink-0 items-center justify-end gap-4 text-content-muted pointer-events-auto">
+      <Link to={`/activity?document=${doc.id}`}>
         <ActivityIcon size={20} />
       </Link>
       {doc.filepath ? (
-        <a href={`/api/v1/documents/${doc.id}/file`} onClick={e => e.stopPropagation()}>
+        <a href={`/api/v1/documents/${doc.id}/file`}>
           <DownloadIcon size={20} />
         </a>
       ) : (
@@ -58,48 +45,46 @@ function DocumentItem({ doc, layout }: DocumentItemProps) {
 
   if (layout === 'grid') {
     return (
-      <div className="relative w-full">
-        <div
-          role="link"
-          tabIndex={0}
-          className="flex size-full cursor-pointer gap-4 rounded bg-surface p-4 shadow-lg transition-colors hover:bg-surface-muted focus:outline-hidden"
-          onClick={open}
-          onKeyDown={onKeyDown}
-        >
-          <div className="relative my-auto h-48 min-w-fit">
-            <img
-              className="h-full rounded object-cover"
-              src={`/api/v1/documents/${doc.id}/cover`}
-              alt={doc.title}
-            />
-          </div>
-          <div className="flex w-full flex-col justify-around text-sm text-content">
-            {fields.map(f => (
-              <div key={f.label} className="inline-flex shrink-0 items-center">
-                <div>
-                  <p className="text-content-subtle">{f.label}</p>
-                  <p className="font-medium">{f.value}</p>
-                </div>
+      <div className="relative flex size-full gap-4 rounded bg-surface p-4 shadow-lg transition-colors hover:bg-surface-muted">
+        {/* Stretched Link - Covers the whole card; display content is pointer-events-none so clicks fall through to navigate. */}
+        <Link
+          to={`/documents/${doc.id}`}
+          aria-label={`Open ${doc.title || 'document'}`}
+          className="absolute inset-0"
+        />
+        <div className="pointer-events-none my-auto h-48 min-w-fit">
+          <img
+            className="h-full rounded object-cover"
+            src={`/api/v1/documents/${doc.id}/cover`}
+            alt={doc.title}
+          />
+        </div>
+        <div className="pointer-events-none flex w-full flex-col justify-around text-sm text-content">
+          {fields.map(f => (
+            <div key={f.label} className="inline-flex shrink-0 items-center">
+              <div>
+                <p className="text-content-subtle">{f.label}</p>
+                <p className="font-medium">{f.value}</p>
               </div>
-            ))}
-          </div>
-          <div className="absolute bottom-4 right-4 flex flex-col gap-2 text-content-muted">
-            {icons}
-          </div>
+            </div>
+          ))}
+        </div>
+        <div className="absolute bottom-4 right-4 flex flex-col gap-2 text-content-muted">
+          {icons}
         </div>
       </div>
     );
   }
 
   return (
-    <div
-      role="link"
-      tabIndex={0}
-      className="block cursor-pointer rounded bg-surface p-4 text-content shadow-lg transition-colors hover:bg-surface-muted focus:outline-hidden"
-      onClick={open}
-      onKeyDown={onKeyDown}
-    >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+    <div className="relative block rounded bg-surface p-4 text-content shadow-lg transition-colors hover:bg-surface-muted">
+      {/* Stretched Link - Covers the whole card; display content is pointer-events-none so clicks fall through to navigate. */}
+      <Link
+        to={`/documents/${doc.id}`}
+        aria-label={`Open ${doc.title || 'document'}`}
+        className="absolute inset-0"
+      />
+      <div className="pointer-events-none flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="grid flex-1 grid-cols-1 gap-3 text-sm md:grid-cols-4">
           {fields.map(f => (
             <div key={f.label}>
@@ -119,14 +104,10 @@ export default function DocumentsPage() {
   const [page, setPage] = useState(1);
   const limit = DOCUMENTS_PAGE_SIZE;
   const [uploadMode, setUploadMode] = useState(false);
-  const [viewMode, setViewMode] = useState<DocumentsViewMode>(getDocumentsViewMode);
+  const [viewMode, setViewMode] = useLocalSetting('documentsViewMode', 'grid');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showWarning } = useToasts();
   const toastMutationOptions = useMutationWithToast();
-
-  useEffect(() => {
-    setDocumentsViewMode(viewMode);
-  }, [viewMode]);
 
   useEffect(() => {
     setPage(1);
