@@ -2,14 +2,22 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useGetDocument, useGetProgress } from '../generated/anthoLumeAPIV1';
 import { LoadingState } from '../components/LoadingState';
+import { SegmentedControl } from '../components/SegmentedControl';
 import { CloseIcon } from '../icons';
 import {
   READER_COLOR_SCHEMES,
   READER_FONT_FAMILIES,
+  type ReaderColorScheme,
+  type ReaderFontFamily,
   getReaderDevice,
   useLocalSetting,
 } from '../utils/localSettings';
 import { useEpubReader } from '../hooks/useEpubReader';
+
+const READER_SEGMENT_BUTTON = 'rounded border px-2 py-1.5 text-xs sm:text-sm';
+const READER_SEGMENT_ACTIVE = 'border-primary-500 bg-primary-500/10 text-content';
+const READER_SEGMENT_INACTIVE =
+  'border-border text-content-muted hover:bg-surface-muted hover:text-content';
 
 export default function ReaderPage() {
   const { id } = useParams<{ id: string }>();
@@ -214,42 +222,30 @@ export default function ReaderPage() {
                 <p className="mb-1 text-[10px] uppercase tracking-wide text-content-subtle">
                   Theme
                 </p>
-                <div className="grid w-full grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
-                  {READER_COLOR_SCHEMES.map(option => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => setColorScheme(option)}
-                      className={`rounded border px-2 py-1.5 text-xs capitalize sm:text-sm ${
-                        colorScheme === option
-                          ? 'border-primary-500 bg-primary-500/10 text-content'
-                          : 'border-border text-content-muted hover:bg-surface-muted hover:text-content'
-                      }`}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedControl<ReaderColorScheme>
+                  className="grid w-full grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5"
+                  ariaLabel="Reader theme"
+                  value={colorScheme}
+                  onChange={setColorScheme}
+                  buttonClassName={`${READER_SEGMENT_BUTTON} capitalize`}
+                  activeClassName={READER_SEGMENT_ACTIVE}
+                  inactiveClassName={READER_SEGMENT_INACTIVE}
+                  options={READER_COLOR_SCHEMES.map(value => ({ value, label: value }))}
+                />
               </div>
 
               <div className="min-w-0">
                 <p className="mb-1 text-[10px] uppercase tracking-wide text-content-subtle">Font</p>
-                <div className="grid w-full grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
-                  {READER_FONT_FAMILIES.map(option => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => setFontFamily(option)}
-                      className={`rounded border px-2 py-1.5 text-xs sm:text-sm ${
-                        fontFamily === option
-                          ? 'border-primary-500 bg-primary-500/10 text-content'
-                          : 'border-border text-content-muted hover:bg-surface-muted hover:text-content'
-                      }`}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedControl<ReaderFontFamily>
+                  className="grid w-full grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4"
+                  ariaLabel="Reader font"
+                  value={fontFamily}
+                  onChange={setFontFamily}
+                  buttonClassName={READER_SEGMENT_BUTTON}
+                  activeClassName={READER_SEGMENT_ACTIVE}
+                  inactiveClassName={READER_SEGMENT_INACTIVE}
+                  options={READER_FONT_FAMILIES.map(value => ({ value, label: value }))}
+                />
               </div>
 
               <div>

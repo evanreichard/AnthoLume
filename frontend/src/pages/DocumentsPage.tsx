@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import { useGetDocuments, useCreateDocument } from '../generated/anthoLumeAPIV1';
 import type { Document } from '../generated/model';
 import { ActivityIcon, DownloadIcon, Search2Icon, UploadIcon } from '../icons';
-import { LoadingState, Pagination, TextInput, IconInput } from '../components';
+import { LoadingState, Pagination, TextInput, IconInput, SegmentedControl } from '../components';
 import { useToasts } from '../components/ToastContext';
 import { useMutationWithToast } from '../hooks/useMutationWithToast';
 import { formatDuration } from '../utils/formatters';
+import { cn } from '../utils/cn';
 import { useDebouncedState } from '../hooks/useDebouncedState';
 import { useLocalSetting, type DocumentsViewMode } from '../utils/localSettings';
 
@@ -99,6 +100,16 @@ function DocumentItem({ doc, layout }: DocumentItemProps) {
   );
 }
 
+function EmptyDocuments({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn('rounded bg-surface p-6 text-center text-content-muted shadow-lg', className)}
+    >
+      No documents found.
+    </div>
+  );
+}
+
 export default function DocumentsPage() {
   const [search, setSearch, debouncedSearch] = useDebouncedState('', 300);
   const [page, setPage] = useState(1);
@@ -148,13 +159,6 @@ export default function DocumentsPage() {
     }
   };
 
-  const getViewModeButtonClasses = (mode: DocumentsViewMode) =>
-    `rounded px-3 py-1 text-sm font-medium transition-colors ${
-      viewMode === mode
-        ? 'bg-content text-content-inverse'
-        : 'text-content-muted hover:bg-surface-muted'
-    }`;
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex grow flex-col gap-4 rounded bg-surface p-4 text-content-muted shadow-lg">
@@ -170,22 +174,19 @@ export default function DocumentsPage() {
               />
             </IconInput>
           </div>
-          <div className="inline-flex rounded border border-border bg-surface p-1">
-            <button
-              type="button"
-              onClick={() => setViewMode('grid')}
-              className={getViewModeButtonClasses('grid')}
-            >
-              Grid
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              className={getViewModeButtonClasses('list')}
-            >
-              List
-            </button>
-          </div>
+          <SegmentedControl<DocumentsViewMode>
+            className="inline-flex rounded border border-border bg-surface p-1"
+            ariaLabel="Document view mode"
+            value={viewMode}
+            onChange={setViewMode}
+            buttonClassName="rounded px-3 py-1 text-sm font-medium transition-colors"
+            activeClassName="bg-content text-content-inverse"
+            inactiveClassName="text-content-muted hover:bg-surface-muted"
+            options={[
+              { value: 'grid', label: 'Grid' },
+              { value: 'list', label: 'List' },
+            ]}
+          />
         </div>
       </div>
 
@@ -196,9 +197,7 @@ export default function DocumentsPage() {
           ) : docs && docs.length > 0 ? (
             docs.map(doc => <DocumentItem key={doc.id} doc={doc} layout="grid" />)
           ) : (
-            <div className="col-span-full rounded bg-surface p-6 text-center text-content-muted shadow-lg">
-              No documents found.
-            </div>
+            <EmptyDocuments className="col-span-full" />
           )}
         </div>
       ) : (
@@ -208,9 +207,7 @@ export default function DocumentsPage() {
           ) : docs && docs.length > 0 ? (
             docs.map(doc => <DocumentItem key={doc.id} doc={doc} layout="list" />)
           ) : (
-            <div className="rounded bg-surface p-6 text-center text-content-muted shadow-lg">
-              No documents found.
-            </div>
+            <EmptyDocuments />
           )}
         </div>
       )}

@@ -17,3 +17,4 @@ export { Field, FieldLabel, FieldValue, FieldActions } from './Field';
 export { Button } from './Button';
 export { Table, type Column, type TableProps } from './Table';
 export { IconInput } from './IconInput';
+export { SegmentedControl } from './SegmentedControl';

@@ -13,7 +13,7 @@ interface BackupTypes {
 
 export default function AdminPage() {
   const postAdminAction = usePostAdminAction();
-  const { showInfo, showError, removeToast } = useToasts();
+  const { showInfo, showError, updateToast } = useToasts();
   const toastMutationOptions = useMutationWithToast();
 
   const [backupTypes, setBackupTypes] = useState<BackupTypes>({
@@ -61,8 +61,8 @@ export default function AdminPage() {
     e.preventDefault();
     if (!restoreFile) return;
 
-    // Persistent progress toast - Restore is long-running, so we surface a 'started' toast that is dismissed on completion; the standard toast helper has no notion of a progress indicator.
-    const startedToastId = showInfo('Restore started', 0);
+    // Progress Toast - Restore is long-running; a persistent 'started' toast resolves in place into the result toast on completion.
+    const toastId = showInfo('Restore started', 0);
 
     try {
       const response = await postAdminAction.mutateAsync({
@@ -72,18 +72,23 @@ export default function AdminPage() {
         },
       });
 
-      removeToast(startedToastId);
-
       const message = getResponseError(response);
       if (message) {
-        showError('Restore failed: ' + message);
+        updateToast(toastId, {
+          type: 'error',
+          message: `Restore failed: ${message}`,
+          duration: 5000,
+        });
         return;
       }
 
-      showInfo('Restore completed successfully');
+      updateToast(toastId, { message: 'Restore completed successfully', duration: 5000 });
     } catch (error) {
-      removeToast(startedToastId);
-      showError('Restore failed: ' + getErrorMessage(error));
+      updateToast(toastId, {
+        type: 'error',
+        message: `Restore failed: ${getErrorMessage(error)}`,
+        duration: 5000,
+      });
     }
   };
 

@@ -1,12 +1,8 @@
 import { useState } from 'react';
-import { LoadingState } from '../components';
+import { LoadingState, SegmentedControl } from '../components';
 import { Link } from 'react-router-dom';
 import { useGetHome } from '../generated/anthoLumeAPIV1';
-import type {
-  LeaderboardData,
-  LeaderboardEntry,
-  UserStreak,
-} from '../generated/model';
+import type { LeaderboardData, LeaderboardEntry, UserStreak } from '../generated/model';
 import ReadingHistoryGraph from '../components/ReadingHistoryGraph';
 import { formatNumber, formatDuration } from '../utils/formatters';
 
@@ -115,9 +111,6 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
 
   const currentData = data[selectedPeriod];
 
-  const getPeriodClassName = (period: TimePeriod) =>
-    `cursor-pointer ${selectedPeriod === period ? 'text-content' : 'text-content-subtle hover:text-content'}`;
-
   return (
     <div className="w-full">
       <div className="flex size-full flex-col justify-between rounded bg-surface px-4 py-6 text-content shadow-lg">
@@ -126,20 +119,21 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
             <p className="w-max border-b border-border text-sm font-semibold text-content-muted">
               {name} Leaderboard
             </p>
-            <div className="flex items-center gap-2 text-xs">
-              <button type="button" onClick={() => setSelectedPeriod('all')} className={getPeriodClassName('all')}>
-                all
-              </button>
-              <button type="button" onClick={() => setSelectedPeriod('year')} className={getPeriodClassName('year')}>
-                year
-              </button>
-              <button type="button" onClick={() => setSelectedPeriod('month')} className={getPeriodClassName('month')}>
-                month
-              </button>
-              <button type="button" onClick={() => setSelectedPeriod('week')} className={getPeriodClassName('week')}>
-                week
-              </button>
-            </div>
+            <SegmentedControl<TimePeriod>
+              className="flex items-center gap-2 text-xs"
+              ariaLabel={`${name} leaderboard period`}
+              value={selectedPeriod}
+              onChange={setSelectedPeriod}
+              buttonClassName="cursor-pointer"
+              activeClassName="text-content"
+              inactiveClassName="text-content-subtle hover:text-content"
+              options={[
+                { value: 'all', label: 'all' },
+                { value: 'year', label: 'year' },
+                { value: 'month', label: 'month' },
+                { value: 'week', label: 'week' },
+              ]}
+            />
           </div>
         </div>
 

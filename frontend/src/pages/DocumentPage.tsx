@@ -8,16 +8,11 @@ import {
 } from '../generated/anthoLumeAPIV1';
 import type { EditDocumentBody } from '../generated/model';
 import { formatDuration } from '../utils/formatters';
-import { getErrorMessage, getResponseError } from '../utils/errors';
+import { useToastMutation } from '../hooks/useMutationWithToast';
 import { ActivityIcon, DownloadIcon, EditIcon, InfoIcon, CloseIcon, CheckIcon } from '../icons';
 import { Field, FieldLabel, FieldValue, FieldActions, LoadingState } from '../components';
-import { useToasts } from '../components/ToastContext';
 
 const iconButtonClassName = 'cursor-pointer text-content-muted hover:text-content';
-const popupClassName =
-  'rounded bg-surface-strong p-3 text-content shadow-lg transition-all duration-200';
-const editInputClassName =
-  'w-full rounded border border-border bg-surface-muted p-2 text-lg font-medium text-content focus:outline-hidden focus:ring-2 focus:ring-primary-600';
 
 interface EditableFieldProps {
   label: string;
@@ -100,7 +95,7 @@ function EditableField({
               type="text"
               value={draft}
               onChange={e => setDraft(e.target.value)}
-              className={editInputClassName}
+              className="w-full rounded border border-border bg-surface-muted p-2 text-lg font-medium text-content focus:outline-hidden focus:ring-2 focus:ring-primary-600"
             />
           )}
         </div>
@@ -118,7 +113,7 @@ export default function DocumentPage() {
     query: { enabled: Boolean(id) },
   });
   const editMutation = useEditDocument();
-  const { showError } = useToasts();
+  const runWithToast = useToastMutation();
 
   const [showTimeReadInfo, setShowTimeReadInfo] = useState(false);
 
@@ -136,21 +131,12 @@ export default function DocumentPage() {
   const secondsPerPercent = document.seconds_per_percent || 0;
   const totalTimeLeftSeconds = Math.round((100 - percentage) * secondsPerPercent);
 
-  const save = async (data: EditDocumentBody): Promise<boolean> => {
-    try {
-      const response = await editMutation.mutateAsync({ id: document.id, data });
-      const message = getResponseError(response);
-      if (message) {
-        showError('Failed to save: ' + message);
-        return false;
-      }
-      queryClient.setQueryData(getGetDocumentQueryKey(document.id), response);
-      return true;
-    } catch (err) {
-      showError('Failed to save: ' + getErrorMessage(err));
-      return false;
-    }
-  };
+  const save = (data: EditDocumentBody): Promise<boolean> =>
+    runWithToast(() => editMutation.mutateAsync({ id: document.id, data }), {
+      error: 'Failed to save',
+      onSuccess: response =>
+        queryClient.setQueryData(getGetDocumentQueryKey(document.id), response),
+    });
 
   return (
     <div className="relative size-full">
@@ -235,7 +221,7 @@ export default function DocumentPage() {
                   <InfoIcon size={18} />
                 </button>
                 <div
-                  className={`absolute right-0 top-7 z-30 ${popupClassName} ${
+                  className={`absolute right-0 top-7 z-30 rounded bg-surface-strong p-3 text-content shadow-lg transition-all duration-200 ${
                     showTimeReadInfo ? 'opacity-100' : 'pointer-events-none opacity-0'
                   }`}
                 >

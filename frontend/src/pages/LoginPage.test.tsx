@@ -51,6 +51,7 @@ describe('LoginPage', () => {
       showInfo: vi.fn(),
       showWarning: vi.fn(),
       showError: vi.fn(),
+      updateToast: vi.fn(),
       removeToast: vi.fn(),
       clearToasts: vi.fn(),
     });
@@ -112,6 +113,7 @@ describe('LoginPage', () => {
       showInfo: vi.fn(),
       showWarning: vi.fn(),
       showError: showErrorMock,
+      updateToast: vi.fn(),
       removeToast: vi.fn(),
       clearToasts: vi.fn(),
     });

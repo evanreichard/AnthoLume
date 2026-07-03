@@ -1,11 +1,18 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { Toast, ToastType, ToastProps } from './Toast';
 
+interface ToastUpdate {
+  message?: string;
+  type?: ToastType;
+  duration?: number;
+}
+
 interface ToastContextType {
   showToast: (message: string, type?: ToastType, duration?: number) => string;
   showInfo: (message: string, duration?: number) => string;
   showWarning: (message: string, duration?: number) => string;
   showError: (message: string, duration?: number) => string;
+  updateToast: (id: string, update: ToastUpdate) => void;
   removeToast: (id: string) => void;
   clearToasts: () => void;
 }
@@ -49,13 +56,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [showToast]
   );
 
+  // In-Place Update - Long-running flows show a persistent toast (duration 0) that resolves into its result toast; changing duration restarts the Toast's auto-dismiss timer.
+  const updateToast = useCallback((id: string, update: ToastUpdate) => {
+    setToasts(prev => prev.map(toast => (toast.id === id ? { ...toast, ...update } : toast)));
+  }, []);
+
   const clearToasts = useCallback(() => {
     setToasts([]);
   }, []);
 
   return (
     <ToastContext.Provider
-      value={{ showToast, showInfo, showWarning, showError, removeToast, clearToasts }}
+      value={{ showToast, showInfo, showWarning, showError, updateToast, removeToast, clearToasts }}
     >
       {children}
       <ToastContainer toasts={toasts} />

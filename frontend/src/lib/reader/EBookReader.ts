@@ -244,13 +244,13 @@ export class EBookReader {
     const prevPage = this.prevPage.bind(this);
 
     this.keyupHandler = (event: KeyboardEvent) => {
-      if ((event.keyCode || event.which) === 37) {
+      if (event.key === 'ArrowLeft') {
         void prevPage();
       }
-      if ((event.keyCode || event.which) === 39) {
+      if (event.key === 'ArrowRight') {
         void nextPage();
       }
-      if ((event.keyCode || event.which) === 84) {
+      if (event.key === 't' || event.key === 'T') {
         const currentTheme = this.readerSettings.theme?.colorScheme || 'tan';
         const currentThemeIdx = READER_COLOR_SCHEMES.indexOf(currentTheme);
         const colorScheme =

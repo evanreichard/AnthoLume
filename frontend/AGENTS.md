@@ -26,7 +26,10 @@ Also follow the repository root guide at `../AGENTS.md`.
 - Nav items and page titles come from `src/components/navigation.ts` (`navItems`, `adminNavItems`, `getPageTitle`) — add routes there, not in `Layout`/`HamburgerMenu`.
 - Avoid custom class names in JSX `className` values unless the Tailwind lint config already allows them.
 - For decorative icons in inputs or labels, disable hover styling via the icon component API rather than overriding it ad hoc.
-- Prefer `LoadingState` for result-area loading indicators (the single loading convention); avoid early returns that unmount search/filter forms during fetches.
+- Prefer `LoadingState` for result-area loading indicators (the single loading convention); avoid early returns that unmount search/filter forms during fetches. React Query `isLoading` is initial-load-only (false on background refetches), so a full-page early-return on `isLoading` is fine for pages with no persistent filter form.
+- For mutations, use `useMutationWithToast` (declarative `.mutate(vars, options)` for fire-and-forget) or its imperative sibling `useToastMutation` (awaited, returns a success `boolean`) instead of hand-rolling `mutateAsync` → `getResponseError` → toast blocks.
+- Use `SegmentedControl` for active/inactive toggle groups (view mode, period, reader theme/font) rather than re-implementing `option.map` + ternary class toggling; pass per-call `activeClassName`/`inactiveClassName`.
+- For a persistent/progress toast that resolves in place (long-running actions), create it with `showInfo(msg, 0)` and finish with `updateToast(id, { message, type, duration })`.
 - Use theme tokens defined in `src/index.css` `@theme` (`bg-surface`, `text-content`, `border-border`, `primary`, etc.) for new UI work instead of adding raw light/dark color pairs. There is no `tailwind.config.js` — Tailwind v4 config is CSS-first.
 - Semantic colors map to runtime CSS variables (`--color-x: rgb(var(--x))`) via `@theme inline`; light/dark values live in `:root` / `.dark` in `src/index.css`. Dark mode is class-based via `@custom-variant dark`, toggled by `ThemeProvider`.
 - Store frontend-only preferences in `src/utils/localSettings.ts` so appearance and view settings share one local-storage shape.
