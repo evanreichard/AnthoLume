@@ -35,11 +35,9 @@ export default function AdminLogsPage() {
               />
             </div>
           </div>
-          <div className="lg:w-60">
-            <Button variant="secondary" type="submit">
-              Filter
-            </Button>
-          </div>
+          <Button variant="secondary" type="submit" className="w-full lg:w-60">
+            Filter
+          </Button>
         </form>
       </div>
 

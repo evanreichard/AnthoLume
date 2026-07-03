@@ -10,7 +10,7 @@ type ButtonProps = BaseButtonProps & ButtonHTMLAttributes<HTMLButtonElement>;
 
 const getVariantClasses = (variant: 'default' | 'secondary' = 'default'): string => {
   const baseClass =
-    'h-full w-full px-2 py-1 font-medium transition duration-100 ease-in disabled:cursor-not-allowed disabled:opacity-50';
+    'inline-flex items-center justify-center px-4 py-2 font-medium transition duration-100 ease-in disabled:cursor-not-allowed disabled:opacity-50';
 
   if (variant === 'secondary') {
     return `${baseClass} bg-content text-content-inverse shadow-md hover:bg-content-muted disabled:hover:bg-content`;

@@ -5,9 +5,9 @@ import type { Document } from '../generated/model';
 import { ActivityIcon, DownloadIcon, Search2Icon, UploadIcon } from '../icons';
 import { LoadingState, Pagination, TextInput } from '../components';
 import { useToasts } from '../components/ToastContext';
+import { useMutationWithToast } from '../hooks/useMutationWithToast';
 import { formatDuration } from '../utils/formatters';
 import { useDebouncedState } from '../hooks/useDebouncedState';
-import { getErrorMessage } from '../utils/errors';
 import {
   getDocumentsViewMode,
   setDocumentsViewMode,
@@ -121,7 +121,8 @@ export default function DocumentsPage() {
   const [uploadMode, setUploadMode] = useState(false);
   const [viewMode, setViewMode] = useState<DocumentsViewMode>(getDocumentsViewMode);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { showInfo, showWarning, showError } = useToasts();
+  const { showWarning } = useToasts();
+  const toastMutationOptions = useMutationWithToast();
 
   useEffect(() => {
     setDocumentsViewMode(viewMode);
@@ -138,7 +139,7 @@ export default function DocumentsPage() {
   const previousPage = documentsResponse?.previous_page;
   const nextPage = documentsResponse?.next_page;
 
-  const uploadDocument = async (file: File | undefined) => {
+  const uploadDocument = (file: File | undefined) => {
     if (!file) return;
 
     if (!file.name.endsWith('.epub')) {
@@ -146,18 +147,17 @@ export default function DocumentsPage() {
       return;
     }
 
-    try {
-      await createMutation.mutateAsync({
-        data: {
-          document_file: file,
+    createMutation.mutate(
+      { data: { document_file: file } },
+      toastMutationOptions({
+        success: 'Document uploaded successfully!',
+        error: 'Failed to upload document',
+        onSuccess: () => {
+          setUploadMode(false);
+          refetch();
         },
-      });
-      showInfo('Document uploaded successfully!');
-      setUploadMode(false);
-      refetch();
-    } catch (error) {
-      showError('Failed to upload document: ' + getErrorMessage(error));
-    }
+      })
+    );
   };
 
   const handleCancelUpload = () => {

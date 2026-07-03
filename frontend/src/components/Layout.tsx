@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useLocation, Outlet, Navigate } from 'react-router-dom';
-import { useGetMe } from '../generated/anthoLumeAPIV1';
+import { Link, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { UserIcon, DropdownIcon } from '../icons';
 import { useTheme } from '../theme/ThemeProvider';
@@ -12,12 +11,8 @@ const themeModes: ThemeMode[] = ['light', 'dark', 'system'];
 
 export default function Layout() {
   const location = useLocation();
-  const { isAuthenticated, user, logout, isCheckingAuth } = useAuth();
+  const { user, logout } = useAuth();
   const { themeMode, setThemeMode } = useTheme();
-  const { data } = useGetMe(isAuthenticated ? {} : undefined);
-  const fetchedUser =
-    data?.status === 200 && data.data && 'username' in data.data ? data.data : null;
-  const userData = user ?? fetchedUser;
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -44,14 +39,6 @@ export default function Layout() {
   useEffect(() => {
     document.title = `AnthoLume - ${currentPageTitle}`;
   }, [currentPageTitle]);
-
-  if (isCheckingAuth) {
-    return <div className="text-content-muted">Loading...</div>;
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -135,7 +122,7 @@ export default function Layout() {
             onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
             className="flex cursor-pointer items-center gap-2 py-4 text-content-muted"
           >
-            <span>{userData ? ('username' in userData ? userData.username : 'User') : 'User'}</span>
+            <span>{user?.username ?? 'User'}</span>
             <span
               className="text-content transition-transform duration-200"
               style={{ transform: isUserDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}

@@ -17,7 +17,7 @@ const iconButtonClassName = 'cursor-pointer text-content-muted hover:text-conten
 const popupClassName =
   'rounded bg-surface-strong p-3 text-content shadow-lg transition-all duration-200';
 const editInputClassName =
-  'w-full rounded border border-secondary-200 bg-secondary-50 p-2 text-lg font-medium text-content focus:outline-hidden focus:ring-2 focus:ring-secondary-400 dark:border-secondary-700 dark:bg-secondary-900/20 dark:focus:ring-secondary-500';
+  'w-full rounded border border-border bg-surface-muted p-2 text-lg font-medium text-content focus:outline-hidden focus:ring-2 focus:ring-primary-600';
 
 interface EditableFieldProps {
   label: string;
@@ -92,7 +92,7 @@ function EditableField({
             <textarea
               value={draft}
               onChange={e => setDraft(e.target.value)}
-              className="h-32 w-full grow rounded border border-secondary-200 bg-secondary-50 p-2 font-medium text-content focus:outline-hidden focus:ring-2 focus:ring-secondary-400 dark:border-secondary-700 dark:bg-secondary-900/20 dark:focus:ring-secondary-500"
+              className="h-32 w-full grow rounded border border-border bg-surface-muted p-2 font-medium text-content focus:outline-hidden focus:ring-2 focus:ring-primary-600"
               rows={5}
             />
           ) : (
@@ -162,7 +162,7 @@ export default function DocumentPage() {
           {document.filepath && (
             <a
               href={`/reader/${document.id}`}
-              className="z-10 mt-2 w-full rounded bg-secondary-700 py-1 text-center text-sm font-medium text-white hover:bg-secondary-800 focus:outline-hidden focus:ring-4 focus:ring-secondary-300 dark:bg-secondary-600 dark:hover:bg-secondary-700"
+              className="z-10 mt-2 w-full rounded bg-secondary-700 py-1 text-center text-sm font-medium text-secondary-foreground hover:bg-secondary-800 focus:outline-hidden focus:ring-4 focus:ring-secondary-500"
             >
               Read
             </a>

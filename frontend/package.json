@@ -17,8 +17,6 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.16",
-    "ajv": "^8.18.0",
-    "axios": "^1.13.6",
     "clsx": "^2.1.1",
     "epubjs": "^0.3.93",
     "nosleep.js": "^0.12.0",

@@ -3,6 +3,7 @@ import { LoadingState } from '../components';
 import { useGetAdmin, usePostAdminAction } from '../generated/anthoLumeAPIV1';
 import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
+import { useMutationWithToast } from '../hooks/useMutationWithToast';
 import { getErrorMessage } from '../utils/errors';
 import { streamResponseToFile, backupFilename } from '../utils/download';
 
@@ -15,6 +16,7 @@ export default function AdminPage() {
   const { isLoading } = useGetAdmin();
   const postAdminAction = usePostAdminAction();
   const { showInfo, showError, removeToast } = useToasts();
+  const toastMutationOptions = useMutationWithToast();
 
   const [backupTypes, setBackupTypes] = useState<BackupTypes>({
     covers: false,
@@ -61,6 +63,7 @@ export default function AdminPage() {
     e.preventDefault();
     if (!restoreFile) return;
 
+    // Persistent progress toast - Restore is long-running, so we surface a 'started' toast that is dismissed on completion; the standard toast helper has no notion of a progress indicator.
     const startedToastId = showInfo('Restore started', 0);
 
     try {
@@ -88,20 +91,20 @@ export default function AdminPage() {
   const handleMetadataMatch = () => {
     postAdminAction.mutate(
       { data: { action: 'METADATA_MATCH' } },
-      {
-        onSuccess: () => showInfo('Metadata matching started'),
-        onError: error => showError('Metadata matching failed: ' + getErrorMessage(error)),
-      }
+      toastMutationOptions({
+        success: 'Metadata matching started',
+        error: 'Failed to start metadata matching',
+      })
     );
   };
 
   const handleCacheTables = () => {
     postAdminAction.mutate(
       { data: { action: 'CACHE_TABLES' } },
-      {
-        onSuccess: () => showInfo('Cache tables started'),
-        onError: error => showError('Cache tables failed: ' + getErrorMessage(error)),
-      }
+      toastMutationOptions({
+        success: 'Cache tables started',
+        error: 'Failed to start cache tables',
+      })
     );
   };
 
@@ -135,8 +138,8 @@ export default function AdminPage() {
                 <label htmlFor="backup_documents">Documents</label>
               </div>
             </div>
-            <div className="h-10 w-40">
-              <Button variant="secondary" type="submit">
+            <div className="w-40">
+              <Button variant="secondary" type="submit" className="w-full">
                 Backup
               </Button>
             </div>
@@ -151,8 +154,8 @@ export default function AdminPage() {
                 className="w-full"
               />
             </div>
-            <div className="h-10 w-40">
-              <Button variant="secondary" type="submit" disabled={!restoreFile}>
+            <div className="w-40">
+              <Button variant="secondary" type="submit" className="w-full" disabled={!restoreFile}>
                 Restore
               </Button>
             </div>
@@ -161,35 +164,21 @@ export default function AdminPage() {
       </div>
 
       <div className="flex grow flex-col rounded bg-surface p-4 text-content-muted shadow-lg">
-        <p className="text-lg font-semibold text-content">Tasks</p>
-        <table className="min-w-full bg-surface text-sm text-content">
-          <tbody>
-            <tr>
-              <td className="pl-0">
-                <p>Metadata Matching</p>
-              </td>
-              <td className="float-right py-2">
-                <div className="h-10 w-40 text-base">
-                  <Button variant="secondary" onClick={handleMetadataMatch}>
-                    Run
-                  </Button>
-                </div>
-              </td>
-            </tr>
-            <tr>
-              <td>
-                <p>Cache Tables</p>
-              </td>
-              <td className="float-right py-2">
-                <div className="h-10 w-40 text-base">
-                  <Button variant="secondary" onClick={handleCacheTables}>
-                    Run
-                  </Button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <p className="mb-4 text-lg font-semibold text-content">Tasks</p>
+        <ul className="flex flex-col gap-3 text-sm text-content">
+          <li className="flex items-center justify-between gap-4">
+            <p>Metadata Matching</p>
+            <Button variant="secondary" onClick={handleMetadataMatch}>
+              Run
+            </Button>
+          </li>
+          <li className="flex items-center justify-between gap-4">
+            <p>Cache Tables</p>
+            <Button variant="secondary" onClick={handleCacheTables}>
+              Run
+            </Button>
+          </li>
+        </ul>
       </div>
     </div>
   );

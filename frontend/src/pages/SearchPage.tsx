@@ -102,11 +102,9 @@ export function SearchPageView({
                 <option value={GetSearchSource.Annas_Archive}>Annas Archive</option>
               </select>
             </div>
-            <div className="lg:w-60">
-              <Button variant="secondary" type="submit">
-                Search
-              </Button>
-            </div>
+            <Button variant="secondary" type="submit" className="w-full lg:w-60">
+              Search
+            </Button>
           </form>
         </div>
 

@@ -1,4 +1,4 @@
-import { Route, Routes as ReactRoutes } from 'react-router-dom';
+import { Outlet, Route, Routes as ReactRoutes } from 'react-router-dom';
 import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import DocumentsPage from './pages/DocumentsPage';
@@ -16,108 +16,33 @@ import AdminUsersPage from './pages/AdminUsersPage';
 import AdminLogsPage from './pages/AdminLogsPage';
 import ReaderPage from './pages/ReaderPage';
 import { ProtectedRoute } from './auth/ProtectedRoute';
+import { AdminRoute } from './auth/AdminRoute';
 
 export function Routes() {
   return (
     <ReactRoutes>
-      <Route path="/" element={<Layout />}>
-        <Route
-          index
-          element={
-            <ProtectedRoute>
-              <HomePage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="documents"
-          element={
-            <ProtectedRoute>
-              <DocumentsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="documents/:id"
-          element={
-            <ProtectedRoute>
-              <DocumentPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="progress"
-          element={
-            <ProtectedRoute>
-              <ProgressPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="activity"
-          element={
-            <ProtectedRoute>
-              <ActivityPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="search"
-          element={
-            <ProtectedRoute>
-              <SearchPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="settings"
-          element={
-            <ProtectedRoute>
-              <SettingsPage />
-            </ProtectedRoute>
-          }
-        />
-        {/* Admin routes */}
-        <Route
-          path="admin"
-          element={
-            <ProtectedRoute>
-              <AdminPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="admin/import"
-          element={
-            <ProtectedRoute>
-              <AdminImportPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="admin/import-results"
-          element={
-            <ProtectedRoute>
-              <AdminImportResultsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="admin/users"
-          element={
-            <ProtectedRoute>
-              <AdminUsersPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="admin/logs"
-          element={
-            <ProtectedRoute>
-              <AdminLogsPage />
-            </ProtectedRoute>
-          }
-        />
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<HomePage />} />
+        <Route path="documents" element={<DocumentsPage />} />
+        <Route path="documents/:id" element={<DocumentPage />} />
+        <Route path="progress" element={<ProgressPage />} />
+        <Route path="activity" element={<ActivityPage />} />
+        <Route path="search" element={<SearchPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="admin" element={<AdminRoute><Outlet /></AdminRoute>}>
+          <Route index element={<AdminPage />} />
+          <Route path="import" element={<AdminImportPage />} />
+          <Route path="import-results" element={<AdminImportResultsPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
+          <Route path="logs" element={<AdminLogsPage />} />
+        </Route>
       </Route>
       <Route
         path="/reader/:id"

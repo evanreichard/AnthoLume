@@ -6,25 +6,8 @@ describe('getErrorMessage', () => {
     expect(getErrorMessage(new Error('Boom'))).toBe('Boom');
   });
 
-  it('prefers response.data.message over top-level message', () => {
-    expect(
-      getErrorMessage({
-        message: 'Top-level message',
-        response: {
-          data: {
-            message: 'Response message',
-          },
-        },
-      })
-    ).toBe('Response message');
-  });
-
-  it('falls back to top-level message when response.data.message is unavailable', () => {
-    expect(
-      getErrorMessage({
-        message: 'Top-level message',
-      })
-    ).toBe('Top-level message');
+  it('reads the top-level message from API error bodies', () => {
+    expect(getErrorMessage({ code: 401, message: 'Unauthorized' })).toBe('Unauthorized');
   });
 
   it('uses the fallback for null, empty, and unknown values', () => {
@@ -32,17 +15,5 @@ describe('getErrorMessage', () => {
     expect(getErrorMessage(undefined, 'Fallback message')).toBe('Fallback message');
     expect(getErrorMessage({}, 'Fallback message')).toBe('Fallback message');
     expect(getErrorMessage({ message: '   ' }, 'Fallback message')).toBe('Fallback message');
-    expect(
-      getErrorMessage(
-        {
-          response: {
-            data: {
-              message: '',
-            },
-          },
-        },
-        'Fallback message'
-      )
-    ).toBe('Fallback message');
   });
 });

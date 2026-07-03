@@ -89,11 +89,6 @@ export default function ReaderPage() {
     }
   }, [document?.title]);
 
-  const { setTheme } = reader;
-  useEffect(() => {
-    setTheme({ colorScheme, fontFamily, fontSize });
-  }, [colorScheme, fontFamily, fontSize, setTheme]);
-
   useEffect(() => {
     if (isTopBarOpen || isBottomBarOpen) {
       return;

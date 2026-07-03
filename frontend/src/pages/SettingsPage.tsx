@@ -124,11 +124,9 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
-            <div className="lg:w-60">
-              <Button variant="secondary" type="submit">
-                Submit
-              </Button>
-            </div>
+            <Button variant="secondary" type="submit" className="w-full lg:w-60">
+              Submit
+            </Button>
           </form>
         </div>
 
@@ -195,11 +193,9 @@ export default function SettingsPage() {
                 <option value="Australia/Sydney">Australia/Sydney</option>
               </select>
             </div>
-            <div className="lg:w-60">
-              <Button variant="secondary" type="submit">
-                Submit
-              </Button>
-            </div>
+            <Button variant="secondary" type="submit" className="w-full lg:w-60">
+              Submit
+            </Button>
           </form>
         </div>
 

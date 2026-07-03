@@ -3,23 +3,10 @@ export function getErrorMessage(error: unknown, fallback = 'Unknown error'): str
     return error.message;
   }
 
-  if (typeof error === 'object' && error !== null) {
-    const errorWithResponse = error as {
-      message?: unknown;
-      response?: {
-        data?: {
-          message?: unknown;
-        };
-      };
-    };
-
-    const responseMessage = errorWithResponse.response?.data?.message;
-    if (typeof responseMessage === 'string' && responseMessage.trim() !== '') {
-      return responseMessage;
-    }
-
-    if (typeof errorWithResponse.message === 'string' && errorWithResponse.message.trim() !== '') {
-      return errorWithResponse.message;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const { message } = error as { message?: unknown };
+    if (typeof message === 'string' && message.trim() !== '') {
+      return message;
     }
   }
 
