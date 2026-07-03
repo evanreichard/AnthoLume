@@ -94,45 +94,6 @@ import { Skeleton } from './components/Skeleton';
 <Skeleton variant="rectangular" width="100%" height={200} />
 ```
 
-#### `SkeletonText`
-
-Multiple lines of text skeleton:
-
-```tsx
-<SkeletonText lines={3} />
-<SkeletonText lines={5} className="max-w-md" />
-```
-
-#### `SkeletonAvatar`
-
-Avatar placeholder:
-
-```tsx
-<SkeletonAvatar size="md" />
-<SkeletonAvatar size={56} />
-```
-
-#### `SkeletonCard`
-
-Card placeholder with optional elements:
-
-```tsx
-// Default card
-<SkeletonCard />
-
-// With avatar
-<SkeletonCard showAvatar />
-
-// Custom configuration
-<SkeletonCard
-  showAvatar
-  showTitle
-  showText
-  textLines={4}
-  className="max-w-sm"
-/>
-```
-
 #### `SkeletonTable`
 
 Table placeholder:
@@ -140,33 +101,6 @@ Table placeholder:
 ```tsx
 <SkeletonTable rows={5} columns={4} />
 <SkeletonTable rows={10} columns={6} showHeader={false} />
-```
-
-#### `SkeletonButton`
-
-Button placeholder:
-
-```tsx
-<SkeletonButton width={120} />
-<SkeletonButton className="w-full" />
-```
-
-#### `PageLoader`
-
-Full-page loading indicator:
-
-```tsx
-<PageLoader message="Loading your documents..." />
-```
-
-#### `InlineLoader`
-
-Small inline loading spinner:
-
-```tsx
-<InlineLoader size="sm" />
-<InlineLoader size="md" />
-<InlineLoader size="lg" />
 ```
 
 ## Integration with Table Component
@@ -200,4 +134,4 @@ The theme is controlled via Tailwind's `dark:` classes, which respond to the sys
 
 - `clsx` - Utility for constructing className strings
 - `tailwind-merge` - Merges Tailwind CSS classes intelligently
-- `lucide-react` - Icon library used by Toast component
+- Local icon components in `src/icons/`

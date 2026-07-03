@@ -7,7 +7,12 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { getThemeMode, setThemeMode, type ThemeMode } from '../utils/localSettings';
+import {
+  getThemeMode,
+  setThemeMode,
+  LOCAL_SETTINGS_KEY,
+  type ThemeMode,
+} from '../utils/localSettings';
 
 export type ResolvedThemeMode = 'light' | 'dark';
 
@@ -53,21 +58,20 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     resolveThemeMode(getThemeMode())
   );
 
+  // Single Source Of Truth - The mode effect is the only place that applies the theme to the DOM and resolves it into state. Every other code path just sets `themeModeState`.
   useEffect(() => {
     setResolvedThemeMode(applyThemeMode(themeModeState));
   }, [themeModeState]);
 
+  // System Preference - When the user follows 'system', the resolved theme must react to OS changes even though `themeModeState` is unchanged.
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === 'undefined' || themeModeState !== 'system') {
       return undefined;
     }
 
     const mediaQueryList = window.matchMedia('(prefers-color-scheme: dark)');
-
     const handleSystemThemeChange = () => {
-      if (themeModeState === 'system') {
-        setResolvedThemeMode(applyThemeMode('system'));
-      }
+      setResolvedThemeMode(applyThemeMode('system'));
     };
 
     mediaQueryList.addEventListener('change', handleSystemThemeChange);
@@ -76,19 +80,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     };
   }, [themeModeState]);
 
+  // Cross-Tab Sync - Another tab changed the persisted theme; adopt its mode and let the mode effect apply it.
   useEffect(() => {
     if (typeof window === 'undefined') {
       return undefined;
     }
 
     const handleStorage = (event: StorageEvent) => {
-      if (event.key && event.key !== 'antholume:settings') {
+      if (event.key && event.key !== LOCAL_SETTINGS_KEY) {
         return;
       }
-
-      const nextThemeMode = getThemeMode();
-      setThemeModeState(nextThemeMode);
-      setResolvedThemeMode(applyThemeMode(nextThemeMode));
+      setThemeModeState(getThemeMode());
     };
 
     window.addEventListener('storage', handleStorage);
@@ -100,7 +102,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const updateThemeMode = useCallback((nextThemeMode: ThemeMode) => {
     setThemeMode(nextThemeMode);
     setThemeModeState(nextThemeMode);
-    setResolvedThemeMode(applyThemeMode(nextThemeMode));
   }, []);
 
   const value = useMemo(

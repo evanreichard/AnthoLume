@@ -1,63 +1,22 @@
-import React from 'react';
-import { Skeleton } from './Skeleton';
-import { cn } from '../utils/cn';
+import { ReactNode } from 'react';
+import { SkeletonTable } from './Skeleton';
 
-export interface Column<T extends object> {
-  key: keyof T;
-  header: string;
-  render?: (value: T[keyof T], _row: T, _index: number) => React.ReactNode;
+export interface Column<T> {
+  id: string;
+  header: ReactNode;
   className?: string;
+  render: (row: T, index: number) => ReactNode;
 }
 
-export interface TableProps<T extends object> {
+export interface TableProps<T> {
   columns: Column<T>[];
   data: T[];
   loading?: boolean;
-  emptyMessage?: string;
+  emptyMessage?: ReactNode;
   rowKey?: keyof T | ((row: T) => string);
 }
 
-function SkeletonTable({
-  rows = 5,
-  columns = 4,
-  className = '',
-}: {
-  rows?: number;
-  columns?: number;
-  className?: string;
-}) {
-  return (
-    <div className={cn('overflow-hidden rounded-lg bg-surface', className)}>
-      <table className="min-w-full">
-        <thead>
-          <tr className="border-b border-border">
-            {Array.from({ length: columns }).map((_, i) => (
-              <th key={i} className="p-3">
-                <Skeleton variant="text" className="h-5 w-3/4" />
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {Array.from({ length: rows }).map((_, rowIndex) => (
-            <tr key={rowIndex} className="border-b border-border last:border-0">
-              {Array.from({ length: columns }).map((_, colIndex) => (
-                <td key={colIndex} className="p-3">
-                  <Skeleton
-                    variant="text"
-                    className={colIndex === columns - 1 ? 'w-1/2' : 'w-full'}
-                  />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-export function Table<T extends object>({
+export function Table<T>({
   columns,
   data,
   loading = false,
@@ -86,7 +45,7 @@ export function Table<T extends object>({
             <tr className="border-b border-border">
               {columns.map(column => (
                 <th
-                  key={String(column.key)}
+                  key={column.id}
                   className={`p-3 text-left text-content-muted ${column.className || ''}`}
                 >
                   {column.header}
@@ -106,12 +65,10 @@ export function Table<T extends object>({
                 <tr key={getRowKey(row, index)} className="border-b border-border">
                   {columns.map(column => (
                     <td
-                      key={`${getRowKey(row, index)}-${String(column.key)}`}
+                      key={column.id}
                       className={`p-3 text-content ${column.className || ''}`}
                     >
-                      {column.render
-                        ? column.render(row[column.key], row, index)
-                        : (row[column.key] as React.ReactNode)}
+                      {column.render(row, index)}
                     </td>
                   ))}
                 </tr>

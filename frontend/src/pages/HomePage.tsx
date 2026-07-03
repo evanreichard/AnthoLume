@@ -1,8 +1,8 @@
 import { useState } from 'react';
+import { LoadingState } from '../components';
 import { Link } from 'react-router-dom';
 import { useGetHome } from '../generated/anthoLumeAPIV1';
 import type {
-  HomeResponse,
   LeaderboardData,
   LeaderboardEntry,
   UserStreak,
@@ -154,7 +154,7 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
         <div>
           {currentData?.slice(0, 3).map((item: LeaderboardEntry, index: number) => (
             <div
-              key={index}
+              key={item.user_id}
               className={`flex items-center justify-between py-2 text-sm ${index > 0 ? 'border-t border-border' : ''}`}
             >
               <div>
@@ -172,14 +172,14 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
 export default function HomePage() {
   const { data: homeData, isLoading: homeLoading } = useGetHome();
 
-  const homeResponse = homeData?.status === 200 ? (homeData.data as HomeResponse) : null;
+  const homeResponse = homeData?.status === 200 ? homeData.data : null;
   const dbInfo = homeResponse?.database_info;
   const streaks = homeResponse?.streaks?.streaks;
   const graphData = homeResponse?.graph_data?.graph_data;
   const userStats = homeResponse?.user_statistics;
 
   if (homeLoading) {
-    return <div className="text-content-muted">Loading...</div>;
+    return <LoadingState />;
   }
 
   return (
@@ -201,9 +201,9 @@ export default function HomePage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {streaks?.map((streak: UserStreak, index: number) => (
+        {streaks?.map((streak: UserStreak) => (
           <StreakCard
-            key={index}
+            key={streak.window}
             window={streak.window as 'DAY' | 'WEEK'}
             currentStreak={streak.current_streak}
             currentStreakStartDate={streak.current_streak_start_date}

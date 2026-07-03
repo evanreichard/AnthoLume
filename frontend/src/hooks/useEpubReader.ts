@@ -20,7 +20,7 @@ interface UseEpubReaderOptions {
 }
 
 interface UseEpubReaderResult {
-  viewerRef: (_node: HTMLDivElement | null) => void;
+  viewerRef: (node: HTMLDivElement | null) => void;
   isReady: boolean;
   isLoading: boolean;
   error: string | null;

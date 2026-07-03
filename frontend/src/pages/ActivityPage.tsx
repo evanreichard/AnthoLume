@@ -6,11 +6,13 @@ import { Pagination } from '../components';
 import { Table, type Column } from '../components/Table';
 import { formatDuration } from '../utils/formatters';
 
+const ACTIVITY_PAGE_SIZE = 25;
+
 export default function ActivityPage() {
   const [searchParams] = useSearchParams();
   const documentID = searchParams.get('document') || undefined;
   const [page, setPage] = useState(1);
-  const limit = 25;
+  const limit = ACTIVITY_PAGE_SIZE;
 
   useEffect(() => {
     setPage(1);
@@ -27,28 +29,28 @@ export default function ActivityPage() {
 
   const columns: Column<Activity>[] = [
     {
-      key: 'document_id' as const,
+      id: 'document',
       header: 'Document',
-      render: (_value, row) => (
+      render: row => (
         <Link to={`/documents/${row.document_id}`} className="text-secondary-600 hover:underline">
           {row.author || 'Unknown'} - {row.title || 'Unknown'}
         </Link>
       ),
     },
     {
-      key: 'start_time' as const,
+      id: 'start_time',
       header: 'Time',
-      render: value => String(value || 'N/A'),
+      render: row => row.start_time || 'N/A',
     },
     {
-      key: 'duration' as const,
+      id: 'duration',
       header: 'Duration',
-      render: value => formatDuration(typeof value === 'number' ? value : 0),
+      render: row => formatDuration(row.duration ?? 0),
     },
     {
-      key: 'end_percentage' as const,
+      id: 'end_percentage',
       header: 'Percent',
-      render: value => (typeof value === 'number' ? `${value}%` : '0%'),
+      render: row => (typeof row.end_percentage === 'number' ? `${row.end_percentage}%` : '0%'),
     },
   ];
 

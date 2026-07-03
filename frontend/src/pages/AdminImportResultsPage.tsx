@@ -1,14 +1,15 @@
 import { useGetImportResults } from '../generated/anthoLumeAPIV1';
-import type { ImportResult, ImportResultsResponse } from '../generated/model';
+import { LoadingState } from '../components';
+import type { ImportResult } from '../generated/model';
 import { Link } from 'react-router-dom';
 
 export default function AdminImportResultsPage() {
   const { data: resultsData, isLoading } = useGetImportResults();
   const results =
-    resultsData?.status === 200 ? (resultsData.data as ImportResultsResponse).results || [] : [];
+    resultsData?.status === 200 ? resultsData.data.results || [] : [];
 
   if (isLoading) {
-    return <div className="text-content-muted">Loading...</div>;
+    return <LoadingState />;
   }
 
   return (
@@ -33,11 +34,8 @@ export default function AdminImportResultsPage() {
               </tr>
             ) : (
               results.map((result: ImportResult, index: number) => (
-                <tr key={index}>
-                  <td
-                    className="grid border-b border-border p-3"
-                    style={{ gridTemplateColumns: '4rem auto' }}
-                  >
+                <tr key={result.path ?? index}>
+                  <td className="grid grid-cols-[4rem_auto] border-b border-border p-3">
                     <span className="text-content-muted">Name:</span>
                     {result.id ? (
                       <Link

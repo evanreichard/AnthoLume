@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useGetDocuments, useCreateDocument } from '../generated/anthoLumeAPIV1';
-import type { Document, DocumentsResponse } from '../generated/model';
+import type { Document } from '../generated/model';
 import { ActivityIcon, DownloadIcon, Search2Icon, UploadIcon } from '../icons';
-import { LoadingState, Pagination } from '../components';
+import { LoadingState, Pagination, TextInput } from '../components';
 import { useToasts } from '../components/ToastContext';
 import { formatDuration } from '../utils/formatters';
-import { useDebounce } from '../hooks/useDebounce';
+import { useDebouncedState } from '../hooks/useDebouncedState';
 import { getErrorMessage } from '../utils/errors';
 import {
   getDocumentsViewMode,
@@ -14,148 +14,114 @@ import {
   type DocumentsViewMode,
 } from '../utils/localSettings';
 
-interface DocumentCardProps {
+const DOCUMENTS_PAGE_SIZE = 9;
+
+interface DocumentItemProps {
   doc: Document;
+  layout: 'grid' | 'list';
 }
 
-function DocumentCard({ doc }: DocumentCardProps) {
+function DocumentItem({ doc, layout }: DocumentItemProps) {
   const navigate = useNavigate();
   const percentage = doc.percentage || 0;
   const totalTimeSeconds = doc.total_time_seconds || 0;
 
-  return (
-    <div className="relative w-full">
-      <div
-        role="link"
-        tabIndex={0}
-        className="flex size-full cursor-pointer gap-4 rounded bg-surface p-4 shadow-lg transition-colors hover:bg-surface-muted focus:outline-hidden"
-        onClick={() => navigate(`/documents/${doc.id}`)}
-        onKeyDown={event => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            navigate(`/documents/${doc.id}`);
-          }
-        }}
-      >
-        <div className="relative my-auto h-48 min-w-fit">
-          <img
-            className="h-full rounded object-cover"
-            src={`/api/v1/documents/${doc.id}/cover`}
-            alt={doc.title}
-          />
-        </div>
-        <div className="flex w-full flex-col justify-around text-sm text-content">
-          <div className="inline-flex shrink-0 items-center">
-            <div>
-              <p className="text-content-subtle">Title</p>
-              <p className="font-medium">{doc.title || 'Unknown'}</p>
-            </div>
-          </div>
-          <div className="inline-flex shrink-0 items-center">
-            <div>
-              <p className="text-content-subtle">Author</p>
-              <p className="font-medium">{doc.author || 'Unknown'}</p>
-            </div>
-          </div>
-          <div className="inline-flex shrink-0 items-center">
-            <div>
-              <p className="text-content-subtle">Progress</p>
-              <p className="font-medium">{percentage}%</p>
-            </div>
-          </div>
-          <div className="inline-flex shrink-0 items-center">
-            <div>
-              <p className="text-content-subtle">Time Read</p>
-              <p className="font-medium">{formatDuration(totalTimeSeconds)}</p>
-            </div>
-          </div>
-        </div>
-        <div className="absolute bottom-4 right-4 flex flex-col gap-2 text-content-muted">
-          <Link to={`/activity?document=${doc.id}`} onClick={e => e.stopPropagation()}>
-            <ActivityIcon size={20} />
-          </Link>
-          {doc.filepath ? (
-            <a href={`/api/v1/documents/${doc.id}/file`} onClick={e => e.stopPropagation()}>
-              <DownloadIcon size={20} />
-            </a>
-          ) : (
-            <DownloadIcon size={20} disabled />
-          )}
-        </div>
-      </div>
+  const open = () => navigate(`/documents/${doc.id}`);
+  const onKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      open();
+    }
+  };
+
+  const icons = (
+    <div className="flex shrink-0 items-center justify-end gap-4 text-content-muted">
+      <Link to={`/activity?document=${doc.id}`} onClick={e => e.stopPropagation()}>
+        <ActivityIcon size={20} />
+      </Link>
+      {doc.filepath ? (
+        <a href={`/api/v1/documents/${doc.id}/file`} onClick={e => e.stopPropagation()}>
+          <DownloadIcon size={20} />
+        </a>
+      ) : (
+        <DownloadIcon size={20} disabled />
+      )}
     </div>
   );
-}
 
-interface DocumentListItemProps {
-  doc: Document;
-}
+  const fields = [
+    { label: 'Title', value: doc.title || 'Unknown' },
+    { label: 'Author', value: doc.author || 'Unknown' },
+    { label: 'Progress', value: `${percentage}%` },
+    { label: 'Time Read', value: formatDuration(totalTimeSeconds) },
+  ];
 
-function DocumentListItem({ doc }: DocumentListItemProps) {
-  const navigate = useNavigate();
-  const percentage = doc.percentage || 0;
-  const totalTimeSeconds = doc.total_time_seconds || 0;
+  if (layout === 'grid') {
+    return (
+      <div className="relative w-full">
+        <div
+          role="link"
+          tabIndex={0}
+          className="flex size-full cursor-pointer gap-4 rounded bg-surface p-4 shadow-lg transition-colors hover:bg-surface-muted focus:outline-hidden"
+          onClick={open}
+          onKeyDown={onKeyDown}
+        >
+          <div className="relative my-auto h-48 min-w-fit">
+            <img
+              className="h-full rounded object-cover"
+              src={`/api/v1/documents/${doc.id}/cover`}
+              alt={doc.title}
+            />
+          </div>
+          <div className="flex w-full flex-col justify-around text-sm text-content">
+            {fields.map(f => (
+              <div key={f.label} className="inline-flex shrink-0 items-center">
+                <div>
+                  <p className="text-content-subtle">{f.label}</p>
+                  <p className="font-medium">{f.value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="absolute bottom-4 right-4 flex flex-col gap-2 text-content-muted">
+            {icons}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
       role="link"
       tabIndex={0}
       className="block cursor-pointer rounded bg-surface p-4 text-content shadow-lg transition-colors hover:bg-surface-muted focus:outline-hidden"
-      onClick={() => navigate(`/documents/${doc.id}`)}
-      onKeyDown={event => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          navigate(`/documents/${doc.id}`);
-        }
-      }}
+      onClick={open}
+      onKeyDown={onKeyDown}
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="grid flex-1 grid-cols-1 gap-3 text-sm md:grid-cols-4">
-          <div>
-            <p className="text-content-subtle">Title</p>
-            <p className="font-medium">{doc.title || 'Unknown'}</p>
-          </div>
-          <div>
-            <p className="text-content-subtle">Author</p>
-            <p className="font-medium">{doc.author || 'Unknown'}</p>
-          </div>
-          <div>
-            <p className="text-content-subtle">Progress</p>
-            <p className="font-medium">{percentage}%</p>
-          </div>
-          <div>
-            <p className="text-content-subtle">Time Read</p>
-            <p className="font-medium">{formatDuration(totalTimeSeconds)}</p>
-          </div>
+          {fields.map(f => (
+            <div key={f.label}>
+              <p className="text-content-subtle">{f.label}</p>
+              <p className="font-medium">{f.value}</p>
+            </div>
+          ))}
         </div>
-
-        <div className="flex shrink-0 items-center justify-end gap-4 text-content-muted">
-          <Link to={`/activity?document=${doc.id}`} onClick={e => e.stopPropagation()}>
-            <ActivityIcon size={20} />
-          </Link>
-          {doc.filepath ? (
-            <a href={`/api/v1/documents/${doc.id}/file`} onClick={e => e.stopPropagation()}>
-              <DownloadIcon size={20} />
-            </a>
-          ) : (
-            <DownloadIcon size={20} disabled />
-          )}
-        </div>
+        {icons}
       </div>
     </div>
   );
 }
 
 export default function DocumentsPage() {
-  const [search, setSearch] = useState('');
+  const [search, setSearch, debouncedSearch] = useDebouncedState('', 300);
   const [page, setPage] = useState(1);
-  const [limit] = useState(9);
+  const limit = DOCUMENTS_PAGE_SIZE;
   const [uploadMode, setUploadMode] = useState(false);
   const [viewMode, setViewMode] = useState<DocumentsViewMode>(getDocumentsViewMode);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showInfo, showWarning, showError } = useToasts();
-
-  const debouncedSearch = useDebounce(search, 300);
 
   useEffect(() => {
     setDocumentsViewMode(viewMode);
@@ -167,12 +133,12 @@ export default function DocumentsPage() {
 
   const { data, isLoading, refetch } = useGetDocuments({ page, limit, search: debouncedSearch });
   const createMutation = useCreateDocument();
-  const docs = (data?.data as DocumentsResponse | undefined)?.documents;
-  const previousPage = (data?.data as DocumentsResponse | undefined)?.previous_page;
-  const nextPage = (data?.data as DocumentsResponse | undefined)?.next_page;
+  const documentsResponse = data?.status === 200 ? data.data : undefined;
+  const docs = documentsResponse?.documents;
+  const previousPage = documentsResponse?.previous_page;
+  const nextPage = documentsResponse?.next_page;
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const uploadDocument = async (file: File | undefined) => {
     if (!file) return;
 
     if (!file.name.endsWith('.epub')) {
@@ -217,11 +183,10 @@ export default function DocumentsPage() {
               <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-xs">
                 <Search2Icon size={15} hoverable={false} />
               </span>
-              <input
+              <TextInput
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
                 placeholder="Search Author / Title"
                 name="search"
               />
@@ -251,7 +216,7 @@ export default function DocumentsPage() {
           {isLoading ? (
             <LoadingState className="col-span-full min-h-48" />
           ) : docs && docs.length > 0 ? (
-            docs.map(doc => <DocumentCard key={doc.id} doc={doc} />)
+            docs.map(doc => <DocumentItem key={doc.id} doc={doc} layout="grid" />)
           ) : (
             <div className="col-span-full rounded bg-surface p-6 text-center text-content-muted shadow-lg">
               No documents found.
@@ -263,7 +228,7 @@ export default function DocumentsPage() {
           {isLoading ? (
             <LoadingState className="min-h-48" />
           ) : docs && docs.length > 0 ? (
-            docs.map(doc => <DocumentListItem key={doc.id} doc={doc} />)
+            docs.map(doc => <DocumentItem key={doc.id} doc={doc} layout="list" />)
           ) : (
             <div className="rounded bg-surface p-6 text-center text-content-muted shadow-lg">
               No documents found.
@@ -276,59 +241,47 @@ export default function DocumentsPage() {
         page={page}
         previousPage={previousPage}
         nextPage={nextPage}
-        total={(data?.data as DocumentsResponse | undefined)?.total}
+        total={documentsResponse?.total}
         limit={limit}
         onPageChange={setPage}
       />
 
       <div className="fixed bottom-6 right-6 flex items-center justify-center rounded-full">
-        <input
-          type="checkbox"
-          id="upload-file-button"
-          className="hidden"
-          checked={uploadMode}
-          onChange={() => setUploadMode(!uploadMode)}
-        />
-        <div
-          className={`absolute bottom-0 right-0 z-10 flex w-72 flex-col gap-2 rounded bg-content p-4 text-sm text-content-inverse transition-opacity duration-200 ${uploadMode ? 'visible opacity-100' : 'invisible opacity-0'}`}
-        >
-          <form method="POST" encType="multipart/form-data" className="flex flex-col gap-2">
-            <input
-              type="file"
-              accept=".epub"
-              id="document_file"
-              name="document_file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-            />
+        {uploadMode && (
+          <div className="absolute bottom-0 right-0 z-10 flex w-72 flex-col gap-2 rounded bg-content p-4 text-sm text-content-inverse transition-opacity duration-200">
+            <div className="flex flex-col gap-2">
+              <input
+                type="file"
+                accept=".epub"
+                id="document_file"
+                name="document_file"
+                ref={fileInputRef}
+              />
+              <button
+                className="bg-surface-strong px-2 py-1 font-medium text-content hover:bg-surface"
+                type="button"
+                onClick={() => uploadDocument(fileInputRef.current?.files?.[0])}
+              >
+                Upload File
+              </button>
+            </div>
             <button
-              className="bg-surface-strong px-2 py-1 font-medium text-content hover:bg-surface"
-              type="submit"
-              onClick={e => {
-                e.preventDefault();
-                handleFileChange({
-                  target: { files: fileInputRef.current?.files },
-                } as React.ChangeEvent<HTMLInputElement>);
-              }}
-            >
-              Upload File
-            </button>
-          </form>
-          <label htmlFor="upload-file-button">
-            <div
+              type="button"
               className="mt-2 w-full cursor-pointer bg-surface-strong px-2 py-1 text-center font-medium text-content hover:bg-surface"
               onClick={handleCancelUpload}
             >
               Cancel Upload
-            </div>
-          </label>
-        </div>
-        <label
+            </button>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => setUploadMode(!uploadMode)}
           className="flex size-16 cursor-pointer items-center justify-center rounded-full bg-content opacity-30 transition-all duration-200 hover:opacity-100"
-          htmlFor="upload-file-button"
+          aria-label="Upload document"
         >
           <UploadIcon size={34} className="text-content-inverse" />
-        </label>
+        </button>
       </div>
     </div>
   );

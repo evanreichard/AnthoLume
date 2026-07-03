@@ -70,3 +70,11 @@ export function formatDuration(seconds: number): string {
 
   return parts.join(' ');
 }
+
+export function formatUtcDate(dateString: string): string {
+  const date = new Date(dateString);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}

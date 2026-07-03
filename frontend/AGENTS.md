@@ -18,9 +18,15 @@ Also follow the repository root guide at `../AGENTS.md`.
 - Use local icon components from `src/icons/`.
 - Do not add external icon libraries.
 - Prefer generated types from `src/generated/model/` over `any`.
+- Unwrap API responses by narrowing on `status` (e.g. `data?.status === 200 ? data.data : undefined`); the generated response types are discriminated unions, so this needs no `as XResponse` cast.
+- Type form submit handlers as `SyntheticEvent` (optionally `SyntheticEvent<HTMLFormElement>`); `@types/react@19` deprecates `FormEvent`.
+- Route mutation success/error feedback through `useMutationWithToast` (`src/hooks/`); error-toast-on-failure is the app-wide pattern (treat non-2xx as failure).
+- Shared input styling lives in `TextInput` / the exported `inputClassName` (`src/components/TextInput.tsx`); reuse rather than re-pasting the input class string.
+- Render tabular data with the shared `<Table>` (`src/components/Table.tsx`). Columns are `{ id, header: ReactNode, render(row, index), className? }` — `id` is decoupled from data, so action columns are first-class. The table owns its own loading skeleton and empty state; don't hand-roll `<table>` markup for data grids. (Genuinely different widget shapes — e.g. a file-browser or a card-grid — are fine to build bespoke.)
+- Nav items and page titles come from `src/components/navigation.ts` (`navItems`, `adminNavItems`, `getPageTitle`) — add routes there, not in `Layout`/`HamburgerMenu`.
 - Avoid custom class names in JSX `className` values unless the Tailwind lint config already allows them.
 - For decorative icons in inputs or labels, disable hover styling via the icon component API rather than overriding it ad hoc.
-- Prefer `LoadingState` for result-area loading indicators; avoid early returns that unmount search/filter forms during fetches.
+- Prefer `LoadingState` for result-area loading indicators (the single loading convention); avoid early returns that unmount search/filter forms during fetches.
 - Use theme tokens defined in `src/index.css` `@theme` (`bg-surface`, `text-content`, `border-border`, `primary`, etc.) for new UI work instead of adding raw light/dark color pairs. There is no `tailwind.config.js` — Tailwind v4 config is CSS-first.
 - Semantic colors map to runtime CSS variables (`--color-x: rgb(var(--x))`) via `@theme inline`; light/dark values live in `:root` / `.dark` in `src/index.css`. Dark mode is class-based via `@custom-variant dark`, toggled by `ThemeProvider`.
 - Store frontend-only preferences in `src/utils/localSettings.ts` so appearance and view settings share one local-storage shape.

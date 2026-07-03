@@ -1,23 +1,27 @@
-import { useState, FormEvent } from 'react';
+import { useState, SyntheticEvent } from 'react';
+import { LoadingState, TextInput } from '../components';
+import { Button } from '../components/Button';
+import { Table, type Column } from '../components/Table';
 import { useGetUsers, useUpdateUser } from '../generated/anthoLumeAPIV1';
-import type { User, UsersResponse } from '../generated/model';
+import type { User } from '../generated/model';
 import { AddIcon, DeleteIcon } from '../icons';
-import { useToasts } from '../components/ToastContext';
-import { getErrorMessage } from '../utils/errors';
+import { useMutationWithToast } from '../hooks/useMutationWithToast';
 
 export default function AdminUsersPage() {
   const { data: usersData, isLoading, refetch } = useGetUsers({});
   const updateUser = useUpdateUser();
-  const { showInfo, showError } = useToasts();
+  const toastMutationOptions = useMutationWithToast();
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newIsAdmin, setNewIsAdmin] = useState(false);
+  const [resetUserId, setResetUserId] = useState<string | null>(null);
+  const [resetPassword, setResetPassword] = useState('');
 
-  const users = usersData?.status === 200 ? ((usersData.data as UsersResponse).users ?? []) : [];
+  const users = usersData?.status === 200 ? (usersData.data.users ?? []) : [];
 
-  const handleCreateUser = (e: FormEvent) => {
+  const handleCreateUser = (e: SyntheticEvent) => {
     e.preventDefault();
     if (!newUsername || !newPassword) return;
 
@@ -30,22 +34,17 @@ export default function AdminUsersPage() {
           is_admin: newIsAdmin,
         },
       },
-      {
-        onSuccess: response => {
-          if (response.status < 200 || response.status >= 300) {
-            showError('Failed to create user: ' + getErrorMessage(response.data));
-            return;
-          }
-
-          showInfo('User created successfully');
+      toastMutationOptions({
+        success: 'User created successfully',
+        error: 'Failed to create user',
+        onSuccess: () => {
           setShowAddForm(false);
           setNewUsername('');
           setNewPassword('');
           setNewIsAdmin(false);
           refetch();
         },
-        onError: error => showError('Failed to create user: ' + getErrorMessage(error)),
-      }
+      })
     );
   };
 
@@ -54,18 +53,11 @@ export default function AdminUsersPage() {
       {
         data: { operation: 'DELETE', user: userId },
       },
-      {
-        onSuccess: response => {
-          if (response.status < 200 || response.status >= 300) {
-            showError('Failed to delete user: ' + getErrorMessage(response.data));
-            return;
-          }
-
-          showInfo('User deleted successfully');
-          refetch();
-        },
-        onError: error => showError('Failed to delete user: ' + getErrorMessage(error)),
-      }
+      toastMutationOptions({
+        success: 'User deleted successfully',
+        error: 'Failed to delete user',
+        onSuccess: refetch,
+      })
     );
   };
 
@@ -76,18 +68,11 @@ export default function AdminUsersPage() {
       {
         data: { operation: 'UPDATE', user: userId, password },
       },
-      {
-        onSuccess: response => {
-          if (response.status < 200 || response.status >= 300) {
-            showError('Failed to update password: ' + getErrorMessage(response.data));
-            return;
-          }
-
-          showInfo('Password updated successfully');
-          refetch();
-        },
-        onError: error => showError('Failed to update password: ' + getErrorMessage(error)),
-      }
+      toastMutationOptions({
+        success: 'Password updated successfully',
+        error: 'Failed to update password',
+        onSuccess: refetch,
+      })
     );
   };
 
@@ -96,23 +81,80 @@ export default function AdminUsersPage() {
       {
         data: { operation: 'UPDATE', user: userId, is_admin: isAdmin },
       },
-      {
-        onSuccess: response => {
-          if (response.status < 200 || response.status >= 300) {
-            showError('Failed to update admin status: ' + getErrorMessage(response.data));
-            return;
-          }
-
-          showInfo(`User permissions updated to ${isAdmin ? 'admin' : 'user'}`);
-          refetch();
-        },
-        onError: error => showError('Failed to update admin status: ' + getErrorMessage(error)),
-      }
+      toastMutationOptions({
+        success: `User permissions updated to ${isAdmin ? 'admin' : 'user'}`,
+        error: 'Failed to update admin status',
+        onSuccess: refetch,
+      })
     );
   };
 
+  const permissionButtonClass = (active: boolean) =>
+    `rounded-md px-2 py-1 ${
+      active
+        ? 'cursor-default bg-content text-content-inverse'
+        : 'cursor-pointer bg-surface-strong text-content'
+    }`;
+
+  const userColumns: Column<User>[] = [
+    {
+      id: 'actions',
+      className: 'w-12',
+      header: (
+        <button onClick={() => setShowAddForm(!showAddForm)} aria-label="Add user">
+          <AddIcon size={20} />
+        </button>
+      ),
+      render: user => (
+        <button onClick={() => handleDeleteUser(user.id)} aria-label="Delete user">
+          <DeleteIcon size={20} />
+        </button>
+      ),
+    },
+    { id: 'user', header: 'User', render: user => user.id },
+    {
+      id: 'password',
+      header: 'Password',
+      render: user => (
+        <button
+          onClick={() => {
+            setResetUserId(user.id);
+            setResetPassword('');
+          }}
+          className="bg-primary-500 px-2 py-1 font-medium text-primary-foreground hover:bg-primary-700"
+        >
+          Reset
+        </button>
+      ),
+    },
+    {
+      id: 'permissions',
+      header: 'Permissions',
+      className: 'text-center',
+      render: user => (
+        <div className="flex justify-center gap-2">
+          <button
+            onClick={() => handleToggleAdmin(user.id, true)}
+            disabled={user.admin}
+            className={permissionButtonClass(user.admin)}
+          >
+            admin
+          </button>
+          <button
+            onClick={() => handleToggleAdmin(user.id, false)}
+            disabled={!user.admin}
+            className={permissionButtonClass(!user.admin)}
+          >
+            user
+          </button>
+        </div>
+      ),
+    },
+    { id: 'created', header: 'Created', className: 'w-48', render: user => user.created_at },
+  ];
+
   if (isLoading) {
-    return <div className="text-content-muted">Loading...</div>;
+    return <LoadingState />;
   }
 
   return (
@@ -153,89 +195,42 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      <div className="min-w-full overflow-scroll rounded shadow-sm">
-        <table className="min-w-full bg-surface text-sm leading-normal text-content">
-          <thead className="text-content-muted">
-            <tr>
-              <th className="w-12 border-b border-border p-3 text-left font-normal uppercase">
-                <button onClick={() => setShowAddForm(!showAddForm)}>
-                  <AddIcon size={20} />
-                </button>
-              </th>
-              <th className="border-b border-border p-3 text-left font-normal uppercase">User</th>
-              <th className="border-b border-border p-3 text-left font-normal uppercase">
-                Password
-              </th>
-              <th className="border-b border-border p-3 text-center font-normal uppercase">
-                Permissions
-              </th>
-              <th className="w-48 border-b border-border p-3 text-left font-normal uppercase">
-                Created
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.length === 0 ? (
-              <tr>
-                <td className="p-3 text-center" colSpan={5}>
-                  No Results
-                </td>
-              </tr>
-            ) : (
-              users.map((user: User) => (
-                <tr key={user.id}>
-                  <td className="relative cursor-pointer border-b border-border p-3 text-content-muted">
-                    <button onClick={() => handleDeleteUser(user.id)}>
-                      <DeleteIcon size={20} />
-                    </button>
-                  </td>
-                  <td className="border-b border-border p-3">
-                    <p>{user.id}</p>
-                  </td>
-                  <td className="border-b border-border px-3">
-                    <button
-                      onClick={() => {
-                        const password = prompt(`Enter new password for ${user.id}`);
-                        if (password) handleUpdatePassword(user.id, password);
-                      }}
-                      className="bg-primary-500 px-2 py-1 font-medium text-primary-foreground hover:bg-primary-700"
-                    >
-                      Reset
-                    </button>
-                  </td>
-                  <td className="flex min-w-40 justify-center gap-2 border-b border-border p-3 text-center">
-                    <button
-                      onClick={() => handleToggleAdmin(user.id, true)}
-                      disabled={user.admin}
-                      className={`rounded-md px-2 py-1 ${
-                        user.admin
-                          ? 'cursor-default bg-content text-content-inverse'
-                          : 'cursor-pointer bg-surface-strong text-content'
-                      }`}
-                    >
-                      admin
-                    </button>
-                    <button
-                      onClick={() => handleToggleAdmin(user.id, false)}
-                      disabled={!user.admin}
-                      className={`rounded-md px-2 py-1 ${
-                        !user.admin
-                          ? 'cursor-default bg-content text-content-inverse'
-                          : 'cursor-pointer bg-surface-strong text-content'
-                      }`}
-                    >
-                      user
-                    </button>
-                  </td>
-                  <td className="border-b border-border p-3">
-                    <p>{user.created_at}</p>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <Table columns={userColumns} data={users} rowKey="id" />
+
+      {resetUserId && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/50"
+          onClick={() => setResetUserId(null)}
+        >
+          <form
+            className="w-80 rounded bg-surface p-4 shadow-lg"
+            onClick={e => e.stopPropagation()}
+            onSubmit={e => {
+              e.preventDefault();
+              if (!resetPassword) return;
+              handleUpdatePassword(resetUserId, resetPassword);
+              setResetUserId(null);
+            }}
+          >
+            <p className="mb-3 text-content">Reset password for {resetUserId}</p>
+            <TextInput
+              type="password"
+              value={resetPassword}
+              onChange={e => setResetPassword(e.target.value)}
+              placeholder="New password"
+              autoFocus
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setResetUserId(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!resetPassword}>
+                Save
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

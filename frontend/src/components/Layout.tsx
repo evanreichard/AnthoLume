@@ -6,6 +6,7 @@ import { UserIcon, DropdownIcon } from '../icons';
 import { useTheme } from '../theme/ThemeProvider';
 import type { ThemeMode } from '../utils/localSettings';
 import HamburgerMenu from './HamburgerMenu';
+import { getPageTitle } from './navigation';
 
 const themeModes: ThemeMode[] = ['light', 'dark', 'system'];
 
@@ -38,23 +39,7 @@ export default function Layout() {
     };
   }, []);
 
-  const navItems = [
-    { path: '/admin/import-results', title: 'Admin - Import' },
-    { path: '/admin/import', title: 'Admin - Import' },
-    { path: '/admin/users', title: 'Admin - Users' },
-    { path: '/admin/logs', title: 'Admin - Logs' },
-    { path: '/admin', title: 'Admin - General' },
-    { path: '/documents', title: 'Documents' },
-    { path: '/progress', title: 'Progress' },
-    { path: '/activity', title: 'Activity' },
-    { path: '/search', title: 'Search' },
-    { path: '/settings', title: 'Settings' },
-    { path: '/', title: 'Home' },
-  ];
-  const currentPageTitle =
-    navItems.find(item =>
-      item.path === '/' ? location.pathname === item.path : location.pathname.startsWith(item.path)
-    )?.title || 'Home';
+  const currentPageTitle = getPageTitle(location.pathname);
 
   useEffect(() => {
     document.title = `AnthoLume - ${currentPageTitle}`;

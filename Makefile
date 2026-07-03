@@ -1,4 +1,4 @@
-.PHONY: build_local docker_build_local docker_build_release_dev docker_build_release_latest build_tailwind legacy_tailwind dev dev_backend dev_frontend clean tests
+.PHONY: build_local docker_build_local docker_build_release_dev docker_build_release_latest build_tailwind legacy_tailwind dev dev_backend dev_frontend dev_noauth clean tests
 
 DEV_ENV = GIN_MODE=release \
 	CONFIG_PATH=./data \
@@ -8,6 +8,8 @@ DEV_ENV = GIN_MODE=release \
 	COOKIE_SECURE=false \
 	COOKIE_AUTH_KEY=1234 \
 	LOG_LEVEL=debug
+
+DEV_USER ?= evan
 
 build_local: legacy_tailwind
 	go mod download
@@ -50,6 +52,9 @@ dev_backend:
 
 dev_frontend:
 	cd frontend && pnpm run dev
+
+dev_noauth:
+	DISABLE_AUTH=true DISABLE_AUTH_USER=$(DEV_USER) $(MAKE) dev
 
 clean:
 	rm -rf ./build

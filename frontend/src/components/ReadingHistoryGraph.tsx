@@ -1,4 +1,5 @@
 import type { GraphDataPoint } from '../generated/model';
+import { formatUtcDate } from '../utils/formatters';
 
 interface ReadingHistoryGraphProps {
   data: GraphDataPoint[];
@@ -147,14 +148,6 @@ export function getSVGGraphData(
   };
 }
 
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 export default function ReadingHistoryGraph({ data }: ReadingHistoryGraphProps) {
   const svgWidth = 800;
   const svgHeight = 70;
@@ -199,7 +192,7 @@ export default function ReadingHistoryGraph({ data }: ReadingHistoryGraphProps) 
                 left: '50%',
               }}
             >
-              <span>{formatDate(point.date)}</span>
+              <span>{formatUtcDate(point.date)}</span>
               <span>{point.minutes_read} minutes</span>
             </div>
           </div>

@@ -50,9 +50,12 @@ describe('SearchPage', () => {
       isLoading: true,
     } as ReturnType<typeof useGetSearch>);
 
-    render(<SearchPage />);
+    const { container } = render(<SearchPage />);
 
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
+    // Loading renders the Table skeleton (animated placeholder rows), and the search form stays mounted.
+    expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0);
+    expect(screen.getByPlaceholderText('Query')).toBeInTheDocument();
+    expect(screen.queryByText('No Results')).not.toBeInTheDocument();
   });
 
   it('shows an empty state when there are no results', () => {

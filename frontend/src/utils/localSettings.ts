@@ -3,7 +3,7 @@ export type DocumentsViewMode = 'grid' | 'list';
 export type ReaderColorScheme = 'light' | 'tan' | 'blue' | 'gray' | 'black';
 export type ReaderFontFamily = 'Serif' | 'Open Sans' | 'Arbutus Slab' | 'Lato';
 
-const LOCAL_SETTINGS_KEY = 'antholume:settings';
+export const LOCAL_SETTINGS_KEY = 'antholume:settings';
 
 interface LocalSettings {
   themeMode?: ThemeMode;

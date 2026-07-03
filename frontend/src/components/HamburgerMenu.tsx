@@ -1,30 +1,9 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { HomeIcon, DocumentsIcon, ActivityIcon, SearchIcon, SettingsIcon, GitIcon } from '../icons';
+import { SettingsIcon, GitIcon } from '../icons';
 import { useAuth } from '../auth/AuthContext';
 import { useGetInfo } from '../generated/anthoLumeAPIV1';
-
-interface NavItem {
-  path: string;
-  label: string;
-  icon: React.ElementType;
-  title: string;
-}
-
-const navItems: NavItem[] = [
-  { path: '/', label: 'Home', icon: HomeIcon, title: 'Home' },
-  { path: '/documents', label: 'Documents', icon: DocumentsIcon, title: 'Documents' },
-  { path: '/progress', label: 'Progress', icon: ActivityIcon, title: 'Progress' },
-  { path: '/activity', label: 'Activity', icon: ActivityIcon, title: 'Activity' },
-  { path: '/search', label: 'Search', icon: SearchIcon, title: 'Search' },
-];
-
-const adminSubItems: NavItem[] = [
-  { path: '/admin', label: 'General', icon: SettingsIcon, title: 'General' },
-  { path: '/admin/import', label: 'Import', icon: SettingsIcon, title: 'Import' },
-  { path: '/admin/users', label: 'Users', icon: SettingsIcon, title: 'Users' },
-  { path: '/admin/logs', label: 'Logs', icon: SettingsIcon, title: 'Logs' },
-];
+import { navItems, adminNavItems } from './navigation';
 
 function hasPrefix(path: string, prefix: string): boolean {
   return path.startsWith(prefix);
@@ -146,7 +125,7 @@ export default function HamburgerMenu() {
 
               {hasPrefix(location.pathname, '/admin') && (
                 <div className="flex flex-col gap-4">
-                  {adminSubItems.map(item => (
+                  {adminNavItems.map(item => (
                     <Link
                       key={item.path}
                       to={item.path}

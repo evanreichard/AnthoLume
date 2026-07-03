@@ -5,38 +5,39 @@ import type { Progress } from '../generated/model';
 import { Pagination } from '../components';
 import { Table, type Column } from '../components/Table';
 
+const PROGRESS_PAGE_SIZE = 15;
+
 export default function ProgressPage() {
   const [page, setPage] = useState(1);
-  const limit = 15;
+  const limit = PROGRESS_PAGE_SIZE;
   const { data, isLoading } = useGetProgressList({ page, limit });
   const response = data?.status === 200 ? data.data : undefined;
   const progress = response?.progress ?? [];
 
   const columns: Column<Progress>[] = [
     {
-      key: 'document_id' as const,
+      id: 'document',
       header: 'Document',
-      render: (_value, row) => (
+      render: row => (
         <Link to={`/documents/${row.document_id}`} className="text-secondary-600 hover:underline">
           {row.author || 'Unknown'} - {row.title || 'Unknown'}
         </Link>
       ),
     },
     {
-      key: 'device_name' as const,
+      id: 'device_name',
       header: 'Device Name',
-      render: value => String(value || 'Unknown'),
+      render: row => row.device_name || 'Unknown',
     },
     {
-      key: 'percentage' as const,
+      id: 'percentage',
       header: 'Percentage',
-      render: value => (typeof value === 'number' ? `${Math.round(value)}%` : '0%'),
+      render: row => (typeof row.percentage === 'number' ? `${Math.round(row.percentage)}%` : '0%'),
     },
     {
-      key: 'created_at' as const,
+      id: 'created_at',
       header: 'Created At',
-      render: value =>
-        typeof value === 'string' && value ? new Date(value).toLocaleDateString() : 'N/A',
+      render: row => (row.created_at ? new Date(row.created_at).toLocaleDateString() : 'N/A'),
     },
   ];
 

@@ -20,34 +20,31 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const showToast = useCallback(
-    (message: string, _type: ToastType = 'info', _duration?: number): string => {
-      const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      setToasts(prev => [
-        ...prev,
-        { id, type: _type, message, duration: _duration, onClose: removeToast },
-      ]);
+    (message: string, type: ToastType = 'info', duration?: number): string => {
+      const id = crypto.randomUUID();
+      setToasts(prev => [...prev, { id, type, message, duration, onClose: removeToast }]);
       return id;
     },
     [removeToast]
   );
 
   const showInfo = useCallback(
-    (message: string, _duration?: number) => {
-      return showToast(message, 'info', _duration);
+    (message: string, duration?: number) => {
+      return showToast(message, 'info', duration);
     },
     [showToast]
   );
 
   const showWarning = useCallback(
-    (message: string, _duration?: number) => {
-      return showToast(message, 'warning', _duration);
+    (message: string, duration?: number) => {
+      return showToast(message, 'warning', duration);
     },
     [showToast]
   );
 
   const showError = useCallback(
-    (message: string, _duration?: number) => {
-      return showToast(message, 'error', _duration);
+    (message: string, duration?: number) => {
+      return showToast(message, 'error', duration);
     },
     [showToast]
   );

@@ -3,10 +3,9 @@ import { ReactNode } from 'react';
 interface FieldProps {
   label: ReactNode;
   children: ReactNode;
-  isEditing?: boolean;
 }
 
-export function Field({ label, children, isEditing: _isEditing = false }: FieldProps) {
+export function Field({ label, children }: FieldProps) {
   return (
     <div className="relative rounded">
       <div className="relative inline-flex gap-2 text-content-muted">{label}</div>

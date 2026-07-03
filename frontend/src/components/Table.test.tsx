@@ -10,12 +10,14 @@ interface TestRow {
 
 const columns: Column<TestRow>[] = [
   {
-    key: 'name',
+    id: 'name',
     header: 'Name',
+    render: row => row.name,
   },
   {
-    key: 'role',
+    id: 'role',
     header: 'Role',
+    render: row => row.role,
   },
 ];
 
@@ -41,9 +43,9 @@ describe('Table', () => {
   it('uses a custom render function for column output', () => {
     const customColumns: Column<TestRow>[] = [
       {
-        key: 'name',
+        id: 'name',
         header: 'Name',
-        render: (_value, row, index) => `${index + 1}. ${row.name.toUpperCase()}`,
+        render: (row, index) => `${index + 1}. ${row.name.toUpperCase()}`,
       },
     ];
 

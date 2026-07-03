@@ -1,12 +1,28 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, SyntheticEvent } from 'react';
+import { LoadingState, TextInput } from '../components';
+import { inputClassName } from '../components/TextInput';
+import { Table, type Column } from '../components/Table';
 import { useGetSettings, useUpdateSettings } from '../generated/anthoLumeAPIV1';
-import type { Device, SettingsResponse } from '../generated/model';
+import type { Device } from '../generated/model';
 import { UserIcon, PasswordIcon, ClockIcon } from '../icons';
 import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
-import { getErrorMessage } from '../utils/errors';
+import { useMutationWithToast } from '../hooks/useMutationWithToast';
 import { useTheme } from '../theme/ThemeProvider';
 import type { ThemeMode } from '../utils/localSettings';
+
+const formatDeviceDate = (value?: string) => (value ? new Date(value).toLocaleString() : 'N/A');
+
+const deviceColumns: Column<Device>[] = [
+  {
+    id: 'name',
+    header: 'Name',
+    className: 'pl-0',
+    render: device => device.device_name || 'Unknown',
+  },
+  { id: 'last_synced', header: 'Last Sync', render: device => formatDeviceDate(device.last_synced) },
+  { id: 'created_at', header: 'Created', render: device => formatDeviceDate(device.created_at) },
+];
 
 const themeModes: Array<{ value: ThemeMode; label: string; description: string }> = [
   { value: 'light', label: 'Light', description: 'Always use the light palette.' },
@@ -17,8 +33,9 @@ const themeModes: Array<{ value: ThemeMode; label: string; description: string }
 export default function SettingsPage() {
   const { data, isLoading } = useGetSettings();
   const updateSettings = useUpdateSettings();
-  const settingsData = data?.status === 200 ? (data.data as SettingsResponse) : null;
-  const { showInfo, showError } = useToasts();
+  const settingsData = data?.status === 200 ? data.data : null;
+  const { showError } = useToasts();
+  const toastMutationOptions = useMutationWithToast();
   const { themeMode, resolvedThemeMode, setThemeMode } = useTheme();
 
   const [password, setPassword] = useState('');
@@ -31,7 +48,7 @@ export default function SettingsPage() {
     }
   }, [settingsData]);
 
-  const handlePasswordSubmit = async (e: FormEvent) => {
+  const handlePasswordSubmit = (e: SyntheticEvent) => {
     e.preventDefault();
 
     if (!password || !newPassword) {
@@ -39,93 +56,33 @@ export default function SettingsPage() {
       return;
     }
 
-    try {
-      const response = await updateSettings.mutateAsync({
-        data: {
-          password,
-          new_password: newPassword,
+    updateSettings.mutate(
+      { data: { password, new_password: newPassword } },
+      toastMutationOptions({
+        success: 'Password updated successfully',
+        error: 'Failed to update password',
+        onSuccess: () => {
+          setPassword('');
+          setNewPassword('');
         },
-      });
-
-      if (response.status >= 200 && response.status < 300) {
-        showInfo('Password updated successfully');
-        setPassword('');
-        setNewPassword('');
-        return;
-      }
-
-      showError('Failed to update password: ' + getErrorMessage(response.data));
-    } catch (error) {
-      showError('Failed to update password: ' + getErrorMessage(error));
-    }
+      })
+    );
   };
 
-  const handleTimezoneSubmit = async (e: FormEvent) => {
+  const handleTimezoneSubmit = (e: SyntheticEvent) => {
     e.preventDefault();
 
-    try {
-      const response = await updateSettings.mutateAsync({
-        data: {
-          timezone,
-        },
-      });
-
-      if (response.status >= 200 && response.status < 300) {
-        showInfo('Timezone updated successfully');
-        return;
-      }
-
-      showError('Failed to update timezone: ' + getErrorMessage(response.data));
-    } catch (error) {
-      showError('Failed to update timezone: ' + getErrorMessage(error));
-    }
+    updateSettings.mutate(
+      { data: { timezone } },
+      toastMutationOptions({
+        success: 'Timezone updated successfully',
+        error: 'Failed to update timezone',
+      })
+    );
   };
 
   if (isLoading) {
-    return (
-      <div className="flex w-full flex-col gap-4 md:flex-row">
-        <div>
-          <div className="flex flex-col items-center rounded bg-surface p-4 shadow-lg md:w-60 lg:w-80">
-            <div className="mb-4 size-16 rounded-full bg-surface-strong" />
-            <div className="h-6 w-32 rounded bg-surface-strong" />
-          </div>
-        </div>
-        <div className="flex grow flex-col gap-4">
-          <div className="flex flex-col gap-2 rounded bg-surface p-4 shadow-lg">
-            <div className="mb-4 h-6 w-48 rounded bg-surface-strong" />
-            <div className="flex gap-4">
-              <div className="h-12 flex-1 rounded bg-surface-strong" />
-              <div className="h-12 flex-1 rounded bg-surface-strong" />
-              <div className="h-10 w-40 rounded bg-surface-strong" />
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 rounded bg-surface p-4 shadow-lg">
-            <div className="mb-4 h-6 w-48 rounded bg-surface-strong" />
-            <div className="flex gap-4">
-              <div className="h-12 flex-1 rounded bg-surface-strong" />
-              <div className="h-10 w-40 rounded bg-surface-strong" />
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 rounded bg-surface p-4 shadow-lg">
-            <div className="mb-4 h-6 w-48 rounded bg-surface-strong" />
-            <div className="grid gap-3 md:grid-cols-3">
-              {themeModes.map(mode => (
-                <div key={mode.value} className="h-24 rounded bg-surface-strong" />
-              ))}
-            </div>
-          </div>
-          <div className="flex flex-col rounded bg-surface p-4 shadow-lg">
-            <div className="mb-4 h-6 w-24 rounded bg-surface-strong" />
-            <div className="mb-4 flex gap-4">
-              <div className="h-6 flex-1 rounded bg-surface-strong" />
-              <div className="h-6 flex-1 rounded bg-surface-strong" />
-              <div className="h-6 flex-1 rounded bg-surface-strong" />
-            </div>
-            <div className="h-32 flex-1 rounded bg-surface-strong" />
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingState />;
   }
 
   return (
@@ -146,11 +103,10 @@ export default function SettingsPage() {
                 <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-xs">
                   <PasswordIcon size={15} />
                 </span>
-                <input
+                <TextInput
                   type="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
                   placeholder="Password"
                 />
               </div>
@@ -160,11 +116,10 @@ export default function SettingsPage() {
                 <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-xs">
                   <PasswordIcon size={15} />
                 </span>
-                <input
+                <TextInput
                   type="password"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
-                  className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
                   placeholder="New Password"
                 />
               </div>
@@ -226,7 +181,7 @@ export default function SettingsPage() {
               <select
                 value={timezone || 'UTC'}
                 onChange={e => setTimezone(e.target.value)}
-                className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
+                className={inputClassName}
               >
                 <option value="UTC">UTC</option>
                 <option value="America/New_York">America/New_York</option>
@@ -250,48 +205,7 @@ export default function SettingsPage() {
 
         <div className="flex grow flex-col rounded bg-surface p-4 text-content-muted shadow-lg">
           <p className="text-lg font-semibold text-content">Devices</p>
-          <table className="min-w-full bg-surface text-sm">
-            <thead className="text-content-muted">
-              <tr>
-                <th className="border-b border-border p-3 pl-0 text-left font-normal uppercase">
-                  Name
-                </th>
-                <th className="border-b border-border p-3 text-left font-normal uppercase">
-                  Last Sync
-                </th>
-                <th className="border-b border-border p-3 text-left font-normal uppercase">
-                  Created
-                </th>
-              </tr>
-            </thead>
-            <tbody className="text-content">
-              {!settingsData?.devices || settingsData.devices.length === 0 ? (
-                <tr>
-                  <td className="p-3 text-center" colSpan={3}>
-                    No Results
-                  </td>
-                </tr>
-              ) : (
-                settingsData.devices.map((device: Device) => (
-                  <tr key={device.id}>
-                    <td className="p-3 pl-0">
-                      <p>{device.device_name || 'Unknown'}</p>
-                    </td>
-                    <td className="p-3">
-                      <p>
-                        {device.last_synced ? new Date(device.last_synced).toLocaleString() : 'N/A'}
-                      </p>
-                    </td>
-                    <td className="p-3">
-                      <p>
-                        {device.created_at ? new Date(device.created_at).toLocaleString() : 'N/A'}
-                      </p>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <Table columns={deviceColumns} data={settingsData?.devices ?? []} rowKey="id" />
         </div>
       </div>
     </div>

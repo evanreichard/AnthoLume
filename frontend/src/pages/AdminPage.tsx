@@ -1,8 +1,10 @@
-import { useState, FormEvent } from 'react';
+import { useState, SyntheticEvent } from 'react';
+import { LoadingState } from '../components';
 import { useGetAdmin, usePostAdminAction } from '../generated/anthoLumeAPIV1';
 import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
 import { getErrorMessage } from '../utils/errors';
+import { streamResponseToFile, backupFilename } from '../utils/download';
 
 interface BackupTypes {
   covers: boolean;
@@ -20,7 +22,7 @@ export default function AdminPage() {
   });
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
 
-  const handleBackupSubmit = async (e: FormEvent) => {
+  const handleBackupSubmit = async (e: SyntheticEvent) => {
     e.preventDefault();
     const backupTypesList: string[] = [];
     if (backupTypes.covers) backupTypesList.push('COVERS');
@@ -31,6 +33,7 @@ export default function AdminPage() {
       formData.append('action', 'BACKUP');
       backupTypesList.forEach(value => formData.append('backup_types', value));
 
+      // Streaming Fetch - The generated client buffers; the backup can be large, so this endpoint intentionally uses a raw streaming download.
       const response = await fetch('/api/v1/admin', {
         method: 'POST',
         body: formData,
@@ -40,43 +43,21 @@ export default function AdminPage() {
         throw new Error('Backup failed: ' + response.statusText);
       }
 
-      const filename = `AnthoLumeBackup_${new Date().toISOString().replace(/[:.]/g, '')}.zip`;
+      const completed = await streamResponseToFile(response, {
+        suggestedName: backupFilename(),
+        mimeType: 'application/zip',
+        extension: '.zip',
+      });
 
-      if ('showSaveFilePicker' in window && typeof window.showSaveFilePicker === 'function') {
-        try {
-          const handle = await window.showSaveFilePicker({
-            suggestedName: filename,
-            types: [{ description: 'ZIP Archive', accept: { 'application/zip': ['.zip'] } }],
-          });
-
-          const writable = await handle.createWritable();
-          const reader = response.body?.getReader();
-          if (!reader) throw new Error('Unable to read response');
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            await writable.write(value);
-          }
-
-          await writable.close();
-          showInfo('Backup completed successfully');
-        } catch (err) {
-          if ((err as Error).name !== 'AbortError') {
-            showError('Backup failed: ' + (err as Error).message);
-          }
-        }
-      } else {
-        showError(
-          'Your browser does not support large file downloads. Please use Chrome, Edge, or Safari.'
-        );
+      if (completed) {
+        showInfo('Backup completed successfully');
       }
     } catch (error) {
       showError('Backup failed: ' + getErrorMessage(error));
     }
   };
 
-  const handleRestoreSubmit = async (e: FormEvent) => {
+  const handleRestoreSubmit = async (e: SyntheticEvent) => {
     e.preventDefault();
     if (!restoreFile) return;
 
@@ -125,7 +106,7 @@ export default function AdminPage() {
   };
 
   if (isLoading) {
-    return <div className="text-content-muted">Loading...</div>;
+    return <LoadingState />;
   }
 
   return (

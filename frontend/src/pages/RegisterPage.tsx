@@ -1,9 +1,10 @@
-import { useState, FormEvent, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, SyntheticEvent, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
 import { useGetInfo } from '../generated/anthoLumeAPIV1';
+import { AuthFormView, authFormFooter } from './AuthFormView';
+import { getRegistrationEnabled } from './LoginPage';
 
 export default function RegisterPage() {
   const [username, setUsername] = useState('');
@@ -19,10 +20,7 @@ export default function RegisterPage() {
     },
   });
 
-  const registrationEnabled =
-    infoData && 'data' in infoData && infoData.data && 'registration_enabled' in infoData.data
-      ? infoData.data.registration_enabled
-      : false;
+  const registrationEnabled = getRegistrationEnabled(infoData);
 
   useEffect(() => {
     if (!isCheckingAuth && isAuthenticated) {
@@ -35,7 +33,7 @@ export default function RegisterPage() {
     }
   }, [isAuthenticated, isCheckingAuth, isLoadingInfo, navigate, registrationEnabled]);
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
 
@@ -49,68 +47,17 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-canvas text-content">
-      <div className="flex w-full flex-wrap">
-        <div className="flex w-full flex-col md:w-1/2">
-          <div className="my-auto flex flex-col justify-center px-8 pt-8 md:justify-start md:px-24 md:pt-0 lg:px-32">
-            <p className="text-center text-3xl">Welcome.</p>
-            <form className="flex flex-col pt-3 md:pt-8" onSubmit={handleSubmit}>
-              <div className="flex flex-col pt-4">
-                <div className="relative flex">
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={e => setUsername(e.target.value)}
-                    className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
-                    placeholder="Username"
-                    required
-                    disabled={isLoading || isLoadingInfo || !registrationEnabled}
-                  />
-                </div>
-              </div>
-              <div className="mb-12 flex flex-col pt-4">
-                <div className="relative flex">
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
-                    placeholder="Password"
-                    required
-                    disabled={isLoading || isLoadingInfo || !registrationEnabled}
-                  />
-                </div>
-              </div>
-              <Button
-                variant="secondary"
-                type="submit"
-                disabled={isLoading || isLoadingInfo || !registrationEnabled}
-                className="w-full px-4 py-2 text-center text-base font-semibold transition duration-200 ease-in focus:outline-hidden focus:ring-2 disabled:opacity-50"
-              >
-                {isLoading ? 'Registering...' : 'Register'}
-              </Button>
-            </form>
-            <div className="py-12 text-center">
-              <p>
-                Trying to login?{' '}
-                <Link to="/login" className="font-semibold underline">
-                  Login here.
-                </Link>
-              </p>
-              <p className="mt-4">
-                <a href="/local" className="font-semibold underline">
-                  Offline / Local Mode
-                </a>
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="relative hidden h-screen w-1/2 shadow-2xl md:block">
-          <div className="left-0 top-0 flex h-screen w-full items-center justify-center bg-surface-strong object-cover ease-in-out">
-            <span className="text-content-muted">AnthoLume</span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <AuthFormView
+      username={username}
+      password={password}
+      isLoading={isLoading}
+      onUsernameChange={setUsername}
+      onPasswordChange={setPassword}
+      onSubmit={handleSubmit}
+      submitLabel="Register"
+      submittingLabel="Registering..."
+      inputsDisabled={isLoadingInfo || !registrationEnabled}
+      footer={authFormFooter({ to: '/login', text: 'Login here.' }, true)}
+    />
   );
 }

@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { LoadingState } from '../components';
 import { useGetImportDirectory, usePostImport } from '../generated/anthoLumeAPIV1';
-import type { DirectoryItem, DirectoryListResponse } from '../generated/model';
+import type { DirectoryItem } from '../generated/model';
 import { getErrorMessage } from '../utils/errors';
 import { Button } from '../components/Button';
 import { FolderOpenIcon } from '../icons';
@@ -11,6 +13,7 @@ export default function AdminImportPage() {
   const [selectedDirectory, setSelectedDirectory] = useState<string>('');
   const [importType, setImportType] = useState<'DIRECT' | 'COPY'>('DIRECT');
   const { showInfo, showError } = useToasts();
+  const navigate = useNavigate();
 
   const { data: directoryData, isLoading } = useGetImportDirectory(
     currentPath ? { directory: currentPath } : {}
@@ -19,7 +22,7 @@ export default function AdminImportPage() {
   const postImport = usePostImport();
 
   const directoryResponse =
-    directoryData?.status === 200 ? (directoryData.data as DirectoryListResponse) : null;
+    directoryData?.status === 200 ? directoryData.data : null;
   const directories = directoryResponse?.items ?? [];
   const currentPathDisplay = directoryResponse?.current_path ?? currentPath ?? '/data';
 
@@ -48,9 +51,7 @@ export default function AdminImportPage() {
       {
         onSuccess: _response => {
           showInfo('Import completed successfully');
-          setTimeout(() => {
-            window.location.href = '/admin/import-results';
-          }, 1500);
+          navigate('/admin/import-results');
         },
         onError: error => {
           showError('Import failed: ' + getErrorMessage(error));
@@ -64,7 +65,7 @@ export default function AdminImportPage() {
   };
 
   if (isLoading && !currentPath) {
-    return <div className="text-content-muted">Loading...</div>;
+    return <LoadingState />;
   }
 
   if (selectedDirectory) {

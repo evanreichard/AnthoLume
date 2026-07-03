@@ -1,4 +1,4 @@
-import { ButtonHTMLAttributes, AnchorHTMLAttributes, forwardRef } from 'react';
+import { ButtonHTMLAttributes, forwardRef } from 'react';
 
 interface BaseButtonProps {
   variant?: 'default' | 'secondary';
@@ -7,7 +7,6 @@ interface BaseButtonProps {
 }
 
 type ButtonProps = BaseButtonProps & ButtonHTMLAttributes<HTMLButtonElement>;
-type LinkProps = BaseButtonProps & AnchorHTMLAttributes<HTMLAnchorElement> & { href: string };
 
 const getVariantClasses = (variant: 'default' | 'secondary' = 'default'): string => {
   const baseClass =
@@ -31,15 +30,3 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 );
 
 Button.displayName = 'Button';
-
-export const ButtonLink = forwardRef<HTMLAnchorElement, LinkProps>(
-  ({ variant = 'default', children, className = '', ...props }, ref) => {
-    return (
-      <a ref={ref} className={`${getVariantClasses(variant)} ${className}`.trim()} {...props}>
-        {children}
-      </a>
-    );
-  }
-);
-
-ButtonLink.displayName = 'ButtonLink';

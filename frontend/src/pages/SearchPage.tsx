@@ -1,11 +1,36 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, SyntheticEvent } from 'react';
 import { useGetSearch } from '../generated/anthoLumeAPIV1';
 import { GetSearchSource } from '../generated/model/getSearchSource';
 import type { SearchItem } from '../generated/model';
 import { Button } from '../components/Button';
-import { LoadingState } from '../components';
-import { useDebounce } from '../hooks/useDebounce';
+import { TextInput } from '../components';
+import { inputClassName } from '../components/TextInput';
+import { Table, type Column } from '../components/Table';
+import { useDebouncedState } from '../hooks/useDebouncedState';
 import { Search2Icon, DownloadIcon, BookIcon } from '../icons';
+
+const searchColumns: Column<SearchItem>[] = [
+  {
+    id: 'download',
+    header: '',
+    className: 'w-12 text-content-muted',
+    render: () => (
+      <button className="hover:text-primary-600" title="Download">
+        <DownloadIcon size={15} />
+      </button>
+    ),
+  },
+  { id: 'document', header: 'Document', render: item => `${item.author || 'N/A'} - ${item.title || 'N/A'}` },
+  { id: 'series', header: 'Series', render: item => item.series || 'N/A' },
+  { id: 'type', header: 'Type', render: item => item.file_type || 'N/A' },
+  { id: 'size', header: 'Size', render: item => item.file_size || 'N/A' },
+  {
+    id: 'date',
+    header: 'Date',
+    className: 'hidden md:table-cell',
+    render: item => item.upload_date || 'N/A',
+  },
+];
 
 interface SearchPageViewProps {
   query: string;
@@ -14,7 +39,7 @@ interface SearchPageViewProps {
   results: SearchItem[];
   onQueryChange: (value: string) => void;
   onSourceChange: (value: GetSearchSource) => void;
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (e: SyntheticEvent<HTMLFormElement>) => void;
 }
 
 export function getSearchResults(data: unknown): SearchItem[] {
@@ -56,11 +81,10 @@ export function SearchPageView({
                 <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-xs">
                   <Search2Icon size={15} hoverable={false} />
                 </span>
-                <input
+                <TextInput
                   type="text"
                   value={query}
                   onChange={e => onQueryChange(e.target.value)}
-                  className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
                   placeholder="Query"
                 />
               </div>
@@ -72,7 +96,7 @@ export function SearchPageView({
               <select
                 value={source}
                 onChange={e => onSourceChange(e.target.value as GetSearchSource)}
-                className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
+                className={inputClassName}
               >
                 <option value={GetSearchSource.LibGen}>Library Genesis</option>
                 <option value={GetSearchSource.Annas_Archive}>Annas Archive</option>
@@ -86,81 +110,15 @@ export function SearchPageView({
           </form>
         </div>
 
-        <div className="inline-block min-w-full overflow-hidden rounded shadow-sm">
-          <table className="min-w-full bg-surface text-sm leading-normal text-content md:text-sm">
-            <thead className="text-content-muted">
-              <tr>
-                <th className="w-12 border-b border-border p-3 text-left font-normal uppercase"></th>
-                <th className="border-b border-border p-3 text-left font-normal uppercase">
-                  Document
-                </th>
-                <th className="border-b border-border p-3 text-left font-normal uppercase">
-                  Series
-                </th>
-                <th className="border-b border-border p-3 text-left font-normal uppercase">Type</th>
-                <th className="border-b border-border p-3 text-left font-normal uppercase">Size</th>
-                <th className="hidden border-b border-border p-3 text-left font-normal uppercase md:table-cell">
-                  Date
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && (
-                <tr>
-                  <td className="p-3 text-center" colSpan={6}>
-                    <LoadingState />
-                  </td>
-                </tr>
-              )}
-              {!isLoading && results.length === 0 && (
-                <tr>
-                  <td className="p-3 text-center" colSpan={6}>
-                    No Results
-                  </td>
-                </tr>
-              )}
-              {!isLoading &&
-                results.map(item => (
-                  <tr key={item.id}>
-                    <td className="border-b border-border p-3 text-content-muted">
-                      <button className="hover:text-primary-600" title="Download">
-                        <DownloadIcon size={15} />
-                      </button>
-                    </td>
-                    <td className="border-b border-border p-3">
-                      {item.author || 'N/A'} - {item.title || 'N/A'}
-                    </td>
-                    <td className="border-b border-border p-3">
-                      <p>{item.series || 'N/A'}</p>
-                    </td>
-                    <td className="border-b border-border p-3">
-                      <p>{item.file_type || 'N/A'}</p>
-                    </td>
-                    <td className="border-b border-border p-3">
-                      <p>{item.file_size || 'N/A'}</p>
-                    </td>
-                    <td className="hidden border-b border-border p-3 md:table-cell">
-                      <p>{item.upload_date || 'N/A'}</p>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
+        <Table columns={searchColumns} data={results} loading={isLoading} rowKey="id" />
       </div>
     </div>
   );
 }
 
 export default function SearchPage() {
-  const [query, setQuery] = useState('');
-  const [activeQuery, setActiveQuery] = useState('');
+  const [query, setQuery, activeQuery, flushQuery] = useDebouncedState('', 300);
   const [source, setSource] = useState<GetSearchSource>(GetSearchSource.LibGen);
-  const debouncedQuery = useDebounce(query, 300);
-
-  useEffect(() => {
-    setActiveQuery(debouncedQuery);
-  }, [debouncedQuery]);
 
   const { data, isLoading } = useGetSearch(
     { query: activeQuery, source },
@@ -172,9 +130,9 @@ export default function SearchPage() {
   );
   const results = getSearchResults(data);
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setActiveQuery(query.trim());
+    flushQuery(query.trim());
   };
 
   return (
