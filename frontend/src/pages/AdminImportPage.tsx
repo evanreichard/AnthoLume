@@ -70,7 +70,7 @@ export default function AdminImportPage() {
   if (selectedDirectory) {
     return (
       <div className="overflow-x-auto">
-        <div className="inline-block min-w-full overflow-hidden rounded shadow">
+        <div className="inline-block min-w-full overflow-hidden rounded shadow-sm">
           <div className="flex grow flex-col gap-2 rounded bg-surface p-4 text-content-muted shadow-lg">
             <p className="text-lg font-semibold text-content">Selected Import Directory</p>
             <form className="flex flex-col gap-4" onSubmit={handleImport}>
@@ -122,7 +122,7 @@ export default function AdminImportPage() {
 
   return (
     <div className="overflow-x-auto">
-      <div className="inline-block min-w-full overflow-hidden rounded shadow">
+      <div className="inline-block min-w-full overflow-hidden rounded shadow-sm">
         <table className="min-w-full bg-surface text-sm leading-normal text-content">
           <thead className="text-content-muted">
             <tr>

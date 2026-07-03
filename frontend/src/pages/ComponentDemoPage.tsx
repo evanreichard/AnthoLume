@@ -41,7 +41,7 @@ export default function ComponentDemoPage() {
     <div className="space-y-8 p-4 text-content">
       <h1 className="text-2xl font-bold">UI Components Demo</h1>
 
-      <section className="rounded-lg bg-surface p-6 shadow">
+      <section className="rounded-lg bg-surface p-6 shadow-sm">
         <h2 className="mb-4 text-xl font-semibold">Toast Notifications</h2>
         <div className="flex flex-wrap gap-4">
           <button
@@ -72,7 +72,7 @@ export default function ComponentDemoPage() {
         </div>
       </section>
 
-      <section className="rounded-lg bg-surface p-6 shadow">
+      <section className="rounded-lg bg-surface p-6 shadow-sm">
         <h2 className="mb-4 text-xl font-semibold">Skeleton Loading Components</h2>
 
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
@@ -115,7 +115,7 @@ export default function ComponentDemoPage() {
         </div>
       </section>
 
-      <section className="rounded-lg bg-surface p-6 shadow">
+      <section className="rounded-lg bg-surface p-6 shadow-sm">
         <h2 className="mb-4 text-xl font-semibold">Skeleton Cards</h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <SkeletonCard />
@@ -124,17 +124,17 @@ export default function ComponentDemoPage() {
         </div>
       </section>
 
-      <section className="rounded-lg bg-surface p-6 shadow">
+      <section className="rounded-lg bg-surface p-6 shadow-sm">
         <h2 className="mb-4 text-xl font-semibold">Skeleton Table</h2>
         <SkeletonTable rows={5} columns={4} />
       </section>
 
-      <section className="rounded-lg bg-surface p-6 shadow">
+      <section className="rounded-lg bg-surface p-6 shadow-sm">
         <h2 className="mb-4 text-xl font-semibold">Page Loader</h2>
         <PageLoader message="Loading demo content..." />
       </section>
 
-      <section className="rounded-lg bg-surface p-6 shadow">
+      <section className="rounded-lg bg-surface p-6 shadow-sm">
         <h2 className="mb-4 text-xl font-semibold">Inline Loader</h2>
         <div className="flex items-center gap-8">
           <div className="text-center">

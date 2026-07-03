@@ -153,7 +153,7 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      <div className="min-w-full overflow-scroll rounded shadow">
+      <div className="min-w-full overflow-scroll rounded shadow-sm">
         <table className="min-w-full bg-surface text-sm leading-normal text-content">
           <thead className="text-content-muted">
             <tr>
@@ -163,7 +163,9 @@ export default function AdminUsersPage() {
                 </button>
               </th>
               <th className="border-b border-border p-3 text-left font-normal uppercase">User</th>
-              <th className="border-b border-border p-3 text-left font-normal uppercase">Password</th>
+              <th className="border-b border-border p-3 text-left font-normal uppercase">
+                Password
+              </th>
               <th className="border-b border-border p-3 text-center font-normal uppercase">
                 Permissions
               </th>

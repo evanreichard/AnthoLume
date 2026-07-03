@@ -30,14 +30,14 @@ export default function AdminLogsPage() {
         <form className="flex flex-col gap-4 lg:flex-row" onSubmit={handleFilterSubmit}>
           <div className="flex w-full grow flex-col">
             <div className="relative flex">
-              <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-sm">
+              <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-xs">
                 <Search2Icon size={15} hoverable={false} />
               </span>
               <input
                 type="text"
                 value={filter}
                 onChange={e => setFilter(e.target.value)}
-                className="w-full flex-1 appearance-none rounded-none border border-border bg-surface p-2 text-base text-content shadow-sm placeholder:text-content-subtle focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-600"
+                className="w-full flex-1 appearance-none rounded-none border border-border bg-surface p-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
                 placeholder="JQ Filter"
               />
             </div>

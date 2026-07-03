@@ -53,26 +53,26 @@ export function SearchPageView({
           <form className="flex flex-col gap-4 lg:flex-row" onSubmit={onSubmit}>
             <div className="flex w-full grow flex-col">
               <div className="relative flex">
-                <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-sm">
+                <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-xs">
                   <Search2Icon size={15} hoverable={false} />
                 </span>
                 <input
                   type="text"
                   value={query}
                   onChange={e => onQueryChange(e.target.value)}
-                  className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-sm placeholder:text-content-subtle focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
                   placeholder="Query"
                 />
               </div>
             </div>
             <div className="relative flex min-w-[12em]">
-              <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-sm">
+              <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-xs">
                 <BookIcon size={15} />
               </span>
               <select
                 value={source}
                 onChange={e => onSourceChange(e.target.value as GetSearchSource)}
-                className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-sm placeholder:text-content-subtle focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-600"
+                className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
               >
                 <option value={GetSearchSource.LibGen}>Library Genesis</option>
                 <option value={GetSearchSource.Annas_Archive}>Annas Archive</option>
@@ -86,7 +86,7 @@ export function SearchPageView({
           </form>
         </div>
 
-        <div className="inline-block min-w-full overflow-hidden rounded shadow">
+        <div className="inline-block min-w-full overflow-hidden rounded shadow-sm">
           <table className="min-w-full bg-surface text-sm leading-normal text-content md:text-sm">
             <thead className="text-content-muted">
               <tr>
@@ -97,12 +97,8 @@ export function SearchPageView({
                 <th className="border-b border-border p-3 text-left font-normal uppercase">
                   Series
                 </th>
-                <th className="border-b border-border p-3 text-left font-normal uppercase">
-                  Type
-                </th>
-                <th className="border-b border-border p-3 text-left font-normal uppercase">
-                  Size
-                </th>
+                <th className="border-b border-border p-3 text-left font-normal uppercase">Type</th>
+                <th className="border-b border-border p-3 text-left font-normal uppercase">Size</th>
                 <th className="hidden border-b border-border p-3 text-left font-normal uppercase md:table-cell">
                   Date
                 </th>

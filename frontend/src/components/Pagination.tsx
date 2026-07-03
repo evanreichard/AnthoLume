@@ -27,7 +27,7 @@ export function Pagination({
         <button
           type="button"
           onClick={() => onPageChange(previousPage)}
-          className="w-24 rounded bg-surface p-2 text-center text-sm font-medium shadow-lg hover:bg-surface-strong focus:outline-none"
+          className="w-24 rounded bg-surface p-2 text-center text-sm font-medium shadow-lg hover:bg-surface-strong focus:outline-hidden"
         >
           ◄
         </button>
@@ -41,7 +41,7 @@ export function Pagination({
         <button
           type="button"
           onClick={() => onPageChange(nextPage)}
-          className="w-24 rounded bg-surface p-2 text-center text-sm font-medium shadow-lg hover:bg-surface-strong focus:outline-none"
+          className="w-24 rounded bg-surface p-2 text-center text-sm font-medium shadow-lg hover:bg-surface-strong focus:outline-hidden"
         >
           ►
         </button>

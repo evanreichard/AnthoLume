@@ -68,6 +68,6 @@ Trim or remove tests that are brittle, duplicated, or mostly validate tooling ra
 
 For frontend test work, validate with:
 
-- `cd frontend && bun run lint`
-- `cd frontend && bun run typecheck`
-- `cd frontend && bun run test`
+- `cd frontend && pnpm run lint`
+- `cd frontend && pnpm run typecheck`
+- `cd frontend && pnpm run test`

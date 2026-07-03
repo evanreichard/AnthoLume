@@ -181,6 +181,8 @@ export function useEpubReader({
         URL.revokeObjectURL(objectUrl);
       }
     };
+    // Init Reader Once - Theme values seed the constructor; the effect below (applyThemeChange) handles later changes, so re-running here would needlessly destroy and recreate the reader.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId, deviceName, documentId, initialProgress, viewerNode]);
 
   useEffect(() => {

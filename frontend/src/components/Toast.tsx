@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { InfoIcon, WarningIcon, ErrorIcon, CloseIcon } from '../icons';
 
 export type ToastType = 'info' | 'warning' | 'error';
@@ -42,20 +42,20 @@ export function Toast({ id, type, message, duration = 5000, onClose }: ToastProp
 
   const { baseStyles, typeStyles, iconStyles, textStyles } = getToastStyles(type);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setIsAnimatingOut(true);
     setTimeout(() => {
       setIsVisible(false);
       onClose?.(id);
     }, 300);
-  };
+  }, [id, onClose]);
 
   useEffect(() => {
     if (duration > 0) {
       const timer = setTimeout(handleClose, duration);
       return () => clearTimeout(timer);
     }
-  }, [duration]);
+  }, [duration, handleClose]);
 
   if (!isVisible) {
     return null;

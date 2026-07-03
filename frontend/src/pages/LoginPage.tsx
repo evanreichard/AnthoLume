@@ -56,7 +56,7 @@ export function LoginPageView({
                     type="text"
                     value={username}
                     onChange={e => onUsernameChange(e.target.value)}
-                    className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-sm placeholder:text-content-subtle focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-600"
+                    className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
                     placeholder="Username"
                     required
                     disabled={isLoading}
@@ -69,7 +69,7 @@ export function LoginPageView({
                     type="password"
                     value={password}
                     onChange={e => onPasswordChange(e.target.value)}
-                    className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-sm placeholder:text-content-subtle focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-600"
+                    className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
                     placeholder="Password"
                     required
                     disabled={isLoading}
@@ -80,7 +80,7 @@ export function LoginPageView({
                 variant="secondary"
                 type="submit"
                 disabled={isLoading}
-                className="w-full px-4 py-2 text-center text-base font-semibold transition duration-200 ease-in focus:outline-none focus:ring-2 disabled:opacity-50"
+                className="w-full px-4 py-2 text-center text-base font-semibold transition duration-200 ease-in focus:outline-hidden focus:ring-2 disabled:opacity-50"
               >
                 {isLoading ? 'Logging in...' : 'Login'}
               </Button>

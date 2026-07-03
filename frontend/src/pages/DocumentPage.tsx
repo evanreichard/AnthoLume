@@ -21,10 +21,11 @@ import {
 import { Field, FieldLabel, FieldValue, FieldActions } from '../components';
 
 const iconButtonClassName = 'cursor-pointer text-content-muted hover:text-content';
-const popupClassName = 'rounded bg-surface-strong p-3 text-content shadow-lg transition-all duration-200';
+const popupClassName =
+  'rounded bg-surface-strong p-3 text-content shadow-lg transition-all duration-200';
 const popupInputClassName = 'rounded bg-surface p-2 text-content';
 const editInputClassName =
-  'w-full rounded border border-secondary-200 bg-secondary-50 p-2 text-lg font-medium text-content focus:outline-none focus:ring-2 focus:ring-secondary-400 dark:border-secondary-700 dark:bg-secondary-900/20 dark:focus:ring-secondary-500';
+  'w-full rounded border border-secondary-200 bg-secondary-50 p-2 text-lg font-medium text-content focus:outline-hidden focus:ring-2 focus:ring-secondary-400 dark:border-secondary-700 dark:bg-secondary-900/20 dark:focus:ring-secondary-500';
 
 export default function DocumentPage() {
   const { id } = useParams<{ id: string }>();
@@ -122,7 +123,7 @@ export default function DocumentPage() {
           {document.filepath && (
             <a
               href={`/reader/${document.id}`}
-              className="z-10 mt-2 w-full rounded bg-secondary-700 py-1 text-center text-sm font-medium text-white hover:bg-secondary-800 focus:outline-none focus:ring-4 focus:ring-secondary-300 dark:bg-secondary-600 dark:hover:bg-secondary-700"
+              className="z-10 mt-2 w-full rounded bg-secondary-700 py-1 text-center text-sm font-medium text-white hover:bg-secondary-800 focus:outline-hidden focus:ring-4 focus:ring-secondary-300 dark:bg-secondary-600 dark:hover:bg-secondary-700"
             >
               Read
             </a>
@@ -154,7 +155,12 @@ export default function DocumentPage() {
                 }`}
               >
                 <form className="flex w-72 flex-col gap-2 text-sm">
-                  <input type="file" id="cover_file" name="cover_file" className={popupInputClassName} />
+                  <input
+                    type="file"
+                    id="cover_file"
+                    name="cover_file"
+                    className={popupInputClassName}
+                  />
                   <button
                     type="submit"
                     className="rounded bg-secondary-700 px-2 py-1 text-sm font-medium text-white hover:bg-secondary-800 dark:bg-secondary-600"
@@ -163,7 +169,13 @@ export default function DocumentPage() {
                   </button>
                 </form>
                 <form className="flex w-72 flex-col gap-2 text-sm">
-                  <input type="checkbox" checked id="remove_cover" name="remove_cover" className="hidden" />
+                  <input
+                    type="checkbox"
+                    checked
+                    id="remove_cover"
+                    name="remove_cover"
+                    className="hidden"
+                  />
                   <button
                     type="submit"
                     className="rounded bg-secondary-700 px-2 py-1 text-sm font-medium text-white hover:bg-secondary-800 dark:bg-secondary-600"
@@ -283,10 +295,20 @@ export default function DocumentPage() {
                 <FieldActions>
                   {isEditingTitle ? (
                     <div className="flex gap-1">
-                      <button type="button" onClick={() => setIsEditingTitle(false)} className={iconButtonClassName} aria-label="Cancel edit">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingTitle(false)}
+                        className={iconButtonClassName}
+                        aria-label="Cancel edit"
+                      >
                         <CloseIcon size={18} />
                       </button>
-                      <button type="button" onClick={saveTitle} className={iconButtonClassName} aria-label="Confirm edit">
+                      <button
+                        type="button"
+                        onClick={saveTitle}
+                        className={iconButtonClassName}
+                        aria-label="Confirm edit"
+                      >
                         <CheckIcon size={18} />
                       </button>
                     </div>
@@ -309,7 +331,12 @@ export default function DocumentPage() {
           >
             {isEditingTitle ? (
               <div className="relative mt-1 flex gap-2">
-                <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} className={editInputClassName} />
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={e => setEditTitle(e.target.value)}
+                  className={editInputClassName}
+                />
               </div>
             ) : (
               <FieldValue>{document.title}</FieldValue>
@@ -324,10 +351,20 @@ export default function DocumentPage() {
                 <FieldActions>
                   {isEditingAuthor ? (
                     <>
-                      <button type="button" onClick={() => setIsEditingAuthor(false)} className={iconButtonClassName} aria-label="Cancel edit">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingAuthor(false)}
+                        className={iconButtonClassName}
+                        aria-label="Cancel edit"
+                      >
                         <CloseIcon size={18} />
                       </button>
-                      <button type="button" onClick={saveAuthor} className={iconButtonClassName} aria-label="Confirm edit">
+                      <button
+                        type="button"
+                        onClick={saveAuthor}
+                        className={iconButtonClassName}
+                        aria-label="Confirm edit"
+                      >
                         <CheckIcon size={18} />
                       </button>
                     </>
@@ -350,7 +387,12 @@ export default function DocumentPage() {
           >
             {isEditingAuthor ? (
               <div className="relative mt-1 flex gap-2">
-                <input type="text" value={editAuthor} onChange={e => setEditAuthor(e.target.value)} className={editInputClassName} />
+                <input
+                  type="text"
+                  value={editAuthor}
+                  onChange={e => setEditAuthor(e.target.value)}
+                  className={editInputClassName}
+                />
               </div>
             ) : (
               <FieldValue>{document.author}</FieldValue>
@@ -376,11 +418,15 @@ export default function DocumentPage() {
                 >
                   <div className="flex text-xs">
                     <p className="w-32 text-content-subtle">Seconds / Percent</p>
-                    <p className="font-medium">{secondsPerPercent !== 0 ? secondsPerPercent : 'N/A'}</p>
+                    <p className="font-medium">
+                      {secondsPerPercent !== 0 ? secondsPerPercent : 'N/A'}
+                    </p>
                   </div>
                   <div className="flex text-xs">
                     <p className="w-32 text-content-subtle">Words / Minute</p>
-                    <p className="font-medium">{document.wpm && document.wpm > 0 ? document.wpm : 'N/A'}</p>
+                    <p className="font-medium">
+                      {document.wpm && document.wpm > 0 ? document.wpm : 'N/A'}
+                    </p>
                   </div>
                   <div className="flex text-xs">
                     <p className="w-32 text-content-subtle">Est. Time Left</p>
@@ -412,10 +458,20 @@ export default function DocumentPage() {
               <FieldActions>
                 {isEditingDescription ? (
                   <>
-                    <button type="button" onClick={() => setIsEditingDescription(false)} className={iconButtonClassName} aria-label="Cancel edit">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingDescription(false)}
+                      className={iconButtonClassName}
+                      aria-label="Cancel edit"
+                    >
                       <CloseIcon size={18} />
                     </button>
-                    <button type="button" onClick={saveDescription} className={iconButtonClassName} aria-label="Confirm edit">
+                    <button
+                      type="button"
+                      onClick={saveDescription}
+                      className={iconButtonClassName}
+                      aria-label="Confirm edit"
+                    >
                       <CheckIcon size={18} />
                     </button>
                   </>
@@ -441,12 +497,14 @@ export default function DocumentPage() {
               <textarea
                 value={editDescription}
                 onChange={e => setEditDescription(e.target.value)}
-                className="h-32 w-full grow rounded border border-secondary-200 bg-secondary-50 p-2 font-medium text-content focus:outline-none focus:ring-2 focus:ring-secondary-400 dark:border-secondary-700 dark:bg-secondary-900/20 dark:focus:ring-secondary-500"
+                className="h-32 w-full grow rounded border border-secondary-200 bg-secondary-50 p-2 font-medium text-content focus:outline-hidden focus:ring-2 focus:ring-secondary-400 dark:border-secondary-700 dark:bg-secondary-900/20 dark:focus:ring-secondary-500"
                 rows={5}
               />
             </div>
           ) : (
-            <FieldValue className="hyphens-auto text-justify">{document.description || 'N/A'}</FieldValue>
+            <FieldValue className="hyphens-auto text-justify">
+              {document.description || 'N/A'}
+            </FieldValue>
           )}
         </Field>
       </div>

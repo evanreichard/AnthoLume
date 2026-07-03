@@ -22,7 +22,7 @@ Edit:
 
 Regenerate:
 - `go generate ./api/v1/generate.go`
-- `cd frontend && bun run generate:api`
+- `cd frontend && pnpm run generate:api`
 
 Notes:
 - If you add response headers in `api/v1/openapi.yaml` (for example `Set-Cookie`), `oapi-codegen` will generate typed response header structs in `api/v1/api.gen.go`; update the handler response values to populate those headers explicitly.
@@ -51,7 +51,7 @@ Regenerate:
 
 ### Notes
 - The Go server embeds `templates/*` and `assets/*`.
-- Root Tailwind output is built to `assets/style.css`.
+- Root Tailwind output is built to `assets/style.css`. Two separate Tailwind setups exist: the legacy server-rendered app uses **Tailwind v3** via the root `tailwind.config.js` + `make legacy_tailwind`; the React app in `frontend/` uses **Tailwind v4** (CSS-first, no config file). Keep them distinct.
 - Be mindful of whether a change affects the embedded server-rendered app, the React frontend, or both.
 - SQLite timestamps are stored as RFC3339 strings (usually with a trailing `Z`); prefer `parseTime` / `parseTimePtr` instead of ad-hoc `time.Parse` layouts.
 - `DISABLE_AUTH=true` bypasses authentication on **all** routes (v1 API, legacy web app, KOSync, OPDS). Set `DISABLE_AUTH_USER=<username>` to control which database user the session impersonates (defaults to the first user in the DB). The user must already exist.
@@ -64,7 +64,7 @@ For frontend-specific implementation notes and commands, also read:
 ## 6) Regeneration Summary
 
 - Go API: `go generate ./api/v1/generate.go`
-- Frontend API client: `cd frontend && bun run generate:api`
+- Frontend API client: `cd frontend && pnpm run generate:api`
 - SQLC: `sqlc generate`
 
 ## 7) Live Dev Server Debugging

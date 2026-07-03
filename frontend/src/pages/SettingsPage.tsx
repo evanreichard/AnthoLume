@@ -143,28 +143,28 @@ export default function SettingsPage() {
           <form className="flex flex-col gap-4 lg:flex-row" onSubmit={handlePasswordSubmit}>
             <div className="flex grow flex-col">
               <div className="relative flex">
-                <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-sm">
+                <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-xs">
                   <PasswordIcon size={15} />
                 </span>
                 <input
                   type="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-sm placeholder:text-content-subtle focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
                   placeholder="Password"
                 />
               </div>
             </div>
             <div className="flex grow flex-col">
               <div className="relative flex">
-                <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-sm">
+                <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-xs">
                   <PasswordIcon size={15} />
                 </span>
                 <input
                   type="password"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
-                  className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-sm placeholder:text-content-subtle focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
                   placeholder="New Password"
                 />
               </div>
@@ -220,13 +220,13 @@ export default function SettingsPage() {
           <p className="mb-2 text-lg font-semibold text-content">Change Timezone</p>
           <form className="flex flex-col gap-4 lg:flex-row" onSubmit={handleTimezoneSubmit}>
             <div className="relative flex grow">
-              <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-sm">
+              <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-xs">
                 <ClockIcon size={15} />
               </span>
               <select
                 value={timezone || 'UTC'}
                 onChange={e => setTimezone(e.target.value)}
-                className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-sm placeholder:text-content-subtle focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-600"
+                className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
               >
                 <option value="UTC">UTC</option>
                 <option value="America/New_York">America/New_York</option>

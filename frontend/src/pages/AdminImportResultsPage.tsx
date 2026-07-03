@@ -13,19 +13,15 @@ export default function AdminImportResultsPage() {
 
   return (
     <div className="overflow-x-auto">
-      <div className="inline-block min-w-full overflow-hidden rounded shadow">
+      <div className="inline-block min-w-full overflow-hidden rounded shadow-sm">
         <table className="min-w-full bg-surface text-sm leading-normal text-content">
           <thead className="text-content-muted">
             <tr>
               <th className="border-b border-border p-3 text-left font-normal uppercase">
                 Document
               </th>
-              <th className="border-b border-border p-3 text-left font-normal uppercase">
-                Status
-              </th>
-              <th className="border-b border-border p-3 text-left font-normal uppercase">
-                Error
-              </th>
+              <th className="border-b border-border p-3 text-left font-normal uppercase">Status</th>
+              <th className="border-b border-border p-3 text-left font-normal uppercase">Error</th>
             </tr>
           </thead>
           <tbody>
@@ -44,7 +40,10 @@ export default function AdminImportResultsPage() {
                   >
                     <span className="text-content-muted">Name:</span>
                     {result.id ? (
-                      <Link to={`/documents/${result.id}`} className="text-secondary-600 hover:underline">
+                      <Link
+                        to={`/documents/${result.id}`}
+                        className="text-secondary-600 hover:underline"
+                      >
                         {result.name}
                       </Link>
                     ) : (

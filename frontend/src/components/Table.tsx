@@ -80,7 +80,7 @@ export function Table<T extends object>({
 
   return (
     <div className="overflow-x-auto">
-      <div className="inline-block min-w-full overflow-hidden rounded shadow">
+      <div className="inline-block min-w-full overflow-hidden rounded shadow-sm">
         <table className="min-w-full bg-surface">
           <thead>
             <tr className="border-b border-border">

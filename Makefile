@@ -49,7 +49,7 @@ dev_backend:
 	$(DEV_ENV) air
 
 dev_frontend:
-	cd frontend && bun run dev
+	cd frontend && pnpm run dev
 
 clean:
 	rm -rf ./build

@@ -28,7 +28,7 @@ function DocumentCard({ doc }: DocumentCardProps) {
       <div
         role="link"
         tabIndex={0}
-        className="flex size-full cursor-pointer gap-4 rounded bg-surface p-4 shadow-lg transition-colors hover:bg-surface-muted focus:outline-none"
+        className="flex size-full cursor-pointer gap-4 rounded bg-surface p-4 shadow-lg transition-colors hover:bg-surface-muted focus:outline-hidden"
         onClick={() => navigate(`/documents/${doc.id}`)}
         onKeyDown={event => {
           if (event.key === 'Enter' || event.key === ' ') {
@@ -100,7 +100,7 @@ function DocumentListItem({ doc }: DocumentListItemProps) {
     <div
       role="link"
       tabIndex={0}
-      className="block cursor-pointer rounded bg-surface p-4 text-content shadow-lg transition-colors hover:bg-surface-muted focus:outline-none"
+      className="block cursor-pointer rounded bg-surface p-4 text-content shadow-lg transition-colors hover:bg-surface-muted focus:outline-hidden"
       onClick={() => navigate(`/documents/${doc.id}`)}
       onKeyDown={event => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -214,14 +214,14 @@ export default function DocumentsPage() {
         <div className="flex flex-col gap-4 lg:flex-row">
           <div className="flex w-full grow flex-col">
             <div className="relative flex">
-              <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-sm">
+              <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-xs">
                 <Search2Icon size={15} hoverable={false} />
               </span>
               <input
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-sm placeholder:text-content-subtle focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-600"
+                className="w-full flex-1 appearance-none rounded-none border border-border bg-surface px-4 py-2 text-base text-content shadow-xs placeholder:text-content-subtle focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-primary-600"
                 placeholder="Search Author / Title"
                 name="search"
               />

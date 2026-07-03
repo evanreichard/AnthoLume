@@ -25,8 +25,8 @@
             golangci-lint
             gopls
 
-            bun
             nodejs
+            pnpm
             tailwindcss
             typescript-language-server
           ];

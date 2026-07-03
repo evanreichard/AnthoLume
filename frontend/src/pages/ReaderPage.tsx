@@ -74,7 +74,10 @@ export default function ReaderPage() {
     colorScheme,
     fontFamily,
     fontSize,
-    isPaginationDisabled: useCallback(() => isTopBarOpen || isBottomBarOpen, [isTopBarOpen, isBottomBarOpen]),
+    isPaginationDisabled: useCallback(
+      () => isTopBarOpen || isBottomBarOpen,
+      [isTopBarOpen, isBottomBarOpen]
+    ),
     onSwipeDown: handleSwipeDown,
     onSwipeUp: handleSwipeUp,
     onCenterTap: handleCenterTap,
@@ -86,9 +89,10 @@ export default function ReaderPage() {
     }
   }, [document?.title]);
 
+  const { setTheme } = reader;
   useEffect(() => {
-    reader.setTheme({ colorScheme, fontFamily, fontSize });
-  }, [colorScheme, fontFamily, fontSize, reader.setTheme]);
+    setTheme({ colorScheme, fontFamily, fontSize });
+  }, [colorScheme, fontFamily, fontSize, setTheme]);
 
   useEffect(() => {
     if (isTopBarOpen || isBottomBarOpen) {
@@ -122,7 +126,7 @@ export default function ReaderPage() {
               <div className="flex min-w-0 items-start gap-4">
                 <Link to={`/documents/${document.id}`} className="block shrink-0">
                   <img
-                    className="h-28 w-20 rounded object-cover shadow"
+                    className="h-28 w-20 rounded object-cover shadow-sm"
                     src={`/api/v1/documents/${document.id}/cover`}
                     alt={`${document.title} cover`}
                   />
@@ -216,7 +220,9 @@ export default function ReaderPage() {
 
             <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_auto] lg:items-start">
               <div className="min-w-0">
-                <p className="mb-1 text-[10px] uppercase tracking-wide text-content-subtle">Theme</p>
+                <p className="mb-1 text-[10px] uppercase tracking-wide text-content-subtle">
+                  Theme
+                </p>
                 <div className="grid w-full grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
                   {colorSchemes.map(option => (
                     <button

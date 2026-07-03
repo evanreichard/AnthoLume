@@ -68,7 +68,7 @@ The frontend mirrors the existing SSR templates structure:
 The frontend uses **Orval** to generate TypeScript types and React Query hooks from the OpenAPI spec:
 
 ```bash
-npm run generate:api
+pnpm run generate:api
 ```
 
 This generates:
@@ -80,16 +80,16 @@ This generates:
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Generate API types (if OpenAPI spec changes)
-npm run generate:api
+pnpm run generate:api
 
 # Start development server
-npm run dev
+pnpm run dev
 
 # Build for production
-npm run build
+pnpm run build
 ```
 
 ## Deployment
