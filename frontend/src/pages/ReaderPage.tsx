@@ -21,10 +21,14 @@ export default function ReaderPage() {
 
   const { id: defaultDeviceId, name: defaultDeviceName } = useMemo(() => getReaderDevice(), []);
 
-  const { data: documentResponse, isLoading: isDocumentLoading } = useGetDocument(id || '');
+  const { data: documentResponse, isLoading: isDocumentLoading } = useGetDocument(id || '', {
+    query: { enabled: Boolean(id) },
+  });
   const { data: progressResponse, isLoading: isProgressLoading } = useGetProgress(id || '', {
     query: {
       retry: false,
+      refetchOnWindowFocus: false,
+      enabled: Boolean(id),
     },
   });
   const document = documentResponse?.status === 200 ? documentResponse.data.document : null;
@@ -255,9 +259,7 @@ export default function ReaderPage() {
                 <div className="flex items-center gap-1.5 lg:justify-end">
                   <button
                     type="button"
-                    onClick={() =>
-                      setFontSize(Math.max(0.8, Number((fontSize - 0.1).toFixed(2))))
-                    }
+                    onClick={() => setFontSize(Math.max(0.8, Number((fontSize - 0.1).toFixed(2))))}
                     className="rounded border border-border px-2.5 py-1.5 text-sm text-content-muted hover:bg-surface-muted hover:text-content"
                   >
                     -
@@ -267,9 +269,7 @@ export default function ReaderPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() =>
-                      setFontSize(Math.min(2.2, Number((fontSize + 0.1).toFixed(2))))
-                    }
+                    onClick={() => setFontSize(Math.min(2.2, Number((fontSize + 0.1).toFixed(2))))}
                     className="rounded border border-border px-2.5 py-1.5 text-sm text-content-muted hover:bg-surface-muted hover:text-content"
                   >
                     +

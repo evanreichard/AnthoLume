@@ -1,26 +1,22 @@
-import { useState, SyntheticEvent, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { useToasts } from '../components/ToastContext';
-import { useGetInfo } from '../generated/anthoLumeAPIV1';
+import { useAuthForm } from '../hooks/useAuthForm';
 import { AuthFormView, authFormFooter } from './AuthFormView';
-import { getRegistrationEnabled } from './LoginPage';
 
 export default function RegisterPage() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-
-  const { register, isAuthenticated, isCheckingAuth } = useAuth();
+  const { isAuthenticated, isCheckingAuth } = useAuth();
   const navigate = useNavigate();
-  const { showError } = useToasts();
-  const { data: infoData, isLoading: isLoadingInfo } = useGetInfo({
-    query: {
-      staleTime: Infinity,
-    },
-  });
-
-  const registrationEnabled = getRegistrationEnabled(infoData);
+  const {
+    username,
+    password,
+    isLoading,
+    isLoadingInfo,
+    registrationEnabled,
+    setUsername,
+    setPassword,
+    submit,
+  } = useAuthForm('register');
 
   useEffect(() => {
     if (!isCheckingAuth && isAuthenticated) {
@@ -33,19 +29,6 @@ export default function RegisterPage() {
     }
   }, [isAuthenticated, isCheckingAuth, isLoadingInfo, navigate, registrationEnabled]);
 
-  const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      await register(username, password);
-    } catch (_err) {
-      showError(registrationEnabled ? 'Registration failed' : 'Registration is disabled');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <AuthFormView
       username={username}
@@ -53,7 +36,7 @@ export default function RegisterPage() {
       isLoading={isLoading}
       onUsernameChange={setUsername}
       onPasswordChange={setPassword}
-      onSubmit={handleSubmit}
+      onSubmit={submit}
       submitLabel="Register"
       submittingLabel="Registering..."
       inputsDisabled={isLoadingInfo || !registrationEnabled}

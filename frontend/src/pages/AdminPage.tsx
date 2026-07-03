@@ -1,10 +1,9 @@
 import { useState, SyntheticEvent } from 'react';
-import { LoadingState } from '../components';
-import { useGetAdmin, usePostAdminAction } from '../generated/anthoLumeAPIV1';
+import { usePostAdminAction } from '../generated/anthoLumeAPIV1';
 import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
 import { useMutationWithToast } from '../hooks/useMutationWithToast';
-import { getErrorMessage } from '../utils/errors';
+import { getErrorMessage, getResponseError } from '../utils/errors';
 import { streamResponseToFile, backupFilename } from '../utils/download';
 
 interface BackupTypes {
@@ -13,7 +12,6 @@ interface BackupTypes {
 }
 
 export default function AdminPage() {
-  const { isLoading } = useGetAdmin();
   const postAdminAction = usePostAdminAction();
   const { showInfo, showError, removeToast } = useToasts();
   const toastMutationOptions = useMutationWithToast();
@@ -76,12 +74,13 @@ export default function AdminPage() {
 
       removeToast(startedToastId);
 
-      if (response.status >= 200 && response.status < 300) {
-        showInfo('Restore completed successfully');
+      const message = getResponseError(response);
+      if (message) {
+        showError('Restore failed: ' + message);
         return;
       }
 
-      showError('Restore failed: ' + getErrorMessage(response.data));
+      showInfo('Restore completed successfully');
     } catch (error) {
       removeToast(startedToastId);
       showError('Restore failed: ' + getErrorMessage(error));
@@ -107,10 +106,6 @@ export default function AdminPage() {
       })
     );
   };
-
-  if (isLoading) {
-    return <LoadingState />;
-  }
 
   return (
     <div className="flex w-full grow flex-col gap-4">

@@ -1,11 +1,9 @@
 import { useState, useEffect, SyntheticEvent } from 'react';
-import { LoadingState, TextInput } from '../components';
+import { Button, LoadingState, Table, type Column, TextInput, IconInput } from '../components';
 import { inputClassName } from '../components/TextInput';
-import { Table, type Column } from '../components/Table';
 import { useGetSettings, useUpdateSettings } from '../generated/anthoLumeAPIV1';
 import type { Device } from '../generated/model';
 import { UserIcon, PasswordIcon, ClockIcon } from '../icons';
-import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
 import { useMutationWithToast } from '../hooks/useMutationWithToast';
 import { useTheme } from '../theme/ThemeProvider';
@@ -20,7 +18,11 @@ const deviceColumns: Column<Device>[] = [
     className: 'pl-0',
     render: device => device.device_name || 'Unknown',
   },
-  { id: 'last_synced', header: 'Last Sync', render: device => formatDeviceDate(device.last_synced) },
+  {
+    id: 'last_synced',
+    header: 'Last Sync',
+    render: device => formatDeviceDate(device.last_synced),
+  },
   { id: 'created_at', header: 'Created', render: device => formatDeviceDate(device.created_at) },
 ];
 
@@ -99,30 +101,24 @@ export default function SettingsPage() {
           <p className="mb-2 text-lg font-semibold text-content">Change Password</p>
           <form className="flex flex-col gap-4 lg:flex-row" onSubmit={handlePasswordSubmit}>
             <div className="flex grow flex-col">
-              <div className="relative flex">
-                <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-xs">
-                  <PasswordIcon size={15} />
-                </span>
+              <IconInput icon={<PasswordIcon size={15} />}>
                 <TextInput
                   type="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="Password"
                 />
-              </div>
+              </IconInput>
             </div>
             <div className="flex grow flex-col">
-              <div className="relative flex">
-                <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-xs">
-                  <PasswordIcon size={15} />
-                </span>
+              <IconInput icon={<PasswordIcon size={15} />}>
                 <TextInput
                   type="password"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
                   placeholder="New Password"
                 />
-              </div>
+              </IconInput>
             </div>
             <Button variant="secondary" type="submit" className="w-full lg:w-60">
               Submit
@@ -172,10 +168,7 @@ export default function SettingsPage() {
         <div className="flex grow flex-col gap-2 rounded bg-surface p-4 text-content-muted shadow-lg">
           <p className="mb-2 text-lg font-semibold text-content">Change Timezone</p>
           <form className="flex flex-col gap-4 lg:flex-row" onSubmit={handleTimezoneSubmit}>
-            <div className="relative flex grow">
-              <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-xs">
-                <ClockIcon size={15} />
-              </span>
+            <IconInput className="grow" icon={<ClockIcon size={15} />}>
               <select
                 value={timezone || 'UTC'}
                 onChange={e => setTimezone(e.target.value)}
@@ -192,7 +185,7 @@ export default function SettingsPage() {
                 <option value="Asia/Shanghai">Asia/Shanghai</option>
                 <option value="Australia/Sydney">Australia/Sydney</option>
               </select>
-            </div>
+            </IconInput>
             <Button variant="secondary" type="submit" className="w-full lg:w-60">
               Submit
             </Button>

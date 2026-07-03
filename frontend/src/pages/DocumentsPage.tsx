@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useGetDocuments, useCreateDocument } from '../generated/anthoLumeAPIV1';
 import type { Document } from '../generated/model';
 import { ActivityIcon, DownloadIcon, Search2Icon, UploadIcon } from '../icons';
-import { LoadingState, Pagination, TextInput } from '../components';
+import { LoadingState, Pagination, TextInput, IconInput } from '../components';
 import { useToasts } from '../components/ToastContext';
 import { useMutationWithToast } from '../hooks/useMutationWithToast';
 import { formatDuration } from '../utils/formatters';
@@ -160,10 +160,7 @@ export default function DocumentsPage() {
       <div className="flex grow flex-col gap-4 rounded bg-surface p-4 text-content-muted shadow-lg">
         <div className="flex flex-col gap-4 lg:flex-row">
           <div className="flex w-full grow flex-col">
-            <div className="relative flex">
-              <span className="inline-flex items-center border-y border-l border-border bg-surface px-3 text-sm text-content-muted shadow-xs">
-                <Search2Icon size={15} hoverable={false} />
-              </span>
+            <IconInput icon={<Search2Icon size={15} hoverable={false} />}>
               <TextInput
                 type="text"
                 value={search}
@@ -171,7 +168,7 @@ export default function DocumentsPage() {
                 placeholder="Search Author / Title"
                 name="search"
               />
-            </div>
+            </IconInput>
           </div>
           <div className="inline-flex rounded border border-border bg-surface p-1">
             <button

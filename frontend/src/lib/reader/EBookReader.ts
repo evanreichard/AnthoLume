@@ -268,10 +268,10 @@ export class EBookReader {
 
   private async setupReader() {
     this.bookState.words = await countWords(this.book);
-    const { cfi } = await getCFIFromXPath(this.book, this.rendition, this.bookState.progress);
-    await this.setPosition(cfi);
-    const { element } = await getCFIFromXPath(this.book, this.rendition, this.bookState.progress);
-    this.bookState.progressElement = element ?? null;
+    const cfiResult = await getCFIFromXPath(this.book, this.rendition, this.bookState.progress);
+    await this.setPosition(cfiResult?.cfi);
+    const elementResult = await getCFIFromXPath(this.book, this.rendition, this.bookState.progress);
+    this.bookState.progressElement = elementResult?.element ?? null;
     this.highlightPositionMarker();
     const stats = await this.getBookStats();
     this.onStats(stats);
@@ -390,11 +390,11 @@ export class EBookReader {
     fontSize?: number;
   }) {
     const currentProgress = this.bookState.progress;
-    const { cfi } = await getCFIFromXPath(this.book, this.rendition, currentProgress);
+    const cfiResult = await getCFIFromXPath(this.book, this.rendition, currentProgress);
     this.setTheme(newTheme);
-    await this.setPosition(cfi);
-    const { element } = await getCFIFromXPath(this.book, this.rendition, currentProgress);
-    this.bookState.progressElement = element ?? null;
+    await this.setPosition(cfiResult?.cfi);
+    const elementResult = await getCFIFromXPath(this.book, this.rendition, currentProgress);
+    this.bookState.progressElement = elementResult?.element ?? null;
     this.highlightPositionMarker();
   }
 
@@ -449,10 +449,10 @@ export class EBookReader {
 
   async createProgress() {
     const currentCFI = await this.rendition.currentLocation();
-    const { element, xpath } = await getXPathFromCFI(this.book, this.rendition, currentCFI.start.cfi);
+    const xpathResult = await getXPathFromCFI(this.book, this.rendition, currentCFI.start.cfi);
     const currentWord = await getBookWordPosition(this.book, this.rendition);
-    this.bookState.progress = xpath ?? '';
-    this.bookState.progressElement = element ?? null;
+    this.bookState.progress = xpathResult?.xpath ?? '';
+    this.bookState.progressElement = xpathResult?.element ?? null;
 
     const percentage =
       this.bookState.words > 0

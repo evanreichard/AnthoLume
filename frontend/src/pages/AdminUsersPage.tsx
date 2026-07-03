@@ -6,11 +6,13 @@ import { useGetUsers, useUpdateUser } from '../generated/anthoLumeAPIV1';
 import type { User } from '../generated/model';
 import { AddIcon, DeleteIcon } from '../icons';
 import { useMutationWithToast } from '../hooks/useMutationWithToast';
+import { useToasts } from '../components/ToastContext';
 
 export default function AdminUsersPage() {
   const { data: usersData, isLoading, refetch } = useGetUsers({});
   const updateUser = useUpdateUser();
   const toastMutationOptions = useMutationWithToast();
+  const { showError } = useToasts();
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [newUsername, setNewUsername] = useState('');
@@ -23,7 +25,10 @@ export default function AdminUsersPage() {
 
   const handleCreateUser = (e: SyntheticEvent) => {
     e.preventDefault();
-    if (!newUsername || !newPassword) return;
+    if (!newUsername || !newPassword) {
+      showError('Please enter username and password');
+      return;
+    }
 
     updateUser.mutate(
       {
@@ -116,15 +121,15 @@ export default function AdminUsersPage() {
       id: 'password',
       header: 'Password',
       render: user => (
-        <button
+        <Button
           onClick={() => {
             setResetUserId(user.id);
             setResetPassword('');
           }}
-          className="bg-primary-500 px-2 py-1 font-medium text-primary-foreground hover:bg-primary-700"
+          className="px-2 py-1"
         >
           Reset
-        </button>
+        </Button>
       ),
     },
     {
@@ -162,19 +167,19 @@ export default function AdminUsersPage() {
       {showAddForm && (
         <div className="absolute left-10 top-10 rounded bg-surface-strong p-3 shadow-lg transition-all duration-200">
           <form onSubmit={handleCreateUser} className="flex flex-col gap-2 text-sm text-content">
-            <input
+            <TextInput
               type="text"
               value={newUsername}
               onChange={e => setNewUsername(e.target.value)}
               placeholder="Username"
-              className="bg-surface p-2 text-content"
+              className="p-2"
             />
-            <input
+            <TextInput
               type="password"
               value={newPassword}
               onChange={e => setNewPassword(e.target.value)}
               placeholder="Password"
-              className="bg-surface p-2 text-content"
+              className="p-2"
             />
             <div className="flex items-center gap-2">
               <input
@@ -185,12 +190,7 @@ export default function AdminUsersPage() {
               />
               <label htmlFor="new_is_admin">Admin</label>
             </div>
-            <button
-              className="bg-primary-500 px-2 py-1 font-medium text-primary-foreground hover:bg-primary-700"
-              type="submit"
-            >
-              Create
-            </button>
+            <Button type="submit">Create</Button>
           </form>
         </div>
       )}

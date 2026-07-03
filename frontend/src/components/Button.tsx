@@ -1,4 +1,5 @@
 import { ButtonHTMLAttributes, forwardRef } from 'react';
+import { cn } from '../utils/cn';
 
 interface BaseButtonProps {
   variant?: 'default' | 'secondary';
@@ -20,9 +21,9 @@ const getVariantClasses = (variant: 'default' | 'secondary' = 'default'): string
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = 'default', children, className = '', ...props }, ref) => {
+  ({ variant = 'default', children, className, ...props }, ref) => {
     return (
-      <button ref={ref} className={`${getVariantClasses(variant)} ${className}`.trim()} {...props}>
+      <button ref={ref} className={cn(getVariantClasses(variant), className)} {...props}>
         {children}
       </button>
     );

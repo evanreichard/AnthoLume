@@ -127,7 +127,7 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: 'Login' }));
 
     await waitFor(() => {
-      expect(showErrorMock).toHaveBeenCalledWith('Invalid credentials');
+      expect(showErrorMock).toHaveBeenCalledWith('bad credentials');
     });
   });
 

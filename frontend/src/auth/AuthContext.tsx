@@ -15,6 +15,7 @@ import {
   resolveAuthStateFromMe,
   authUserFromMutation,
 } from './authHelpers';
+import { getResponseError } from '../utils/errors';
 
 interface AuthContextType extends AuthState {
   login: (_username: string, _password: string) => Promise<void>;
@@ -66,16 +67,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const user = authUserFromMutation(response);
         if (!user) {
           setAuthState(getUnauthenticatedAuthState());
-          throw new Error('Login failed');
+          throw new Error(getResponseError(response) ?? 'Login failed');
         }
 
         setAuthState(getAuthenticatedAuthState(user));
 
         await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
         navigate('/');
-      } catch (_error) {
+      } catch (error) {
         setAuthState(getUnauthenticatedAuthState());
-        throw new Error('Login failed');
+        throw error instanceof Error ? error : new Error('Login failed');
       }
     },
     [loginMutation, navigate, queryClient]
@@ -94,16 +95,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const user = authUserFromMutation(response);
         if (!user) {
           setAuthState(getUnauthenticatedAuthState());
-          throw new Error('Registration failed');
+          throw new Error(getResponseError(response) ?? 'Registration failed');
         }
 
         setAuthState(getAuthenticatedAuthState(user));
 
         await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
         navigate('/');
-      } catch (_error) {
+      } catch (error) {
         setAuthState(getUnauthenticatedAuthState());
-        throw new Error('Registration failed');
+        throw error instanceof Error ? error : new Error('Registration failed');
       }
     },
     [navigate, queryClient, registerMutation]

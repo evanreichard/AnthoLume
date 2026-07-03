@@ -41,7 +41,8 @@ Also follow the repository root guide at `../AGENTS.md`.
 
 - The generated client returns `{ data, status, headers }` for both success and error responses.
 - Do not assume non-2xx responses throw.
-- Check `response.status` and response shape before treating a request as successful.
+- Trust the generated discriminated-union response types and narrow on `status`; avoid hand-rolled re-validation of fields the schema already guarantees.
+- Centralize mutation/reqest error handling via `useMutationWithToast` (toast options) or `getResponseError` (`utils/errors`) for imperative flows — don't re-implement inline `status` checks or `'message' in response.data` extraction.
 
 ## 4) Auth / Query State
 

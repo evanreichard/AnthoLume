@@ -128,7 +128,7 @@ describe('RegisterPage', () => {
     await user.click(screen.getByRole('button', { name: 'Register' }));
 
     await waitFor(() => {
-      expect(showErrorMock).toHaveBeenCalledWith('Registration failed');
+      expect(showErrorMock).toHaveBeenCalledWith('failed');
     });
   });
 

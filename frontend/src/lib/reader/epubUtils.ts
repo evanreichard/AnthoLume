@@ -124,24 +124,28 @@ export async function getBookWordPosition(book: EpubBook, rendition: EpubRenditi
   return chapterWordPosition + preChapterWordPosition;
 }
 
-export async function getXPathFromCFI(book: EpubBook, rendition: EpubRendition, cfi: string) {
+export async function getXPathFromCFI(
+  book: EpubBook,
+  rendition: EpubRendition,
+  cfi: string
+): Promise<{ xpath: string; element: Element | null } | null> {
   const cfiBaseMatch = cfi.match(/\(([^!]+)/);
   if (!cfiBaseMatch?.[1]) {
-    return {} as { xpath?: string; element?: Element | null };
+    return null;
   }
   const startCFI = cfiBaseMatch[1];
 
   const docFragmentIndex =
     (book.spine.spineItems.find(item => item.cfiBase === startCFI)?.index ?? -1) + 1;
   if (docFragmentIndex <= 0) {
-    return {} as { xpath?: string; element?: Element | null };
+    return null;
   }
 
   const basePos = `/body/DocFragment[${docFragmentIndex}]/body`;
   const contents = rendition.getContents()[0];
   const currentNodeStart = contents?.range(cfi).startContainer;
   if (!currentNodeStart) {
-    return {} as { xpath?: string; element?: Element | null };
+    return null;
   }
 
   let currentNode: Node | null = currentNodeStart;
@@ -181,23 +185,21 @@ export async function getCFIFromXPath(
   book: EpubBook,
   rendition: EpubRendition,
   xpath?: string
-) {
+): Promise<{ cfi: string; element: Element } | null> {
   if (!xpath) {
-    return {} as { cfi?: string; element?: Element | null };
+    return null;
   }
 
   const fragMatch = xpath.match(/^\/body\/DocFragment\[(\d+)\]/);
   if (!fragMatch?.[1]) {
-    return {} as { cfi?: string; element?: Element | null };
+    return null;
   }
 
   const spinePosition = Number.parseInt(fragMatch[1], 10) - 1;
   const sectionItem = book.spine.get(spinePosition);
   await sectionItem.load(book.load.bind(book));
 
-  const renderedContent = rendition
-    .getContents()
-    .find(item => item.sectionIndex == spinePosition);
+  const renderedContent = rendition.getContents().find(item => item.sectionIndex == spinePosition);
   const docItem = renderedContent?.document || sectionItem.document;
 
   const namespaceURI = docItem.documentElement.namespaceURI;
@@ -244,7 +246,7 @@ export async function getCFIFromXPath(
   const element = xpathElement || derivedSelectorElement;
   const isElementNode = Boolean(element && (element as Node).nodeType === Node.ELEMENT_NODE);
   if (!isElementNode) {
-    return {} as { cfi?: string; element?: Element | null };
+    return null;
   }
 
   const resolvedElement = element as Element;

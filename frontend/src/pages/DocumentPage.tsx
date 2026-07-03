@@ -114,7 +114,9 @@ function EditableField({
 export default function DocumentPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
-  const { data: docData, isLoading: docLoading } = useGetDocument(id || '');
+  const { data: docData, isLoading: docLoading } = useGetDocument(id || '', {
+    query: { enabled: Boolean(id) },
+  });
   const editMutation = useEditDocument();
   const { showError } = useToasts();
 

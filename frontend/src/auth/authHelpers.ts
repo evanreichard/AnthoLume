@@ -1,8 +1,4 @@
-import type {
-  getMeResponse,
-  loginResponse,
-  registerResponse,
-} from '../generated/anthoLumeAPIV1';
+import type { getMeResponse, loginResponse, registerResponse } from '../generated/anthoLumeAPIV1';
 import type { LoginResponse } from '../generated/model';
 
 export type AuthUser = LoginResponse;
@@ -63,8 +59,6 @@ export function resolveAuthStateFromMe(params: {
   };
 }
 
-export function authUserFromMutation(
-  response: loginResponse | registerResponse
-): AuthUser | null {
+export function authUserFromMutation(response: loginResponse | registerResponse): AuthUser | null {
   return response.status === 200 || response.status === 201 ? response.data : null;
 }

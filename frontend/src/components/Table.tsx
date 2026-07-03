@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { SkeletonTable } from './Skeleton';
+import { cn } from '../utils/cn';
 
 export interface Column<T> {
   id: string;
@@ -46,7 +47,7 @@ export function Table<T>({
               {columns.map(column => (
                 <th
                   key={column.id}
-                  className={`p-3 text-left text-content-muted ${column.className || ''}`}
+                  className={cn('p-3 text-left text-content-muted', column.className)}
                 >
                   {column.header}
                 </th>
@@ -64,10 +65,7 @@ export function Table<T>({
               data.map((row, index) => (
                 <tr key={getRowKey(row, index)} className="border-b border-border">
                   {columns.map(column => (
-                    <td
-                      key={column.id}
-                      className={`p-3 text-content ${column.className || ''}`}
-                    >
+                    <td key={column.id} className={cn('p-3 text-content', column.className)}>
                       {column.render(row, index)}
                     </td>
                   ))}
