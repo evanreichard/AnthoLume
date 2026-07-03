@@ -1,17 +1,16 @@
-export interface AuthUser {
-  username: string;
-  is_admin: boolean;
-}
+import type {
+  getMeResponse,
+  loginResponse,
+  registerResponse,
+} from '../generated/anthoLumeAPIV1';
+import type { LoginResponse } from '../generated/model';
+
+export type AuthUser = LoginResponse;
 
 export interface AuthState {
   isAuthenticated: boolean;
   user: AuthUser | null;
   isCheckingAuth: boolean;
-}
-
-interface ResponseLike {
-  status?: number;
-  data?: unknown;
 }
 
 export function getUnauthenticatedAuthState(): AuthState {
@@ -38,27 +37,8 @@ export function getAuthenticatedAuthState(user: AuthUser): AuthState {
   };
 }
 
-export function normalizeAuthenticatedUser(value: unknown): AuthUser | null {
-  if (!value || typeof value !== 'object') {
-    return null;
-  }
-
-  if (!('username' in value) || typeof value.username !== 'string') {
-    return null;
-  }
-
-  if (!('is_admin' in value) || typeof value.is_admin !== 'boolean') {
-    return null;
-  }
-
-  return {
-    username: value.username,
-    is_admin: value.is_admin,
-  };
-}
-
 export function resolveAuthStateFromMe(params: {
-  meData?: ResponseLike;
+  meData?: getMeResponse;
   meError?: unknown;
   meLoading: boolean;
   previousState: AuthState;
@@ -70,10 +50,7 @@ export function resolveAuthStateFromMe(params: {
   }
 
   if (meData?.status === 200) {
-    const user = normalizeAuthenticatedUser(meData.data);
-    if (user) {
-      return getAuthenticatedAuthState(user);
-    }
+    return getAuthenticatedAuthState(meData.data);
   }
 
   if (meError || meData?.status === 401) {
@@ -86,13 +63,8 @@ export function resolveAuthStateFromMe(params: {
   };
 }
 
-export function validateAuthMutationResponse(
-  response: ResponseLike,
-  expectedStatus: number
+export function authUserFromMutation(
+  response: loginResponse | registerResponse
 ): AuthUser | null {
-  if (response.status !== expectedStatus) {
-    return null;
-  }
-
-  return normalizeAuthenticatedUser(response.data);
+  return response.status === 200 || response.status === 201 ? response.data : null;
 }

@@ -13,7 +13,7 @@ import {
   getAuthenticatedAuthState,
   getUnauthenticatedAuthState,
   resolveAuthStateFromMe,
-  validateAuthMutationResponse,
+  authUserFromMutation,
 } from './authHelpers';
 
 interface AuthContextType extends AuthState {
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
         });
 
-        const user = validateAuthMutationResponse(response, 200);
+        const user = authUserFromMutation(response);
         if (!user) {
           setAuthState(getUnauthenticatedAuthState());
           throw new Error('Login failed');
@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
         });
 
-        const user = validateAuthMutationResponse(response, 201);
+        const user = authUserFromMutation(response);
         if (!user) {
           setAuthState(getUnauthenticatedAuthState());
           throw new Error('Registration failed');
@@ -113,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logoutMutation.mutate(undefined, {
       onSuccess: async () => {
         setAuthState(getUnauthenticatedAuthState());
-        await queryClient.removeQueries({ queryKey: getGetMeQueryKey() });
+        queryClient.removeQueries({ queryKey: getGetMeQueryKey() });
         navigate('/login');
       },
     });

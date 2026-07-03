@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   getCheckingAuthState,
   getUnauthenticatedAuthState,
-  normalizeAuthenticatedUser,
   resolveAuthStateFromMe,
-  validateAuthMutationResponse,
+  authUserFromMutation,
   type AuthState,
 } from './authHelpers';
 
@@ -15,20 +14,6 @@ const previousState: AuthState = {
 };
 
 describe('authHelpers', () => {
-  it('normalizes a valid authenticated user payload', () => {
-    expect(normalizeAuthenticatedUser({ username: 'evan', is_admin: true })).toEqual({
-      username: 'evan',
-      is_admin: true,
-    });
-  });
-
-  it('rejects invalid authenticated user payloads', () => {
-    expect(normalizeAuthenticatedUser(null)).toBeNull();
-    expect(normalizeAuthenticatedUser({ username: 'evan' })).toBeNull();
-    expect(normalizeAuthenticatedUser({ username: 123, is_admin: true })).toBeNull();
-    expect(normalizeAuthenticatedUser({ username: 'evan', is_admin: 'yes' })).toBeNull();
-  });
-
   it('returns a checking state while preserving previous auth information', () => {
     expect(
       getCheckingAuthState({
@@ -49,6 +34,7 @@ describe('authHelpers', () => {
         meData: {
           status: 200,
           data: { username: 'evan', is_admin: false },
+          headers: new Headers(),
         },
         meError: undefined,
         meLoading: false,
@@ -66,6 +52,8 @@ describe('authHelpers', () => {
       resolveAuthStateFromMe({
         meData: {
           status: 401,
+          data: { code: 401, message: 'unauthorized' },
+          headers: new Headers(),
         },
         meError: undefined,
         meLoading: false,
@@ -105,9 +93,7 @@ describe('authHelpers', () => {
   it('returns the previous state with checking disabled when there is no decisive me result', () => {
     expect(
       resolveAuthStateFromMe({
-        meData: {
-          status: 204,
-        },
+        meData: undefined,
         meError: undefined,
         meLoading: false,
         previousState: {
@@ -123,35 +109,31 @@ describe('authHelpers', () => {
     });
   });
 
-  it('validates auth mutation responses by expected status and payload shape', () => {
+  it('extracts the user from successful login and register responses', () => {
     expect(
-      validateAuthMutationResponse(
-        {
-          status: 200,
-          data: { username: 'evan', is_admin: false },
-        },
-        200
-      )
+      authUserFromMutation({
+        status: 200,
+        data: { username: 'evan', is_admin: false },
+        headers: new Headers(),
+      })
     ).toEqual({ username: 'evan', is_admin: false });
 
     expect(
-      validateAuthMutationResponse(
-        {
-          status: 201,
-          data: { username: 'evan', is_admin: false },
-        },
-        200
-      )
-    ).toBeNull();
+      authUserFromMutation({
+        status: 201,
+        data: { username: 'evan', is_admin: true },
+        headers: new Headers(),
+      })
+    ).toEqual({ username: 'evan', is_admin: true });
+  });
 
+  it('returns null for unsuccessful auth mutation responses', () => {
     expect(
-      validateAuthMutationResponse(
-        {
-          status: 200,
-          data: { username: 'evan' },
-        },
-        200
-      )
+      authUserFromMutation({
+        status: 401,
+        data: { code: 401, message: 'unauthorized' },
+        headers: new Headers(),
+      })
     ).toBeNull();
   });
 });
