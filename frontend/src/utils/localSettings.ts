@@ -101,7 +101,9 @@ export function useLocalSetting<K extends LocalSettingKey>(
   key: K,
   defaultValue: LocalSettingsMap[K]
 ) {
-  const [value, setValue] = useState<LocalSettingsMap[K]>(() => readLocalSetting(key, defaultValue));
+  const [value, setValue] = useState<LocalSettingsMap[K]>(() =>
+    readLocalSetting(key, defaultValue)
+  );
 
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
@@ -144,9 +146,4 @@ export function getReaderDevice(): { id: string; name: string } {
   }
 
   return { id, name };
-}
-
-export function setReaderDevice(name: string, id?: string): void {
-  writeLocalSetting('readerDeviceName', name);
-  writeLocalSetting('readerDeviceId', id ?? crypto.randomUUID());
 }

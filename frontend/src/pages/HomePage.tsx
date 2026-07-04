@@ -35,51 +35,39 @@ function InfoCard({ title, size, link }: InfoCardProps) {
 }
 
 interface StreakCardProps {
-  window: 'DAY' | 'WEEK';
-  currentStreak: number;
-  currentStreakStartDate: string;
-  currentStreakEndDate: string;
-  maxStreak: number;
-  maxStreakStartDate: string;
-  maxStreakEndDate: string;
+  streak: UserStreak;
 }
 
-function StreakCard({
-  window,
-  currentStreak,
-  currentStreakStartDate,
-  currentStreakEndDate,
-  maxStreak,
-  maxStreakStartDate,
-  maxStreakEndDate,
-}: StreakCardProps) {
+function StreakCard({ streak }: StreakCardProps) {
+  const isWeekly = streak.window === 'WEEK';
+
   return (
     <div className="w-full">
       <div className="relative w-full rounded bg-surface px-4 py-6 text-content shadow-lg">
         <p className="w-max border-b border-border text-sm font-semibold text-content-muted">
-          {window === 'WEEK' ? 'Weekly Read Streak' : 'Daily Read Streak'}
+          {isWeekly ? 'Weekly Read Streak' : 'Daily Read Streak'}
         </p>
         <div className="my-6 flex items-end space-x-2">
-          <p className="text-5xl font-bold">{currentStreak}</p>
+          <p className="text-5xl font-bold">{streak.current_streak}</p>
         </div>
         <div>
           <div className="mb-2 flex items-center justify-between border-b border-border pb-2 text-sm">
             <div>
-              <p>{window === 'WEEK' ? 'Current Weekly Streak' : 'Current Daily Streak'}</p>
+              <p>{isWeekly ? 'Current Weekly Streak' : 'Current Daily Streak'}</p>
               <div className="flex items-end text-sm text-content-subtle">
-                {currentStreakStartDate} ➞ {currentStreakEndDate}
+                {streak.current_streak_start_date} ➞ {streak.current_streak_end_date}
               </div>
             </div>
-            <div className="flex items-end font-bold">{currentStreak}</div>
+            <div className="flex items-end font-bold">{streak.current_streak}</div>
           </div>
           <div className="mb-2 flex items-center justify-between pb-2 text-sm">
             <div>
-              <p>{window === 'WEEK' ? 'Best Weekly Streak' : 'Best Daily Streak'}</p>
+              <p>{isWeekly ? 'Best Weekly Streak' : 'Best Daily Streak'}</p>
               <div className="flex items-end text-sm text-content-subtle">
-                {maxStreakStartDate} ➞ {maxStreakEndDate}
+                {streak.max_streak_start_date} ➞ {streak.max_streak_end_date}
               </div>
             </div>
-            <div className="flex items-end font-bold">{maxStreak}</div>
+            <div className="flex items-end font-bold">{streak.max_streak}</div>
           </div>
         </div>
       </div>
@@ -121,6 +109,7 @@ function LeaderboardCard({ name, data }: LeaderboardCardProps) {
               {name} Leaderboard
             </p>
             <SegmentedControl<TimePeriod>
+              variant="unstyled"
               className="flex items-center gap-2 text-xs"
               ariaLabel={`${name} leaderboard period`}
               value={selectedPeriod}
@@ -197,16 +186,7 @@ export default function HomePage() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {streaks?.map((streak: UserStreak) => (
-          <StreakCard
-            key={streak.window}
-            window={streak.window as 'DAY' | 'WEEK'}
-            currentStreak={streak.current_streak}
-            currentStreakStartDate={streak.current_streak_start_date}
-            currentStreakEndDate={streak.current_streak_end_date}
-            maxStreak={streak.max_streak}
-            maxStreakStartDate={streak.max_streak_start_date}
-            maxStreakEndDate={streak.max_streak_end_date}
-          />
+          <StreakCard key={streak.window} streak={streak} />
         ))}
       </div>
 

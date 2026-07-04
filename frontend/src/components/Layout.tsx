@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { UserIcon, DropdownIcon } from '../icons';
 import { useTheme } from '../theme/ThemeProvider';
 import { THEME_MODES } from '../utils/localSettings';
+import { SegmentedControl } from './SegmentedControl';
 import HamburgerMenu from './HamburgerMenu';
 import { getPageTitle } from './navigation';
 
@@ -61,30 +62,17 @@ export default function Layout() {
           {isUserDropdownOpen && (
             <div className="absolute right-4 top-16 z-20 pt-4 transition duration-200">
               <div className="w-64 origin-top-right rounded-md bg-surface shadow-lg ring-1 ring-border/30">
-                <div
-                  className="border-b border-border px-4 py-3"
-                  role="group"
-                  aria-label="Theme mode"
-                >
+                <div className="border-b border-border px-4 py-3">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-content-subtle">
                     Theme
                   </p>
-                  <div className="inline-flex w-full rounded border border-border bg-surface-muted p-1">
-                    {THEME_MODES.map(mode => (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => setThemeMode(mode)}
-                        className={`flex-1 rounded px-2 py-1 text-xs font-medium capitalize transition-colors ${
-                          themeMode === mode
-                            ? 'bg-content text-content-inverse'
-                            : 'text-content-muted hover:bg-surface hover:text-content'
-                        }`}
-                      >
-                        {mode}
-                      </button>
-                    ))}
-                  </div>
+                  <SegmentedControl
+                    className="w-full"
+                    ariaLabel="Theme mode"
+                    value={themeMode}
+                    onChange={setThemeMode}
+                    options={THEME_MODES.map(mode => ({ value: mode, label: mode }))}
+                  />
                 </div>
                 <div
                   className="py-1"

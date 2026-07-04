@@ -71,6 +71,28 @@ export function formatDuration(seconds: number): string {
   return parts.join(' ');
 }
 
+function toValidDate(value?: string): Date | null {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+// Local Display Dates - Shared formatters for user-facing timestamps so every list/table renders
+// them the same way, returning 'N/A' for empty or unparseable values.
+export function formatDate(value?: string): string {
+  const date = toValidDate(value);
+  return date ? date.toLocaleDateString() : 'N/A';
+}
+
+export function formatDateTime(value?: string): string {
+  const date = toValidDate(value);
+  return date ? date.toLocaleString() : 'N/A';
+}
+
+// UTC Date - Intentionally UTC (not local): the reading graph buckets activity by UTC day, so
+// converting to local time could shift a point to the wrong day.
 export function formatUtcDate(dateString: string): string {
   const date = new Date(dateString);
   const year = date.getUTCFullYear();

@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useGetActivity } from '../generated/anthoLumeAPIV1';
 import type { Activity } from '../generated/model';
 import { Pagination } from '../components';
 import { Table, type Column } from '../components/Table';
-import { formatDuration } from '../utils/formatters';
+import { documentColumn } from '../components/documentColumn';
+import { usePaginatedList } from '../hooks/usePaginatedList';
+import { formatDuration, formatDateTime } from '../utils/formatters';
 import { dataForStatus } from '../utils/apiResponses';
 
 const ACTIVITY_PAGE_SIZE = 25;
@@ -12,12 +13,8 @@ const ACTIVITY_PAGE_SIZE = 25;
 export default function ActivityPage() {
   const [searchParams] = useSearchParams();
   const documentID = searchParams.get('document') || undefined;
-  const [page, setPage] = useState(1);
+  const { page, setPage } = usePaginatedList(documentID);
   const limit = ACTIVITY_PAGE_SIZE;
-
-  useEffect(() => {
-    setPage(1);
-  }, [documentID]);
 
   const { data, isLoading } = useGetActivity({
     doc_filter: Boolean(documentID),
@@ -29,19 +26,11 @@ export default function ActivityPage() {
   const activities = response?.activities ?? [];
 
   const columns: Column<Activity>[] = [
-    {
-      id: 'document',
-      header: 'Document',
-      render: row => (
-        <Link to={`/documents/${row.document_id}`} className="text-secondary-600 hover:underline">
-          {row.author || 'Unknown'} - {row.title || 'Unknown'}
-        </Link>
-      ),
-    },
+    documentColumn,
     {
       id: 'start_time',
       header: 'Time',
-      render: row => row.start_time || 'N/A',
+      render: row => formatDateTime(row.start_time),
     },
     {
       id: 'duration',

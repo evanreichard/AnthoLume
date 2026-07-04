@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useGetDocuments, useCreateDocument } from '../generated/anthoLumeAPIV1';
 import type { Document } from '../generated/model';
@@ -9,6 +9,7 @@ import { useMutationWithToast } from '../hooks/useMutationWithToast';
 import { formatDuration } from '../utils/formatters';
 import { cn } from '../utils/cn';
 import { useDebouncedState } from '../hooks/useDebouncedState';
+import { usePaginatedList } from '../hooks/usePaginatedList';
 import { useLocalSetting, type DocumentsViewMode } from '../utils/localSettings';
 import { dataForStatus } from '../utils/apiResponses';
 
@@ -106,17 +107,13 @@ function EmptyDocuments({ className }: { className?: string }) {
 
 export default function DocumentsPage() {
   const [search, setSearch, debouncedSearch] = useDebouncedState('', 300);
-  const [page, setPage] = useState(1);
+  const { page, setPage } = usePaginatedList(debouncedSearch);
   const limit = DOCUMENTS_PAGE_SIZE;
   const [uploadMode, setUploadMode] = useState(false);
   const [viewMode, setViewMode] = useLocalSetting('documentsViewMode', 'grid');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showWarning } = useToasts();
   const toastMutationOptions = useMutationWithToast();
-
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch]);
 
   const { data, isLoading, refetch } = useGetDocuments({ page, limit, search: debouncedSearch });
   const createMutation = useCreateDocument();
@@ -169,13 +166,9 @@ export default function DocumentsPage() {
             </IconInput>
           </div>
           <SegmentedControl<DocumentsViewMode>
-            className="inline-flex rounded border border-border bg-surface p-1"
             ariaLabel="Document view mode"
             value={viewMode}
             onChange={setViewMode}
-            buttonClassName="rounded px-3 py-1 text-sm font-medium transition-colors"
-            activeClassName="bg-content text-content-inverse"
-            inactiveClassName="text-content-muted hover:bg-surface-muted"
             options={[
               { value: 'grid', label: 'Grid' },
               { value: 'list', label: 'List' },

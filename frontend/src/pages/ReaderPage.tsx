@@ -40,7 +40,7 @@ export default function ReaderPage() {
       enabled: Boolean(id),
     },
   });
-  const document = dataForStatus(documentResponse, 200)?.document;
+  const doc = dataForStatus(documentResponse, 200)?.document;
   const progress = dataForStatus(progressResponse, 200)?.progress;
 
   const deviceId = defaultDeviceId;
@@ -89,17 +89,17 @@ export default function ReaderPage() {
   });
 
   useEffect(() => {
-    if (document?.title) {
-      window.document.title = `AnthoLume - Reader - ${document.title}`;
+    if (doc?.title) {
+      document.title = `AnthoLume - Reader - ${doc.title}`;
     }
-  }, [document?.title]);
+  }, [doc?.title]);
 
   useEffect(() => {
     if (isTopBarOpen || isBottomBarOpen) {
       return;
     }
 
-    const activeElement = window.document.activeElement;
+    const activeElement = document.activeElement;
     if (activeElement instanceof HTMLElement) {
       activeElement.blur();
     }
@@ -109,7 +109,7 @@ export default function ReaderPage() {
     return <LoadingState className="min-h-screen bg-canvas" message="Loading reader..." />;
   }
 
-  if (!id || !document) {
+  if (!id || !doc) {
     return <div className="p-6 text-content-muted">Document not found</div>;
   }
 
@@ -124,24 +124,24 @@ export default function ReaderPage() {
           <div className="mx-auto flex max-h-[70vh] min-h-0 w-full max-w-6xl flex-col gap-4 p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="flex min-w-0 items-start gap-4">
-                <Link to={`/documents/${document.id}`} className="block shrink-0">
+                <Link to={`/documents/${doc.id}`} className="block shrink-0">
                   <img
                     className="h-28 w-20 rounded object-cover shadow-sm"
-                    src={`/api/v1/documents/${document.id}/cover`}
-                    alt={`${document.title} cover`}
+                    src={`/api/v1/documents/${doc.id}/cover`}
+                    alt={`${doc.title} cover`}
                   />
                 </Link>
                 <div className="min-w-0">
                   <p className="text-xs uppercase tracking-wide text-content-subtle">Title</p>
-                  <p className="truncate text-lg font-semibold text-content">{document.title}</p>
+                  <p className="truncate text-lg font-semibold text-content">{doc.title}</p>
                   <p className="mt-3 text-xs uppercase tracking-wide text-content-subtle">Author</p>
-                  <p className="truncate text-sm text-content-muted">{document.author}</p>
+                  <p className="truncate text-sm text-content-muted">{doc.author}</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
                 <Link
-                  to={`/documents/${document.id}`}
+                  to={`/documents/${doc.id}`}
                   className="rounded border border-border px-3 py-2 text-sm text-content-muted hover:bg-surface-muted hover:text-content"
                 >
                   Back
@@ -224,6 +224,7 @@ export default function ReaderPage() {
                   Theme
                 </p>
                 <SegmentedControl<ReaderColorScheme>
+                  variant="unstyled"
                   className="grid w-full grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5"
                   ariaLabel="Reader theme"
                   value={colorScheme}
@@ -238,6 +239,7 @@ export default function ReaderPage() {
               <div className="min-w-0">
                 <p className="mb-1 text-[10px] uppercase tracking-wide text-content-subtle">Font</p>
                 <SegmentedControl<ReaderFontFamily>
+                  variant="unstyled"
                   className="grid w-full grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4"
                   ariaLabel="Reader font"
                   value={fontFamily}

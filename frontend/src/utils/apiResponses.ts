@@ -11,11 +11,3 @@ export function dataForStatus<TResponse extends ApiResponse, TStatus extends TRe
     ? (response.data as Extract<TResponse, { status: TStatus }>['data'])
     : undefined;
 }
-
-export function dataForSuccess<TResponse extends ApiResponse>(
-  response: TResponse | undefined
-): Extract<TResponse, { status: 200 | 201 | 202 | 204 }>['data'] | undefined {
-  return response && response.status >= 200 && response.status < 300
-    ? (response.data as Extract<TResponse, { status: 200 | 201 | 202 | 204 }>['data'])
-    : undefined;
-}

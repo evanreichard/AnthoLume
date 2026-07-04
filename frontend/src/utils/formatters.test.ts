@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatNumber, formatDuration } from './formatters';
+import { formatNumber, formatDuration, formatDate, formatDateTime } from './formatters';
 
 describe('formatNumber', () => {
   it('formats zero', () => {
@@ -33,7 +33,6 @@ describe('formatNumber', () => {
     expect(formatNumber(-12345)).toBe('-12.3k');
     expect(formatNumber(-1500000)).toBe('-1.50M');
   });
-
 });
 
 describe('formatDuration', () => {
@@ -61,5 +60,21 @@ describe('formatDuration', () => {
   it('formats days, hours, minutes, and seconds', () => {
     expect(formatDuration(1928371)).toBe('22d 7h 39m 31s');
   });
+});
 
+describe('formatDate / formatDateTime', () => {
+  it('returns N/A for empty or unparseable values', () => {
+    expect(formatDate(undefined)).toBe('N/A');
+    expect(formatDate('')).toBe('N/A');
+    expect(formatDate('not-a-date')).toBe('N/A');
+    expect(formatDateTime(undefined)).toBe('N/A');
+    expect(formatDateTime('not-a-date')).toBe('N/A');
+  });
+
+  it('formats a valid ISO timestamp to a non-empty, non-N/A string', () => {
+    const date = formatDate('2023-06-15T12:00:00Z');
+    expect(date).not.toBe('N/A');
+    expect(date.length).toBeGreaterThan(0);
+    expect(formatDateTime('2023-06-15T12:00:00Z')).not.toBe('N/A');
+  });
 });

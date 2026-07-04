@@ -7,6 +7,7 @@ import type { User } from '../generated/model';
 import { AddIcon, DeleteIcon } from '../icons';
 import { useMutationWithToast } from '../hooks/useMutationWithToast';
 import { useToasts } from '../components/ToastContext';
+import { formatDate } from '../utils/formatters';
 import { dataForStatus } from '../utils/apiResponses';
 
 interface AddUserFormProps {
@@ -238,7 +239,12 @@ export default function AdminUsersPage() {
         </div>
       ),
     },
-    { id: 'created', header: 'Created', className: 'w-48', render: user => user.created_at },
+    {
+      id: 'created',
+      header: 'Created',
+      className: 'w-48',
+      render: user => formatDate(user.created_at),
+    },
   ];
 
   if (isLoading) {

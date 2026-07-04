@@ -8,9 +8,8 @@ import { useToasts } from '../components/ToastContext';
 import { useMutationWithToast, useToastMutation } from '../hooks/useMutationWithToast';
 import { useTheme } from '../theme/ThemeProvider';
 import type { ThemeMode } from '../utils/localSettings';
+import { formatDateTime } from '../utils/formatters';
 import { dataForStatus } from '../utils/apiResponses';
-
-const formatDeviceDate = (value?: string) => (value ? new Date(value).toLocaleString() : 'N/A');
 
 const deviceColumns: Column<Device>[] = [
   {
@@ -22,9 +21,9 @@ const deviceColumns: Column<Device>[] = [
   {
     id: 'last_synced',
     header: 'Last Sync',
-    render: device => formatDeviceDate(device.last_synced),
+    render: device => formatDateTime(device.last_synced),
   },
-  { id: 'created_at', header: 'Created', render: device => formatDeviceDate(device.created_at) },
+  { id: 'created_at', header: 'Created', render: device => formatDateTime(device.created_at) },
 ];
 
 const themeModes: Array<{ value: ThemeMode; label: string; description: string }> = [

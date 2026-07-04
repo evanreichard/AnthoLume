@@ -33,6 +33,7 @@ Also follow the repository root guide at `../AGENTS.md`.
 - Use theme tokens defined in `src/index.css` `@theme` (`bg-surface`, `text-content`, `border-border`, `primary`, etc.) for new UI work instead of adding raw light/dark color pairs. There is no `tailwind.config.js` — Tailwind v4 config is CSS-first.
 - Semantic colors map to runtime CSS variables (`--color-x: rgb(var(--x))`) via `@theme inline`; light/dark values live in `:root` / `.dark` in `src/index.css`. Dark mode is class-based via `@custom-variant dark`, toggled by `ThemeProvider`.
 - Store frontend-only preferences in `src/utils/localSettings.ts` so appearance and view settings share one local-storage shape.
+- Reuse shared primitives instead of re-rolling them: `formatDate` / `formatDateTime` (`src/utils/formatters.ts`) for user-facing timestamps (`formatUtcDate` is intentionally UTC, for graph day-buckets only); `SegmentedControl` for toggle groups (default `pill` variant needs only `options`/`value`/`onChange`; pass `variant="unstyled"` for bespoke shapes like grids/inline text); `usePaginatedList` + `documentColumn` for paginated list/table pages.
 
 ## 3) Generated API client
 
@@ -77,6 +78,7 @@ Also follow the repository root guide at `../AGENTS.md`.
 - Run frontend tests with `pnpm run test`.
 - `pnpm run build` still runs `tsc && vite build`, so unrelated TypeScript issues elsewhere in `src/` can fail the build.
 - When possible, validate changed files directly before escalating to full-project fixes.
+- `pnpm run format` currently reports pre-existing style violations in files unrelated to most changes; format only the files you touched (`npx prettier --write <files>`) rather than reformatting the whole tree.
 
 ## 7) Live Dev Server Debugging
 

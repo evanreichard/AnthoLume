@@ -53,7 +53,6 @@ describe('LoginPage', () => {
       showError: vi.fn(),
       updateToast: vi.fn(),
       removeToast: vi.fn(),
-      clearToasts: vi.fn(),
     });
 
     mockedUseGetInfo.mockReturnValue({
@@ -115,7 +114,6 @@ describe('LoginPage', () => {
       showError: showErrorMock,
       updateToast: vi.fn(),
       removeToast: vi.fn(),
-      clearToasts: vi.fn(),
     });
 
     render(

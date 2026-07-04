@@ -122,21 +122,20 @@ export default function DocumentPage() {
     return <LoadingState />;
   }
 
-  const document = dataForStatus(docData, 200)?.document;
+  const doc = dataForStatus(docData, 200)?.document;
 
-  if (!document) {
+  if (!doc) {
     return <div className="text-content-muted">Document not found</div>;
   }
 
-  const percentage = document.percentage ?? 0;
-  const secondsPerPercent = document.seconds_per_percent || 0;
+  const percentage = doc.percentage ?? 0;
+  const secondsPerPercent = doc.seconds_per_percent || 0;
   const totalTimeLeftSeconds = Math.round((100 - percentage) * secondsPerPercent);
 
   const save = (data: EditDocumentBody): Promise<boolean> =>
-    runWithToast(() => editMutation.mutateAsync({ id: document.id, data }), {
+    runWithToast(() => editMutation.mutateAsync({ id: doc.id, data }), {
       error: 'Failed to save',
-      onSuccess: response =>
-        queryClient.setQueryData(getGetDocumentQueryKey(document.id), response),
+      onSuccess: response => queryClient.setQueryData(getGetDocumentQueryKey(doc.id), response),
     });
 
   return (
@@ -145,13 +144,13 @@ export default function DocumentPage() {
         <div className="relative float-left mb-2 mr-4 flex w-44 flex-col gap-2 md:w-60 lg:w-80">
           <img
             className="w-full rounded object-fill"
-            src={`/api/v1/documents/${document.id}/cover`}
-            alt={`${document.title} cover`}
+            src={`/api/v1/documents/${doc.id}/cover`}
+            alt={`${doc.title} cover`}
           />
 
-          {document.filepath && (
+          {doc.filepath && (
             <a
-              href={`/reader/${document.id}`}
+              href={`/reader/${doc.id}`}
               className="z-10 mt-2 w-full rounded bg-secondary-700 py-1 text-center text-sm font-medium text-secondary-foreground hover:bg-secondary-800 focus:outline-hidden focus:ring-4 focus:ring-secondary-500"
             >
               Read
@@ -162,26 +161,26 @@ export default function DocumentPage() {
             <div className="min-w-[50%] md:mr-2">
               <div className="flex gap-1 text-sm">
                 <p className="text-content-muted">ISBN-10:</p>
-                <p className="font-medium">{document.isbn10 || 'N/A'}</p>
+                <p className="font-medium">{doc.isbn10 || 'N/A'}</p>
               </div>
               <div className="flex gap-1 text-sm">
                 <p className="text-content-muted">ISBN-13:</p>
-                <p className="font-medium">{document.isbn13 || 'N/A'}</p>
+                <p className="font-medium">{doc.isbn13 || 'N/A'}</p>
               </div>
             </div>
 
             <div className="relative my-auto flex grow justify-between text-content-muted">
               <a
-                href={`/activity?document=${document.id}`}
+                href={`/activity?document=${doc.id}`}
                 aria-label="Activity"
                 className={iconButtonClassName}
               >
                 <ActivityIcon size={28} />
               </a>
 
-              {document.filepath ? (
+              {doc.filepath ? (
                 <a
-                  href={`/api/v1/documents/${document.id}/file`}
+                  href={`/api/v1/documents/${doc.id}/file`}
                   aria-label="Download"
                   className={iconButtonClassName}
                 >
@@ -197,15 +196,11 @@ export default function DocumentPage() {
         </div>
 
         <div className="grid justify-between gap-4 pb-4 sm:grid-cols-2">
-          <EditableField
-            label="Title"
-            value={document.title}
-            onSave={value => save({ title: value })}
-          />
+          <EditableField label="Title" value={doc.title} onSave={value => save({ title: value })} />
 
           <EditableField
             label="Author"
-            value={document.author}
+            value={doc.author}
             onSave={value => save({ author: value })}
           />
 
@@ -234,9 +229,7 @@ export default function DocumentPage() {
                   </div>
                   <div className="flex text-xs">
                     <p className="w-32 text-content-subtle">Words / Minute</p>
-                    <p className="font-medium">
-                      {document.wpm && document.wpm > 0 ? document.wpm : 'N/A'}
-                    </p>
+                    <p className="font-medium">{doc.wpm && doc.wpm > 0 ? doc.wpm : 'N/A'}</p>
                   </div>
                   <div className="flex text-xs">
                     <p className="w-32 text-content-subtle">Est. Time Left</p>
@@ -249,8 +242,8 @@ export default function DocumentPage() {
             }
           >
             <FieldValue>
-              {document.total_time_seconds && document.total_time_seconds > 0
-                ? formatDuration(document.total_time_seconds)
+              {doc.total_time_seconds && doc.total_time_seconds > 0
+                ? formatDuration(doc.total_time_seconds)
                 : 'N/A'}
             </FieldValue>
           </Field>
@@ -262,7 +255,7 @@ export default function DocumentPage() {
 
         <EditableField
           label="Description"
-          value={document.description || ''}
+          value={doc.description || ''}
           multiline
           valueClassName="hyphens-auto text-justify"
           onSave={value => save({ description: value })}

@@ -14,7 +14,8 @@ const SWIPE_THRESHOLD = 25;
 
 /**
  * Registers touch / click-zone / wheel listeners on every rendered section. Returns a dispose
- * that clears the pending wheel-cooldown timeout (called from EBookReader.destroy).
+ * (called from EBookReader.destroy) that clears the pending wheel-cooldown timeout and removes
+ * every listener added across rendered sections, so they don't accumulate on re-render.
  */
 export function registerRenditionGestures(
   rendition: EpubRendition,
@@ -25,6 +26,7 @@ export function registerRenditionGestures(
   let touchEndX = 0;
   let touchEndY = 0;
   let wheelTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  const listenerCleanups: Array<() => void> = [];
 
   const resetWheelCooldown = () => {
     if (wheelTimeoutId) {
@@ -68,14 +70,11 @@ export function registerRenditionGestures(
   rendition.hooks.render.register((contents: EpubContents) => {
     const renderDoc = contents.document;
 
-    const wakeLockListener = () => {
+    const onWakeLock = () => {
       renderDoc.dispatchEvent(new CustomEvent('wakelock'));
     };
-    renderDoc.addEventListener('click', wakeLockListener);
-    renderDoc.addEventListener('gesturechange', wakeLockListener);
-    renderDoc.addEventListener('touchstart', wakeLockListener);
 
-    renderDoc.addEventListener('click', (event: MouseEvent) => {
+    const onClick = (event: MouseEvent) => {
       const windowWidth = window.innerWidth;
       const windowHeight = window.innerHeight;
       const barPixels = windowHeight * 0.2;
@@ -99,9 +98,9 @@ export function registerRenditionGestures(
       } else {
         handlers.onCenterTap();
       }
-    });
+    };
 
-    renderDoc.addEventListener('wheel', (event: WheelEvent) => {
+    const onWheel = (event: WheelEvent) => {
       if (wheelTimeoutId) {
         return;
       }
@@ -113,26 +112,36 @@ export function registerRenditionGestures(
       if (event.deltaY < -SWIPE_THRESHOLD) {
         handleSwipeDown();
       }
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      touchStartX = event.changedTouches[0]?.screenX ?? 0;
+      touchStartY = event.changedTouches[0]?.screenY ?? 0;
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      touchEndX = event.changedTouches[0]?.screenX ?? 0;
+      touchEndY = event.changedTouches[0]?.screenY ?? 0;
+      handleGesture();
+    };
+
+    renderDoc.addEventListener('click', onWakeLock);
+    renderDoc.addEventListener('gesturechange', onWakeLock);
+    renderDoc.addEventListener('touchstart', onWakeLock);
+    renderDoc.addEventListener('click', onClick);
+    renderDoc.addEventListener('wheel', onWheel);
+    renderDoc.addEventListener('touchstart', onTouchStart);
+    renderDoc.addEventListener('touchend', onTouchEnd);
+
+    listenerCleanups.push(() => {
+      renderDoc.removeEventListener('click', onWakeLock);
+      renderDoc.removeEventListener('gesturechange', onWakeLock);
+      renderDoc.removeEventListener('touchstart', onWakeLock);
+      renderDoc.removeEventListener('click', onClick);
+      renderDoc.removeEventListener('wheel', onWheel);
+      renderDoc.removeEventListener('touchstart', onTouchStart);
+      renderDoc.removeEventListener('touchend', onTouchEnd);
     });
-
-    renderDoc.addEventListener(
-      'touchstart',
-      (event: TouchEvent) => {
-        touchStartX = event.changedTouches[0]?.screenX ?? 0;
-        touchStartY = event.changedTouches[0]?.screenY ?? 0;
-      },
-      false
-    );
-
-    renderDoc.addEventListener(
-      'touchend',
-      (event: TouchEvent) => {
-        touchEndX = event.changedTouches[0]?.screenX ?? 0;
-        touchEndY = event.changedTouches[0]?.screenY ?? 0;
-        handleGesture();
-      },
-      false
-    );
   });
 
   return () => {
@@ -140,5 +149,7 @@ export function registerRenditionGestures(
       clearTimeout(wheelTimeoutId);
       wheelTimeoutId = null;
     }
+    listenerCleanups.forEach(cleanup => cleanup());
+    listenerCleanups.length = 0;
   };
 }

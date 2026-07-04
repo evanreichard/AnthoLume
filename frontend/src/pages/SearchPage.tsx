@@ -6,6 +6,7 @@ import { Button, Table, type Column, TextInput, IconInput } from '../components'
 import { inputClassName } from '../components/TextInput';
 import { useDebouncedState } from '../hooks/useDebouncedState';
 import { Search2Icon, BookIcon } from '../icons';
+import { formatDate } from '../utils/formatters';
 import { dataForStatus } from '../utils/apiResponses';
 
 const searchColumns: Column<SearchItem>[] = [
@@ -21,7 +22,7 @@ const searchColumns: Column<SearchItem>[] = [
     id: 'date',
     header: 'Date',
     className: 'hidden md:table-cell',
-    render: item => item.upload_date || 'N/A',
+    render: item => formatDate(item.upload_date),
   },
 ];
 

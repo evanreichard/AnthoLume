@@ -47,9 +47,6 @@ function MyComponent() {
 - `removeToast(id: string): void`
   - Manually remove a toast by ID
 
-- `clearToasts(): void`
-  - Clear all active toasts
-
 ### Examples
 
 ```tsx
@@ -76,22 +73,13 @@ Skeleton components provide placeholder content while data is loading. They auto
 
 #### `Skeleton`
 
-Basic skeleton element with various variants:
+A pulsing placeholder block. Size and shape are controlled with Tailwind classes via `className`:
 
 ```tsx
 import { Skeleton } from './components/Skeleton';
 
-// Default (rounded rectangle)
-<Skeleton className="w-full h-8" />
-
-// Text variant
-<Skeleton variant="text" className="w-3/4" />
-
-// Circular variant (for avatars)
-<Skeleton variant="circular" width={40} height={40} />
-
-// Rectangular variant
-<Skeleton variant="rectangular" width="100%" height={200} />
+<Skeleton className="h-8 w-full" />
+<Skeleton className="w-3/4" />
 ```
 
 #### `SkeletonTable`

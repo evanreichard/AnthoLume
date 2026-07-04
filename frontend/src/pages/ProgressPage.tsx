@@ -1,30 +1,23 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useGetProgressList } from '../generated/anthoLumeAPIV1';
 import type { Progress } from '../generated/model';
 import { Pagination } from '../components';
 import { Table, type Column } from '../components/Table';
+import { documentColumn } from '../components/documentColumn';
+import { usePaginatedList } from '../hooks/usePaginatedList';
+import { formatDate } from '../utils/formatters';
 import { dataForStatus } from '../utils/apiResponses';
 
 const PROGRESS_PAGE_SIZE = 15;
 
 export default function ProgressPage() {
-  const [page, setPage] = useState(1);
+  const { page, setPage } = usePaginatedList();
   const limit = PROGRESS_PAGE_SIZE;
   const { data, isLoading } = useGetProgressList({ page, limit });
   const response = dataForStatus(data, 200);
   const progress = response?.progress ?? [];
 
   const columns: Column<Progress>[] = [
-    {
-      id: 'document',
-      header: 'Document',
-      render: row => (
-        <Link to={`/documents/${row.document_id}`} className="text-secondary-600 hover:underline">
-          {row.author || 'Unknown'} - {row.title || 'Unknown'}
-        </Link>
-      ),
-    },
+    documentColumn,
     {
       id: 'device_name',
       header: 'Device Name',
@@ -38,7 +31,7 @@ export default function ProgressPage() {
     {
       id: 'created_at',
       header: 'Created At',
-      render: row => (row.created_at ? new Date(row.created_at).toLocaleDateString() : 'N/A'),
+      render: row => formatDate(row.created_at),
     },
   ];
 
