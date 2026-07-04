@@ -145,15 +145,15 @@ func (e GetSearchParamsSource) Valid() bool {
 
 // Activity defines model for Activity.
 type Activity struct {
-	Author          *string `json:"author,omitempty"`
-	DeviceId        string  `json:"device_id"`
-	DocumentId      string  `json:"document_id"`
-	Duration        int64   `json:"duration"`
-	EndPercentage   float32 `json:"end_percentage"`
-	ReadPercentage  float32 `json:"read_percentage"`
-	StartPercentage float32 `json:"start_percentage"`
-	StartTime       string  `json:"start_time"`
-	Title           *string `json:"title,omitempty"`
+	Author          *string   `json:"author,omitempty"`
+	DeviceId        string    `json:"device_id"`
+	DocumentId      string    `json:"document_id"`
+	Duration        int64     `json:"duration"`
+	EndPercentage   float32   `json:"end_percentage"`
+	ReadPercentage  float32   `json:"read_percentage"`
+	StartPercentage float32   `json:"start_percentage"`
+	StartTime       time.Time `json:"start_time"`
+	Title           *string   `json:"title,omitempty"`
 }
 
 // ActivityResponse defines model for ActivityResponse.
@@ -200,10 +200,10 @@ type DatabaseInfo struct {
 
 // Device defines model for Device.
 type Device struct {
-	CreatedAt  *time.Time `json:"created_at,omitempty"`
-	DeviceName *string    `json:"device_name,omitempty"`
-	Id         *string    `json:"id,omitempty"`
-	LastSynced *time.Time `json:"last_synced,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+	DeviceName string    `json:"device_name"`
+	Id         string    `json:"id"`
+	LastSynced time.Time `json:"last_synced"`
 }
 
 // DirectoryItem defines model for DirectoryItem.
@@ -356,15 +356,15 @@ type OperationType string
 
 // Progress defines model for Progress.
 type Progress struct {
-	Author     *string    `json:"author,omitempty"`
-	CreatedAt  *time.Time `json:"created_at,omitempty"`
-	DeviceId   *string    `json:"device_id,omitempty"`
-	DeviceName *string    `json:"device_name,omitempty"`
-	DocumentId *string    `json:"document_id,omitempty"`
-	Percentage *float64   `json:"percentage,omitempty"`
-	Progress   *string    `json:"progress,omitempty"`
-	Title      *string    `json:"title,omitempty"`
-	UserId     *string    `json:"user_id,omitempty"`
+	Author     *string   `json:"author,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+	DeviceId   *string   `json:"device_id,omitempty"`
+	DeviceName string    `json:"device_name"`
+	DocumentId string    `json:"document_id"`
+	Percentage float64   `json:"percentage"`
+	Progress   *string   `json:"progress,omitempty"`
+	Title      *string   `json:"title,omitempty"`
+	UserId     string    `json:"user_id"`
 }
 
 // ProgressListResponse defines model for ProgressListResponse.
@@ -384,14 +384,13 @@ type ProgressResponse struct {
 
 // SearchItem defines model for SearchItem.
 type SearchItem struct {
-	Author     *string `json:"author,omitempty"`
-	FileSize   *string `json:"file_size,omitempty"`
-	FileType   *string `json:"file_type,omitempty"`
-	Id         *string `json:"id,omitempty"`
-	Language   *string `json:"language,omitempty"`
-	Series     *string `json:"series,omitempty"`
-	Title      *string `json:"title,omitempty"`
-	UploadDate *string `json:"upload_date,omitempty"`
+	Author   *string `json:"author,omitempty"`
+	FileSize *string `json:"file_size,omitempty"`
+	FileType *string `json:"file_type,omitempty"`
+	Id       *string `json:"id,omitempty"`
+	Language *string `json:"language,omitempty"`
+	Series   *string `json:"series,omitempty"`
+	Title    *string `json:"title,omitempty"`
 }
 
 // SearchResponse defines model for SearchResponse.

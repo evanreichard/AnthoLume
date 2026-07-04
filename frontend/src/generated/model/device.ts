@@ -7,8 +7,8 @@
  */
 
 export interface Device {
-  id?: string;
-  device_name?: string;
-  created_at?: string;
-  last_synced?: string;
+  id: string;
+  device_name: string;
+  created_at: string;
+  last_synced: string;
 }

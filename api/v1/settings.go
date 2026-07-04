@@ -29,10 +29,10 @@ func (s *Server) GetSettings(ctx context.Context, request GetSettingsRequestObje
 	apiDevices := make([]Device, len(devices))
 	for i, device := range devices {
 		apiDevices[i] = Device{
-			Id:         &device.ID,
-			DeviceName: &device.DeviceName,
-			CreatedAt:  parseTimePtr(device.CreatedAt),
-			LastSynced: parseTimePtr(device.LastSynced),
+			Id:         device.ID,
+			DeviceName: device.DeviceName,
+			CreatedAt:  parseTimeAny(device.CreatedAt),
+			LastSynced: parseTimeAny(device.LastSynced),
 		}
 	}
 
@@ -140,10 +140,10 @@ func (s *Server) UpdateSettings(ctx context.Context, request UpdateSettingsReque
 	apiDevices := make([]Device, len(devices))
 	for i, device := range devices {
 		apiDevices[i] = Device{
-			Id:         &device.ID,
-			DeviceName: &device.DeviceName,
-			CreatedAt:  parseTimePtr(device.CreatedAt),
-			LastSynced: parseTimePtr(device.LastSynced),
+			Id:         device.ID,
+			DeviceName: device.DeviceName,
+			CreatedAt:  parseTimeAny(device.CreatedAt),
+			LastSynced: parseTimeAny(device.LastSynced),
 		}
 	}
 

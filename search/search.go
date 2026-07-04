@@ -37,7 +37,6 @@ type SearchItem struct {
 	Series     string
 	FileType   string
 	FileSize   string
-	UploadDate string
 }
 
 type searchFunc func(query string) (searchResults []SearchItem, err error)

@@ -25,6 +25,8 @@ Regenerate:
 - `cd frontend && pnpm run generate:api`
 
 Notes:
+- `format: date-time` diverges by generator: **oapi-codegen (Go)** emits `time.Time`, while **orval (TS)** keeps `string`. Adding it to an existing string field will break Go handlers until they supply a `time.Time` (see `parseTime` / `parseTimeAny` in `api/v1/utils.go`).
+- Marking a schema field `required` flips the generated Go type from a pointer to a value; update every handler build site to drop the `&`. Only require a field when **all** endpoints sharing that schema populate it — `Progress` is populated with different subsets by its list vs single handlers.
 - If you add response headers in `api/v1/openapi.yaml` (for example `Set-Cookie`), `oapi-codegen` will generate typed response header structs in `api/v1/api.gen.go`; update the handler response values to populate those headers explicitly.
 
 Examples of generated files:

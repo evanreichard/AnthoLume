@@ -26,7 +26,7 @@ export default function ProgressPage() {
     {
       id: 'percentage',
       header: 'Percentage',
-      render: row => (typeof row.percentage === 'number' ? `${Math.round(row.percentage)}%` : '0%'),
+      render: row => `${Math.round(row.percentage)}%`,
     },
     {
       id: 'created_at',

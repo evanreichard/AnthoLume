@@ -106,6 +106,12 @@ components:
         created_at:
           type: string
           format: date-time
+      required:
+        - device_name
+        - percentage
+        - document_id
+        - user_id
+        - created_at
 
     UpdateProgressRequest:
       type: object
@@ -198,6 +204,7 @@ components:
           type: string
         start_time:
           type: string
+          format: date-time
         title:
           type: string
         author:
@@ -239,8 +246,6 @@ components:
         file_type:
           type: string
         file_size:
-          type: string
-        upload_date:
           type: string
 
     SearchResponse:
@@ -384,6 +389,11 @@ components:
         last_synced:
           type: string
           format: date-time
+      required:
+        - id
+        - device_name
+        - created_at
+        - last_synced
 
     SettingsResponse:
       type: object

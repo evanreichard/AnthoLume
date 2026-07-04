@@ -77,7 +77,6 @@ describe('SearchPage', () => {
               series: 'Earthsea',
               file_type: 'epub',
               file_size: '1 MB',
-              upload_date: '2025-01-01',
             },
           ],
         },

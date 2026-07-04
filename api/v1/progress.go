@@ -68,11 +68,11 @@ func (s *Server) GetProgressList(ctx context.Context, request GetProgressListReq
 		apiProgress[i] = Progress{
 			Title:      row.Title,
 			Author:     row.Author,
-			DeviceName: &row.DeviceName,
-			Percentage: &row.Percentage,
-			DocumentId: &row.DocumentID,
-			UserId:     &row.UserID,
-			CreatedAt:  parseTimePtr(row.CreatedAt),
+			DeviceName: row.DeviceName,
+			Percentage: row.Percentage,
+			DocumentId: row.DocumentID,
+			UserId:     row.UserID,
+			CreatedAt:  parseTimeAny(row.CreatedAt),
 		}
 	}
 
@@ -105,13 +105,13 @@ func (s *Server) GetProgress(ctx context.Context, request GetProgressRequestObje
 	}
 
 	apiProgress := Progress{
-		DeviceName: &row.DeviceName,
+		DeviceName: row.DeviceName,
 		DeviceId:   &row.DeviceID,
-		Percentage: &row.Percentage,
+		Percentage: row.Percentage,
 		Progress:   &row.Progress,
-		DocumentId: &row.DocumentID,
-		UserId:     &row.UserID,
-		CreatedAt:  parseTimePtr(row.CreatedAt),
+		DocumentId: row.DocumentID,
+		UserId:     row.UserID,
+		CreatedAt:  parseTime(row.CreatedAt),
 	}
 
 	response := ProgressResponse{

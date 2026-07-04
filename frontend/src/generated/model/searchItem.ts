@@ -14,5 +14,4 @@ export interface SearchItem {
   series?: string;
   file_type?: string;
   file_size?: string;
-  upload_date?: string;
 }

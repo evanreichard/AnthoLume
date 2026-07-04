@@ -68,18 +68,10 @@ func (s *Server) GetActivity(ctx context.Context, request GetActivityRequestObje
 
 	apiActivities := make([]Activity, len(activities))
 	for i, a := range activities {
-		// Convert StartTime from interface{} to string
-		startTimeStr := ""
-		if a.StartTime != nil {
-			if str, ok := a.StartTime.(string); ok {
-				startTimeStr = str
-			}
-		}
-
 		apiActivities[i] = Activity{
 			DocumentId:      a.DocumentID,
 			DeviceId:        a.DeviceID,
-			StartTime:       startTimeStr,
+			StartTime:       parseTimeAny(a.StartTime),
 			Title:           a.Title,
 			Author:          a.Author,
 			Duration:        a.Duration,

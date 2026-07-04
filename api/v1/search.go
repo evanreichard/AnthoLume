@@ -38,7 +38,6 @@ func (s *Server) GetSearch(ctx context.Context, request GetSearchRequestObject) 
 			Series:     ptrOf(item.Series),
 			FileType:   ptrOf(item.FileType),
 			FileSize:   ptrOf(item.FileSize),
-			UploadDate: ptrOf(item.UploadDate),
 		}
 	}
 
