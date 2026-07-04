@@ -4,7 +4,6 @@ import { SettingsIcon, GitIcon } from '../icons';
 import { useAuth } from '../auth/AuthContext';
 import { useGetInfo } from '../generated/anthoLumeAPIV1';
 import { navItems, adminNavItems } from './navigation';
-import { dataForStatus } from '../utils/apiResponses';
 import { cn } from '../utils/cn';
 
 function hasPrefix(path: string, prefix: string): boolean {
@@ -47,7 +46,7 @@ export default function HamburgerMenu() {
       staleTime: Infinity,
     },
   });
-  const version = dataForStatus(infoData, 200)?.version ?? 'v1.0.0';
+  const version = infoData?.version ?? 'v1.0.0';
   const closeMenu = () => setIsOpen(false);
 
   return (

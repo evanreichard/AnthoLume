@@ -9,7 +9,6 @@ import { useMutationWithToast, useToastMutation } from '../hooks/useMutationWith
 import { useTheme } from '../theme/ThemeProvider';
 import type { ThemeMode } from '../utils/localSettings';
 import { formatDateTime } from '../utils/formatters';
-import { dataForStatus } from '../utils/apiResponses';
 
 const deviceColumns: Column<Device>[] = [
   {
@@ -192,7 +191,7 @@ function DevicesSection({ devices }: { devices: Device[] }) {
 export default function SettingsPage() {
   const { data, isLoading } = useGetSettings();
   const updateSettings = useUpdateSettings();
-  const settingsData = dataForStatus(data, 200);
+  const settingsData = data;
   const { showError } = useToasts();
   const toastMutationOptions = useMutationWithToast();
   const runWithToast = useToastMutation();

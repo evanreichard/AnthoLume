@@ -3,14 +3,13 @@ import { useGetLogs } from '../generated/anthoLumeAPIV1';
 import { Button, LoadingState, TextInput, IconInput } from '../components';
 import { useDebouncedState } from '../hooks/useDebouncedState';
 import { Search2Icon } from '../icons';
-import { dataForStatus } from '../utils/apiResponses';
 
 export default function AdminLogsPage() {
   const [filter, setFilter, activeFilter, flushFilter] = useDebouncedState('', 300);
 
   const { data: logsData, isLoading } = useGetLogs(activeFilter ? { filter: activeFilter } : {});
 
-  const logs = dataForStatus(logsData, 200)?.logs ?? [];
+  const logs = logsData?.logs ?? [];
 
   const handleFilterSubmit = (e: SyntheticEvent) => {
     e.preventDefault();

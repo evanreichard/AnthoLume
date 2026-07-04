@@ -6,7 +6,6 @@ import { Table, type Column } from '../components/Table';
 import { documentColumn } from '../components/documentColumn';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { formatDuration, formatDateTime } from '../utils/formatters';
-import { dataForStatus } from '../utils/apiResponses';
 
 const ACTIVITY_PAGE_SIZE = 25;
 
@@ -22,7 +21,7 @@ export default function ActivityPage() {
     page,
     limit,
   });
-  const response = dataForStatus(data, 200);
+  const response = data;
   const activities = response?.activities ?? [];
 
   const columns: Column<Activity>[] = [

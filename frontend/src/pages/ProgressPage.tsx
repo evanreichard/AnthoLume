@@ -5,7 +5,6 @@ import { Table, type Column } from '../components/Table';
 import { documentColumn } from '../components/documentColumn';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { formatDate } from '../utils/formatters';
-import { dataForStatus } from '../utils/apiResponses';
 
 const PROGRESS_PAGE_SIZE = 15;
 
@@ -13,7 +12,7 @@ export default function ProgressPage() {
   const { page, setPage } = usePaginatedList();
   const limit = PROGRESS_PAGE_SIZE;
   const { data, isLoading } = useGetProgressList({ page, limit });
-  const response = dataForStatus(data, 200);
+  const response = data;
   const progress = response?.progress ?? [];
 
   const columns: Column<Progress>[] = [

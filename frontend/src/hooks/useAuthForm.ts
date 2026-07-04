@@ -3,7 +3,6 @@ import { useGetInfo } from '../generated/anthoLumeAPIV1';
 import { useAuth } from '../auth/AuthContext';
 import { useToasts } from '../components/ToastContext';
 import { getErrorMessage } from '../utils/errors';
-import { dataForStatus } from '../utils/apiResponses';
 
 export interface UseAuthFormResult {
   username: string;
@@ -29,7 +28,7 @@ export function useAuthForm(mode: 'login' | 'register'): UseAuthFormResult {
   const { data: infoData, isLoading: isLoadingInfo } = useGetInfo({
     query: { staleTime: Infinity },
   });
-  const registrationEnabled = dataForStatus(infoData, 200)?.registration_enabled ?? false;
+  const registrationEnabled = infoData?.registration_enabled ?? false;
 
   const submit = useCallback(
     async (e: SyntheticEvent<HTMLFormElement>) => {

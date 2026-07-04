@@ -6,7 +6,6 @@ import { Button, Table, type Column, TextInput, IconInput } from '../components'
 import { inputClassName } from '../components/TextInput';
 import { useDebouncedState } from '../hooks/useDebouncedState';
 import { Search2Icon, BookIcon } from '../icons';
-import { dataForStatus } from '../utils/apiResponses';
 
 const searchColumns: Column<SearchItem>[] = [
   {
@@ -87,7 +86,7 @@ export default function SearchPage() {
       },
     }
   );
-  const results = dataForStatus(data, 200)?.results ?? [];
+  const results = data?.results ?? [];
 
   const handleSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();

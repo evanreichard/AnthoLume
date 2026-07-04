@@ -3,7 +3,6 @@ import {
   getCheckingAuthState,
   getUnauthenticatedAuthState,
   resolveAuthStateFromMe,
-  authUserFromMutation,
   type AuthState,
 } from './authHelpers';
 
@@ -31,11 +30,7 @@ describe('authHelpers', () => {
   it('resolves auth state from a successful /auth/me response', () => {
     expect(
       resolveAuthStateFromMe({
-        meData: {
-          status: 200,
-          data: { username: 'evan', is_admin: false },
-          headers: new Headers(),
-        },
+        meData: { username: 'evan', is_admin: false },
         meError: undefined,
         meLoading: false,
         previousState,
@@ -47,20 +42,7 @@ describe('authHelpers', () => {
     });
   });
 
-  it('resolves auth state to unauthenticated on 401 or query error', () => {
-    expect(
-      resolveAuthStateFromMe({
-        meData: {
-          status: 401,
-          data: { code: 401, message: 'unauthorized' },
-          headers: new Headers(),
-        },
-        meError: undefined,
-        meLoading: false,
-        previousState,
-      })
-    ).toEqual(getUnauthenticatedAuthState());
-
+  it('resolves auth state to unauthenticated when the me query errors (e.g. 401)', () => {
     expect(
       resolveAuthStateFromMe({
         meData: undefined,
@@ -107,33 +89,5 @@ describe('authHelpers', () => {
       user: null,
       isCheckingAuth: false,
     });
-  });
-
-  it('extracts the user from successful login and register responses', () => {
-    expect(
-      authUserFromMutation({
-        status: 200,
-        data: { username: 'evan', is_admin: false },
-        headers: new Headers(),
-      })
-    ).toEqual({ username: 'evan', is_admin: false });
-
-    expect(
-      authUserFromMutation({
-        status: 201,
-        data: { username: 'evan', is_admin: true },
-        headers: new Headers(),
-      })
-    ).toEqual({ username: 'evan', is_admin: true });
-  });
-
-  it('returns null for unsuccessful auth mutation responses', () => {
-    expect(
-      authUserFromMutation({
-        status: 401,
-        data: { code: 401, message: 'unauthorized' },
-        headers: new Headers(),
-      })
-    ).toBeNull();
   });
 });

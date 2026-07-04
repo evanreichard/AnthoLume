@@ -11,7 +11,6 @@ import { cn } from '../utils/cn';
 import { useDebouncedState } from '../hooks/useDebouncedState';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { useLocalSetting, type DocumentsViewMode } from '../utils/localSettings';
-import { dataForStatus } from '../utils/apiResponses';
 
 const DOCUMENTS_PAGE_SIZE = 9;
 
@@ -117,7 +116,7 @@ export default function DocumentsPage() {
 
   const { data, isLoading, refetch } = useGetDocuments({ page, limit, search: debouncedSearch });
   const createMutation = useCreateDocument();
-  const documentsResponse = dataForStatus(data, 200);
+  const documentsResponse = data;
   const docs = documentsResponse?.documents;
   const previousPage = documentsResponse?.previous_page;
   const nextPage = documentsResponse?.next_page;

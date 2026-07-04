@@ -8,7 +8,6 @@ import {
 } from '../generated/anthoLumeAPIV1';
 import type { EditDocumentBody } from '../generated/model';
 import { formatDuration } from '../utils/formatters';
-import { dataForStatus } from '../utils/apiResponses';
 import { useToastMutation } from '../hooks/useMutationWithToast';
 import { ActivityIcon, DownloadIcon, EditIcon, InfoIcon, CloseIcon, CheckIcon } from '../icons';
 import { Field, FieldLabel, FieldValue, FieldActions, LoadingState } from '../components';
@@ -122,7 +121,7 @@ export default function DocumentPage() {
     return <LoadingState />;
   }
 
-  const doc = dataForStatus(docData, 200)?.document;
+  const doc = docData?.document;
 
   if (!doc) {
     return <div className="text-content-muted">Document not found</div>;

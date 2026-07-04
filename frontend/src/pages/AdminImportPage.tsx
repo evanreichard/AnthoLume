@@ -6,7 +6,6 @@ import type { DirectoryItem } from '../generated/model';
 import { Button } from '../components/Button';
 import { FolderOpenIcon } from '../icons';
 import { useMutationWithToast } from '../hooks/useMutationWithToast';
-import { dataForStatus } from '../utils/apiResponses';
 
 export default function AdminImportPage() {
   const [currentPath, setCurrentPath] = useState<string>('');
@@ -21,7 +20,7 @@ export default function AdminImportPage() {
 
   const postImport = usePostImport();
 
-  const directoryResponse = dataForStatus(directoryData, 200);
+  const directoryResponse = directoryData;
   const directories = directoryResponse?.items ?? [];
   const currentPathDisplay = directoryResponse?.current_path ?? currentPath ?? '/data';
 

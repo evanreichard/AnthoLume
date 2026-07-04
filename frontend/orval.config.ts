@@ -8,10 +8,16 @@ export default defineConfig({
       target: 'src/generated',
       schemas: 'src/generated/model',
       client: 'react-query',
+      httpClient: 'fetch',
       mock: false,
       override: {
-        useQuery: true,
-        mutations: true,
+        fetch: {
+          includeHttpResponseReturnType: false,
+        },
+        mutator: {
+          path: './src/utils/apiFetch.ts',
+          name: 'apiFetch',
+        },
       },
     },
     input: {

@@ -8,7 +8,6 @@ import { AddIcon, DeleteIcon } from '../icons';
 import { useMutationWithToast } from '../hooks/useMutationWithToast';
 import { useToasts } from '../components/ToastContext';
 import { formatDate } from '../utils/formatters';
-import { dataForStatus } from '../utils/apiResponses';
 
 interface AddUserFormProps {
   onCreate: (_username: string, _password: string, _isAdmin: boolean) => void;
@@ -117,7 +116,7 @@ export default function AdminUsersPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [resetUserId, setResetUserId] = useState<string | null>(null);
 
-  const users = dataForStatus(usersData, 200)?.users ?? [];
+  const users = usersData?.users ?? [];
 
   const handleCreateUser = (username: string, password: string, isAdmin: boolean) => {
     if (!username || !password) {

@@ -1,5 +1,5 @@
 import { useToasts } from '../components/ToastContext';
-import { getErrorMessage, getResponseError, type ApiResponseLike } from '../utils/errors';
+import { getErrorMessage } from '../utils/errors';
 
 interface ToastMutationOptions {
   success: string;
@@ -9,19 +9,15 @@ interface ToastMutationOptions {
 
 /**
  * Builds `{ onSuccess, onError }` for a generated mutation's `.mutate(vars, options)` call,
- * centralizing the shared "toast success / toast error / treat non-2xx as failure" pattern.
+ * centralizing the shared "toast success / toast error" pattern. The generated client throws on
+ * non-2xx, so success and failure map cleanly onto React Query's onSuccess/onError.
  */
 export function useMutationWithToast() {
   const { showInfo, showError } = useToasts();
 
   return function toastMutationOptions({ success, error, onSuccess }: ToastMutationOptions) {
     return {
-      onSuccess: (response: ApiResponseLike) => {
-        const message = getResponseError(response);
-        if (message) {
-          showError(`${error}: ${message}`);
-          return;
-        }
+      onSuccess: () => {
         onSuccess?.();
         showInfo(success);
       },
@@ -33,29 +29,24 @@ export function useMutationWithToast() {
 interface RunToastMutationOptions<T> {
   error: string;
   success?: string;
-  onSuccess?: (response: T) => void;
+  onSuccess?: (result: T) => void;
 }
 
 /**
  * Imperative sibling of `useMutationWithToast` for flows that must `await` a result (e.g. keep an
- * editor open on failure). Runs the action, treats non-2xx as failure, toasts accordingly, and
- * resolves to `true` only on success.
+ * editor open on failure). Runs the action, toasts on success/failure, and resolves to `true` only
+ * when the action succeeds.
  */
 export function useToastMutation() {
   const { showInfo, showError } = useToasts();
 
-  return async function runWithToast<T extends ApiResponseLike>(
+  return async function runWithToast<T>(
     action: () => Promise<T>,
     { error, success, onSuccess }: RunToastMutationOptions<T>
   ): Promise<boolean> {
     try {
-      const response = await action();
-      const message = getResponseError(response);
-      if (message) {
-        showError(`${error}: ${message}`);
-        return false;
-      }
-      onSuccess?.(response);
+      const result = await action();
+      onSuccess?.(result);
       if (success) {
         showInfo(success);
       }

@@ -15,10 +15,7 @@ describe('SearchPage', () => {
     vi.clearAllMocks();
     mockedUseGetSearch.mockReturnValue({
       data: {
-        status: 200,
-        data: {
-          results: [],
-        },
+        results: [],
       },
       isLoading: false,
     } as ReturnType<typeof useGetSearch>);
@@ -67,19 +64,16 @@ describe('SearchPage', () => {
   it('renders search results from the generated hook response', () => {
     mockedUseGetSearch.mockReturnValue({
       data: {
-        status: 200,
-        data: {
-          results: [
-            {
-              id: 'doc-1',
-              author: 'Ursula Le Guin',
-              title: 'A Wizard of Earthsea',
-              series: 'Earthsea',
-              file_type: 'epub',
-              file_size: '1 MB',
-            },
-          ],
-        },
+        results: [
+          {
+            id: 'doc-1',
+            author: 'Ursula Le Guin',
+            title: 'A Wizard of Earthsea',
+            series: 'Earthsea',
+            file_type: 'epub',
+            file_size: '1 MB',
+          },
+        ],
       },
       isLoading: false,
     } as ReturnType<typeof useGetSearch>);

@@ -5,7 +5,7 @@ import type { UpdateProgressRequest } from '../generated/model/updateProgressReq
 import { EBookReader, type ReaderStats, type ReaderTocItem } from '../lib/reader/EBookReader';
 import type { ReaderColorScheme, ReaderFontFamily } from '../utils/localSettings';
 import { useToasts } from '../components/ToastContext';
-import { getErrorMessage, getResponseError } from '../utils/errors';
+import { getErrorMessage } from '../utils/errors';
 
 interface UseEpubReaderOptions {
   documentId: string;
@@ -96,11 +96,7 @@ export function useEpubReader({
       // Swallow Save Failures - Transient progress-save errors must not take down the reader
       // (they previously routed to onError, which hides the whole book behind an error overlay).
       try {
-        const response = await updateProgress(payload);
-        const message = getResponseError(response);
-        if (message) {
-          showError(`Failed to save progress: ${message}`);
-        }
+        await updateProgress(payload);
       } catch (err) {
         showError(`Failed to save progress: ${getErrorMessage(err)}`);
       }
@@ -108,11 +104,7 @@ export function useEpubReader({
 
     const saveActivity = async (payload: CreateActivityRequest) => {
       try {
-        const response = await createActivity(payload);
-        const message = getResponseError(response);
-        if (message) {
-          showError(`Failed to save activity: ${message}`);
-        }
+        await createActivity(payload);
       } catch (err) {
         showError(`Failed to save activity: ${getErrorMessage(err)}`);
       }

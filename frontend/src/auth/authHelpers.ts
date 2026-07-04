@@ -1,4 +1,3 @@
-import type { getMeResponse, loginResponse, registerResponse } from '../generated/anthoLumeAPIV1';
 import type { LoginResponse } from '../generated/model';
 
 export type AuthUser = LoginResponse;
@@ -34,7 +33,7 @@ export function getAuthenticatedAuthState(user: AuthUser): AuthState {
 }
 
 export function resolveAuthStateFromMe(params: {
-  meData?: getMeResponse;
+  meData?: LoginResponse;
   meError?: unknown;
   meLoading: boolean;
   previousState: AuthState;
@@ -45,11 +44,11 @@ export function resolveAuthStateFromMe(params: {
     return getCheckingAuthState(previousState);
   }
 
-  if (meData?.status === 200) {
-    return getAuthenticatedAuthState(meData.data);
+  if (meData) {
+    return getAuthenticatedAuthState(meData);
   }
 
-  if (meError || meData?.status === 401) {
+  if (meError) {
     return getUnauthenticatedAuthState();
   }
 
@@ -57,8 +56,4 @@ export function resolveAuthStateFromMe(params: {
     ...previousState,
     isCheckingAuth: false,
   };
-}
-
-export function authUserFromMutation(response: loginResponse | registerResponse): AuthUser | null {
-  return response.status === 200 || response.status === 201 ? response.data : null;
 }

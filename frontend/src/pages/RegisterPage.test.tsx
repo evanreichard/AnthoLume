@@ -57,10 +57,7 @@ describe('RegisterPage', () => {
 
     mockedUseGetInfo.mockReturnValue({
       data: {
-        status: 200,
-        data: {
-          registration_enabled: true,
-        },
+        registration_enabled: true,
       },
       isLoading: false,
     } as ReturnType<typeof useGetInfo>);
@@ -156,10 +153,7 @@ describe('RegisterPage', () => {
   it('redirects to login when registration is disabled', async () => {
     mockedUseGetInfo.mockReturnValue({
       data: {
-        status: 200,
-        data: {
-          registration_enabled: false,
-        },
+        registration_enabled: false,
       },
       isLoading: false,
     } as ReturnType<typeof useGetInfo>);
@@ -178,10 +172,7 @@ describe('RegisterPage', () => {
   it('disables the form when registration is disabled', () => {
     mockedUseGetInfo.mockReturnValue({
       data: {
-        status: 200,
-        data: {
-          registration_enabled: false,
-        },
+        registration_enabled: false,
       },
       isLoading: false,
     } as ReturnType<typeof useGetInfo>);

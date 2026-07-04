@@ -27,7 +27,7 @@ Also follow the repository root guide at `../AGENTS.md`.
 - Avoid custom class names in JSX `className` values unless the Tailwind lint config already allows them.
 - For decorative icons in inputs or labels, disable hover styling via the icon component API rather than overriding it ad hoc.
 - Prefer `LoadingState` for result-area loading indicators (the single loading convention); avoid early returns that unmount search/filter forms during fetches. React Query `isLoading` is initial-load-only (false on background refetches), so a full-page early-return on `isLoading` is fine for pages with no persistent filter form.
-- For mutations, use `useMutationWithToast` (declarative `.mutate(vars, options)` for fire-and-forget) or its imperative sibling `useToastMutation` (awaited, returns a success `boolean`) instead of hand-rolling `mutateAsync` → `getResponseError` → toast blocks.
+- For mutations, use `useMutationWithToast` (declarative `.mutate(vars, options)` for fire-and-forget) or its imperative sibling `useToastMutation` (awaited, returns a success `boolean`) instead of hand-rolling `mutateAsync` → toast/catch blocks.
 - Use `SegmentedControl` for active/inactive toggle groups (view mode, period, reader theme/font) rather than re-implementing `option.map` + ternary class toggling; pass per-call `activeClassName`/`inactiveClassName`.
 - For a persistent/progress toast that resolves in place (long-running actions), create it with `showInfo(msg, 0)` and finish with `updateToast(id, { message, type, duration })`.
 - Use theme tokens defined in `src/index.css` `@theme` (`bg-surface`, `text-content`, `border-border`, `primary`, etc.) for new UI work instead of adding raw light/dark color pairs. There is no `tailwind.config.js` — Tailwind v4 config is CSS-first.
@@ -43,10 +43,10 @@ Also follow the repository root guide at `../AGENTS.md`.
 
 ### Important behavior
 
-- The generated client returns `{ data, status, headers }` for both success and error responses.
-- Do not assume non-2xx responses throw.
-- Trust the generated discriminated-union response types and narrow on `status`; avoid hand-rolled re-validation of fields the schema already guarantees.
-- Centralize mutation/reqest error handling via `useMutationWithToast` (toast options) or `getResponseError` (`utils/errors`) for imperative flows — don't re-implement inline `status` checks or `'message' in response.data` extraction.
+- The generated client returns the documented **success body directly** and throws `ApiError` (`src/utils/apiFetch.ts`) for non-2xx responses.
+- Use React Query's native error flow (`isError`, `error`, `onError`) instead of status narrowing.
+- Use `getErrorMessage` (`src/utils/errors.ts`) to display caught errors; `ApiError.message` already contains the server-provided error message when present.
+- Centralize mutation error/success feedback via `useMutationWithToast` or `useToastMutation` rather than inline toast/catch duplication.
 
 ## 4) Auth / Query State
 

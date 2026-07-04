@@ -3,7 +3,7 @@ import { usePostAdminAction } from '../generated/anthoLumeAPIV1';
 import { Button } from '../components/Button';
 import { useToasts } from '../components/ToastContext';
 import { useMutationWithToast } from '../hooks/useMutationWithToast';
-import { getErrorMessage, getResponseError } from '../utils/errors';
+import { getErrorMessage } from '../utils/errors';
 import { streamResponseToFile, backupFilename } from '../utils/download';
 
 interface BackupTypes {
@@ -65,22 +65,12 @@ export default function AdminPage() {
     const toastId = showInfo('Restore started', 0);
 
     try {
-      const response = await postAdminAction.mutateAsync({
+      await postAdminAction.mutateAsync({
         data: {
           action: 'RESTORE',
           restore_file: restoreFile,
         },
       });
-
-      const message = getResponseError(response);
-      if (message) {
-        updateToast(toastId, {
-          type: 'error',
-          message: `Restore failed: ${message}`,
-          duration: 5000,
-        });
-        return;
-      }
 
       updateToast(toastId, { message: 'Restore completed successfully', duration: 5000 });
     } catch (error) {
