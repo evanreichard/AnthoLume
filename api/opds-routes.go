@@ -39,6 +39,14 @@ func (api *API) opdsEntry(c *gin.Context) {
 				TypeLink: "application/opensearchdescription+xml",
 				Href:     "/api/opds/search.xml",
 			},
+			// Inline Search Template - Simpler OPDS clients (e.g. crosspoint-reader) don't resolve the
+			// OpenSearch descriptor and require the {searchTerms} template directly on a rel="search" link.
+			{
+				Title:    "Search AnthoLume",
+				Rel:      "search",
+				TypeLink: "application/atom+xml;profile=opds-catalog;kind=acquisition",
+				Href:     "/api/opds/documents?search={searchTerms}",
+			},
 		},
 
 		Entries: []opds.Entry{
