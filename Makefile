@@ -1,4 +1,4 @@
-.PHONY: build_local docker_build_local docker_build_release_dev docker_build_release_latest build_tailwind legacy_tailwind dev dev_backend dev_frontend dev_noauth clean tests
+.PHONY: build_local docker_build_local docker_build_release_dev docker_build_release_latest build_tailwind legacy_tailwind dev dev_backend dev_frontend dev_noauth clean tests docs
 
 DEV_ENV = GIN_MODE=release \
 	CONFIG_PATH=./data \
@@ -55,6 +55,10 @@ dev_frontend:
 
 dev_noauth:
 	DISABLE_AUTH=true DISABLE_AUTH_USER=$(DEV_USER) $(MAKE) dev
+
+docs:
+	mkdir -p docs
+	npx -y @redocly/cli@latest build-docs api/v1/openapi.yaml -o docs/api.html
 
 clean:
 	rm -rf ./build
