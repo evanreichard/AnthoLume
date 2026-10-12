@@ -2,7 +2,7 @@
   description = "Development Environment";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -25,7 +25,7 @@
             golangci-lint
             nodejs
             tailwindcss
-            python311Packages.grip
+            python3Packages.grip
           ];
           shellHook = ''
             export PATH=$PATH:~/go/bin

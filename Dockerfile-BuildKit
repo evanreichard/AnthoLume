@@ -3,7 +3,7 @@ FROM alpine AS alpine
 RUN apk update && apk add --no-cache ca-certificates tzdata
 
 # Build Image
-FROM --platform=$BUILDPLATFORM golang:1.21 AS build
+FROM --platform=$BUILDPLATFORM golang:1.26.8 AS build
 
 # Create Package Directory
 WORKDIR /src
