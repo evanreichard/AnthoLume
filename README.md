@@ -25,8 +25,8 @@
 <p align="center"><strong>user:</strong> demo • <strong>pass:</strong> demo</p>
 
 <p align="center">
-    <a href="https://drone.va.reichard.io/evan/AnthoLume" target="_blank">
-        <img src="https://drone.va.reichard.io/api/badges/evan/AnthoLume/status.svg">
+    <a href="https://gitea.va.reichard.io/evan/AnthoLume/actions" target="_blank">
+        <img src="https://gitea.va.reichard.io/evan/AnthoLume/actions/workflows/ci.yaml/badge.svg?branch=master" alt="CI status">
     </a>
 </p>
 
