@@ -482,6 +482,8 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 		return
 	}
 
+	defer uploadedFile.Close()
+
 	// Check Support
 	docType, err := metadata.GetDocumentTypeReader(uploadedFile)
 	if err != nil {

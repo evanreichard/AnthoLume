@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 
-	"github.com/gabriel-vasile/mimetype"
 	"reichard.io/antholume/utils"
 )
 
@@ -75,42 +75,26 @@ func SearchMetadata(s Source, metadataSearch MetadataInfo) ([]MetadataInfo, erro
 // Returns the word count of the provided filepath. An error will be returned
 // if the file is not supported.
 func GetWordCount(filepath string) (*int64, error) {
-	fileMime, err := mimetype.DetectFile(filepath)
+	totalWords, err := countEPUBWords(filepath)
 	if err != nil {
 		return nil, err
 	}
-
-	if fileExtension := fileMime.Extension(); fileExtension == ".epub" {
-		totalWords, err := countEPUBWords(filepath)
-		if err != nil {
-			return nil, err
-		}
-		return &totalWords, nil
-	} else {
-		return nil, fmt.Errorf("invalid extension: %s", fileExtension)
-	}
+	return &totalWords, nil
 }
 
 // Returns embedded metadata of the provided file. An error will be returned if
 // the file is not supported.
 func GetMetadata(filepath string) (*MetadataInfo, error) {
-	// Detect Extension Type
-	fileMime, err := mimetype.DetectFile(filepath)
+	docType, err := detectDocumentType(filepath)
 	if err != nil {
 		return nil, err
 	}
-
-	// Get Extension Type Metadata Handler
-	fileExtension := fileMime.Extension()
-	handler, ok := extensionHandlerMap[DocumentType(fileExtension)]
-	if !ok {
-		return nil, fmt.Errorf("invalid extension %s", fileExtension)
-	}
+	handler := extensionHandlerMap[docType]
 
 	// Acquire Metadata
 	metadataInfo, err := handler(filepath)
 	if err != nil {
-		return nil, fmt.Errorf("unable to acquire metadata")
+		return nil, fmt.Errorf("unable to acquire metadata: %w", err)
 	}
 
 	// Calculate MD5 & Partial MD5
@@ -126,12 +110,12 @@ func GetMetadata(filepath string) (*MetadataInfo, error) {
 	}
 
 	// Calculate Word Count
-	wordCount, err := GetWordCount(filepath)
+	wordCount, err := countEPUBWords(filepath)
 	if err != nil {
-		return nil, fmt.Errorf("unable to calculate word count")
+		return nil, fmt.Errorf("unable to calculate word count: %w", err)
 	}
 
-	metadataInfo.WordCount = wordCount
+	metadataInfo.WordCount = &wordCount
 	metadataInfo.PartialMD5 = partialMD5
 	metadataInfo.MD5 = MD5
 
@@ -141,39 +125,30 @@ func GetMetadata(filepath string) (*MetadataInfo, error) {
 // Returns the extension of the provided filepath (e.g. ".epub"). An error
 // will be returned if the file is not supported.
 func GetDocumentType(filepath string) (*DocumentType, error) {
-	// Detect Extension Type
-	fileMime, err := mimetype.DetectFile(filepath)
+	docType, err := detectDocumentType(filepath)
 	if err != nil {
 		return nil, err
 	}
-
-	// Detect
-	fileExtension := fileMime.Extension()
-	docType, ok := ParseDocumentType(fileExtension)
-	if !ok {
-		return nil, fmt.Errorf("filetype not supported")
-	}
-
 	return &docType, nil
 }
 
 // Returns the extension of the provided file reader (e.g. ".epub"). An error
 // will be returned if the file is not supported.
 func GetDocumentTypeReader(r io.Reader) (*DocumentType, error) {
-	// Detect Extension Type
-	fileMime, err := mimetype.DetectReader(r)
+	f, err := os.CreateTemp("", "antholume-detect-*")
 	if err != nil {
 		return nil, err
 	}
-
-	// Detect
-	fileExtension := fileMime.Extension()
-	docType, ok := ParseDocumentType(fileExtension)
-	if !ok {
-		return nil, fmt.Errorf("filetype not supported")
+	defer os.Remove(f.Name())
+	defer f.Close()
+	n, err := io.Copy(f, io.LimitReader(r, MaxDocumentSize+1))
+	if err != nil {
+		return nil, err
 	}
-
-	return &docType, nil
+	if n > MaxDocumentSize {
+		return nil, ErrArchiveTooLarge
+	}
+	return GetDocumentType(f.Name())
 }
 
 // Given a filetype string, attempt to resolve a DocumentType

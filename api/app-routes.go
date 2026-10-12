@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -412,9 +413,28 @@ func (api *API) appGetDevices(c *gin.Context) {
 	c.JSON(http.StatusOK, devices)
 }
 
+func documentUploadError(err error) (int, string) {
+	switch {
+	case errors.Is(err, metadata.ErrUnsupportedFileType):
+		return http.StatusUnsupportedMediaType, "Unsupported file type; upload an EPUB"
+	case errors.Is(err, metadata.ErrArchiveTooLarge):
+		return http.StatusRequestEntityTooLarge, "EPUB exceeds archive safety limits"
+	case errors.Is(err, metadata.ErrInvalidDocument):
+		return http.StatusBadRequest, "Invalid or damaged EPUB"
+	default:
+		return http.StatusInternalServerError, "Unable to acquire metadata"
+	}
+}
+
 func (api *API) appUploadNewDocument(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, metadata.MaxDocumentSize+(1<<20))
 	var rDocUpload requestDocumentUpload
 	if err := c.ShouldBind(&rDocUpload); err != nil {
+		var sizeErr *http.MaxBytesError
+		if errors.As(err, &sizeErr) {
+			appErrorPage(c, http.StatusRequestEntityTooLarge, "Upload exceeds the 64 MiB file limit")
+			return
+		}
 		log.Error("Invalid Form Bind")
 		appErrorPage(c, http.StatusBadRequest, "Invalid or missing form values")
 		return
@@ -422,6 +442,11 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 
 	if rDocUpload.DocumentFile == nil {
 		c.Redirect(http.StatusFound, "./documents")
+		return
+	}
+
+	if rDocUpload.DocumentFile.Size > metadata.MaxDocumentSize {
+		appErrorPage(c, http.StatusRequestEntityTooLarge, "Upload exceeds the 64 MiB file limit")
 		return
 	}
 
@@ -447,7 +472,8 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	metadataInfo, err := metadata.GetMetadata(tempFile.Name())
 	if err != nil {
 		log.Errorf("unable to acquire metadata: %v", err)
-		appErrorPage(c, http.StatusInternalServerError, "Unable to acquire metadata")
+		status, message := documentUploadError(err)
+		appErrorPage(c, status, message)
 		return
 	}
 
@@ -456,6 +482,7 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 	if err == nil {
 		log.Warnf("document already exists: %s", *metadataInfo.PartialMD5)
 		c.Redirect(http.StatusFound, fmt.Sprintf("./documents/%s", *metadataInfo.PartialMD5))
+		return
 	}
 
 	// Derive & Sanitize File Name
@@ -1008,6 +1035,10 @@ func appErrorPage(c *gin.Context, errorCode int, errorMessage string) {
 		errorHuman = "Something's missing."
 	case http.StatusBadRequest:
 		errorHuman = "We didn't expect that."
+	case http.StatusUnsupportedMediaType:
+		errorHuman = "That file type isn't supported."
+	case http.StatusRequestEntityTooLarge:
+		errorHuman = "That file exceeds the upload limits."
 	case http.StatusUnauthorized:
 		errorHuman = "You're not allowed to do that."
 	}
