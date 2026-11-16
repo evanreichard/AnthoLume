@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler", "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "baseUrl": ".", "paths": { "epubjs": ["./node_modules/epubjs"], "epubjs/*": ["./node_modules/epubjs/*"], "spark-md5": ["./node_modules/@types/spark-md5"] },
+    "jsx": "react-jsx", "strict": true, "esModuleInterop": true, "skipLibCheck": true, "noEmit": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "playwright.config.ts"]
+}

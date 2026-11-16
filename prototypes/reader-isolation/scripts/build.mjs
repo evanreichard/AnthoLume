@@ -1,0 +1,14 @@
+import { build } from 'esbuild';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { resolve } from 'node:path';
+const development = process.argv.includes('--development');
+await mkdir('dist', { recursive: true });
+const viewerBuild = await build({entryPoints: ['src/viewer.ts'], bundle: true, format: 'iife', platform: 'browser', outfile: 'dist/viewer.js', sourcemap: false, minify: true, metafile: true, alias: { epubjs: resolve('node_modules/epubjs'), 'spark-md5': resolve('node_modules/spark-md5') }});
+if (Object.keys(viewerBuild.metafile.inputs).some(path => path.startsWith('../') && path.includes('/node_modules/'))) throw new Error('Sibling dependency graph is forbidden');
+await writeFile('dist/viewer-meta.json', JSON.stringify(viewerBuild.metafile, null, 2));
+const viewer = (await readFile('dist/viewer.js', 'utf8')).replace(/<\/script/gi, '<\\/script');
+const hash = createHash('sha256').update(viewer).digest('base64');
+await build({entryPoints: ['src/parent.tsx'], bundle: true, format: 'iife', platform: 'browser', outfile: 'dist/app.js', define: {BUNDLE_HASH: JSON.stringify(hash), 'process.env.NODE_ENV': JSON.stringify(development ? 'development' : 'production')}, minify: !development});
+await writeFile('dist/index.html', '<!doctype html><html><head><meta charset="utf-8"><title>M2 opaque reader feasibility</title></head><body><h1>Opaque reader feasibility — expected engine boundary failure</h1><div id="app"></div><script src="/app.js"></script></body></html>');
+console.log(`Built bundled trusted viewer + ${development ? 'development StrictMode' : 'production'} parent`);

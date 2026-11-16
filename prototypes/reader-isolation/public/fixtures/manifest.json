@@ -1,0 +1,22 @@
+{
+  "benign": {
+    "sha256": "d5966def00eae1cad968068a1f3c3b4ca1643cfdd117bc8a0f40d5d07b6741d1",
+    "bytes": 27772
+  },
+  "scripts": {
+    "sha256": "be27b938c411ebc7414dad83470d16a536c0eebf27c431851900390b9a9e4840",
+    "bytes": 28024
+  },
+  "outbound": {
+    "sha256": "906a05df3f33ab7a0e7b2a7c3e11c33e9c720d2ef6717eda339c0494de1a5301",
+    "bytes": 27898
+  },
+  "active-navigation": {
+    "sha256": "9b79e91f57584f0edfbcae7e721f8fb6f0f3c5728964b56fdcfb3ff0002f9ff3",
+    "bytes": 27821
+  },
+  "alice": {
+    "sha256": "20362ffb321b05179d604b94dcffdc8fd3f1e831fb8e2557ef6ec774b522aaae",
+    "bytes": 1402237
+  }
+}
