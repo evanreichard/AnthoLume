@@ -10,6 +10,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -41,6 +42,15 @@ func abort(c *gin.Context, status int, code string) {
 }
 
 func NewRouter(store *Store, cookies sessions.Store, epub []byte) (*gin.Engine, error) {
+	return NewRouterWithOrigin(store, cookies, epub, proofOrigin)
+}
+
+// Configured Origin - Allow one trusted deployment origin, never reflect a request header into CSRF policy.
+func NewRouterWithOrigin(store *Store, cookies sessions.Store, epub []byte, origin string) (*gin.Engine, error) {
+	parsed, err := url.Parse(origin)
+	if err != nil || parsed == nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Hostname() == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" || strings.Contains(parsed.Host, "*") || origin != parsed.Scheme+"://"+parsed.Host {
+		return nil, errors.New("configure one exact HTTP(S) origin without credentials, path, query or fragment")
+	}
 	spec, err := GetSwagger()
 	if err != nil {
 		return nil, err
@@ -79,7 +89,7 @@ func NewRouter(store *Store, cookies sessions.Store, epub []byte) (*gin.Engine, 
 		}
 		if c.Request.Method != "GET" && c.Request.Method != "HEAD" {
 			token, ok := session.Get("csrf").(string)
-			if !ok || token == "" || c.GetHeader("Origin") != proofOrigin || c.GetHeader("X-CSRF-Token") != token {
+			if !ok || token == "" || c.GetHeader("Origin") != origin || c.GetHeader("X-CSRF-Token") != token {
 				abort(c, 403, "csrf")
 				return
 			}

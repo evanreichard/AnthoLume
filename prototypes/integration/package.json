@@ -1,0 +1,25 @@
+{
+  "name": "antholume-m2-http-integration-proof",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {"node": "22.23.4"},
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "vite build",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "css-tree": "3.2.1",
+    "dexie": "4.4.7",
+    "jszip": "3.10.1",
+    "openapi-fetch": "0.17.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1",
+    "@types/css-tree": "3.2.0",
+    "@types/node": "22.13.10",
+    "typescript": "5.9.3",
+    "vite": "8.3.8"
+  }
+}
