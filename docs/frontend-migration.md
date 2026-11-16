@@ -1,6 +1,6 @@
 # React Frontend Migration
 
-Status: evaluation direction approved; detailed policies and tooling remain subject to evaluation. Milestone 1 is in progress; implementation is not approved by this document.
+Status: M1 complete and approved; bounded M2 proofs independently accepted. Visual direction/user validation and the M2 exit gate remain OPEN. Architecture direction and M1/M2 execution are authorized, not creative selection or production promotion.
 
 ## Goal and Scope
 
@@ -75,7 +75,7 @@ All rows require handler/template inspection, runtime verification, and mapped a
 
 For each workflow record: actor/permission, inputs, outputs, side effects, errors, configuration conditions, offline behavior, target API operation, and test evidence. Preserve intentional behavior, not incidental template structure or known defects.
 
-## Target Architecture: Proposed
+## Target Architecture: Approved Direction
 
 ### Boundaries
 
@@ -98,7 +98,7 @@ Extract application operations where transport-independent behavior exists; do n
 - The sync subsystem is the sole owner of replay policy and acknowledgement handling. Concurrent tabs and service-worker activity cannot independently acknowledge/delete the same mutable queue entry without coordination.
 - An accepted local reading event is durable before the UI reports it saved. It remains queued until a valid server acknowledgement or explicit user action resolves it.
 - Retrying activity delivery cannot create duplicate credited activity. Define durable event identity and server deduplication behavior before implementation.
-- Progress conflict semantics support intentionally moving backward; highest-percentage-wins is not a valid default.
+- Progress uses account/document revisions shared by web and KO writers. Stale web progress is retained for an explicit local-versus-server resume choice; activity can synchronize independently. Intentional backward moves remain valid; neither highest percentage nor client-clock ordering selects the winner.
 - Server-linked browser data and pending mutations are account-scoped. Switching accounts cannot replay another account's events. Explicit logout retains downloaded server books but hides them until the same account signs in again, and pauses its queued events; this is application-level separation, not encrypted storage. Session expiry alone does not block offline reading, and local-only books remain independent of login.
 - Initial activity-credit rules retain the existing forward-page-turn/WPM measurement semantics while delivery becomes durable and deduplicated. Changes to idle, reread, chapter-jump, or background/close credit require a separate evaluated contract; the migration does not silently change recorded statistics.
 - React owns controls and application DOM; the reader engine exclusively owns its rendering container. Unmount releases engine resources, listeners, object URLs, and wake locks.
@@ -171,7 +171,7 @@ Milestones describe delivery order, not alternative target architectures. Checkb
 
 ### M1 — Baseline and Architecture Evaluation
 
-Status: evaluation artifacts available; review/approval pending. See [evaluation summary and recommendations](evaluation/README.md).
+Status: complete; approved for M2. See [evaluation summary and recommendations](evaluation/README.md).
 
 Deliverables:
 - [x] Verified isolated runtime using the snapshot; baseline build/test results. Evidence: [runtime baseline](evaluation/runtime-baseline.md), [backend verification](evaluation/architecture-tooling.md#confirmed-verification).
@@ -181,24 +181,37 @@ Deliverables:
 - [x] Decision proposals comparing OpenAPI generation, frontend foundations, reader reuse, and storage/sync approaches, with unresolved choices explicit. Evidence: [consolidated recommendations](evaluation/README.md#consolidated-recommendation).
 - [x] Mobile-first information architecture and low-fidelity interaction proposals based on user tasks, including alternatives to the current screen organization. Evidence: [interaction design](evaluation/interaction-design.md).
 
-- [ ] Exit gate: user approval of target contracts, explicit behavior changes, tooling direction, and M2 scope. Completed evaluation artifacts do not imply approved policies, proven tools, or implementation authorization.
+- [x] Exit gate: target boundaries/invariants, preservation defaults, schema-first tooling direction, conservative progress conflicts, and M2 scope approved for execution. Detailed operational policies remain gated before the affected production workflows; exact tools and visual direction require M2 evidence and validation.
 
 ### M2 — Contract and Mobile Interaction Proofs
 
-Status: not started.
+Status: bounded proofs independently accepted; visual direction/user validation and exit gate OPEN. Proof modules are discardable, not production changes.
 
 Deliverables:
-- [ ] Representative OpenAPI contract and reproducible Go/TypeScript generation with validation/drift checks.
-- [ ] A proposed visual system covering typography, color, spacing, components, and accessible interaction states.
-- [ ] Mobile/desktop interaction prototypes for library, document detail, reader controls, offline library, and synchronization states that demonstrate the redesign rather than reproduce current screens.
-- [ ] Focused technical proofs for reader mounting/unmounting, position round trips, storage durability, and progress conflict policy.
-- [ ] Acceptance-test definitions and existing-test dispositions against approved contracts.
+- [x] Representative six-operation OpenAPI contract; reproducible strict Go/TypeScript generation, validation and drift checks, fixture HTTP/SQLite operations and scoped patched-toolchain verification. Evidence: [API/schema proof](evaluation/m2-api-contract.md#independent-closure).
+- [ ] Tooling promotion acceptance: actual Go↔browser HTTP integration, real authentication/KO participation, migrations and deployment dependency compatibility; fixture operations and typed mocks alone do not satisfy this.
+- [x] Two proposed visual systems with typography, color, spacing, components and tested interaction states. Evidence: [Folio/Index design proof](evaluation/m2-design.md#independent-closure).
+- [x] Mobile/desktop prototypes for library, detail, sample reader controls, offline library and synchronization states on the approved information architecture. Evidence: [interaction scope](evaluation/m2-design.md#review-these-journeys). These are synthetic interactions, not EPUB/offline implementation.
+- [ ] User selection of visual direction and human interaction validation; automated review is not creative approval.
+- [x] Focused reader lifecycle, element-level KO codec/restore, transactional storage, account/lease fencing, exact acknowledgements and conservative shared-revision conflict proofs against a typed fake. Evidence: [reader/storage proof](evaluation/m2-reader-storage.md#independent-closure).
+- [ ] Full position compatibility/real KO round trips, durable conflict resolution over actual HTTP, cold offline shell/restart and legacy worker retirement acceptance; bounded restore/reopen proofs do not close these contracts.
+- [x] Acceptance-test definitions and preserve/adapt/add dispositions for the declared proof scope; no production tests retired. Evidence: [API](evaluation/m2-api-contract.md#test-disposition-and-promotion-decision), [reader/storage](evaluation/m2-reader-storage.md#test-dispositions-and-fault-sensitivity), [design](evaluation/m2-design.md#test-dispositions).
+- [ ] Full workflow/parity and platform acceptance evidence mapped to production implementation; M4/M5 requirements remain intact.
 
-- [ ] Exit gate: prove the selected tooling supports real operations, approve the interaction direction, and resolve offline replay/conflict contracts and the legacy browser-state reset strategy. Temporary proofs are removed or deliberately promoted; they do not become parallel production architectures.
+- [ ] Exit gate — OPEN: prove the selected tooling supports real operations, obtain user interaction/visual approval, and resolve offline replay/conflict contracts and the legacy browser-state reset strategy. Temporary proofs are removed or deliberately promoted against the documented blockers; they never become permanent parallel frontends.
 
 ### M3 — End-to-End Reader and Offline Vertical Slice
 
 Status: not started.
+
+Promotion blockers (retain as acceptance requirements, not waived by bounded M2 closure):
+- [ ] Resolve EPUB isolation and benign-content compatibility restrictions, including validated internal navigation; the conservative same-origin passive subset is not production parity.
+- [ ] Bound archive resource exhaustion before allocation; qualify ZIP bombs, duplicate names, CRC, cancellation and large media.
+- [ ] Resolve ambiguous historical KO positions and recoverable writer/reader disagreement with actual KOReader round trips; preserve existing IDs/positions and required reader capabilities.
+- [ ] Replace the typed transport fake with actual Go HTTP integration: auth/CSRF, runtime response validation, durable receipts/shared revisions including KO writers, and persistent explicit conflict resolution.
+- [ ] Implement cold offline shell launch/full termination recovery and legacy `/sw.js` retirement, preserving new-schema outbox data. A loaded-shell offline open is insufficient.
+
+Evidence and additional promotion limits: [API](evaluation/m2-api-contract.md#proved-versus-pending), [reader/storage](evaluation/m2-reader-storage.md#explicit-limits--not-solved). Real-device/security/compatibility qualification remains required in M4/M5; restrictive proof behavior does not silently retire parity requirements.
 
 Deliverables:
 - [ ] Authentication, library/detail, server-book download, reader, and offline library backed by the new API and UI.
@@ -263,9 +276,11 @@ Evidence tracker:
 | Static architectural inspection and proposals | Available for review | [Evaluation reports](evaluation/README.md#evidence-map) |
 | Snapshot integrity and isolated restore | Passed, existing FK violations documented | [Runtime baseline](evaluation/runtime-baseline.md) |
 | Baseline build/tests and representative HTTP smoke checks | Passed; full runtime parity pending | [Backend verification](evaluation/architecture-tooling.md#confirmed-verification), [runtime baseline](evaluation/runtime-baseline.md) |
-| Architecture and contract approval | Pending | — |
-| OpenAPI/tooling proof | Pending | — |
-| Mobile interaction approval | Pending | — |
+| Architecture direction and M1/M2 execution approval | Approved; not creative selection or production promotion | [Approved defaults](evaluation/README.md#product-decisions-for-m2) |
+| OpenAPI/tooling proof | Bounded proof passed; independently accepted, production integration pending | [API closure](evaluation/m2-api-contract.md#independent-closure) |
+| Reader/storage/conflict proof | Bounded desktop Chromium proof passed; real HTTP/KO/PWA pending | [Reader closure](evaluation/m2-reader-storage.md#independent-closure) |
+| Proposed visual systems/interaction prototypes | Independently ready for human review; no direction selected | [Design closure](evaluation/m2-design.md#independent-closure) |
+| Human visual/interaction validation and M2 exit | OPEN | [Review walkthrough](evaluation/m2-design.md#review-these-journeys) |
 | Offline vertical-slice proof | Pending | — |
 | Full functionality acceptance | Pending | — |
 | Real-device, server upgrade, and legacy cache-retirement qualification | Pending | — |
@@ -273,7 +288,7 @@ Evidence tracker:
 
 ## Decisions Requiring Evaluation or Approval
 
-1. Exact progress-conflict semantics across web/KOReader devices and stale offline replay.
+1. Detailed conflict/re-authentication interactions implementing the selected shared-revision policy: retain stale local progress for explicit choice, allow intentional backward moves, and synchronize activity independently.
 2. Detailed account-switch/re-authentication interactions implementing the approved retention policy: explicit logout hides retained server downloads and pauses original-account events; local-only books remain independent. Retention versus removal is resolved.
 3. Legacy service-worker/cache retirement mechanism. Legacy browser data preservation is explicitly out of scope.
 4. Supported browser/OS floor and available physical-device validation coverage.
