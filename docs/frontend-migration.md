@@ -164,83 +164,83 @@ Backup: `_scratch/AnthoLumeBackup_20261116191232.zip`. Archive inventory shows 4
 
 ## Milestones and Exit Gates
 
-Milestones describe delivery order, not alternative target architectures. A milestone is complete only when its evidence is linked here and unresolved contract changes are approved.
+Milestones describe delivery order, not alternative target architectures. Checkboxes track satisfied deliverables and exit gates, not activity. A milestone is complete only when its evidence is linked here and unresolved contract changes are approved. Keep execution notes in the linked evaluation reports, not this end-state checklist.
 
 ### M1 — Baseline and Architecture Evaluation
 
-Status: in progress (initial static inspection only).
+Status: evaluation artifacts available; review/approval pending. See [evaluation summary and recommendations](evaluation/README.md).
 
 Deliverables:
-- Verified isolated runtime using the snapshot; baseline build/test results.
-- Complete workflow inventory with authorization, feature flags, errors, and offline behavior.
-- Browser-storage responsibilities and reader-position inventory, including safe retirement of the legacy service worker without preserving its stored data.
-- Reviewed target boundaries, state ownership, compatibility contracts, and focused risk register.
-- Decision records for OpenAPI generation, frontend foundations, reader reuse, and storage/sync approach.
-- Mobile-first information architecture and low-fidelity interaction proposals based on user tasks, including alternatives to the current screen organization.
+- [x] Verified isolated runtime using the snapshot; baseline build/test results. Evidence: [runtime baseline](evaluation/runtime-baseline.md), [backend verification](evaluation/architecture-tooling.md#confirmed-verification).
+- [x] Source-backed workflow inventory with authorization, feature flags, errors, offline behavior, and runtime evidence gaps. Evidence: [capability matrix](evaluation/workflows-api.md#2-reading-the-capability-matrix). Full runtime acceptance remains an M4 gate.
+- [x] Browser-storage responsibilities and reader-position inventory; proposed legacy service-worker retirement without browser-data preservation. Evidence: [reader/offline evaluation](evaluation/reader-offline.md).
+- [x] Proposed target boundaries, state ownership, compatibility contracts, and focused risk register. Evidence: [architecture evaluation](evaluation/architecture-tooling.md), [workflow contracts](evaluation/workflows-api.md).
+- [x] Decision proposals comparing OpenAPI generation, frontend foundations, reader reuse, and storage/sync approaches, with unresolved choices explicit. Evidence: [consolidated recommendations](evaluation/README.md#consolidated-recommendation).
+- [x] Mobile-first information architecture and low-fidelity interaction proposals based on user tasks, including alternatives to the current screen organization. Evidence: [interaction design](evaluation/interaction-design.md).
 
-Exit gate: user approval of target contracts, explicit behavior changes, tooling decisions, and M2 scope. No rewrite work is counted as evaluation completion.
+- [ ] Exit gate: user approval of target contracts, explicit behavior changes, tooling direction, and M2 scope. Completed evaluation artifacts do not imply approved policies, proven tools, or implementation authorization.
 
 ### M2 — Contract and Mobile Interaction Proofs
 
 Status: not started.
 
 Deliverables:
-- Representative OpenAPI contract and reproducible Go/TypeScript generation with validation/drift checks.
-- A proposed visual system covering typography, color, spacing, components, and accessible interaction states.
-- Mobile/desktop interaction prototypes for library, document detail, reader controls, offline library, and synchronization states that demonstrate the redesign rather than reproduce current screens.
-- Focused technical proofs for reader mounting/unmounting, position round trips, storage durability, and progress conflict policy.
-- Acceptance-test definitions and existing-test dispositions against approved contracts.
+- [ ] Representative OpenAPI contract and reproducible Go/TypeScript generation with validation/drift checks.
+- [ ] A proposed visual system covering typography, color, spacing, components, and accessible interaction states.
+- [ ] Mobile/desktop interaction prototypes for library, document detail, reader controls, offline library, and synchronization states that demonstrate the redesign rather than reproduce current screens.
+- [ ] Focused technical proofs for reader mounting/unmounting, position round trips, storage durability, and progress conflict policy.
+- [ ] Acceptance-test definitions and existing-test dispositions against approved contracts.
 
-Exit gate: prove the selected tooling supports real operations, approve the interaction direction, and resolve offline replay/conflict contracts and the legacy browser-state reset strategy. Temporary proofs are removed or deliberately promoted; they do not become parallel production architectures.
+- [ ] Exit gate: prove the selected tooling supports real operations, approve the interaction direction, and resolve offline replay/conflict contracts and the legacy browser-state reset strategy. Temporary proofs are removed or deliberately promoted; they do not become parallel production architectures.
 
 ### M3 — End-to-End Reader and Offline Vertical Slice
 
 Status: not started.
 
 Deliverables:
-- Authentication, library/detail, server-book download, reader, and offline library backed by the new API and UI.
-- Local-only EPUB import and reading.
-- Durable activity/progress replay, deduplication, account isolation, and visible sync states.
-- Initial browser schema and legacy service-worker/cache retirement; no legacy browser-data migration.
+- [ ] Authentication, library/detail, server-book download, reader, and offline library backed by the new API and UI.
+- [ ] Local-only EPUB import and reading.
+- [ ] Durable activity/progress replay, deduplication, account isolation, and visible sync states.
+- [ ] Initial browser schema and legacy service-worker/cache retirement; no legacy browser-data migration.
 
-Exit gate: download → disconnect → fully terminate/reopen → read → reconnect → synchronize, with no lost or duplicated credited activity. Also demonstrate local-only reading without login, expired-session recovery without queue loss, and position compatibility with KOReader.
+- [ ] Exit gate: download → disconnect → fully terminate/reopen → read → reconnect → synchronize, with no lost or duplicated credited activity. Also demonstrate local-only reading without login, expired-session recovery without queue loss, and position compatibility with KOReader.
 
 ### M4 — Complete Application Coverage
 
 Status: not started.
 
 Deliverables:
-- Remaining library mutations, metadata/acquisition, dashboard/statistics, activity/progress, preferences/devices, and all administration workflows.
-- Complete OpenAPI coverage, permissions, feature flags, and error states.
-- Compatibility regression coverage for KOReader/plugin and OPDS workflows affected by shared code changes.
+- [ ] Remaining library mutations, metadata/acquisition, dashboard/statistics, activity/progress, preferences/devices, and all administration workflows.
+- [ ] Complete OpenAPI coverage, permissions, feature flags, and error states.
+- [ ] Compatibility regression coverage for KOReader/plugin and OPDS workflows affected by shared code changes.
 
-Exit gate: every feature-inventory row has passing acceptance evidence or an approved behavior change; no workflow is silently deferred because it is an admin or edge-case feature.
+- [ ] Exit gate: every feature-inventory row has passing acceptance evidence or an approved behavior change; no workflow is silently deferred because it is an admin or edge-case feature.
 
 ### M5 — Mobile, Upgrade, and Failure Qualification
 
 Status: not started.
 
 Deliverables:
-- Real-device iOS/Safari installed-PWA and Android/Chromium checks, plus desktop browser coverage.
-- Fault testing: interrupted downloads/uploads, quota/eviction, duplicate replay, multiple tabs/devices, clock skew, auth failure, offline restart, and service-worker upgrades during reading.
-- Server upgrade checks using the existing snapshot, preserving database records, document/cover files, and external protocol compatibility.
-- Legacy frontend cutover checks confirm that stale caches cannot keep serving the old application; legacy browser books, preferences, and pending state may be cleared.
-- Accessibility review, EPUB content-isolation review, performance measurements on the representative dataset, and agreed budgets.
-- Server recovery/rollback rehearsal, including any irreversible database or file changes. Post-cutover frontend update tests protect data created by the new application, not legacy browser state.
+- [ ] Real-device iOS/Safari installed-PWA and Android/Chromium checks, plus desktop browser coverage.
+- [ ] Fault testing: interrupted downloads/uploads, quota/eviction, duplicate replay, multiple tabs/devices, clock skew, auth failure, offline restart, and service-worker upgrades during reading.
+- [ ] Server upgrade checks using the existing snapshot, preserving database records, document/cover files, and external protocol compatibility.
+- [ ] Legacy frontend cutover checks confirm that stale caches cannot keep serving the old application; legacy browser books, preferences, and pending state may be cleared.
+- [ ] Accessibility review, EPUB content-isolation review, performance measurements on the representative dataset, and agreed budgets.
+- [ ] Server recovery/rollback rehearsal, including any irreversible database or file changes. Post-cutover frontend update tests protect data created by the new application, not legacy browser state.
 
-Exit gate: all approved critical contracts pass; unsupported platform behavior and remaining limitations are explicitly accepted. Emulation alone does not satisfy real-device PWA qualification.
+- [ ] Exit gate: all approved critical contracts pass; unsupported platform behavior and remaining limitations are explicitly accepted. Emulation alone does not satisfy real-device PWA qualification.
 
 ### M6 — Cutover and Retire SSR
 
 Status: not started.
 
 Deliverables:
-- Reproducible frontend/API builds integrated into Go packaging, containers, and CI.
-- Production SPA routing/caching/security headers and stable external protocol routes.
-- Removal of obsolete templates, SSR handlers/helpers, old scripts, dependencies, and obsolete tests after parity approval.
-- Updated installation/development documentation, published OpenAPI artifact, and operational recovery instructions.
+- [ ] Reproducible frontend/API builds integrated into Go packaging, containers, and CI.
+- [ ] Production SPA routing/caching/security headers and stable external protocol routes.
+- [ ] Removal of obsolete templates, SSR handlers/helpers, old scripts, dependencies, and obsolete tests after parity approval.
+- [ ] Updated installation/development documentation, published OpenAPI artifact, and operational recovery instructions.
 
-Exit gate: fresh deployment and upgrade deployment both pass smoke tests; React is the sole production web frontend; no temporary migration bridge remains without an explicit external compatibility requirement.
+- [ ] Exit gate: fresh deployment and upgrade deployment both pass smoke tests; React is the sole production web frontend; no temporary migration bridge remains without an explicit external compatibility requirement.
 
 ## Validation and Test Disposition
 
@@ -257,9 +257,9 @@ Evidence tracker:
 
 | Evidence | Status | Report/test location |
 | --- | --- | --- |
-| Static architectural inspection | Partial | Current-state sections above |
-| Snapshot integrity and isolated restore | Pending | — |
-| Baseline build/tests and runtime parity inventory | Pending | — |
+| Static architectural inspection and proposals | Available for review | [Evaluation reports](evaluation/README.md#evidence-map) |
+| Snapshot integrity and isolated restore | Passed, existing FK violations documented | [Runtime baseline](evaluation/runtime-baseline.md) |
+| Baseline build/tests and representative HTTP smoke checks | Passed; full runtime parity pending | [Backend verification](evaluation/architecture-tooling.md#confirmed-verification), [runtime baseline](evaluation/runtime-baseline.md) |
 | Architecture and contract approval | Pending | — |
 | OpenAPI/tooling proof | Pending | — |
 | Mobile interaction approval | Pending | — |
