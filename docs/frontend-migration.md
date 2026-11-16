@@ -1,6 +1,6 @@
 # React Frontend Migration
 
-Status: M1 complete and approved; bounded M2 proofs independently accepted. Visual direction/user validation and the M2 exit gate remain OPEN. Architecture direction and M1/M2 execution are authorized, not creative selection or production promotion.
+Status: M1 complete and approved; bounded M2 proofs independently accepted. The user selected Folio/editorial in structured browser review. Full human interaction validation and the M2 exit gate remain OPEN; visual selection is not technical, physical-device/PWA, or production approval.
 
 ## Goal and Scope
 
@@ -110,7 +110,7 @@ Extract application operations where transport-independent behavior exists; do n
 
 Proposed default: React + TypeScript + Vite, a client router, a server-state query library, and a deliberately small UI foundation. Specific router, query, styling, component, and storage packages remain evaluation decisions.
 
-Approved mobile information architecture: Library, Offline, Insights, and More tabs, with a focused full-screen reader and a desktop navigation rail. Visual design and detailed interactions remain M2 deliverables.
+Approved information architecture: Library, Offline, Insights, and More tabs, a desktop navigation rail, and a focused full-screen reader. Retain early Read/Resume visibility on document detail. Folio/editorial is the user-selected visual direction; detailed interaction validation remains an M2 deliverable.
 
 Go serves the compiled application and API from the same origin; development uses a frontend dev server/proxy. Production does not require Node. SPA navigation fallback applies only to frontend routes, never API errors or missing asset requests. Deep links, existing reader links, cache headers, and content-hashed assets need explicit tests.
 
@@ -132,6 +132,8 @@ A proposed `/api/v1` web namespace is separate from `/api/ko` and `/api/opds`. P
 The contract must define nullability, identifiers, timestamps/timezones, percentage units, pagination, sorting, validation, error envelopes, limits, and binary content types. Specify authorization per operation and CSRF protection for cookie-authenticated mutations. Long-running operations need an intentional synchronous/job/streaming decision based on actual runtime behavior; do not assume every admin action is a simple JSON request.
 
 ### Mobile/PWA and Reader Contracts
+
+**Selected EPUB boundary — single origin:** the trusted EPUB.js renderer runs at the application origin; untrusted chapter frames have no script permission. Enforce strict CSP before chapter parsing, validated archive-only assets and controller-mediated internal navigation. No extra hostname is required. The user accepts that a trusted renderer bug can affect the application origin; a dedicated credential-free origin is optional future hardening, not an acceptance requirement. Never enable the unsafe `allowScriptedContent` workaround. The [opaque-frame experiment](evaluation/m2-reader-isolation.md) is retained falsification evidence, not a competing production design or an unfinished requirement for stronger isolation. The selected policy has [independently accepted representative compatibility/security evidence](evaluation/m2-reader-storage.md#independent-closure); broader production qualification remains required.
 
 - App-shell installation/update strategy is separate from book download/storage policy.
 - Offline availability is explicit and verifiable; incomplete downloads are never labeled available.
@@ -185,30 +187,34 @@ Deliverables:
 
 ### M2 — Contract and Mobile Interaction Proofs
 
-Status: bounded proofs independently accepted; visual direction/user validation and exit gate OPEN. Proof modules are discardable, not production changes.
+Status: bounded technical proofs independently accepted; Folio/editorial and single-origin hardened EPUB.js selected by the user. Full human walkthrough and exit gate remain OPEN. Proof modules are discardable, not production changes.
 
 Deliverables:
 - [x] Representative six-operation OpenAPI contract; reproducible strict Go/TypeScript generation, validation and drift checks, fixture HTTP/SQLite operations and scoped patched-toolchain verification. Evidence: [API/schema proof](evaluation/m2-api-contract.md#independent-closure).
-- [ ] Tooling promotion acceptance: actual Go↔browser HTTP integration, real authentication/KO participation, migrations and deployment dependency compatibility; fixture operations and typed mocks alone do not satisfy this.
+- [x] Bounded tooling integration: generated TypeScript client/browser ↔ actual Go HTTP server, with representative reads, binary integrity, validation/error handling and runtime receipt gates. Evidence: [actual HTTP proof and independent acceptance — 10 browser tests](evaluation/m2-integration.md#independent-acceptance). Full runtime validation of every DTO is not claimed; production authentication, KO integration, migrations and deployment qualification remain subsequent gates.
 - [x] Two proposed visual systems with typography, color, spacing, components and tested interaction states. Evidence: [Folio/Index design proof](evaluation/m2-design.md#independent-closure).
 - [x] Mobile/desktop prototypes for library, detail, sample reader controls, offline library and synchronization states on the approved information architecture. Evidence: [interaction scope](evaluation/m2-design.md#review-these-journeys). These are synthetic interactions, not EPUB/offline implementation.
-- [ ] User selection of visual direction and human interaction validation; automated review is not creative approval.
+- [x] User selection of Folio/editorial in structured browser review, retaining four tabs, desktop rail and early Read/Resume. This is creative selection, not full interaction or phone/PWA validation.
+- [ ] Full human interaction walkthrough of the selected direction, including library/detail, reader controls, offline and synchronization states; automated checks do not substitute for human approval.
 - [x] Focused reader lifecycle, element-level KO codec/restore, transactional storage, account/lease fencing, exact acknowledgements and conservative shared-revision conflict proofs against a typed fake. Evidence: [reader/storage proof](evaluation/m2-reader-storage.md#independent-closure).
-- [ ] Full position compatibility/real KO round trips, durable conflict resolution over actual HTTP, cold offline shell/restart and legacy worker retirement acceptance; bounded restore/reopen proofs do not close these contracts.
+- [x] Representative reader compatibility/security proof for selected single-origin hardened EPUB.js: ordinary parsed CSS, packaged fonts, inline/packaged SVG, validated internal navigation, before-parse CSP/no-script chapters and source-body/byte preservation. Evidence: [reader proof and independent closure](evaluation/m2-reader-storage.md#independent-closure): owner 20 unit/38 browser tests; independent 20 unit/11 targeted browser tests plus original-reproduction/source/lifecycle probes. Trusted-renderer app-origin blast radius is explicitly accepted; no extra hostname or stronger boundary is required. Broader corpus/security/platform parity remains M3–M5 qualification.
+- [x] Representative replay/CAS proof over real Go↔browser HTTP: exact acknowledgements, lost-response retry/deduplication, durable outbox retention and explicit backward choice with stale-choice rejection. Evidence: [HTTP contracts](evaluation/m2-integration.md#executed-named-contracts), [independent acceptance — 10 browser tests](evaluation/m2-integration.md#independent-acceptance). Production resolution ownership/history, real KO protocol and restart qualification remain pending.
+- [x] Legacy worker-retirement/reset contract defined: `/sw.js` replacement, exact allowlisted cleanup, bounded client coordination/reload, failure recovery and unrelated/new-schema preservation. Evidence: [retirement contract and unexecuted acceptance matrix](evaluation/service-worker-contract.md). Runtime cutover, cold restart and installed-device qualification remain M3/M5 gates.
 - [x] Acceptance-test definitions and preserve/adapt/add dispositions for the declared proof scope; no production tests retired. Evidence: [API](evaluation/m2-api-contract.md#test-disposition-and-promotion-decision), [reader/storage](evaluation/m2-reader-storage.md#test-dispositions-and-fault-sensitivity), [design](evaluation/m2-design.md#test-dispositions).
-- [ ] Full workflow/parity and platform acceptance evidence mapped to production implementation; M4/M5 requirements remain intact.
 
-- [ ] Exit gate — OPEN: prove the selected tooling supports real operations, obtain user interaction/visual approval, and resolve offline replay/conflict contracts and the legacy browser-state reset strategy. Temporary proofs are removed or deliberately promoted against the documented blockers; they never become permanent parallel frontends.
+- [ ] Exit gate — OPEN: obtain full human interaction approval of selected Folio; bounded HTTP/replay and selected-reader proofs are accepted, and the worker-retirement contract is defined, not runtime-proved. Temporary proofs are removed or deliberately promoted; they never become permanent parallel frontends. No phone/PWA or production approval is implied.
+
+M2 proves the selected tools and boundary contracts support representative real operations; it is not narrowed to passing existing fixtures. Production auth/CSRF, shared KO writers, migrations/deployment compatibility, broad real EPUB/KOReader compatibility and cold-restart workflows remain M3–M5 promotion gates below, not prerequisites to starting those milestones. Full workflow/parity and platform acceptance remain M4/M5 requirements; none is waived by M2 closure.
 
 ### M3 — End-to-End Reader and Offline Vertical Slice
 
 Status: not started.
 
 Promotion blockers (retain as acceptance requirements, not waived by bounded M2 closure):
-- [ ] Resolve EPUB isolation and benign-content compatibility restrictions, including validated internal navigation; the conservative same-origin passive subset is not production parity.
+- [ ] Qualify the selected single-origin hardened EPUB.js boundary and broad benign-content compatibility, including validated controller internal navigation; restrictive passive fixtures are not production parity. A dedicated reader origin is optional future hardening, not a promotion requirement.
 - [ ] Bound archive resource exhaustion before allocation; qualify ZIP bombs, duplicate names, CRC, cancellation and large media.
 - [ ] Resolve ambiguous historical KO positions and recoverable writer/reader disagreement with actual KOReader round trips; preserve existing IDs/positions and required reader capabilities.
-- [ ] Replace the typed transport fake with actual Go HTTP integration: auth/CSRF, runtime response validation, durable receipts/shared revisions including KO writers, and persistent explicit conflict resolution.
+- [ ] Promote bounded browser/Go fixture composition into actual production HTTP/auth/CSRF and runtime response validation, durable receipts/shared revisions including real KO writers, and persistent explicit conflict resolution. The accepted integration harness does not implement these production contracts.
 - [ ] Implement cold offline shell launch/full termination recovery and legacy `/sw.js` retirement, preserving new-schema outbox data. A loaded-shell offline open is insufficient.
 
 Evidence and additional promotion limits: [API](evaluation/m2-api-contract.md#proved-versus-pending), [reader/storage](evaluation/m2-reader-storage.md#explicit-limits--not-solved). Real-device/security/compatibility qualification remains required in M4/M5; restrictive proof behavior does not silently retire parity requirements.
@@ -218,6 +224,7 @@ Deliverables:
 - [ ] Local-only EPUB import and reading.
 - [ ] Durable activity/progress replay, deduplication, account isolation, and visible sync states.
 - [ ] Initial browser schema and legacy service-worker/cache retirement; no legacy browser-data migration.
+- [ ] Before production dependency adoption, qualify the root Go patch level and security-sensitive dependency graph: patched supported toolchain, reproducible builds, dependency verification and vulnerability scans. Nested proof results do not qualify the unchanged root graph.
 
 - [ ] Exit gate: download → disconnect → fully terminate/reopen → read → reconnect → synchronize, with no lost or duplicated credited activity. Also demonstrate local-only reading without login, expired-session recovery without queue loss, and position compatibility with KOReader.
 
@@ -278,9 +285,13 @@ Evidence tracker:
 | Baseline build/tests and representative HTTP smoke checks | Passed; full runtime parity pending | [Backend verification](evaluation/architecture-tooling.md#confirmed-verification), [runtime baseline](evaluation/runtime-baseline.md) |
 | Architecture direction and M1/M2 execution approval | Approved; not creative selection or production promotion | [Approved defaults](evaluation/README.md#product-decisions-for-m2) |
 | OpenAPI/tooling proof | Bounded proof passed; independently accepted, production integration pending | [API closure](evaluation/m2-api-contract.md#independent-closure) |
-| Reader/storage/conflict proof | Bounded desktop Chromium proof passed; real HTTP/KO/PWA pending | [Reader closure](evaluation/m2-reader-storage.md#independent-closure) |
-| Proposed visual systems/interaction prototypes | Independently ready for human review; no direction selected | [Design closure](evaluation/m2-design.md#independent-closure) |
-| Human visual/interaction validation and M2 exit | OPEN | [Review walkthrough](evaluation/m2-design.md#review-these-journeys) |
+| Reader/storage/conflict proof | Bounded desktop Chromium proof passed; real KO/PWA pending | [Reader closure](evaluation/m2-reader-storage.md#independent-closure) |
+| Actual HTTP and replay/CAS composition | Independently accepted; 10 browser tests, bounded fixture scope | [HTTP report/acceptance](evaluation/m2-integration.md#independent-acceptance) |
+| Selected single-origin reader boundary | Representative proof independently accepted; user accepts trusted-renderer blast radius, no extra hostname | [Reader closure](evaluation/m2-reader-storage.md#independent-closure), [retained topology falsification](evaluation/m2-reader-isolation.md) |
+| Legacy worker retirement | Contract defined; runtime M3/M5 acceptance pending | [Contract/test matrix](evaluation/service-worker-contract.md) |
+| Proposed visual systems/interaction prototypes | Bounded automated proof accepted; not human interaction approval | [Design closure](evaluation/m2-design.md#independent-closure) |
+| Human visual selection | Folio/editorial selected in structured browser review; four tabs/desktop rail/early Read retained | [Selected direction](evaluation/README.md#product-decisions-for-m2) |
+| Full human interaction walkthrough and M2 exit | OPEN; no full interaction, phone or installed-PWA validation claimed | [Review walkthrough](evaluation/m2-design.md#review-these-journeys) |
 | Offline vertical-slice proof | Pending | — |
 | Full functionality acceptance | Pending | — |
 | Real-device, server upgrade, and legacy cache-retirement qualification | Pending | — |
@@ -290,10 +301,10 @@ Evidence tracker:
 
 1. Detailed conflict/re-authentication interactions implementing the selected shared-revision policy: retain stale local progress for explicit choice, allow intentional backward moves, and synchronize activity independently.
 2. Detailed account-switch/re-authentication interactions implementing the approved retention policy: explicit logout hides retained server downloads and pauses original-account events; local-only books remain independent. Retention versus removal is resolved.
-3. Legacy service-worker/cache retirement mechanism. Legacy browser data preservation is explicitly out of scope.
+3. Runtime verification of the [defined legacy worker-retirement contract](evaluation/service-worker-contract.md). Legacy browser data preservation is explicitly out of scope.
 4. Supported browser/OS floor and available physical-device validation coverage.
 5. Final OpenAPI/toolchain versions and frontend/storage dependencies.
-6. Mobile navigation, visual direction, and accessibility/performance acceptance budgets.
+6. Full human validation of selected Folio interactions, plus accessibility/performance acceptance budgets; navigation and visual selection are resolved.
 7. Which existing behavior is defective and intentionally changes; no blanket permission to change functionality.
 8. Temporary coexistence and rollback constraints, especially where data changes cannot safely be rolled back.
 

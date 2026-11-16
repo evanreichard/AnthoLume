@@ -1,6 +1,6 @@
 # M2 — Two browser-viewable visual directions
 
-**Delivered:** a standalone, pinned React/TypeScript/Vite design prototype in [`prototypes/design`](../../prototypes/design/README.md). Both directions cover the approved four workspaces, immersive sample reader, desktop rail/split detail, and the same mock journeys. This is visual/interaction evidence, not approval of tooling, sync policy, or production implementation.
+**Delivered:** a standalone, pinned React/TypeScript/Vite design prototype in [`prototypes/design`](../../prototypes/design/README.md). The user selected **Folio/editorial**; full human interaction validation remains OPEN. Both retained directions cover the approved four workspaces, immersive sample reader, desktop rail/split detail, and the same mock journeys. This is visual/interaction evidence, not approval of tooling, sync policy, or production implementation.
 
 ## Launch and compare
 
@@ -22,7 +22,7 @@ The review preview serves **only built `prototypes/design/dist` on 127.0.0.1:517
 
 Use the toolbar to switch directions or light/dark without losing the current journey. The URL captures direction, scheme, route, and library scope/query. Per-book reader chapter/appearance/chrome, mock content/account state and the admin confirmation outcome survive internal navigation in memory and reset on reload. Scroll snapshots are tied to matching reader contexts. The shared static review preview is currently running on loopback 5173; human validation is pending. The commands above reproduce it when needed; do not start an editing server over the running preview.
 
-**Ideal review:** compare both directions end to end on a phone and desktop, then choose one composition before production components are promoted. **Pragmatic review:** compare Library → detail → reader at 390px and 1280px first, shortlist one, then use the same app to verify Offline/Sync/More before accepting it. Both paths reach the same complete interaction scope.
+**Ideal review:** validate selected Folio end to end on phone and desktop. **Pragmatic review:** start Library → detail → reader at 390px and 1280px, then complete Offline/Sync/More and short-height cases before interaction acceptance. Creative selection is resolved; neither path substitutes for later physical-device/PWA qualification.
 
 ## What is genuinely different
 
@@ -49,7 +49,7 @@ The CSS token set covers surfaces, text, dividers, accent, success, warning, dan
 
 ## Independent review disposition
 
-All D1–D6 findings are addressed within the design prototype; **neither art direction is selected**.
+All D1–D6 findings are addressed within the design prototype; the user subsequently selected **Folio/editorial**, not full interaction acceptance.
 
 | Finding | Resulting boundary / visible behavior |
 | --- | --- |
@@ -121,7 +121,7 @@ No tests were replaced, removed, quarantined or skipped. The baseline red/green 
 
 ## Independent closure
 
-Independent review closes D1–D6 for this UI-only scope and finds no remaining tested P1/P2 blocker: **53 browser tests**, **2 static-server tests**, **20 independent confinement/header HTTP cases** and the **84-case layout matrix** passed. Fresh audit reports zero vulnerabilities; axe reports zero violations in **32 checked states**, not WCAG conformance. Reader return/focus, removal destinations, logged-out metadata exclusion and admin mock persistence were independently replayed. Neither visual direction is selected; readiness for human review is not human approval.
+Independent review closes D1–D6 for this UI-only scope and finds no remaining tested P1/P2 blocker: **53 browser tests**, **2 static-server tests**, **20 independent confinement/header HTTP cases** and the **84-case layout matrix** passed. Fresh audit reports zero vulnerabilities; axe reports zero violations in **32 checked states**, not WCAG conformance. Reader return/focus, removal destinations, logged-out metadata exclusion and admin mock persistence were independently replayed. The subsequent user choice is Folio/editorial; this automated review is not full human interaction approval.
 
 The initial Read/Resume visibility claim is limited to **320×844 and 390×844**. At **320×568**, Folio's action starts below the fixed tabs and Index's is partly overlapped; scrolling exposes both and each opens the reader. This nonblocking short-height caveat must be included in human review, not generalized into universal mobile visibility. Physical-device, assistive-technology and production behavior/security gates remain open. The independent closure did not rerun pre-fix red tests or source mutations.
 
