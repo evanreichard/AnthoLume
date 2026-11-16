@@ -25,14 +25,14 @@ These are evaluation artifacts with evidence and alternatives, not additional sp
 - Prefer per-event receipts and conservative conflict handling: a stale web progress update waits for an explicit local-versus-server choice, including intentional backward moves. KO writes keep their wire shape and advance the same server revision. Exactly-once credit applies only to identified new web events, not legacy KO requests lacking event identity.
 - Use a fresh browser schema; no legacy browser books/settings/events need preservation. Retire the old root worker/caches once without repeatedly deleting new data.
 
-## Product Decisions Worth Reviewing First
+## Product Decisions for M2
 
-These drive M2 work. The detailed registers include additional bounded implementation decisions; they need not become seventeen separate user questionnaires.
+Navigation, logout retention, and initial activity measurement below are approved. Progress-conflict details remain proposed within the design's no-silent-overwrite invariant. The detailed registers include additional bounded implementation decisions; they need not become seventeen separate user questionnaires. Where source evaluation reports present alternatives, these approved choices and the migration design govern.
 
-1. **Information architecture:** interaction proposal A uses Library, Offline, Insights, and More workspaces, with reading as a focused full-screen route. Proposal B introduces that structure more conservatively with fewer initial workspace changes. Review labels/default landing and whether Offline deserves its own primary tab.
+1. **Information architecture — approved:** proposal A: Library, Offline, Insights, and More workspaces, with reading as a focused full-screen route and a desktop navigation rail. Detailed layouts and visual direction remain M2 work.
 2. **Progress conflicts:** recommend keeping stale local progress available and asking which position to use, rather than silently choosing last arrival or highest percentage. Backward reading remains valid. Activity can sync independently of a progress conflict.
-3. **Logout/offline privacy:** choose whether server downloads remain available on this device after logout or are removed/locked. Pending events must remain tied to their original account and cannot silently disappear. Local-only books remain independent of login. Expired sessions must not disable already-authorized offline reading by accident.
-4. **Activity measurement:** existing code primarily credits forward page turns with WPM heuristics. Decide whether M3 preserves that policy while fixing delivery, or also redesigns active-reading/idle/reread credit. The latter changes recorded statistics and deserves explicit approval.
+3. **Logout/offline privacy — approved:** retain account-scoped downloads, hide them after explicit logout until the same account signs in, and pause original-account queued events. This is application-level separation, not encryption. Local-only books remain independent of login; session expiry alone does not disable offline reading.
+4. **Activity measurement — approved:** initially preserve existing forward-page-turn/WPM credit rules while fixing loss, duplicate credit, and delivery. Active/idle/reread/TOC/close measurement redesign is separate evaluated work, not an implicit change to statistics during the migration.
 
 ## Scope Defaults for Review
 
@@ -56,7 +56,7 @@ Proposed defaults minimize unrequested product changes. Any divergence should be
 
 ## Recommended M2 Boundary
 
-Approve the proposed architecture and four product choices above, then run focused tooling/reader/storage proofs alongside two visual directions on the selected information architecture. Keep M2 outputs small enough to discard; promote only code that satisfies the reviewed contracts. Complete operational policy decisions before implementing the affected administration workflows rather than guessing them now.
+Complete the architecture gate and remaining progress-conflict details, then run focused tooling/reader/storage proofs alongside two visual directions on the approved four-tab information architecture. Keep M2 outputs small enough to discard; promote only code that satisfies the reviewed contracts. Complete operational policy decisions before implementing the affected administration workflows rather than guessing them now.
 
 ### Knowledge Capture
 

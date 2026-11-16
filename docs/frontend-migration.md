@@ -99,7 +99,8 @@ Extract application operations where transport-independent behavior exists; do n
 - An accepted local reading event is durable before the UI reports it saved. It remains queued until a valid server acknowledgement or explicit user action resolves it.
 - Retrying activity delivery cannot create duplicate credited activity. Define durable event identity and server deduplication behavior before implementation.
 - Progress conflict semantics support intentionally moving backward; highest-percentage-wins is not a valid default.
-- Server-linked browser data and pending mutations are account-scoped. Switching accounts cannot replay another account's events.
+- Server-linked browser data and pending mutations are account-scoped. Switching accounts cannot replay another account's events. Explicit logout retains downloaded server books but hides them until the same account signs in again, and pauses its queued events; this is application-level separation, not encrypted storage. Session expiry alone does not block offline reading, and local-only books remain independent of login.
+- Initial activity-credit rules retain the existing forward-page-turn/WPM measurement semantics while delivery becomes durable and deduplicated. Changes to idle, reread, chapter-jump, or background/close credit require a separate evaluated contract; the migration does not silently change recorded statistics.
 - React owns controls and application DOM; the reader engine exclusively owns its rendering container. Unmount releases engine resources, listeners, object URLs, and wake locks.
 - Protected API requests return machine-readable errors, not login HTML or redirects.
 - Offline-only reading does not depend on an authenticated API request.
@@ -108,6 +109,8 @@ Extract application operations where transport-independent behavior exists; do n
 ### Deployment and Frontend Tooling
 
 Proposed default: React + TypeScript + Vite, a client router, a server-state query library, and a deliberately small UI foundation. Specific router, query, styling, component, and storage packages remain evaluation decisions.
+
+Approved mobile information architecture: Library, Offline, Insights, and More tabs, with a focused full-screen reader and a desktop navigation rail. Visual design and detailed interactions remain M2 deliverables.
 
 Go serves the compiled application and API from the same origin; development uses a frontend dev server/proxy. Production does not require Node. SPA navigation fallback applies only to frontend routes, never API errors or missing asset requests. Deep links, existing reader links, cache headers, and content-hashed assets need explicit tests.
 
@@ -271,7 +274,7 @@ Evidence tracker:
 ## Decisions Requiring Evaluation or Approval
 
 1. Exact progress-conflict semantics across web/KOReader devices and stale offline replay.
-2. Logout/account-switch policy for downloaded server books and pending events, distinct from local-only books.
+2. Detailed account-switch/re-authentication interactions implementing the approved retention policy: explicit logout hides retained server downloads and pauses original-account events; local-only books remain independent. Retention versus removal is resolved.
 3. Legacy service-worker/cache retirement mechanism. Legacy browser data preservation is explicitly out of scope.
 4. Supported browser/OS floor and available physical-device validation coverage.
 5. Final OpenAPI/toolchain versions and frontend/storage dependencies.
