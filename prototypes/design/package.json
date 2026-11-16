@@ -1,0 +1,30 @@
+{
+  "name": "antholume-m2-design",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "playwright test",
+    "preview": "node scripts/static-preview.mjs",
+    "test:preview": "npm run build && node --test scripts/static-preview.test.mjs",
+    "audit": "npm audit --audit-level=low",
+    "format": "prettier --write src tests scripts *.json *.ts index.html README.md"
+  },
+  "dependencies": {
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.1",
+    "@types/node": "22.18.6",
+    "@types/react": "19.1.16",
+    "@types/react-dom": "19.1.9",
+    "@vitejs/plugin-react": "5.0.3",
+    "prettier": "3.6.2",
+    "typescript": "5.9.2",
+    "vite": "7.3.8"
+  }
+}
