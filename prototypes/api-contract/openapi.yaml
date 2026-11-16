@@ -1,0 +1,200 @@
+openapi: 3.0.3
+info:
+  title: AnthoLume bounded API contract proof
+  version: 0.1.0
+security:
+  - cookieAuth: []
+paths:
+  /api/v1/documents:
+    get:
+      operationId: listDocuments
+      parameters:
+        - in: query
+          name: page
+          schema: {type: integer, minimum: 1, maximum: 1000000, default: 1}
+        - in: query
+          name: page_size
+          schema: {type: integer, minimum: 1, maximum: 100, default: 9}
+      responses:
+        '200':
+          description: Stable ID order; offset paging has no cross-request snapshot guarantee
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DocumentPage'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/documents/{id}/file:
+    get:
+      operationId: downloadDocument
+      description: Synthetic EPUB only. No range, conditional, or resumability promise in this proof.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 128}
+      responses:
+        '200':
+          description: Complete bounded EPUB
+          headers:
+            Content-Disposition: {schema: {type: string}}
+            Content-Length: {schema: {type: integer}}
+            Cache-Control: {schema: {type: string}}
+          content:
+            application/epub+zip:
+              schema: {type: string, format: binary}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/documents/upload:
+    post:
+      operationId: uploadDocument
+      description: Bounded synthetic validation only; no file publication or document creation.
+      parameters:
+        - {$ref: '#/components/parameters/CSRF'}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        '200':
+          description: Validated, not persisted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UploadResult'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/reading-progress:
+    post:
+      operationId: submitProgress
+      parameters:
+        - {$ref: '#/components/parameters/CSRF'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ProgressEvent'}
+      responses:
+        '200':
+          description: Durable receipt. Exact retry returns original receipt even after later writes.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Receipt'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/activity:
+    post:
+      operationId: submitActivity
+      parameters:
+        - {$ref: '#/components/parameters/CSRF'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ActivityEvent'}
+      responses:
+        '200':
+          description: One durable credited activity and receipt per account/event ID
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Receipt'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/probe:
+    get:
+      operationId: adminProbe
+      responses:
+        '200':
+          description: Authorized administrator
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [ok]
+                properties:
+                  ok: {type: boolean}
+        default: {$ref: '#/components/responses/Problem'}
+components:
+  securitySchemes:
+    cookieAuth: {type: apiKey, in: cookie, name: proof_session}
+  parameters:
+    CSRF:
+      in: header
+      name: X-CSRF-Token
+      required: true
+      schema: {type: string, minLength: 1, maxLength: 128}
+  responses:
+    Problem:
+      description: Safe common problem; 400 validation, 401 authentication, 403 role/CSRF, 404 missing, 409 identity/revision, 413 bytes, 415 media, 500 storage
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+  schemas:
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, code, detail]
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer, minimum: 400, maximum: 599}
+        code: {type: string}
+        detail: {type: string}
+        current_revision: {type: string}
+    Document:
+      type: object
+      additionalProperties: false
+      required: [id, title, author]
+      properties:
+        id: {type: string}
+        title: {type: string, nullable: true}
+        author: {type: string, nullable: true}
+    DocumentPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, page_size, total, next_page]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Document'}}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        total: {type: integer, minimum: 0}
+        next_page: {type: integer, minimum: 1, nullable: true}
+    ProgressEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, document_id, device_id, base_revision, fraction, position, observed_at]
+      properties:
+        event_id: {type: string, minLength: 1, maxLength: 128}
+        document_id: {type: string, minLength: 1, maxLength: 128}
+        device_id: {type: string, minLength: 1, maxLength: 128}
+        base_revision: {type: string, pattern: '^(0|[1-9][0-9]{0,17})$'}
+        fraction: {type: number, format: double, minimum: 0, maximum: 1}
+        position: {type: string, minLength: 1, maxLength: 4096, description: Opaque unchanged KO XPath}
+        observed_at: {type: string, format: date-time}
+    ActivityEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, document_id, device_id, start_time, duration, start_fraction, end_fraction]
+      properties:
+        event_id: {type: string, minLength: 1, maxLength: 128}
+        document_id: {type: string, minLength: 1, maxLength: 128}
+        device_id: {type: string, minLength: 1, maxLength: 128}
+        start_time: {type: string, format: date-time}
+        duration: {type: integer, minimum: 0, maximum: 86400}
+        start_fraction: {type: number, format: double, minimum: 0, maximum: 1}
+        end_fraction: {type: number, format: double, minimum: 0, maximum: 1}
+    Receipt:
+      type: object
+      additionalProperties: false
+      required: [event_id, kind, revision]
+      properties:
+        event_id: {type: string}
+        kind: {type: string, enum: [progress, activity]}
+        revision: {type: string, nullable: true}
+    UploadResult:
+      type: object
+      additionalProperties: false
+      required: [bytes, disposition]
+      properties:
+        bytes: {type: integer, minimum: 1, maximum: 65536}
+        disposition: {type: string, enum: [validated_only]}

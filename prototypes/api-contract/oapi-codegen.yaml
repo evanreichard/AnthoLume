@@ -1,0 +1,8 @@
+package: contract
+generate:
+  models: true
+  gin-server: true
+  strict-server: true
+  embedded-spec: true
+output: contract.gen.go
+allow-remote-refs-from: []
