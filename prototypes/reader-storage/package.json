@@ -12,9 +12,10 @@
     "test": "vitest run tests/unit",
     "test:browser": "playwright test",
     "test:serve": "vite --host 127.0.0.1 --port 5314 --strictPort",
-    "fixtures": "node scripts/fixtures.mjs && node scripts/review-fixtures.mjs"
+    "fixtures": "node scripts/fixtures.mjs && node scripts/review-fixtures.mjs && node scripts/compatibility-fixtures.mjs && node scripts/closure-fixtures.mjs"
   },
   "dependencies": {
+    "css-tree": "3.2.1",
     "dexie": "4.4.7",
     "epubjs": "0.3.93",
     "jszip": "3.10.1",
@@ -25,6 +26,7 @@
   "overrides": { "@xmldom/xmldom": "0.9.12" },
   "devDependencies": {
     "@playwright/test": "1.65.1",
+    "@types/css-tree": "3.2.0",
     "@types/node": "22.13.10",
     "@types/react": "19.0.10",
     "@types/react-dom": "19.0.4",

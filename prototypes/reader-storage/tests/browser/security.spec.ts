@@ -44,16 +44,18 @@ test('real EPUB.js iframe has early CSP and script-disabled sandbox, hostile par
   expect(await page.evaluate(() => ({ storage: localStorage.getItem('epub-pwned'), dom: document.body.dataset.pwned }))).toEqual({ storage: null, dom: undefined });
 });
 
-test('book-internal links are blocked rather than causing unrecorded engine navigation', async ({ page }) => {
+test('book-internal links route through the controller and publish once without native frame navigation', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Open synthetic EPUB', exact: true }).click();
   await expect(page.getByRole('status')).toHaveAttribute('data-state', 'ready');
   const before = await page.getByTestId('position').innerText();
+  const unexpected = await watchRequests(page);
   await page.locator('[data-testid="reader-host"] iframe').evaluate((frame: HTMLIFrameElement) => {
     const anchor = frame.contentDocument!.createElement('a'); anchor.href = 'two.xhtml'; anchor.textContent = 'Chapter link';
     frame.contentDocument!.body.appendChild(anchor); anchor.click();
   });
-  await page.waitForTimeout(100);
-  expect(await page.getByTestId('position').innerText()).toBe(before);
-  expect(await page.evaluate(() => window.proof.publications.length)).toBe(0);
+  await expect(page.getByTestId('position')).toContainText('DocFragment[2]');
+  expect(await page.getByTestId('position').innerText()).not.toBe(before);
+  await expect.poll(() => page.evaluate(() => window.proof.publications.length)).toBe(1);
+  expect(unexpected).toEqual([]);
 });

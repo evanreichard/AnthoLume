@@ -1,8 +1,10 @@
 import { Book, type NavItem, type Location } from 'epubjs';
 import type Rendition from 'epubjs/types/rendition';
-import { fromCFI, toCFI } from './codec';
-import { secureChapter, validateEPUB } from './content-policy';
-import { ScopedViewManager, destroyBook } from './epub-lifecycle';
+import { fromCFI, toCFI, koFromElement } from './codec';
+import { validateEPUB } from './content-policy';
+import type { ChapterPolicy } from './chapter-policy';
+import { serializeChapter } from './body-contract';
+import { ScopedViewManager, destroyBook, useValidatedDocuments } from './epub-lifecycle';
 
 export const lifecycle = { created: 0, disposed: 0, engines: 0, destroyed: 0, listeners: 0, contentListeners: 0 };
 export type ReaderSnapshot = { ko: string; cfi: string; chapter: string; page: number; pages: number };
@@ -12,10 +14,12 @@ export class ReaderController {
   private dead = false;
   private openRequested = false;
   private book?: Book;
+  private policy?: ChapterPolicy;
   private rendition?: Rendition;
   private tail: Promise<unknown> = Promise.resolve();
   private host: HTMLDivElement;
   private location?: ReaderSnapshot;
+  private tocTargets = new Map<string, ReturnType<ChapterPolicy['navigation']>>();
   private contentCleanup = new Map<Document, () => void>();
   private key = (event: KeyboardEvent) => {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
@@ -40,28 +44,49 @@ export class ReaderController {
     this.openRequested = true;
     return this.enqueue(async () => {
       this.send({ state: 'opening', message: 'Validating EPUB' });
-      await validateEPUB(bytes);
+      this.policy = await validateEPUB(bytes);
       if (this.dead) return;
-      const book = this.book = new Book({ replacements: 'blobUrl' });
+      const book = this.book = new Book({ replacements: 'none', requestMethod: () => Promise.reject(new Error('Engine network requests are disabled')) });
       lifecycle.engines++;
       await book.open(bytes, 'binary');
       await book.ready;
       if (this.dead) return;
-      book.spine.hooks.content.register(secureChapter);
+      const navigationPath = book.packaging.navPath || book.packaging.ncxPath;
+      if (navigationPath) {
+        const base = this.policy.navigationDocument(navigationPath);
+        const map = (items: NavItem[]) => {
+          for (const item of items) {
+            if (item.href) this.tocTargets.set(item.href, this.policy!.navigation(item.href, base));
+            map(item.subitems || []);
+          }
+        };
+        map(book.navigation.toc);
+      }
+      useValidatedDocuments(book, this.policy);
+      // Pinned Serialization Seam - Own canonical asset URLs, not EPUB.js's regex substitution of serialized body text.
+      book.spine.hooks.serialize.clear();
+      book.spine.hooks.serialize.register((_output: string, section: { document: Document; output: string }) => { section.output = serializeChapter(section.document); });
+      book.spine.hooks.content.register((doc: Document, section: { index: number }) => this.policy!.prepareChapter(doc, section.index));
       const rendition = this.rendition = book.renderTo(this.host, { width: '100%', height: '100%', spread: 'none', manager: ScopedViewManager, allowScriptedContent: false });
-      // Chapter Hooks - Capture navigation before EPUB.js link handlers; only controller TOC commands navigate.
-      rendition.hooks.content.register((contents: { document: Document }) => {
+      // Chapter Hooks - Book links cannot trigger native frame navigation or bypass serialized controller commands.
+      rendition.hooks.content.register((contents: { document: Document; sectionIndex: number }) => {
         if (this.dead || this.contentCleanup.has(contents.document)) return;
         const blockLink = (event: Event) => {
           const target = event.target as Element;
-          if (target.closest?.('a')) { event.preventDefault(); event.stopImmediatePropagation(); }
+          const link = target.closest?.('a[href]');
+          if (!link) return;
+          event.preventDefault(); event.stopImmediatePropagation();
+          if (event.type === 'click' && (!('button' in event) || event.button === 0)) void this.internal(link.getAttribute('href')!, this.policy!.spine[contents.sectionIndex]!);
         };
         contents.document.addEventListener('click', blockLink, true);
-        lifecycle.contentListeners++;
+        contents.document.addEventListener('auxclick', blockLink, true);
+        lifecycle.contentListeners += 2;
         this.contentCleanup.set(contents.document, () => {
           contents.document.removeEventListener('click', blockLink, true);
-          lifecycle.contentListeners--;
+          contents.document.removeEventListener('auxclick', blockLink, true);
+          lifecycle.contentListeners -= 2;
         });
+        return contents.document.fonts.ready;
       });
       let target: string | undefined;
       if (saved) {
@@ -93,13 +118,14 @@ export class ReaderController {
     if (this.dead) return;
     this.location = { ko, cfi: loc.start.cfi, chapter: loc.start.href, page: loc.start.displayed.page, pages: loc.start.displayed.total };
   }
-  private navigate(action: () => Promise<void>) {
+  private navigate(action: () => Promise<void | { ko: string; cfi: string }>) {
     return this.enqueue(async () => {
       if (!this.rendition || !this.location) throw new Error('Reader not ready; fallback requires explicit reopen');
-      await action();
+      const logical = await action();
       if (this.dead) return;
       await this.observe();
       if (this.dead) return;
+      if (logical && this.location) this.location = { ...this.location, ...logical };
       await this.publish(this.location!);
       this.ready('Intentional navigation saved');
     });
@@ -107,9 +133,24 @@ export class ReaderController {
   next() { return this.navigate(() => this.rendition!.next()); }
   previous() { return this.navigate(() => this.rendition!.prev()); }
   toc(href: string) {
-    const allowed = (items: NavItem[]): boolean => items.some(item => item.href === href || allowed(item.subitems || []));
-    if (!this.book || !allowed(this.book.navigation.toc)) return Promise.reject(new Error('TOC target not allowed'));
-    return this.navigate(() => this.rendition!.display(href));
+    const target = this.tocTargets.get(href);
+    if (!target) return Promise.reject(new Error('TOC target not allowed'));
+    return this.navigate(() => this.displayTarget(target));
+  }
+  private internal(href: string, entry: string) {
+    return this.navigate(() => this.displayTarget(this.policy!.navigation(href, entry)));
+  }
+  private async displayTarget(ref: ReturnType<ChapterPolicy['navigation']>) {
+    const section = this.book!.spine.get(ref.index);
+    if (!ref.fragment) { await this.rendition!.display(section.href); return; }
+    await section.load(this.book!.load.bind(this.book));
+    const element = section.document.getElementById(ref.fragment);
+    if (!element) throw new Error('Internal fragment unavailable');
+    const ko = koFromElement(ref.index, element);
+    const result = await toCFI(this.book!, ko);
+    if (!result.ok) throw new Error(result.reason);
+    await this.rendition!.display(result.cfi);
+    return { ko, cfi: result.cfi };
   }
   reflow(size: number) {
     return this.enqueue(async () => {
@@ -132,11 +173,14 @@ export class ReaderController {
     window.removeEventListener('keydown', this.key); lifecycle.listeners--;
     for (const cleanup of this.contentCleanup.values()) cleanup();
     this.contentCleanup.clear();
+    this.tocTargets.clear();
     this.host.remove();
     this.tail = this.tail.finally(() => {
-      if (this.book) {
-        destroyBook(this.book); lifecycle.destroyed++;
+      try {
+        if (this.book) { destroyBook(this.book); lifecycle.destroyed++; }
+      } finally {
         this.book = undefined; this.rendition = undefined;
+        this.policy?.dispose(); this.policy = undefined;
       }
     });
     return this.tail.then(() => undefined);

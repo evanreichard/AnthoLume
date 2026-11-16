@@ -26,8 +26,8 @@ test('engine teardown returns real global listener and object-URL counts to base
   await page.goto('/');
   const evidence = () => page.evaluate(() => (window as unknown as { resourceEvidence(): { urls: number; listeners: string[] } }).resourceEvidence());
   const baseline = await evidence();
-  for (let i = 0; i < 3; i++) {
-    await page.getByRole('button', { name: 'Open synthetic EPUB', exact: true }).click();
+  for (const name of ['Open synthetic EPUB', 'Open synthetic EPUB', 'Open representative EPUB']) {
+    await page.getByRole('button', { name, exact: true }).click();
     await expect(page.getByRole('status')).toHaveAttribute('data-state', 'ready');
     expect((await evidence()).urls).toBeGreaterThan(baseline.urls);
     await page.getByRole('button', { name: 'Next page', exact: true }).click();

@@ -7,15 +7,22 @@ type Events = {
   receipt(id: string, kind?: 'progress' | 'activity', revision?: string | null): Receipt;
 };
 declare global { interface Window { testEvents: Events } }
-export async function watchRequests(page: Page) {
+export async function watchRequests(page: Page, controlledFramePath?: string) {
   const unexpected: string[] = [];
   const allowed = (value: string) => {
     const url = new URL(value);
     if (['blob:', 'data:', 'about:'].includes(url.protocol)) return true;
     return url.origin === 'http://127.0.0.1:5314' && (url.pathname === '/' || ['/fixtures/', '/src/', '/node_modules/', '/@vite/', '/@id/'].some(prefix => url.pathname.startsWith(prefix)));
   };
-  page.on('request', request => { if (!allowed(request.url())) unexpected.push(request.url()); });
-  await page.route('**/*', route => allowed(route.request().url()) ? route.continue() : route.abort());
+  const allowedRequest = (request: import('@playwright/test').Request) => {
+    const url = new URL(request.url());
+    if (['blob:', 'data:', 'about:'].includes(url.protocol)) return true;
+    if (request.method() !== 'GET') return false;
+    if (controlledFramePath && url.origin === 'http://127.0.0.1:5314' && url.pathname === controlledFramePath) return true;
+    return request.frame() === page.mainFrame() && allowed(request.url());
+  };
+  page.on('request', request => { if (!allowedRequest(request)) unexpected.push(request.url()); });
+  await page.route('**/*', route => allowedRequest(route.request()) ? route.continue() : route.abort());
   return unexpected;
 }
 export async function installEvents(page: Page) {
