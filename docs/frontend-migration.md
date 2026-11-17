@@ -1,10 +1,10 @@
 # React Frontend Migration
 
-Status: M1 complete and approved; bounded M2 proofs independently accepted. The user selected Folio/editorial in structured browser review. Full human interaction validation and the M2 exit gate remain OPEN; visual selection is not technical, physical-device/PWA, or production approval.
+Status: M1 complete and approved; bounded M2 proofs independently accepted. The user selected Folio/editorial in structured browser review. The surrounding flow is conditionally approved subject to unified-library/mobile-filter and paginated-reader refinements. Revised prototype checks passed independent review; user confirmation of the mobile/reader refinements and the M2 exit gate remain OPEN; this is not blanket phone/PWA or production approval.
 
 ## Goal and Scope
 
-Replace Go-template web rendering with a ground-up frontend redesign implemented in React/TypeScript while retaining AnthoLume's functionality. Redesign the information architecture, navigation, layouts, visual system, and interaction patterns rather than translating existing templates into components. Mobile usability, installed-PWA behavior, offline reading, and KOReader interoperability are first-class requirements. Existing screens are evidence of functionality, not design specifications.
+Replace Go-template web rendering with a ground-up redesign of the surrounding application in React/TypeScript while retaining AnthoLume's functionality. Redesign its information architecture, navigation, layouts and visual system rather than translating templates into components. Preserve reader interaction continuity outside theming: full-viewport paginated reading, not a ground-up scrolling reader, with tap/swipe/keyboard navigation, TOC, font/theme controls and logical-anchor restoration after resizing or repagination. Mobile usability, existing installed-PWA behavior, offline reading and KOReader interoperability are first-class requirements. Existing application screens are functionality evidence; current reader behavior is a continuity contract.
 
 The selected approach is a full architecture and behavior evaluation before implementation. Delivery can then be incremental, but the end state has one web frontend, not permanently maintained React and SSR applications.
 
@@ -12,7 +12,10 @@ This document is the durable design and milestone tracker. Confirmed observation
 
 ## Success Criteria
 
-- Every inventoried capability is preserved or explicitly changed with approval; existing screen organization and interaction sequences are not parity requirements.
+- Every inventoried capability is preserved or explicitly changed with approval; surrounding-app screen organization may change, while reader interaction continuity remains required.
+- The default Library combines authorized shared and local-only books, with cover source icons independent of offline-availability indicators. A compact search row places a filter icon beside search; its popup/sheet exposes source and availability filters without permanent ownership tabs.
+- Search/filter state and library position survive detail/reader return and Back; closing the filter popup/sheet restores focus without unexpectedly leaving the Library. Logout/account switching cannot expose retained server metadata through results, counts, covers or source filters; local-only books remain accessible.
+- Reading fills the available viewport with paginated content and no vertical book-text scrolling. Increasing or shrinking text and changing viewport/orientation repaginate around the same logical anchor; tap/swipe/keyboard navigation, TOC and theme/font controls retain current-reader behavior.
 - A coherent, mobile-first design system and information architecture replace the existing frontend, with deliberate desktop adaptations rather than enlarged mobile layouts.
 - React owns the web UI; production web pages do not require Go templates.
 - A versioned web API exposes the functionality previously available through SSR.
@@ -94,7 +97,7 @@ Extract application operations where transport-independent behavior exists; do n
 ### State Ownership and Invariants
 
 - SQLite/files are authoritative for server data. React query caches are derived views, not an offline mutation queue.
-- Browser persistence owns local-only books and unsent reading events. It distinguishes local-only and server-linked documents explicitly.
+- Browser persistence owns local-only books and unsent reading events. A unified library is a presentation view, not an identity merge: local-only and server-linked identities remain distinct, even for matching titles/content. Combining views never auto-uploads local books or sends local-only activity to the server. Provenance and offline availability are independent properties.
 - The sync subsystem is the sole owner of replay policy and acknowledgement handling. Concurrent tabs and service-worker activity cannot independently acknowledge/delete the same mutable queue entry without coordination.
 - An accepted local reading event is durable before the UI reports it saved. It remains queued until a valid server acknowledgement or explicit user action resolves it.
 - Retrying activity delivery cannot create duplicate credited activity. Define durable event identity and server deduplication behavior before implementation.
@@ -110,7 +113,7 @@ Extract application operations where transport-independent behavior exists; do n
 
 Proposed default: React + TypeScript + Vite, a client router, a server-state query library, and a deliberately small UI foundation. Specific router, query, styling, component, and storage packages remain evaluation decisions.
 
-Approved information architecture: Library, Offline, Insights, and More tabs, a desktop navigation rail, and a focused full-screen reader. Retain early Read/Resume visibility on document detail. Folio/editorial is the user-selected visual direction; detailed interaction validation remains an M2 deliverable.
+Approved information architecture: Library, Offline, Insights, and More tabs with a desktop navigation rail. Library defaults to a combined shared/local view with source icons on covers; offline availability is indicated separately. A compact mobile search/filter row opens a source/availability popup or sheet. Offline manages stored books, downloads and removal rather than duplicating ownership tabs. Retain early Read/Resume on detail and a full-viewport paginated reader close to current interaction behavior outside theming. Folio/editorial is selected; the remaining flow is conditionally approved subject to user confirmation of these independently verified prototype refinements.
 
 Go serves the compiled application and API from the same origin; development uses a frontend dev server/proxy. Production does not require Node. SPA navigation fallback applies only to frontend routes, never API errors or missing asset requests. Deep links, existing reader links, cache headers, and content-hashed assets need explicit tests.
 
@@ -144,6 +147,8 @@ The contract must define nullability, identifiers, timestamps/timezones, percent
 - Review install identity (`manifest` ID/start URL/scope) before changing routes or names.
 - Evaluate safe areas, dynamic viewport height, orientation, large text, keyboard focus, touch targets, reduced motion, and screen-reader navigation.
 - Preserve KOReader-compatible stored positions and document identity. React adaptation does not justify silently replacing the position format.
+- Preserve full-viewport pagination without vertical book-text scrolling, tap/swipe/keyboard page turns, TOC and font/theme controls. Font growth/shrink, viewport resize and orientation changes repaginate while preserving the logical reading anchor; pagination must not substitute page-number equality for position continuity.
+- Preserve installed-PWA reading behavior, including viewport/safe-area handling, background/resume and offline recovery; synthetic reader controls do not prove these contracts.
 - Treat native wake-lock support and fallback behavior as browser-specific capabilities to verify, not assumptions inherited from historical workarounds.
 
 ## Architectural Delta
@@ -187,22 +192,24 @@ Deliverables:
 
 ### M2 — Contract and Mobile Interaction Proofs
 
-Status: bounded technical proofs independently accepted; Folio/editorial and single-origin hardened EPUB.js selected by the user. Full human walkthrough and exit gate remain OPEN. Proof modules are discardable, not production changes.
+Status: bounded technical proofs independently accepted; Folio/editorial and single-origin hardened EPUB.js selected by the user. The rest of the flow has conditional user approval; only confirmation of the revised mobile/reader interactions and the exit gate remain OPEN. Proof modules are discardable, not production changes.
 
 Deliverables:
 - [x] Representative six-operation OpenAPI contract; reproducible strict Go/TypeScript generation, validation and drift checks, fixture HTTP/SQLite operations and scoped patched-toolchain verification. Evidence: [API/schema proof](evaluation/m2-api-contract.md#independent-closure).
 - [x] Bounded tooling integration: generated TypeScript client/browser ↔ actual Go HTTP server, with representative reads, binary integrity, validation/error handling and runtime receipt gates. Evidence: [actual HTTP proof and independent acceptance — 10 browser tests](evaluation/m2-integration.md#independent-acceptance). Full runtime validation of every DTO is not claimed; production authentication, KO integration, migrations and deployment qualification remain subsequent gates.
 - [x] Two proposed visual systems with typography, color, spacing, components and tested interaction states. Evidence: [Folio/Index design proof](evaluation/m2-design.md#independent-closure).
-- [x] Mobile/desktop prototypes for library, detail, sample reader controls, offline library and synchronization states on the approved information architecture. Evidence: [interaction scope](evaluation/m2-design.md#review-these-journeys). These are synthetic interactions, not EPUB/offline implementation.
+- [x] Mobile/desktop prototypes for library, detail, sample reader controls, offline library and synchronization states on the approved information architecture. Evidence: [interaction scope](evaluation/m2-design.md#changed-interaction-contracts). These are synthetic interactions, not EPUB/offline implementation; [refinement checks and independent closure](evaluation/m2-design.md#independent-closure) cover the revised prototype target.
 - [x] User selection of Folio/editorial in structured browser review, retaining four tabs, desktop rail and early Read/Resume. This is creative selection, not full interaction or phone/PWA validation.
-- [ ] Full human interaction walkthrough of the selected direction, including library/detail, reader controls, offline and synchronization states; automated checks do not substitute for human approval.
+- [x] User approval of the rest of the Folio flow, conditional on the requested mobile/reader refinements; no repeat of all flows is required.
+- [x] Revised prototype verification: combined shared/local Library, separate cover provenance/availability, compact search/filter, Back/focus/state/privacy, full-viewport no-scroll pagination and logical-anchor continuity on text resize/reflow. Evidence: [independent closure](evaluation/m2-design.md#independent-closure), 77 browser + 2 static checks; both original mobile findings closed. Synthetic text pagination does not prove EPUB or installed-PWA behavior.
+- [ ] User confirmation of the requested unified-library/mobile-filter and paginated-reader refinements, including text resizing and current-reader interaction continuity.
 - [x] Focused reader lifecycle, element-level KO codec/restore, transactional storage, account/lease fencing, exact acknowledgements and conservative shared-revision conflict proofs against a typed fake. Evidence: [reader/storage proof](evaluation/m2-reader-storage.md#independent-closure).
 - [x] Representative reader compatibility/security proof for selected single-origin hardened EPUB.js: ordinary parsed CSS, packaged fonts, inline/packaged SVG, validated internal navigation, before-parse CSP/no-script chapters and source-body/byte preservation. Evidence: [reader proof and independent closure](evaluation/m2-reader-storage.md#independent-closure): owner 20 unit/38 browser tests; independent 20 unit/11 targeted browser tests plus original-reproduction/source/lifecycle probes. Trusted-renderer app-origin blast radius is explicitly accepted; no extra hostname or stronger boundary is required. Broader corpus/security/platform parity remains M3–M5 qualification.
 - [x] Representative replay/CAS proof over real Go↔browser HTTP: exact acknowledgements, lost-response retry/deduplication, durable outbox retention and explicit backward choice with stale-choice rejection. Evidence: [HTTP contracts](evaluation/m2-integration.md#executed-named-contracts), [independent acceptance — 10 browser tests](evaluation/m2-integration.md#independent-acceptance). Production resolution ownership/history, real KO protocol and restart qualification remain pending.
 - [x] Legacy worker-retirement/reset contract defined: `/sw.js` replacement, exact allowlisted cleanup, bounded client coordination/reload, failure recovery and unrelated/new-schema preservation. Evidence: [retirement contract and unexecuted acceptance matrix](evaluation/service-worker-contract.md). Runtime cutover, cold restart and installed-device qualification remain M3/M5 gates.
 - [x] Acceptance-test definitions and preserve/adapt/add dispositions for the declared proof scope; no production tests retired. Evidence: [API](evaluation/m2-api-contract.md#test-disposition-and-promotion-decision), [reader/storage](evaluation/m2-reader-storage.md#test-dispositions-and-fault-sensitivity), [design](evaluation/m2-design.md#test-dispositions).
 
-- [ ] Exit gate — OPEN: obtain full human interaction approval of selected Folio; bounded HTTP/replay and selected-reader proofs are accepted, and the worker-retirement contract is defined, not runtime-proved. Temporary proofs are removed or deliberately promoted; they never become permanent parallel frontends. No phone/PWA or production approval is implied.
+- [ ] Exit gate — OPEN pending only user confirmation of the revised Folio mobile/reader interactions. Automated refinement checks passed independently; rest-flow approval is conditional, earlier technical proofs stay accepted, and worker retirement is contract-defined, not runtime-proved. Temporary proofs are removed or deliberately promoted, never permanent parallel frontends. No phone/PWA or production approval is implied.
 
 M2 proves the selected tools and boundary contracts support representative real operations; it is not narrowed to passing existing fixtures. Production auth/CSRF, shared KO writers, migrations/deployment compatibility, broad real EPUB/KOReader compatibility and cold-restart workflows remain M3–M5 promotion gates below, not prerequisites to starting those milestones. Full workflow/parity and platform acceptance remain M4/M5 requirements; none is waived by M2 closure.
 
@@ -291,7 +298,7 @@ Evidence tracker:
 | Legacy worker retirement | Contract defined; runtime M3/M5 acceptance pending | [Contract/test matrix](evaluation/service-worker-contract.md) |
 | Proposed visual systems/interaction prototypes | Bounded automated proof accepted; not human interaction approval | [Design closure](evaluation/m2-design.md#independent-closure) |
 | Human visual selection | Folio/editorial selected in structured browser review; four tabs/desktop rail/early Read retained | [Selected direction](evaluation/README.md#product-decisions-for-m2) |
-| Full human interaction walkthrough and M2 exit | OPEN; no full interaction, phone or installed-PWA validation claimed | [Review walkthrough](evaluation/m2-design.md#review-these-journeys) |
+| Refined interaction validation and M2 exit | OPEN pending user confirmation of revised mobile/reader interactions; rest-flow approval conditional, automated checks accepted; no phone/PWA approval | [Refinement confirmation](evaluation/m2-design.md#review) |
 | Offline vertical-slice proof | Pending | — |
 | Full functionality acceptance | Pending | — |
 | Real-device, server upgrade, and legacy cache-retirement qualification | Pending | — |
@@ -304,13 +311,13 @@ Evidence tracker:
 3. Runtime verification of the [defined legacy worker-retirement contract](evaluation/service-worker-contract.md). Legacy browser data preservation is explicitly out of scope.
 4. Supported browser/OS floor and available physical-device validation coverage.
 5. Final OpenAPI/toolchain versions and frontend/storage dependencies.
-6. Full human validation of selected Folio interactions, plus accessibility/performance acceptance budgets; navigation and visual selection are resolved.
+6. User confirmation of independently verified Folio unified-library, search/filter and paginated-reader refinements; rest-flow approval is conditional. Accessibility/performance and device/PWA qualification remain later gates.
 7. Which existing behavior is defective and intentionally changes; no blanket permission to change functionality.
 8. Temporary coexistence and rollback constraints, especially where data changes cannot safely be rolled back.
 
 ## Scope Guardrails
 
-- A ground-up frontend redesign is required; a template-to-React port with cosmetic changes does not satisfy the goal. Preserve capabilities and compatibility contracts, not existing layouts or navigation.
+- A ground-up redesign of the surrounding app is required; a cosmetic template-to-React port is insufficient. Preserve capabilities and compatibility contracts, with current-reader pagination/input continuity outside theming as explicitly required.
 - No permanent dual frontend.
 - No database rewrite, backend framework replacement, or general-purpose architecture expansion without a concrete requirement.
 - Preserve existing server data and external integration contracts; introduce only necessary server migrations. No compatibility layer or migration for legacy browser-stored books, preferences, downloads, or pending events.

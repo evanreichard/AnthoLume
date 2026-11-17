@@ -1,0 +1,299 @@
+.library-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  gap: 10px;
+  align-items: stretch;
+  margin-bottom: 20px;
+}
+.library-search-row .search {
+  margin: 0;
+}
+.library-search-row input[type='search']::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+.library-search-row .search-clear {
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  flex: 0 0 44px;
+  padding: 0;
+}
+.library-search-row .filter-button {
+  position: relative;
+  width: 48px;
+  height: 100%;
+}
+.filter-button > span {
+  position: absolute;
+  top: -5px;
+  right: -4px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-radius: 50%;
+  padding: 1px 5px;
+  font-size: 10px;
+}
+.filter-summary {
+  color: var(--muted);
+  font-size: 12px;
+  margin: -8px 0 18px;
+}
+.source-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin: -8px 0 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.source-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.source-legend svg {
+  width: 16px;
+  height: 16px;
+}
+.source-legend .add-button {
+  margin-left: auto;
+  font-size: 12px;
+}
+.book-cover-area {
+  position: relative;
+  min-width: 0;
+  margin-bottom: 14px;
+}
+.book-cover-area .book-cover-link {
+  margin-bottom: 0;
+}
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  z-index: 2;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 3px #0002;
+}
+.source-badge svg {
+  width: 17px;
+  height: 17px;
+}
+.hero-cover {
+  position: relative;
+}
+.split-library .book-cover-area {
+  flex: 0 0 66px;
+  width: 66px;
+  margin: 0;
+}
+.split-library .source-badge,
+:root[data-direction='index'] .book-card .source-badge {
+  width: 20px;
+  height: 20px;
+  bottom: 3px;
+  right: 3px;
+}
+.split-library .source-badge svg,
+:root[data-direction='index'] .book-card .source-badge svg {
+  width: 13px;
+  height: 13px;
+}
+:root[data-direction='index'] .book-cover-area {
+  margin: 0;
+}
+:root[data-direction='index'] .split-library .book-cover-area {
+  width: 44px;
+}
+.filter-options {
+  display: grid;
+  gap: 6px;
+}
+.filter-options label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 14px;
+}
+.filter-options input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+.filter-options label:has(input:checked) {
+  background: var(--subtle);
+  border-color: var(--accent);
+}
+.filter-options label:has(input:disabled) {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.filter-count {
+  font-size: 16px;
+}
+.filter-count small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.filter-actions {
+  display: flex;
+  gap: 10px;
+}
+.filter-actions button:last-child {
+  flex: 1;
+}
+@media (max-width: 699px) {
+  .library-workspace .page-heading {
+    margin-bottom: 17px;
+  }
+  .library-workspace .page-heading h1 {
+    font-size: 36px;
+  }
+  .library-workspace .page-heading .eyebrow {
+    font-size: 9px;
+    margin-bottom: 4px;
+  }
+  .library-search-row {
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .library-search-row input {
+    min-height: 48px;
+    padding-block: 10px;
+  }
+  .library-workspace .continue-card {
+    grid-template-columns: minmax(0, 1fr) 60px;
+    gap: 16px;
+    padding: 18px;
+    margin-bottom: 20px;
+  }
+  .library-workspace .continue-copy > .eyebrow,
+  .library-workspace .continue-description {
+    display: none;
+  }
+  .library-workspace .continue-copy h2 {
+    font-size: 26px;
+    line-height: 1.08;
+    margin-bottom: 5px;
+  }
+  .library-workspace .continue-description {
+    font-size: 11px;
+    font-weight: 400;
+  }
+  .library-workspace .continue-position {
+    font-size: 10px;
+    margin: 4px 0 9px;
+  }
+  .library-workspace .continue-card .primary {
+    min-height: 44px;
+    font-size: 11px;
+    padding: 9px 12px;
+  }
+  .library-workspace .hero-cover .cover {
+    padding: 9px 7px;
+  }
+  .library-workspace .hero-cover .cover strong {
+    font-size: 17px;
+  }
+  .library-workspace .hero-cover .cover-author {
+    font-size: 4px;
+  }
+  .library-workspace .hero-cover .source-badge {
+    width: 20px;
+    height: 20px;
+    right: 3px;
+    bottom: 3px;
+  }
+  .library-workspace .hero-cover .source-badge svg {
+    width: 13px;
+    height: 13px;
+  }
+  .library-workspace .hero-mark {
+    font-size: 140px;
+    right: 40px;
+    bottom: -32px;
+  }
+  .library-workspace .section-label {
+    margin: 18px 0 12px;
+  }
+  .library-workspace .section-label h2 {
+    font-size: 22px;
+  }
+  .source-legend {
+    gap: 8px;
+    font-size: 10px;
+    margin-bottom: 12px;
+  }
+  .source-legend .add-button {
+    width: 44px;
+    height: 44px;
+    padding: 6px;
+    font-size: 21px;
+  }
+  .library-add-label {
+    display: none;
+  }
+  .library-workspace .book-grid {
+    gap: 20px 16px;
+  }
+  .library-workspace .book-card h3 {
+    font-size: 19px;
+  }
+  .library-workspace .cover strong {
+    font-size: 27px;
+  }
+  .library-workspace .book-meta {
+    margin-top: 8px;
+  }
+  dialog:has(.filter-sheet) {
+    width: 100%;
+    max-width: 100%;
+    margin: auto 0 0;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .filter-sheet {
+    gap: 14px;
+  }
+  :root[data-direction='index'] .library-workspace .book-grid {
+    gap: 0;
+  }
+  :root[data-direction='index'] .library-workspace .book-card .cover strong {
+    font-size: 11px;
+  }
+  :root[data-direction='index'] .library-workspace .hero-cover .cover strong {
+    font-size: 13px;
+  }
+}
+@media (max-width: 359px) {
+  .library-workspace .continue-card {
+    grid-template-columns: minmax(0, 1fr) 60px;
+    gap: 12px;
+    padding: 16px;
+  }
+  .library-workspace .continue-copy h2 {
+    font-size: 25px;
+  }
+  .library-workspace .cover strong {
+    font-size: 24px;
+  }
+}

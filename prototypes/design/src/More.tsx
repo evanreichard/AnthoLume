@@ -139,14 +139,14 @@ export function More() {
       <section className="design-note">
         <p className="eyebrow">A focused M2 proof</p>
         <h2>
-          Choose a feeling.
+          Folio, selected.
           <br />
-          Keep the same possibilities.
+          Room for the next chapter.
         </h2>
         <p>
-          Compare Folio’s quiet, cover-forward library with Index’s compact, status-forward
-          workspace using the direction selector above. Both use the same four destinations and
-          synthetic content.
+          One library brings visible shared and local titles together without changing ownership.
+          Source and availability filters help you find a book; Offline remains the place to manage
+          downloads and local originals. All content and operation states are synthetic.
         </p>
       </section>
       {panel === 'logout' && (

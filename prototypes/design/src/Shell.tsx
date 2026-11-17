@@ -25,19 +25,15 @@ export function StudioBar({
   return (
     <aside className="studio-bar" aria-label="Prototype controls">
       <span className="studio-label">
-        <b>M2</b> Design study <span>· synthetic, in-memory demo</span>
+        <b>M2</b> {direction === 'folio' ? 'Folio · selected' : 'Index · archive'}{' '}
+        <span>· synthetic demo</span>
       </span>
       <div className="studio-controls">
-        <label>
-          Direction{' '}
-          <select
-            value={direction}
-            onChange={(event) => setDirection(event.target.value as Direction)}
-          >
-            <option value="folio">A · Folio / editorial</option>
-            <option value="index">B · Index / utility</option>
-          </select>
-        </label>
+        {direction === 'index' && (
+          <button aria-label="Use selected Folio" onClick={() => setDirection('folio')}>
+            Folio
+          </button>
+        )}
         <button
           className="theme-toggle"
           onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}

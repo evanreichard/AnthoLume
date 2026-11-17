@@ -1,53 +1,58 @@
-# AnthoLume M2 · Folio / Index
+# AnthoLume M2 · Folio
 
-Two disposable, standalone React/TypeScript visual directions on the approved Library, Offline, Insights, More IA. All content is synthetic; no API, EPUB engine, service worker, or real storage/sync. Neither creative direction has been selected.
+Folio is selected. This standalone React/TypeScript prototype uses synthetic books and real bounded sample pagination, **not an EPUB engine**. Index remains URL-linkable as an archived comparison, not an active direction picker.
 
-## Safe review preview
+## Review the existing previews
 
-From the repository root, with Node 22.12+ (verified with 22.23.4):
+- Local: http://127.0.0.1:5173/?direction=folio&theme=light#/library
+- Tailnet: http://100.64.0.14:5175/?direction=folio&theme=light#/library
+- Reader: change the hash to `#/read/tidal`.
+- Filter deep link: `#/library?source=local&availability=offline`.
+
+The existing static processes read `prototypes/design/dist`. Rebuild and refresh the browser; **do not restart either preview or bind another port** for this review.
+
+The unified Library defaults to all visible shared and local records. Source icons live on covers; availability remains separate text. Search and the filter button share a row. Filter drafts apply explicitly, with counts/reset; `q`, `source` and `availability` live in the hash query and survive detail/reader/Back. Offline remains download/local-original management. Nothing is uploaded or reclassified.
+
+Reading fills the viewport without document/text scrolling. Previous/Next, arrows, stationary left/right edge taps and bounded horizontal swipes turn measured pages. TOC/Appearance are overlays; only panels and the desktop contents column may scroll. Font/size/orientation changes show the page containing the same **word anchor**, not the old page number. Per-book position/appearance/chrome and mock outcomes survive internal routes until reload. No activity, authentication, EPUB parsing, real availability, import, storage or synchronization is implemented.
+
+## Narrow mobile input parity
+
+| Input                                                   | Preserved behavior                                                                                                                     |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Left/right outer 20% of the text page                   | Stationary primary-pointer tap turns Previous/Next; center taps leave controls unchanged.                                              |
+| Horizontal swipe                                        | One turn above 60px travel with less than 35px vertical deviation; never a second tap turn.                                            |
+| Selection, links/controls, cancelled or returning drags | No implicit page turn; native control actions remain available.                                                                        |
+| Compatibility/synthesized click                         | No second turn: only pointer-up commits text-page gestures. Explicit buttons retain native clicks/keyboard activation.                 |
+| Populated search                                        | One custom Clear search button, at least 44×44px; UA cancel decoration is hidden. Enter/Space clearing returns focus to the searchbox. |
+
+The redundant empty-result clear action was removed as well; filters stay in the same compact query row. Tests inspect Chromium's actual UA-shadow cancel node rather than relying on the host/pseudo computed-style proxy.
+
+## Checks without launching servers
+
+From the repository root with Node 22.12+:
 
 ```sh
 npm --prefix prototypes/design ci
 npm --prefix prototypes/design run audit
-npm --prefix prototypes/design run build
-npm --prefix prototypes/design run preview
-```
-
-This script serves **only `prototypes/design/dist` on `127.0.0.1:5173`**. It has no Vite development middleware, repository fallback, directory listing or host-binding option. Missing paths/dotfiles/traversal return errors; resolved symlinks must stay within dist. Stop with Ctrl-C. No server starts during install/build, and none is left running by tests.
-
-- Folio: http://127.0.0.1:5173/?direction=folio&theme=light#/library
-- Index: http://127.0.0.1:5173/?direction=index&theme=light#/library
-- Dark mode: use `theme=dark` or the toolbar.
-- Reader: `#/read/tidal`; conflict: `#/sync?state=conflict`.
-
-The toolbar preserves the journey. Per-book chapter/appearance/chrome and mock outcomes survive route changes, **not reload**. History restores scroll only for a matching reader context. Direction/theme/route/library query remain in the URL. No durable reading position or activity is saved.
-
-For editing only, `npm --prefix prototypes/design run dev` starts patched Vite **7.3.8**, also loopback-only on 5173. Do not serve the repository root, broaden the dev bind, or tunnel the development server. Stop any existing preview first. Audits are point-in-time evidence, not a security guarantee.
-
-## Checks and screenshots
-
-```sh
 npm --prefix prototypes/design run typecheck
-npm --prefix prototypes/design run test:preview
-npm --prefix prototypes/design run audit
-cd prototypes/design
-npx playwright install chromium
-npm test
+M2_PREVIEW_URL=http://127.0.0.1:5173 npm --prefix prototypes/design run test:preview
+M2_BASE_URL=http://127.0.0.1:5173 npm --prefix prototypes/design test
 ```
 
-`test:preview` builds and runs Node tests against temporary loopback static servers, then closes them. Browser tests start/stop their own Vite on **5313**. On NixOS, replace browser installation/test commands with:
+`test:preview` builds dist and runs HTTP checks against `M2_PREVIEW_URL`; this mode does not create/listen/close a server. `M2_BASE_URL` likewise disables Playwright's managed web server. Set `CHROMIUM_PATH` to a system-wrapped Chromium on NixOS; elsewhere use an installed Playwright browser.
+
+Without these environment variables the original isolated test defaults remain available for future use: managed Vite on 5313 and temporary static-test servers. They were **not used** for this refinement. The optional `npm run preview` script serves only dist on loopback 5173; do not run it while the existing preview owns that port. Development remains loopback-only, with patched Vite 7.3.8. Never serve the repository root or broaden/tunnel the dev bind.
+
+## Independent screenshots
+
+From `prototypes/design`, reuse the running preview and put all artifacts in your own paths:
 
 ```sh
-CHROMIUM_PATH="$(nix build nixpkgs#chromium --no-link --print-out-paths)/bin/chromium" npm test
+M2_BASE_URL=http://127.0.0.1:5173 \
+M2_SCREENSHOT_DIR=/absolute/owned/screenshots \
+npm test -- --output /absolute/owned/results --grep 'review screenshots|focused mobile|M1'
 ```
 
-Screenshots default to `_scratch/m2/design/screenshots/` at the repository root. Independent reviewers can direct **all screenshot writes** into their own absolute path, without editing tests:
+Include `CHROMIUM_PATH` when needed. The five capture-bearing cases generate **67 PNGs**: 52 matrix/context captures, 13 focused Folio library/filter/large-type/landscape/desktop reader captures, and two populated-search views (`folio-clear-320.png`, `folio-clear-390.png`). Names containing `refined` identify the new views. `-full.png` documents contain fixed-tab screenshot artifacts; the reader itself is exactly one viewport, so it has no long-document capture. These are review images, not pixel baselines.
 
-```sh
-# From prototypes/design; include CHROMIUM_PATH on NixOS.
-M2_SCREENSHOT_DIR=/absolute/owned/review/screenshots npm test -- --grep 'review screenshots'
-```
-
-Relative overrides resolve from the test process working directory (`prototypes/design` under `npm --prefix`). The two screenshot tests regenerate **52 PNGs** across both directions: libraries at 320/390/1280 in light/dark, mobile detail/reader/offline/conflict, desktop detail and logged-out Sync. Plain names are viewport captures; `-full.png` captures the scrollable document, with fixed tabs at the initial viewport edge. These are review artifacts, not pixel-baseline assertions.
-
-See [review findings](../../docs/evaluation/m2-design.md) for walkthroughs, dispositions and evidence. CSS cover padding uses fixed values: percentage padding resolves against the containing block and distorts reused thumbnails in split/detail contexts. Dialog cancellation restores the opener; intentional chapter transitions and successful removals supply a meaningful post-close focus destination.
+See [M2 findings](../../docs/evaluation/m2-design.md) for actual test counts, intentional contract changes, ownership/focus invariants and limitations. All dependencies are pinned in this prototype's lockfile; audits are point-in-time checks.

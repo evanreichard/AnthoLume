@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { createPreviewServer } from './static-preview.mjs';
 
 async function withPreview(run) {
+  if (process.env.M2_PREVIEW_URL) {
+    await run(process.env.M2_PREVIEW_URL);
+    return;
+  }
   const server = await createPreviewServer();
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {

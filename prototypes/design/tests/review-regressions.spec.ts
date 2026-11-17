@@ -7,7 +7,7 @@ async function open(page: Page, direction: string, route: string) {
 
 for (const direction of ['folio', 'index']) {
   test.describe(`${direction} review regressions`, () => {
-    test('D2 reader session and matching scroll survive Sync and both Back controls', async ({
+    test('D2 paginated anchor and reader session survive Sync and both Back controls', async ({
       page,
     }) => {
       await open(page, direction, '/read/tidal');
@@ -21,11 +21,11 @@ for (const direction of ['folio', 'index']) {
       await page.getByRole('slider', { name: 'Text size' }).fill('26');
       await page.getByRole('button', { name: 'Ink', exact: true }).click();
       await page.keyboard.press('Escape');
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
+      const anchor = await page.locator('.page-text').first().getAttribute('data-anchor');
       await page.getByRole('button', { name: 'Quiet reading', exact: true }).click();
       for (const browserBack of [false, true]) {
         const sync = page.getByRole('link', { name: 'Demo · 2 pending events →' });
-        await sync.scrollIntoViewIfNeeded();
-        const scroll = await page.evaluate(() => scrollY);
         await sync.click();
         await expect(
           page.getByRole('heading', { level: 1, name: 'Synchronization' }),
@@ -35,22 +35,27 @@ for (const direction of ['folio', 'index']) {
         await expect(
           page.getByRole('heading', { level: 1, name: 'A map of small things' }),
         ).toHaveCount(1);
-        await expect(page.locator('.reader')).toHaveClass(/paper-ink quiet-reader/);
-        await expect(page.locator('.reader-text')).toHaveCSS('font-size', '26px');
-        await expect(page.locator('.reader-text')).toHaveCSS(
+        await expect(page.locator('.paginated-reader')).toHaveClass(/paper-ink quiet-reader/);
+        await expect(page.locator('.page-text').first()).toHaveCSS('font-size', '26px');
+        await expect(page.locator('.page-text').first()).toHaveCSS(
           'font-family',
           'system-ui, sans-serif',
         );
-        await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(scroll, 0);
+        await expect(page.locator('.page-text').first()).toHaveAttribute('data-anchor', anchor!);
+        await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
       }
       await page.getByRole('link', { name: 'Demo · 2 pending events →' }).click();
       await page.evaluate(() => {
         location.hash = '/read/tidal';
       });
       await page.getByRole('button', { name: 'Next', exact: true }).click();
+      const laterAnchor = await page.locator('.page-text').first().getAttribute('data-anchor');
       await page.goBack();
       await page.goBack();
-      await expect(page.getByRole('heading', { level: 1, name: 'The path inland' })).toHaveCount(1);
+      await expect(page.locator('.page-text').first()).toHaveAttribute('data-anchor', laterAnchor!);
+      await expect(
+        page.getByRole('heading', { level: 1, name: 'A map of small things' }),
+      ).toHaveCount(1);
       await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
     });
 
@@ -69,27 +74,28 @@ for (const direction of ['folio', 'index']) {
         location.hash = '/read/field';
       });
       await expect(page.getByRole('button', { name: 'Quiet reading', exact: true })).toBeVisible();
-      await expect(page.locator('.reader-text')).toHaveCSS('font-size', '20px');
+      await expect(page.locator('.page-text').first()).toHaveCSS('font-size', '20px');
       await page.goBack();
       await expect(page.getByRole('button', { name: 'Show reading controls' })).toBeVisible();
-      await expect(page.locator('.reader-text')).toHaveCSS('font-size', '26px');
+      await expect(page.locator('.page-text').first()).toHaveCSS('font-size', '26px');
     });
 
-    test('D3 Next, Previous, keyboard and TOC transitions focus the chapter, including final chapter', async ({
+    test('D3 page turns focus the page and TOC selection focuses its heading through the final page', async ({
       page,
     }) => {
       await open(page, direction, '/read/tidal');
-      await page.getByRole('button', { name: 'Next', exact: true }).click();
-      const chapter2 = page.getByRole('heading', { level: 1, name: 'A map of small things' });
-      await expect(chapter2).toBeFocused();
-      await expect(chapter2).toBeInViewport();
+      const text = page.locator('.page-text').first();
+      const next = page.getByRole('button', { name: 'Next', exact: true });
+      await next.click();
+      await expect(text).toBeFocused();
+      await expect(text).toBeInViewport();
       await page.getByRole('button', { name: 'Previous', exact: true }).click();
-      await expect(
-        page.getByRole('heading', { level: 1, name: 'The harbour at first light' }),
-      ).toBeFocused();
+      await expect(text).toBeFocused();
+      await expect(text).toHaveAttribute('data-anchor', '0');
       await page.keyboard.press('ArrowRight');
-      await expect(chapter2).toBeFocused();
-      await page.getByRole('button', { name: 'Contents', exact: true }).click();
+      await expect(text).not.toHaveAttribute('data-anchor', '0');
+      const contents = page.getByRole('button', { name: 'Contents', exact: true });
+      await contents.click();
       await page
         .getByRole('dialog')
         .getByRole('button', { name: '04 What the water leaves' })
@@ -97,15 +103,14 @@ for (const direction of ['folio', 'index']) {
       await expect(
         page.getByRole('heading', { level: 1, name: 'What the water leaves' }),
       ).toBeFocused();
-      await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
+      let turns = 0;
+      while ((await next.isEnabled()) && turns++ < 40) {
+        await next.click();
+        await expect(text).toBeFocused();
+      }
+      await expect(next).toBeDisabled();
       await page.getByRole('button', { name: 'Previous', exact: true }).click();
-      await expect(page.getByRole('heading', { level: 1, name: 'The path inland' })).toBeFocused();
-      await page.getByRole('button', { name: 'Next', exact: true }).click();
-      await expect(
-        page.getByRole('heading', { level: 1, name: 'What the water leaves' }),
-      ).toBeFocused();
-      await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
-      const contents = page.getByRole('button', { name: 'Contents', exact: true });
+      await expect(text).toBeFocused();
       await contents.click();
       await page.keyboard.press('Escape');
       await expect(contents).toBeFocused();
@@ -174,7 +179,7 @@ for (const direction of ['folio', 'index']) {
       await page.getByRole('link', { name: 'Keep reading offline' }).click();
       await page.getByRole('link', { name: 'The Tidal Atlas', exact: true }).click();
       await page.getByRole('link', { name: 'Resume reading' }).click();
-      await expect(page.locator('.reader-book-label')).toContainText('The Tidal Atlas');
+      await expect(page.locator('.page-book-label')).toContainText('The Tidal Atlas');
       await page.getByRole('button', { name: 'Back', exact: true }).click();
       await page
         .getByRole('navigation', { name: 'Mobile navigation' })

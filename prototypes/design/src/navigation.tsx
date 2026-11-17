@@ -5,9 +5,7 @@ export function currentRoute() {
 }
 
 export function navigate(to: string, replace = false) {
-  const readerContext =
-    document.querySelector<HTMLElement>('[data-reader-context]')?.dataset.readerContext;
-  history.replaceState({ ...history.state, scroll: window.scrollY, readerContext }, '');
+  history.replaceState({ ...history.state, scroll: window.scrollY }, '');
   const depth = (history.state?.depth ?? 0) + (replace ? 0 : 1);
   history[replace ? 'replaceState' : 'pushState'](
     { depth, scroll: replace ? window.scrollY : 0 },
@@ -24,31 +22,35 @@ export function back(fallback = '/library') {
 
 export function useRoute() {
   const [route, setRoute] = useState(currentRoute);
+  const [popCount, setPopCount] = useState(0);
   useLayoutEffect(() => {
     const previousRestoration = history.scrollRestoration;
     history.scrollRestoration = 'manual';
     const update = () => setRoute(currentRoute());
-    window.addEventListener('popstate', update);
+    const pop = () => {
+      update();
+      setPopCount((count) => count + 1);
+    };
+    window.addEventListener('popstate', pop);
     window.addEventListener('hashchange', update);
     window.addEventListener('m2navigate', update);
     return () => {
       history.scrollRestoration = previousRestoration;
-      window.removeEventListener('popstate', update);
+      window.removeEventListener('popstate', pop);
       window.removeEventListener('hashchange', update);
       window.removeEventListener('m2navigate', update);
     };
   }, []);
   const path = route.split('?')[0];
   useLayoutEffect(() => {
-    const readerContext =
-      document.querySelector<HTMLElement>('[data-reader-context]')?.dataset.readerContext;
-    const matchingReader = !readerContext || history.state?.readerContext === readerContext;
-    window.scrollTo(0, matchingReader ? (history.state?.scroll ?? 0) : 0);
+    const reading = Boolean(document.querySelector('.paginated-reader'));
+    document.documentElement.dataset.readerOpen = String(reading);
+    window.scrollTo(0, reading ? 0 : (history.state?.scroll ?? 0));
     const heading = Array.from(document.querySelectorAll<HTMLElement>('[data-route-heading]')).at(
       -1,
     );
     heading?.focus({ preventScroll: true });
-  }, [path]);
+  }, [path, popCount]);
   return { route, path, params: new URLSearchParams(route.split('?')[1] || '') };
 }
 

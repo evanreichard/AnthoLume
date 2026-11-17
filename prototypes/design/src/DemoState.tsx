@@ -4,6 +4,7 @@ import { books, type Book } from './data';
 export type SyncState = 'pending' | 'auth' | 'quota' | 'conflict' | 'retry' | 'unavailable';
 export type ReaderSession = {
   chapter: number;
+  anchor: number;
   size: number;
   font: string;
   paper: string;
@@ -11,6 +12,7 @@ export type ReaderSession = {
 };
 export const defaultReaderSession: ReaderSession = {
   chapter: 0,
+  anchor: 0,
   size: 20,
   font: 'serif',
   paper: 'auto',

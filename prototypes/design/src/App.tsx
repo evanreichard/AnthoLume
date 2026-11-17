@@ -71,12 +71,14 @@ export function App() {
     );
   return (
     <>
-      <StudioBar
-        direction={direction}
-        theme={theme}
-        setDirection={setDirection}
-        setTheme={setTheme}
-      />
+      {!reader && (
+        <StudioBar
+          direction={direction}
+          theme={theme}
+          setDirection={setDirection}
+          setTheme={setTheme}
+        />
+      )}
       {reader ? (
         <>
           <Reader key={book.id} book={book} />

@@ -1,10 +1,10 @@
 # M2 proofs
 
-Five discardable evaluation modules, not permanent parallel frontends/APIs. Root application, dependencies and toolchain remain unchanged. [Checkpoint and remaining gates](../docs/evaluation/README.md#m2-checkpoint-and-remaining-gates): technical proof scope accepted; selected **Folio** still needs the full human interaction walkthrough and M2 exit approval. No phone/PWA or production acceptance is implied.
+Five discardable evaluation modules, not permanent parallel frontends/APIs. Root application, dependencies and toolchain remain unchanged. [Checkpoint and remaining gates](../docs/evaluation/README.md#m2-checkpoint-and-remaining-gates): technical proof scope accepted; selected **Folio** has conditional rest-flow approval; user confirmation of the independently verified mobile/reader refinements and M2 exit remain pending. No phone/PWA or production acceptance is implied.
 
 | Module | Scope / declared evidence | Instructions |
 | --- | --- | --- |
-| Design | Synthetic Folio/Index UI; Folio selected. 53 browser tests, 84 layout checks, 2 static-preview tests; no EPUB/durable state | [Run/review](design/README.md) |
+| Design | Selected Folio: combined Library/compact filters and no-scroll paginated sample reader. Independent 77 browser + 2 static checks; no EPUB/durable state | [Run/review](design/README.md) |
 | API contract | Six schema-first operations, generated Go/TS, fixture HTTP/SQLite receipts/CAS, validation/drift and 12 fault checks | [Verify/audit](api-contract/README.md) |
 | Reader/storage | Selected single-origin hardened EPUB.js; representative CSS/fonts/SVG/internal navigation, source-body preservation, lifecycle/codec/storage. Owner 20 unit/38 browser; independent 20 unit/11 targeted closure | [Run/test](reader-storage/README.md) |
 | Integration | Actual browser↔Go HTTP using imported Repository/SyncCoordinator and generated bindings; 10 browser tests, race-enabled fixture server, dependency-isolated replay | [Verify/audit](integration/README.md) |
@@ -27,7 +27,7 @@ npm --prefix prototypes/design ci && npm --prefix prototypes/design run audit &&
 
 ## Safe preview and dependency boundaries
 
-Reuse the running **127.0.0.1:5173** static [Folio preview](http://127.0.0.1:5173/?direction=folio&theme=light#/library); do not stop it or start another server over it. It serves built design `dist` only, without Vite dev middleware, repository fallback or directory listings; dotfiles/traversal/escaping symlinks reject. Keep it loopback-only; this is not public-hosting hardening. Other tests own separate temporary listeners and do not reuse 5173.
+Reuse the running **127.0.0.1:5173** static [Folio preview](http://127.0.0.1:5173/?direction=folio&theme=light#/library); do not stop it or start another server over it. It serves built design `dist` only, without Vite dev middleware, repository fallback or directory listings; dotfiles/traversal/escaping symlinks reject. The existing private tailnet preview at **100.64.0.14:5175** also remains running; do not stop/rebind either listener. These synthetic static previews are not public-hosting hardening. Design checks can reuse them without binding servers via `M2_BASE_URL` / `M2_PREVIEW_URL` (see its README); other proofs retain separate test listeners.
 
 Each module owns its lockfile; differing exact pins are evaluation evidence, not a selected production graph. Go 1.26.11 and patched Gin/x/net/x/crypto remain nested/scoped; scans do not certify unchanged root Go/dependencies. Reader uses EPUB.js 0.3.93 with xmldom override, parsed CSS policy and a pinned lifecycle seam; zero advisories are not a security audit. Refresh audits and qualify root adoption before production.
 

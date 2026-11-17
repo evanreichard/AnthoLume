@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDemo } from './DemoState';
 import type { Book } from './data';
+import { LibraryFilterDialog } from './LibraryFilters';
+import { libraryQuery, matchesBook, readFilters, type LibraryFilters } from './libraryFilters';
 import { Link, navigate } from './navigation';
-import { Badge, Cover, Dialog, Icon, PageHeading } from './ui';
+import { Badge, Cover, Dialog, Icon, PageHeading, SourceBadge } from './ui';
+import './library.css';
 
 export function ImportDemo({ onClose }: { onClose: () => void }) {
   const { items, setItems, announce } = useDemo();
@@ -63,9 +66,12 @@ export function BookRow({
   const to = `/books/${book.id}${query ? `?${query}` : ''}`;
   return (
     <article className={`book-card ${compact ? 'compact' : ''}`}>
-      <Link to={to} className="book-cover-link" tabIndex={-1} aria-hidden="true">
-        <Cover book={book} />
-      </Link>
+      <div className="book-cover-area">
+        <Link to={to} className="book-cover-link" tabIndex={-1} aria-hidden="true">
+          <Cover book={book} />
+        </Link>
+        <SourceBadge kind={book.kind} />
+      </div>
       <div className="book-info">
         <p className="eyebrow book-category">{book.category}</p>
         <h3>
@@ -74,11 +80,7 @@ export function BookRow({
         <p className="author">{book.author}</p>
         <div className="book-meta">
           <Badge tone={available ? 'good' : ''}>
-            {book.kind === 'local'
-              ? 'Local only'
-              : available
-                ? 'Offline · demo'
-                : 'Online only · demo'}
+            {available ? 'Available offline · demo' : 'Online only · demo'}
           </Badge>
           <span>{book.progress ? `${book.progress}% read` : 'Not started'}</span>
         </div>
@@ -98,19 +100,28 @@ export function BookRow({
 export function Library({ params, split = false }: { params: URLSearchParams; split?: boolean }) {
   const { items, signedIn, downloads, sync } = useDemo();
   const [importing, setImporting] = useState(false);
-  const scope = !signedIn ? 'local' : params.get('scope') || 'shared';
+  const [filtering, setFiltering] = useState(false);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const filters = readFilters(params);
   const query = params.get('q') || '';
-  const visible = items.filter(
-    (book) =>
-      book.kind === scope &&
-      `${book.title} ${book.author}`.toLowerCase().includes(query.toLowerCase()),
-  );
-  const continuing = items.find((book) => book.id === 'tidal');
-  const filters = new URLSearchParams({ scope, ...(query ? { q: query } : {}) }).toString();
-  function updateFilters(next: { scope?: string; q?: string }) {
-    const search = new URLSearchParams({ scope: next.scope ?? scope, q: next.q ?? query });
-    if (!search.get('q')) search.delete('q');
-    navigate(`/library?${search}`, true);
+  const accessible = items.filter((book) => signedIn || book.kind === 'local');
+  const count = (draft: LibraryFilters) =>
+    accessible.filter((book) => matchesBook(book, query, draft, downloads)).length;
+  const visible = accessible.filter((book) => matchesBook(book, query, filters, downloads));
+  const continuing = visible.find((book) => book.id === 'tidal');
+  const resultQuery = libraryQuery(query, filters);
+  useEffect(() => {
+    setFiltering(false);
+  }, [resultQuery]);
+  const activeCount = Number(filters.source !== 'all') + Number(filters.availability !== 'all');
+  function updateSearch(q: string) {
+    const search = libraryQuery(q, filters);
+    navigate(`/library${search ? `?${search}` : ''}`, true);
+  }
+  function applyFilters(next: LibraryFilters) {
+    const search = libraryQuery(query, next);
+    navigate(`/library${search ? `?${search}` : ''}`);
+    setFiltering(false);
   }
   return (
     <section
@@ -119,7 +130,7 @@ export function Library({ params, split = false }: { params: URLSearchParams; sp
     >
       <PageHeading
         eyebrow={signedIn ? 'Your next chapter' : 'No account needed'}
-        title={signedIn ? 'The library' : 'Local books'}
+        title="The library"
       >
         <Link className="quiet-link heading-sync" to="/sync">
           <span className="status-dot" />
@@ -127,18 +138,68 @@ export function Library({ params, split = false }: { params: URLSearchParams; sp
           <Icon name="arrow" />
         </Link>
       </PageHeading>
-      {!query && scope === 'shared' && continuing && (
+      <div className="library-search-row">
+        <label className="search">
+          <Icon name="search" />
+          <span className="sr-only">Search title or author</span>
+          <input
+            ref={searchInput}
+            type="search"
+            placeholder="Search title or author"
+            value={query}
+            onChange={(event) => updateSearch(event.target.value)}
+          />
+          {query && (
+            <button
+              className="search-clear"
+              aria-label="Clear search"
+              onClick={() => {
+                updateSearch('');
+                searchInput.current?.focus({ preventScroll: true });
+              }}
+            >
+              <Icon name="close" />
+            </button>
+          )}
+        </label>
+        <button
+          className="filter-button icon-button"
+          aria-label={`Filter library${activeCount ? ` · ${activeCount} active` : ''}`}
+          aria-haspopup="dialog"
+          onClick={() => setFiltering(true)}
+        >
+          <Icon name="filter" />
+          {activeCount > 0 && <span>{activeCount}</span>}
+        </button>
+      </div>
+      {activeCount > 0 && (
+        <p className="filter-summary">
+          {filters.source === 'all'
+            ? 'All sources'
+            : filters.source === 'shared'
+              ? 'Shared library'
+              : 'Local originals'}{' '}
+          ·{' '}
+          {filters.availability === 'all'
+            ? 'All availability'
+            : filters.availability === 'offline'
+              ? 'Available offline'
+              : 'Online only'}
+        </p>
+      )}
+      {!signedIn && (
+        <p className="scope-note">
+          Account records are hidden. Local originals stay usable here, without a login or upload.
+        </p>
+      )}
+      {!query && !activeCount && continuing && (
         <section className="continue-card" aria-label="Continue reading">
           <div className="continue-copy">
-            <p className="eyebrow">Make a little time</p>
+            <p className="eyebrow">A little time for reading</p>
             <h2>
-              Return to
-              <br />
-              <em>the water.</em>
+              <em>{continuing.title}</em>
             </h2>
-            <p className="continue-description">
-              {continuing.title} <span>by {continuing.author}</span>
-            </p>
+            <p className="continue-description">by {continuing.author}</p>
             <p className="continue-position">
               Chapter 1 · 24%{' '}
               <span>· {downloads.includes('tidal') ? 'Offline sample' : 'Online sample'}</span>
@@ -149,77 +210,61 @@ export function Library({ params, split = false }: { params: URLSearchParams; sp
           </div>
           <Link to="/books/tidal" className="hero-cover" aria-label="Details for The Tidal Atlas">
             <Cover book={continuing} />
+            <SourceBadge kind={continuing.kind} />
           </Link>
           <span className="hero-mark" aria-hidden="true">
             24<span>%</span>
           </span>
         </section>
       )}
-      <div className="library-tools">
-        <div className="segmented" aria-label="Library scope">
-          {signedIn && (
-            <button
-              aria-pressed={scope === 'shared'}
-              onClick={() => updateFilters({ scope: 'shared' })}
-            >
-              Shared library
-            </button>
-          )}
-          <button
-            aria-pressed={scope === 'local'}
-            onClick={() => updateFilters({ scope: 'local' })}
-          >
-            Local books
-          </button>
-        </div>
-        <button className="add-button" onClick={() => setImporting(true)}>
-          + Local sample
-        </button>
-      </div>
-      <label className="search">
-        <Icon name="search" />
-        <span className="sr-only">Search title or author</span>
-        <input
-          type="search"
-          placeholder="Search title or author"
-          value={query}
-          onChange={(event) => updateFilters({ q: event.target.value })}
-        />
-        {query && (
-          <button aria-label="Clear search" onClick={() => updateFilters({ q: '' })}>
-            <Icon name="close" />
-          </button>
-        )}
-      </label>
+
       <div className="section-label">
-        <h2>
-          {query ? 'Search results' : scope === 'shared' ? 'On the shelves' : 'In this browser'}
-        </h2>
+        <h2>{query ? 'Search results' : 'On the shelves'}</h2>
         <span>
           {visible.length} {visible.length === 1 ? 'title' : 'titles'} · synthetic
         </span>
       </div>
-      {scope === 'local' && (
-        <p className="scope-note">
-          Local originals stay separate from the shared library. No server reading activity is
-          recorded.
-        </p>
-      )}
+      <div className="source-legend">
+        <span>
+          <Icon name="shared" />
+          Shared library
+        </span>
+        <span>
+          <Icon name="device" />
+          Local original
+        </span>
+        <button
+          className="add-button"
+          aria-label="Add local sample"
+          onClick={() => setImporting(true)}
+        >
+          +<span className="library-add-label"> Local sample</span>
+        </button>
+      </div>
       {visible.length ? (
         <div className="book-grid">
           {visible.map((book) => (
-            <BookRow key={book.id} book={book} query={filters} />
+            <BookRow key={book.id} book={book} query={resultQuery} />
           ))}
         </div>
       ) : (
         <div className="empty-state">
           <Icon name="search" />
           <h3>No matching titles</h3>
-          <p>Try a title or author, or clear your search.</p>
-          <button onClick={() => updateFilters({ q: '' })}>Clear search</button>
+          <p>Try another title/author or adjust the source and availability filters.</p>
+          <button onClick={() => setFiltering(true)}>Review filters</button>
         </div>
       )}
       {importing && <ImportDemo onClose={() => setImporting(false)} />}
+      {filtering && (
+        <LibraryFilterDialog
+          filters={filters}
+          signedIn={signedIn}
+          count={count}
+          onApply={applyFilters}
+          onClose={() => setFiltering(false)}
+        />
+      )}
     </section>
   );
 }

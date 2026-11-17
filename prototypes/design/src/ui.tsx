@@ -26,6 +26,25 @@ export function Icon({ name, ...props }: { name: string; className?: string }) {
         <circle cx="19" cy="12" r="1" />
       </>
     ),
+    filter: (
+      <>
+        <path d="M4 6h16M7 12h10M10 18h4" />
+        <circle cx="8" cy="6" r="2" fill="currentColor" />
+        <circle cx="16" cy="12" r="2" fill="currentColor" />
+      </>
+    ),
+    shared: (
+      <>
+        <circle cx="9" cy="8" r="3" />
+        <path d="M3 20v-2a6 6 0 0 1 12 0v2M17 5a3 3 0 0 1 0 6m1 3a5 5 0 0 1 3 5" />
+      </>
+    ),
+    device: (
+      <>
+        <rect x="5" y="3" width="14" height="18" rx="2" />
+        <path d="M9 17h6" />
+      </>
+    ),
     search: (
       <>
         <circle cx="10" cy="10" r="6" />
@@ -78,6 +97,20 @@ export function Cover({ book, small = false }: { book: Book; small?: boolean }) 
       </div>
       <span className="cover-footer">{book.category} · AL</span>
     </div>
+  );
+}
+
+export function SourceBadge({ kind }: { kind: Book['kind'] }) {
+  const label = kind === 'shared' ? 'Shared library' : 'Local original';
+  return (
+    <span
+      className={`source-badge source-${kind}`}
+      role="img"
+      aria-label={`Source: ${label}`}
+      title={label}
+    >
+      <Icon name={kind === 'shared' ? 'shared' : 'device'} />
+    </span>
   );
 }
 

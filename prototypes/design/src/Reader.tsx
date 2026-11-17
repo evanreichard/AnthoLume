@@ -1,22 +1,60 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { defaultReaderSession, useDemo } from './DemoState';
-import { chapterTitles, sampleParagraphs, type Book } from './data';
+import { chapterTitles, type Book } from './data';
 import { back, Link } from './navigation';
-import { Dialog, Icon } from './ui';
+import { ReaderPanels, type ReaderPanel } from './ReaderPanels';
+import { pageParagraphs, sampleWords } from './samplePagination';
+import { useSamplePages } from './useSamplePages';
+import { usePageGestures } from './usePageGestures';
+import { Icon } from './ui';
+import './reader.css';
 
 export function Reader({ book }: { book: Book }) {
-  const { readerSessions, updateReaderSession } = useDemo();
-  const { chapter, size, font, paper, chrome } = readerSessions[book.id] ?? defaultReaderSession;
-  const [panel, setPanel] = useState<'toc' | 'appearance' | null>(null);
+  const { readerSessions, updateReaderSession, signedIn } = useDemo();
+  const session = readerSessions[book.id] ?? defaultReaderSession;
+  const { chapter, anchor, size, font, paper, chrome } = session;
+  const [panel, setPanel] = useState<ReaderPanel>(null);
   const heading = useRef<HTMLHeadingElement>(null);
-  const chapterTransition = useRef(false);
+  const pageElement = useRef<HTMLElement>(null);
+  const transition = useRef<'page' | 'chapter' | null>(null);
   const tocSelection = useRef(false);
+  const { measurement, pages } = useSamplePages(`${chapter}:${size}:${font}:${chrome}`);
+  const pageIndex = Math.max(
+    0,
+    pages.findIndex((page) => page.start <= anchor && anchor < page.end),
+  );
+  const page = pages[pageIndex] ?? { start: 0, end: 1 };
+  const pageLabel = `Chapter ${chapter + 1} · page ${pageIndex + 1} of ${pages.length || 1}`;
+  const first = chapter === 0 && pageIndex === 0;
+  const last = chapter === 3 && pageIndex === pages.length - 1;
+  const changeSession = (patch: Partial<typeof session>) => updateReaderSession(book.id, patch);
+
+  function chooseChapter(index: number) {
+    transition.current = 'chapter';
+    tocSelection.current = panel === 'toc';
+    changeSession({ chapter: index, anchor: 0 });
+    setPanel(null);
+  }
+  function turnPage(direction: -1 | 1) {
+    if (!pages.length || (direction === -1 && first) || (direction === 1 && last)) return;
+    transition.current = 'page';
+    const next = pages[pageIndex + direction];
+    if (next) changeSession({ anchor: next.start });
+    else {
+      transition.current = 'chapter';
+      changeSession({
+        chapter: chapter + direction,
+        anchor: direction === 1 ? 0 : sampleWords.length - 1,
+      });
+    }
+  }
+  const pageGestures = usePageGestures(Boolean(panel), turnPage);
   useLayoutEffect(() => {
-    if (!chapterTransition.current) return;
-    chapterTransition.current = false;
-    heading.current?.focus();
-    heading.current?.scrollIntoView({ block: 'start' });
-  }, [chapter, panel]);
+    if (!transition.current) return;
+    const target = transition.current === 'chapter' ? heading.current : pageElement.current;
+    transition.current = null;
+    target?.focus({ preventScroll: true });
+  }, [chapter, pageIndex, panel]);
   useEffect(() => {
     function turn(event: KeyboardEvent) {
       const target = event.target as HTMLElement;
@@ -26,28 +64,18 @@ export function Reader({ book }: { book: Book }) {
         window.getSelection()?.toString()
       )
         return;
-      if (event.key === 'ArrowRight') {
+      if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
         event.preventDefault();
-        if (chapter < 3) chooseChapter(chapter + 1);
-      }
-      if (event.key === 'ArrowLeft') {
-        event.preventDefault();
-        if (chapter > 0) chooseChapter(chapter - 1);
+        turnPage(event.key === 'ArrowRight' ? 1 : -1);
       }
     }
     window.addEventListener('keydown', turn);
     return () => window.removeEventListener('keydown', turn);
-  }, [panel, chapter, book.id, updateReaderSession]);
-  function chooseChapter(index: number) {
-    chapterTransition.current = true;
-    tocSelection.current = panel === 'toc';
-    updateReaderSession(book.id, { chapter: index });
-    setPanel(null);
-  }
+  });
   return (
     <main
-      className={`reader paper-${paper} ${chrome ? '' : 'quiet-reader'}`}
-      data-reader-context={`${book.id}:${chapter}:${size}:${font}:${paper}:${chrome}`}
+      className={`paginated-reader paper-${paper} ${chrome ? '' : 'quiet-reader'}`}
+      data-reader-context={book.id}
       style={
         {
           '--reader-size': `${size}px`,
@@ -56,12 +84,11 @@ export function Reader({ book }: { book: Book }) {
         } as CSSProperties
       }
     >
-      <header className="reader-header">
-        <button className="back-link" onClick={() => back(`/books/${book.id}`)}>
+      <header className="page-reader-header">
+        <button className="icon-button" aria-label="Back" onClick={() => back(`/books/${book.id}`)}>
           <Icon name="back" />
-          <span>Back</span>
         </button>
-        <div className="reader-book-label">
+        <div className="page-book-label">
           <b>{book.title}</b>
           <span>{book.author}</span>
         </div>
@@ -77,21 +104,13 @@ export function Reader({ book }: { book: Book }) {
           <span className="type-icon" aria-hidden="true">
             Aa
           </span>
-          <span className="appearance-label">Appearance</span>
         </button>
       </header>
-      <div className="reader-disclaimer">
-        Original sample text · NOT an EPUB engine · no durable position or activity is saved
-      </div>
-      <button
-        className="chrome-control"
-        onClick={() => updateReaderSession(book.id, { chrome: !chrome })}
-        aria-pressed={!chrome}
-      >
-        {chrome ? 'Quiet reading' : 'Show reading controls'}
-      </button>
-      <div className="reader-layout">
-        <aside className="reader-toc" aria-label="Chapters">
+      <p className="page-disclaimer">
+        Synthetic text · NOT an EPUB engine · no activity or durable save
+      </p>
+      <div className="page-reader-layout">
+        <aside className="page-toc" aria-label="Chapters">
           <p className="eyebrow">{book.title} · sample</p>
           <h2>Contents</h2>
           <ol>
@@ -108,114 +127,74 @@ export function Reader({ book }: { book: Book }) {
             ))}
           </ol>
           <p className="small muted">
-            Chapter navigation is illustrative. No activity credit is calculated.
+            Original repeated passage. No activity credit is calculated.
           </p>
         </aside>
-        <article className="reader-text">
-          <p className="eyebrow">Chapter {chapter + 1} · original demo passage</p>
-          <h1 ref={heading} tabIndex={-1} data-route-heading>
-            {chapterTitles[chapter]}
-          </h1>
-          <div className="chapter-ornament" aria-hidden="true">
-            ✳
+        <section className="page-reading-area" aria-label="Paginated sample">
+          <div className="page-chapter">
+            <span className="eyebrow">Chapter {chapter + 1} / 4 · sample</span>
+            <h1 ref={heading} tabIndex={-1} data-route-heading>
+              {chapterTitles[chapter]}
+            </h1>
           </div>
-          {sampleParagraphs.map((paragraph, index) => (
-            <p key={index}>{paragraph}</p>
-          ))}
-          <p className="sample-end">
-            End of sample passage · this same original passage illustrates each chapter.
-          </p>
-        </article>
+          <div className="page-window">
+            <article
+              ref={pageElement}
+              tabIndex={-1}
+              className="page-text"
+              aria-label={pageLabel}
+              data-page-start={page.start}
+              data-page-end={page.end}
+              data-anchor={anchor}
+              {...pageGestures}
+            >
+              {pageParagraphs(page).map((text, index) => (
+                <p key={`${page.start}:${index}`}>{text}</p>
+              ))}
+            </article>
+            <div ref={measurement} className="page-text page-measure" aria-hidden="true" />
+          </div>
+        </section>
       </div>
-      <footer className="reader-footer">
-        <button disabled={chapter === 0} onClick={() => chooseChapter(chapter - 1)}>
-          <Icon name="back" />
-          Previous
-        </button>
-        <div>
-          <span role="status">Chapter {chapter + 1} of 4</span>
-          <small>Sample position only</small>
+      <footer className="page-reader-footer">
+        <div className="page-turns">
+          <button
+            aria-label="Previous"
+            disabled={first || !pages.length}
+            onClick={() => turnPage(-1)}
+          >
+            <Icon name="back" />
+            <span>Previous</span>
+          </button>
+          <span className="page-position" role="status">
+            Page {pageIndex + 1} / {pages.length || 1}
+            <small>Chapter {chapter + 1} / 4 · sample</small>
+          </span>
+          <button aria-label="Next" disabled={last || !pages.length} onClick={() => turnPage(1)}>
+            <span>Next</span>
+            <Icon name="arrow" />
+          </button>
         </div>
-        <button disabled={chapter === 3} onClick={() => chooseChapter(chapter + 1)}>
-          Next
-          <Icon name="arrow" />
-        </button>
+        <div className="page-secondary">
+          <button aria-pressed={!chrome} onClick={() => changeSession({ chrome: !chrome })}>
+            {chrome ? 'Quiet reading' : 'Show reading controls'}
+          </button>
+          <Link
+            to="/sync"
+            aria-label={signedIn ? 'Demo · 2 pending events →' : 'Demo · account events paused →'}
+          >
+            Sync · demo <Icon name="arrow" />
+          </Link>
+        </div>
       </footer>
-      <div className="reader-sync">
-        <Link to="/sync">Demo · 2 pending events →</Link>
-        <span>No durable save or server connection</span>
-      </div>
-      {panel === 'toc' && (
-        <Dialog
-          title="Table of contents"
-          onClose={() => setPanel(null)}
-          focusOnClose={() => (tocSelection.current ? heading.current : null)}
-        >
-          <ol className="toc-list">
-            {chapterTitles.map((title, index) => (
-              <li key={title}>
-                <button
-                  aria-current={chapter === index ? 'location' : undefined}
-                  onClick={() => chooseChapter(index)}
-                >
-                  <span>0{index + 1}</span>
-                  {title}
-                </button>
-              </li>
-            ))}
-          </ol>
-        </Dialog>
-      )}
-      {panel === 'appearance' && (
-        <Dialog title="Reading appearance" onClose={() => setPanel(null)}>
-          <div className="stack">
-            <label className="field">
-              Typeface
-              <select
-                value={font}
-                onChange={(event) => updateReaderSession(book.id, { font: event.target.value })}
-              >
-                <option value="serif">Literary · system serif</option>
-                <option value="sans">Clear · system sans</option>
-              </select>
-            </label>
-            <label className="field">
-              Text size · {size}px
-              <input
-                type="range"
-                min="16"
-                max="28"
-                value={size}
-                onChange={(event) =>
-                  updateReaderSession(book.id, { size: Number(event.target.value) })
-                }
-              />
-            </label>
-            <fieldset>
-              <legend>Page appearance</legend>
-              <div className="segmented">
-                {[
-                  ['auto', 'Follow app'],
-                  ['paper', 'Paper'],
-                  ['ink', 'Ink'],
-                ].map(([value, label]) => (
-                  <button
-                    key={value}
-                    aria-pressed={paper === value}
-                    onClick={() => updateReaderSession(book.id, { paper: value })}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-            <p className="small muted">
-              Preferences apply to this sample session only. Text reflows; no real EPUB anchor is
-              involved.
-            </p>
-          </div>
-        </Dialog>
-      )}
+      <ReaderPanels
+        panel={panel}
+        session={session}
+        onClose={() => setPanel(null)}
+        onChapter={chooseChapter}
+        onChange={changeSession}
+        focusAfterToc={() => (tocSelection.current ? heading.current : null)}
+      />
     </main>
   );
 }

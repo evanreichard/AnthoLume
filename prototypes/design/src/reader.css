@@ -1,0 +1,378 @@
+html[data-reader-open='true'],
+html[data-reader-open='true'] body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+.paginated-reader {
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+}
+.paginated-reader.paper-paper {
+  --bg: #f7f1df;
+  --ink: #302f27;
+  --muted: #68634f;
+  --line: #cdc5ad;
+  --surface: #fffaed;
+  --subtle: #ede6d3;
+  --accent: #784632;
+  --accent-ink: #fff9eb;
+}
+.paginated-reader.paper-ink {
+  --bg: #1c2424;
+  --ink: #e4e6dc;
+  --muted: #b2bcb4;
+  --line: #52605a;
+  --surface: #26302d;
+  --subtle: #303b35;
+  --accent: #debaa0;
+  --accent-ink: #2b211a;
+}
+.page-reader-header {
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.page-reader-header button {
+  background: transparent;
+  border-color: transparent;
+}
+.page-book-label {
+  flex: 1;
+  min-width: 0;
+  padding-inline: 8px;
+  font-size: 13px;
+}
+.page-book-label b,
+.page-book-label span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.page-book-label b {
+  font-weight: 500;
+}
+.page-book-label span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.page-reader-header .type-icon {
+  font:
+    24px/1 Georgia,
+    serif;
+}
+.page-disclaimer {
+  grid-row: 2;
+  text-align: center;
+  padding: 6px 14px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.page-reader-layout {
+  grid-row: 3;
+  display: grid;
+  grid-template-columns: 210px minmax(0, 720px);
+  justify-content: center;
+  gap: 40px;
+  min-height: 0;
+  padding: 8px 30px;
+}
+.page-toc {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 20px 20px 0;
+  border-right: 1px solid var(--line);
+}
+.page-toc h2 {
+  font-size: 26px;
+  margin: 14px 0;
+}
+.page-toc ol {
+  padding: 0;
+  list-style: none;
+  margin: 20px 0;
+}
+.page-toc button {
+  display: flex;
+  width: 100%;
+  gap: 10px;
+  text-align: left;
+  justify-content: start;
+  background: transparent;
+  border-color: transparent;
+  padding: 14px 8px;
+  font-size: 12px;
+  font-weight: 400;
+}
+.page-toc button[aria-current] {
+  background: var(--subtle);
+  color: var(--accent);
+}
+.page-toc button span {
+  font-size: 10px;
+  color: var(--muted);
+}
+.page-reading-area {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.page-chapter {
+  text-align: center;
+  padding: 12px 18px 6px;
+  flex-shrink: 0;
+}
+.page-chapter > span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.page-chapter h1 {
+  font: 400 25px/1.2 var(--reader-font);
+  margin: 5px 0;
+  letter-spacing: -0.025em;
+}
+.page-window {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.page-text {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 20px 26px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-family: var(--reader-font);
+  font-size: var(--reader-size);
+  line-height: 1.65;
+  touch-action: pan-y pinch-zoom;
+}
+.page-text p {
+  margin: 0 0 0.9em;
+}
+.page-text p:last-child {
+  margin-bottom: 0;
+}
+.page-text:focus-visible {
+  outline-offset: -4px;
+}
+.page-measure {
+  visibility: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+.page-reader-footer {
+  grid-row: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-top: 1px solid var(--line);
+  padding: 8px 24px;
+}
+.page-turns {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex: 1;
+  max-width: 650px;
+}
+.page-turns button {
+  background: transparent;
+  font-size: 12px;
+}
+.page-position {
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+.page-position small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+}
+.page-secondary {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.page-secondary button,
+.page-secondary a {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 10px;
+  font-size: 11px;
+  background: transparent;
+  border-color: transparent;
+  text-decoration: none;
+}
+.page-secondary svg {
+  width: 16px;
+}
+.quiet-reader .page-reader-header {
+  display: none;
+}
+.quiet-reader .page-toc {
+  display: none;
+}
+.quiet-reader .page-reader-layout {
+  grid-template-columns: minmax(0, 720px);
+}
+@media (max-width: 999px) {
+  .page-reader-layout {
+    display: block;
+    padding: 0;
+  }
+  .page-toc {
+    display: none;
+  }
+  .page-reading-area {
+    height: 100%;
+    max-width: 720px;
+    margin: auto;
+  }
+  .page-reader-footer {
+    flex-direction: column;
+    gap: 0;
+    padding: 6px 18px;
+  }
+  .page-turns {
+    width: 100%;
+    gap: 10px;
+  }
+  .page-secondary {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .page-reader-header {
+    padding: 6px 10px;
+    gap: 3px;
+  }
+  .page-reader-header button {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+  .page-reader-header .icon-button {
+    padding: 9px;
+  }
+  .page-book-label {
+    padding-inline: 5px;
+    font-size: 11px;
+  }
+  .page-book-label span {
+    font-size: 10px;
+  }
+  .page-chapter {
+    padding: 7px 16px 3px;
+  }
+  .page-chapter h1 {
+    font-size: 22px;
+  }
+  .page-text {
+    padding: 16px 22px;
+  }
+}
+@media (max-width: 359px) {
+  .page-book-label {
+    font-size: 10px;
+  }
+  .page-reader-header button {
+    padding-inline: 7px;
+  }
+  .page-chapter h1 {
+    font-size: 20px;
+  }
+  .page-text {
+    padding: 12px 18px;
+  }
+  .page-turns button {
+    font-size: 11px;
+    padding-inline: 10px;
+  }
+}
+@media (max-height: 480px) {
+  .page-reader-header {
+    padding-block: 2px;
+  }
+  .page-reader-layout {
+    padding-block: 0;
+  }
+  .page-disclaimer {
+    padding: 2px 12px;
+    font-size: 10px;
+  }
+  .page-chapter {
+    padding-block: 2px;
+  }
+  .page-chapter > span {
+    display: none;
+  }
+  .page-chapter h1 {
+    font-size: 18px;
+    margin-block: 2px;
+  }
+  .page-reader-footer {
+    flex-direction: row;
+    gap: 10px;
+    padding: 3px 10px;
+  }
+  .page-turns {
+    max-width: none;
+    gap: 8px;
+  }
+  .page-turns button > span {
+    display: none;
+  }
+  .page-turns button {
+    min-width: 44px;
+    padding: 8px;
+  }
+  .page-position {
+    font-size: 11px;
+  }
+  .page-position small {
+    font-size: 9px;
+  }
+  .page-secondary {
+    width: auto;
+    gap: 4px;
+  }
+  .page-secondary button,
+  .page-secondary a {
+    padding-inline: 6px;
+    font-size: 10px;
+  }
+  .page-secondary a svg {
+    display: none;
+  }
+  .page-text {
+    padding: 8px 22px;
+    line-height: 1.5;
+  }
+  .page-toc {
+    padding-block: 8px;
+  }
+}

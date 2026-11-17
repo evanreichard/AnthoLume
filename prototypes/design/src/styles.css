@@ -342,7 +342,7 @@
     background: var(--bg);
   }
   .studio-controls button {
-    min-height: 38px;
+    min-height: 44px;
     padding: 6px 9px;
     background: transparent;
     border-color: currentColor;
@@ -1712,99 +1712,6 @@
     color: var(--muted);
     line-height: 1.8;
   }
-  .reader {
-    min-height: calc(100dvh - 58px);
-    padding-bottom: env(safe-area-inset-bottom);
-    background: var(--bg);
-    color: var(--ink);
-  }
-  .reader.paper-paper {
-    --bg: #f7f1df;
-    --ink: #302f27;
-    --muted: #68634f;
-    --line: #cdc5ad;
-    --surface: #fffaed;
-    --subtle: #ede6d3;
-    --accent: #784632;
-    --accent-ink: #fff9eb;
-  }
-  .reader.paper-ink {
-    --bg: #1c2424;
-    --ink: #e4e6dc;
-    --muted: #b2bcb4;
-    --line: #52605a;
-    --surface: #26302d;
-    --subtle: #303b35;
-    --accent: #debaa0;
-    --accent-ink: #2b211a;
-  }
-  .reader-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 18px max(28px, env(safe-area-inset-right)) 18px max(28px, env(safe-area-inset-left));
-    border-bottom: 1px solid var(--line);
-  }
-  .reader-book-label {
-    flex: 1;
-    min-width: 0;
-    text-align: center;
-    font-size: 12px;
-  }
-  .reader-book-label b {
-    font-weight: 500;
-  }
-  .reader-book-label > span {
-    display: block;
-    font-size: 10px;
-    color: var(--muted);
-  }
-  .reader-header button:not(.back-link) {
-    background: transparent;
-    border-color: transparent;
-    font-size: 11px;
-  }
-  .type-icon {
-    font:
-      24px/1 Georgia,
-      serif;
-  }
-  .reader-disclaimer {
-    text-align: center;
-    padding: 12px 20px;
-    font-size: 10px;
-    color: var(--muted);
-  }
-  .chrome-control {
-    display: block;
-    margin: 4px auto 0;
-    border-color: transparent;
-    background: transparent;
-    font-size: 10px;
-    color: var(--muted);
-  }
-  .reader-layout {
-    display: grid;
-    grid-template-columns: 220px minmax(0, 650px);
-    justify-content: center;
-    gap: 70px;
-    padding: 35px 40px 65px;
-  }
-  .reader-toc {
-    border-right: 1px solid var(--line);
-    padding: 8px 25px 0 0;
-    align-self: start;
-  }
-  .reader-toc h2 {
-    font-size: 24px;
-    margin-top: 12px;
-  }
-  .reader-toc ol {
-    list-style: none;
-    margin: 20px 0;
-    padding: 0;
-  }
-  .reader-toc button,
   .toc-list button {
     display: flex;
     gap: 12px;
@@ -1817,104 +1724,14 @@
     font-size: 12px;
     font-weight: 400;
   }
-  .reader-toc button[aria-current],
   .toc-list button[aria-current] {
     color: var(--accent);
     background: var(--subtle);
     font-weight: 650;
   }
-  .reader-toc button > span,
   .toc-list button > span {
     font-size: 10px;
     color: var(--muted);
-  }
-  .reader-toc > .small {
-    font-size: 10px;
-  }
-  .reader-text {
-    min-width: 0;
-    font-family: var(--reader-font);
-    font-size: var(--reader-size);
-    line-height: 1.85;
-  }
-  .reader-text > .eyebrow {
-    font-size: 9px;
-    text-align: center;
-    color: var(--muted);
-    margin-bottom: 18px;
-  }
-  .reader-text h1 {
-    font: 400 40px/1.2 var(--reader-font);
-    text-align: center;
-    letter-spacing: -0.03em;
-  }
-  .chapter-ornament {
-    text-align: center;
-    font-size: 22px;
-    margin: 24px 0;
-    color: var(--accent);
-  }
-  .reader-text > p:not(.eyebrow) {
-    margin-bottom: 1.3em;
-  }
-  .reader-text > p:nth-of-type(2)::first-letter {
-    float: left;
-    font-size: 3.5em;
-    line-height: 1;
-    padding: 7px 8px 0 0;
-  }
-  .reader-text p.sample-end {
-    font-family: var(--body);
-    font-size: 10px;
-    color: var(--muted);
-    margin-top: 40px;
-    border-top: 1px solid var(--line);
-    padding-top: 20px;
-  }
-  .reader-footer {
-    max-width: 690px;
-    margin: 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-    padding: 22px 20px;
-    border-top: 1px solid var(--line);
-  }
-  .reader-footer > div {
-    text-align: center;
-    font-size: 11px;
-  }
-  .reader-footer small {
-    display: block;
-    font-size: 9px;
-    color: var(--muted);
-  }
-  .reader-footer button {
-    background: transparent;
-    font-size: 11px;
-  }
-  .reader-sync {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    flex-wrap: wrap;
-    padding: 0 20px 30px;
-    color: var(--muted);
-    font-size: 10px;
-  }
-  .quiet-reader .reader-header,
-  .quiet-reader .reader-disclaimer,
-  .quiet-reader .reader-toc {
-    display: none;
-  }
-  .quiet-reader .reader-layout {
-    grid-template-columns: minmax(0, 650px);
-    padding-top: 40px;
-  }
-  .quiet-reader .chrome-control {
-    margin-top: 0;
-    padding-top: 20px;
   }
   .toc-list {
     list-style: none;
@@ -2282,25 +2099,6 @@
   :root[data-direction='index'] .design-note h2 {
     font-size: 28px;
   }
-  :root[data-direction='index'] .reader-layout {
-    gap: 40px;
-    grid-template-columns: 210px minmax(0, 650px);
-  }
-  :root[data-direction='index'] .reader-toc {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    padding: 20px 14px;
-    border-radius: var(--radius);
-  }
-  :root[data-direction='index'] .reader-toc h2 {
-    font-size: 20px;
-  }
-  :root[data-direction='index'] .reader-text h1 {
-    font-weight: 400;
-  }
-  :root[data-direction='index'] .quiet-reader .reader-layout {
-    grid-template-columns: minmax(0, 650px);
-  }
 }
 
 @layer responsive {
@@ -2350,13 +2148,6 @@
     :root[data-direction='index'] .more-grid {
       grid-template-columns: 1fr;
       gap: 10px;
-    }
-    .reader-layout,
-    :root[data-direction='index'] .reader-layout {
-      grid-template-columns: 180px minmax(0, 600px);
-      gap: 35px;
-      padding-left: 25px;
-      padding-right: 25px;
     }
     .offline-actions,
     :root[data-direction='index'] .offline-actions {
@@ -2489,24 +2280,25 @@
       font-size: 15px;
     }
     .studio-bar {
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: 6px;
-      padding: calc(9px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 9px
+      padding: calc(7px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 7px
         max(16px, env(safe-area-inset-left));
     }
     .studio-label {
       font-size: 10px;
       gap: 7px;
-      width: 100%;
+      width: auto;
+      min-width: 0;
     }
     .studio-label b {
       font-size: 8px;
       padding: 1px 4px;
     }
     .studio-controls {
-      justify-content: space-between;
-      width: 100%;
-      gap: 10px;
+      width: auto;
+      flex: 0 0 auto;
+      gap: 8px;
     }
     .studio-controls label {
       font-size: 10px;
@@ -2524,7 +2316,7 @@
     }
     .app-shell {
       display: block;
-      min-height: calc(100dvh - 97px);
+      min-height: calc(100dvh - 58px);
     }
     .rail {
       display: none;
@@ -2934,78 +2726,6 @@
     .design-note h2 {
       font-size: 34px;
     }
-    .reader-header {
-      padding: 10px max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left));
-      gap: 4px;
-      flex-wrap: wrap;
-    }
-    .reader-header .back-link {
-      padding: 8px;
-      font-size: 10px;
-    }
-    .reader-header .back-link svg {
-      width: 17px;
-    }
-    .reader-header .reader-book-label {
-      font-size: 10px;
-      text-align: left;
-      padding-left: 6px;
-    }
-    .reader-book-label > span {
-      font-size: 9px;
-    }
-    .reader-header button:not(.back-link) {
-      padding: 9px 8px;
-      font-size: 10px;
-    }
-    .appearance-label {
-      display: none;
-    }
-    .reader-disclaimer {
-      padding: 10px 18px;
-      font-size: 11px;
-    }
-    .reader-toc {
-      display: none;
-    }
-    .reader-layout,
-    :root[data-direction='index'] .reader-layout {
-      display: block;
-      padding: 28px max(24px, env(safe-area-inset-right)) 28px max(24px, env(safe-area-inset-left));
-    }
-    .reader-text {
-      line-height: 1.8;
-    }
-    .reader-text h1 {
-      font-size: 33px;
-    }
-    .reader-text > .eyebrow {
-      font-size: 8px;
-    }
-    .chapter-ornament {
-      margin: 22px 0;
-    }
-    .reader-footer {
-      gap: 10px;
-      padding: 20px;
-    }
-    .reader-footer button {
-      gap: 5px;
-      font-size: 10px;
-      padding: 9px;
-    }
-    .reader-footer button svg {
-      width: 16px;
-    }
-    .reader-footer > div {
-      font-size: 10px;
-    }
-    .reader-sync {
-      gap: 6px;
-      flex-direction: column;
-      text-align: center;
-      font-size: 9px;
-    }
     :root[data-direction='index'] h1 {
       font-size: 30px;
     }
@@ -3128,9 +2848,6 @@
     :root[data-direction='index'] .sync-page .page-heading h1 {
       font-size: 29px;
     }
-    :root[data-direction='index'] .reader-text h1 {
-      font-size: 30px;
-    }
   }
   @media (max-width: 359px) {
     .app-shell > main,
@@ -3192,21 +2909,6 @@
     .detail-visual > .cover {
       width: 105px;
       flex-basis: 105px;
-    }
-    .reader-header .back-link > span {
-      display: none;
-    }
-    .reader-text h1 {
-      font-size: 29px;
-    }
-    .reader-layout,
-    :root[data-direction='index'] .reader-layout {
-      padding-left: 20px;
-      padding-right: 20px;
-    }
-    .reader-footer {
-      padding-inline: 16px;
-      gap: 5px;
     }
   }
   @media (prefers-reduced-motion: reduce) {

@@ -63,11 +63,15 @@ for (const direction of ['folio', 'index']) {
       await page.getByRole('button', { name: 'Ink', exact: true }).click();
       await page.keyboard.press('Escape');
       await expect(appearance).toBeFocused();
-      await expect(page.locator('.reader')).toHaveClass(/paper-ink/);
-      await expect(page.locator('.reader-text')).toHaveCSS('font-size', '26px');
+      await expect(page.locator('.paginated-reader')).toHaveClass(/paper-ink/);
+      await expect(page.locator('.page-text').first()).toHaveCSS('font-size', '26px');
       await page.getByRole('heading', { level: 1 }).focus();
       await page.keyboard.press('ArrowRight');
-      await expect(page.getByRole('heading', { level: 1, name: 'The path inland' })).toBeVisible();
+      await expect(page.locator('.page-text').first()).toBeFocused();
+      await expect(page.locator('.page-text').first()).not.toHaveAttribute('data-anchor', '0');
+      await expect(
+        page.getByRole('heading', { level: 1, name: 'A map of small things' }),
+      ).toBeVisible();
       await page.getByRole('button', { name: 'Quiet reading', exact: true }).click();
       await expect(page.getByRole('button', { name: 'Show reading controls' })).toBeVisible();
       await page.getByRole('button', { name: 'Show reading controls' }).click();
@@ -113,7 +117,11 @@ for (const direction of ['folio', 'index']) {
       await dialog.getByRole('button', { name: 'Cancel' }).click();
       await page.getByRole('button', { name: 'Simulate download' }).click();
       await page.getByRole('button', { name: 'Simulate verified availability' }).click();
-      await expect(page.getByText('Available offline · demo', { exact: true })).toBeVisible();
+      await expect(
+        page
+          .getByRole('region', { name: 'Book details' })
+          .getByText('Available offline · demo', { exact: true }),
+      ).toBeVisible();
     });
 
     test('local deletion and shared deletion apply only their own mock scope', async ({ page }) => {
@@ -272,13 +280,13 @@ for (const direction of ['folio', 'index']) {
       await page.evaluate(() => {
         location.hash = '/read/field';
       });
-      await expect(page.locator('.reader-book-label')).toContainText('Field Notes');
+      await expect(page.locator('.page-book-label')).toContainText('Field Notes');
       await expect(
         page.getByRole('heading', { level: 1, name: 'The harbour at first light' }),
       ).toBeVisible();
     });
 
-    test('browser Back restores library scroll and direction changes remain linkable', async ({
+    test('browser Back restores library scroll and the selected Folio/theme remain linkable', async ({
       page,
     }) => {
       await open(page, direction);
@@ -290,12 +298,10 @@ for (const direction of ['folio', 'index']) {
       await title.click();
       await page.goBack();
       await expect.poll(() => page.evaluate(() => window.scrollY)).toBeCloseTo(scroll, 0);
-      await page
-        .getByRole('combobox', { name: 'Direction' })
-        .selectOption(direction === 'folio' ? 'index' : 'folio');
-      await expect(page).toHaveURL(
-        new RegExp(`direction=${direction === 'folio' ? 'index' : 'folio'}`),
-      );
+      if (direction === 'index')
+        await page.getByRole('button', { name: 'Use selected Folio' }).click();
+      await expect(page).toHaveURL(/direction=folio/);
+      await expect(page.getByRole('combobox', { name: 'Direction' })).toHaveCount(0);
       await page.getByRole('button', { name: 'Switch to dark mode' }).click();
       await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
       await page.reload();
