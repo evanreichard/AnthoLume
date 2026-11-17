@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	argon2 "github.com/alexedwards/argon2id"
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -82,12 +82,12 @@ type requestDocumentAdd struct {
 }
 
 func (api *API) appWebManifest(c *gin.Context) {
-	c.Header("Content-Type", "application/manifest+json")
-	c.FileFromFS("assets/manifest.json", http.FS(api.assets))
+	api.compiledOrLegacy(c, "manifest.json", "application/manifest+json")
 }
 
 func (api *API) appServiceWorker(c *gin.Context) {
-	c.FileFromFS("assets/sw.js", http.FS(api.assets))
+	c.Header("Service-Worker-Allowed", "/")
+	api.compiledOrLegacy(c, "sw.js", "text/javascript; charset=utf-8")
 }
 
 func (api *API) appFaviconIcon(c *gin.Context) {
@@ -369,30 +369,39 @@ func (api *API) appGetDocumentProgress(c *gin.Context) {
 		return
 	}
 
-	progress, err := api.db.Queries.GetDocumentProgress(c, database.GetDocumentProgressParams{
-		DocumentID: rDoc.DocumentID,
-		UserID:     auth.UserName,
-	})
+	progress, err := api.reading.State(c.Request.Context(), auth.UserName, rDoc.DocumentID)
 	if err != nil && err != sql.ErrNoRows {
 		log.Error("GetDocumentProgress DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocumentProgress DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, "Unable to load reading progress")
 		return
 	}
 
-	document, err := api.db.GetDocument(c, rDoc.DocumentID, auth.UserName)
+	document, err := api.db.GetDocument(c.Request.Context(), rDoc.DocumentID, auth.UserName)
 	if err != nil {
 		log.Error("GetDocument DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDocument DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, "Unable to load document")
 		return
 	}
 
+	position := ""
+	if progress.Position != nil {
+		position = *progress.Position
+	}
+	// SSR Display Units - The retained reader uses rounded 0–100 percentages and the existing completion presentation, not protocol fractions.
+	percentage := 0.0
+	if progress.Fraction != nil {
+		percentage = math.Round(*progress.Fraction*10000) / 100
+		if *progress.Fraction > 0.97 {
+			percentage = 100
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"id":         document.ID,
 		"title":      document.Title,
 		"author":     document.Author,
 		"words":      document.Words,
-		"progress":   progress.Progress,
-		"percentage": document.Percentage,
+		"progress":   position,
+		"percentage": percentage,
 	})
 }
 
@@ -879,23 +888,36 @@ func (api *API) appEditSettings(c *gin.Context) {
 
 	newUserSettings := database.UpdateUserParams{
 		UserID: auth.UserName,
-		Admin:  auth.IsAdmin,
 	}
 
 	// Set New Password
 	if rUserSettings.Password != nil && rUserSettings.NewPassword != nil {
 		password := fmt.Sprintf("%x", md5.Sum([]byte(*rUserSettings.Password)))
-		data := api.authorizeCredentials(c, auth.UserName, password)
+		if !api.attempts.allow(c.ClientIP()) {
+			appErrorPage(c, 429, "Too Many Requests")
+			return
+		}
+		data, verifyErr := api.authorizeCredentials(c.Request.Context(), auth.UserName, password)
+		if verifyErr != nil {
+			appErrorPage(c, 503, "Unable to complete request")
+			return
+		}
 		if data == nil {
 			templateVars["PasswordErrorMessage"] = "Invalid Password"
 		} else {
 			password := fmt.Sprintf("%x", md5.Sum([]byte(*rUserSettings.NewPassword)))
-			hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
+			hashedPassword, err := api.hashPassword(c.Request.Context(), password)
 			if err != nil {
 				templateVars["PasswordErrorMessage"] = "Unknown Error"
 			} else {
 				templateVars["PasswordMessage"] = "Password Updated"
 				newUserSettings.Password = &hashedPassword
+				authHash, err := randomCSRF()
+				if err != nil {
+					appErrorPage(c, 500, "Unable to complete request")
+					return
+				}
+				newUserSettings.AuthHash = &authHash
 			}
 		}
 	}
@@ -907,23 +929,28 @@ func (api *API) appEditSettings(c *gin.Context) {
 	}
 
 	// Update User
-	_, err := api.db.Queries.UpdateUser(c, newUserSettings)
+	_, err := api.db.DB.ExecContext(c.Request.Context(), "UPDATE users SET pass=COALESCE(?,pass),auth_hash=COALESCE(?,auth_hash),timezone=COALESCE(?,timezone) WHERE id=?", newUserSettings.Password, newUserSettings.AuthHash, newUserSettings.Timezone, newUserSettings.UserID)
 	if err != nil {
 		log.Error("UpdateUser DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpdateUser DB Error: %v", err))
 		return
 	}
 
-	// Get User
-	user, err := api.db.Queries.GetUser(c, auth.UserName)
+	user, err := api.db.Queries.GetUser(c.Request.Context(), auth.UserName)
 	if err != nil {
-		log.Error("GetUser DB Error: ", err)
-		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetUser DB Error: %v", err))
+		appErrorPage(c, http.StatusInternalServerError, "Unable to update settings")
 		return
 	}
 
+	if newUserSettings.AuthHash != nil {
+		if err := api.setSession(sessions.Default(c), authData{UserName: user.ID, IsAdmin: user.Admin, AuthHash: *user.AuthHash}); err != nil {
+			appErrorPage(c, 500, "Unable to update session")
+			return
+		}
+	}
+
 	// Get Devices
-	devices, err := api.db.Queries.GetDevices(c, auth.UserName)
+	devices, err := api.db.Queries.GetDevices(c.Request.Context(), auth.UserName)
 	if err != nil {
 		log.Error("GetDevices DB Error: ", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("GetDevices DB Error: %v", err))
@@ -1026,6 +1053,7 @@ func bindQueryParams(c *gin.Context, defaultLimit int64) queryParams {
 }
 
 func appErrorPage(c *gin.Context, errorCode int, errorMessage string) {
+	setRetryAfter(c.Writer, errorCode)
 	errorHuman := "We're not even sure what happened."
 
 	switch errorCode {

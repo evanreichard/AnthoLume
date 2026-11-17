@@ -1,4 +1,4 @@
-build_local: build_tailwind
+build_local: build_tailwind check_web
 	go mod download
 	rm -r ./build || true
 	mkdir -p ./build
@@ -26,6 +26,20 @@ docker_build_release_latest: build_tailwind
 		-f Dockerfile-BuildKit \
 		--push .
 
+.PHONY: build_web check_web generate check_generation
+build_web:
+	npm --prefix web ci
+	npm --prefix web run build
+
+check_web: build_web
+	test -s assets/app/index.html && test -s assets/app/sw.js && test -s assets/app/manifest.json
+
+generate:
+	bash api/generate.sh
+
+check_generation:
+	bash api/check-generation.sh
+
 build_tailwind:
 	tailwindcss build -o ./assets/style.css --minify
 
@@ -35,6 +49,7 @@ dev: build_tailwind
 	DATA_PATH=./data \
 	SEARCH_ENABLED=true \
 	REGISTRATION_ENABLED=true \
+	PUBLIC_ORIGIN=http://127.0.0.1:8585 \
 	COOKIE_SECURE=false \
 	COOKIE_AUTH_KEY=1234 \
 	LOG_LEVEL=debug go run main.go serve

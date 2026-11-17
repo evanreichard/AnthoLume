@@ -13,11 +13,31 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.8"
+          go-version: "1.26.11"
           cache: true
 
-      - name: Unit tests
-        run: make tests
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.23.4"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Frontend and generation
+        run: make check_web check_generation
+
+      - name: Root qualification
+        run: |
+          go test -mod=readonly -count=1 -timeout=180s ./...
+          go test -mod=readonly -race -count=1 -timeout=180s ./...
+          go vet -mod=readonly ./...
+          go build -mod=readonly -o _scratch/m3/backend/antholume .
+          go mod verify
+          bash api/audit.sh
+
+      - name: Cover isolation in Chromium
+        run: |
+          web/node_modules/.bin/playwright install --with-deps chromium
+          bash api/check-cover-browser.sh
 
   publish:
     needs: tests

@@ -1,0 +1,10 @@
+# API boundary
+
+- `openapi.yaml` defines the new `/api/v1` web API. Upstream KOSync governs the separate classic adapter; preserve opaque positions, numeric accepted timestamps and account-scoped aliases. See `docs/evaluation/kosync-compatibility.md` for pinned evidence and declared gaps. Run `bash api/generate.sh` and `bash api/check-generation.sh` with the pinned Go SDK and locked web dependencies; never hand-edit generated Go/TS. TS binary types require the Blob transform.
+- Strict Gin supplies a pooled `*gin.Context`: unwrap `Request.Context()` before database/reading operations. Keep fallback disabled. Apply byte/media/UTF-8/duplicate-key checks before the validator and retain its validated body for strict binding.
+- Route on escaped paths, decode opaque IDs once with `PathUnescape` (not query decoding), and decode validator path parameters before character-length checks. Preserve slash/plus/percent and 128-character Unicode IDs.
+- `format: uuid` alone is not runtime validation in the selected validator. Keep the explicit event-ID pattern and string Go type so validation does not rewrite identity text.
+- JSON, SSR and external protocol adapters share identity/reading operations, never handlers. New cover GETs do not invoke metadata providers. Preserve KO/OPDS wire contracts and continuing SSR routes.
+- All cover aliases (including retained SSR/OPDS and fallback/provider branches) apply `setCoverResponseHeaders`; serving bytes as an image does not make top-level SVG inert. Preserve bytes/MIME and allow image display, not script execution, document embedding or external resources. Run `bash api/check-cover-browser.sh` with installed Chromium for the real-browser regression.
+- Apply shared Retry-After policy to 429/503 in every error renderer and direct legacy credential rejection; do not collapse credential work overload into a registration 400.
+- Versioned errors are safe Problems. Logs must not contain request bodies, cookies, passwords or CSRF tokens, including panic recovery.

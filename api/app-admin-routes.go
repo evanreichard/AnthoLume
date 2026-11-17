@@ -18,7 +18,6 @@ import (
 	"strings"
 	"time"
 
-	argon2 "github.com/alexedwards/argon2id"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/gin-gonic/gin"
 	"github.com/itchyny/gojq"
@@ -293,11 +292,11 @@ func (api *API) appUpdateAdminUsers(c *gin.Context) {
 	var err error
 	switch rUpdate.Operation {
 	case opCreate:
-		err = api.createUser(c, rUpdate.User, rUpdate.Password, rUpdate.IsAdmin)
+		err = api.createUser(c.Request.Context(), rUpdate.User, rUpdate.Password, rUpdate.IsAdmin)
 	case opUpdate:
-		err = api.updateUser(c, rUpdate.User, rUpdate.Password, rUpdate.IsAdmin)
+		err = api.updateUser(c.Request.Context(), rUpdate.User, rUpdate.Password, rUpdate.IsAdmin)
 	case opDelete:
-		err = api.deleteUser(c, rUpdate.User)
+		err = api.deleteUser(c.Request.Context(), rUpdate.User)
 	default:
 		appErrorPage(c, http.StatusNotFound, "Unknown user operation")
 		return
@@ -651,13 +650,15 @@ func (api *API) processRestoreFile(rAdminAction requestAdminAction, c *gin.Conte
 	}
 
 	// Reinit DB
-	if err := api.db.Reload(c); err != nil {
+	if err := api.db.Reload(c.Request.Context()); err != nil {
 		appErrorPage(c, http.StatusInternalServerError, "Unable to reload DB")
 		log.Panicf("Unable to reload DB: %v", err)
 	}
 
+	api.reading.DB = api.db.DB
+
 	// Rotate Auth Hashes
-	if err := api.rotateAllAuthHashes(c); err != nil {
+	if err := api.rotateAllAuthHashes(c.Request.Context()); err != nil {
 		appErrorPage(c, http.StatusInternalServerError, "Unable to rotate hashes")
 		log.Panicf("Unable to rotate auth hashes: %v", err)
 	}
@@ -830,7 +831,7 @@ func (api *API) createUser(ctx context.Context, user string, rawPassword *string
 
 	// Parse Password
 	password := fmt.Sprintf("%x", md5.Sum([]byte(*rawPassword)))
-	hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
+	hashedPassword, err := api.hashPassword(ctx, password)
 	if err != nil {
 		return fmt.Errorf("unable to create hashed password")
 	}
@@ -893,7 +894,7 @@ func (api *API) updateUser(ctx context.Context, user string, rawPassword *string
 
 		// Parse Password
 		password := fmt.Sprintf("%x", md5.Sum([]byte(*rawPassword)))
-		hashedPassword, err := argon2.CreateHash(password, argon2.DefaultParams)
+		hashedPassword, err := api.hashPassword(ctx, password)
 		if err != nil {
 			return fmt.Errorf("unable to create hashed password")
 		}

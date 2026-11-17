@@ -13,8 +13,9 @@ import (
 
 type Config struct {
 	// Server Config
-	Version    string
-	ListenPort string
+	Version      string
+	ListenPort   string
+	PublicOrigin string
 
 	// DB Configuration
 	DBType string
@@ -56,6 +57,7 @@ var version string = "develop"
 func Load() *Config {
 	c := &Config{
 		Version:             version,
+		PublicOrigin:        strings.TrimSpace(getEnv("PUBLIC_ORIGIN", "")),
 		ConfigPath:          getEnv("CONFIG_PATH", "/config"),
 		DataPath:            getEnv("DATA_PATH", "/data"),
 		ListenPort:          getEnv("LISTEN_PORT", "8585"),

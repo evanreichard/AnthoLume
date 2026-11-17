@@ -1,0 +1,60 @@
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router';
+import { useReading, type Conflict } from '../reading';
+import { session, useSession } from '../session';
+import { bookKey } from '../library';
+import { Dialog, ErrorNotice } from '../ui';
+import styles from '../App.module.css';
+
+export function More() {
+  const { access, session: current, capabilities } = useSession();
+  const [logout, setLogout] = useState(false);
+  const navigate = useNavigate();
+  const authenticated = access.kind === 'authenticated';
+  return <>
+    <p className={styles.eyebrow}>Your reading space</p><h1>More</h1>
+    <section className={styles.panel}><h2>Account</h2><p>{authenticated ? 'Signed in. Shared books synchronize with this account.' : access.kind === 'expired' ? 'Session expired. Retained books work offline; synchronization is paused.' : 'Local books work without an account.'}</p><div className={styles.actions}>
+      {authenticated || access.kind === 'expired' ? <button onClick={() => setLogout(true)}>Sign out</button> : <Link className={styles.primary} to="/login">Sign in</Link>}
+      <Link to="/sync">Synchronization</Link>
+    </div></section>
+    <section className={styles.panel}><h2>Original site</h2><p>These features still open the server-rendered site. Their React migration comes later.</p><nav aria-label="Original site features" className={styles.menu}>
+      <a href="/">Insights ↗</a><a href="/activity">Activity history ↗</a><a href="/progress">Reading progress history ↗</a><a href="/settings">Settings ↗</a><a href="/documents">Shared uploads, metadata & management ↗</a>
+      {capabilities?.search_enabled && <a href="/search">Find & acquire books ↗</a>}
+      {authenticated && current?.user?.is_admin && <a href="/admin">Administration ↗</a>}
+    </nav></section>
+    {logout && <Dialog title="Sign out on this device?" onClose={() => setLogout(false)}><div className={styles.form}><p>Local-only books stay usable. Retained shared books and pending events stay stored, but are hidden and fenced until you sign in to the same account again. Offline sign-out finishes invalidating the server session when reconnected.</p><button onClick={() => { void session.logout(); setLogout(false); navigate('/library', { replace: true }); }}>Sign out</button><button onClick={() => setLogout(false)}>Keep signed in</button></div></Dialog>}
+  </>;
+}
+function ConflictChoice({ conflict }: { conflict: Conflict }) {
+  const reading = useReading();
+  const [observed, setObserved] = useState<Conflict | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  async function refresh() {
+    setBusy(true); setError(null); setObserved(null);
+    try { setObserved(await reading.refreshConflict(conflict.eventId)); } catch (failure) { setError(failure); } finally { setBusy(false); }
+  }
+  async function choose(choice: 'local' | 'server') {
+    if (!observed) return;
+    setBusy(true); setError(null);
+    try { await reading.resolveConflict(conflict.eventId, choice, observed.server.revision); setObserved(null); }
+    catch (failure) { setError(failure); setObserved(null); } finally { setBusy(false); }
+  }
+  const title = reading.books.find((book) => bookKey(book.ref) === bookKey(conflict.ref))?.title || 'Shared book';
+  return <article className={styles.panel}><h2>{title}</h2><p>Another device changed the shared position. Neither the highest percentage nor the latest clock wins automatically.</p><p>Saved here: {conflict.local.fraction === null ? 'Position retained' : `${Math.round(conflict.local.fraction * 100)}%`}</p>
+    <button onClick={() => void refresh()} disabled={busy}>Refresh shared position</button>
+    {observed && <><p>Shared position: {observed.server.fraction === null ? 'No position' : `${Math.round(observed.server.fraction * 100)}%`} · revision {observed.server.revision}</p><div className={styles.actions}><button onClick={() => void choose('local')} disabled={busy}>Use this device’s position (may move backward)</button><button onClick={() => void choose('server')} disabled={busy}>Use shared position</button></div><p>A further shared change will require a fresh choice. Activity remains independent.</p></>}
+    <ErrorNotice error={error} /></article>;
+}
+export function Sync() {
+  const reading = useReading();
+  const { access } = useSession();
+  const [error, setError] = useState<unknown>(null);
+  return <><p className={styles.eyebrow}>Saved here, shared deliberately</p><h1>Synchronization</h1>
+    <section className={styles.panel}><h2>{reading.sync}</h2><p>{reading.pendingCount} pending events. Books and reading checkpoints are stored by the reader, not the query cache.</p>
+      {access.kind !== 'authenticated' ? <p><Link to="/login">Sign in</Link> to resume sending this account’s saved events.</p> : <button onClick={() => { setError(null); void reading.replay().catch(setError); }}>Retry synchronization</button>}
+      <ErrorNotice error={error} /></section>
+    {reading.conflicts.map((conflict) => <ConflictChoice key={conflict.eventId} conflict={conflict} />)}
+    <section className={styles.panel}><h2>About the browser update</h2><p>The first update retires the old offline reader’s downloads, local-only imports and settings. Re-import those original EPUBs. This app’s new saved books and pending events are retained on later updates and sign-out.</p></section>
+  </>;
+}

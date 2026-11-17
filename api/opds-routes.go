@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -136,12 +137,12 @@ func (api *API) opdsDocuments(c *gin.Context) {
 				Links: []opds.Link{
 					{
 						Rel:      "http://opds-spec.org/acquisition",
-						Href:     fmt.Sprintf("/api/opds/documents/%s/file", doc.ID),
+						Href:     fmt.Sprintf("/api/opds/documents/%s/file", url.PathEscape(doc.ID)),
 						TypeLink: mimeMapping[fileType],
 					},
 					{
 						Rel:      "http://opds-spec.org/image",
-						Href:     fmt.Sprintf("/api/opds/documents/%s/cover", doc.ID),
+						Href:     fmt.Sprintf("/api/opds/documents/%s/cover", url.PathEscape(doc.ID)),
 						TypeLink: "image/jpeg",
 					},
 				},

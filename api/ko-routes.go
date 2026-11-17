@@ -12,10 +12,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"errors"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
+	"reichard.io/antholume/reading"
 )
 
 type activityItem struct {
@@ -42,11 +44,11 @@ type requestDocument struct {
 }
 
 type requestPosition struct {
-	DocumentID string  `json:"document"`
-	Percentage float64 `json:"percentage"`
-	Progress   string  `json:"progress"`
-	Device     string  `json:"device"`
-	DeviceID   string  `json:"device_id"`
+	DocumentID string   `json:"document"`
+	Percentage *float64 `json:"percentage"`
+	Progress   *string  `json:"progress"`
+	Device     *string  `json:"device"`
+	DeviceID   *string  `json:"device_id"`
 }
 
 type requestUser struct {
@@ -85,45 +87,32 @@ func (api *API) koSetProgress(c *gin.Context) {
 
 	var rPosition requestPosition
 	if err := c.ShouldBindJSON(&rPosition); err != nil {
-		log.Error("Invalid JSON Bind")
-		apiErrorPage(c, http.StatusBadRequest, "Invalid Progress Data")
+		koSyncError(c, 2003)
+		return
+	}
+	if rPosition.DocumentID == "" {
+		koSyncError(c, 2004)
+		return
+	}
+	if rPosition.Percentage == nil || rPosition.Progress == nil || rPosition.Device == nil {
+		koSyncError(c, 2003)
 		return
 	}
 
-	// Upsert Device
-	if _, err := api.db.Queries.UpsertDevice(c, database.UpsertDeviceParams{
-		ID:         rPosition.DeviceID,
-		UserID:     auth.UserName,
-		DeviceName: rPosition.Device,
-		LastSynced: time.Now().UTC().Format(time.RFC3339),
-	}); err != nil {
-		log.Error("UpsertDevice DB Error:", err)
-	}
-
-	// Upsert Document
-	if _, err := api.db.Queries.UpsertDocument(c, database.UpsertDocumentParams{
-		ID: rPosition.DocumentID,
-	}); err != nil {
-		log.Error("UpsertDocument DB Error:", err)
-	}
-
-	// Create or Replace Progress
-	progress, err := api.db.Queries.UpdateProgress(c, database.UpdateProgressParams{
-		Percentage: rPosition.Percentage,
-		DocumentID: rPosition.DocumentID,
-		DeviceID:   rPosition.DeviceID,
-		UserID:     auth.UserName,
-		Progress:   rPosition.Progress,
-	})
+	timestamp, err := api.reading.KOProgress(c.Request.Context(), auth.UserName, rPosition.DocumentID, rPosition.DeviceID, *rPosition.Device, *rPosition.Progress, *rPosition.Percentage)
 	if err != nil {
-		log.Error("UpdateProgress DB Error:", err)
-		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
+		koSyncOperationError(c, err)
 		return
 	}
 
+	acceptedAt, err := time.Parse(time.RFC3339, timestamp)
+	if err != nil {
+		koSyncOperationError(c, err)
+		return
+	}
 	koJSON(c, http.StatusOK, gin.H{
-		"document":  progress.DocumentID,
-		"timestamp": progress.CreatedAt,
+		"document":  rPosition.DocumentID,
+		"timestamp": acceptedAt.Unix(),
 	})
 }
 
@@ -135,33 +124,35 @@ func (api *API) koGetProgress(c *gin.Context) {
 
 	var rDocID requestDocumentID
 	if err := c.ShouldBindUri(&rDocID); err != nil {
-		log.Error("Invalid URI Bind")
-		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
+		koSyncError(c, 2004)
 		return
 	}
 
-	progress, err := api.db.Queries.GetDocumentProgress(c, database.GetDocumentProgressParams{
-		DocumentID: rDocID.DocumentID,
-		UserID:     auth.UserName,
-	})
-
-	if err == sql.ErrNoRows {
+	progress, err := api.reading.State(c.Request.Context(), auth.UserName, rDocID.DocumentID)
+	var failure *reading.Failure
+	if errors.As(err, &failure) && failure.Status == 404 || err == nil && progress.Position == nil {
 		// Not Found
 		koJSON(c, http.StatusOK, gin.H{})
 		return
 	} else if err != nil {
-		log.Error("GetDocumentProgress DB Error:", err)
-		apiErrorPage(c, http.StatusBadRequest, "Invalid Document")
+		koSyncOperationError(c, err)
 		return
 	}
 
-	koJSON(c, http.StatusOK, gin.H{
-		"document":   progress.DocumentID,
-		"percentage": progress.Percentage,
-		"progress":   progress.Progress,
-		"device":     progress.DeviceName,
-		"device_id":  progress.DeviceID,
-	})
+	if progress.UpdatedAt == nil {
+		koSyncOperationError(c, errors.New("reading head has no update timestamp"))
+		return
+	}
+	updatedAt, err := time.Parse(time.RFC3339, *progress.UpdatedAt)
+	if err != nil {
+		koSyncOperationError(c, err)
+		return
+	}
+	response := gin.H{"document": progress.DocumentID, "percentage": progress.Fraction, "progress": progress.Position, "device": progress.DeviceName, "timestamp": updatedAt.Unix()}
+	if progress.ExternalDeviceID != nil {
+		response["device_id"] = *progress.ExternalDeviceID
+	}
+	koJSON(c, http.StatusOK, response)
 }
 
 func (api *API) koAddActivities(c *gin.Context) {
@@ -177,73 +168,16 @@ func (api *API) koAddActivities(c *gin.Context) {
 		return
 	}
 
-	// Do Transaction
-	tx, err := api.db.DB.Begin()
-	if err != nil {
-		log.Error("Transaction Begin DB Error:", err)
-		apiErrorPage(c, http.StatusBadRequest, "Unknown Error")
-		return
-	}
-
-	// Derive Unique Documents
-	allDocumentsMap := make(map[string]bool)
+	events := make([]reading.Activity, 0, len(rActivity.Activity))
 	for _, item := range rActivity.Activity {
-		allDocumentsMap[item.DocumentID] = true
-	}
-	allDocuments := getKeys(allDocumentsMap)
-
-	// Defer & Start Transaction
-	defer func() {
-		if err := tx.Rollback(); err != nil {
-			log.Error("DB Rollback Error:", err)
-		}
-	}()
-	qtx := api.db.Queries.WithTx(tx)
-
-	// Upsert Documents
-	for _, doc := range allDocuments {
-		if _, err := qtx.UpsertDocument(c, database.UpsertDocumentParams{
-			ID: doc,
-		}); err != nil {
-			log.Error("UpsertDocument DB Error:", err)
-			apiErrorPage(c, http.StatusBadRequest, "Invalid Document")
+		if item.Pages <= 0 || item.Page < 0 || item.Page >= item.Pages || item.Duration < 0 || item.Duration > 86400 {
+			apiErrorPage(c, 400, "Invalid Activity")
 			return
 		}
+		events = append(events, reading.Activity{DocumentID: item.DocumentID, DeviceID: rActivity.DeviceID, StartTime: time.Unix(item.StartTime, 0).UTC(), Duration: int(item.Duration), StartFraction: float64(item.Page) / float64(item.Pages), EndFraction: float64(item.Page+1) / float64(item.Pages)})
 	}
-
-	// Upsert Device
-	if _, err = qtx.UpsertDevice(c, database.UpsertDeviceParams{
-		ID:         rActivity.DeviceID,
-		UserID:     auth.UserName,
-		DeviceName: rActivity.Device,
-		LastSynced: time.Now().UTC().Format(time.RFC3339),
-	}); err != nil {
-		log.Error("UpsertDevice DB Error:", err)
-		apiErrorPage(c, http.StatusBadRequest, "Invalid Device")
-		return
-	}
-
-	// Add All Activity
-	for _, item := range rActivity.Activity {
-		if _, err := qtx.AddActivity(c, database.AddActivityParams{
-			UserID:          auth.UserName,
-			DocumentID:      item.DocumentID,
-			DeviceID:        rActivity.DeviceID,
-			StartTime:       time.Unix(int64(item.StartTime), 0).UTC().Format(time.RFC3339),
-			Duration:        int64(item.Duration),
-			StartPercentage: float64(item.Page) / float64(item.Pages),
-			EndPercentage:   float64(item.Page+1) / float64(item.Pages),
-		}); err != nil {
-			log.Error("AddActivity DB Error:", err)
-			apiErrorPage(c, http.StatusBadRequest, "Invalid Activity")
-			return
-		}
-	}
-
-	// Commit Transaction
-	if err := tx.Commit(); err != nil {
-		log.Error("Transaction Commit DB Error:", err)
-		apiErrorPage(c, http.StatusBadRequest, "Unknown Error")
+	if err := api.reading.KOActivity(c.Request.Context(), auth.UserName, rActivity.DeviceID, rActivity.Device, events); err != nil {
+		koOperationError(c, err)
 		return
 	}
 
@@ -266,19 +200,13 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 	}
 
 	// Upsert Device
-	if _, err := api.db.Queries.UpsertDevice(c, database.UpsertDeviceParams{
-		ID:         rCheckActivity.DeviceID,
-		UserID:     auth.UserName,
-		DeviceName: rCheckActivity.Device,
-		LastSynced: time.Now().UTC().Format(time.RFC3339),
-	}); err != nil {
-		log.Error("UpsertDevice DB Error", err)
-		apiErrorPage(c, http.StatusBadRequest, "Invalid Device")
+	if err := api.reading.RegisterDevice(c.Request.Context(), auth.UserName, rCheckActivity.DeviceID, rCheckActivity.Device); err != nil {
+		koOperationError(c, err)
 		return
 	}
 
 	// Get Last Device Activity
-	lastActivity, err := api.db.Queries.GetLastActivity(c, database.GetLastActivityParams{
+	lastActivity, err := api.db.Queries.GetLastActivity(c.Request.Context(), database.GetLastActivityParams{
 		UserID:   auth.UserName,
 		DeviceID: rCheckActivity.DeviceID,
 	})
@@ -329,7 +257,7 @@ func (api *API) koAddDocuments(c *gin.Context) {
 
 	// Upsert Documents
 	for _, doc := range rNewDocs.Documents {
-		_, err := qtx.UpsertDocument(c, database.UpsertDocumentParams{
+		_, err := qtx.UpsertDocument(c.Request.Context(), database.UpsertDocumentParams{
 			ID:          doc.ID,
 			Title:       api.sanitizeInput(doc.Title),
 			Author:      api.sanitizeInput(doc.Author),
@@ -371,20 +299,14 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	}
 
 	// Upsert Device
-	_, err := api.db.Queries.UpsertDevice(c, database.UpsertDeviceParams{
-		ID:         rCheckDocs.DeviceID,
-		UserID:     auth.UserName,
-		DeviceName: rCheckDocs.Device,
-		LastSynced: time.Now().UTC().Format(time.RFC3339),
-	})
+	err := api.reading.RegisterDevice(c.Request.Context(), auth.UserName, rCheckDocs.DeviceID, rCheckDocs.Device)
 	if err != nil {
-		log.Error("UpsertDevice DB Error", err)
-		apiErrorPage(c, http.StatusBadRequest, "Invalid Device")
+		koOperationError(c, err)
 		return
 	}
 
 	// Get Missing Documents
-	missingDocs, err := api.db.Queries.GetMissingDocuments(c, rCheckDocs.Have)
+	missingDocs, err := api.db.Queries.GetMissingDocuments(c.Request.Context(), rCheckDocs.Have)
 	if err != nil {
 		log.Error("GetMissingDocuments DB Error", err)
 		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
@@ -392,7 +314,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	}
 
 	// Get Deleted Documents
-	deletedDocIDs, err := api.db.Queries.GetDeletedDocuments(c, rCheckDocs.Have)
+	deletedDocIDs, err := api.db.Queries.GetDeletedDocuments(c.Request.Context(), rCheckDocs.Have)
 	if err != nil {
 		log.Error("GetDeletedDocuments DB Error", err)
 		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
@@ -407,7 +329,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 		return
 	}
 
-	wantedDocs, err := api.db.Queries.GetWantedDocuments(c, string(jsonHaves))
+	wantedDocs, err := api.db.Queries.GetWantedDocuments(c.Request.Context(), string(jsonHaves))
 	if err != nil {
 		log.Error("GetWantedDocuments DB Error", err)
 		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
@@ -467,7 +389,7 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 	}
 
 	// Validate Document Exists in DB
-	document, err := api.db.Queries.GetDocument(c, rDoc.DocumentID)
+	document, err := api.db.Queries.GetDocument(c.Request.Context(), rDoc.DocumentID)
 	if err != nil {
 		log.Error("GetDocument DB Error:", err)
 		apiErrorPage(c, http.StatusBadRequest, "Unknown Document")
@@ -524,7 +446,7 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 	}
 
 	// Upsert Document
-	if _, err = api.db.Queries.UpsertDocument(c, database.UpsertDocumentParams{
+	if _, err = api.db.Queries.UpsertDocument(c.Request.Context(), database.UpsertDocumentParams{
 		ID:       document.ID,
 		Md5:      metadataInfo.MD5,
 		Words:    metadataInfo.WordCount,
@@ -546,6 +468,7 @@ func (api *API) koDemoModeJSONError(c *gin.Context) {
 }
 
 func apiErrorPage(c *gin.Context, errorCode int, errorMessage string) {
+	setRetryAfter(c.Writer, errorCode)
 	c.AbortWithStatusJSON(errorCode, gin.H{"error": errorMessage})
 }
 

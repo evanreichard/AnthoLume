@@ -60,6 +60,7 @@ func (api *API) createDownloadDocumentHandler(errorFunc func(*gin.Context, int, 
 
 func (api *API) createGetCoverHandler(errorFunc func(*gin.Context, int, string)) func(*gin.Context) {
 	return func(c *gin.Context) {
+		setCoverResponseHeaders(c.Writer)
 		var rDoc requestDocumentID
 		if err := c.ShouldBindUri(&rDoc); err != nil {
 			log.Error("Invalid URI Bind")

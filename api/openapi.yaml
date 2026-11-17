@@ -1,0 +1,361 @@
+openapi: 3.0.3
+info:
+  title: AnthoLume web API
+  version: 1.0.0
+servers:
+  - url: /
+security:
+  - cookieAuth: []
+paths:
+  /api/v1/session:
+    get:
+      operationId: getSession
+      security: []
+      responses:
+        '200':
+          description: Current or anonymous session
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Session'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/capabilities:
+    get:
+      operationId: getCapabilities
+      security: []
+      responses:
+        '200':
+          description: Public deployment capabilities
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Capabilities'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/session/login:
+    post:
+      operationId: login
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      security: []
+      requestBody: {$ref: '#/components/requestBodies/Credentials'}
+      responses:
+        '200':
+          description: Authenticated session
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Session'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/session/register:
+    post:
+      operationId: register
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      security: []
+      requestBody: {$ref: '#/components/requestBodies/Credentials'}
+      responses:
+        '201':
+          description: Registered session
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Session'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/session/logout:
+    post:
+      operationId: logout
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: false}
+      responses:
+        '200':
+          description: Rotated anonymous session
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Session'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/documents:
+    get:
+      operationId: listDocuments
+      parameters:
+        - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 2147483647, default: 1}}
+        - {name: page_size, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 24}}
+        - {name: q, in: query, schema: {type: string, maxLength: 256}}
+      responses:
+        '200':
+          description: Shared library
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DocumentPage'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/documents/{id}:
+    parameters:
+      - {$ref: '#/components/parameters/ID'}
+    get:
+      operationId: getDocument
+      responses:
+        '200':
+          description: Live document
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Document'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/documents/{id}/cover:
+    parameters:
+      - {$ref: '#/components/parameters/ID'}
+    get:
+      operationId: getDocumentCover
+      responses:
+        '200':
+          description: Existing cover bytes; no metadata lookup
+          content:
+            image/*:
+              schema: {type: string, format: binary}
+        '206':
+          description: Requested range of existing cover bytes
+          content:
+            image/*:
+              schema: {type: string, format: binary}
+        '304': {description: Not modified}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/documents/{id}/file:
+    parameters:
+      - {$ref: '#/components/parameters/ID'}
+    get:
+      operationId: downloadDocument
+      responses:
+        '200':
+          description: Original file; private no-store with safe attachment filename
+          content:
+            '*/*':
+              schema: {type: string, format: binary}
+        '206':
+          description: Requested range of original file
+          content:
+            '*/*':
+              schema: {type: string, format: binary}
+        '304': {description: Not modified}
+        '416': {description: Unsatisfiable range}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/devices:
+    post:
+      operationId: registerDevice
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Device'}
+      responses:
+        '200':
+          description: Owned device
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Device'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/reading-state/{document_id}:
+    get:
+      operationId: getReadingState
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema: {$ref: '#/components/schemas/ID'}
+      responses:
+        '200':
+          description: Authoritative reading head
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReadingState'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/reading-progress:
+    post:
+      operationId: submitProgress
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ProgressEvent'}
+      responses:
+        '200':
+          description: Immutable original receipt
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Receipt'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/activity:
+    post:
+      operationId: submitActivity
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ActivityEvent'}
+      responses:
+        '200':
+          description: Immutable original receipt
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Receipt'}
+        default: {$ref: '#/components/responses/Problem'}
+components:
+  securitySchemes:
+    cookieAuth: {type: apiKey, in: cookie, name: token}
+  parameters:
+    Origin:
+      name: Origin
+      in: header
+      description: Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+      schema: {type: string, minLength: 1, maxLength: 2048}
+    CSRF:
+      name: X-CSRF-Token
+      in: header
+      description: Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+      schema: {type: string, minLength: 32, maxLength: 128}
+    ID:
+      name: id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/ID'}
+  requestBodies:
+    Credentials:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Credentials'}
+  responses:
+    Problem:
+      description: Safe machine-readable error
+      headers:
+        Retry-After: {schema: {type: string}, description: Present for temporary unavailability}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+  schemas:
+    ID: {type: string, minLength: 1, maxLength: 128}
+    EventID: {type: string, format: uuid, minLength: 36, maxLength: 36, pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$', x-go-type: string}
+    Revision: {type: string, pattern: '^(0|[1-9][0-9]{0,17})$'}
+    Credentials:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: {type: string, minLength: 1, maxLength: 256}
+        password: {type: string, minLength: 1, maxLength: 256}
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, is_admin, timezone]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        is_admin: {type: boolean}
+        timezone: {type: string}
+    Capabilities:
+      type: object
+      additionalProperties: false
+      required: [registration_enabled, search_enabled, demo_mode]
+      properties:
+        registration_enabled: {type: boolean}
+        search_enabled: {type: boolean}
+        demo_mode: {type: boolean}
+    Session:
+      type: object
+      additionalProperties: false
+      required: [user, csrf_token, expires_at]
+      properties:
+        user:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [id, is_admin, timezone]
+          properties:
+            id: {$ref: '#/components/schemas/ID'}
+            is_admin: {type: boolean}
+            timezone: {type: string}
+        csrf_token: {type: string, minLength: 32, maxLength: 128}
+        expires_at: {type: string, format: date-time, nullable: true}
+    Document:
+      type: object
+      additionalProperties: false
+      required: [id, title, author, series, description, lang, file_available, cover_available, media_type, file_size_bytes]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        title: {type: string, nullable: true}
+        author: {type: string, nullable: true}
+        series: {type: string, nullable: true}
+        description: {type: string, nullable: true}
+        lang: {type: string, nullable: true}
+        file_available: {type: boolean}
+        cover_available: {type: boolean}
+        media_type: {type: string, nullable: true}
+        file_size_bytes: {type: integer, format: int64, minimum: 0, nullable: true}
+    DocumentPage:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, page_size, next_page]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Document'}}
+        total: {type: integer, minimum: 0}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        next_page: {type: integer, minimum: 1, nullable: true}
+    ReadingState:
+      type: object
+      additionalProperties: false
+      required: [document_id, revision, position, fraction, device_id, updated_at]
+      properties:
+        document_id: {$ref: '#/components/schemas/ID'}
+        revision: {$ref: '#/components/schemas/Revision'}
+        position: {type: string, nullable: true}
+        fraction: {type: number, format: double, minimum: 0, maximum: 1, nullable: true}
+        device_id: {type: string, nullable: true}
+        updated_at: {type: string, format: date-time, nullable: true}
+    Device:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        name: {type: string, minLength: 1, maxLength: 128}
+    ProgressEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, document_id, device_id, observed_at, base_revision, position, fraction]
+      properties:
+        event_id: {$ref: '#/components/schemas/EventID'}
+        document_id: {$ref: '#/components/schemas/ID'}
+        device_id: {$ref: '#/components/schemas/ID'}
+        observed_at: {type: string, format: date-time}
+        base_revision: {$ref: '#/components/schemas/Revision'}
+        position: {type: string, minLength: 1, maxLength: 4096}
+        fraction: {type: number, format: double, minimum: 0, maximum: 1}
+    ActivityEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, document_id, device_id, start_time, duration, start_fraction, end_fraction]
+      properties:
+        event_id: {$ref: '#/components/schemas/EventID'}
+        document_id: {$ref: '#/components/schemas/ID'}
+        device_id: {$ref: '#/components/schemas/ID'}
+        start_time: {type: string, format: date-time}
+        duration: {type: integer, minimum: 0, maximum: 86400}
+        start_fraction: {type: number, format: double, minimum: 0, maximum: 1}
+        end_fraction: {type: number, format: double, minimum: 0, maximum: 1}
+    Receipt:
+      type: object
+      additionalProperties: false
+      required: [event_id, kind, revision]
+      properties:
+        event_id: {$ref: '#/components/schemas/EventID'}
+        kind: {type: string, enum: [progress, activity]}
+        revision: {type: string, pattern: '^(0|[1-9][0-9]{0,17})$', nullable: true}
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, code, detail]
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer, minimum: 400, maximum: 599}
+        code: {type: string}
+        detail: {type: string}
+        current_revision: {$ref: '#/components/schemas/Revision'}

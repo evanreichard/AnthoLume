@@ -1,6 +1,6 @@
 # React Frontend Migration
 
-Status: M1 complete and approved; bounded M2 proofs independently accepted. The user selected Folio/editorial in structured browser review. The surrounding flow is conditionally approved subject to unified-library/mobile-filter and paginated-reader refinements. Compact-density verification passed independently (89 browser + 2 static checks); user confirmation and the M2 exit gate remain OPEN. Earlier technical proof acceptance is unchanged. This is not blanket phone/PWA or production approval.
+Status: M1 and M2 complete. “Looks good. Proceed” confirms revised compact Folio and approves the real vertical slice; M3 is in progress under the [bounded implementation handoff](evaluation/m3-boundaries.md). Earlier technical proof acceptance is unchanged. This is not phone/PWA or production approval.
 
 ## Goal and Scope
 
@@ -22,8 +22,9 @@ This document is the durable design and milestone tracker. Confirmed observation
 - OpenAPI describes requests, responses, errors, security, and binary operations; generated frontend bindings remain synchronized with it.
 - Local-only books remain usable without a server account.
 - Downloaded server books can be reopened after an offline app restart.
+- Large books use disk-backed originals, range indexing, incremental integrity/validation and bounded lazy chapter/assets, with no full-book buffers. A temporary whole-book size cap is not the approved streaming/lazy target.
 - Offline activity and progress survive interruption and synchronize safely.
-- Existing KOReader/KOSync and OPDS clients remain compatible.
+- External KOSync remains compatible with its normative upstream contract; opaque progress storage is separate from KOReader CRengine client position mapping. SyncNinja extensions and OPDS remain compatible.
 - Existing server databases, document/cover files, and KOReader/OPDS integrations remain compatible, with explicit server migrations where necessary.
 - Legacy browser data requires no backward compatibility: local books, preferences, cached downloads, and pending events may be discarded. New-frontend storage durability remains a requirement.
 - Deployment remains practical for self-hosting, without requiring a production Node server.
@@ -85,8 +86,8 @@ For each workflow record: actor/permission, inputs, outputs, side effects, error
 | Boundary | Owns | May depend on |
 | --- | --- | --- |
 | React application | Routes, accessible controls, responsive layout, transient UI state | Typed web client, reader controller, browser persistence/sync |
-| Reader engine | EPUB.js lifecycle, rendition DOM, navigation, position conversion, engine events | EPUB.js and narrowly scoped platform capabilities |
-| Browser persistence/sync | Local EPUBs, downloaded-book records, preferences, durable outbox, replay coordination | IndexedDB/Cache Storage, typed API client, platform events |
+| Reader engine | EPUB.js lifecycle, bounded lazy rendition DOM/assets, navigation, client position conversion and engine events | Validated range-indexed source and narrowly scoped platform capabilities |
+| Browser persistence/sync | Disk-backed original EPUB sources/indexes/integrity, local/downloaded records, preferences, durable outbox and replay | Range/chunk storage, incremental validation workers, typed API client and platform events |
 | Web API adapter | HTTP parsing/validation, web authentication/authorization, DTO mapping, errors | Application operations and OpenAPI types |
 | Application operations | Business rules shared by web and compatibility adapters | Existing persistence and supporting packages |
 | Compatibility adapters | Existing KOReader/KOSync and OPDS wire formats/auth semantics | Application operations where behavior is genuinely shared |
@@ -101,7 +102,8 @@ Extract application operations where transport-independent behavior exists; do n
 - The sync subsystem is the sole owner of replay policy and acknowledgement handling. Concurrent tabs and service-worker activity cannot independently acknowledge/delete the same mutable queue entry without coordination.
 - An accepted local reading event is durable before the UI reports it saved. It remains queued until a valid server acknowledgement or explicit user action resolves it.
 - Retrying activity delivery cannot create duplicate credited activity. Define durable event identity and server deduplication behavior before implementation.
-- Progress uses account/document revisions shared by web and KO writers. Stale web progress is retained for an explicit local-versus-server resume choice; activity can synchronize independently. Intentional backward moves remain valid; neither highest percentage nor client-clock ordering selects the winner.
+- Progress uses internal account/document revisions shared by web and KO writers, without adding CAS/event/UUID/CSRF fields to published KOSync. Stale web progress is retained for explicit local-versus-server choice; activity synchronizes independently. Backward moves remain valid; neither highest percentage nor client clock selects the winner.
+- Reader persistence separates compressed disk/cumulative validation capacity from bounded stream chunks, active-entry/DOM and asset/native-image memory. Complete original integrity/CRC, quota/cancellation and security remain mandatory; reopen is lazy, not a whole-book hash/inflate preload. Concrete budgets belong in the reader report, not duplicate contract constants.
 - Server-linked browser data and pending mutations are account-scoped. Switching accounts cannot replay another account's events. Explicit logout retains downloaded server books but hides them until the same account signs in again, and pauses its queued events; this is application-level separation, not encrypted storage. Session expiry alone does not block offline reading, and local-only books remain independent of login.
 - Initial activity-credit rules retain the existing forward-page-turn/WPM measurement semantics while delivery becomes durable and deduplicated. Changes to idle, reread, chapter-jump, or background/close credit require a separate evaluated contract; the migration does not silently change recorded statistics.
 - React owns controls and application DOM; the reader engine exclusively owns its rendering container. Unmount releases engine resources, listeners, object URLs, and wake locks.
@@ -111,19 +113,19 @@ Extract application operations where transport-independent behavior exists; do n
 
 ### Deployment and Frontend Tooling
 
-Proposed default: React + TypeScript + Vite, a client router, a server-state query library, and a deliberately small UI foundation. Specific router, query, styling, component, and storage packages remain evaluation decisions.
+M3 uses React + TypeScript + Vite, React Router Data Mode, TanStack Query, CSS Modules/tokens/native controls, and reader-owned Dexie persistence. Exact pins, package single-writer ownership and production qualification are fixed in the [M3 handoff](evaluation/m3-boundaries.md#production-build-dependencies-and-worker).
 
-Approved information architecture: Library, Offline, Insights, and More tabs with a desktop navigation rail. Library defaults to a combined shared/local view with source icons on covers; offline availability is indicated separately. Featured Resume sits above a compact search input with adjacent Add and Filter icons, then a simple divider before items. Feature/detail both use “Resume”; omit “On the shelves” and visible provenance legends, retaining accessible cover badges. Filter opens a source/availability popup or sheet. Offline manages stored books, downloads and removal rather than duplicating ownership tabs. Keep detail Resume early and the paginated reader full-viewport, close to current behavior outside compact Folio theming. Global density reduces heading/control/card/padding/chrome space while preserving legibility and touch targets. Folio/editorial is selected; compact-density verification is independently accepted, with user confirmation pending and earlier technical proofs unchanged.
+Approved information architecture: Library, Offline, Insights, and More tabs with a desktop navigation rail. Library defaults to a combined shared/local view with source icons on covers; offline availability is indicated separately. Featured Resume sits above a compact search input with adjacent Add and Filter icons, then a simple divider before items. Feature/detail both use “Resume”; omit “On the shelves” and visible provenance legends, retaining accessible cover badges. Filter opens a source/availability popup or sheet. Offline manages stored books, downloads and removal rather than duplicating ownership tabs. Keep detail Resume early and the paginated reader full-viewport, close to current behavior outside compact Folio theming. Global density reduces heading/control/card/padding/chrome space while preserving legibility and touch targets. Revised compact Folio/editorial is user-confirmed; independent density verification and earlier technical proofs remain accepted.
 
-Go serves the compiled application and API from the same origin; development uses a frontend dev server/proxy. Production does not require Node. SPA navigation fallback applies only to frontend routes, never API errors or missing asset requests. Deep links, existing reader links, cache headers, and content-hashed assets need explicit tests.
+Go serves the compiled application and API from the same origin; development uses a loopback frontend dev server/proxy. M3 temporarily mounts React at `/app/`, with explicit links to existing SSR for unported capabilities; root SPA cutover and SSR retirement remain M6. Ignored compiled output lives in `assets/app/` inside the existing Go-embedded assets tree. Production does not require Node. SPA navigation fallback applies only to frontend routes, never API errors or missing asset requests. Deep links, existing reader links, cache headers, and content-hashed assets need explicit tests.
 
 ### API and OpenAPI
 
-Proposed default: schema-first OpenAPI with generated Go boundary types/interfaces and TypeScript bindings. Evaluate `oapi-codegen` against Gin and compare with a code-first alternative using one representative read, mutation, validation failure, and binary operation.
+Selected: schema-first OpenAPI with generated strict Go boundary interfaces/types and TypeScript bindings. M2 accepted the representative `oapi-codegen`/Gin proof; M3 promotes it through production auth, shared reading operations, migrations and runtime validation under the [exact endpoint/interface contract](evaluation/m3-boundaries.md#authoritative-web-wire-contract).
 
 Choose based on contract fidelity, integration simplicity, supported OpenAPI version, runtime validation, generated code quality, and deterministic CI generation—not tool popularity. Pin generator versions and prove drift checks before expanding the schema.
 
-A proposed `/api/v1` web namespace is separate from `/api/ko` and `/api/opds`. Public DTOs are intentional API models, not exported SQLC rows. Resource groups include:
+The new `/api/v1` web namespace is separate from `/api/ko` and `/api/opds`. Public DTOs are intentional API models, not exported SQLC rows. Resource groups include:
 
 - Session/authentication, current user, and server capabilities.
 - Documents, covers/files, metadata identification, and acquisition.
@@ -134,19 +136,25 @@ A proposed `/api/v1` web namespace is separate from `/api/ko` and `/api/opds`. P
 
 The contract must define nullability, identifiers, timestamps/timezones, percentage units, pagination, sorting, validation, error envelopes, limits, and binary content types. Specify authorization per operation and CSRF protection for cookie-authenticated mutations. Long-running operations need an intentional synchronous/job/streaming decision based on actual runtime behavior; do not assume every admin action is a simple JSON request.
 
+### External KOSync Authority
+
+The published upstream [KOReader sync-server contract](https://github.com/koreader/koreader-sync-server) is normative for KOSync routes, auth, payloads and errors. Existing handlers/tests are baseline evidence, not the specification; audit against a recorded upstream schema/revision before changing behavior. Report evidenced timestamp deviations without inventing normative fields/types. Preserve valid server data and external interoperability; web API validation/Problem envelopes do not redefine KOSync.
+
+KOSync stores/returns original progress strings opaquely. KOReader CRengine path syntax/XPointer mapping is separate client interoperability. Canonical child-axis source paths for new reader writes have bounded automated evidence; native KOReader round trips remain pending. This is never a historical string rewrite or KOSync API redesign. Preserve SyncNinja extended activity/document routes without claiming they are official KOSync schema; OPDS remains separate.
+
 ### Mobile/PWA and Reader Contracts
 
 **Selected EPUB boundary — single origin:** the trusted EPUB.js renderer runs at the application origin; untrusted chapter frames have no script permission. Enforce strict CSP before chapter parsing, validated archive-only assets and controller-mediated internal navigation. No extra hostname is required. The user accepts that a trusted renderer bug can affect the application origin; a dedicated credential-free origin is optional future hardening, not an acceptance requirement. Never enable the unsafe `allowScriptedContent` workaround. The [opaque-frame experiment](evaluation/m2-reader-isolation.md) is retained falsification evidence, not a competing production design or an unfinished requirement for stronger isolation. The selected policy has [independently accepted representative compatibility/security evidence](evaluation/m2-reader-storage.md#independent-closure); broader production qualification remains required.
 
 - App-shell installation/update strategy is separate from book download/storage policy.
-- Offline availability is explicit and verifiable; incomplete downloads are never labeled available.
+- Offline availability is explicit and verifiable: publish complete validated disk-backed sources/index/integrity/checkpoint references atomically after staging; incomplete/quota-failed/cancelled sources are never available and earlier verified books survive.
 - Expose pending sync, authentication-required, retryable failure, conflict, quota failure, and unavailable-book states.
 - Support reopen after full termination, not only airplane mode in an already-open tab.
 - Do not require Background Sync support for correctness; use startup, foreground, and reconnect replay as supported entry points.
 - Define update behavior during active reading and queued mutations, including compatibility between frontend, service worker, browser schema, and server API versions.
 - Review install identity (`manifest` ID/start URL/scope) before changing routes or names.
 - Evaluate safe areas, dynamic viewport height, orientation, large text, keyboard focus, touch targets, reduced motion, and screen-reader navigation.
-- Preserve KOReader-compatible stored positions and document identity. React adaptation does not justify silently replacing the position format.
+- Preserve original stored positions and document identity. Qualify KOReader CRengine client read/new-write mapping separately from opaque KOSync transport; React adaptation does not justify rewriting historical strings.
 - Preserve full-viewport pagination without vertical book-text scrolling, tap/swipe/keyboard page turns, TOC and font/theme controls. Font growth/shrink, viewport resize and orientation changes repaginate while preserving the logical reading anchor; pagination must not substitute page-number equality for position continuity.
 - Preserve installed-PWA reading behavior, including viewport/safe-area handling, background/resume and offline recovery; synthetic reader controls do not prove these contracts.
 - Treat native wake-lock support and fallback behavior as browser-specific capabilities to verify, not assumptions inherited from historical workarounds.
@@ -192,7 +200,7 @@ Deliverables:
 
 ### M2 — Contract and Mobile Interaction Proofs
 
-Status: bounded technical proofs independently accepted; Folio/editorial and single-origin hardened EPUB.js selected by the user. The rest of the flow has conditional user approval; compact-density checks are independently accepted, while user confirmation and the exit gate remain OPEN. No further mock-reader features are required; real reader adaptation/theming belongs to M3. Proof modules are discardable, not production changes.
+Status: complete. Bounded technical proofs are independently accepted; “Looks good. Proceed” confirms revised compact Folio and closes the remaining confirmation/exit gate. Single-origin hardened EPUB.js remains selected. Real reader adaptation/theming belongs to M3, not further mock-reader work. Proof modules are discardable or deliberately promoted, not permanent frontends. Phone/PWA and production qualification remain pending.
 
 Deliverables:
 - [x] Representative six-operation OpenAPI contract; reproducible strict Go/TypeScript generation, validation and drift checks, fixture HTTP/SQLite operations and scoped patched-toolchain verification. Evidence: [API/schema proof](evaluation/m2-api-contract.md#independent-closure).
@@ -200,39 +208,43 @@ Deliverables:
 - [x] Two proposed visual systems with typography, color, spacing, components and tested interaction states. Evidence: [Folio/Index design proof](evaluation/m2-design.md#independent-closure).
 - [x] Mobile/desktop prototypes for library, detail, sample reader controls, offline library and synchronization states on the approved information architecture. Evidence: [interaction scope](evaluation/m2-design.md#changed-interaction-contracts). These are synthetic interactions, not EPUB/offline implementation; [refinement checks and independent closure](evaluation/m2-design.md#independent-closure) cover the revised prototype target.
 - [x] User selection of Folio/editorial in structured browser review, retaining four tabs, desktop rail and early detail Resume. This is creative selection, not full interaction or phone/PWA validation.
-- [x] User approval of the rest of the Folio flow, conditional on the requested mobile/reader refinements; no repeat of all flows is required.
+- [x] User approval of the rest of the Folio flow and requested revised mobile/reader presentation, confirmed by “Looks good. Proceed”; no repeat of all flows is required.
 - [x] Revised prototype verification: combined shared/local Library, separate cover provenance/availability, compact search/filter, Back/focus/state/privacy, full-viewport no-scroll pagination and logical-anchor continuity on text resize/reflow. Evidence: [independent closure](evaluation/m2-design.md#independent-closure), current 89 browser + 2 static checks include the preserved mobile cases; both original mobile findings remain closed. Synthetic text pagination does not prove EPUB or installed-PWA behavior.
 - [x] Compact Folio density verification: featured Resume before search, adjacent Add/Filter icons, simple item divider, consistent feature/detail Resume labels, accessible cover badges without visible provenance key or shelf heading, and compact app/reader chrome with preserved touch targets, text size and interactions. Evidence: [independent closure](evaluation/m2-design.md#independent-closure), 89 browser + 2 static checks; no bounded blocker remains.
-- [ ] User confirmation of the compact Folio presentation and requested refinements. The rest of the flow is conditionally approved; no repeat of all workflows or further mock-reader feature development is required.
+- [x] User confirmation of revised compact Folio and requested refinements: “Looks good. Proceed.” No repeat of all workflows or further mock-reader development is required; this does not approve phone/PWA behavior.
 - [x] Focused reader lifecycle, element-level KO codec/restore, transactional storage, account/lease fencing, exact acknowledgements and conservative shared-revision conflict proofs against a typed fake. Evidence: [reader/storage proof](evaluation/m2-reader-storage.md#independent-closure).
 - [x] Representative reader compatibility/security proof for selected single-origin hardened EPUB.js: ordinary parsed CSS, packaged fonts, inline/packaged SVG, validated internal navigation, before-parse CSP/no-script chapters and source-body/byte preservation. Evidence: [reader proof and independent closure](evaluation/m2-reader-storage.md#independent-closure): owner 20 unit/38 browser tests; independent 20 unit/11 targeted browser tests plus original-reproduction/source/lifecycle probes. Trusted-renderer app-origin blast radius is explicitly accepted; no extra hostname or stronger boundary is required. Broader corpus/security/platform parity remains M3–M5 qualification.
 - [x] Representative replay/CAS proof over real Go↔browser HTTP: exact acknowledgements, lost-response retry/deduplication, durable outbox retention and explicit backward choice with stale-choice rejection. Evidence: [HTTP contracts](evaluation/m2-integration.md#executed-named-contracts), [independent acceptance — 10 browser tests](evaluation/m2-integration.md#independent-acceptance). Production resolution ownership/history, real KO protocol and restart qualification remain pending.
 - [x] Legacy worker-retirement/reset contract defined: `/sw.js` replacement, exact allowlisted cleanup, bounded client coordination/reload, failure recovery and unrelated/new-schema preservation. Evidence: [retirement contract and unexecuted acceptance matrix](evaluation/service-worker-contract.md). Runtime cutover, cold restart and installed-device qualification remain M3/M5 gates.
 - [x] Acceptance-test definitions and preserve/adapt/add dispositions for the declared proof scope; no production tests retired. Evidence: [API](evaluation/m2-api-contract.md#test-disposition-and-promotion-decision), [reader/storage](evaluation/m2-reader-storage.md#test-dispositions-and-fault-sensitivity), [design](evaluation/m2-design.md#test-dispositions).
 
-- [ ] Exit gate — OPEN pending only user confirmation of revised Folio presentation; density verification passed independently. Earlier automated interaction checks passed independently; rest-flow approval is conditional, technical proofs stay accepted, and worker retirement is contract-defined, not runtime-proved. Temporary proofs are removed or deliberately promoted, never permanent parallel frontends. No phone/PWA or production approval is implied.
+- [x] Exit gate — complete under “Looks good. Proceed”: revised Folio confirmed and real M3 vertical slice authorized. Independently accepted technical/interaction proofs remain bounded; worker retirement is contract-defined, not runtime-proved. Proofs are removed or deliberately promoted, never permanent parallel frontends. No phone/PWA or production approval is implied.
 
 M2 proves the selected tools and boundary contracts support representative real operations; it is not narrowed to passing existing fixtures. Production auth/CSRF, shared KO writers, migrations/deployment compatibility, broad real EPUB/KOReader compatibility and cold-restart workflows remain M3–M5 promotion gates below, not prerequisites to starting those milestones. Full workflow/parity and platform acceptance remain M4/M5 requirements; none is waived by M2 closure.
 
 ### M3 — End-to-End Reader and Offline Vertical Slice
 
-Status: not started.
+Status: verified code checkpoint, not production rollout. [Current evidence and boundaries](evaluation/m3-boundaries.md#current-checkpoint-evidence) qualify the automated subsets below. The full reader suite remains red (70/71); production SW passes (6/6). M3 exit is open.
 
 Promotion blockers (retain as acceptance requirements, not waived by bounded M2 closure):
 - [ ] Qualify the selected single-origin hardened EPUB.js boundary and broad benign-content compatibility, including validated controller internal navigation; restrictive passive fixtures are not production parity. A dedicated reader origin is optional future hardening, not a promotion requirement.
-- [ ] Bound archive resource exhaustion before allocation; qualify ZIP bombs, duplicate names, CRC, cancellation and large media.
-- [ ] Resolve ambiguous historical KO positions and recoverable writer/reader disagreement with actual KOReader round trips; preserve existing IDs/positions and required reader capabilities.
-- [ ] Promote bounded browser/Go fixture composition into actual production HTTP/auth/CSRF and runtime response validation, durable receipts/shared revisions including real KO writers, and persistent explicit conflict resolution. The accepted integration harness does not implement these production contracts.
-- [ ] Implement cold offline shell launch/full termination recovery and legacy `/sw.js` retirement, preserving new-schema outbox data. A loaded-shell offline open is insufficient.
+- [ ] Qualify the selected ideal large-book architecture: disk-backed originals/range index, incremental full integrity/CRC/validation, bounded stream chunks and lazy active DOM/assets, no whole-book buffers. Distinguish disk/cumulative validation capacities from active/native memory; qualify ZIP bombs, duplicates, quota, cancellation, repeated cold opens, visible images/anchors and measured worker/native memory. A temporary whole-book cap is not acceptance.
+- [x] Classic KOSync upstream recheck passes F1–F5, explicit-header precedence and account-scoped aliases; [short-read partial-MD5 and opaque-string compatibility evidence](evaluation/kosync-compatibility.md) preserves server IDs and history.
+- [ ] Resolve declared upstream KOSync F6 limits/coercion and F7 additional-route scope before claiming full reference parity. Separately qualify native KOReader CRengine mapping/new-writer child-axis behavior and recoverable historical ambiguity without historical rewrite.
+- [x] Production HTTP/auth/CSRF, runtime response validation, durable receipts/shared revisions including real KO writers, and persistent explicit conflict resolution: [backend final](evaluation/m3-backend-final.md), [actual Go↔React 34/34](evaluation/m3-integration-check.md).
+- [x] Automated cold offline shell launch/full termination recovery and legacy `/sw.js` retirement with new-schema outbox preservation: [actual Go↔React](evaluation/m3-integration-check.md) and [production SW 6/6](evaluation/m3-reader-final-check.md). This does not cover manual or physical-device acceptance.
 
 Evidence and additional promotion limits: [API](evaluation/m2-api-contract.md#proved-versus-pending), [reader/storage](evaluation/m2-reader-storage.md#explicit-limits--not-solved). Real-device/security/compatibility qualification remains required in M4/M5; restrictive proof behavior does not silently retire parity requirements.
 
 Deliverables:
-- [ ] Authentication, library/detail, server-book download, reader, and offline library backed by the new API and UI. The next real reader work adapts existing EPUB.js/custom behavior behind a React component/controller and applies compact Folio theming; it does not develop another fake engine or reinstate unsafe legacy script handlers. Preserve full-viewport pagination, tap/swipe/keyboard navigation, KO identity/positions and logical-anchor continuity on text-size reflow. This is the accepted M3 sequence within existing ownership/security boundaries, not an added M2 production prerequisite.
-- [ ] Local-only EPUB import and reading.
-- [ ] Durable activity/progress replay, deduplication, account isolation, and visible sync states.
-- [ ] Initial browser schema and legacy service-worker/cache retirement; no legacy browser-data migration.
-- [ ] Before production dependency adoption, qualify the root Go patch level and security-sensitive dependency graph: patched supported toolchain, reproducible builds, dependency verification and vulnerability scans. Nested proof results do not qualify the unchanged root graph.
+- [x] Authentication, library/detail, server-book download, actual EPUB.js reader and offline library at `/app/`, compact Folio controls and bounded automated navigation/reflow evidence: [actual Go↔React integration](evaluation/m3-integration-check.md). Full platform/native parity remains open above.
+- [x] Local-only EPUB import/reading on disk-backed lazy sources, with zero local server events: [public streaming](evaluation/m3-streaming-final.md) and bounded [A](evaluation/m3-large-book-A-check.md), [B](evaluation/m3-large-book-B-check.md), [C](evaluation/m3-large-book-C-check.md), [D](evaluation/m3-large-book-D-check.md) workflows. D combines earlier warm evidence with current-controller cold evidence; this is not unrestricted corpus/native acceptance.
+- [x] Durable activity/progress replay, deduplication, account isolation and visible sync states: [34/34 actual-Go browser and 40/40 web units](evaluation/m3-integration-check.md).
+- [x] Initial additive browser schema and automated legacy worker/cache retirement with new-data preservation: [integration evidence](evaluation/m3-integration-check.md). No legacy browser-data migration.
+- [x] Root Go 1.26.11 tests (79 + 52 subtests), race, vet, build/module verification and zero vulnerability findings; deterministic Go/TS generation and all 21 behavioral mutations plus drift detection: [backend final](evaluation/m3-backend-final.md).
+- [x] Production service-worker regression: [6/6](evaluation/m3-reader-final-check.md), including both cold-process scenarios and retirement/update/failure fencing.
+- [ ] Full reader browser regression: [70/71](evaluation/m3-reader-final-check.md); the public `large-media` open failure remains unresolved.
+- [ ] Secure remote human review and physical/native validation. Headscale cannot provision trusted HTTPS automatically; establish trusted HTTPS separately before secure-context/PWA acceptance.
 
 - [ ] Exit gate: download → disconnect → fully terminate/reopen → read → reconnect → synchronize, with no lost or duplicated credited activity. Also demonstrate local-only reading without login, expired-session recovery without queue loss, and position compatibility with KOReader.
 
@@ -296,32 +308,33 @@ Evidence tracker:
 | Reader/storage/conflict proof | Bounded desktop Chromium proof passed; real KO/PWA pending | [Reader closure](evaluation/m2-reader-storage.md#independent-closure) |
 | Actual HTTP and replay/CAS composition | Independently accepted; 10 browser tests, bounded fixture scope | [HTTP report/acceptance](evaluation/m2-integration.md#independent-acceptance) |
 | Selected single-origin reader boundary | Representative proof independently accepted; user accepts trusted-renderer blast radius, no extra hostname | [Reader closure](evaluation/m2-reader-storage.md#independent-closure), [retained topology falsification](evaluation/m2-reader-isolation.md) |
-| Legacy worker retirement | Contract defined; runtime M3/M5 acceptance pending | [Contract/test matrix](evaluation/service-worker-contract.md) |
+| Legacy worker retirement | Automated production SW and actual-Go subsets pass; physical-device and upgrade/cutover qualification open | [Contract/test matrix](evaluation/service-worker-contract.md), [production SW check](evaluation/m3-reader-final-check.md) |
 | Proposed visual systems/interaction prototypes | Bounded automated proof accepted; not human interaction approval | [Design closure](evaluation/m2-design.md#independent-closure) |
 | Human visual selection | Folio/editorial selected in structured browser review; four tabs/desktop rail/early detail Resume retained | [Selected direction](evaluation/README.md#product-decisions-for-m2) |
-| Refined interaction validation and M2 exit | OPEN pending user confirmation; density independently verified (89 browser + 2 static), rest-flow approval conditional; no phone/PWA approval | [Refinement confirmation](evaluation/m2-design.md#review) |
-| Offline vertical-slice proof | Pending | — |
+| Refined interaction validation and M2 exit | Complete: revised Folio confirmed by “Looks good. Proceed”; independent 89 browser + 2 static checks retained; no phone/PWA approval | [M3 authorization/handoff](evaluation/m3-boundaries.md) |
+| Offline vertical-slice proof | Actual-Go 34/34 browser + 40/40 unit PASS, including startup/access and cold replay; SW 6/6, reader red (70/71), manual exit open | [Current integration](evaluation/m3-integration-check.md) |
+| Actual large-original qualification | Bounded A/B/C/D workflows PASS (D mixed warm/current-cold provenance); broad memory/native qualification remains open | [Current checkpoint evidence](evaluation/m3-boundaries.md#current-checkpoint-evidence) |
 | Full functionality acceptance | Pending | — |
 | Real-device, server upgrade, and legacy cache-retirement qualification | Pending | — |
 | Cutover/rollback qualification | Pending | — |
 
 ## Decisions Requiring Evaluation or Approval
 
-1. Detailed conflict/re-authentication interactions implementing the selected shared-revision policy: retain stale local progress for explicit choice, allow intentional backward moves, and synchronize activity independently.
-2. Detailed account-switch/re-authentication interactions implementing the approved retention policy: explicit logout hides retained server downloads and pauses original-account events; local-only books remain independent. Retention versus removal is resolved.
-3. Runtime verification of the [defined legacy worker-retirement contract](evaluation/service-worker-contract.md). Legacy browser data preservation is explicitly out of scope.
+1. Production validation of the [M3 conflict/re-authentication interface](evaluation/m3-boundaries.md): retain stale local progress for explicit choice, allow intentional backward moves, and synchronize activity independently.
+2. Production validation of the M3 account-switch/re-authentication contract: explicit logout hides retained server downloads and pauses original-account events; expiry permits offline reading and local-only books remain independent. Retention versus removal is resolved.
+3. Physical-device and deployment verification of the [legacy worker-retirement contract](evaluation/service-worker-contract.md) beyond passing [automated SW coverage](evaluation/m3-reader-final-check.md). Legacy browser data preservation is explicitly out of scope.
 4. Supported browser/OS floor and available physical-device validation coverage.
-5. Final OpenAPI/toolchain versions and frontend/storage dependencies.
-6. User confirmation of independently verified compact Folio density, including Resume/search/Add/Filter layout and accessible cover badges; earlier proofs remain accepted and rest-flow approval is conditional. Accessibility/performance and device/PWA qualification remain later gates.
+5. Production qualification of the selected [M3 schema/toolchain/dependency pins](evaluation/m3-boundaries.md#production-build-dependencies-and-worker), including root Go 1.26.11; user-staged `flake.lock` remains untouched.
+6. Accessibility/performance and physical-device/PWA qualification. Revised compact Folio is confirmed; that presentation approval does not close these later gates.
 7. Which existing behavior is defective and intentionally changes; no blanket permission to change functionality.
-8. Temporary coexistence and rollback constraints, especially where data changes cannot safely be rolled back.
+8. Qualify the bounded `/app/` + SSR coexistence and rollback constraints in the M3 handoff; old binaries cannot safely bypass new receipt/shared-head participation. Root SPA/SSR retirement stays M6.
 
 ## Scope Guardrails
 
 - A ground-up redesign of the surrounding app is required; a cosmetic template-to-React port is insufficient. Preserve capabilities and compatibility contracts, with current-reader pagination/input continuity outside theming as explicitly required.
 - No permanent dual frontend.
 - No database rewrite, backend framework replacement, or general-purpose architecture expansion without a concrete requirement.
-- Preserve existing server data and external integration contracts; introduce only necessary server migrations. No compatibility layer or migration for legacy browser-stored books, preferences, downloads, or pending events.
+- Preserve valid server data and external integration contracts; upstream KOSync is normative, existing handler tests are evidence, and SyncNinja extensions are distinct. Introduce only necessary server migrations. No compatibility layer or migration for legacy browser-stored books, preferences, downloads, or pending events.
 - No production rollout before approved offline, compatibility, and upgrade gates.
 - No reliance on the private backup as the only test fixture.
 - No implementation estimates until M1 establishes the inventory and risk boundaries.

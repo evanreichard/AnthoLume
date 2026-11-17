@@ -1,0 +1,56 @@
+:root {
+  color-scheme: light;
+  --bg: #f7f4ed;
+  --surface: #fffdf8;
+  --subtle: #eeeae0;
+  --ink: #292f2b;
+  --muted: #62675d;
+  --line: #d1d0c5;
+  --accent: #7c3c32;
+  --accent-ink: #fffaf2;
+  --hero: #e8e9dd;
+  --danger: #9b332d;
+  --focus: #1667b4;
+  --display: Georgia, 'Times New Roman', serif;
+  --body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --radius: 7px;
+  font-family: var(--body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--bg);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #1b211f;
+    --surface: #252d29;
+    --subtle: #303933;
+    --ink: #edece2;
+    --muted: #b7bdb1;
+    --line: #526055;
+    --accent: #e6af9a;
+    --accent-ink: #32221c;
+    --hero: #2e4036;
+    --danger: #ffb0a7;
+    --focus: #a5caff;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 0; }
+h1, h2, p { margin: 0 0 10px; overflow-wrap: anywhere; }
+h1, h2 { font-family: var(--display); line-height: 1.2; overflow-wrap: anywhere; }
+h1 { font-size: clamp(28px, 3vw, 38px); font-weight: 500; }
+h2 { font-size: 21px; font-weight: 500; }
+a { color: inherit; text-underline-offset: 3px; }
+button, input, select { font: inherit; }
+button, input, select, a { -webkit-tap-highlight-color: transparent; }
+button, input, select { min-height: 44px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); padding: 8px 12px; max-width: 100%; }
+button { cursor: pointer; font-weight: 600; line-height: 1.35; }
+button:disabled { opacity: .6; cursor: wait; }
+input, select { width: 100%; font-size: 16px; }
+input[type='search']::-webkit-search-cancel-button, input[type='search']::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+img { display: block; max-width: 100%; }
+hr { width: 100%; border: 0; border-top: 1px solid var(--line); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }

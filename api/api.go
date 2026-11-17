@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 	"net/http"
 	"path"
@@ -20,6 +21,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/config"
 	"reichard.io/antholume/database"
+	"reichard.io/antholume/reading"
 	"reichard.io/antholume/utils"
 )
 
@@ -29,31 +31,63 @@ type API struct {
 	assets        fs.FS
 	httpServer    *http.Server
 	templates     map[string]*template.Template
-	userAuthCache map[string]string
+	reading       *reading.Store
+	attempts      credentialLimiter
+	identitySlots chan struct{}
 }
 
 var htmlPolicy = bluemonday.StrictPolicy()
 
 func NewApi(db *database.DBManager, c *config.Config, assets fs.FS) *API {
+	api, err := NewAPI(db, c, assets)
+	if err != nil {
+		panic(err)
+	}
+	return api
+}
+
+// NewAPI composes the production router without starting a listener.
+func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error) {
+	if err := c.ValidatePublicOrigin(); err != nil {
+		return nil, err
+	}
 	api := &API{
 		db:            db,
 		cfg:           c,
 		assets:        assets,
 		templates:     make(map[string]*template.Template),
-		userAuthCache: make(map[string]string),
+		reading:       &reading.Store{DB: db.DB},
+		identitySlots: make(chan struct{}, 4),
 	}
 
 	// Create router
 	router := gin.New()
+	router.UseRawPath = true
+	router.UnescapePathValues = false
+	router.Use(decodePathParameters)
 
 	// Add server
 	api.httpServer = &http.Server{
-		Handler: router,
-		Addr:    (":" + c.ListenPort),
+		Handler:           router,
+		Addr:              (":" + c.ListenPort),
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	// Add global logging middleware
 	router.Use(loggingMiddleware)
+	router.Use(gin.CustomRecoveryWithWriter(io.Discard, func(c *gin.Context, _ any) {
+		log.Error("request handler panic")
+		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/") {
+			abortProblem(c, 500, "storage_error")
+			return
+		}
+		c.AbortWithStatus(500)
+	}))
+	router.Use(api.appAssetPolicy)
+	router.Use(api.retirementBootstrap)
+	router.SetTrustedProxies(nil)
 
 	// Add global template loader middleware (develop)
 	if c.Version == "develop" {
@@ -75,7 +109,7 @@ func NewApi(db *database.DBManager, c *config.Config, assets fs.FS) *API {
 		log.Info("generating cookie auth key")
 		newToken, err = utils.GenerateToken(64)
 		if err != nil {
-			log.Panic("unable to generate cookie auth key")
+			return nil, fmt.Errorf("unable to generate cookie auth key")
 		}
 	}
 
@@ -86,15 +120,16 @@ func NewApi(db *database.DBManager, c *config.Config, assets fs.FS) *API {
 			log.Info("utilizing environment cookie encryption key")
 			store = cookie.NewStore(newToken, []byte(c.CookieEncKey))
 		} else {
-			log.Panic("invalid cookie encryption key (must be 16 or 32 bytes)")
+			return nil, fmt.Errorf("invalid cookie encryption key (must be 16 or 32 bytes)")
 		}
 	}
 
 	// Configure cookie session store
 	store.Options(sessions.Options{
 		MaxAge:   60 * 60 * 24 * 7,
-		Secure:   c.CookieSecure,
-		HttpOnly: c.CookieHTTPOnly,
+		Path:     "/",
+		Secure:   strings.HasPrefix(c.PublicOrigin, "https://"),
+		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 	})
 	router.Use(sessions.Sessions("token", store))
@@ -106,9 +141,23 @@ func NewApi(db *database.DBManager, c *config.Config, assets fs.FS) *API {
 	apiGroup := router.Group("/api")
 	api.registerKOAPIRoutes(apiGroup)
 	api.registerOPDSRoutes(apiGroup)
+	if err := api.registerV1(router); err != nil {
+		return nil, err
+	}
+	router.GET("/app", func(c *gin.Context) { c.Redirect(http.StatusTemporaryRedirect, "/app/") })
+	router.GET("/app/*route", api.appShell)
+	router.NoRoute(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			abortProblem(c, 404, "not_found")
+			return
+		}
+		c.Status(404)
+	})
 
-	return api
+	return api, nil
 }
+
+func (api *API) Handler() http.Handler { return api.httpServer.Handler }
 
 func (api *API) Start() error {
 	return api.httpServer.ListenAndServe()
@@ -120,11 +169,11 @@ func (api *API) Stop() error {
 	defer cancel()
 	err := api.httpServer.Shutdown(ctx)
 	if err != nil {
+		_ = api.httpServer.Close()
 		return err
 	}
 
-	// Close DB
-	return api.db.DB.Close()
+	return nil
 }
 
 func (api *API) registerWebAppRoutes(router *gin.Engine) {
