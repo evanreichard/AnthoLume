@@ -52,7 +52,15 @@
     --display: Georgia, 'Times New Roman', serif;
     --body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --radius: 7px;
-    --rail: 222px;
+    --rail: 196px;
+    --studio-size: 50px;
+    --space-sm: 8px;
+    --space-md: 14px;
+    --space-lg: 20px;
+    --card-pad: 16px;
+    --page-x: 28px;
+    --page-y: 24px;
+    --title-size: clamp(32px, 3.2vw, 42px);
   }
   :root[data-direction='index'] {
     --bg: #f2f4f6;
@@ -110,7 +118,7 @@
     background: var(--bg);
     color: var(--ink);
     font-family: var(--body);
-    font-size: 15px;
+    font-size: 14px;
     line-height: 1.5;
     scroll-padding-top: 80px;
   }
@@ -130,13 +138,19 @@
     min-height: 44px;
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 9px 15px;
+    padding: 7px 12px;
     background: var(--surface);
     color: var(--ink);
     text-decoration: none;
     font-size: 13px;
     font-weight: 600;
     line-height: 1.35;
+  }
+  button > svg,
+  .button > svg,
+  .primary > svg {
+    width: 18px;
+    height: 18px;
   }
   button:hover,
   .button:hover {
@@ -186,15 +200,15 @@
     overflow-wrap: anywhere;
   }
   h1 {
-    font-size: clamp(36px, 4vw, 52px);
+    font-size: var(--title-size);
     letter-spacing: -0.035em;
   }
   h2 {
-    font-size: 28px;
+    font-size: 24px;
     letter-spacing: -0.025em;
   }
   h3 {
-    font-size: 22px;
+    font-size: 20px;
   }
   p {
     overflow-wrap: anywhere;
@@ -207,8 +221,8 @@
     align-items: center;
     justify-content: center;
     gap: 14px;
-    min-height: 46px;
-    padding: 11px 18px;
+    min-height: 44px;
+    padding: 8px 14px;
     border: 1px solid var(--accent);
     border-radius: var(--radius);
     background: var(--accent);
@@ -300,8 +314,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    min-height: 58px;
-    padding: 7px max(18px, env(safe-area-inset-right)) 7px max(18px, env(safe-area-inset-left));
+    min-height: var(--studio-size);
+    padding: 3px max(16px, env(safe-area-inset-right)) 3px max(16px, env(safe-area-inset-left));
     background: var(--ink);
     color: var(--bg);
     font-size: 11px;
@@ -356,17 +370,17 @@
   .app-shell {
     display: grid;
     grid-template-columns: var(--rail) minmax(0, 1fr);
-    min-height: calc(100dvh - 58px);
+    min-height: calc(100dvh - var(--studio-size));
   }
   .rail {
     position: sticky;
     top: 0;
     align-self: start;
-    height: 100dvh;
+    height: calc(100dvh - var(--studio-size));
     max-height: 100dvh;
     display: flex;
     flex-direction: column;
-    padding: 34px 20px 22px;
+    padding: 24px 16px 18px;
     border-right: 1px solid var(--line);
   }
   .wordmark {
@@ -401,7 +415,7 @@
     display: flex;
     flex-direction: column;
     gap: 7px;
-    margin-top: 56px;
+    margin-top: 32px;
   }
   .rail nav a {
     display: flex;
@@ -491,17 +505,17 @@
     max-width: 1420px;
     margin: 0 auto;
     min-width: 0;
-    padding: 38px 44px;
+    padding: var(--page-y) var(--page-x);
   }
   .page-heading {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 28px;
+    gap: 12px;
+    margin-bottom: var(--space-lg);
   }
   .page-heading .eyebrow {
-    margin-bottom: 7px;
+    margin-bottom: 4px;
     color: var(--muted);
   }
   .page-heading > button {
@@ -509,13 +523,13 @@
   }
   .continue-card {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 170px;
+    grid-template-columns: minmax(0, 1fr) 110px;
     align-items: center;
-    gap: 30px;
+    gap: 24px;
     position: relative;
     isolation: isolate;
-    padding: 30px 48px 30px 34px;
-    margin-bottom: 34px;
+    padding: 18px 28px;
+    margin-bottom: var(--space-md);
     background: var(--hero);
     color: var(--hero-ink);
     border-radius: var(--radius);
@@ -525,13 +539,13 @@
     z-index: 1;
   }
   .continue-copy > .eyebrow {
-    margin-bottom: 14px;
+    margin-bottom: 6px;
   }
   .continue-copy h2 {
-    font-size: clamp(38px, 4.5vw, 60px);
+    font-size: clamp(28px, 3vw, 38px);
     letter-spacing: -0.045em;
-    line-height: 1;
-    margin-bottom: 18px;
+    line-height: 1.05;
+    margin-bottom: 8px;
   }
   .continue-copy h2 em {
     font-weight: 400;
@@ -545,7 +559,7 @@
   }
   .continue-position {
     font-size: 11px;
-    margin: 5px 0 18px;
+    margin: 4px 0 10px;
   }
   .hero-cover {
     display: block;
@@ -803,10 +817,10 @@
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 8px;
-    margin: 26px 0 18px;
+    margin: 16px 0 10px;
   }
   .section-label h2 {
-    font-size: 23px;
+    font-size: 22px;
   }
   .section-label > span {
     font-size: 10px;
@@ -814,8 +828,8 @@
   }
   .book-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 24px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 18px;
   }
   .book-card {
     position: relative;
@@ -836,9 +850,9 @@
     margin-bottom: 17px;
   }
   .book-card h3 {
-    font-size: 20px;
+    font-size: 18px;
     line-height: 1.2;
-    margin-bottom: 5px;
+    margin-bottom: 4px;
   }
   .book-card h3 a {
     text-decoration: none;
@@ -923,8 +937,8 @@
     font-size: 10px;
     line-height: 1.8;
     border-top: 1px solid var(--line);
-    padding-top: 22px;
-    margin-top: 42px;
+    padding-top: var(--space-md);
+    margin-top: 28px;
     max-width: 760px;
   }
   .mobile-tabs {
@@ -1017,18 +1031,25 @@
     min-width: 0;
   }
   .detail-visual {
-    margin: 18px 0 28px;
+    margin: 10px 0 16px;
     background: var(--subtle);
     border-radius: var(--radius);
-    padding: 28px;
+    padding: var(--card-pad);
     display: flex;
-    gap: 24px;
+    gap: 16px;
     justify-content: center;
     align-items: center;
   }
   .detail-visual > .cover {
-    width: 150px;
-    flex: 0 0 150px;
+    width: 110px;
+    flex: 0 0 110px;
+    padding: 12px 10px;
+  }
+  .detail-visual .cover strong {
+    font-size: 26px;
+  }
+  .detail-visual .cover-author {
+    font-size: 6px;
   }
   .detail-stamp {
     font: 10px/1.5 var(--body);
@@ -1048,26 +1069,26 @@
     margin-bottom: 10px;
   }
   .detail-copy h1 {
-    font-size: 40px;
+    font-size: 34px;
   }
   .detail-read {
-    margin-top: 18px;
+    margin-top: 12px;
   }
   .detail-author {
-    margin: 9px 0 16px;
+    margin: 6px 0 12px;
     color: var(--muted);
   }
   .detail-badges {
     display: flex;
-    gap: 8px;
+    gap: var(--space-sm);
     flex-wrap: wrap;
   }
   .description {
-    font: 17px/1.7 var(--display);
-    margin: 23px 0;
+    font: 16px/1.6 var(--display);
+    margin: 16px 0;
   }
   .reading-position {
-    margin-bottom: 24px;
+    margin-bottom: 16px;
   }
   .reading-position > span {
     display: flex;
@@ -1084,8 +1105,8 @@
   .detail-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin: 10px 0 24px;
+    gap: var(--space-sm);
+    margin: 8px 0 16px;
   }
   .detail-actions button {
     flex: 1 1 120px;
@@ -1123,21 +1144,21 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 15px;
-    padding: 18px 22px;
+    gap: 12px;
+    padding: 12px 18px;
     border-bottom: 1px solid var(--line);
     background: var(--surface);
     z-index: 1;
   }
   .dialog-heading h2 {
-    font-size: 27px;
+    font-size: 24px;
   }
   .dialog-heading .icon-button {
     background: transparent;
     border-color: transparent;
   }
   .dialog-content {
-    padding: 22px;
+    padding: 18px;
   }
   .dialog-content > p {
     margin-bottom: 18px;
@@ -1152,15 +1173,15 @@
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 10px;
-    margin-top: 25px;
+    margin-top: 18px;
   }
   .notice {
-    padding: 19px 22px;
+    padding: 12px 16px;
     border: 1px solid var(--line);
     border-left: 3px solid var(--accent);
     border-radius: var(--radius);
     background: var(--surface);
-    margin: 20px 0;
+    margin: 14px 0;
     font-size: 12px;
   }
   .notice p {
@@ -1196,14 +1217,14 @@
   .offline-intro {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 50px;
+    gap: 28px;
     align-items: center;
-    padding: 10px 0 20px;
+    padding: 4px 0 12px;
   }
   .offline-intro h2 {
-    font-size: 45px;
-    line-height: 1.05;
-    margin-bottom: 18px;
+    font-size: 34px;
+    line-height: 1.08;
+    margin-bottom: 12px;
   }
   .offline-intro > div > p {
     color: var(--muted);
@@ -1211,14 +1232,14 @@
     max-width: 340px;
   }
   .storage-card {
-    padding: 24px;
+    padding: var(--card-pad);
     background: var(--hero);
     border-radius: var(--radius);
     color: var(--hero-ink);
   }
   .storage-card > b {
     display: block;
-    font: 52px/1.3 var(--display);
+    font: 36px/1.2 var(--display);
   }
   .storage-card b small {
     font-size: 16px;
@@ -1228,7 +1249,7 @@
     height: 6px;
     background: var(--line);
     gap: 3px;
-    margin: 12px 0;
+    margin: 8px 0;
   }
   .storage-meter i {
     width: 12%;
@@ -1251,7 +1272,8 @@
     align-items: center;
     gap: 10px;
     font-size: 11px;
-    margin-top: 18px;
+    margin-top: 8px;
+    min-height: 44px;
     text-decoration: none;
   }
   .offline-list {
@@ -1261,8 +1283,8 @@
     display: grid;
     grid-template-columns: 64px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 22px;
-    padding: 22px 0;
+    gap: 16px;
+    padding: 14px 0;
     border-bottom: 1px solid var(--line);
   }
   .cover-small {
@@ -1277,8 +1299,8 @@
     font-size: 4px;
   }
   .offline-row h3 {
-    margin: 7px 0;
-    font-size: 25px;
+    margin: 5px 0;
+    font-size: 22px;
   }
   .offline-row h3 a {
     text-decoration: none;
@@ -1294,14 +1316,14 @@
   .offline-actions {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-sm);
   }
   .offline-actions button,
   .offline-actions a {
     font-size: 11px;
   }
   .locked-card {
-    padding: 28px;
+    padding: var(--card-pad);
     background: var(--subtle);
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -1324,9 +1346,9 @@
     justify-content: space-between;
     gap: 20px;
     background: var(--hero);
-    padding: 22px;
+    padding: var(--card-pad);
     border-radius: var(--radius);
-    margin-top: 28px;
+    margin-top: 18px;
     text-decoration: none;
     font-size: 12px;
   }
@@ -1339,7 +1361,7 @@
     max-width: 860px;
   }
   .sync-page > .back-link {
-    margin-bottom: 12px;
+    margin-bottom: 6px;
   }
   .scenario-picker {
     display: flex;
@@ -1348,7 +1370,7 @@
     flex-wrap: wrap;
     border: 1px dashed var(--line);
     border-radius: var(--radius);
-    padding: 15px;
+    padding: 10px;
     font-size: 12px;
   }
   .scenario-picker label {
@@ -1366,8 +1388,8 @@
     display: flex;
     align-items: center;
     gap: 13px;
-    margin: 30px 0;
-    padding-bottom: 24px;
+    margin: 18px 0;
+    padding-bottom: 12px;
     border-bottom: 1px solid var(--line);
     font-size: 12px;
   }
@@ -1382,8 +1404,8 @@
   .status-panel {
     display: flex;
     align-items: start;
-    gap: 26px;
-    padding: 25px 0;
+    gap: 18px;
+    padding: 14px 0;
   }
   .status-panel > svg {
     width: 36px;
@@ -1391,20 +1413,20 @@
     flex: 0 0 36px;
   }
   .status-panel h2 {
-    margin: 10px 0 20px;
-    font-size: 38px;
+    margin: 6px 0 12px;
+    font-size: 30px;
   }
   .status-panel p {
-    font-size: 14px;
-    line-height: 1.8;
-    margin-bottom: 18px;
+    font-size: 13px;
+    line-height: 1.65;
+    margin-bottom: 12px;
     max-width: 570px;
   }
   .status-panel p.eyebrow {
     font-size: 10px;
   }
   .status-number {
-    font: 85px/0.9 var(--display);
+    font: 56px/0.95 var(--display);
     color: var(--accent);
     letter-spacing: -0.07em;
   }
@@ -1599,14 +1621,14 @@
   .profile-card {
     display: flex;
     align-items: center;
-    gap: 22px;
-    padding: 28px;
+    gap: 16px;
+    padding: var(--card-pad);
     background: var(--subtle);
     border-radius: var(--radius);
   }
   .profile-card h2 {
-    margin: 5px 0 8px;
-    font-size: 32px;
+    margin: 4px 0 6px;
+    font-size: 28px;
   }
   .profile-card p:not(.eyebrow) {
     font-size: 12px;
@@ -1619,8 +1641,8 @@
   .more-grid {
     display: grid;
     grid-template-columns: 1.1fr 1fr;
-    gap: 40px;
-    margin-top: 22px;
+    gap: 24px;
+    margin-top: 16px;
   }
   .menu-list > a,
   .menu-list > button {
@@ -1628,8 +1650,8 @@
     width: 100%;
     align-items: center;
     gap: 15px;
-    min-height: 84px;
-    padding: 18px 0;
+    min-height: 64px;
+    padding: 10px 0;
     border: 0;
     border-bottom: 1px solid var(--line);
     border-radius: 0;
@@ -1651,8 +1673,8 @@
   .menu-list small {
     display: block;
     color: var(--muted);
-    font-size: 10px;
-    margin-top: 5px;
+    font-size: 11px;
+    margin-top: 4px;
     font-weight: 400;
   }
   .menu-list svg {
@@ -1660,13 +1682,13 @@
     flex-shrink: 0;
   }
   .admin-card {
-    padding: 24px;
+    padding: var(--card-pad);
     border: 1px solid var(--line);
     border-radius: var(--radius);
   }
   .admin-card h3 {
-    font-size: 28px;
-    margin: 10px 0 14px;
+    font-size: 24px;
+    margin: 8px 0 12px;
   }
   .admin-card p {
     font-size: 12px;
@@ -1686,8 +1708,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 14px;
-    margin: 20px 0;
-    padding: 18px 0;
+    margin: 12px 0;
+    padding: 12px 0;
     border-block: 1px solid var(--line);
     font-size: 12px;
   }
@@ -1701,11 +1723,11 @@
   }
   .design-note {
     max-width: 550px;
-    margin: 60px 0 20px;
+    margin: 32px 0 16px;
   }
   .design-note h2 {
-    font-size: 37px;
-    margin: 15px 0;
+    font-size: 28px;
+    margin: 12px 0;
   }
   .design-note > p:last-child {
     font-size: 13px;
@@ -2111,20 +2133,21 @@
   @media (max-width: 1199px) {
     .app-shell > main,
     :root[data-direction='index'] .app-shell > main {
-      padding: 30px;
+      padding: var(--page-y) var(--page-x);
     }
     .book-grid {
-      gap: 18px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
     }
     .book-card h3 {
       font-size: 18px;
     }
     .continue-card {
-      grid-template-columns: minmax(0, 1fr) 140px;
-      padding: 28px;
+      grid-template-columns: minmax(0, 1fr) 100px;
+      padding: 18px 22px;
     }
     .continue-copy h2 {
-      font-size: 46px;
+      font-size: 34px;
     }
     .detail-workspace,
     :root[data-direction='index'] .detail-workspace {
@@ -2175,8 +2198,8 @@
       font-size: 34px;
     }
     .book-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 28px 22px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
     }
     .cover strong {
       font-size: 34px;
@@ -2185,12 +2208,12 @@
       font-size: 10px;
     }
     .continue-card {
-      grid-template-columns: minmax(0, 1fr) 105px;
-      gap: 20px;
-      padding: 25px;
+      grid-template-columns: minmax(0, 1fr) 80px;
+      gap: 16px;
+      padding: 16px;
     }
     .continue-copy h2 {
-      font-size: 40px;
+      font-size: 30px;
     }
     .hero-cover .cover strong {
       font-size: 25px;
@@ -2234,7 +2257,7 @@
       display: block;
     }
     .detail-copy h1 {
-      font-size: 40px;
+      font-size: 34px;
     }
     .offline-intro,
     :root[data-direction='index'] .offline-intro {
@@ -2276,14 +2299,18 @@
     }
   }
   @media (max-width: 699px) {
-    html {
-      font-size: 15px;
+    :root {
+      --page-x: 16px;
+      --page-y: 18px;
+      --card-pad: 14px;
+      --title-size: 30px;
+      --space-lg: 14px;
     }
     .studio-bar {
       flex-wrap: nowrap;
       gap: 6px;
-      padding: calc(7px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 7px
-        max(16px, env(safe-area-inset-left));
+      padding: calc(3px + env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 3px
+        max(14px, env(safe-area-inset-left));
     }
     .studio-label {
       font-size: 10px;
@@ -2316,26 +2343,26 @@
     }
     .app-shell {
       display: block;
-      min-height: calc(100dvh - 58px);
+      min-height: calc(100dvh - var(--studio-size));
     }
     .rail {
       display: none;
     }
     .app-shell > main,
     :root[data-direction='index'] .app-shell > main {
-      padding: 27px max(20px, env(safe-area-inset-right)) calc(112px + env(safe-area-inset-bottom))
-        max(20px, env(safe-area-inset-left));
+      padding: var(--page-y) max(var(--page-x), env(safe-area-inset-right))
+        calc(88px + env(safe-area-inset-bottom)) max(var(--page-x), env(safe-area-inset-left));
     }
     .page-heading {
-      margin-bottom: 23px;
+      margin-bottom: 14px;
       gap: 12px;
     }
     h1 {
-      font-size: 41px;
+      font-size: var(--title-size);
     }
     .page-heading .eyebrow {
       font-size: 10px;
-      margin-bottom: 7px;
+      margin-bottom: 4px;
     }
     .page-heading .heading-sync {
       font-size: 10px;
@@ -2413,11 +2440,11 @@
     }
     .search input {
       font-size: 16px;
-      min-height: 48px;
+      min-height: 44px;
     }
     .section-label {
-      margin-top: 24px;
-      margin-bottom: 17px;
+      margin-top: 16px;
+      margin-bottom: 10px;
     }
     .section-label h2 {
       font-size: 23px;
@@ -2426,7 +2453,8 @@
       font-size: 9px;
     }
     .book-grid {
-      gap: 25px 21px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px 12px;
     }
     .cover strong {
       font-size: 29px;
@@ -2438,7 +2466,7 @@
       margin-bottom: 13px;
     }
     .book-card h3 {
-      font-size: 20px;
+      font-size: 18px;
     }
     .book-meta {
       gap: 6px;
@@ -2453,8 +2481,8 @@
       font-size: 12px;
     }
     .demo-footer {
-      font-size: 9px;
-      margin-top: 35px;
+      font-size: 10px;
+      margin-top: 24px;
     }
     .mobile-tabs {
       display: grid;
@@ -2502,37 +2530,37 @@
       font-size: 11px;
     }
     .detail-visual {
-      padding: 28px;
-      margin-top: 12px;
-      gap: 22px;
+      padding: 12px 16px;
+      margin-top: 6px;
+      gap: 16px;
     }
     .detail-visual > .cover {
-      width: 110px;
-      flex-basis: 110px;
+      width: 80px;
+      flex-basis: 80px;
     }
     .detail-visual .cover strong {
-      font-size: 26px;
+      font-size: 20px;
     }
     .detail-stamp {
       font-size: 8px;
     }
     .detail-copy h1 {
-      font-size: 42px;
+      font-size: 32px;
     }
     .detail-author {
-      font-size: 14px;
+      font-size: 13px;
     }
     .description {
-      font-size: 17px;
+      font-size: 16px;
     }
     .dialog-heading {
-      padding: 15px 18px;
+      padding: 10px 16px;
     }
     .dialog-heading h2 {
-      font-size: 25px;
+      font-size: 23px;
     }
     .dialog-content {
-      padding: 19px;
+      padding: 16px;
     }
     .dialog-actions {
       justify-content: stretch;
@@ -2545,40 +2573,40 @@
       font-size: 16px;
     }
     .notice {
-      padding: 17px;
-      font-size: 11px;
+      padding: 12px 14px;
+      font-size: 12px;
     }
     .offline-intro,
     :root[data-direction='index'] .offline-intro {
       grid-template-columns: 1fr;
-      gap: 25px;
+      gap: 12px;
     }
     .offline-intro h2 {
-      font-size: 43px;
+      font-size: 28px;
     }
     .offline-intro > div > p {
       font-size: 12px;
     }
     .storage-card {
-      padding: 21px;
+      padding: 14px;
     }
     .storage-card > b {
-      font-size: 45px;
+      font-size: 32px;
     }
     .offline-row,
     :root[data-direction='index'] .offline-row {
-      grid-template-columns: 54px minmax(0, 1fr);
-      gap: 14px;
-      padding: 20px 0;
+      grid-template-columns: 44px minmax(0, 1fr);
+      gap: 10px;
+      padding: 12px 0;
     }
     .cover-small {
-      width: 54px;
+      width: 44px;
     }
     .cover-small strong {
       font-size: 13px;
     }
     .offline-row h3 {
-      font-size: 24px;
+      font-size: 21px;
     }
     .offline-row p {
       font-size: 11px;
@@ -2596,22 +2624,22 @@
       flex: 1;
     }
     .locked-card {
-      padding: 22px;
+      padding: 14px;
     }
     .locked-card h3 {
-      font-size: 27px;
+      font-size: 23px;
     }
     .sync-callout {
-      padding: 19px;
+      padding: 14px;
       font-size: 11px;
     }
     .sync-page .page-heading h1 {
-      font-size: 35px;
+      font-size: 30px;
     }
     .scenario-picker {
-      gap: 10px;
-      padding: 13px;
-      font-size: 11px;
+      gap: 8px;
+      padding: 10px;
+      font-size: 12px;
     }
     .scenario-picker select {
       font-size: 16px;
@@ -2628,31 +2656,31 @@
       margin-left: 44px;
     }
     .status-panel {
-      gap: 16px;
+      gap: 10px;
       flex-direction: column;
-      padding-top: 15px;
+      padding-top: 10px;
     }
     .status-number {
-      font-size: 64px;
+      font-size: 44px;
     }
     .status-panel h2 {
-      font-size: 35px;
+      font-size: 28px;
     }
     .status-panel p {
       font-size: 13px;
     }
     .conflict-panel h2 {
-      font-size: 34px;
+      font-size: 28px;
     }
     .conflict-options {
       grid-template-columns: 1fr;
       gap: 16px;
     }
     .conflict-options > div {
-      padding: 22px;
+      padding: 16px;
     }
     .conflict-options strong {
-      font-size: 60px;
+      font-size: 48px;
     }
     .conflict-options button {
       font-size: 12px;
@@ -2686,23 +2714,23 @@
     }
     .profile-card {
       flex-wrap: wrap;
-      padding: 22px;
-      gap: 15px;
+      padding: 14px;
+      gap: 12px;
     }
     .profile-card .avatar {
-      width: 46px;
-      height: 46px;
-      flex-basis: 46px;
+      width: 40px;
+      height: 40px;
+      flex-basis: 40px;
       font-size: 14px;
     }
     .profile-card > div {
       flex: 1;
     }
     .profile-card .eyebrow {
-      font-size: 8px;
+      font-size: 9px;
     }
     .profile-card h2 {
-      font-size: 29px;
+      font-size: 26px;
     }
     .profile-card button {
       width: 100%;
@@ -2715,16 +2743,16 @@
       margin-top: 10px;
     }
     .admin-card {
-      padding: 20px;
+      padding: 14px;
     }
     .admin-user {
       gap: 10px;
     }
     .design-note {
-      margin-top: 42px;
+      margin-top: 28px;
     }
     .design-note h2 {
-      font-size: 34px;
+      font-size: 28px;
     }
     :root[data-direction='index'] h1 {
       font-size: 30px;
@@ -2889,7 +2917,7 @@
       padding: 8px;
     }
     .book-grid {
-      gap: 22px 17px;
+      gap: 16px 12px;
     }
     .cover strong {
       font-size: 25px;
@@ -2901,14 +2929,14 @@
       font-size: 18px;
     }
     .detail-copy h1 {
-      font-size: 37px;
+      font-size: 30px;
     }
     .detail-visual {
-      padding: 20px;
+      padding: 12px 14px;
     }
     .detail-visual > .cover {
-      width: 105px;
-      flex-basis: 105px;
+      width: 80px;
+      flex-basis: 80px;
     }
   }
   @media (prefers-reduced-motion: reduce) {

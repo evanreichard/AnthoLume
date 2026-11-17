@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { sampleParagraphs } from '../src/data';
 
 const article = (page: Page) => page.locator('article.page-text');
 async function open(page: Page, route: string, width = 390) {
@@ -158,8 +159,13 @@ test.describe('M2 real touch', () => {
       await page.waitForTimeout(250);
       await expectAnchor(page, expected);
       const following = Number(await article(page).getAttribute('data-page-end'));
+      const chapterBoundary = following === sampleParagraphs.join(' ').split(/\s+/).length;
       await page.touchscreen.tap(right.x, right.y);
-      await expectAnchor(page, following);
+      await expectAnchor(page, chapterBoundary ? 0 : following);
+      await expect(article(page)).toHaveAttribute(
+        'aria-label',
+        new RegExp(`^Chapter ${chapterBoundary ? 2 : 1} ·`),
+      );
     } finally {
       await cdp.detach();
     }

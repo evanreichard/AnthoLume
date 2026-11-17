@@ -11,11 +11,13 @@ Folio is selected. This standalone React/TypeScript prototype uses synthetic boo
 
 The existing static processes read `prototypes/design/dist`. Rebuild and refresh the browser; **do not restart either preview or bind another port** for this review.
 
-The unified Library defaults to all visible shared and local records. Source icons live on covers; availability remains separate text. Search and the filter button share a row. Filter drafts apply explicitly, with counts/reset; `q`, `source` and `availability` live in the hash query and survive detail/reader/Back. Offline remains download/local-original management. Nothing is uploaded or reclassified.
+The unified Library defaults to all visible shared and local records. Its featured **Resume** card comes first; search, Filter and Add share the compact row below it. A subtle divider replaces the shelf heading and visible source key. Cover provenance badges retain accessible names/tooltips; availability remains separate text. Filter drafts apply explicitly, with counts/reset; `q`, `source` and `availability` live in the hash query and survive detail/reader/Back. Offline remains download/local-original management. Nothing is uploaded or reclassified.
 
 Reading fills the viewport without document/text scrolling. Previous/Next, arrows, stationary left/right edge taps and bounded horizontal swipes turn measured pages. TOC/Appearance are overlays; only panels and the desktop contents column may scroll. Font/size/orientation changes show the page containing the same **word anchor**, not the old page number. Per-book position/appearance/chrome and mock outcomes survive internal routes until reload. No activity, authentication, EPUB parsing, real availability, import, storage or synchronization is implemented.
 
-## Narrow mobile input parity
+This density pass updates existing spacing/type/card tokens and reader chrome only. It does not extend the sample reader or wire an EPUB engine. Integrating the current reader and its theming is the next separate task; the existing adjustable text size, anchor and controls are preserved here.
+
+## Preserved mobile input parity
 
 | Input                                                   | Preserved behavior                                                                                                                     |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -55,4 +57,4 @@ npm test -- --output /absolute/owned/results --grep 'review screenshots|focused 
 
 Include `CHROMIUM_PATH` when needed. The five capture-bearing cases generate **67 PNGs**: 52 matrix/context captures, 13 focused Folio library/filter/large-type/landscape/desktop reader captures, and two populated-search views (`folio-clear-320.png`, `folio-clear-390.png`). Names containing `refined` identify the new views. `-full.png` documents contain fixed-tab screenshot artifacts; the reader itself is exactly one viewport, so it has no long-document capture. These are review images, not pixel baselines.
 
-See [M2 findings](../../docs/evaluation/m2-design.md) for actual test counts, intentional contract changes, ownership/focus invariants and limitations. All dependencies are pinned in this prototype's lockfile; audits are point-in-time checks.
+The density comparison has 24 real before captures and 24 after captures under `_scratch/m2/design/density-before/` and `density-after/`, with matching `geometry.json` files. The refreshed 67-image regression set is under `density-screenshots/`. See [M2 findings](../../docs/evaluation/m2-design.md) for measured changes, test dispositions, actual results and limitations. All dependencies are pinned in this prototype's lockfile; audits are point-in-time checks.

@@ -145,7 +145,7 @@ test('Folio search + source + availability URL survives detail, reader, Back and
   await page.getByRole('button', { name: 'Apply filters · 1 title' }).click();
   const url = page.url();
   await page.getByRole('link', { name: 'The Tidal Atlas', exact: true }).click();
-  await page.getByRole('link', { name: 'Resume reading' }).click();
+  await page.getByRole('link', { name: 'Resume', exact: true }).click();
   await page.goBack();
   await page.goBack();
   await expect(page).toHaveURL(url);
@@ -181,7 +181,7 @@ test('Folio logout unified Library exposes only local identities and local-only 
   await page.getByRole('button', { name: 'Reset filters' }).click();
   await page.getByRole('button', { name: 'Apply filters · 1 title' }).click();
   await page.getByRole('link', { name: 'Field Notes', exact: true }).click();
-  await page.getByRole('link', { name: 'Resume reading' }).click();
+  await page.getByRole('link', { name: 'Resume', exact: true }).click();
   await fits(page);
   await expect(page.getByRole('link', { name: 'Demo · account events paused →' })).toBeVisible();
   await expect(page.getByRole('link', { name: /2 pending/ })).toHaveCount(0);

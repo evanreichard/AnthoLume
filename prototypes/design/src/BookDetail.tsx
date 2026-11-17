@@ -134,7 +134,7 @@ export function BookDetail({ book, params }: { book: Book; params: URLSearchPara
           <Badge>{book.size} · sample</Badge>
         </div>
         <Link className="primary full detail-read" to={`/read/${book.id}`}>
-          {book.progress ? 'Resume reading' : 'Read sample'}
+          {book.progress ? 'Resume' : 'Read sample'}
           <Icon name="arrow" />
         </Link>
         <p className="description">{book.description}</p>

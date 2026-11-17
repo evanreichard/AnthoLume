@@ -138,6 +138,31 @@ export function Library({ params, split = false }: { params: URLSearchParams; sp
           <Icon name="arrow" />
         </Link>
       </PageHeading>
+      {!query && !activeCount && continuing && (
+        <section className="continue-card" aria-label="Continue reading">
+          <div className="continue-copy">
+            <p className="eyebrow">A little time for reading</p>
+            <h2>
+              <em>{continuing.title}</em>
+            </h2>
+            <p className="continue-description">by {continuing.author}</p>
+            <p className="continue-position">
+              Chapter 1 · 24%{' '}
+              <span>· {downloads.includes('tidal') ? 'Offline sample' : 'Online sample'}</span>
+            </p>
+            <Link className="primary" to="/read/tidal">
+              Resume <Icon name="arrow" />
+            </Link>
+          </div>
+          <Link to="/books/tidal" className="hero-cover" aria-label="Details for The Tidal Atlas">
+            <Cover book={continuing} />
+            <SourceBadge kind={continuing.kind} />
+          </Link>
+          <span className="hero-mark" aria-hidden="true">
+            24<span>%</span>
+          </span>
+        </section>
+      )}
       <div className="library-search-row">
         <label className="search">
           <Icon name="search" />
@@ -171,6 +196,14 @@ export function Library({ params, split = false }: { params: URLSearchParams; sp
           <Icon name="filter" />
           {activeCount > 0 && <span>{activeCount}</span>}
         </button>
+        <button
+          className="icon-button library-add"
+          aria-label="Add local sample"
+          aria-haspopup="dialog"
+          onClick={() => setImporting(true)}
+        >
+          <span aria-hidden="true">+</span>
+        </button>
       </div>
       {activeCount > 0 && (
         <p className="filter-summary">
@@ -192,55 +225,11 @@ export function Library({ params, split = false }: { params: URLSearchParams; sp
           Account records are hidden. Local originals stay usable here, without a login or upload.
         </p>
       )}
-      {!query && !activeCount && continuing && (
-        <section className="continue-card" aria-label="Continue reading">
-          <div className="continue-copy">
-            <p className="eyebrow">A little time for reading</p>
-            <h2>
-              <em>{continuing.title}</em>
-            </h2>
-            <p className="continue-description">by {continuing.author}</p>
-            <p className="continue-position">
-              Chapter 1 · 24%{' '}
-              <span>· {downloads.includes('tidal') ? 'Offline sample' : 'Online sample'}</span>
-            </p>
-            <Link className="primary" to="/read/tidal">
-              Resume reading <Icon name="arrow" />
-            </Link>
-          </div>
-          <Link to="/books/tidal" className="hero-cover" aria-label="Details for The Tidal Atlas">
-            <Cover book={continuing} />
-            <SourceBadge kind={continuing.kind} />
-          </Link>
-          <span className="hero-mark" aria-hidden="true">
-            24<span>%</span>
-          </span>
-        </section>
-      )}
-
-      <div className="section-label">
-        <h2>{query ? 'Search results' : 'On the shelves'}</h2>
-        <span>
-          {visible.length} {visible.length === 1 ? 'title' : 'titles'} · synthetic
-        </span>
-      </div>
-      <div className="source-legend">
-        <span>
-          <Icon name="shared" />
-          Shared library
-        </span>
-        <span>
-          <Icon name="device" />
-          Local original
-        </span>
-        <button
-          className="add-button"
-          aria-label="Add local sample"
-          onClick={() => setImporting(true)}
-        >
-          +<span className="library-add-label"> Local sample</span>
-        </button>
-      </div>
+      <div className="library-divider" role="separator" aria-label="Library results" />
+      <h2 className="sr-only">{query ? 'Search results' : 'Library results'}</h2>
+      <p className="sr-only" role="status">
+        {visible.length} {visible.length === 1 ? 'title' : 'titles'} · synthetic
+      </p>
       {visible.length ? (
         <div className="book-grid">
           {visible.map((book) => (

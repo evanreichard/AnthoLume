@@ -21,7 +21,7 @@ for (const direction of ['folio', 'index']) {
       );
       await page.getByRole('link', { name: 'The Tidal Atlas', exact: true }).click();
       await expect(page.getByRole('heading', { level: 1, name: 'The Tidal Atlas' })).toBeVisible();
-      await page.getByRole('link', { name: 'Resume reading' }).click();
+      await page.getByRole('link', { name: 'Resume', exact: true }).click();
       await expect(page.getByText('NOT an EPUB engine', { exact: false })).toBeVisible();
       await expect(page.getByRole('navigation')).toHaveCount(0);
       await page.goBack();
@@ -275,7 +275,7 @@ for (const direction of ['folio', 'index']) {
         await expect(
           page.getByRole('heading', { level: 1, name: 'Account book hidden' }),
         ).toBeVisible();
-        await expect(page.getByRole('link', { name: 'Resume reading' })).toHaveCount(0);
+        await expect(page.getByRole('link', { name: 'Resume', exact: true })).toHaveCount(0);
       }
       await page.evaluate(() => {
         location.hash = '/read/field';

@@ -1,103 +1,94 @@
-# M2 — Selected Folio mobile refinement
+# M2 — Selected Folio density pass
 
-**Folio is selected; the rest of the flow has conditional user approval subject to the requested mobile/reader refinements.** Those refinements passed independent automated review; user confirmation remains pending, so M2 exit stays OPEN. No repeat of all flows or phone/PWA approval is implied. The prototype now has one default Library over visible shared/local records and a full-viewport, actually paginated original-text sample reader. Index stays linkable only as an archived comparison. This is interaction evidence, not an EPUB/storage/API implementation or production tooling approval.
+**Folio stays selected; density verification is independently accepted (89 browser + 2 static checks).** User confirmation and M2 exit remain OPEN; the rest of the flow has conditional approval and need not be repeated. This pass compacts browsing, detail, Offline, More, Sync and reader chrome without changing ownership, filter/history/privacy behavior, input parity or the reading model. The reader is still a synthetic prototype, not production or phone/PWA approval.
 
 ## Review
 
-Existing previews serve the rebuilt `prototypes/design/dist`:
-
 - http://127.0.0.1:5173/?direction=folio&theme=light#/library
 - http://100.64.0.14:5175/?direction=folio&theme=light#/library
-- Reader: `#/read/tidal`; filtered Library: `#/library?source=local&availability=offline`.
+- Detail: `#/books/tidal`; sample reader: `#/read/tidal`.
 
-Refresh existing tabs to load the new build. Neither preview was stopped/restarted, and no server/port was launched or bound during this refinement. The selected-direction toolbar is one compact row; the reader removes it entirely. Dark mode remains available, and reading appearance has Paper/Ink/Follow app choices.
+Refresh the existing tabs. Dist was rebuilt; **neither preview was stopped/restarted, and no server or port was launched/bound**. No root dependencies, API, current-reader/other-proof code, private archive or git state was edited.
 
-**Ideal confirmation:** refresh the existing Folio preview and confirm the requested combined Library/badges/search/filter and full-viewport paginated reader, text resizing and input continuity. **Pragmatic confirmation:** use the existing mobile preview and portrait/landscape captures for those same refinements. The rest of the flow is conditionally approved, not reopened; physical-device/AT, EPUB and durability qualification remain later gates.
+**Ideal next step:** wire the current reader and its theming against the reviewed boundaries, then qualify real reading and physical-device/PWA behavior. **Pragmatic next step:** review the density-only build and its preserved interactions now, then perform that same integration separately. This pass deliberately does not extend fake pagination or add reader features.
 
 ## Changed interaction contracts
 
-### One Library; separate ownership
+- Featured card **first**, when applicable; the search row is **below** it. Filtered/searched/local-only views that have no feature reserve no blank card space.
+- Primary labels are **Resume**, on the feature and book detail. Add sits immediately beside Filter in the same row as search; its existing local-import demo/focus behavior remains.
+- Removed **On the shelves**, the visible Shared/Local key and the standalone Add row. A single subtle results divider remains. An offscreen heading/count preserves result semantics without taking visual space.
+- Cover provenance icons retain their accessible names and native tooltips. Source is still distinct from availability; the default mixed Library, explicit source/availability filters and Offline management retain book identity. No upload, ownership merge, activity-credit change or account data exposure is introduced.
+- Existing CSS tokens/component/responsive rules now use tighter page/card/menu gaps, restrained editorial heading sizes and smaller cover treatments. The Library stylesheet was consolidated instead of adding another density-override layer. Warm paper, serif/italic hierarchy, clay primary actions and original covers remain Folio.
+- Compact icons/visual controls keep existing **≥44px touch targets** for search clear, Filter/Add, Resume, reader controls and management actions. Search text remains 16px on mobile; descriptive prose and supporting labels remain readable rather than being scaled down indiscriminately.
+- Reader changes are **CSS chrome/padding only**: no edits to pagination, gestures, word anchors, reader state, content, theme controller or EPUB integration. Adjustable reading text still uses `--reader-size`; selected 26px survives appearance changes in regression checks. Fixed viewport, no text/document scroll, TOC/Appearance, edge taps/swipes, Sync/Back and focus remain protected.
 
-- Default source/availability are **All / All**: four shared records and one local original in the initial synthetic account. There are no permanent Shared/Local segmented controls.
-- A semantic source icon **on each cover** distinguishes Shared library from Local original, with accessible names and a small visible legend. Availability is separate text: Available offline or Online only, always demo-labelled. A local original is not an account download.
-- Search and the named filter icon share one row. A mobile sheet/native modal offers Source All/Shared/Local and Availability All/Available offline/Online only. Draft count, Reset and Apply are explicit. Escape/cancel discards draft changes and returns focus; Apply pushes the resulting URL state. Search replaces the current query entry rather than creating a history entry per letter.
-- `q`, `source`, `availability` survive detail → reader → Back, direct links and reload. Browser Back restores prior applied filters and library scroll. A route/query change discards an open filter draft.
-- Logged-out records are privacy-filtered **before search/counting**. Shared cards/account downloads never appear; local originals remain usable. Sync deep links stay generic/paused, and the local reader exposes no account queue count after logout. Expiry remains distinct and permits previously authorized sample reading.
-- Offline is still the download/storage-management workspace. Joining a view does not merge identities, upload local originals, transfer progress/activity, or change remove-download/local-delete/shared-delete scopes.
+## Actual before/after evidence
 
-### Pages, not a scrolling sample
+24 **before** captures were taken from the running old build before edits; 24 **after** captures were taken from the rebuilt build. Each set covers Library/detail/Offline/More/Sync/reader at 320×844, 390×844, 844×390 and 1280×900, with the same synthetic account and default reader size. Both sets include actual DOM geometry JSON; these are not reconstructed mockups.
 
-- The reader is a fixed `100dvh` frame with exactly one visible text page. Neither the document nor reading text can scroll vertically/horizontally. Native dialogs and the desktop contents panel have bounded independent scrolling.
-- A separate aria-hidden measurement surface uses the same CSS/width/height as the visible page. Binary-search fitting creates contiguous word ranges with paragraph boundaries. React owns visible content; only the empty measurement surface is imperatively populated. The obsolete long-reader styles and scroll-fingerprint behavior were removed.
-- DemoState owns **per-book chapter + logical word anchor + font/size/paper/chrome**, until reload. Pages are derived, never stored as resume identity. ResizeObserver and layout changes remeasure around the same anchor; the containing page may change, and the anchor may move within that page.
-- Previous/Next buttons, left/right arrows, stationary left/right text-edge taps and bounded horizontal swipes advance real pages. Chapter boundaries advance to the adjacent chapter; previous from a chapter's first page returns to the prior chapter's last page. Vertical movement and text selection do not trigger swipe turns.
-- Page turns focus the visible page. Chapter transitions/TOC selection focus the new heading, without dialog-cleanup stealing focus. Escape/close returns focus to the opener. Contents, Appearance, quiet-control toggle and Sync remain reachable, including landscape; no timed hiding or gesture-only controls.
-- Reader → Sync → in-app/browser Back restores the same transient chapter/anchor/appearance/chrome, with **zero document scroll**. The former “restore reader Y against a matching context” contract is intentionally retired. Ordinary library history/scroll remains intact.
+Paths: `_scratch/m2/design/density-before/` and `density-after/`. Files are named `390-library.png`, `320-detail.png`, `844-reader.png`, etc. Representative captures across all six routes were opened for visual inspection.
 
-All four chapters clearly reuse the same original synthetic passage. No EPUB engine, actual saved checkpoint, activity calculation or real sync/offline guarantee is claimed.
+Rounded CSS-pixel measurements (lower Y/height means denser, except reader area):
 
-## Narrow independent mobile-review closure
+| Measurement | 320px before → after | 390px before → after |
+| --- | --- | --- |
+| First library item Y | 463 → **336** | 468 → **336** |
+| Detail Resume Y | 509 → **398** | 538 → **401** |
+| First Offline item Y | 822 → **661** | 769 → **607** |
+| More menu height | 336 → **256** | 336 → **256** |
+| Pending Sync panel height | 555 → **416** | 516 → **416** |
+| Reader page-area height, same 20px text | 578 → **608** | 590 → **621** |
 
-Both remaining findings in `_scratch/m2/review-mobile/review.md` are corrected without a redesign:
+At 1280px the first shelf item moves from Y=713 to **446**, all five covers fit one row, and reader page area grows from 655 to **707px**. Landscape reader chrome was already near its touch-target floor: page area grows from 243 to **245px**, with reduced inner padding as well. No target was shrunk to manufacture that space.
 
-- **M1:** one named custom Clear search action; Chromium/WebKit's native cancel decoration is suppressed. The nonshrinking custom target is **44×44 CSS px**; the populated 320/390 search/filter row remains unwrapped. Enter/Space clearing returns focus to the input. The redundant empty-result clear action is removed, so unmatched queries do not expose another clear button.
-- **M2:** stationary primary-pointer taps in the left/right outer **20% of the visible text page** call the existing Previous/Next operation. Center taps are unchanged. A small isolated gesture hook tracks total movement and selection, rejects links/interactive descendants/panels/cancelled gestures, and commits only on pointer-up. It has no click page-turn handler, so a swipe or subsequent compatibility/synthesized click cannot double-advance; the next genuine tap still works.
+The regression capture set contains **67 refreshed PNGs** under `_scratch/m2/design/density-screenshots/` (separate from the 48 comparison images). Fixed bottom tabs in full-document workspace images remain capture artifacts; the reader is one viewport.
 
-Seven focused cases cover mouse and real emulated touch taps, actual CDP touch swipes, synthesized-click suppression, initial/during-gesture selection, control/link actions, drag-return/cancellation, target geometry, actual UA cancel visibility and keyboard focus. Before fixes, six of these cases failed and the existing suppression case passed; all seven now pass on both existing previews. No EPUB functionality was added. The canonical pagination matrix also now includes the review's **320×568** size.
+## Actual checks
+
+Unchanged pins: React/React DOM **19.1.1**, TypeScript **5.9.2**, Vite **7.3.8**, React plugin **5.0.3**, Playwright **1.55.1**. Tested with Node **22.23.4** and Nix Chromium **156.0.8078.79**.
+
+- **89 Playwright cases passed** on the existing loopback static preview: the prior 77, plus **12 density geometry cases**. No cases were skipped or deleted. Log: `_scratch/m2/design/test-density-final.log`.
+- All **12 density cases also passed on tailnet**; these are repeated executions, not additional unique cases. Log: `test-density-tailnet.log` in the same scratch directory.
+- Typecheck, production build and **2 static HTTP tests passed**. HTTP tests reused the existing server with `M2_PREVIEW_URL`; no bind/close operation was used.
+- Fresh dependency audit: **0 reported vulnerabilities**, including dev dependencies (`audit-density.json`). Audit is point-in-time evidence, not a security guarantee.
+- Geometry checks at 320/390/landscape/1280 assert feature/search order, aligned Add/Filter and ≥44px controls, one divider/no obsolete heading/key, earlier complete first item, easy-to-reach detail Resume, compact Offline/More/Sync, and larger reader area without a text-size reset.
+- Existing tests still protect unified sources, source/availability combinations, URL/reload/browser Back, privacy before counting, three removal scopes, cancellation/success focus, auth-expiry distinction, explicit lower-position conflict choice, admin mock lifetime, complete sample text/reflow, no-scroll pagination and edge-tap/swipe/selection/control guards. The existing 84 route/width/scheme overflow checks and external-resource checks remain.
+
+The first density run caught a real 320px Appearance target regression (about 42px wide); an explicit minimum width corrected it. It also exposed a test assumption, not an app failure: larger page area can reduce the sample to two pages. The gesture test now validates one logical page step across a possible chapter boundary rather than assuming a third page exists.
 
 ## Independent closure
 
-Independent review closes both original findings: the single Clear search target measures 44×44 at 320/390 with the native duplicate hidden, and real emulated edge taps/swipes advance exactly once while selection/control/cancellation guards hold. **77/77 browser cases and 2/2 static HTTP cases passed against the existing tailnet preview**, without starting/stopping listeners. An independent short-portrait→28px sans→landscape→Sync/Back probe retained logical anchor 45 with zero document/text scroll and no page errors. Served assets matched the built prototype. This accepts the bounded synthetic UI handoff, not user confirmation, actual EPUB, physical-device/PWA or production behavior. The owner's seven focused tailnet cases are included in the same 77, not additional unique tests.
+Independent review accepts this bounded density/UI handoff with **89/89 browser cases and 2/2 static HTTP cases passed against the existing tailnet preview**, plus 29 independent geometry/state/reflow probes. Served asset hashes matched the current build. Feature/search order, Resume labels, compact Add/Filter row, removal of shelf/key, accessible cover provenance and ≥44px critical controls were verified. Fresh six-workspace captures reproduce the documented space gains without a reading-text reset; targeted short-portrait/landscape Sync/Back retained anchor 45 at 26px with zero scroll or delivered-line clipping. No page errors, external requests, blocking defects or required app fixes were found.
 
-## Actual verification
-
-Pinned versions: React/React DOM **19.1.1**, TypeScript **5.9.2**, Vite **7.3.8**, React plugin **5.0.3**, Playwright **1.55.1**. Verified with Node **22.23.4**, Nix-wrapped Chromium **156.0.8078.79**. Only prototype dependencies/files, this report and owned scratch artifacts changed.
-
-- Dependency pins are unchanged. Fresh `npm run audit` — **0 reported vulnerabilities**, including development dependencies. Current JSON: `_scratch/m2/design/audit-narrow.json`.
-- Typecheck and production build — passed. Build refreshes the dist directory used by both already-running previews; no root/backend/reader-proof integration is involved.
-- **77 Playwright cases passed** on the existing loopback static preview: the prior 69 cases, seven focused mobile-review cases and one added 320×568 pagination case. No cases were skipped/removed. Final log: `_scratch/m2/design/test-narrow-full.log`.
-- **2 static HTTP tests passed**, using `M2_PREVIEW_URL` against the existing preview, without creating/listening/closing a server. Built HTML/assets/HEAD and denied source/dev/dotfile/traversal/missing paths, malformed URI and unsupported method are checked. This execution does not newly qualify a server bind configuration.
-- **All seven focused mobile-review cases also passed on the tailnet preview**. These are repeated executions, not additional unique cases. Log: `_scratch/m2/design/test-narrow-tailnet.log`.
-- Existing layout matrix remains **84 route/width/scheme checks**: two studies × light/dark × 320/390/1280 × seven routes. Resource capture cases still reject external origins.
-- New reader cases at **320×568, 320×844, 390×844, 844×390, 568×320, 1280×900** verify no page/document overflow at default and 28px; page advancement contains every original sample word exactly once, in order, with no gaps/duplicates; forward/backward chapter boundaries work. Font, size, orientation and quiet-mode reflow keep the same word anchor. Wheel/PageDown do not scroll the document/text.
-- New library cases cover both sources/semantic cover badges, distinct availability, one-row search/filter, 320/390 sheets, keyboard boundary/Escape focus, draft/apply/reset/counts, all/offline/online states, URL/reload/detail/reader/Back, local-only privacy, and landscape Apply reachability.
-
-A first refinement run exposed unnamed icon-only Previous/Next controls in landscape. Explicit accessible names corrected the actual UI defect; the all-words/no-overflow tests then passed, rather than relaxing their assertions.
+The 12 owner tailnet density cases are included in the same 89-case suite, not additional unique tests. Typecheck and fresh full audit passed; no source mutation audit was performed. This establishes readiness for user refresh/confirmation, not human acceptance, EPUB/device/PWA or production qualification. Earlier technical proofs are unchanged. No further mock-reader features are required; existing real reader React/controller adaptation and Folio theming remain separate M3 work.
 
 ## Test dispositions
 
-Authority: this user's intentional unified-library/no-scroll reader contracts, plus the unchanged approved privacy/ownership/activity rules.
+Authority is the requested density/composition change; live behavior contracts remain the requirement, not old visual dimensions.
 
-| Area | Disposition | Reason / current assertion |
+| Area | Disposition | Reason |
 | --- | --- | --- |
-| Search/detail/browser Back, removal scopes/success focus, expiry/logout/Sync privacy, conflict/defer, admin lifetime | Preserve | These behaviors remain live. A detail availability locator is scoped to detail because the unified shelf now uses the same availability wording; its assertion is unchanged. |
-| Original reader controls/focus and D2/D3 cases | Adapt | Next/Previous mean pages, not immediate chapter jumps. They assert page focus/word movement, chapter-heading focus at actual boundaries/TOC, per-book settings and anchor continuity instead of reader Y. |
-| Direction picker/browser history case | Adapt | Folio is selected; no active direction picker remains. Archive return, selected Folio URL/theme and library scroll/Back remain asserted. |
-| Existing overflow, modal focus, 28px sample and resource/capture cases | Preserve / setup adapt | Same bounded contracts; reader selectors match its new component boundary. Screenshot destination and configured-origin checks remain configurable. |
-| `mobile-refinement.spec.ts` · prior 16 | Preserve; one fixture setup adapt | Existing assertions remain. The dispatched swipe fixture now explicitly marks a primary pointer, matching real browser events; no guard bypass exists in app code. |
-| Canonical 320×568 pagination case · 1 | Add | Extends the same complete-text/no-scroll/28px contract to the short portrait viewport recommended by review. |
-| `mobile-review-fixes.spec.ts` · 7 | Add | Both missing input contracts and selection/control/gesture-duplication suppression; reusable populated-target and actual UA-shadow checks. |
-| Static preview tests/config | Adapt setup only | External-preview environment modes reuse running servers instead of binding ports; HTTP safety assertions remain. |
+| Existing search/filter/back/privacy/removal/dialog/focus/state cases | Preserve | Same behavior; no expectations were removed or softened. Provenance badge/tooltips remain tested despite removing the visible key. |
+| Feature/detail Resume selectors | Adapt | Requested label is now `Resume`; navigation and accessibility assertions remain. |
+| Shelf/key/order geometry | Add | New explicit checks cover the requested replacement of the old visual order/heading/key. No prior test requiring a visible key or heading was deleted; source/filter semantics remain. |
+| One gesture continuation expectation | Adapt | Same single-turn/no-double-advance invariant; validates chapter + word anchor when the next page crosses a chapter boundary. Reader implementation was not changed. |
+| `density.spec.ts` · 12 | Add | Measurable density, preserved touch targets and selected text size across the requested viewports/workspaces. |
+| Existing sample text, pagination and input-parity tests | Preserve | No additional reader features or fake engine scope; the same contracts rerun against the changed layout. |
 
-No compatibility layer keeps retired segmented-scope, long-scroll, page-number-as-anchor, or chapter-per-click assumptions alive. No production tests or unrelated proof implementations were edited.
+No production tests or unrelated proof implementations changed. The independent mobile review's earlier 116-page line-rectangle check is separate evidence, not a count claimed to have been rerun in this pass.
 
 ## Reproduce without launching servers
 
-From the repository root:
-
 ```sh
-npm --prefix prototypes/design ci
-npm --prefix prototypes/design run audit
 npm --prefix prototypes/design run typecheck
+npm --prefix prototypes/design run audit
 M2_PREVIEW_URL=http://127.0.0.1:5173 npm --prefix prototypes/design run test:preview
 M2_BASE_URL=http://127.0.0.1:5173 npm --prefix prototypes/design test
 ```
 
-Set `CHROMIUM_PATH` to a system-wrapped Chromium on NixOS. `M2_BASE_URL` disables the managed Vite server; `M2_PREVIEW_URL` bypasses temporary static-test servers. Without them the original isolated test defaults still exist for future runs, but were not used here. Do not run preview/dev commands over the existing listeners.
+Set `CHROMIUM_PATH` to the available system Chromium on NixOS. `M2_BASE_URL` disables the managed test server, and `M2_PREVIEW_URL` bypasses temporary HTTP-test servers. Do not run preview/dev commands over the existing listeners. The build updates the dist already served by both previews.
 
-**67 refreshed screenshots** are in `_scratch/m2/design/narrow-review-screenshots/`: 52 matrix/context images, 13 focused Folio images, and `folio-clear-320.png` / `folio-clear-390.png` showing the single clear control. The two populated-search views were also regenerated against tailnet under `narrow-tailnet-screenshots`. `folio-refined-{320,390}-{library,filters,local-offline,reader28,landscape28,landscape-panel}.png` and `folio-refined-desktop-reader.png` show the new contracts. Portrait/filter/large-type/landscape/desktop images were opened for visual inspection. Full-document fixed-tab artifacts apply only to scrollable workspaces; reader captures are one viewport.
-
-Independent review can direct all screenshot/result writes into its own paths, from `prototypes/design`:
+The screenshot/result ownership overrides remain available. From `prototypes/design`:
 
 ```sh
 M2_BASE_URL=http://127.0.0.1:5173 \
@@ -107,8 +98,8 @@ npm test -- --output /absolute/owned/results --grep 'review screenshots|focused 
 
 ## Mock limits and decisions
 
-- **Assumptions:** a word offset in a known original passage is an appropriate logical anchor for this disposable plain-text prototype. Privacy separation is application-level, not encryption. Mock state resets on reload; URL filters/theme persist.
-- **Autonomous decisions:** selected-direction toolbar is compact and absent in the reader; native radio/Apply sheet, private-before-count filtering, isolated DOM measurement and derived word-range pages keep state ownership explicit. Both existing preview processes were left untouched.
-- **Compromises:** pagination handles this plain original sample, not arbitrary EPUB XHTML/images, publisher fonts, CFI/KO positions or isolation. Four chapters repeat the passage. No real import/download/storage/auth/sync/service worker/activity or offline-restart behavior is implemented. No physical phone/AT, WebKit/Firefox, app-wide 200% text/zoom, full contrast/target or performance qualification is claimed.
+- **Assumptions:** the current request supersedes previous visual ordering/labels/key, not source ownership or behavior. State remains transient until reload; the density comparison intentionally uses the same default 20px sample text.
+- **Autonomous decisions:** consolidated existing tokens/rules rather than layering another skin; kept mobile input text at 16px, paragraph legibility and 44px actions while reducing surrounding space. Reader work is limited to CSS; current-reader/theming integration is left to the next authorized task.
+- **Compromises:** this remains original synthetic text/data and mock operations, not an EPUB engine, API/auth/storage/sync implementation or actual activity measurement. New density is not physical phone/PWA, AT, arbitrary EPUB, app-wide zoom/contrast or performance qualification.
 
-Knowledge capture belongs in the prototype README/tests: external-preview no-bind validation, populated-control target checks, the explicit reader input-parity table and the invariant that logical word anchors survive reflow while page numbers do not. Global/root guidance and separate engine/API proofs stay untouched.
+Knowledge capture: keep paired viewport/geometry evidence and touch-target density guards beside this prototype's tests/README. Page numbers are layout results, so reader input tests must tolerate chapter boundaries while still proving exactly one logical turn. No global/root guidance changes are needed.

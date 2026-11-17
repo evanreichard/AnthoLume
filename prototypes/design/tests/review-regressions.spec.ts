@@ -178,7 +178,7 @@ for (const direction of ['folio', 'index']) {
       await open(page, direction, '/sync?state=auth');
       await page.getByRole('link', { name: 'Keep reading offline' }).click();
       await page.getByRole('link', { name: 'The Tidal Atlas', exact: true }).click();
-      await page.getByRole('link', { name: 'Resume reading' }).click();
+      await page.getByRole('link', { name: 'Resume', exact: true }).click();
       await expect(page.locator('.page-book-label')).toContainText('The Tidal Atlas');
       await page.getByRole('button', { name: 'Back', exact: true }).click();
       await page
@@ -225,7 +225,7 @@ for (const direction of ['folio', 'index']) {
       for (const width of [320, 390]) {
         await open(page, direction, '/books/tidal');
         await page.setViewportSize({ width, height: 844 });
-        const action = page.getByRole('link', { name: 'Resume reading' });
+        const action = page.getByRole('link', { name: 'Resume', exact: true });
         const box = await action.boundingBox();
         expect(box).not.toBeNull();
         expect(box!.y).toBeGreaterThanOrEqual(0);
