@@ -9,7 +9,8 @@ test('native large local import cancellation publishes no partial book and retai
   await importBook(page, 'Retained cancellation original');
   const before = await sourceInventory(page);
   expect(before.available).toBe(1); expect(before.validSources).toBe(1); expect(before.blobSources).toBe(1);
-  await page.getByRole('button', { name: 'Add book', exact: true }).click();
+  await page.goto(`${server.origin}/app/offline`);
+  await page.getByRole('button', { name: 'Import local EPUB', exact: true }).click();
   await page.getByLabel('Choose local EPUB').setInputFiles(original);
   await expect(page.getByRole('button', { name: 'Cancel import', exact: true })).toBeEnabled();
   await expect.poll(async () => (await sourceInventory(page)).staged).toBe(1);

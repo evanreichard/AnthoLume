@@ -66,12 +66,12 @@ test('complete production shell and local book survive new browser processes off
         });
       }, font)).toBe(true);
     };
-    let page = context.pages()[0]!; await page.goto(`${origin}/app/`); await ready(page);
-    await page.getByRole('button', { name: 'Add book', exact: true }).click(); await page.getByLabel('Choose local EPUB').setInputFiles(fixture);
+    let page = context.pages()[0]!; await page.goto(`${origin}/app/offline`); await ready(page);
+    await page.getByRole('button', { name: 'Import local EPUB', exact: true }).click(); await page.getByLabel('Choose local EPUB').setInputFiles(fixture);
     await expect(page.getByText('Book saved.')).toBeVisible(); await page.getByRole('link', { name: 'Open book', exact: true }).click();
     await page.getByRole('link', { name: 'Resume', exact: true }).first().click();
     await expect(page.locator('iframe')).toHaveCount(1); await readerReady(page); await expect(page.getByRole('button', { name: 'Next page' })).toBeVisible();
-    await page.getByRole('button', { name: 'Appearance', exact: true }).click(); await page.getByRole('combobox', { name: 'Font', exact: true }).selectOption('Lato');
+    await page.getByRole('button', { name: 'Reading progress and appearance', exact: true }).click(); await page.getByRole('combobox', { name: 'Font', exact: true }).selectOption('Lato');
     await readerReady(page, 'Lato');
     await page.getByRole('button', { name: 'Done', exact: true }).click({ timeout: 15000 });
     await page.getByRole('button', { name: 'Next page' }).click();
@@ -96,8 +96,8 @@ test('complete production shell and local book survive new browser processes off
 });
 
 test('verified updates wait during reading; failed precache cannot replace the working cache or delete new events', async ({ page, request }) => {
-  await request.get('/__test/mode?worker=new'); await page.goto('/app/'); await ready(page);
-  await page.getByRole('button', { name: 'Add book', exact: true }).click(); await page.getByLabel('Choose local EPUB').setInputFiles(fixture); await page.getByRole('link', { name: 'Open book', exact: true }).click(); await page.getByRole('link', { name: 'Resume', exact: true }).first().click(); await expect(page.locator('iframe')).toHaveCount(1);
+  await request.get('/__test/mode?worker=new'); await page.goto('/app/offline'); await ready(page);
+  await page.getByRole('button', { name: 'Import local EPUB', exact: true }).click(); await page.getByLabel('Choose local EPUB').setInputFiles(fixture); await page.getByRole('link', { name: 'Open book', exact: true }).click(); await page.getByRole('link', { name: 'Resume', exact: true }).first().click(); await expect(page.locator('iframe')).toHaveCount(1);
   const before = await state(page);
   await request.get('/__test/mode?worker=bad');
   await page.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration('/'); await r!.update(); });

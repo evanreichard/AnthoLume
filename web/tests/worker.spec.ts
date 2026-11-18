@@ -118,9 +118,9 @@ test('a failed complete-shell install preserves the real legacy controller/cache
     });
     await writeFile(`${server.data}/fail-shell`, 'deny a real lazy reader chunk');
     await unlink(`${server.data}/legacy-worker`);
-    await page.goto(`${server.origin}/app/library`);
+    await page.goto(`${server.origin}/app/offline`);
     await expect(page.getByRole('button', { name: 'Retry update / recovery', exact: true })).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByRole('button', { name: 'Add book', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Import local EPUB', exact: true })).toBeDisabled();
     const preserved = await page.evaluate(async () => ({
       old: await (await caches.open('OFFLINE_V1')).match('/failure-sentinel').then(async (response) => response?.text()),
       settings: localStorage.getItem('readerSettings'),
@@ -133,7 +133,7 @@ test('a failed complete-shell install preserves the real legacy controller/cache
     const recovery = page.getByRole('region', { name: 'App update and recovery', exact: true }).getByRole('button', { name: /^(Update app|Retry update \/ recovery)$/ });
     await expect(recovery).toBeEnabled({ timeout: 15_000 });
     await recovery.click();
-    await expect(page.getByRole('button', { name: 'Add book', exact: true })).toBeEnabled({ timeout: 20_000 });
+    await expect(page.getByRole('button', { name: 'Import local EPUB', exact: true })).toBeEnabled({ timeout: 20_000 });
     await expect.poll(async () => (await marker(page) as { phase?: string })?.phase).toBe('done');
   } finally {
     await unlink(`${server.data}/legacy-worker`).catch(() => undefined);

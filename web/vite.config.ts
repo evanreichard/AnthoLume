@@ -12,12 +12,15 @@ export default defineConfig({
     configureServer(server) {
       server.middlewares.use((req, _res, next) => {
         const url = new URL(req.url || '/', 'http://127.0.0.1');
-        if (req.headers['sec-fetch-dest'] === 'document' && /^\/app(?:\/|$)/.test(url.pathname) || url.pathname === '/' && url.searchParams.get('antholume-retirement') === 'legacy-v1') req.url = '/assets/app/index.html';
+        // Safari Navigation - HTML requests may omit Sec-Fetch-Dest; worker precache fetches still use Go's compiled shell.
+        const wantsHTML = req.headers['sec-fetch-dest'] === 'document' || /\btext\/html\b/.test(req.headers.accept ?? '');
+        if ((wantsHTML && /^\/app(?:\/|$)/.test(url.pathname)) || (url.pathname === '/' && url.searchParams.get('antholume-retirement') === 'legacy-v1')) req.url = '/assets/app/index.html';
         next();
       });
     },
   }],
   server: {
+    forwardConsole: false,
     host: '127.0.0.1',
     port: 5323,
     strictPort: true,

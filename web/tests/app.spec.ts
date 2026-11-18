@@ -3,47 +3,44 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { pendingIds, serverEffects, storedRows } from './storage';
 
-test('actual bootstrap, credentials, server paging, inert detail, URL filters and compact native controls', async ({ page, server }) => {
+test('actual bootstrap, credentials, server paging, inert detail, URL sorting and compact native controls', async ({ page, server }) => {
   await register(page, server.origin, `layout-${Date.now()}`);
   await expect(page.getByRole('heading', { name: 'Public book 24', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Public book 25', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Load more shared books' }).click();
-  await expect(page.getByRole('heading', { name: 'Public book 30', exact: true })).toBeVisible();
+  const loadMore = page.getByRole('button', { name: 'Load more shared books' });
+  await loadMore.scrollIntoViewIfNeeded();
+  await expect(page.getByRole('heading', { name: 'Public book 30', exact: true })).toBeAttached();
   await expect(page.getByRole('article')).toHaveCount(30);
-  await importBook(page);
-  await expect(page.getByRole('article')).toHaveCount(31);
-  const filter = page.getByRole('button', { name: 'Filter books' });
-  await filter.click();
-  await page.getByLabel('Source', { exact: true }).selectOption('local');
-  await page.getByLabel('Availability', { exact: true }).selectOption('available');
-  await page.getByRole('button', { name: 'Apply filters · 1 loaded', exact: true }).click();
-  await expect(page).toHaveURL(/source=local/);
-  await expect(page.getByRole('article')).toHaveCount(1);
-  await expect(filter).toBeFocused();
+  await expect(loadMore).toHaveCount(0);
+  const sort = page.getByRole('button', { name: 'Sort books' });
+  await sort.click();
+  await page.getByRole('button', { name: 'Author A–Z', exact: true }).click();
+  await expect(page).toHaveURL(/sort=author/);
+  await expect(sort).toBeFocused();
   await page.reload();
-  await expect(page.getByRole('article')).toHaveCount(1);
-  await filter.click();
+  await sort.click();
+  await expect(page.getByRole('button', { name: 'Author A–Z', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.goBack();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(filter).toBeFocused();
+  await expect(sort).toBeFocused();
   await page.goto(`${server.origin}/app/library?q=Public+book+01`);
   await expect(page.getByRole('article')).toHaveCount(1);
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
-  await expect(page.getByRole('link', { name: 'Resume', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Read', exact: true })).toBeVisible();
   await expect(page.getByText('<script>window.__untrusted = true</script>', { exact: false })).toBeVisible();
   expect(await page.evaluate(() => '__untrusted' in window)).toBe(false);
-  await page.getByRole('link', { name: 'Back to Library', exact: false }).click();
+  await page.getByRole('main').getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page).toHaveURL(/q=Public\+book\+01/);
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    for (const label of ['Add book', 'Filter books']) {
+    for (const label of ['Add book', 'Sort books']) {
       const box = await page.getByRole('button', { name: label, exact: true }).boundingBox();
       expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44);
     }
   }
-  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link')).toHaveCount(4);
-  await expect(page.getByRole('link', { name: 'Insights (original site)' })).toHaveAttribute('href', '/');
+  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link')).toHaveCount(3);
+  await expect(page.getByRole('link', { name: 'Insights', exact: true })).toHaveAttribute('href', '/app/insights');
 });
 
 test('real download, offline logout fencing, A to B to A and retained local identity', async ({ page, context, server }) => {

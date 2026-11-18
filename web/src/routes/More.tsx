@@ -3,26 +3,28 @@ import { Link, useNavigate } from 'react-router';
 import { useReading, type Conflict } from '../reading';
 import { session, useSession } from '../session';
 import { bookKey } from '../library';
-import { Dialog, ErrorNotice } from '../ui';
+import { Dialog, ErrorNotice, PageHeader } from '../ui';
+import { AccountSettings } from './AccountSettings';
 import styles from '../App.module.css';
 
-export function More() {
-  const { access, session: current, capabilities } = useSession();
+export function Settings() {
+  const { session: current, capabilities, access } = useSession();
   const [logout, setLogout] = useState(false);
   const navigate = useNavigate();
-  const authenticated = access.kind === 'authenticated';
   return <>
-    <p className={styles.eyebrow}>Your reading space</p><h1>More</h1>
-    <section className={styles.panel}><h2>Account</h2><p>{authenticated ? 'Signed in. Shared books synchronize with this account.' : access.kind === 'expired' ? 'Session expired. Retained books work offline; synchronization is paused.' : 'Local books work without an account.'}</p><div className={styles.actions}>
-      {authenticated || access.kind === 'expired' ? <button onClick={() => setLogout(true)}>Sign out</button> : <Link className={styles.primary} to="/login">Sign in</Link>}
-      <Link to="/sync">Synchronization</Link>
+    <PageHeader title="Settings" />
+    <section className={styles.panel}><h2>Account</h2><p>Signed in. Shared books synchronize with this account.</p><div className={styles.actions}>
+      <button onClick={() => setLogout(true)}>Sign out</button>
+      <Link className={styles.actionLink} to="/sync">Synchronization</Link>
+      <Link className={styles.actionLink} to="/offline">Offline books</Link>
     </div></section>
+    {access.kind === 'authenticated' && current?.user && <AccountSettings key={access.account.userId} account={access.account} timezone={current.user.timezone} readOnly={!capabilities || capabilities.demo_mode} />}
     <section className={styles.panel}><h2>Original site</h2><p>These features still open the server-rendered site. Their React migration comes later.</p><nav aria-label="Original site features" className={styles.menu}>
-      <a href="/">Insights ↗</a><a href="/activity">Activity history ↗</a><a href="/progress">Reading progress history ↗</a><a href="/settings">Settings ↗</a><a href="/documents">Shared uploads, metadata & management ↗</a>
+      <a href="/documents">Shared library tools ↗</a>
       {capabilities?.search_enabled && <a href="/search">Find & acquire books ↗</a>}
-      {authenticated && current?.user?.is_admin && <a href="/admin">Administration ↗</a>}
+      {current?.user?.is_admin && <a href="/admin">Administration ↗</a>}
     </nav></section>
-    {logout && <Dialog title="Sign out on this device?" onClose={() => setLogout(false)}><div className={styles.form}><p>Local-only books stay usable. Retained shared books and pending events stay stored, but are hidden and fenced until you sign in to the same account again. Offline sign-out finishes invalidating the server session when reconnected.</p><button onClick={() => { void session.logout(); setLogout(false); navigate('/library', { replace: true }); }}>Sign out</button><button onClick={() => setLogout(false)}>Keep signed in</button></div></Dialog>}
+    {logout && <Dialog title="Sign out on this device?" onClose={() => setLogout(false)}><div className={styles.form}><p>Local books, shared downloads, and pending events stay on this device. To access shared downloads again, sign in to the same account. If you sign out offline, the server session is closed when you reconnect.</p><button onClick={() => { void session.logout(); navigate('/login', { replace: true }); }}>Sign out</button><button onClick={() => setLogout(false)}>Keep signed in</button></div></Dialog>}
   </>;
 }
 function ConflictChoice({ conflict }: { conflict: Conflict }) {
@@ -50,7 +52,7 @@ export function Sync() {
   const reading = useReading();
   const { access } = useSession();
   const [error, setError] = useState<unknown>(null);
-  return <><p className={styles.eyebrow}>Saved here, shared deliberately</p><h1>Synchronization</h1>
+  return <><PageHeader title="Synchronization" />
     <section className={styles.panel}><h2>{reading.sync}</h2><p>{reading.pendingCount} pending events. Books and reading checkpoints are stored by the reader, not the query cache.</p>
       {access.kind !== 'authenticated' ? <p><Link to="/login">Sign in</Link> to resume sending this account’s saved events.</p> : <button onClick={() => { setError(null); void reading.replay().catch(setError); }}>Retry synchronization</button>}
       <ErrorNotice error={error} /></section>

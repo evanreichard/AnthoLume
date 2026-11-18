@@ -28,13 +28,41 @@ test('React StrictMode owns actual full-viewport renderer, edge/keyboard/swipe n
     }, { font, anchor })).toBe(true);
   };
   await expect(page.locator('iframe')).toHaveCount(1); await readerReady();
+  const contents = region.getByRole('button', { name: 'Contents', exact: true });
+  const appearance = region.getByRole('button', { name: 'Reading progress and appearance', exact: true });
+  const next = region.getByRole('button', { name: 'Next page', exact: true });
+  await expect(contents).toBeHidden();
+  const center = async () => {
+    const box = (await region.boundingBox())!;
+    await page.mouse.move(box.x + box.width * .5, box.y + box.height * .5);
+  };
+  await center();
+  await expect(contents).toBeVisible(); await expect(appearance).toBeVisible(); await expect(next).toBeVisible();
+  await expect.poll(() => region.evaluate(reader => {
+    const [topEdge, bottomEdge] = ['Top', 'Bottom'].map(edge => reader.querySelector(`[class*="edgePaint${edge}"]`)!.getBoundingClientRect());
+    const pills = [...reader.querySelectorAll('header button, footer')];
+    const pixel = document.createElement('canvas').getContext('2d')!;
+    return pills.every(pill => {
+      const rect = pill.getBoundingClientRect(), css = getComputedStyle(pill);
+      pixel.clearRect(0, 0, 1, 1);
+      pixel.fillStyle = css.backgroundColor;
+      pixel.fillRect(0, 0, 1, 1);
+      const alpha = pixel.getImageData(0, 0, 1, 1).data[3]!;
+      return rect.top > topEdge!.bottom && rect.bottom < bottomEdge!.top && css.backdropFilter.includes('blur(') &&
+        getComputedStyle(pill.closest('header, footer')!).opacity === '1' && alpha > 0 && alpha < 128;
+    });
+  })).toBe(true);
+  await expect(contents).toBeHidden({ timeout: 6500 }); await expect(next).toBeHidden();
+  await page.keyboard.press('c');
+  await expect(region.getByRole('button', { name: 'Library' })).toBeFocused();
+  await expect(next).toBeVisible();
   await expect(page.locator('footer span')).toHaveText(/\d+ \/ \d+/);
   const checkpoint = () => page.evaluate(async () => { const db = new window.readingTest.ReadingDB(); const book = (await db.books.toArray())[0]!; db.close(); return book.checkpoint; });
-  await page.getByRole('button', { name: 'Next page' }).click(); await expect.poll(async () => (await checkpoint()).position).toMatch(/^\/body\/DocFragment/); const first = await checkpoint();
+  await next.click(); await expect.poll(async () => (await checkpoint()).position).toMatch(/^\/body\/DocFragment/); const first = await checkpoint();
   await readerReady(undefined, first.position);
   await page.keyboard.press('ArrowRight'); await expect.poll(checkpoint).not.toEqual(first); const second = await checkpoint();
   await readerReady(undefined, second.position);
-  await page.getByRole('button', { name: 'Appearance', exact: true }).click(); await page.getByLabel('Theme').selectOption('black'); await readerReady(); await page.getByRole('combobox', { name: 'Font', exact: true }).selectOption('Lato'); await readerReady('Lato', second.position); await page.getByLabel('Size').fill('120'); await readerReady('Lato', second.position); await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await appearance.click(); await page.getByRole('button', { name: /Night/ }).click(); await expect(page.getByRole('button', { name: /Night/ })).toHaveAttribute('aria-pressed', 'true'); await readerReady(); await page.getByRole('combobox', { name: 'Font', exact: true }).selectOption('Lato'); await readerReady('Lato', second.position); await page.getByRole('slider').fill('120'); await readerReady('Lato', second.position); await page.getByRole('button', { name: 'Done', exact: true }).click();
   expect(await checkpoint()).toEqual(second);
   await page.setViewportSize({ width: 720, height: 1000 }); await page.waitForTimeout(400); await readerReady('Lato', second.position); expect(await checkpoint()).toEqual(second);
   const metrics = await page.evaluate(() => { const reader = document.querySelector('section[aria-label="Book reader"]')!, frame = reader.querySelector('iframe')!; return { rootHeight: reader.getBoundingClientRect().height, height: innerHeight, scroll: frame.contentDocument!.documentElement.scrollHeight, viewport: frame.clientHeight }; });
@@ -42,9 +70,20 @@ test('React StrictMode owns actual full-viewport renderer, edge/keyboard/swipe n
   await readerReady('Lato', second.position);
   const viewport = await region.locator(':scope > div').first().boundingBox(); await page.mouse.click(viewport!.x + viewport!.width * .9, viewport!.y + viewport!.height * .5);
   await expect.poll(checkpoint).not.toEqual(second); const third = await checkpoint(); await readerReady('Lato', third.position);
-  await page.frameLocator('iframe').locator('body').evaluate(() => { const target = document.body; target.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, changedTouches: [new Touch({ identifier: 1, target, screenX: 600, screenY: 300 })] })); target.dispatchEvent(new TouchEvent('touchend', { bubbles: true, changedTouches: [new Touch({ identifier: 1, target, screenX: 100, screenY: 300 })] })); });
+  await page.frameLocator('iframe').locator('body').evaluate(() => { const target = document.body; const start = new Touch({ identifier: 1, target, clientX: 600, clientY: 300 }); target.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [start], changedTouches: [start] })); target.dispatchEvent(new TouchEvent('touchend', { bubbles: true, changedTouches: [new Touch({ identifier: 1, target, clientX: 100, clientY: 300 })] })); });
   await expect.poll(checkpoint).not.toEqual(third); await readerReady('Lato', (await checkpoint()).position);
+  expect(await page.evaluate(() => [document.body.style.backgroundColor, document.documentElement.style.backgroundColor])).toEqual(['rgb(18, 18, 18)', 'rgb(18, 18, 18)']);
+  for (const edge of ['Top', 'Bottom']) {
+    const strip = region.locator(`[class*="edgePaint${edge}"]`);
+    await expect(strip).toHaveCSS('background-color', 'rgb(18, 18, 18)');
+    expect(await strip.evaluate((element, edge) => {
+      const rect = element.getBoundingClientRect();
+      return getComputedStyle(element).position === 'fixed' && rect.left === 0 && rect.right === innerWidth &&
+        (edge === 'Top' ? rect.top === 0 : rect.bottom === innerHeight);
+    }, edge)).toBe(true);
+  }
   await page.evaluate(() => window.readingTest.unmount()); await expect(page.locator('iframe')).toHaveCount(0);
+  expect(await page.evaluate(() => [document.body.style.backgroundColor, document.documentElement.style.backgroundColor])).toEqual(['', '']);
   await expect.poll(() => page.evaluate(() => ({ listeners: window.readingTest.lifecycle.listeners, content: window.readingTest.lifecycle.contentListeners, engines: window.readingTest.lifecycle.engines - window.readingTest.lifecycle.destroyed }))).toEqual({ listeners: 0, content: 0, engines: 0 });
   expect(await page.evaluate(async () => { const db = new window.readingTest.ReadingDB(); const count = await db.events.count(); await db.delete(); return count; })).toBe(0);
 });

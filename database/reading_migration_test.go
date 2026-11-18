@@ -86,7 +86,7 @@ func TestReadingAdditiveMigrationPreservesHistoricalRowsAndOrphans(t *testing.T)
 	// The schema extension is the same source used by Goose and may be executed repeatedly without rewriting data.
 	exec(dbmigrations.ReadingSchema)
 	require.Equal(t, before, snapshot())
-	require.ErrorContains(t, goose.DownContext(context.Background(), db.DB, "migrations"), "downgrade is unsafe")
+	require.ErrorContains(t, goose.DownToContext(context.Background(), db.DB, "migrations", 20261118000000), "downgrade is unsafe")
 }
 
 func TestReadingSchemaDeletionAndRevisionBounds(t *testing.T) {
@@ -115,5 +115,5 @@ func TestReadingSchemaDeletionAndRevisionBounds(t *testing.T) {
 	require.Equal(t, "ok", integrity)
 	var version int64
 	require.NoError(t, db.DB.QueryRow("SELECT max(version_id) FROM goose_db_version WHERE is_applied=1").Scan(&version))
-	require.Equal(t, int64(20261119000000), version)
+	require.Equal(t, int64(20261120000000), version)
 }

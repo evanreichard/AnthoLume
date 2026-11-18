@@ -16,6 +16,22 @@ const measurement = { forward: true, localOnly: false, pageWords: 100, totalWord
 test('unchanged forward-turn rounding, time and WPM cap/exclusion', () => { expect(measureActivity(measurement)).toEqual({ duration: 30, start_time: 100, page: 5, pages: 100 }); expect(measureActivity({ ...measurement, nowMs: 103000 })).toBeUndefined(); expect(measureActivity({ ...measurement, nowMs: 300000 })?.duration).toBe(60); for (const change of [{ forward: false }, { localOnly: true }, { pageWords: 0 }, { totalWords: NaN }]) expect(measureActivity({ ...measurement, ...change })).toBeUndefined(); });
 test('receipt gate requires exact event/kind/revision/fields and exact large integer arithmetic', () => { expect(validSubmission(event)).toBe(true); expect(receiptFor({ event_id: 'one', kind: 'progress', revision: '1' }, event)).toBe(true); for (const body of [{ event_id: 'other', kind: 'progress', revision: '1' }, { event_id: 'one', kind: 'activity', revision: null }, { event_id: 'one', kind: 'progress', revision: 1 }, { event_id: 'one', kind: 'progress', revision: '2' }, { event_id: 'one', kind: 'progress', revision: '1', extra: true }]) expect(receiptFor(body, event)).toBe(false); const large = { ...event, payload: { ...event.payload, base_revision: '9007199254740992' } }; expect(receiptFor({ event_id: 'one', kind: 'progress', revision: '9007199254740993' }, large)).toBe(true); });
 test('only exact matching Problem status/code/revision shapes can affect replay', () => { const p = { type: 'about:blank', title: 'Conflict', detail: 'Changed', code: 'progress_conflict', status: 409, current_revision: '2' }; expect(validProblem(p, 409)).toBe(true); expect(validProblem(p, 500)).toBe(false); expect(validProblem({ ...p, extra: true }, 409)).toBe(false); expect(validProblem({ ...p, current_revision: '02' }, 409)).toBe(false); });
+test('unsupported stylesheet and inline declarations are dropped without losing supported styling', () => {
+  const source = 'p{text-align:-webkit-left}';
+  expect(supportedCSS(source, value => value)).toBe(source);
+  expect(supportedCSS('p{text-align:-webkit-unknown;unknown:1;color:red}', value => value)).toBe('p{color:red}');
+  expect(supportedCSS('color:red;broken;color:future(blue);--extra:10px;margin:2px', value => value, 'declarationList')).toBe('color:red;margin:2px');
+});
+
+test('resource checks still apply in stylesheets with discarded declarations', () => {
+  const resolve = (value: string) => {
+    if (value !== 'image.png') throw new Error('Unapproved asset');
+    return 'blob:validated-asset';
+  };
+  expect(supportedCSS('p{unknown:1;background-image:url(image.png)}', resolve)).toBe('p{background-image:url(blob:validated-asset)}');
+  expect(() => supportedCSS('unknown:url(other.png);color:red', resolve, 'declarationList')).toThrow('Unapproved asset');
+});
+
 test('parsed benign CSS remains usable; external URL roles are actually visited', () => { let seen = ''; expect(supportedCSS('p{color:rgb(12,34,56)}@media(min-width:100px){p{border:3px solid red}}', v => v)).toContain('rgb'); supportedCSS('p{background-image:url("image.png")}', v => { seen = v; return v; }); expect(seen).toBe('image.png'); for (const css of ['@import "https://x.invalid/a.css";', 'p{background:image-set("https://x.invalid/a" 1x)}', '@font-face{font-family:x;src:local("system")}']) expect(() => supportedCSS(css, v => v)).toThrow(); });
 test('HTML rawtext delimiters/case are guarded without blanket style-prefix rejection', () => { for (const s of ['</style>', '</StYle\n>', '</style/', '</style x>', '</style']) expect(() => requireSafeHTMLStyle(s)).toThrow(); expect(() => requireSafeHTMLStyle('/* </stylesheet> */')).not.toThrow(); });
 test('streamed CRC retains state across chunks and matches the standard check vector', () => { const a = new TextEncoder().encode('1234'), b = new TextEncoder().encode('56789'); expect(crc32(b, crc32(a))).toBe(0xcbf43926); expect(crc32(new Uint8Array())).toBe(0); });

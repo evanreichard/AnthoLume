@@ -1,8 +1,9 @@
-import { test, expect, register, importBook } from './fixtures';
+import { randomUUID } from 'node:crypto';
+import { test, expect, register, epub } from './fixtures';
 
-test('one named 44px Clear search clears draft and applied q, preserves filters, and returns focus to search', async ({ page, server }) => {
+test('one named 44px Clear search clears draft and applied q, preserves sort, and returns focus to search', async ({ page, server }) => {
   await register(page, server.origin, `clear-${Date.now()}`);
-  await page.goto(`${server.origin}/app/library?q=Public+book+01&source=server&availability=unavailable`);
+  await page.goto(`${server.origin}/app/library?q=Public+book+01&sort=author`);
   await expect(page.getByRole('article')).toHaveCount(1);
   const search = page.getByRole('searchbox', { name: 'Search title or author', exact: true });
   await search.fill('Different unsubmitted draft');
@@ -33,62 +34,53 @@ test('one named 44px Clear search clears draft and applied q, preserves filters,
   await expect(page.getByRole('article')).toHaveCount(24);
   const params = new URL(page.url()).searchParams;
   expect(params.has('q')).toBe(false);
-  expect(params.get('source')).toBe('server');
-  expect(params.get('availability')).toBe('unavailable');
+  expect(params.get('sort')).toBe('author');
   await expect(clear).toHaveCount(0);
 });
 
-test('filter draft count, Reset, Apply and Cancel/Escape/Back operate on real loaded books without draft API calls', async ({ page, server }) => {
-  await register(page, server.origin, `filters-${Date.now()}`);
-  await importBook(page, 'Filter local original');
-  await expect(page.getByRole('article')).toHaveCount(25);
-  const requests: string[] = [];
-  page.on('request', (request) => { if (new URL(request.url()).pathname === '/api/v1/documents') requests.push(request.url()); });
-  const filter = page.getByRole('button', { name: 'Filter books', exact: true });
-  await filter.click();
-  await page.getByLabel('Source', { exact: true }).selectOption('local');
-  await page.getByLabel('Availability', { exact: true }).selectOption('available');
-  await expect(page.getByRole('dialog').getByRole('status')).toHaveText('1 matching loaded title');
-  await expect(page.getByRole('article')).toHaveCount(25);
-  expect(new URL(page.url()).searchParams.has('source')).toBe(false);
-  expect(requests).toEqual([]);
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByRole('article')).toHaveCount(25);
-  await expect(filter).toBeFocused();
-  await filter.click();
-  await expect(page.getByLabel('Source', { exact: true })).toHaveValue('all');
-  await page.getByLabel('Source', { exact: true }).selectOption('server');
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await expect(page.getByRole('article')).toHaveCount(25);
-  await filter.click();
-  await page.getByLabel('Source', { exact: true }).selectOption('local');
-  await page.getByLabel('Availability', { exact: true }).selectOption('available');
-  await page.getByRole('button', { name: 'Apply filters · 1 loaded', exact: true }).click();
-  await expect(page.getByRole('article')).toHaveCount(1);
-  await expect(filter).toBeFocused();
-  await expect(page).toHaveURL(/source=local/);
-  await filter.click();
-  await page.getByRole('button', { name: 'Reset filters', exact: true }).click();
-  await expect(page.getByRole('dialog').getByRole('status')).toHaveText('25 matching loaded titles');
-  await expect(page.getByRole('dialog')).toContainText('25 loaded or stored titles only');
-  await expect(page.getByRole('article')).toHaveCount(1);
-  expect(requests).toEqual([]);
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('article')).toHaveCount(1);
-  await filter.click();
-  await expect(page.getByLabel('Source', { exact: true })).toHaveValue('local');
-  await expect(page.getByLabel('Availability', { exact: true })).toHaveValue('available');
-  await page.getByRole('button', { name: 'Reset filters', exact: true }).click();
-  await page.getByRole('button', { name: 'Apply filters · 25 loaded', exact: true }).click();
-  await expect(page.getByRole('article')).toHaveCount(25);
-  await page.goBack();
-  await expect(page.getByRole('article')).toHaveCount(1);
-  await expect(page).toHaveURL(/source=local/);
-  await filter.click();
-  await page.getByLabel('Source', { exact: true }).selectOption('server');
-  await page.goBack();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByRole('article')).toHaveCount(1);
-  await expect(filter).toBeFocused();
+
+test('the Library defaults to Last read and features the last shared checkpoint independently of grid sort', async ({ page, server }) => {
+  await register(page, server.origin, 'continue-reader');
+  const csrf = (await (await page.request.get(`${server.origin}/api/v1/session`)).json()).csrf_token;
+  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf };
+  for (const [path, data] of [
+    ['devices', { id: 'other-device', name: 'Other device' }],
+    ['reading-progress', { event_id: randomUUID(), document_id: 'book-030', device_id: 'other-device', observed_at: new Date().toISOString(), base_revision: '0', position: '/body/DocFragment[1]/body/p[2]', fraction: .24 }],
+  ] as const) {
+    const response = await page.request.post(`${server.origin}/api/v1/me/${path}`, { headers, data });
+    expect(response.status(), await response.text()).toBe(200);
+  }
+  await page.reload();
+  const feature = page.getByRole('region', { name: 'Continue reading' });
+  await expect(feature.getByRole('heading')).toHaveText('Public book 30');
+  await expect(feature.getByText('24% read', { exact: true })).toBeVisible();
+  await expect(feature.getByRole('link', { name: 'Resume' })).toHaveAttribute('href', /\/read\/server\/book-030\?/);
+  await expect(page.getByRole('article').first().getByRole('heading')).toHaveText('Public book 30');
+  await page.getByRole('button', { name: 'Sort books' }).click();
+  await expect(page.getByRole('button', { name: 'Last read', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Title A–Z', exact: true }).click();
+  await expect(page.getByRole('article').first().getByRole('heading')).toHaveText('Public book 01');
+  await expect(feature.getByRole('heading')).toHaveText('Public book 30');
+});
+
+test('Add book uploads to the shared library and Recently added includes it on page one', async ({ page, browser, server }) => {
+  await register(page, server.origin, 'upload-reader');
+  await page.getByRole('button', { name: 'Add book', exact: true }).click();
+  await page.getByLabel('Choose EPUB to upload').setInputFiles({
+    name: 'upload.epub', mimeType: 'application/epub+zip', buffer: await epub('ZZ Shared Upload'),
+  });
+  await expect(page.getByText('Book is in the shared library.', { exact: false })).toBeVisible();
+  const detail = page.getByRole('link', { name: 'Open book', exact: true });
+  await expect(detail).toHaveAttribute('href', /\/app\/books\/server\//);
+  await detail.click();
+  await expect(page.getByRole('heading', { name: 'ZZ Shared Upload', exact: true })).toBeVisible();
+  const read = page.getByRole('link', { name: 'Read', exact: true });
+  await expect(read).toBeVisible();
+  const other = await browser.newPage();
+  try {
+    await register(other, server.origin, 'other-upload-reader');
+    await other.getByRole('button', { name: 'Sort books', exact: true }).click();
+    await other.getByRole('button', { name: 'Recently added', exact: true }).click();
+    await expect(other.getByRole('article').first().getByRole('heading')).toHaveText('ZZ Shared Upload');
+  } finally { await other.close(); }
 });

@@ -1,5 +1,5 @@
 import { archiveReference, type ArchiveReference } from './archive-path';
-import { supportedCSS, type AssetKind } from './css-policy';
+import { supportedCSS, type AssetKind, type CSSDropReason } from './css-policy';
 import { requireSafeHTMLStyle } from './body-contract';
 import { ArchiveReader, sourceLimits } from './source';
 import type { BookManifest } from './book-manifest';
@@ -58,12 +58,16 @@ export class ChapterPolicy {
     return ref;
   }
   private url(path: string) { const value = this.urls.get(path); if (!value) throw new Error('Asset not leased before chapter serialization'); return value.url; }
+  private countCSSDrop = (reason: CSSDropReason) => {
+    const counts = this.manifest.cssDrops ??= {};
+    counts[reason] = (counts[reason] ?? 0) + 1;
+  };
   css(text: string, entry: string, render = false, context: 'stylesheet' | 'declarationList' = 'stylesheet') {
-    return supportedCSS(text, (value, kind) => { const ref = this.assetReference(value, entry, kind); return render && kind !== 'paint' ? this.url(ref.path) + (ref.fragment ? `#${encodeURIComponent(ref.fragment)}` : '') : value; }, context);
+    return supportedCSS(text, (value, kind) => { const ref = this.assetReference(value, entry, kind); return render && kind !== 'paint' ? this.url(ref.path) + (ref.fragment ? `#${encodeURIComponent(ref.fragment)}` : '') : value; }, context, render ? undefined : this.countCSSDrop);
   }
   htmlStyle(text: string, entry: string, render = false): string {
     requireSafeHTMLStyle(text);
-    const generated = supportedCSS(text, (value, kind) => { const ref = this.assetReference(value, entry, kind); return kind === 'paint' ? value : render ? this.url(ref.path) + (ref.fragment ? `#${encodeURIComponent(ref.fragment)}` : '') : 'blob:validated-asset'; });
+    const generated = supportedCSS(text, (value, kind) => { const ref = this.assetReference(value, entry, kind); return kind === 'paint' ? value : render ? this.url(ref.path) + (ref.fragment ? `#${encodeURIComponent(ref.fragment)}` : '') : 'blob:validated-asset'; }, 'stylesheet', render ? undefined : this.countCSSDrop);
     requireSafeHTMLStyle(generated); return render ? generated : text;
   }
   stylesheet(value: string, entry: string): string {

@@ -1,7 +1,7 @@
 import createClient from 'openapi-fetch';
 import type { paths, components } from './schema.gen';
 import { ReadingHTTPError, type Account, type ReadingBridge } from '../reading';
-import { InvalidResponse, isCapabilities, isDevice, isDocument, isPage, isProblem, isSession, isState, validated } from './validate';
+import { InvalidResponse, isCapabilities, isDevice, isDocument, isInsights, isMetadataMatches, isManagedDevice, isManagedDevices, isInsightActivity, isInsightProgress, isInsightRankings, isPage, isProblem, isSession, isState, validated } from './validate';
 
 type S = components['schemas'];
 const configuredOrigin = new URL(import.meta.env.VITE_API_ORIGIN || window.location.origin);
@@ -35,6 +35,7 @@ export function createAPI(gate: SessionGate) {
     const { response, error } = await pending();
     if (account) gate.assert(account, epoch);
     if (response.redirected) throw new InvalidResponse();
+    if (expected === 204 && response.status === 204) return validated(null, guard);
     const media = response.headers.get('content-type')?.split(';')[0].trim();
     if (media !== (response.ok ? 'application/json' : 'application/problem+json')) throw new InvalidResponse();
     let body: unknown;
@@ -56,11 +57,25 @@ export function createAPI(gate: SessionGate) {
     login: (credentials: { username: string; password: string }) => consume(() => client.POST('/api/v1/session/login', { body: credentials, parseAs: 'stream' }), isSession, 200),
     register: (credentials: { username: string; password: string }) => consume(() => client.POST('/api/v1/session/register', { body: credentials, parseAs: 'stream' }), isSession, 201),
     logout: () => consume(() => client.POST('/api/v1/session/logout', { body: {}, parseAs: 'stream' }), isSession, 200),
-    documents: async (account: Account, page: number, q: string, signal: AbortSignal) => {
-      const result = await consume(() => client.GET('/api/v1/documents', { params: { query: { page, page_size: 24, ...(q ? { q } : {}) } }, signal, parseAs: 'stream' }), isPage, 200, account);
+    updatePreferences: (account: Account, timezone: string) => consume(() => client.PATCH('/api/v1/me/preferences', { body: { timezone }, parseAs: 'stream' }), isSession, 200, account),
+    changePassword: (account: Account, body: S['PasswordChange']) => consume(() => client.POST('/api/v1/me/password', { body, parseAs: 'stream' }), isSession, 200, account),
+    devices: (account: Account, signal: AbortSignal) => consume(() => client.GET('/api/v1/me/devices', { signal, parseAs: 'stream' }), isManagedDevices, 200, account),
+    updateDevice: (account: Account, id: string, body: S['DevicePreferences']) => consume(() => client.PATCH('/api/v1/me/devices/{id}', { params: path(id), body, parseAs: 'stream' }), isManagedDevice, 200, account),
+    insights: (account: Account, signal: AbortSignal) => consume(() => client.GET('/api/v1/me/insights', { signal, parseAs: 'stream' }), isInsights, 200, account),
+    insightActivity: (account: Account, query: { page?: number; day?: string; document?: string }, signal: AbortSignal) => consume(() => client.GET('/api/v1/me/insights/activity', { params: { query }, signal, parseAs: 'stream' }), isInsightActivity, 200, account),
+    insightProgress: (account: Account, page: number, signal: AbortSignal) => consume(() => client.GET('/api/v1/me/insights/progress', { params: { query: { page } }, signal, parseAs: 'stream' }), isInsightProgress, 200, account),
+    insightRankings: (account: Account, query: { days?: 7 | 30 | 365; metric: 'time' | 'words' | 'pace' }, signal: AbortSignal) => consume(() => client.GET('/api/v1/insights/rankings', { params: { query }, signal, parseAs: 'stream' }), isInsightRankings, 200, account),
+    documents: async (account: Account, page: number, q: string, sort: 'title' | 'author' | 'added' | 'read', signal: AbortSignal, resumable = false) => {
+      const result = await consume(() => client.GET('/api/v1/documents', { params: { query: { page, page_size: 24, sort, ...(resumable ? { resumable: true } : {}), ...(q ? { q } : {}) } }, signal, parseAs: 'stream' }), isPage, 200, account);
       if (result.page !== page || result.page_size !== 24) throw new InvalidResponse();
       return result;
     },
+    uploadDocument: (account: Account, file: File, signal: AbortSignal) => consume(() => client.POST('/api/v1/documents', {
+      body: file, bodySerializer: value => value, headers: { 'Content-Type': 'application/epub+zip' }, signal, parseAs: 'stream',
+    }), isDocument, 200, account),
+    editDocument: (account: Account, id: string, body: S['DocumentEdit'], signal: AbortSignal) => consume(() => client.PATCH('/api/v1/documents/{id}', { params: path(id), body, signal, parseAs: 'stream' }), isDocument, 200, account),
+    deleteDocument: (account: Account, id: string, signal: AbortSignal) => consume(() => client.DELETE('/api/v1/documents/{id}', { params: path(id), signal, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
+    lookupMetadata: (account: Account, q: string, signal: AbortSignal) => consume(() => client.GET('/api/v1/metadata/search', { params: { query: { q } }, signal, parseAs: 'stream' }), isMetadataMatches, 200, account),
     document: (account: Account, id: string, signal: AbortSignal) => consume(() => client.GET('/api/v1/documents/{id}', { params: path(id), signal, parseAs: 'stream' }), isDocument, 200, account),
   };
   async function binary(account: Account, id: string, kind: 'file' | 'cover', signal: AbortSignal) {

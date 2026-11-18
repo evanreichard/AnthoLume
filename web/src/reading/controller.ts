@@ -2,6 +2,7 @@ import { Book, EpubCFI, type NavItem, type Location } from 'epubjs';
 import { measureActivity, type CapturedActivity } from './activity';
 import { legacyCFIRange } from './visible-text';
 import { ReaderFonts } from './reader-fonts';
+import { bindReadingPinch } from './pinch';
 import type Rendition from 'epubjs/types/rendition';
 import type { RenditionOptions } from 'epubjs/types/rendition';
 import type Contents from 'epubjs/types/contents';
@@ -18,7 +19,7 @@ export type ReaderSnapshot = { ko: string; cfi: string; chapter: string; page: n
 export type { CapturedActivity } from './activity';
 export type Appearance = { size: number; font: string; theme: 'light' | 'tan' | 'blue' | 'gray' | 'black' };
 export const palette = { light: ['#ffffff', '#202020'], tan: ['#f3ead5', '#392e21'], blue: ['#dce7ef', '#203747'], gray: ['#35383d', '#eeeeee'], black: ['#121212', '#dddddd'] } as const;
-export type ReaderStatus = { state: 'opening' | 'ready' | 'error'; message: string; location?: ReaderSnapshot; toc?: { label: string; href: string }[]; diagnostics?: ReturnType<ReaderController['diagnostics']> };
+export type ReaderStatus = { state: 'opening' | 'ready' | 'error'; message: string; location?: ReaderSnapshot; canGoBack?: boolean; toc?: { label: string; href: string }[]; diagnostics?: ReturnType<ReaderController['diagnostics']> };
 
 export class ReaderController {
   private dead = false;
@@ -32,6 +33,7 @@ export class ReaderController {
   private tail: Promise<unknown> = Promise.resolve();
   private host: HTMLDivElement;
   private location?: ReaderSnapshot;
+  private jumpHistory: Pick<ReaderSnapshot, 'ko' | 'cfi'>[] = [];
   private wordCounts: number[] = [];
   private readerFonts = new ReaderFonts();
   private pageStart = 0;
@@ -41,13 +43,16 @@ export class ReaderController {
   private viewportSize?: { width: number; height: number };
   private tocTargets = new Map<string, ReturnType<ChapterPolicy['navigation']>>();
   private contentCleanup = new Map<Document, () => void>();
+  private passiveLinks = new WeakMap<Element, string>();
   private key = (event: KeyboardEvent) => {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
     if (event.key === 'ArrowRight') void this.next();
     if (event.key === 'ArrowLeft') void this.previous();
     if (event.key.toLowerCase() === 't') this.options.cycleTheme?.();
+    if (event.key.toLowerCase() === 'c' && !event.altKey && !event.ctrlKey && !event.metaKey) this.options.chrome?.('focus');
+    if (event.key === 'Escape') this.options.chrome?.('hide');
   };
-  constructor(host: HTMLElement, private status: (value: ReaderStatus) => void, private publish: (location: ReaderSnapshot, activity?: CapturedActivity) => Promise<void>, private options: { localOnly?: boolean; credit?: (activity: CapturedActivity) => Promise<void>; cycleTheme?: () => void; interact?: () => void; panel?: (panel: 'toc' | 'appearance' | 'hide') => void } = {}) {
+  constructor(host: HTMLElement, private status: (value: ReaderStatus) => void, private publish: (location: ReaderSnapshot, activity?: CapturedActivity) => Promise<void>, private options: { localOnly?: boolean; parentGestures?: boolean; resizeText?: (scale: number, finished: boolean) => void; credit?: (activity: CapturedActivity) => Promise<void>; cycleTheme?: () => void; interact?: () => void; chrome?: (action: 'show' | 'toggle' | 'focus' | 'hide') => void } = {}) {
     this.lifetime.signal.addEventListener('abort', () => this.readerFonts.dispose(), { once: true });
     this.host = document.createElement('div');
     this.host.style.height = '100%';
@@ -55,7 +60,7 @@ export class ReaderController {
     window.addEventListener('keydown', this.key);
     lifecycle.listeners++; lifecycle.created++;
   }
-  private send(value: ReaderStatus) { if (!this.dead) this.status(value); }
+  private send(value: ReaderStatus) { if (!this.dead) this.status({ ...value, canGoBack: this.jumpHistory.length > 0 }); }
   private enqueue(action: () => Promise<void>): Promise<void> {
     const result = this.tail.then(async () => {
       if (this.dead) return;
@@ -73,6 +78,8 @@ export class ReaderController {
       this.send({ state: 'opening', message: 'Validating EPUB' });
       const source = input instanceof Blob ? blobSource(input) : input instanceof ArrayBuffer ? blobSource(new Blob([input])) : input;
       this.policy = manifest ? new ChapterPolicy(new ArchiveReader(source, manifest.index, this.lifetime.signal), manifest) : await validateEPUB(source, this.lifetime.signal);
+      const cssDrops = this.policy.manifest.cssDrops;
+      if (cssDrops && Object.keys(cssDrops).length) console.warn('[AnthoLume reader] Skipped unsupported EPUB styling', cssDrops);
       this.wordCounts = this.policy.spine.map(path => this.policy!.manifest.documents[path]!.words);
       if (this.dead) return;
       const book = this.book = new Book({ replacements: 'none', requestMethod: () => Promise.reject(new Error('Engine network requests are disabled')) });
@@ -112,12 +119,19 @@ export class ReaderController {
         };
         contents.document.addEventListener('click', blockLink, true);
         contents.document.addEventListener('auxclick', blockLink, true);
-        const gestureCleanup = this.bindGestures(contents.document);
+        // WebKit suppresses parent-installed callbacks in scriptless frames. Neutralize native link navigation even when the gesture layer is off for selection.
+        if (this.options.parentGestures) {
+          for (const link of contents.document.querySelectorAll('a[href]')) {
+            this.passiveLinks.set(link, link.getAttribute('href')!);
+            link.removeAttribute('href');
+          }
+        }
+        const gestureCleanup = this.options.parentGestures ? undefined : this.bindGestures(contents.document);
         this.readerFonts.install(contents.document);
         this.applyAppearance();
         lifecycle.contentListeners += 2;
         this.contentCleanup.set(contents.document, () => {
-          gestureCleanup();
+          gestureCleanup?.();
           contents.document.removeEventListener('click', blockLink, true);
           contents.document.removeEventListener('auxclick', blockLink, true);
           lifecycle.contentListeners -= 2;
@@ -162,10 +176,11 @@ export class ReaderController {
     this.location = { ko, cfi: visual || loc.start.cfi, chapter: loc.start.href, page: loc.start.displayed.page, pages: loc.start.displayed.total, fraction: Math.round(currentWord / totalWords * 100000) / 100000 };
     this.releaseInactive();
   }
-  private navigate(action: () => Promise<void | { ko?: string; cfi: string; firstContent?: boolean }>,  forward = false) {
+  private navigate(action: () => Promise<void | { ko?: string; cfi: string; firstContent?: boolean }>, mode: 'page' | 'forward' | 'jump' | 'back' = 'page') {
     return this.enqueue(async () => {
+      if (mode === 'back' && !this.jumpHistory.length) return;
       if (!this.rendition || !this.location) throw new Error('Reader not ready; fallback requires explicit reopen');
-      const activity = forward ? await this.captureActivity() : undefined;
+      const activity = mode === 'forward' ? await this.captureActivity() : undefined;
       if (activity && this.options.credit) {
         await this.options.credit(activity);
         // Interval Consumption - A committed credit survives engine/checkpoint failure; it is not available for another event.
@@ -193,20 +208,48 @@ export class ReaderController {
       if (this.dead) return;
       if (logical?.ko && this.location) this.location = { ...this.location, ko: logical.ko, cfi: logical.cfi };
       await this.publish(this.location!, this.options.credit ? undefined : activity);
+      if (mode === 'back') this.jumpHistory.pop();
+      else if (mode === 'jump' && previous.ko !== this.location!.ko) {
+        this.jumpHistory.push({ ko: previous.ko, cfi: previous.cfi });
+        if (this.jumpHistory.length > 50) this.jumpHistory.shift();
+        this.options.chrome?.('show');
+      }
       this.pageStart = Date.now();
       this.pendingActivity = undefined;
       this.ready('Intentional navigation saved');
     });
   }
-  next() { return this.navigate(() => this.rendition!.next(), true); }
+  next() { return this.navigate(() => this.rendition!.next(), 'forward'); }
   previous() { return this.navigate(() => this.rendition!.prev()); }
+  back() {
+    return this.navigate(async () => {
+      const target = this.jumpHistory.at(-1)!;
+      await this.waitEngine(this.rendition!.display(target.cfi));
+      return target;
+    }, 'back');
+  }
   toc(href: string) {
     const target = this.tocTargets.get(href);
     if (!target) return Promise.reject(new Error('TOC target not allowed'));
-    return this.navigate(() => this.displayTarget(target));
+    return this.navigate(() => this.displayTarget(target), 'jump');
+  }
+  tapLinkAt(x: number, y: number): boolean {
+    this.options.interact?.();
+    if (!this.readyToInteract || !this.rendition || !this.policy) return false;
+    for (const contents of this.rendition.getContents() as unknown as Array<Contents & { sectionIndex: number }>) {
+      const frame = Array.from(this.host.querySelectorAll('iframe')).find(candidate => candidate.contentDocument === contents.document);
+      const box = frame?.getBoundingClientRect();
+      if (!box || x < box.left || x >= box.right || y < box.top || y >= box.bottom) continue;
+      const link = contents.document.elementFromPoint(x - box.left, y - box.top)?.closest('a');
+      const href = link && this.passiveLinks.get(link);
+      if (href === undefined || href === null) continue;
+      if (!href.startsWith('#antholume-unavailable-')) void this.internal(href, this.policy.spine[contents.sectionIndex]!);
+      return true;
+    }
+    return false;
   }
   private internal(href: string, entry: string) {
-    return this.navigate(() => this.displayTarget(this.policy!.navigation(href, entry)));
+    return this.navigate(() => this.displayTarget(this.policy!.navigation(href, entry)), 'jump');
   }
   private async displayTarget(ref: ReturnType<ChapterPolicy['navigation']>) {
     const section = this.book!.spine.get(ref.index);
@@ -344,9 +387,11 @@ export class ReaderController {
     const location = this.rendition!.location as Location;
     const visible = await this.book!.getRange(legacyCFIRange(location.start.cfi, location.end.cfi));
     if (!visible) throw new Error('Visible text range unavailable; no activity or progress was saved');
+    const text = visible.toString().trim();
+    if (!text) return;
     const position = await this.wordPosition();
     const endMs = Date.now();
-    const measured = measureActivity({ ...position, forward: true, localOnly: !!this.options.localOnly, pageWords: this.words(visible.toString()), pageStartMs: this.pageStart, nowMs: endMs });
+    const measured = measureActivity({ ...position, forward: true, localOnly: !!this.options.localOnly, pageWords: this.words(text), pageStartMs: this.pageStart, nowMs: endMs });
     if (measured) this.pendingActivity = { ...measured, intervalId: crypto.randomUUID(), startMs: this.pageStart, endMs };
     return this.pendingActivity;
   }
@@ -356,23 +401,83 @@ export class ReaderController {
     this.rendition.themes.default({ body: { background: `${background} !important`, color: `${color} !important`, 'font-family': `${font} !important`, 'font-size': `${size}% !important` } });
   }
   private bindGestures(doc: Document) {
-    let start: { x: number; y: number } | null = null, swipedAt = 0;
-    const click = (event: MouseEvent) => {
-      if (!this.readyToInteract || event.defaultPrevented || Date.now() - swipedAt < 500 || (event.target as Element).closest?.('a')) return;
-      this.options.interact?.();
-      const viewport = this.host.getBoundingClientRect(), frame = doc.defaultView?.frameElement as HTMLIFrameElement | null, origin = frame?.getBoundingClientRect();
-      const width = viewport.width, height = viewport.height, x = event.clientX + (origin?.left ?? viewport.left) - viewport.left, y = event.clientY + (origin?.top ?? viewport.top) - viewport.top;
-      if (y < height * .2) this.options.panel?.('toc');
-      else if (y > height * .8) this.options.panel?.('appearance');
-      else if (x < width * .2) void this.previous();
-      else if (x > width * .8) void this.next();
-      else this.options.panel?.('hide');
+    type Contact = { id: number; x: number; y: number; at: number };
+    let touchStart: Contact | undefined, pointerStart: Contact | undefined, lastTouch = 0, hoveringCenter = false;
+    const frame = Array.from(this.host.querySelectorAll('iframe')).find(candidate => candidate.contentDocument === doc);
+    const surface = doc.documentElement as HTMLElement;
+    const resizeText = this.options.resizeText;
+    if (resizeText) surface.style.touchAction = 'none';
+    const interactive = (event: Event) => event.defaultPrevented || (event.target as Element | null)?.closest?.('a[href], button, input, select, textarea') || doc.getSelection()?.isCollapsed === false;
+    const point = (clientX: number, clientY: number) => {
+      const viewport = this.host.getBoundingClientRect(), origin = frame?.getBoundingClientRect();
+      return { x: (clientX + (origin?.left ?? viewport.left) - viewport.left) / viewport.width,
+        y: (clientY + (origin?.top ?? viewport.top) - viewport.top) / viewport.height };
     };
-    const down = (e: TouchEvent) => { const t = e.changedTouches[0]; if (t) { start = { x: t.screenX, y: t.screenY }; this.options.interact?.(); } };
-    const up = (e: TouchEvent) => { const t = e.changedTouches[0]; if (!t || !start || !this.readyToInteract) return; const dx = t.screenX - start.x, dy = t.screenY - start.y; start = null; if (Math.max(Math.abs(dx), Math.abs(dy)) < 75) return; swipedAt = Date.now(); if (dy > 75) this.options.panel?.('toc'); else if (dy < -75) this.options.panel?.('appearance'); else if (dx < -75) void this.next(); else if (dx > 75) void this.previous(); };
-    doc.addEventListener('click', click); doc.addEventListener('touchstart', down, { passive: true }); doc.addEventListener('touchend', up, { passive: true }); doc.addEventListener('keydown', this.key);
-    lifecycle.contentListeners += 4;
-    return () => { doc.removeEventListener('click', click); doc.removeEventListener('touchstart', down); doc.removeEventListener('touchend', up); doc.removeEventListener('keydown', this.key); lifecycle.contentListeners -= 4; };
+    const centered = (x: number, y: number) => x >= .2 && x <= .8 && y >= .18 && y <= .82;
+    const tap = (clientX: number, clientY: number) => {
+      if (!this.readyToInteract) return;
+      this.options.interact?.();
+      const { x, y } = point(clientX, clientY);
+      if (centered(x, y)) this.options.chrome?.('toggle');
+      else if (y >= .18 && y <= .82 && x < .2) void this.previous();
+      else if (y >= .18 && y <= .82 && x > .8) void this.next();
+    };
+    const click = (event: MouseEvent) => {
+      if (Date.now() - lastTouch < 500 || interactive(event)) return;
+      tap(event.clientX, event.clientY);
+    };
+    const move = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse') return;
+      const { x, y } = point(event.clientX, event.clientY), inCenter = centered(x, y);
+      if (inCenter && !hoveringCenter && !event.buttons && this.readyToInteract && !interactive(event)) this.options.chrome?.('show');
+      hoveringCenter = inCenter;
+    };
+    const leave = (event: PointerEvent) => { if (!event.relatedTarget) hoveringCenter = false; };
+    const contact = (id: number, x: number, y: number): Contact => ({ id, x, y, at: Date.now() });
+    const cancel = () => { touchStart = pointerStart = undefined; };
+    const finish = (start: Contact, clientX: number, clientY: number, event: Event) => {
+      // One Gesture, Two Event Streams - A physical tap may emit pointerup, touchend, then a compatibility click.
+      cancel();
+      lastTouch = Date.now();
+      if (!this.readyToInteract || interactive(event)) return;
+      const dx = clientX - start.x, dy = clientY - start.y;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 14 && lastTouch - start.at < 500) tap(clientX, clientY);
+      else if (Math.abs(dx) >= 50 && Math.abs(dx) > Math.abs(dy)) {
+        if (dx < 0) void this.next();
+        else void this.previous();
+      } else if (Math.abs(dy) >= 60 && Math.abs(dy) > Math.abs(dx)) this.options.chrome?.('show');
+    };
+    const down = (event: TouchEvent) => {
+      if (event.touches.length > 1) { cancel(); return; }
+      const touch = event.changedTouches[0];
+      if (!touch || interactive(event)) return;
+      touchStart = contact(touch.identifier, touch.clientX, touch.clientY);
+      this.options.interact?.();
+    };
+    const up = (event: TouchEvent) => {
+      const touch = Array.from(event.changedTouches).find(candidate => candidate.identifier === touchStart?.id);
+      if (touch && touchStart) finish(touchStart, touch.clientX, touch.clientY, event);
+    };
+    const pointerDown = (event: PointerEvent) => {
+      if (event.pointerType !== 'touch') return;
+      if (!event.isPrimary) { cancel(); return; }
+      if (interactive(event)) return;
+      pointerStart = contact(event.pointerId, event.clientX, event.clientY);
+    };
+    const pointerUp = (event: PointerEvent) => {
+      if (pointerStart?.id === event.pointerId) finish(pointerStart, event.clientX, event.clientY, event);
+    };
+    const pointerCancel = () => { pointerStart = undefined; };
+    const listeners = new AbortController(), capture = { capture: true, signal: listeners.signal };
+    doc.addEventListener('click', click, capture);
+    doc.addEventListener('pointermove', move, capture); doc.addEventListener('pointerout', leave, capture);
+    doc.addEventListener('pointerdown', pointerDown, capture); doc.addEventListener('pointerup', pointerUp, capture); doc.addEventListener('pointercancel', pointerCancel, capture);
+    doc.addEventListener('touchstart', down, { ...capture, passive: true }); doc.addEventListener('touchend', up, { ...capture, passive: true }); doc.addEventListener('touchcancel', cancel, capture);
+    doc.addEventListener('keydown', this.key, capture);
+    const unbindPinch = resizeText && bindReadingPinch(surface, (scale, finished) => { cancel(); resizeText(scale, finished); });
+    const count = unbindPinch ? 14 : 10;
+    lifecycle.contentListeners += count;
+    return () => { unbindPinch?.(); listeners.abort(); lifecycle.contentListeners -= count; };
   }
   dispose(): Promise<void> {
     if (this.dead) return this.tail.then(() => undefined);

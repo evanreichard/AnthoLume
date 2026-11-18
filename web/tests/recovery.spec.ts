@@ -15,7 +15,7 @@ async function appearanceAndRecovery(page: Page, recoveryName: string) {
   for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
     await page.setViewportSize(viewport);
     await expect(page.getByRole('region', { name: 'Book reader', exact: true })).toHaveAttribute('data-reader-state', 'ready');
-    await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+    await page.getByRole('button', { name: 'Reading progress and appearance', exact: true }).click();
     await page.getByRole('combobox', { name: 'Font', exact: true }).selectOption('Lato');
     await expect.poll(() => page.getByRole('region', { name: 'Book reader', exact: true }).evaluate((reader) => {
       const frame = reader.querySelector('iframe');
@@ -60,13 +60,13 @@ test('denied page cleanup keeps visible worker Retry and recovers through applyU
       return remove.call(this, key);
     } });
   });
-  await page.goto(`${server.origin}/app/library`);
+  await page.goto(`${server.origin}/app/offline`);
   await expect(page.getByRole('button', { name: 'Retry update / recovery', exact: true })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByRole('button', { name: 'Add book', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Import local EPUB', exact: true })).toBeDisabled();
   await expect(page.getByRole('region', { name: 'App update and recovery' })).toContainText('Your saved books have been retained');
   await page.evaluate(() => localStorage.setItem('test:deny-cleanup', '0'));
   await page.getByRole('button', { name: 'Retry update / recovery', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Add book', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Import local EPUB', exact: true })).toBeEnabled();
   expect(await page.evaluate(() => localStorage.getItem('unrelated-retained'))).toBe('keep');
 });
 

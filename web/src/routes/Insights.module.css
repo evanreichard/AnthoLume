@@ -1,0 +1,43 @@
+.kicker { margin: 0 0 .4rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); font-size: .69rem; font-weight: 700; }
+.tabs { display: flex; gap: .15rem; border-bottom: 1px solid var(--line); margin-bottom: 1.25rem; }
+.tabs a { flex: 1; text-align: center; min-width: 0; text-decoration: none; padding: .85rem .2rem; font-size: .84rem; color: var(--muted); border-bottom: 2px solid transparent; }
+.tabs a[aria-current] { border-color: var(--accent); color: var(--ink); font-weight: 700; }
+.chartCard { padding: clamp(1rem, 4vw, 1.5rem); background: var(--surface); border: 1px solid var(--line); border-radius: 1.1rem; }
+.chartHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
+.chartHeading h2 { font-family: inherit; margin: 0 0 .25rem; }
+.chartHeading p { margin: 0; color: var(--muted); font-size: .78rem; }
+.chartTotal { font-family: var(--display); font-size: clamp(1.05rem, 4.5vw, 1.55rem); font-weight: 400; line-height: 1.2; text-align: end; }
+.muted, .axis, .entries small { color: var(--muted); }
+.chart { display: grid; grid-template-columns: repeat(30, minmax(0, 1fr)); gap: clamp(1px, .55vw, 5px); height: 78px; padding-top: .5rem; }
+.chart a { display: flex; align-items: flex-end; justify-content: center; border-radius: 4px; }
+.chart a:is(:hover,:focus-visible) { background: var(--hero); }
+.chart span { display: block; width: 100%; height: max(2px, var(--bar)); border-radius: 4px 4px 2px 2px; background: var(--accent); }
+.chart a[aria-label$=': 0 min'] span { background: var(--line); }
+.axis, .sectionHeading, .pager { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.axis { margin-top: .5rem; font-size: .75rem; }
+.streaks { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .65rem; margin-block: .8rem 1.4rem; }
+.streaks section { background: var(--surface); border: 1px solid var(--line); border-radius: .85rem; padding: .85rem; }
+.streaks h2, .streaks p:last-child { margin: 0; }
+.streaks p:last-child { color: var(--muted); font-size: .78rem; margin-top: .2rem; }
+.history { margin-top: 1.35rem; }
+.history h2 { margin: 0; }
+.sectionHeading a { flex: none; }
+.entries { margin: .5rem 0 0; list-style: none; padding: 0; }
+.entries li { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .85rem 0; border-bottom: 1px solid var(--line); }
+.entries li > div { min-width: 0; overflow-wrap: anywhere; }
+.entries small { display: block; margin-top: .25rem; }
+.value { flex: none; font-variant-numeric: tabular-nums; font-size: .85rem; }
+.rankings { margin-top: 1.35rem; }
+.rankingHeading { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.rankings .rankingHeading h2 { margin: 0; font-size: clamp(1.25rem, 5vw, 1.65rem); white-space: nowrap; }
+.rankingHeading select { width: auto; flex: 0 0 auto; font-size: .8rem; padding-inline: .7rem; border-radius: 99px; }
+.metricSwitch { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .2rem; padding: .2rem; margin-block: .9rem .5rem; background: var(--bg); border: 1px solid var(--line); border-radius: .8rem; }
+.metricSwitch button { min-height: 34px; padding: .2rem .15rem; background: transparent; border-color: transparent; font-size: .8rem; color: var(--muted); }
+.metricSwitch button[aria-pressed='true'] { background: var(--hero); border-color: var(--line); color: var(--ink); font-weight: 700; }
+.rankingNote { color: var(--muted); font-size: .82rem; }
+.rankRows { padding: 0; margin: .4rem 0 0; list-style: none; }
+.rankRows li { display: grid; grid-template-columns: 1.75rem minmax(0, 1fr) auto; align-items: center; gap: .6rem; padding: .7rem 0; border-bottom: 1px solid var(--line); }
+.rankNumber { display: grid; place-items: center; min-height: 1.75rem; border-radius: .4rem; background: var(--hero); color: var(--ink); font-size: .75rem; font-weight: 700; }
+.rankName { overflow-wrap: anywhere; }
+.fullRankings { display: inline-flex; align-items: center; gap: .4rem; min-height: 44px; margin-top: .25rem; font-size: .85rem; }
+.pager { margin-top: .85rem; }

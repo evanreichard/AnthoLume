@@ -1,14 +1,17 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { createBrowserRouter, Link, NavLink, Outlet, RouterProvider, ScrollRestoration, useLocation, useNavigate, useRouteError } from 'react-router';
+import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, ScrollRestoration, useLocation, useNavigate, useParams, useRouteError } from 'react-router';
 import { ReadingProvider, useReading } from './reading';
 import { sameAccount } from './api/client';
 import { queryClient, session, useSession } from './session';
 import { Library } from './routes/Library';
 import { BookDetail } from './routes/BookDetail';
-import { Auth } from './routes/Auth';
-import { More, Sync } from './routes/More';
+import { AppLoading, Auth } from './routes/Auth';
+import { Insights } from './routes/Insights';
+import { Settings, Sync } from './routes/More';
+import { useBookRef } from './routes/bookRef';
 import { ErrorNotice } from './ui';
+import { Icon } from './Icon';
 import { WorkerRecovery } from './WorkerRecovery';
 import { authPath, legacyDocument, retirementDestination } from './retirement';
 import styles from './App.module.css';
@@ -40,15 +43,49 @@ function Providers() {
   const pendingIntent = intent && !['/login', '/register'].includes(location.pathname);
   return <QueryClientProvider client={queryClient}>
     <ReadingProvider access={intent && state.access.kind === 'expired' ? retirementAccess : state.access} bridge={session.api.bridge} onSessionExpired={(account) => session.expire(account)}>
-      <ReadingSession /><RetirementDestination />{pendingIntent ? <p role="status">Opening requested book…</p> : <Outlet />}<ScrollRestoration />
+      <ReadingSession />
+      <RetirementDestination />
+      {pendingIntent ? <AppLoading message="Opening requested book…" /> : <Outlet />}
+      <ScrollRestoration />
     </ReadingProvider>
   </QueryClientProvider>;
 }
-function Shell() {
-  const { access, busy } = useSession();
+function subscribeNetwork(change: () => void) {
+  window.addEventListener('online', change);
+  window.addEventListener('offline', change);
+  return () => {
+    window.removeEventListener('online', change);
+    window.removeEventListener('offline', change);
+  };
+}
+
+function ProtectedApp() {
+  const { access } = useSession();
+  const offline = useSyncExternalStore(subscribeNetwork, () => !navigator.onLine);
+  const reading = useReading();
+  const { kind, id } = useParams();
+  const ref = useBookRef();
+  const navigate = useNavigate();
+  const offlineDeepLink = offline && !!id && (kind === 'server' || kind === 'local');
+  const checkingBook = offlineDeepLink && access.kind === 'anonymous' && !reading.ready && !reading.error && reading.update === 'idle';
+  // Book routes resolve only this ref; the reader owns saved-copy availability and permissions.
+  const resumeBook = offlineDeepLink && access.kind === 'expired' && !!ref;
+  const needsLogin = access.kind !== 'loading' && access.kind !== 'authenticated' && !checkingBook && !resumeBook;
+  useEffect(() => {
+    // Durable Resume - ReadingSession can select the retained account in this same commit.
+    if (needsLogin && session.getSnapshot().access === access) navigate('/login', { replace: true });
+  }, [needsLogin, access, navigate]);
+
+  if (access.kind === 'loading') return <AppLoading />;
+  if (access.kind === 'authenticated') return <Shell />;
+  if (checkingBook) return <AppLoading message="Checking for a saved book…" />;
+  if (resumeBook) return <Shell offline />;
+  return null;
+}
+
+function Shell({ offline = false }: { offline?: boolean }) {
   const reading = useReading();
   const location = useLocation();
-  const navigate = useNavigate();
   const reader = location.pathname.startsWith('/read/');
   const recovery = useRef<HTMLDivElement>(null);
   const main = useRef<HTMLElement>(null);
@@ -62,36 +99,23 @@ function Shell() {
     return () => observer.disconnect();
   }, [reader]);
   useEffect(() => {
-    if (!reader) document.title = `AnthoLume · ${location.pathname.startsWith('/offline') ? 'Offline' : location.pathname.startsWith('/more') ? 'More' : 'Library'}`;
+    if (!reader) document.title = `AnthoLume · ${location.pathname.startsWith('/offline') ? 'Offline' : location.pathname.startsWith('/settings') ? 'Settings' : location.pathname.startsWith('/insights') ? 'Insights' : 'Library'}`;
   }, [location.pathname, reader]);
-  useEffect(() => {
-    if (!['/library', '/offline'].includes(location.pathname) || !location.search) return;
-    const params = new URLSearchParams(location.search);
-    if (access.kind === 'anonymous' || access.kind === 'logout') {
-      params.delete('source');
-      navigate({ pathname: location.pathname, search: params.toString() }, { replace: true, preventScrollReset: true });
-    }
-  }, [access.kind]);
   return <div className={`${styles.shell} ${reader ? styles.readerShell : ''}`}>
-    <a className={styles.skip} href="#content">Skip to content</a>
-    <aside className={styles.rail}>
-      <Link to="/library" className={styles.brand}>Antho<span>Lume</span></Link>
-      <nav aria-label="Main navigation" className={styles.tabs}>
-        <NavLink to="/library">▤ <span>Library</span></NavLink>
-        <NavLink to="/offline">↓ <span>Offline</span></NavLink>
-        <a href="/" aria-label="Insights (original site)">◷ <span>Insights ↗</span></a>
-        <NavLink to="/more">☰ <span>More</span></NavLink>
-      </nav>
-      <p className={styles.railNote}>A little space<br />for a good book.</p>
-    </aside>
-    <div className={styles.workspace}>
-      <header className={styles.header}><Link to="/library">Your reading space</Link><div className={styles.actions}>
-        <Link to="/sync">{reading.pendingCount ? `${reading.pendingCount} pending` : reading.sync === 'idle' ? 'Sync' : reading.sync}</Link>
-        {access.kind === 'authenticated' ? <Link to="/more">Account</Link> : <Link to={authPath('login', legacyDocument(location.search))}>{access.kind === 'expired' ? 'Sign in again' : 'Sign in'}</Link>}
-      </div></header>
+    {!offline && <>
+      <a className={styles.skip} href="#content">Skip to content</a>
+      <aside className={styles.rail}>
+        <Link to="/library" className={styles.brand}>Antho<span>Lume</span></Link>
+        <nav aria-label="Main navigation" className={styles.tabs}>
+          <NavLink to="/library"><i className={styles.tabIcon}><Icon name="library" /></i><span>Library</span></NavLink>
+          <NavLink to="/insights"><i className={styles.tabIcon}><Icon name="insights" /></i><span>Insights</span></NavLink>
+          <NavLink to="/settings"><i className={styles.tabIcon}><Icon name="settings" /></i><span>Settings</span></NavLink>
+        </nav>
+      </aside>
+    </>}
+    <div className={offline ? undefined : styles.workspace}>
       <main ref={main} id="content" className={styles.main}>
         <div ref={recovery} className={reader ? styles.readerRecovery : undefined}>
-          {busy && !reader && <p role="status">Connecting… Local books remain available.</p>}
           {reading.error && !reader && <ErrorNotice error={reading.error} />}
           <WorkerRecovery duringReading={reader} />
         </div>
@@ -107,17 +131,25 @@ function RouteError() {
 const router = createBrowserRouter([{
   Component: Providers,
   ErrorBoundary: RouteError,
-  children: [{ Component: Shell, children: [
-    { index: true, Component: Library },
-    { path: 'library', Component: Library },
-    { path: 'offline', element: <Library offline /> },
-    { path: 'books/:kind/:id', Component: BookDetail },
-    { path: 'read/:kind/:id', lazy: () => import('./routes/ReaderRoute') },
-    { path: 'login', element: <Auth mode="login" /> },
-    { path: 'register', element: <Auth mode="register" /> },
-    { path: 'more', Component: More },
-    { path: 'sync', Component: Sync },
-    { path: '*', element: <><h1>Page not found</h1><Link to="/library">Library</Link></> },
-  ] }],
+  HydrateFallback: AppLoading,
+  children: [
+    { path: 'login', element: <Auth key="login" mode="login" /> },
+    { path: 'register', element: <Auth key="register" mode="register" /> },
+    { Component: ProtectedApp, children: [
+      { index: true, element: <Navigate to="/library" replace /> },
+      { path: 'library', Component: Library },
+      { path: 'offline', element: <Library offline /> },
+      { path: 'books/:kind/:id', Component: BookDetail },
+      { path: 'read/:kind/:id', lazy: () => import('./routes/ReaderRoute') },
+      { path: 'insights', Component: Insights },
+      { path: 'insights/activity', element: <Insights view="activity" /> },
+      { path: 'insights/progress', element: <Insights view="progress" /> },
+      { path: 'insights/rankings', element: <Insights view="rankings" /> },
+      { path: 'settings', Component: Settings },
+      { path: 'more', element: <Navigate to="/settings" replace /> },
+      { path: 'sync', Component: Sync },
+      { path: '*', element: <><h1>Page not found</h1><Link to="/library">Library</Link></> },
+    ] },
+  ],
 }], { basename: '/app' });
 export function App() { return <RouterProvider router={router} />; }

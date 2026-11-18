@@ -25,7 +25,7 @@ test('actual local reader checkpoint drives compact Folio Resume, provenance, de
     expect(resume!.y + resume!.height).toBeLessThanOrEqual(search!.y);
     expect(first!.y).toBeLessThan(width < 760 ? 420 : 500);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-    for (const label of ['Add book', 'Filter books', 'Search']) {
+    for (const label of ['Add book', 'Sort books', 'Search']) {
       const box = await page.getByRole('button', { name: label, exact: true }).boundingBox();
       expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44);
       if (label !== 'Search') expect(box!.y).toBe(search!.y);

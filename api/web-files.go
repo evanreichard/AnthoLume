@@ -64,7 +64,7 @@ func fileMedia(name string) string {
 	return media
 }
 func (api *API) documentDTO(d database.Document) Document {
-	out := Document{Id: d.ID, Title: d.Title, Author: d.Author, Series: d.Series, Description: d.Description, Lang: d.Lang}
+	out := Document{Id: d.ID, Title: d.Title, Author: d.Author, Series: d.Series, Description: d.Description, Lang: d.Lang, Isbn10: d.Isbn10, Isbn13: d.Isbn13}
 	if path, err := api.filePath(d); err == nil {
 		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
 			out.FileAvailable = true

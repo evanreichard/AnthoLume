@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -122,7 +123,13 @@ func (api *API) registerV1(router *gin.Engine) error {
 	group := router.Group("")
 	group.Use(api.webBoundary)
 	group.Use(func(c *gin.Context) {
-		if err := middleware.ValidateRequestFromContext(c, decodedParameterRouter{matched}, options); err != nil {
+		validation := options
+		if isDocumentUpload(c.Request) {
+			copy := *options
+			copy.Options.ExcludeRequestBody = true
+			validation = &copy
+		}
+		if err := middleware.ValidateRequestFromContext(c, decodedParameterRouter{matched}, validation); err != nil {
 			abortProblem(c, 400, "invalid_request")
 			return
 		}
@@ -150,6 +157,10 @@ func (api *API) registerV1(router *gin.Engine) error {
 	RegisterHandlersWithOptions(group, strict, GinServerOptions{ErrorHandler: func(c *gin.Context, _ error, _ int) { abortProblem(c, 400, "invalid_request") }})
 	return nil
 }
+func isDocumentUpload(r *http.Request) bool {
+	return r.Method == http.MethodPost && r.URL.Path == "/api/v1/documents"
+}
+
 func (api *API) webBoundary(c *gin.Context) {
 	c.Header("Cache-Control", "private, no-store")
 	c.Header("X-Content-Type-Options", "nosniff")
@@ -184,12 +195,32 @@ func (api *API) webBoundary(c *gin.Context) {
 		abortProblem(c, 429, "rate_limited")
 		return
 	}
+	if c.Request.Method == http.MethodDelete {
+		if c.Request.ContentLength != 0 {
+			abortProblem(c, 400, "invalid_request")
+			return
+		}
+		c.Next()
+		return
+	}
 	media, _, err := mime.ParseMediaType(c.GetHeader("Content-Type"))
+	if isDocumentUpload(c.Request) {
+		if err != nil || media != "application/epub+zip" {
+			abortProblem(c, 415, "invalid_request")
+			return
+		}
+		c.Next()
+		return
+	}
 	if err != nil || media != "application/json" {
 		abortProblem(c, 415, "invalid_request")
 		return
 	}
-	body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, 8192))
+	limit := int64(8192)
+	if c.Request.Method == http.MethodPatch && strings.HasPrefix(path, "/api/v1/documents/") {
+		limit = 3 << 20
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, limit))
 	if err != nil {
 		var max *http.MaxBytesError
 		if errors.As(err, &max) {

@@ -19,11 +19,27 @@ test('real engine paginates, reflows logical KO anchor, routes relocated NAV/NCX
       const original = await p.checksum(bytes), host = document.createElement('div'); host.style.cssText = 'width:700px;height:480px'; document.body.appendChild(host);
       let status: import('../../controller').ReaderStatus = { state: 'opening', message: '' }, publications = 0;
       const reader = new p.ReaderController(host, next => { status = next; }, async () => { publications++; }, { localOnly: fixture !== 'large-media' });
-      await reader.open(bytes); const initial = status.state;
-      let imageSize: number[] | null = null;
-      if (fixture === 'large-media') { const image = host.querySelector('iframe')!.contentDocument!.getElementById('large-photo') as HTMLImageElement; await image.decode(); imageSize = [image.naturalWidth, image.naturalHeight]; }
+      await reader.open(bytes);
+      const initial = status.state;
+      if (initial !== 'ready') {
+        const message = status.message;
+        await reader.dispose(); host.remove();
+        throw new Error(`${fixture}: open ${initial}: ${message}`);
+      }
+      const opened = status.location, openPublications = publications;
+      let raster: { size: number[]; complete: boolean; anchor: boolean; visible: boolean } | null = null;
+      if (fixture === 'large-media') {
+        const frame = host.querySelector('iframe')!, doc = frame.contentDocument!, image = doc.getElementById('large-photo') as HTMLImageElement;
+        const origin = frame.getBoundingClientRect(), viewport = host.getBoundingClientRect(), rect = image.getBoundingClientRect();
+        raster = {
+          size: [image.naturalWidth, image.naturalHeight], complete: image.complete,
+          anchor: !!opened && p.primaryElementFromKO(doc, opened.ko) === image,
+          visible: rect.right + origin.left > viewport.left && rect.left + origin.left < viewport.right && rect.bottom + origin.top > viewport.top && rect.top + origin.top < viewport.bottom,
+        };
+        await image.decode();
+      }
       if (toc) await reader.toc(toc); else await reader.next();
-      const anchor = status.location?.ko, count = publications, nextState = status.state, nextMessage = status.message;
+      const anchor = status.location?.ko, nextPage = status.location?.page, count = publications, nextState = status.state, nextMessage = status.message;
       await reader.reflow(120, 'sans-serif', 'black');
       const retained = status.location?.ko === anchor && publications === count;
       const frame = host.querySelector('iframe')!, sandbox = frame.getAttribute('sandbox'), cspFirst = frame.contentDocument?.head.firstElementChild?.getAttribute('http-equiv');
@@ -31,14 +47,23 @@ test('real engine paginates, reflows logical KO anchor, routes relocated NAV/NCX
       const unchanged = original === await p.checksum(bytes);
       await reader.dispose(); host.remove();
       const restoreHost = document.createElement('div'); restoreHost.style.cssText = 'width:700px;height:480px'; document.body.appendChild(restoreHost);
-      let restored = '';
-      const second = new p.ReaderController(restoreHost, next => { if (next.state === 'ready') restored = next.location!.ko; }, async () => { publications++; });
+      let reopened: import('../../controller').ReaderStatus = { state: 'opening', message: '' };
+      const second = new p.ReaderController(restoreHost, next => { reopened = next; }, async () => { publications++; });
       await second.open(bytes, anchor); await second.dispose(); restoreHost.remove();
-      outcomes.push({ fixture, initial, state: status.state, anchor, retained, count, publications, restored, sandbox, cspFirst, unchanged, rendered, imageSize, nextState, nextMessage });
+      outcomes.push({ fixture, initial, openPublications, firstPage: opened?.page, nextPage, state: status.state, anchor, retained, count, publications, reopened, sandbox, cspFirst, unchanged, rendered, raster, nextState, nextMessage });
     }
     return { outcomes, lifecycle: { ...p.lifecycle } };
   });
-  for (const row of result.outcomes) { expect(row, `${row.fixture}: ${row.nextState}: ${row.nextMessage}`).toMatchObject({ initial: 'ready', state: 'ready', retained: true, count: 1, publications: 1, restored: row.anchor, sandbox: 'allow-same-origin', cspFirst: 'Content-Security-Policy', unchanged: true }); expect(row.rendered).toBeGreaterThan(10); if (row.fixture === 'large-media') expect(row.imageSize).toEqual([2048, 1365]); }
+  for (const row of result.outcomes) {
+    expect(row, `${row.fixture}: ${row.nextState}: ${row.nextMessage}`).toMatchObject({ initial: 'ready', openPublications: 0, nextState: 'ready', state: 'ready', retained: true, count: 1, publications: 1, sandbox: 'allow-same-origin', cspFirst: 'Content-Security-Policy', unchanged: true });
+    expect(row.anchor).toBeTruthy();
+    expect(row.reopened, `${row.fixture}: reopen: ${row.reopened.message}`).toMatchObject({ state: 'ready', location: { ko: row.anchor } });
+    expect(row.rendered).toBeGreaterThan(10);
+    if (row.fixture === 'large-media') {
+      expect(row.raster).toEqual({ size: [2048, 1365], complete: true, anchor: true, visible: true });
+      expect([row.firstPage, row.nextPage]).toEqual([1, 2]);
+    }
+  }
   expect(result.lifecycle.listeners).toBe(0); expect(result.lifecycle.contentListeners).toBe(0); expect(result.lifecycle.engines).toBe(result.lifecycle.destroyed); expect(forbidden).toEqual([]);
 });
 test('reviewed rawtext, whole-document, structural, CSS/font/SVG and navigation hostile fixtures reject before engines', async ({ page }) => {

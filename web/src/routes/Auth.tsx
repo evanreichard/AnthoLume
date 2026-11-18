@@ -1,38 +1,49 @@
-import { useState, type FormEvent } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Link, Navigate, useLocation } from 'react-router';
 import { session, useSession } from '../session';
 import { authPath, legacyDocument } from '../retirement';
 import { ErrorNotice } from '../ui';
+import { WorkerRecovery } from '../WorkerRecovery';
 import styles from '../App.module.css';
+
+export function AppLoading({ message = 'Connecting…' }: { message?: string }) {
+  return <main className={styles.auth}><p role="status">{message}</p></main>;
+}
 
 export function Auth({ mode }: { mode: 'login' | 'register' }) {
   const { capabilities, busy, access } = useSession();
   const [error, setError] = useState<unknown>(null);
-  const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
   const location = useLocation();
   const intent = legacyDocument(location.search);
+  const title = mode === 'login' ? 'Sign in' : 'Create an account';
+  useEffect(() => { document.title = `AnthoLume · ${title}`; }, [title]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
     setError(null);
+    setSubmitting(true);
     try {
       await session.authenticate(mode, String(data.get('username')), String(data.get('password')));
-      form.reset();
-      if (!intent) navigate('/library', { replace: true });
     } catch (failure) { setError(failure); }
+    finally { setSubmitting(false); }
   }
-  return <section className={styles.auth}>
-    <p className={styles.eyebrow}>Your reading, together</p><h1>{mode === 'login' ? 'Sign in' : 'Create an account'}</h1>
-    {intent && <p role="status">{access.kind === 'authenticated' ? 'Opening requested book…' : 'Sign in to resume the requested shared book. No previous account’s book information is shown here.'}</p>}
-    {access.kind === 'expired' && <p>Sign in to the same account to resume synchronization. Your stored books and unsent events have been retained.</p>}
+  if (access.kind === 'loading' && !submitting) return <AppLoading />;
+  if (access.kind === 'authenticated') {
+    if (!intent) return <Navigate to="/library" replace />;
+    return <main className={styles.auth}><p role="status">Opening requested book…</p><WorkerRecovery /></main>;
+  }
+  return <main className={styles.auth}>
+    <p className={styles.eyebrow}>AnthoLume</p><h1>{title}</h1>
+    {intent && <p>Sign in to open the requested shared book.</p>}
+    <WorkerRecovery />
     {mode === 'register' && capabilities?.registration_enabled === false ? <p>Registration is disabled on this server.</p> : <form className={styles.form} onSubmit={submit}>
       <label>Username<input name="username" autoComplete="username" required maxLength={256} autoCapitalize="none" spellCheck={false} /></label>
       <label>Password<input type="password" name="password" required maxLength={256} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /></label>
-      <ErrorNotice error={error} /><button className={styles.primary} disabled={busy || !!intent && access.kind === 'authenticated'}>{busy ? 'Connecting…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>
+      <ErrorNotice error={error} /><button className={styles.primary} disabled={busy || submitting}>{busy || submitting ? 'Connecting…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>
     </form>}
     {mode === 'login' && capabilities?.registration_enabled && <Link to={authPath('register', intent)}>Create an account</Link>}
     {mode === 'register' && <Link to={authPath('login', intent)}>Already have an account? Sign in</Link>}
-    <p>Local books work without an account. <Link to="/library">Return to Library</Link></p>
-  </section>;
+  </main>;
 }

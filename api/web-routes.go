@@ -171,33 +171,70 @@ func (s *webAPI) ListDocuments(ctx context.Context, r ListDocumentsRequestObject
 	defer tx.Rollback()
 	result := DocumentPage{Items: []Document{}, Page: page, PageSize: size}
 	filter := `deleted=0 AND (?='' OR instr(lower(coalesce(title,'')),lower(?))>0 OR instr(lower(coalesce(author,'')),lower(?))>0)`
-	if err = tx.QueryRowContext(ctx, "SELECT count(*) FROM documents WHERE "+filter, q, q, q).Scan(&result.Total); err != nil {
+	user := webUser(ctx).UserName
+	args := []any{q, q, q}
+	if r.Params.Resumable != nil && *r.Params.Resumable {
+		filter += ` AND NULLIF(filepath,'') IS NOT NULL AND EXISTS (SELECT 1 FROM reading_heads h WHERE h.user_id=? AND h.document_id=documents.id AND NULLIF(h.position,'') IS NOT NULL)`
+		args = append(args, user)
+	}
+	if err = tx.QueryRowContext(ctx, "SELECT count(*) FROM documents WHERE "+filter, args...).Scan(&result.Total); err != nil {
 		return nil, err
 	}
-	rows, err := tx.QueryContext(ctx, "SELECT id FROM documents WHERE "+filter+" ORDER BY id ASC LIMIT ? OFFSET ?", q, q, q, size, (int64(page)-1)*int64(size))
+	const titleOrder = `NULLIF(trim(title),'') COLLATE NOCASE ASC NULLS LAST, id ASC`
+	order := "id ASC"
+	if r.Params.Sort != nil {
+		switch *r.Params.Sort {
+		case Title:
+			order = titleOrder
+		case Author:
+			order = `NULLIF(trim(author),'') COLLATE NOCASE ASC NULLS LAST, ` + titleOrder
+		case Added:
+			order = `added_at DESC NULLS LAST, ` + titleOrder
+		case Read:
+			order = `last_read_at DESC NULLS LAST, ` + titleOrder
+		default:
+			return nil, &reading.Failure{Status: 400, Code: "invalid_request"}
+		}
+	}
+	const metadata = `SELECT id, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS added_at,
+		strftime('%Y-%m-%dT%H:%M:%fZ', NULLIF(MAX(
+			COALESCE((SELECT MAX(julianday(a.start_time)) FROM activity a WHERE a.user_id=? AND a.document_id=documents.id AND a.duration>0 AND julianday(a.start_time)<=julianday('now')), 0),
+			COALESCE((SELECT julianday(h.updated_at) FROM reading_heads h WHERE h.user_id=? AND h.document_id=documents.id AND h.position IS NOT NULL), 0)
+		), 0)) AS last_read_at,
+		(SELECT h.fraction FROM reading_heads h WHERE h.user_id=? AND h.document_id=documents.id AND NULLIF(h.position,'') IS NOT NULL AND h.fraction BETWEEN 0 AND 1)
+		FROM documents WHERE `
+	queryArgs := append([]any{user, user, user}, args...)
+	rows, err := tx.QueryContext(ctx, metadata+filter+" ORDER BY "+order+" LIMIT ? OFFSET ?", append(queryArgs, size, (int64(page)-1)*int64(size))...)
 	if err != nil {
 		return nil, err
 	}
-	ids := []string{}
+	type sortRow struct {
+		id          string
+		added, read *string
+		fraction    *float64
+	}
+	var selected []sortRow
 	for rows.Next() {
-		var id string
-		if err = rows.Scan(&id); err != nil {
+		var row sortRow
+		if err = rows.Scan(&row.id, &row.added, &row.read, &row.fraction); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		ids = append(ids, id)
+		selected = append(selected, row)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
 		return nil, err
 	}
-	for _, id := range ids {
-		d, err := database.New(tx).GetDocument(ctx, id)
+	for _, row := range selected {
+		d, err := database.New(tx).GetDocument(ctx, row.id)
 		if err != nil {
 			return nil, err
 		}
-		result.Items = append(result.Items, s.api.documentDTO(d))
+		item := s.api.documentDTO(d)
+		item.AddedAt, item.LastReadAt, item.ResumeFraction = row.added, row.read, row.fraction
+		result.Items = append(result.Items, item)
 	}
 	if int64(page)*int64(size) < int64(result.Total) {
 		next := page + 1
@@ -213,7 +250,22 @@ func (s *webAPI) GetDocument(ctx context.Context, r GetDocumentRequestObject) (G
 	if err != nil {
 		return nil, err
 	}
-	return GetDocument200JSONResponse(s.api.documentDTO(d)), nil
+	stats := BookReadingStats{WordCount: d.Words}
+	err = s.api.db.DB.QueryRowContext(requestContext(ctx), `
+		SELECT total_time_seconds, CAST(total_wpm AS INTEGER)
+		FROM document_user_statistics WHERE document_id = ? AND user_id = ?`,
+		r.Id, webUser(ctx).UserName).Scan(&stats.ReadingSeconds, &stats.WordsPerMinute)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	stats.ReadingSeconds = max(0, stats.ReadingSeconds)
+	stats.WordsPerMinute = max(0, stats.WordsPerMinute)
+	if stats.WordCount != nil && *stats.WordCount < 0 {
+		stats.WordCount = nil
+	}
+	result := s.api.documentDTO(d)
+	result.ReadingStats = &stats
+	return GetDocument200JSONResponse(result), nil
 }
 func (s *webAPI) DownloadDocument(ctx context.Context, r DownloadDocumentRequestObject) (DownloadDocumentResponseObject, error) {
 	return s.api.documentBinary(ctx, r.Id, false)

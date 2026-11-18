@@ -5,6 +5,7 @@
 - Route on escaped paths, decode opaque IDs once with `PathUnescape` (not query decoding), and decode validator path parameters before character-length checks. Preserve slash/plus/percent and 128-character Unicode IDs.
 - `format: uuid` alone is not runtime validation in the selected validator. Keep the explicit event-ID pattern and string Go type so validation does not rewrite identity text.
 - JSON, SSR and external protocol adapters share identity/reading operations, never handlers. New cover GETs do not invoke metadata providers. Preserve KO/OPDS wire contracts and continuing SSR routes.
+- Metadata cover previews use numeric Open Library IDs and bounded JPEG responses; redirect targets stay on the Open Library / Internet Archive host allowlist. Keep remote cover selection in the editor draft until save.
 - All cover aliases (including retained SSR/OPDS and fallback/provider branches) apply `setCoverResponseHeaders`; serving bytes as an image does not make top-level SVG inert. Preserve bytes/MIME and allow image display, not script execution, document embedding or external resources. Run `bash api/check-cover-browser.sh` with installed Chromium for the real-browser regression.
 - Apply shared Retry-After policy to 429/503 in every error renderer and direct legacy credential rejection; do not collapse credential work overload into a registration 400.
 - Versioned errors are safe Problems. Logs must not contain request bodies, cookies, passwords or CSRF tokens, including panic recovery.

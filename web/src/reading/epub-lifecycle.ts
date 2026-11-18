@@ -1,4 +1,5 @@
 import DefaultViewManager from 'epubjs/src/managers/default/index.js';
+import { EpubCFI } from 'epubjs';
 import type Book from 'epubjs/types/book';
 import type Rendition from 'epubjs/types/rendition';
 import type { ChapterPolicy } from './chapter-policy';
@@ -9,6 +10,31 @@ export class ScopedViewManager extends DefaultViewManager {
     const scroller = this.settings.fullsize ? window : this.container;
     this._onScroll = this.onScroll.bind(this);
     scroller.addEventListener('scroll', this._onScroll);
+  }
+  override paginatedLocation() {
+    const pages = super.paginatedLocation();
+    const views = this.visible(), viewport = this.container.getBoundingClientRect();
+    for (const page of pages) {
+      const view = views.find(view => view.section.index === page.index);
+      const doc = view?.contents?.document;
+      if (!view || !doc?.images.length) continue;
+      const origin = view.iframe.getBoundingClientRect();
+      const clippedVisible = (element: Element | null) => element && Array.from(element.getClientRects()).some(rect =>
+        rect.right + origin.left > viewport.left && rect.left + origin.left < viewport.right &&
+        rect.bottom + origin.top > viewport.top && rect.top + origin.top < viewport.bottom);
+      const endpoint = (cfi: string) => {
+        const node = new EpubCFI(cfi).toRange(doc)?.startContainer;
+        return node?.nodeType === Node.ELEMENT_NODE ? node as Element : node?.parentElement ?? null;
+      };
+      // Raster Page Mapping - EPUB.js walks only text, so an image-only column can inherit the next column's start and a body-relative end.
+      if (clippedVisible(endpoint(page.mapping.start))) continue;
+      const image = Array.from(doc.images).find(clippedVisible);
+      if (!image) continue;
+      const cfi = new EpubCFI(image, view.section.cfiBase).toString();
+      const end = endpoint(page.mapping.end);
+      page.mapping = { start: cfi, end: end && end !== doc.body && clippedVisible(end) ? page.mapping.end : cfi };
+    }
+    return pages;
   }
   override destroy() {
     // Event Spelling - Stage.destroy removes orientationChange, but Stage registered orientationchange.

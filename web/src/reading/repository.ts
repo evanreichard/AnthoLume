@@ -93,9 +93,11 @@ export class Repository {
   }
   async stageStream(ref: BookRef, stream: ReadableStream<Uint8Array>, signal?: AbortSignal, progress?: (received: number) => void): Promise<SourceRow> {
     signal?.throwIfAborted(); await this.cleanupStages(); const row: SourceRow = { id: crypto.randomUUID(), key: refKey(ref), size: 0, received: 0, blob: null, complete: false, until: Date.now() + 120000 };
-    let byob: ReadableStreamBYOBReader | undefined, fallback: ReadableStreamDefaultReader<Uint8Array> | undefined;
-    try { byob = stream.getReader({ mode: 'byob' }); } catch { fallback = stream.getReader(); }
-    const reader = byob || fallback!;
+    let byob: ReadableStreamBYOBReader | undefined;
+    if (globalThis.isSecureContext) {
+      try { byob = stream.getReader({ mode: 'byob' }); } catch { /* Use the bounded default reader. */ }
+    }
+    const fallback = byob ? undefined : stream.getReader(), reader = byob ?? fallback!;
     let writer: StagingWriter | undefined, n = 0, incoming = 0;
     const createWriter = () => new StagingWriter(this.db.name, row.id, row.received, n, key => this.db.sourceChunks.add({ key, sourceId: row.id, data: new ArrayBuffer(0) }), signal);
     const read = () => byob ? byob.read(new Uint8Array(Math.min(65536, writer!.remaining))) : fallback!.read();
@@ -152,7 +154,7 @@ export class Repository {
         await this.db.sources.put({ ...row, complete: true, manifest, manifestHash, until: 0 });
         if (old?.sourceId) { await this.db.sourceChunks.where('sourceId').equals(old.sourceId).delete(); await this.db.sources.delete(old.sourceId); }
       }
-      await this.db.books.put({ key, scope, ref, title, author, cover, checkpoint, availability: 'available', bytes: null, sourceId: existingSource || stage.id, size: stage.size, checksum: manifest.integrity.sha256, protocolHash: manifest.integrity.protocolHash });
+      await this.db.books.put({ key, scope, ref, title, author, cover, checkpoint, addedAt: old?.addedAt ?? new Date().toISOString(), lastReadAt: old?.lastReadAt ?? state?.updated_at ?? undefined, availability: 'available', bytes: null, sourceId: existingSource || stage.id, size: stage.size, checksum: manifest.integrity.sha256, protocolHash: manifest.integrity.protocolHash });
       if (state) { if (!validState(state, ref.kind === 'server' ? ref.documentId : '')) throw new Error('Invalid server state'); const head = await this.db.heads.get(key); if (!head || BigInt(head.state.revision) < BigInt(state.revision)) await this.db.heads.put({ key, state }); }
       signal?.throwIfAborted();
     });
@@ -188,7 +190,7 @@ export class Repository {
       if (!await this.permitted(ref)) throw new Error('Account hidden');
       const key = refKey(ref), book = await this.db.books.get(key);
       if (!book || book.availability !== 'available') throw new Error('Book unavailable');
-      await this.db.books.put({ ...book, checkpoint });
+      await this.db.books.put({ ...book, checkpoint, lastReadAt: new Date().toISOString() });
       if (ref.kind === 'local') { if (activity) throw new Error('Local activity must never upload'); return; }
       const state = (await this.db.heads.get(key))?.state;
       if (!state || !checkpoint.position || checkpoint.fraction === null) throw new Error('A known server revision and recoverable position are required');

@@ -5,7 +5,7 @@ export type Account = { origin: string; userId: string };
 export type BookRef = { kind: 'local'; localId: string } | { kind: 'server'; account: Account; documentId: string };
 export type ReadingAccess = { kind: 'loading' } | { kind: 'anonymous' } | { kind: 'authenticated'; account: Account } | { kind: 'expired'; account: Account } | { kind: 'logout'; account: Account };
 export type Checkpoint = { position: string | null; fraction: number | null };
-export type StoredBook = { ref: BookRef; title: string | null; author: string | null; cover: Blob | null; availability: 'available' | 'unavailable'; checkpoint: Checkpoint };
+export type StoredBook = { ref: BookRef; title: string | null; author: string | null; cover: Blob | null; availability: 'available' | 'unavailable'; addedAt?: string; lastReadAt?: string; checkpoint: Checkpoint };
 export type Conflict = { eventId: string; ref: BookRef; local: Checkpoint; server: S['ReadingState'] };
 export type SyncStatus = 'idle' | 'pending' | 'syncing' | 'auth-required' | 'retryable-error' | 'conflict' | 'quota-error' | 'blocked';
 export interface ReadingBridge {

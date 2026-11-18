@@ -38,7 +38,7 @@ test('loopback Vite serves development routes while proxying the compiled worker
     const session = await bootstrap.json();
     const wrongOrigin = await page.request.post(`${origin}/api/v1/session/logout`, { data: {}, headers: { Origin: 'http://127.0.0.1:5323', 'X-CSRF-Token': session.csrf_token } });
     expect(wrongOrigin.status()).toBe(403);
-    await page.goto(`${origin}/app/library?source=local`);
+    await page.goto(`${origin}/app/offline`);
     await expect(page.getByRole('heading', { name: 'Development local original', exact: true })).toBeVisible();
     await page.goto(`${origin}/?antholume-retirement=legacy-v1`);
     await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();

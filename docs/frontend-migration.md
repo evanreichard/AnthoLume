@@ -250,7 +250,7 @@ Deliverables:
 
 ### M4 — Complete Application Coverage
 
-Status: not started.
+Status: in progress. Native Insights includes the personal 30-day overview, activity, saved progress, and rankings. The personal overview reads acknowledged records directly, using the account timezone and assigning each interval to its local start day. Rankings use separate UTC windows and label estimated words and pace.
 
 Deliverables:
 - [ ] Remaining library mutations, metadata/acquisition, dashboard/statistics, activity/progress, preferences/devices, and all administration workflows.

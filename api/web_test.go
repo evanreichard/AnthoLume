@@ -159,6 +159,37 @@ func assertProblem(t *testing.T, r webResponse, status int, code string) {
 	require.NotContains(t, string(r.body), "/tmp/")
 }
 
+func TestBookDetailStatsAreAccountScoped(t *testing.T) {
+	f := newWebFixture(t)
+	f.readingSetup()
+	f.exec("UPDATE documents SET words=10000 WHERE id='book-a'")
+	r := f.call("POST", "/api/v1/me/activity", activityPayload(), nil)
+	require.Equal(t, 200, r.status, string(r.body))
+	require.NoError(t, f.db.CacheTempTables(context.Background()))
+
+	path := "/api/v1/documents/book-a"
+	r = f.call("GET", path, nil, nil)
+	require.Equal(t, 200, r.status, string(r.body))
+	stats := decodeWeb[Document](t, r).ReadingStats
+	require.NotNil(t, stats)
+	require.EqualValues(t, 30, stats.ReadingSeconds)
+	require.EqualValues(t, 10000, *stats.WordCount)
+	require.Positive(t, stats.WordsPerMinute)
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	other := *f
+	other.client = &http.Client{Jar: jar, Timeout: 10 * time.Second}
+	assertProblem(t, other.call("GET", path, nil, nil), 401, "unauthenticated")
+	other.register("bob")
+	r = other.call("GET", path, nil, nil)
+	require.Equal(t, 200, r.status, string(r.body))
+	stats = decodeWeb[Document](t, r).ReadingStats
+	require.NotNil(t, stats)
+	require.Zero(t, stats.ReadingSeconds)
+	require.Zero(t, stats.WordsPerMinute)
+}
+
 func TestWebIdentityCSRFAndRevocation(t *testing.T) {
 	f := newWebFixture(t)
 	anonymous := f.bootstrap()

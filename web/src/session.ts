@@ -132,6 +132,21 @@ class SessionCoordinator {
       throw error;
     }
   }
+  async updateTimezone(account: Account, timezone: string) {
+    const epoch = this.generation;
+    const current = await this.api.updatePreferences(account, timezone);
+    if (epoch !== this.generation || current.user?.id !== account.userId) throw new DOMException('Account changed', 'AbortError');
+    this.publish({ session: current });
+    void queryClient.invalidateQueries({ predicate: query => ['insights', 'insight-activity', 'insight-progress'].includes(String(query.queryKey[0])) });
+    this.channel?.postMessage('session');
+  }
+  async changePassword(account: Account, body: S['PasswordChange']) {
+    const epoch = this.generation;
+    const current = await this.api.changePassword(account, body);
+    if (epoch !== this.generation || current.user?.id !== account.userId) throw new DOMException('Account changed', 'AbortError');
+    this.publish({ session: current });
+    this.channel?.postMessage('session');
+  }
   async logout() {
     const account = this.eligible();
     this.pendingLogout = true;

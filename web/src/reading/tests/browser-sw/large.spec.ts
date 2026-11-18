@@ -10,8 +10,8 @@ test('large local original survives true cold offline processes without the inpu
   const launch = () => chromium.launchPersistentContext(profile, { headless: true, executablePath: process.env.CHROMIUM_PATH, args: ['--no-sandbox'], viewport: { width: 390, height: 844 } });
   let context = await launch();
   try {
-    let page = context.pages()[0]!; await page.goto('http://127.0.0.1:5348/app/'); await expect(page.getByText('Opening your stored library…')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Add book', exact: true }).click(); await page.getByLabel('Choose local EPUB').setInputFiles(input); await expect(page.getByText('Book saved.')).toBeVisible({ timeout: 180000 });
+    let page = context.pages()[0]!; await page.goto('http://127.0.0.1:5348/app/offline'); await expect(page.getByText('Opening your stored library…')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Import local EPUB', exact: true }).click(); await page.getByLabel('Choose local EPUB').setInputFiles(input); await expect(page.getByText('Book saved.')).toBeVisible({ timeout: 180000 });
     await page.getByRole('link', { name: 'Open book', exact: true }).click(); await page.getByRole('link', { name: 'Resume', exact: true }).first().click();
     const region = page.getByRole('region', { name: 'Book reader', exact: true }); await expect(region).toHaveAttribute('data-reader-state', 'ready');
     await page.getByRole('button', { name: 'Contents', exact: true }).click(); await page.getByRole('button', { name: 'Section 37', exact: true }).click(); await expect(region).toHaveAttribute('data-reader-state', 'ready');

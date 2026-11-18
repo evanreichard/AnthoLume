@@ -21,6 +21,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Defines values for ReceiptKind.
@@ -41,6 +42,72 @@ func (e ReceiptKind) Valid() bool {
 	}
 }
 
+// Defines values for ListDocumentsParamsSort.
+const (
+	Added  ListDocumentsParamsSort = "added"
+	Author ListDocumentsParamsSort = "author"
+	Read   ListDocumentsParamsSort = "read"
+	Title  ListDocumentsParamsSort = "title"
+)
+
+// Valid indicates whether the value is a known member of the ListDocumentsParamsSort enum.
+func (e ListDocumentsParamsSort) Valid() bool {
+	switch e {
+	case Added:
+		return true
+	case Author:
+		return true
+	case Read:
+		return true
+	case Title:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListInsightRankingsParamsDays.
+const (
+	N30  ListInsightRankingsParamsDays = 30
+	N365 ListInsightRankingsParamsDays = 365
+	N7   ListInsightRankingsParamsDays = 7
+)
+
+// Valid indicates whether the value is a known member of the ListInsightRankingsParamsDays enum.
+func (e ListInsightRankingsParamsDays) Valid() bool {
+	switch e {
+	case N30:
+		return true
+	case N365:
+		return true
+	case N7:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListInsightRankingsParamsMetric.
+const (
+	Pace  ListInsightRankingsParamsMetric = "pace"
+	Time  ListInsightRankingsParamsMetric = "time"
+	Words ListInsightRankingsParamsMetric = "words"
+)
+
+// Valid indicates whether the value is a known member of the ListInsightRankingsParamsMetric enum.
+func (e ListInsightRankingsParamsMetric) Valid() bool {
+	switch e {
+	case Pace:
+		return true
+	case Time:
+		return true
+	case Words:
+		return true
+	default:
+		return false
+	}
+}
+
 // ActivityEvent defines model for ActivityEvent.
 type ActivityEvent struct {
 	DeviceId      ID        `json:"device_id"`
@@ -50,6 +117,13 @@ type ActivityEvent struct {
 	EventId       EventID   `json:"event_id"`
 	StartFraction float64   `json:"start_fraction"`
 	StartTime     time.Time `json:"start_time"`
+}
+
+// BookReadingStats Account-scoped statistics returned on the book detail endpoint.
+type BookReadingStats struct {
+	ReadingSeconds int64  `json:"reading_seconds"`
+	WordCount      *int64 `json:"word_count"`
+	WordsPerMinute int64  `json:"words_per_minute"`
 }
 
 // Capabilities defines model for Capabilities.
@@ -71,18 +145,43 @@ type Device struct {
 	Name string `json:"name"`
 }
 
+// DevicePreferences defines model for DevicePreferences.
+type DevicePreferences struct {
+	Archived bool   `json:"archived"`
+	Label    string `json:"label"`
+}
+
 // Document defines model for Document.
 type Document struct {
+	AddedAt        *string `json:"added_at,omitempty"`
 	Author         *string `json:"author"`
 	CoverAvailable bool    `json:"cover_available"`
 	Description    *string `json:"description"`
 	FileAvailable  bool    `json:"file_available"`
 	FileSizeBytes  *int64  `json:"file_size_bytes"`
 	Id             ID      `json:"id"`
+	Isbn10         *string `json:"isbn10,omitempty"`
+	Isbn13         *string `json:"isbn13,omitempty"`
 	Lang           *string `json:"lang"`
+	LastReadAt     *string `json:"last_read_at,omitempty"`
 	MediaType      *string `json:"media_type"`
-	Series         *string `json:"series"`
-	Title          *string `json:"title"`
+
+	// ReadingStats Account-scoped statistics returned on the book detail endpoint.
+	ReadingStats   *BookReadingStats `json:"reading_stats,omitempty"`
+	ResumeFraction *float64          `json:"resume_fraction,omitempty"`
+	Series         *string           `json:"series"`
+	Title          *string           `json:"title"`
+}
+
+// DocumentEdit defines model for DocumentEdit.
+type DocumentEdit struct {
+	Author      string  `json:"author"`
+	CoverBase64 *string `json:"cover_base64,omitempty"`
+	Description string  `json:"description"`
+	Isbn10      string  `json:"isbn10"`
+	Isbn13      string  `json:"isbn13"`
+	RemoveCover *bool   `json:"remove_cover,omitempty"`
+	Title       string  `json:"title"`
 }
 
 // DocumentPage defines model for DocumentPage.
@@ -99,6 +198,104 @@ type EventID = string
 
 // ID defines model for ID.
 type ID = string
+
+// InsightActivity defines model for InsightActivity.
+type InsightActivity struct {
+	Available     bool      `json:"available"`
+	DocumentId    string    `json:"document_id"`
+	Duration      int64     `json:"duration"`
+	EndFraction   float64   `json:"end_fraction"`
+	Id            string    `json:"id"`
+	StartFraction float64   `json:"start_fraction"`
+	StartedAt     time.Time `json:"started_at"`
+	Title         string    `json:"title"`
+}
+
+// InsightActivityPage defines model for InsightActivityPage.
+type InsightActivityPage struct {
+	HasMore  bool              `json:"has_more"`
+	Items    []InsightActivity `json:"items"`
+	Timezone string            `json:"timezone"`
+}
+
+// InsightDay defines model for InsightDay.
+type InsightDay struct {
+	Date        openapi_types.Date `json:"date"`
+	SecondsRead int64              `json:"seconds_read"`
+}
+
+// InsightProgress defines model for InsightProgress.
+type InsightProgress struct {
+	Available  bool      `json:"available"`
+	DocumentId string    `json:"document_id"`
+	Fraction   *float64  `json:"fraction"`
+	Title      string    `json:"title"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// InsightProgressPage defines model for InsightProgressPage.
+type InsightProgressPage struct {
+	HasMore  bool              `json:"has_more"`
+	Items    []InsightProgress `json:"items"`
+	Timezone string            `json:"timezone"`
+}
+
+// InsightRank defines model for InsightRank.
+type InsightRank struct {
+	User  string `json:"user"`
+	Value int64  `json:"value"`
+}
+
+// InsightRankings defines model for InsightRankings.
+type InsightRankings struct {
+	AsOf  time.Time     `json:"as_of"`
+	Items []InsightRank `json:"items"`
+}
+
+// Insights defines model for Insights.
+type Insights struct {
+	ActiveDays        int          `json:"active_days"`
+	AsOf              time.Time    `json:"as_of"`
+	CurrentStreak     int          `json:"current_streak"`
+	CurrentWeekStreak int          `json:"current_week_streak"`
+	Days              []InsightDay `json:"days"`
+	LongestStreak     int          `json:"longest_streak"`
+	LongestWeekStreak int          `json:"longest_week_streak"`
+	SecondsRead       int64        `json:"seconds_read"`
+	Timezone          string       `json:"timezone"`
+}
+
+// ManagedDevice defines model for ManagedDevice.
+type ManagedDevice struct {
+	Archived   bool      `json:"archived"`
+	Id         ID        `json:"id"`
+	Label      string    `json:"label"`
+	LastSynced time.Time `json:"last_synced"`
+	Name       string    `json:"name"`
+}
+
+// MetadataMatch defines model for MetadataMatch.
+type MetadataMatch struct {
+	Author      string  `json:"author"`
+	CoverId     *int64  `json:"cover_id,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Id          string  `json:"id"`
+	Isbn10      *string `json:"isbn10,omitempty"`
+	Isbn13      *string `json:"isbn13,omitempty"`
+	Title       string  `json:"title"`
+	Year        *int    `json:"year,omitempty"`
+}
+
+// PasswordChange defines model for PasswordChange.
+type PasswordChange struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+// PreferencesUpdate defines model for PreferencesUpdate.
+type PreferencesUpdate struct {
+	Timezone string `json:"timezone"`
+}
 
 // Problem defines model for Problem.
 type Problem struct {
@@ -163,10 +360,54 @@ type Origin = string
 
 // ListDocumentsParams defines parameters for ListDocuments.
 type ListDocumentsParams struct {
-	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *int    `form:"page_size,omitempty" json:"page_size,omitempty"`
-	Q        *string `form:"q,omitempty" json:"q,omitempty"`
+	Page      *int                     `form:"page,omitempty" json:"page,omitempty"`
+	PageSize  *int                     `form:"page_size,omitempty" json:"page_size,omitempty"`
+	Q         *string                  `form:"q,omitempty" json:"q,omitempty"`
+	Sort      *ListDocumentsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+	Resumable *bool                    `form:"resumable,omitempty" json:"resumable,omitempty"`
 }
+
+// ListDocumentsParamsSort defines parameters for ListDocuments.
+type ListDocumentsParamsSort string
+
+// UploadDocumentParams defines parameters for UploadDocument.
+type UploadDocumentParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// DeleteDocumentParams defines parameters for DeleteDocument.
+type DeleteDocumentParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// EditDocumentParams defines parameters for EditDocument.
+type EditDocumentParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// ListInsightRankingsParams defines parameters for ListInsightRankings.
+type ListInsightRankingsParams struct {
+	Days   *ListInsightRankingsParamsDays   `form:"days,omitempty" json:"days,omitempty"`
+	Metric *ListInsightRankingsParamsMetric `form:"metric,omitempty" json:"metric,omitempty"`
+}
+
+// ListInsightRankingsParamsDays defines parameters for ListInsightRankings.
+type ListInsightRankingsParamsDays int
+
+// ListInsightRankingsParamsMetric defines parameters for ListInsightRankings.
+type ListInsightRankingsParamsMetric string
 
 // SubmitActivityParams defines parameters for SubmitActivity.
 type SubmitActivityParams struct {
@@ -186,6 +427,45 @@ type RegisterDeviceParams struct {
 	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
 }
 
+// UpdateDevicePreferencesParams defines parameters for UpdateDevicePreferences.
+type UpdateDevicePreferencesParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// ListInsightActivityParams defines parameters for ListInsightActivity.
+type ListInsightActivityParams struct {
+	Page     *int                `form:"page,omitempty" json:"page,omitempty"`
+	Document *string             `form:"document,omitempty" json:"document,omitempty"`
+	Day      *openapi_types.Date `form:"day,omitempty" json:"day,omitempty"`
+}
+
+// ListInsightProgressParams defines parameters for ListInsightProgress.
+type ListInsightProgressParams struct {
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+}
+
+// ChangePasswordParams defines parameters for ChangePassword.
+type ChangePasswordParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdatePreferencesParams defines parameters for UpdatePreferences.
+type UpdatePreferencesParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
 // SubmitProgressParams defines parameters for SubmitProgress.
 type SubmitProgressParams struct {
 	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
@@ -193,6 +473,11 @@ type SubmitProgressParams struct {
 
 	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
 	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// LookupMetadataParams defines parameters for LookupMetadata.
+type LookupMetadataParams struct {
+	Q string `form:"q" json:"q"`
 }
 
 // LoginParams defines parameters for Login.
@@ -225,11 +510,23 @@ type RegisterParams struct {
 	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
 }
 
+// EditDocumentJSONRequestBody defines body for EditDocument for application/json ContentType.
+type EditDocumentJSONRequestBody = DocumentEdit
+
 // SubmitActivityJSONRequestBody defines body for SubmitActivity for application/json ContentType.
 type SubmitActivityJSONRequestBody = ActivityEvent
 
 // RegisterDeviceJSONRequestBody defines body for RegisterDevice for application/json ContentType.
 type RegisterDeviceJSONRequestBody = Device
+
+// UpdateDevicePreferencesJSONRequestBody defines body for UpdateDevicePreferences for application/json ContentType.
+type UpdateDevicePreferencesJSONRequestBody = DevicePreferences
+
+// ChangePasswordJSONRequestBody defines body for ChangePassword for application/json ContentType.
+type ChangePasswordJSONRequestBody = PasswordChange
+
+// UpdatePreferencesJSONRequestBody defines body for UpdatePreferences for application/json ContentType.
+type UpdatePreferencesJSONRequestBody = PreferencesUpdate
 
 // SubmitProgressJSONRequestBody defines body for SubmitProgress for application/json ContentType.
 type SubmitProgressJSONRequestBody = ProgressEvent
@@ -252,8 +549,17 @@ type ServerInterface interface {
 	// (GET /api/v1/documents)
 	ListDocuments(c *gin.Context, params ListDocumentsParams)
 
+	// (POST /api/v1/documents)
+	UploadDocument(c *gin.Context, params UploadDocumentParams)
+
+	// (DELETE /api/v1/documents/{id})
+	DeleteDocument(c *gin.Context, id ID, params DeleteDocumentParams)
+
 	// (GET /api/v1/documents/{id})
 	GetDocument(c *gin.Context, id ID)
+
+	// (PATCH /api/v1/documents/{id})
+	EditDocument(c *gin.Context, id ID, params EditDocumentParams)
 
 	// (GET /api/v1/documents/{id}/cover)
 	GetDocumentCover(c *gin.Context, id ID)
@@ -261,17 +567,47 @@ type ServerInterface interface {
 	// (GET /api/v1/documents/{id}/file)
 	DownloadDocument(c *gin.Context, id ID)
 
+	// (GET /api/v1/insights/rankings)
+	ListInsightRankings(c *gin.Context, params ListInsightRankingsParams)
+
 	// (POST /api/v1/me/activity)
 	SubmitActivity(c *gin.Context, params SubmitActivityParams)
 
+	// (GET /api/v1/me/devices)
+	ListManagedDevices(c *gin.Context)
+
 	// (POST /api/v1/me/devices)
 	RegisterDevice(c *gin.Context, params RegisterDeviceParams)
+
+	// (PATCH /api/v1/me/devices/{id})
+	UpdateDevicePreferences(c *gin.Context, id ID, params UpdateDevicePreferencesParams)
+
+	// (GET /api/v1/me/insights)
+	GetInsights(c *gin.Context)
+
+	// (GET /api/v1/me/insights/activity)
+	ListInsightActivity(c *gin.Context, params ListInsightActivityParams)
+
+	// (GET /api/v1/me/insights/progress)
+	ListInsightProgress(c *gin.Context, params ListInsightProgressParams)
+
+	// (POST /api/v1/me/password)
+	ChangePassword(c *gin.Context, params ChangePasswordParams)
+
+	// (PATCH /api/v1/me/preferences)
+	UpdatePreferences(c *gin.Context, params UpdatePreferencesParams)
 
 	// (POST /api/v1/me/reading-progress)
 	SubmitProgress(c *gin.Context, params SubmitProgressParams)
 
 	// (GET /api/v1/me/reading-state/{document_id})
 	GetReadingState(c *gin.Context, documentId ID)
+
+	// (GET /api/v1/metadata/covers/{cover_id})
+	GetMetadataCover(c *gin.Context, coverId int64)
+
+	// (GET /api/v1/metadata/search)
+	LookupMetadata(c *gin.Context, params LookupMetadataParams)
 
 	// (GET /api/v1/session)
 	GetSession(c *gin.Context)
@@ -341,6 +677,22 @@ func (siw *ServerInterfaceWrapper) ListDocuments(c *gin.Context) {
 		return
 	}
 
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", c.Request.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sort: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "resumable" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "resumable", c.Request.URL.Query(), &params.Resumable, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter resumable: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -349,6 +701,133 @@ func (siw *ServerInterfaceWrapper) ListDocuments(c *gin.Context) {
 	}
 
 	siw.Handler.ListDocuments(c, params)
+}
+
+// UploadDocument operation middleware
+func (siw *ServerInterfaceWrapper) UploadDocument(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UploadDocumentParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UploadDocument(c, params)
+}
+
+// DeleteDocument operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDocument(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteDocumentParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteDocument(c, id, params)
 }
 
 // GetDocument operation middleware
@@ -374,6 +853,74 @@ func (siw *ServerInterfaceWrapper) GetDocument(c *gin.Context) {
 	}
 
 	siw.Handler.GetDocument(c, id)
+}
+
+// EditDocument operation middleware
+func (siw *ServerInterfaceWrapper) EditDocument(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params EditDocumentParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.EditDocument(c, id, params)
 }
 
 // GetDocumentCover operation middleware
@@ -424,6 +971,41 @@ func (siw *ServerInterfaceWrapper) DownloadDocument(c *gin.Context) {
 	}
 
 	siw.Handler.DownloadDocument(c, id)
+}
+
+// ListInsightRankings operation middleware
+func (siw *ServerInterfaceWrapper) ListInsightRankings(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListInsightRankingsParams
+
+	// ------------- Optional query parameter "days" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "days", c.Request.URL.Query(), &params.Days, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter days: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "metric" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metric", c.Request.URL.Query(), &params.Metric, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter metric: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListInsightRankings(c, params)
 }
 
 // SubmitActivity operation middleware
@@ -485,6 +1067,19 @@ func (siw *ServerInterfaceWrapper) SubmitActivity(c *gin.Context) {
 	siw.Handler.SubmitActivity(c, params)
 }
 
+// ListManagedDevices operation middleware
+func (siw *ServerInterfaceWrapper) ListManagedDevices(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListManagedDevices(c)
+}
+
 // RegisterDevice operation middleware
 func (siw *ServerInterfaceWrapper) RegisterDevice(c *gin.Context) {
 
@@ -542,6 +1137,275 @@ func (siw *ServerInterfaceWrapper) RegisterDevice(c *gin.Context) {
 	}
 
 	siw.Handler.RegisterDevice(c, params)
+}
+
+// UpdateDevicePreferences operation middleware
+func (siw *ServerInterfaceWrapper) UpdateDevicePreferences(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateDevicePreferencesParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateDevicePreferences(c, id, params)
+}
+
+// GetInsights operation middleware
+func (siw *ServerInterfaceWrapper) GetInsights(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetInsights(c)
+}
+
+// ListInsightActivity operation middleware
+func (siw *ServerInterfaceWrapper) ListInsightActivity(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListInsightActivityParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "document" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "document", c.Request.URL.Query(), &params.Document, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "day" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "day", c.Request.URL.Query(), &params.Day, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter day: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListInsightActivity(c, params)
+}
+
+// ListInsightProgress operation middleware
+func (siw *ServerInterfaceWrapper) ListInsightProgress(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListInsightProgressParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListInsightProgress(c, params)
+}
+
+// ChangePassword operation middleware
+func (siw *ServerInterfaceWrapper) ChangePassword(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ChangePasswordParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ChangePassword(c, params)
+}
+
+// UpdatePreferences operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePreferences(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdatePreferencesParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdatePreferences(c, params)
 }
 
 // SubmitProgress operation middleware
@@ -626,6 +1490,58 @@ func (siw *ServerInterfaceWrapper) GetReadingState(c *gin.Context) {
 	}
 
 	siw.Handler.GetReadingState(c, documentId)
+}
+
+// GetMetadataCover operation middleware
+func (siw *ServerInterfaceWrapper) GetMetadataCover(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "cover_id" -------------
+	var coverId int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "cover_id", c.Param("cover_id"), &coverId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter cover_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMetadataCover(c, coverId)
+}
+
+// LookupMetadata operation middleware
+func (siw *ServerInterfaceWrapper) LookupMetadata(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params LookupMetadataParams
+
+	// ------------- Required query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "q", c.Request.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LookupMetadata(c, params)
 }
 
 // GetSession operation middleware
@@ -851,13 +1767,26 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/api/v1/session/register", wrapper.Register)
 	router.POST(options.BaseURL+"/api/v1/session/logout", wrapper.Logout)
 	router.GET(options.BaseURL+"/api/v1/documents", wrapper.ListDocuments)
+	router.POST(options.BaseURL+"/api/v1/documents", wrapper.UploadDocument)
+	router.DELETE(options.BaseURL+"/api/v1/documents/:id", wrapper.DeleteDocument)
 	router.GET(options.BaseURL+"/api/v1/documents/:id", wrapper.GetDocument)
+	router.PATCH(options.BaseURL+"/api/v1/documents/:id", wrapper.EditDocument)
+	router.GET(options.BaseURL+"/api/v1/metadata/search", wrapper.LookupMetadata)
+	router.GET(options.BaseURL+"/api/v1/metadata/covers/:cover_id", wrapper.GetMetadataCover)
 	router.GET(options.BaseURL+"/api/v1/documents/:id/cover", wrapper.GetDocumentCover)
 	router.GET(options.BaseURL+"/api/v1/documents/:id/file", wrapper.DownloadDocument)
+	router.PATCH(options.BaseURL+"/api/v1/me/preferences", wrapper.UpdatePreferences)
+	router.POST(options.BaseURL+"/api/v1/me/password", wrapper.ChangePassword)
+	router.PATCH(options.BaseURL+"/api/v1/me/devices/:id", wrapper.UpdateDevicePreferences)
+	router.GET(options.BaseURL+"/api/v1/me/devices", wrapper.ListManagedDevices)
 	router.POST(options.BaseURL+"/api/v1/me/devices", wrapper.RegisterDevice)
 	router.GET(options.BaseURL+"/api/v1/me/reading-state/:document_id", wrapper.GetReadingState)
 	router.POST(options.BaseURL+"/api/v1/me/reading-progress", wrapper.SubmitProgress)
 	router.POST(options.BaseURL+"/api/v1/me/activity", wrapper.SubmitActivity)
+	router.GET(options.BaseURL+"/api/v1/me/insights", wrapper.GetInsights)
+	router.GET(options.BaseURL+"/api/v1/me/insights/activity", wrapper.ListInsightActivity)
+	router.GET(options.BaseURL+"/api/v1/me/insights/progress", wrapper.ListInsightProgress)
+	router.GET(options.BaseURL+"/api/v1/insights/rankings", wrapper.ListInsightRankings)
 }
 
 type ProblemResponseHeaders struct {
@@ -954,6 +1883,88 @@ func (response ListDocumentsdefaultApplicationProblemPlusJSONResponse) VisitList
 	return err
 }
 
+type UploadDocumentRequestObject struct {
+	Params UploadDocumentParams
+	Body   io.Reader
+}
+
+type UploadDocumentResponseObject interface {
+	VisitUploadDocumentResponse(w http.ResponseWriter) error
+}
+
+type UploadDocument200JSONResponse Document
+
+func (response UploadDocument200JSONResponse) VisitUploadDocumentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadDocumentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response UploadDocumentdefaultApplicationProblemPlusJSONResponse) VisitUploadDocumentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteDocumentRequestObject struct {
+	Id     ID `json:"id"`
+	Params DeleteDocumentParams
+}
+
+type DeleteDocumentResponseObject interface {
+	VisitDeleteDocumentResponse(w http.ResponseWriter) error
+}
+
+type DeleteDocument204Response struct {
+}
+
+func (response DeleteDocument204Response) VisitDeleteDocumentResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteDocumentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response DeleteDocumentdefaultApplicationProblemPlusJSONResponse) VisitDeleteDocumentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetDocumentRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -983,6 +1994,51 @@ type GetDocumentdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetDocumentdefaultApplicationProblemPlusJSONResponse) VisitGetDocumentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EditDocumentRequestObject struct {
+	Id     ID `json:"id"`
+	Params EditDocumentParams
+	Body   *EditDocumentJSONRequestBody
+}
+
+type EditDocumentResponseObject interface {
+	VisitEditDocumentResponse(w http.ResponseWriter) error
+}
+
+type EditDocument200JSONResponse Document
+
+func (response EditDocument200JSONResponse) VisitEditDocumentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EditDocumentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response EditDocumentdefaultApplicationProblemPlusJSONResponse) VisitEditDocumentResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1163,6 +2219,49 @@ func (response DownloadDocumentdefaultApplicationProblemPlusJSONResponse) VisitD
 	return err
 }
 
+type ListInsightRankingsRequestObject struct {
+	Params ListInsightRankingsParams
+}
+
+type ListInsightRankingsResponseObject interface {
+	VisitListInsightRankingsResponse(w http.ResponseWriter) error
+}
+
+type ListInsightRankings200JSONResponse InsightRankings
+
+func (response ListInsightRankings200JSONResponse) VisitListInsightRankingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListInsightRankingsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response ListInsightRankingsdefaultApplicationProblemPlusJSONResponse) VisitListInsightRankingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SubmitActivityRequestObject struct {
 	Params SubmitActivityParams
 	Body   *SubmitActivityJSONRequestBody
@@ -1207,6 +2306,48 @@ func (response SubmitActivitydefaultApplicationProblemPlusJSONResponse) VisitSub
 	return err
 }
 
+type ListManagedDevicesRequestObject struct {
+}
+
+type ListManagedDevicesResponseObject interface {
+	VisitListManagedDevicesResponse(w http.ResponseWriter) error
+}
+
+type ListManagedDevices200JSONResponse []ManagedDevice
+
+func (response ListManagedDevices200JSONResponse) VisitListManagedDevicesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListManagedDevicesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response ListManagedDevicesdefaultApplicationProblemPlusJSONResponse) VisitListManagedDevicesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RegisterDeviceRequestObject struct {
 	Params RegisterDeviceParams
 	Body   *RegisterDeviceJSONRequestBody
@@ -1237,6 +2378,267 @@ type RegisterDevicedefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response RegisterDevicedefaultApplicationProblemPlusJSONResponse) VisitRegisterDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDevicePreferencesRequestObject struct {
+	Id     ID `json:"id"`
+	Params UpdateDevicePreferencesParams
+	Body   *UpdateDevicePreferencesJSONRequestBody
+}
+
+type UpdateDevicePreferencesResponseObject interface {
+	VisitUpdateDevicePreferencesResponse(w http.ResponseWriter) error
+}
+
+type UpdateDevicePreferences200JSONResponse ManagedDevice
+
+func (response UpdateDevicePreferences200JSONResponse) VisitUpdateDevicePreferencesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDevicePreferencesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response UpdateDevicePreferencesdefaultApplicationProblemPlusJSONResponse) VisitUpdateDevicePreferencesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetInsightsRequestObject struct {
+}
+
+type GetInsightsResponseObject interface {
+	VisitGetInsightsResponse(w http.ResponseWriter) error
+}
+
+type GetInsights200JSONResponse Insights
+
+func (response GetInsights200JSONResponse) VisitGetInsightsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetInsightsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response GetInsightsdefaultApplicationProblemPlusJSONResponse) VisitGetInsightsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListInsightActivityRequestObject struct {
+	Params ListInsightActivityParams
+}
+
+type ListInsightActivityResponseObject interface {
+	VisitListInsightActivityResponse(w http.ResponseWriter) error
+}
+
+type ListInsightActivity200JSONResponse InsightActivityPage
+
+func (response ListInsightActivity200JSONResponse) VisitListInsightActivityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListInsightActivitydefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response ListInsightActivitydefaultApplicationProblemPlusJSONResponse) VisitListInsightActivityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListInsightProgressRequestObject struct {
+	Params ListInsightProgressParams
+}
+
+type ListInsightProgressResponseObject interface {
+	VisitListInsightProgressResponse(w http.ResponseWriter) error
+}
+
+type ListInsightProgress200JSONResponse InsightProgressPage
+
+func (response ListInsightProgress200JSONResponse) VisitListInsightProgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListInsightProgressdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response ListInsightProgressdefaultApplicationProblemPlusJSONResponse) VisitListInsightProgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangePasswordRequestObject struct {
+	Params ChangePasswordParams
+	Body   *ChangePasswordJSONRequestBody
+}
+
+type ChangePasswordResponseObject interface {
+	VisitChangePasswordResponse(w http.ResponseWriter) error
+}
+
+type ChangePassword200JSONResponse Session
+
+func (response ChangePassword200JSONResponse) VisitChangePasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangePassworddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response ChangePassworddefaultApplicationProblemPlusJSONResponse) VisitChangePasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdatePreferencesRequestObject struct {
+	Params UpdatePreferencesParams
+	Body   *UpdatePreferencesJSONRequestBody
+}
+
+type UpdatePreferencesResponseObject interface {
+	VisitUpdatePreferencesResponse(w http.ResponseWriter) error
+}
+
+type UpdatePreferences200JSONResponse Session
+
+func (response UpdatePreferences200JSONResponse) VisitUpdatePreferencesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdatePreferencesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response UpdatePreferencesdefaultApplicationProblemPlusJSONResponse) VisitUpdatePreferencesResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1324,6 +2726,98 @@ type GetReadingStatedefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetReadingStatedefaultApplicationProblemPlusJSONResponse) VisitGetReadingStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMetadataCoverRequestObject struct {
+	CoverId int64 `json:"cover_id"`
+}
+
+type GetMetadataCoverResponseObject interface {
+	VisitGetMetadataCoverResponse(w http.ResponseWriter) error
+}
+
+type GetMetadataCover200ImagejpegResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetMetadataCover200ImagejpegResponse) VisitGetMetadataCoverResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "image/jpeg")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetMetadataCoverdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response GetMetadataCoverdefaultApplicationProblemPlusJSONResponse) VisitGetMetadataCoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LookupMetadataRequestObject struct {
+	Params LookupMetadataParams
+}
+
+type LookupMetadataResponseObject interface {
+	VisitLookupMetadataResponse(w http.ResponseWriter) error
+}
+
+type LookupMetadata200JSONResponse []MetadataMatch
+
+func (response LookupMetadata200JSONResponse) VisitLookupMetadataResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LookupMetadatadefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response LookupMetadatadefaultApplicationProblemPlusJSONResponse) VisitLookupMetadataResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1521,8 +3015,17 @@ type StrictServerInterface interface {
 	// (GET /api/v1/documents)
 	ListDocuments(ctx context.Context, request ListDocumentsRequestObject) (ListDocumentsResponseObject, error)
 
+	// (POST /api/v1/documents)
+	UploadDocument(ctx context.Context, request UploadDocumentRequestObject) (UploadDocumentResponseObject, error)
+
+	// (DELETE /api/v1/documents/{id})
+	DeleteDocument(ctx context.Context, request DeleteDocumentRequestObject) (DeleteDocumentResponseObject, error)
+
 	// (GET /api/v1/documents/{id})
 	GetDocument(ctx context.Context, request GetDocumentRequestObject) (GetDocumentResponseObject, error)
+
+	// (PATCH /api/v1/documents/{id})
+	EditDocument(ctx context.Context, request EditDocumentRequestObject) (EditDocumentResponseObject, error)
 
 	// (GET /api/v1/documents/{id}/cover)
 	GetDocumentCover(ctx context.Context, request GetDocumentCoverRequestObject) (GetDocumentCoverResponseObject, error)
@@ -1530,17 +3033,47 @@ type StrictServerInterface interface {
 	// (GET /api/v1/documents/{id}/file)
 	DownloadDocument(ctx context.Context, request DownloadDocumentRequestObject) (DownloadDocumentResponseObject, error)
 
+	// (GET /api/v1/insights/rankings)
+	ListInsightRankings(ctx context.Context, request ListInsightRankingsRequestObject) (ListInsightRankingsResponseObject, error)
+
 	// (POST /api/v1/me/activity)
 	SubmitActivity(ctx context.Context, request SubmitActivityRequestObject) (SubmitActivityResponseObject, error)
 
+	// (GET /api/v1/me/devices)
+	ListManagedDevices(ctx context.Context, request ListManagedDevicesRequestObject) (ListManagedDevicesResponseObject, error)
+
 	// (POST /api/v1/me/devices)
 	RegisterDevice(ctx context.Context, request RegisterDeviceRequestObject) (RegisterDeviceResponseObject, error)
+
+	// (PATCH /api/v1/me/devices/{id})
+	UpdateDevicePreferences(ctx context.Context, request UpdateDevicePreferencesRequestObject) (UpdateDevicePreferencesResponseObject, error)
+
+	// (GET /api/v1/me/insights)
+	GetInsights(ctx context.Context, request GetInsightsRequestObject) (GetInsightsResponseObject, error)
+
+	// (GET /api/v1/me/insights/activity)
+	ListInsightActivity(ctx context.Context, request ListInsightActivityRequestObject) (ListInsightActivityResponseObject, error)
+
+	// (GET /api/v1/me/insights/progress)
+	ListInsightProgress(ctx context.Context, request ListInsightProgressRequestObject) (ListInsightProgressResponseObject, error)
+
+	// (POST /api/v1/me/password)
+	ChangePassword(ctx context.Context, request ChangePasswordRequestObject) (ChangePasswordResponseObject, error)
+
+	// (PATCH /api/v1/me/preferences)
+	UpdatePreferences(ctx context.Context, request UpdatePreferencesRequestObject) (UpdatePreferencesResponseObject, error)
 
 	// (POST /api/v1/me/reading-progress)
 	SubmitProgress(ctx context.Context, request SubmitProgressRequestObject) (SubmitProgressResponseObject, error)
 
 	// (GET /api/v1/me/reading-state/{document_id})
 	GetReadingState(ctx context.Context, request GetReadingStateRequestObject) (GetReadingStateResponseObject, error)
+
+	// (GET /api/v1/metadata/covers/{cover_id})
+	GetMetadataCover(ctx context.Context, request GetMetadataCoverRequestObject) (GetMetadataCoverResponseObject, error)
+
+	// (GET /api/v1/metadata/search)
+	LookupMetadata(ctx context.Context, request LookupMetadataRequestObject) (LookupMetadataResponseObject, error)
 
 	// (GET /api/v1/session)
 	GetSession(ctx context.Context, request GetSessionRequestObject) (GetSessionResponseObject, error)
@@ -1662,6 +3195,61 @@ func (sh *strictHandler) ListDocuments(ctx *gin.Context, params ListDocumentsPar
 	}
 }
 
+// UploadDocument operation middleware
+func (sh *strictHandler) UploadDocument(ctx *gin.Context, params UploadDocumentParams) {
+	var request UploadDocumentRequestObject
+
+	request.Params = params
+
+	request.Body = ctx.Request.Body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UploadDocument(ctx, request.(UploadDocumentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UploadDocument")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(UploadDocumentResponseObject); ok {
+		if err := validResponse.VisitUploadDocumentResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteDocument operation middleware
+func (sh *strictHandler) DeleteDocument(ctx *gin.Context, id ID, params DeleteDocumentParams) {
+	var request DeleteDocumentRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteDocument(ctx, request.(DeleteDocumentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteDocument")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(DeleteDocumentResponseObject); ok {
+		if err := validResponse.VisitDeleteDocumentResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetDocument operation middleware
 func (sh *strictHandler) GetDocument(ctx *gin.Context, id ID) {
 	var request GetDocumentRequestObject
@@ -1681,6 +3269,51 @@ func (sh *strictHandler) GetDocument(ctx *gin.Context, id ID) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(GetDocumentResponseObject); ok {
 		if err := validResponse.VisitGetDocumentResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// EditDocument operation middleware
+func (sh *strictHandler) EditDocument(ctx *gin.Context, id ID, params EditDocumentParams) {
+	var request EditDocumentRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body EditDocumentJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.EditDocument(ctx, request.(EditDocumentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EditDocument")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(EditDocumentResponseObject); ok {
+		if err := validResponse.VisitEditDocumentResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -1740,6 +3373,32 @@ func (sh *strictHandler) DownloadDocument(ctx *gin.Context, id ID) {
 	}
 }
 
+// ListInsightRankings operation middleware
+func (sh *strictHandler) ListInsightRankings(ctx *gin.Context, params ListInsightRankingsParams) {
+	var request ListInsightRankingsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ListInsightRankings(ctx, request.(ListInsightRankingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListInsightRankings")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ListInsightRankingsResponseObject); ok {
+		if err := validResponse.VisitListInsightRankingsResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // SubmitActivity operation middleware
 func (sh *strictHandler) SubmitActivity(ctx *gin.Context, params SubmitActivityParams) {
 	var request SubmitActivityRequestObject
@@ -1784,6 +3443,30 @@ func (sh *strictHandler) SubmitActivity(ctx *gin.Context, params SubmitActivityP
 	}
 }
 
+// ListManagedDevices operation middleware
+func (sh *strictHandler) ListManagedDevices(ctx *gin.Context) {
+	var request ListManagedDevicesRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ListManagedDevices(ctx, request.(ListManagedDevicesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListManagedDevices")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ListManagedDevicesResponseObject); ok {
+		if err := validResponse.VisitListManagedDevicesResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // RegisterDevice operation middleware
 func (sh *strictHandler) RegisterDevice(ctx *gin.Context, params RegisterDeviceParams) {
 	var request RegisterDeviceRequestObject
@@ -1821,6 +3504,215 @@ func (sh *strictHandler) RegisterDevice(ctx *gin.Context, params RegisterDeviceP
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(RegisterDeviceResponseObject); ok {
 		if err := validResponse.VisitRegisterDeviceResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateDevicePreferences operation middleware
+func (sh *strictHandler) UpdateDevicePreferences(ctx *gin.Context, id ID, params UpdateDevicePreferencesParams) {
+	var request UpdateDevicePreferencesRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body UpdateDevicePreferencesJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateDevicePreferences(ctx, request.(UpdateDevicePreferencesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateDevicePreferences")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(UpdateDevicePreferencesResponseObject); ok {
+		if err := validResponse.VisitUpdateDevicePreferencesResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetInsights operation middleware
+func (sh *strictHandler) GetInsights(ctx *gin.Context) {
+	var request GetInsightsRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetInsights(ctx, request.(GetInsightsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetInsights")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetInsightsResponseObject); ok {
+		if err := validResponse.VisitGetInsightsResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListInsightActivity operation middleware
+func (sh *strictHandler) ListInsightActivity(ctx *gin.Context, params ListInsightActivityParams) {
+	var request ListInsightActivityRequestObject
+
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ListInsightActivity(ctx, request.(ListInsightActivityRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListInsightActivity")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ListInsightActivityResponseObject); ok {
+		if err := validResponse.VisitListInsightActivityResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListInsightProgress operation middleware
+func (sh *strictHandler) ListInsightProgress(ctx *gin.Context, params ListInsightProgressParams) {
+	var request ListInsightProgressRequestObject
+
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ListInsightProgress(ctx, request.(ListInsightProgressRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListInsightProgress")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ListInsightProgressResponseObject); ok {
+		if err := validResponse.VisitListInsightProgressResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ChangePassword operation middleware
+func (sh *strictHandler) ChangePassword(ctx *gin.Context, params ChangePasswordParams) {
+	var request ChangePasswordRequestObject
+
+	request.Params = params
+
+	var body ChangePasswordJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ChangePassword(ctx, request.(ChangePasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ChangePassword")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ChangePasswordResponseObject); ok {
+		if err := validResponse.VisitChangePasswordResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdatePreferences operation middleware
+func (sh *strictHandler) UpdatePreferences(ctx *gin.Context, params UpdatePreferencesParams) {
+	var request UpdatePreferencesRequestObject
+
+	request.Params = params
+
+	var body UpdatePreferencesJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdatePreferences(ctx, request.(UpdatePreferencesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdatePreferences")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(UpdatePreferencesResponseObject); ok {
+		if err := validResponse.VisitUpdatePreferencesResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -1891,6 +3783,58 @@ func (sh *strictHandler) GetReadingState(ctx *gin.Context, documentId ID) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(GetReadingStateResponseObject); ok {
 		if err := validResponse.VisitGetReadingStateResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMetadataCover operation middleware
+func (sh *strictHandler) GetMetadataCover(ctx *gin.Context, coverId int64) {
+	var request GetMetadataCoverRequestObject
+
+	request.CoverId = coverId
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMetadataCover(ctx, request.(GetMetadataCoverRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMetadataCover")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetMetadataCoverResponseObject); ok {
+		if err := validResponse.VisitGetMetadataCoverResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// LookupMetadata operation middleware
+func (sh *strictHandler) LookupMetadata(ctx *gin.Context, params LookupMetadataParams) {
+	var request LookupMetadataRequestObject
+
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.LookupMetadata(ctx, request.(LookupMetadataRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "LookupMetadata")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(LookupMetadataResponseObject); ok {
+		if err := validResponse.VisitLookupMetadataResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -2059,42 +4003,62 @@ func (sh *strictHandler) Register(ctx *gin.Context, params RegisterParams) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"5Fptc9u4Ef4rGDQf2pSKJFtxYuWTY99dPfXceezeTGc8rgYiVhIuJMAAS9k61/+9A4CUSAl6oSL7LtNP",
-	"NikA+/I82F0s+ERjlWZKgkRD+080Y5qlgKDd0/ntzY/2LwcTa5GhUJL26S3oKeiWhq+50MCJZpKrlBgw",
-	"RijZGqpccoLqC8iImDzLEgGcDGckTgRIJKngPIEHpuET0QoZgiFKEpbjBCSKmFkxJJ4wOQZDIyqszAkw",
-	"DppGVLIUaJ/+u2V1a/3LSqERNfEEUmZVTdnjFcgxTmi/e/QxoqmQ5fPxUURxltnpBrWQY/r8HNHLCzvN",
-	"CckYThYiBKcRLY2kfdQ5VAW90TCiffqX9sKBbf+raV9euKV/0WJsF1524GetHgzoVqbVVHDgETFLLoVH",
-	"FiO5/vXz1eX54Jeby58uf/5EJExBEyFHoO2YkVYpsTPAIPmHMrjOV4Uaa7x01OnV3dRd9dKzdwQY/Ky4",
-	"AM8NDdzixRL3GCuJINH+yyzkHsb2b0Y5B+zmt+qac6kL9/s3JlPSeB2utRomkG6Qn/kRf2+mR7mu02GJ",
-	"/GwEJGXxREhoaWCcDRMgoLWyHveud7rdAOpZ62yEoFcZcK3B2L0wUpogpJnSTM9ILtmUiYQNRSJwVgNs",
-	"BRGrWaGu/f0sRjEVOPthWjqBc2GFseRaqww0OthGLDEQ0azyyqo2FTEMBN+F1hHlKs5TkLj7hFwzb7cj",
-	"nkjzlPY/nvQ6Hcc7/9yZs05IhDFoOxMkH4w0i8vZI6VThrRPucqHCdBosV43uJbM02Gx1HQ3lZ0Dvd4G",
-	"mcZDyfeLobA7sroQQ2i5t6HYtKD/3cKAOgJRBb6alIrfV0xZ8uz9XLYa/gYxWn3PWeZ5WJCkEZ9SNUgV",
-	"hwpxh0olwCR1Ro2FQa/aAKTdPzw80gDT8WTTmCUfBZdeWSeqaBg0vR7ZGlieMWMelObLIfb9yZYIG9Hc",
-	"gPbxuuHUJRfM14kW2oSMvHCsaWjfrjs+YMhyMt5qiOOzWyiofrEFGhpgiwzl4rHMk8TSoUzsK4DEagp6",
-	"UATkZA2Xa1F9h0VHIoFta7oxRvwOg+EMvdrzcCEknvRoPdSsEVoJo7vCljA53smMFLhgA/96h+EGdOH/",
-	"rUNRYLLLoiGy+LlRCfJcbh2mwswVLFYRr9m5issmWl6zceO9hZDW/9kE2Jz/z3MtmNZs5nYfPOIgKzSY",
-	"M6W7C1NCs8KjnCdqGb1by+fBiaiQJbX1A2l/GVrnjnJuoWJVh6rBIUzKjF7dR3nuGFOJT8f1OGsfM4YI",
-	"2pZr/7nrtE5Za3TW+vH+6eNzq/rYa/LYPXp+s5LpI/rYGqvWyl7wOjeKoVG1JG5AvrierStRMNfaVhoa",
-	"psIUUW4TL2/KcS44IhNJcFmDDHNTo8/709MKfVxxGCBQGR5WA0cRjDbHiWIrl5GiUCPy9s81DrHoWqux",
-	"BmP2KbCHzMCeHnzZynyPovhA5bAauiMvHzDctR6OaKaMqBwkym3Q65w2LJJ2qqWrKkZLGFZ0qbgkxJsb",
-	"YFzI8S0yhG85l23NnI3B3w/JNXoskK2CtFXpfTZFnlmSbGROs+KhToEtGNc5UtElDH4MImsaLvbYlV+E",
-	"dMNBWpju7IIuWtlqqOgMVBQM+3/ZaZX099fOf++6rdN7m8runzpR98Pz3940ObE6/Sriws5a6NJcdkRv",
-	"ff+xaeYzejRwzcrm3cOIwmMmNJhv4KI/+W1VegWcvc5lwgwYT31LcvXgYRX+Xckd0qjDdL5YZeYqroHj",
-	"qc23C6/XnBicbyDOtcDZrbWlrFfUFwFnuQWmaN76V4uuZ7l6WR1n4p8w8x09IUfKGemrCXomcaKu8hTI",
-	"AwzJ2fUljegUtGcT7b7rvOu4nJWBZJmgfXr8rvPu2BWhOHH6tFkm2tNuO17qmozBEcNi5ZoSl5z26U+A",
-	"te7KUlPzqNM5XEO1KifQzbzOh4mICYcsUTMbA0nNAjd+xPIE1wmaa17pmS4Qo/27e/tcuqeMtOt9cyUM",
-	"XsxHRbX7iLsC6a856NkC6OJAsHDIXOVuJY0ddXsfeh+PT3ofNh9SnqP1UsrzRkDUUS9qcBJaJ+Tr2ib9",
-	"+5PVaHv/gsSpHWRDbfAJ08BJIoaa6dmeRAlSo/0k+POmvTM/+r6C+SHTr8QUCK+cv/exfIXZoZmLIS5+",
-	"3691V9u1LnZx2rkbuNVzImVjaL+tO2ye3oZCMkfbwD1R3Vc/PAqDQo6JU5C4xsknIhVJARlnyEii1Jc8",
-	"s2486py8kBY3/u7KX1WOgagRgYBiVonjTm/1tuZnhSRVXIwE8D8J4CPhz8FBvC/Ug0wU47vvlLcH8LK/",
-	"ZmQJsbp9IpkWU4ZApGoZVBrIg8AJMWwEhCGyeOLSjR3rgl+QAG9fBnxV1XRn1Hvdk9VBv0rDUJiRcNeA",
-	"TsIfxZAU2vNa35bQygSocZsPU4HlbSFtKrO4Srb5a8tI9+mAT1HlxfHsYOG5ftsZuil+wdxQHuoCXLtM",
-	"0xwdE+YU0+Xob86QKbT90dOsh/fGXYCBLm53vlN4C+1fGdeq1KXI9iCBE178fgggte8Ktebn9C0b9npx",
-	"nv8uEa13T/9/NmyJs0GG0H6qdJo2lri1pmH4EFT/Vmm5hbX3R0v3L4pDxaoAGGfu3k4gQ1thF64jE2D8",
-	"AGCYRXdondfLBtILuqAUEbD+3N+0EKUJk0rOUpWb8pu6gx/Ei3XbiSo+UAsHnyvlPxx77ZgTNrDyAVr9",
-	"S7E/BrCzxQeLwF8DKZXjRqjs73/i/LCxv7nc9XvVBLEB5Bv3gSo/2JYMQauLom17WfcdbsXuq6BU+Ofg",
-	"+7D+ot53vru37vJf7nowcp3QPm3bY9n/AgAA//8=",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

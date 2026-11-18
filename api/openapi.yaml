@@ -78,12 +78,29 @@ paths:
         - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 2147483647, default: 1}}
         - {name: page_size, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 24}}
         - {name: q, in: query, schema: {type: string, maxLength: 256}}
+        - {name: sort, in: query, schema: {type: string, enum: [title, author, added, read]}}
+        - {name: resumable, in: query, schema: {type: boolean}}
       responses:
         '200':
           description: Shared library
           content:
             application/json:
               schema: {$ref: '#/components/schemas/DocumentPage'}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: uploadDocument
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/epub+zip:
+            schema: {type: string, format: binary}
+      responses:
+        '200':
+          description: The existing or newly uploaded shared book
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Document'}
         default: {$ref: '#/components/responses/Problem'}
   /api/v1/documents/{id}:
     parameters:
@@ -96,6 +113,51 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Document'}
+        default: {$ref: '#/components/responses/Problem'}
+    patch:
+      operationId: editDocument
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DocumentEdit'}
+      responses:
+        '200':
+          description: Saved book
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Document'}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteDocument
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      responses:
+        '204': {description: Book removed from the shared library}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/metadata/search:
+    get:
+      operationId: lookupMetadata
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string, minLength: 2, maxLength: 240}}
+      responses:
+        '200':
+          description: Suggested metadata, not saved
+          content:
+            application/json:
+              schema: {type: array, maxItems: 8, items: {$ref: '#/components/schemas/MetadataMatch'}}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/metadata/covers/{cover_id}:
+    get:
+      operationId: getMetadataCover
+      parameters:
+        - {name: cover_id, in: path, required: true, schema: {type: integer, format: int64, minimum: 1, maximum: 9999999999}}
+      responses:
+        '200':
+          description: Open Library cover preview
+          content:
+            image/jpeg:
+              schema: {type: string, format: binary}
         default: {$ref: '#/components/responses/Problem'}
   /api/v1/documents/{id}/cover:
     parameters:
@@ -134,7 +196,65 @@ paths:
         '304': {description: Not modified}
         '416': {description: Unsatisfiable range}
         default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/preferences:
+    patch:
+      operationId: updatePreferences
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PreferencesUpdate'}
+      responses:
+        '200':
+          description: Saved account settings
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Session'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/password:
+    post:
+      operationId: changePassword
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PasswordChange'}
+      responses:
+        '200':
+          description: Saved account settings
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Session'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/devices/{id}:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    patch:
+      operationId: updateDevicePreferences
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DevicePreferences'}
+      responses:
+        '200':
+          description: Saved account settings
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ManagedDevice'}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/me/devices:
+    get:
+      operationId: listManagedDevices
+      responses:
+        '200':
+          description: Owned reading devices
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ManagedDevice'}}
+        default: {$ref: '#/components/responses/Problem'}
     post:
       operationId: registerDevice
       parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
@@ -196,6 +316,55 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Receipt'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/insights:
+    get:
+      operationId: getInsights
+      responses:
+        '200':
+          description: Current reading records
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Insights'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/insights/activity:
+    get:
+      operationId: listInsightActivity
+      parameters:
+        - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 100000}}
+        - {name: document, in: query, schema: {type: string, minLength: 1, maxLength: 128}}
+        - {name: day, in: query, schema: {type: string, format: date}}
+      responses:
+        '200':
+          description: Current reading records
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InsightActivityPage'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/insights/progress:
+    get:
+      operationId: listInsightProgress
+      parameters:
+        - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 100000}}
+      responses:
+        '200':
+          description: Current reading records
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InsightProgressPage'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/insights/rankings:
+    get:
+      operationId: listInsightRankings
+      parameters:
+        - {name: days, in: query, schema: {type: integer, enum: [7, 30, 365]}}
+        - {name: metric, in: query, schema: {type: string, enum: [time, words, pace]}}
+      responses:
+        '200':
+          description: Current reading records
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InsightRankings'}
         default: {$ref: '#/components/responses/Problem'}
 components:
   securitySchemes:
@@ -288,6 +457,112 @@ components:
         cover_available: {type: boolean}
         media_type: {type: string, nullable: true}
         file_size_bytes: {type: integer, format: int64, minimum: 0, nullable: true}
+        reading_stats: {$ref: '#/components/schemas/BookReadingStats'}
+        added_at: {type: string}
+        last_read_at: {type: string}
+        resume_fraction: {type: number, format: double, minimum: 0, maximum: 1}
+        isbn10: {type: string}
+        isbn13: {type: string}
+    Insights:
+      type: object
+      required: [timezone, as_of, days, seconds_read, active_days, current_streak, longest_streak, current_week_streak, longest_week_streak]
+      properties:
+        timezone: {type: string}
+        as_of: {type: string, format: date-time}
+        days: {type: array, items: {$ref: '#/components/schemas/InsightDay'}}
+        seconds_read: {type: integer, format: int64}
+        active_days: {type: integer}
+        current_streak: {type: integer}
+        longest_streak: {type: integer}
+        current_week_streak: {type: integer}
+        longest_week_streak: {type: integer}
+    InsightDay:
+      type: object
+      required: [date, seconds_read]
+      properties:
+        date: {type: string, format: date}
+        seconds_read: {type: integer, format: int64}
+    InsightActivity:
+      type: object
+      required: [id, document_id, title, available, started_at, duration, start_fraction, end_fraction]
+      properties:
+        id: {type: string}
+        document_id: {type: string}
+        title: {type: string}
+        available: {type: boolean}
+        started_at: {type: string, format: date-time}
+        duration: {type: integer, format: int64}
+        start_fraction: {type: number, format: double}
+        end_fraction: {type: number, format: double}
+    InsightProgress:
+      type: object
+      required: [document_id, title, available, updated_at, fraction]
+      properties:
+        document_id: {type: string}
+        title: {type: string}
+        available: {type: boolean}
+        updated_at: {type: string, format: date-time}
+        fraction: {type: number, format: double, nullable: true}
+    InsightActivityPage:
+      type: object
+      required: [items, has_more, timezone]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/InsightActivity'}}
+        has_more: {type: boolean}
+        timezone: {type: string}
+    InsightProgressPage:
+      type: object
+      required: [items, has_more, timezone]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/InsightProgress'}}
+        has_more: {type: boolean}
+        timezone: {type: string}
+    InsightRankings:
+      type: object
+      required: [items, as_of]
+      properties:
+        as_of: {type: string, format: date-time}
+        items: {type: array, items: {$ref: '#/components/schemas/InsightRank'}}
+    InsightRank:
+      type: object
+      required: [user, value]
+      properties:
+        user: {type: string}
+        value: {type: integer, format: int64}
+    DocumentEdit:
+      type: object
+      additionalProperties: false
+      required: [title, author, description, isbn10, isbn13]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 512}
+        author: {type: string, maxLength: 512}
+        description: {type: string, maxLength: 16000}
+        isbn10: {type: string, pattern: '^([0-9]{9}[0-9X])?$'}
+        isbn13: {type: string, pattern: '^([0-9]{13})?$'}
+        cover_base64: {type: string, maxLength: 2796204, minLength: 4}
+        remove_cover: {type: boolean}
+    MetadataMatch:
+      type: object
+      additionalProperties: false
+      required: [id, title, author]
+      properties:
+        id: {type: string}
+        title: {type: string}
+        author: {type: string}
+        year: {type: integer}
+        cover_id: {type: integer, format: int64, minimum: 1, maximum: 9999999999}
+        description: {type: string}
+        isbn10: {type: string}
+        isbn13: {type: string}
+    BookReadingStats:
+      type: object
+      additionalProperties: false
+      description: Account-scoped statistics returned on the book detail endpoint.
+      required: [reading_seconds, words_per_minute, word_count]
+      properties:
+        reading_seconds: {type: integer, format: int64, minimum: 0}
+        words_per_minute: {type: integer, format: int64, minimum: 0}
+        word_count: {type: integer, format: int64, minimum: 0, nullable: true}
     DocumentPage:
       type: object
       additionalProperties: false
@@ -309,6 +584,36 @@ components:
         fraction: {type: number, format: double, minimum: 0, maximum: 1, nullable: true}
         device_id: {type: string, nullable: true}
         updated_at: {type: string, format: date-time, nullable: true}
+    PreferencesUpdate:
+      type: object
+      additionalProperties: false
+      required: [timezone]
+      properties:
+        timezone: {type: string, minLength: 1, maxLength: 128}
+    PasswordChange:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password]
+      properties:
+        current_password: {type: string, minLength: 1, maxLength: 256}
+        new_password: {type: string, minLength: 1, maxLength: 256}
+    DevicePreferences:
+      type: object
+      additionalProperties: false
+      required: [label, archived]
+      properties:
+        label: {type: string, maxLength: 128}
+        archived: {type: boolean}
+    ManagedDevice:
+      type: object
+      additionalProperties: false
+      required: [id, name, label, archived, last_synced]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        name: {type: string}
+        label: {type: string}
+        archived: {type: boolean}
+        last_synced: {type: string, format: date-time}
     Device:
       type: object
       additionalProperties: false
