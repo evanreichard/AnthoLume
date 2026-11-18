@@ -60,7 +60,7 @@ test('late valid event 401 after real two-tab lease takeover cannot expire uncha
   try {
     await other.goto(`${server.origin}/app/library`);
     await expect(other.getByRole('link', { name: 'Settings', exact: true })).toBeVisible();
-    await expect(other.getByRole('button', { name: 'Add book', exact: true })).toBeEnabled();
+    await expect(other.getByRole('button', { name: 'Add Book', exact: true })).toBeEnabled();
     await other.getByRole('link', { name: 'Settings', exact: true }).click();
     await other.getByRole('button', { name: 'Sync', exact: true }).click();
     await expect(other.getByRole('button', { name: 'Retry synchronization', exact: true })).toBeVisible();

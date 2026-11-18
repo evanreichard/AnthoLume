@@ -125,7 +125,7 @@ test('administrators manage users while members cannot open Administration', asy
   await mkdir(`${server.data}/alternate-library`, { recursive: true });
   await Promise.all(Array.from({ length: 10 }, (_, index) => mkdir(`${server.data}/folder-${index}`)));
   const dialog = page.getByRole('dialog');
-  await page.getByRole('button', { name: 'Add source', exact: true }).click();
+  await page.getByRole('button', { name: 'Add Root', exact: true }).click();
   await dialog.getByLabel('Name', { exact: true }).fill('Alternate library');
   await dialog.getByLabel('Directory', { exact: true }).fill(server.data);
   await dialog.getByRole('button', { name: 'Browse directories' }).click();
@@ -191,19 +191,41 @@ test('administrators manage users while members cannot open Administration', asy
   await expect(page.getByText('nested/sample.epub', { exact: true })).toBeVisible();
   await page.reload();
   await expect(sections.getByRole('link', { name: 'Library', exact: true })).toHaveAttribute('aria-current', 'page');
-  const backupContents = page.getByLabel('Backup contents');
-  await expect(backupContents.getByRole('option')).toHaveText(['Database & Library', 'Database']);
-  const createBackup = page.getByRole('button', { name: 'Create backup' });
-  await expect(backupContents).toHaveValue('full');
-  expect((await backupContents.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-  expect((await createBackup.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-  expect((await createBackup.locator('span').boundingBox())!.height).toBe(32);
-  await createBackup.click();
-  await expect(page.getByText('Completed', { exact: true })).toBeVisible();
   const backupCard = page.getByRole('region', { name: 'Backup & Restore', exact: true });
-  const downloadBackup = backupCard.getByRole('link', { name: 'Download backup' });
+  const backupActions = backupCard.getByRole('group', { name: 'Backup actions' });
+  const createBackup = backupActions.getByRole('button', { name: 'Create Backup', exact: true });
+  const restoreBackup = backupActions.getByRole('button', { name: 'Restore Backup', exact: true });
+  await expect(backupCard.getByLabel('Backup contents')).toHaveCount(0);
+  await expect(backupCard.getByText('No snapshots yet.')).toBeVisible();
+  for (const control of [createBackup, restoreBackup]) {
+    expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect((await control.locator('span').boundingBox())!.height).toBe(32);
+    await expect(control).toHaveText('');
+  }
+  await createBackup.click();
+  await expect(dialog).toHaveAccessibleName('Create Backup');
+  const backupContents = dialog.getByRole('group', { name: 'Backup contents' });
+  const fullBackup = backupContents.getByRole('radio', { name: 'Database & Library', exact: true });
+  const databaseBackup = backupContents.getByRole('radio', { name: 'Database', exact: true });
+  await expect(fullBackup).toBeChecked();
+  await expect(databaseBackup).not.toBeChecked();
+  await expect(backupContents.getByRole('status')).toContainText(/book files · /);
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    await dialog.screenshot({ path: testInfo.outputPath(`create-backup-${width}.png`) });
+  }
+  await page.setViewportSize({ width: 320, height: 800 });
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  const downloadBackup = backupCard.getByRole('link', { name: 'Download Database & Library backup', exact: true });
   await expect(downloadBackup).toBeVisible();
-  await expect(backupCard.getByRole('button', { name: 'Create backup' })).toBeVisible();
+  await createBackup.click();
+  await fullBackup.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(databaseBackup).toBeChecked();
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(backupCard.getByRole('link', { name: 'Download Database backup', exact: true })).toBeVisible();
+  await expect(downloadBackup).toBeVisible();
   for (const [width, height, colorScheme] of [[320, 800, 'dark'], [390, 844, 'dark'], [1440, 900, 'light']] as const) {
     await page.emulateMedia({ colorScheme });
     await page.setViewportSize({ width, height });
@@ -227,20 +249,25 @@ test('administrators manage users while members cannot open Administration', asy
   await sections.getByRole('link', { name: 'System' }).click();
   const serverCard = page.getByRole('region', { name: 'Server', exact: true });
   const maintenance = page.getByRole('region', { name: 'Maintenance', exact: true });
-  const recentJobs = page.getByRole('region', { name: 'Recent jobs', exact: true });
+  const recentJobs = maintenance.locator('details').filter({ hasText: 'Recent jobs' });
   await expect(serverCard.getByText(/^Version:/)).toBeVisible();
   await expect(serverCard.getByText('Recent server logs')).toHaveCount(0);
   await expect(recentJobs.getByText('No maintenance jobs yet.')).toBeHidden();
   await recentJobs.getByText('Recent jobs', { exact: true }).click();
   await expect(recentJobs.getByText('No maintenance jobs yet.')).toBeVisible();
-  const started = page.waitForResponse(response => response.url().endsWith('/api/v1/admin/jobs') && response.request().method() === 'POST');
-  await maintenance.getByRole('button', { name: 'Refresh statistics' }).click();
-  expect((await started).status()).toBe(202);
+  await expect(maintenance.getByText('Never run', { exact: true })).toHaveCount(2);
+  for (const name of ['Refresh reading statistics', 'Check database integrity']) {
+    const started = page.waitForResponse(response => response.url().endsWith('/api/v1/admin/jobs') && response.request().method() === 'POST');
+    await maintenance.getByRole('button', { name, exact: true }).click();
+    expect((await started).status()).toBe(202);
+    const row = maintenance.getByText(name, { exact: true }).locator('../..');
+    await expect(row.getByRole('status')).toHaveText(/^Last ran on .* · Completed$/);
+  }
   await sections.getByRole('link', { name: 'Users' }).click();
   await expect(recentJobs).toHaveCount(0);
   await sections.getByRole('link', { name: 'System' }).click();
-  await expect(recentJobs.getByRole('status').filter({ hasText: /^Completed$/ })).toBeVisible();
-  await expect(recentJobs.getByText('Statistics refresh', { exact: true })).toBeHidden();
+  await expect(maintenance.getByText(/^Last ran on /)).toHaveCount(2);
+  await expect(recentJobs.getByText(/Refresh reading statistics ·/)).toBeHidden();
   for (const [width, colorScheme] of [[320, 'dark'], [390, 'light'], [1440, 'light']] as const) {
     await page.emulateMedia({ colorScheme });
     await page.setViewportSize({ width, height: 844 });
@@ -252,21 +279,24 @@ test('administrators manage users while members cannot open Administration', asy
   await server.stop();
   await server.start();
   await page.reload();
-  await expect(recentJobs.getByRole('status').filter({ hasText: /^Completed$/ })).toBeVisible();
+  await expect(maintenance.getByText(/^Last ran on /)).toHaveCount(2);
   await recentJobs.getByText('Recent jobs', { exact: true }).click();
-  await expect(recentJobs.getByText('Statistics refresh', { exact: true })).toBeVisible();
+  await expect(recentJobs.getByText(/Refresh reading statistics ·/)).toBeVisible();
+  await expect(recentJobs.getByText(/Check database integrity ·/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Administration', level: 1 })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
   await sections.getByRole('link', { name: 'Users' }).click();
-  const createUser = page.getByRole('button', { name: 'Create user' });
+  const createUser = page.getByRole('button', { name: 'Add User', exact: true });
   const target = await createUser.boundingBox();
   expect(target?.width).toBeGreaterThanOrEqual(44);
   expect(target?.height).toBeGreaterThanOrEqual(44);
   await expect(page.getByRole('button', { name: 'Manage admin-owner' })).toHaveCount(0);
   await createUser.click();
+  await expect(dialog).toHaveAccessibleName('Add User');
+  await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeVisible();
   await dialog.getByLabel('Username').fill('admin-test-member');
   await dialog.getByLabel('Password').fill('synthetic-public-password');
-  await dialog.getByRole('button', { name: 'Create account' }).click();
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Created admin-test-member.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: /Users\s*\d/ })).toBeVisible();
 
@@ -354,7 +384,8 @@ test('administrators manage users while members cannot open Administration', asy
 
   await sections.getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page.getByLabel('Backup file')).toBeHidden();
-  await page.getByText('Restore a backup', { exact: true }).click();
+  await restoreBackup.click();
+  await expect(dialog).toHaveAccessibleName('Restore Backup');
   const applyRestore = async () => {
     await expect(async () => {
       const applied = page.waitForResponse(response => response.url().endsWith('/api/v1/admin/restore') && response.request().method() === 'PATCH');
@@ -366,11 +397,11 @@ test('administrators manage users while members cannot open Administration', asy
   const changed = Buffer.from('replaced after backup');
   await writeFile(`${server.data}/documents/public.epub`, changed);
   await page.getByLabel('Backup file').setInputFiles({name: 'invalid.zip', mimeType: 'application/zip', buffer: Buffer.from('not an archive')});
-  await page.getByRole('button', { name: 'Validate backup' }).click();
+  await page.getByRole('button', { name: 'Validate', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('Choose a valid AnthoLume backup.');
   expect(await (await page.request.get(`${server.origin}/api/v1/documents/book-001/file`)).body()).toEqual(changed);
   await page.getByLabel('Backup file').setInputFiles((await backup.path())!);
-  await page.getByRole('button', { name: 'Validate backup' }).click();
+  await page.getByRole('button', { name: 'Validate', exact: true }).click();
   await expect(dialog.getByText(/library files will be restored/)).toBeVisible();
   await expect(dialog.getByLabel('Restore library to')).toHaveCount(0);
   await dialog.getByLabel('Type RESTORE to confirm').fill('RESTORE');
@@ -392,9 +423,9 @@ test('administrators manage users while members cannot open Administration', asy
 
   await page.goto(`${server.origin}/app/admin/backups`);
   await expect(page).toHaveURL(`${server.origin}/app/admin/library`);
-  await page.getByText('Restore a backup', { exact: true }).click();
+  await restoreBackup.click();
   await page.getByLabel('Backup file').setInputFiles(`${backups}/${rollback}/antholume.db`);
-  await page.getByRole('button', { name: 'Validate backup' }).click();
+  await page.getByRole('button', { name: 'Validate', exact: true }).click();
   await expect(dialog.getByText(/No library files are included/)).toBeVisible();
   await dialog.getByLabel('Type RESTORE to confirm').fill('RESTORE');
   await applyRestore();

@@ -4,7 +4,7 @@ test.use({ serviceWorkers: 'block' });
 
 test('book editor previews metadata without saving, saves cover and fields, and confirms shared deletion', async ({ page, server }) => {
   await register(page, server.origin, 'book-editor');
-  await page.getByRole('button', { name: 'Add book', exact: true }).click();
+  await page.getByRole('button', { name: 'Add Book', exact: true }).click();
   await page.getByLabel('Choose EPUB to upload').setInputFiles({ name: 'editor.epub', mimeType: 'application/epub+zip', buffer: await epub('Disposable editor book') });
   await page.getByRole('link', { name: 'Open book', exact: true }).click();
   const edit = page.getByRole('button', { name: 'Edit book', exact: true });

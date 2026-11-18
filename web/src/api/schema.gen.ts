@@ -605,7 +605,7 @@ export interface components {
         AdminJob: {
             id: components["schemas"]["ID"];
             /** @enum {string} */
-            kind: "statistics" | "backup" | "full_backup" | "import";
+            kind: "statistics" | "database_check" | "backup" | "full_backup" | "import";
             /** @enum {string} */
             status: "running" | "succeeded" | "failed" | "interrupted";
             started_at: string;
@@ -1770,7 +1770,7 @@ export interface operations {
     listAdminJobs: {
         parameters: {
             query?: {
-                kind?: "statistics" | "backup" | "full_backup" | "import";
+                kind?: "statistics" | "database_check" | "backup" | "full_backup" | "import";
             };
             header?: never;
             path?: never;
@@ -1806,7 +1806,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    kind: "statistics" | "backup" | "full_backup" | "import";
+                    kind: "statistics" | "database_check" | "backup" | "full_backup" | "import";
                     reference?: boolean;
                     relink_missing?: boolean;
                     root_id?: components["schemas"]["StorageRootID"];

@@ -423,7 +423,7 @@ paths:
     get:
       operationId: listAdminJobs
       parameters:
-        - {in: query, name: kind, schema: {type: string, enum: [statistics, backup, full_backup, import]}}
+        - {in: query, name: kind, schema: {type: string, enum: [statistics, database_check, backup, full_backup, import]}}
       responses:
         '200':
           description: Recent maintenance jobs
@@ -443,7 +443,7 @@ paths:
               additionalProperties: false
               required: [kind]
               properties:
-                kind: {type: string, enum: [statistics, backup, full_backup, import]}
+                kind: {type: string, enum: [statistics, database_check, backup, full_backup, import]}
                 reference: {type: boolean}
                 relink_missing: {type: boolean}
                 root_id: {$ref: '#/components/schemas/StorageRootID'}
@@ -717,7 +717,7 @@ components:
       required: [id, kind, status, started_at, finished_at]
       properties:
         id: {$ref: '#/components/schemas/ID'}
-        kind: {type: string, enum: [statistics, backup, full_backup, import]}
+        kind: {type: string, enum: [statistics, database_check, backup, full_backup, import]}
         status: {type: string, enum: [running, succeeded, failed, interrupted]}
         started_at: {type: string}
         finished_at: {type: string, nullable: true}

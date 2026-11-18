@@ -9,7 +9,7 @@ test('actual bootstrap, credentials, server paging, inert detail, URL sorting an
   await expect(page.getByRole('heading', { name: 'Public book 30', exact: true })).toBeAttached();
   await expect(page.getByRole('article')).toHaveCount(30);
   await expect(loadMore).toHaveCount(0);
-  const sort = page.getByRole('button', { name: 'Sort books' });
+  const sort = page.getByRole('button', { name: 'Sort Books' });
   await sort.click();
   await page.getByRole('button', { name: 'Author A–Z', exact: true }).click();
   await expect(page).toHaveURL(/sort=author/);
@@ -31,7 +31,7 @@ test('actual bootstrap, credentials, server paging, inert detail, URL sorting an
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    for (const label of ['Add book', 'Sort books']) {
+    for (const label of ['Add Book', 'Sort Books']) {
       const box = await page.getByRole('button', { name: label, exact: true }).boundingBox();
       expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44);
     }

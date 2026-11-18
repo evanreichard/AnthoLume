@@ -137,8 +137,8 @@ export function Library() {
         <label><span className={styles.srOnly}>Search title or author</span><input ref={searchInput} type="search" value={input} maxLength={256} placeholder="Title or author" onChange={(event) => setInput(event.target.value)} /></label>
         {(input || q) && <button type="button" className={styles.searchClear} aria-label="Clear search" onClick={clearSearch}>×</button>}
       </div>
-      <button type="button" className={styles.icon} aria-label="Add book" disabled={access.kind !== 'authenticated' || !!capabilities?.demo_mode} onClick={() => { setNewBook(null); setError(null); open('add'); }}><Icon name="add" /></button>
-      <button type="button" className={styles.icon} aria-label="Sort books" aria-haspopup="dialog" aria-expanded={dialog === 'sort'} onClick={() => open('sort')}><Icon name="sort" /></button>
+      <button type="button" className={styles.icon} aria-label="Add Book" disabled={access.kind !== 'authenticated' || !!capabilities?.demo_mode} onClick={() => { setNewBook(null); setError(null); open('add'); }}><Icon name="add" /></button>
+      <button type="button" className={styles.icon} aria-label="Sort Books" aria-haspopup="dialog" aria-expanded={dialog === 'sort'} onClick={() => open('sort')}><Icon name="sort" /></button>
     </form>
     <div className={styles.divider} />
     <ErrorNotice error={documents.error} />
@@ -155,12 +155,12 @@ export function Library() {
     {importNotice && <p role="status">{importNotice}</p>}
     <ErrorNotice error={dialog === 'add' ? null : error} />
     {sharedEnabled && hasNextPage && <div className={styles.loadMore}><Button ref={loadMore} disabled={isFetching} onClick={() => void fetchNextPage({ cancelRefetch: false })}>{documents.isFetchingNextPage ? 'Loading…' : isFetchNextPageError ? 'Retry loading shared books' : 'Load more shared books'}</Button></div>}
-    {dialog === 'sort' && <Dialog title="Sort books" onClose={close}><div className={styles.sortOptions}>
+    {dialog === 'sort' && <Dialog title="Sort Books" onClose={close}><div className={styles.sortOptions}>
       {sortOptions.map(([value, label]) => <button key={value} type="button" aria-pressed={sort === value} onClick={() => applySort(value)}>
         {label}{sort === value && <Icon name="check" size={17} />}
       </button>)}
     </div></Dialog>}
-    {dialog === 'add' && <Dialog title="Add a book" onClose={close}><div className={styles.form}>
+    {dialog === 'add' && <Dialog title="Add Book" onClose={close}><div className={styles.form}>
       <p>Upload an EPUB to the shared library (up to 64 MiB).</p>
       <input ref={file} type="file" accept=".epub,application/epub+zip" aria-label="Choose EPUB to upload" disabled={importing || access.kind !== 'authenticated' || !!capabilities?.demo_mode} onChange={importFile} />
       {importing && <p role="status">Uploading to the shared library…</p>}

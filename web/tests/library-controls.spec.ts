@@ -56,7 +56,7 @@ test('the Library defaults to Last read and features the last shared checkpoint 
   await expect(feature.getByText('24% read', { exact: true })).toBeVisible();
   await expect(feature.getByRole('link', { name: 'Resume' })).toHaveAttribute('href', /\/read\/server\/book-030\?/);
   await expect(page.getByRole('article').first().getByRole('heading')).toHaveText('Public book 30');
-  await page.getByRole('button', { name: 'Sort books' }).click();
+  await page.getByRole('button', { name: 'Sort Books' }).click();
   await expect(page.getByRole('button', { name: 'Last read', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Title A–Z', exact: true }).click();
   await expect(page.getByRole('article').first().getByRole('heading')).toHaveText('Public book 01');
@@ -65,7 +65,7 @@ test('the Library defaults to Last read and features the last shared checkpoint 
 
 test('Add book uploads to the shared library and Recently added includes it on page one', async ({ page, browser, server }) => {
   await register(page, server.origin, 'upload-reader');
-  await page.getByRole('button', { name: 'Add book', exact: true }).click();
+  await page.getByRole('button', { name: 'Add Book', exact: true }).click();
   await page.getByLabel('Choose EPUB to upload').setInputFiles({
     name: 'upload.epub', mimeType: 'application/epub+zip', buffer: await epub('ZZ Shared Upload'),
   });
@@ -79,7 +79,7 @@ test('Add book uploads to the shared library and Recently added includes it on p
   const other = await browser.newPage();
   try {
     await register(other, server.origin, 'other-upload-reader');
-    await other.getByRole('button', { name: 'Sort books', exact: true }).click();
+    await other.getByRole('button', { name: 'Sort Books', exact: true }).click();
     await other.getByRole('button', { name: 'Recently added', exact: true }).click();
     await expect(other.getByRole('article').first().getByRole('heading')).toHaveText('ZZ Shared Upload');
   } finally { await other.close(); }

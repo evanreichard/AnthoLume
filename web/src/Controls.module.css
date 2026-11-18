@@ -29,6 +29,7 @@
 
 .dropdown { position: relative; isolation: isolate; min-width: 5.25rem; max-width: 100%; }
 .dropdown[data-stretch] { width: 100%; font-size: 16px; }
+.dropdown > select:enabled { cursor: pointer; }
 .dropdown > select { width: 100%; min-height: var(--control-hit); padding-inline: var(--control-inline); border-color: transparent; border-radius: 999px; background: transparent; font: inherit; }
 .button { min-width: var(--control-hit); padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--ink); text-decoration: none; text-align: center; }
 .button > span, .dropdown::before { border: 1px solid var(--line); border-radius: 999px; background: var(--surface); box-shadow: inset 0 1px color-mix(in srgb, var(--ink) 5%, transparent); }
@@ -56,7 +57,7 @@
 .joinedActions > button { display: grid; place-items: center; min-width: 44px; min-height: 44px; padding-inline: 9px; border: 0; border-radius: 99px; background: transparent; color: var(--ink); font: inherit; font-size: .8rem; font-weight: 650; }
 .joinedActions > button:not(:last-child) { border-start-end-radius: 0; border-end-end-radius: 0; }
 .joinedActions > button + button { border-inline-start: 1px solid var(--line); border-start-start-radius: 0; border-end-start-radius: 0; }
-.joinedActions > button:hover:not(:disabled) { background: var(--hero); }
+.joinedActions[data-size='full'] > button:hover:not(:disabled) { background: var(--hero); }
 .joinedActions > button[data-tone='danger'] { color: var(--danger); }
 .joinedActions > button > span { display: flex; align-items: center; justify-content: center; }
 .joinedActions[data-size='slim'] { border: 0; background: transparent; }
@@ -64,7 +65,7 @@
 .joinedActions[data-size='slim'] > button > span { width: 100%; min-height: var(--control-face); padding-inline: var(--control-inline); border: 1px solid var(--line); border-radius: inherit; background: var(--surface); box-shadow: inset 0 1px color-mix(in srgb, var(--ink) 5%, transparent); }
 .joinedActions[data-size='slim'] > button + button > span { border-inline-start: 0; }
 @media (hover: hover) {
-  .joinedActions[data-size='slim'] > button:hover:not(:disabled) > span { background: var(--hero); }
+  .joinedActions[data-size='slim'] > button:not(:disabled) > span:hover { background: var(--hero); }
 }
 .pill { display: inline-flex; align-items: center; justify-content: center; flex: none; gap: 5px; min-width: 44px; min-height: 44px; padding: 4px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); box-shadow: inset 0 1px color-mix(in srgb, var(--ink) 5%, transparent); font-size: .875rem; line-height: 1.2; font-weight: 650; text-decoration: none; }
 .pill:hover:not(:disabled) { background: var(--hero); }

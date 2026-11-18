@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Icon } from '../Icon';
@@ -6,7 +6,7 @@ import type { components } from '../api/schema.gen';
 import { ReadingHTTPError, type Account } from '../reading';
 import { session } from '../session';
 import { Dialog, ErrorNotice } from '../ui';
-import { ActionRow, ActionRows, Card, CardHeader, Pager, Button, Dropdown } from '../Controls';
+import { ActionRow, ActionRows, Card, CardHeader, Pager, Button, Dropdown, IconButton } from '../Controls';
 import styles from '../App.module.css';
 import { SkeletonRows } from '../Skeleton';
 
@@ -87,7 +87,7 @@ export function AccountSettings({ account, timezone, readOnly, syncStatus, syncD
     <Card aria-labelledby="account-heading">
       <CardHeader id="account-heading" title="Account" subtitle={account.userId}
         leading={<span className={styles.accountAvatar}><Icon name="user" size={18} /></span>}
-        action={<Button size="slim" onClick={onSignOut}>Sign out</Button>} />
+        action={<IconButton aria-label="Sign out" title="Sign out" onClick={onSignOut}><Icon name="sign-out" size={18} /></IconButton>} />
       <ActionRows>
         <ActionRow divider label="Locale" value={timezoneLabel} disabled={readOnly} onClick={() => setModal('timezone')} />
         <ActionRow divider label="Password" disabled={readOnly} onClick={() => setModal('password')} />
@@ -107,14 +107,14 @@ export function AccountSettings({ account, timezone, readOnly, syncStatus, syncD
     </Card>
     {children}
     </div>
-    {modal === 'timezone' && <Dialog title="Change locale" onClose={close}><SettingsForm onClose={close} action={async data => {
+    {modal === 'timezone' && <Dialog title="Change Locale" onClose={close}><SettingsForm onClose={close} action={async data => {
       try { await session.updateTimezone(account, String(data.get('timezone'))); }
       catch (err) { if (err instanceof ReadingHTTPError && err.problem.code === 'invalid_timezone') throw new Error('Choose a time zone supported by this server.'); throw err; }
       setFeedback('Timezone updated.');
     }}>
       <TimeZonePicker current={timezone} />
     </SettingsForm></Dialog>}
-    {modal === 'password' && <Dialog title="Change password" onClose={close}><SettingsForm onClose={close} action={async data => {
+    {modal === 'password' && <Dialog title="Change Password" onClose={close}><SettingsForm onClose={close} action={async data => {
       const newPassword = String(data.get('new'));
       if (newPassword !== data.get('confirm')) throw new Error('New passwords do not match.');
       try { await session.changePassword(account, { current_password: String(data.get('current')), new_password: newPassword }); }
@@ -126,15 +126,61 @@ export function AccountSettings({ account, timezone, readOnly, syncStatus, syncD
       <label>New password<input name="new" type="password" autoComplete="new-password" required maxLength={256} /></label>
       <label>Confirm new password<input name="confirm" type="password" autoComplete="new-password" required maxLength={256} /></label>
     </SettingsForm></Dialog>}
-    {modal && typeof modal !== 'string' && <Dialog title="Manage reading device" onClose={close}><SettingsForm onClose={close} action={async data => {
-      const saved = await session.api.updateDevice(account, modal.id, { label: String(data.get('label')), archived: data.has('archived') });
-      client.setQueryData<Device[]>(['managed-devices', account], old => old?.map(device => device.id === saved.id ? saved : device));
-      setFeedback(saved.archived ? 'Device archived.' : 'Device settings updated.');
-    }}>
-      <p>Last synced <time dateTime={modal.last_synced}>{format(modal.last_synced, true)}</time></p>
-      <label>Custom name<input name="label" defaultValue={modal.label} placeholder={modal.name} maxLength={128} /></label>
-      <label className={styles.settingsCheck}><input name="archived" type="checkbox" defaultChecked={modal.archived} /> Archive this device</label>
-      <p>Archived devices are listed last. Sync and reading history are unchanged.</p>
-    </SettingsForm></Dialog>}
+    {modal && typeof modal !== 'string' && <DeviceEditor key={modal.id} device={modal} lastSynced={format(modal.last_synced, true)} close={close}
+      update={async (changes, message) => {
+        const saved = await session.api.updateDevice(account, modal.id, changes);
+        client.setQueryData<Device[]>(['managed-devices', account], old => old?.map(device => device.id === saved.id ? saved : device));
+        setFeedback(message);
+      }} />}
   </>;
+}
+
+function DeviceEditor({ device, lastSynced, close, update }: {
+  device: Device;
+  lastSynced: string;
+  close(): void;
+  update(changes: components['schemas']['DevicePreferences'], message: string): Promise<void>;
+}) {
+  const formId = useId();
+  const [name, setName] = useState(device.label);
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const archiveAction = device.archived ? 'Unarchive' : 'Archive';
+  function dismiss() {
+    if (busy) return;
+    if (confirm) { setConfirm(false); setError(null); }
+    else close();
+  }
+  async function apply(archive: boolean) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (archive) await update({ label: device.label, archived: !device.archived }, device.archived ? 'Device unarchived.' : 'Device archived.');
+      else await update({ label: name, archived: device.archived }, 'Device settings updated.');
+      close();
+    } catch (err) { setError(err); }
+    finally { setBusy(false); }
+  }
+
+  return <Dialog title={confirm ? `${archiveAction} Device?` : 'Manage Device'} onClose={dismiss} footer={<>
+    {confirm
+      ? <Button size="slim" tone="primary" disabled={busy} onClick={() => void apply(true)}>{archiveAction}</Button>
+      : <>
+        <Button size="slim" form={formId} type="submit" tone="primary" disabled={busy || name === device.label}>{busy ? 'Saving…' : 'Save'}</Button>
+        <Button size="slim" disabled={busy} onClick={() => { setError(null); setConfirm(true); }}>{archiveAction}</Button>
+      </>}
+    <Button size="slim" disabled={busy} onClick={dismiss}>Cancel</Button>
+  </>}>
+    <div className={styles.manageForm}>
+      {confirm
+        ? <p>{archiveAction} <strong>{device.label || device.name}</strong>?{name !== device.label && ' The unsaved name change will be discarded.'}</p>
+        : <form id={formId} className={styles.manageForm} onSubmit={event => { event.preventDefault(); if (name !== device.label) void apply(false); }}>
+          <label>Name<input value={name} placeholder={device.name} maxLength={128} disabled={busy} onChange={event => setName(event.target.value)} /></label>
+          <small className={styles.deviceLastSynced}>Last synced <time dateTime={device.last_synced}>{lastSynced}</time></small>
+        </form>}
+      <ErrorNotice error={error} />
+    </div>
+  </Dialog>;
 }

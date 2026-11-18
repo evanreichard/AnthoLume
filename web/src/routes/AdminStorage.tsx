@@ -18,7 +18,7 @@ export const storageRootsKey = (account: Account) => ['admin-storage-roots', acc
 export function StorageRoots({ account, roots, error }: { account: Account; roots: StorageRoot[]; error: unknown }) {
   const [editing, setEditing] = useState<StorageRoot | 'new' | null>(null);
   return <Card className={storage.rootCard} density="compact" aria-labelledby="storage-roots">
-    <CardHeader id="storage-roots" title="Storage Roots" action={<AddPill label="Add source" onClick={() => setEditing('new')} />} />
+    <CardHeader id="storage-roots" title="Storage Roots" action={<AddPill label="Add Root" onClick={() => setEditing('new')} />} />
     <ErrorNotice error={error} />
     <div className={storage.rootList}>{roots.map(root => <ActionRow key={root.id} label={root.label} onClick={() => setEditing(root)} value={<span className={storage.rootValue}>
       <span className={storage.rootStatus}>
@@ -64,7 +64,7 @@ function RootEditor({ account, current, libraryPath, close }: { account: Account
     setBrowsing(null);
   }} />;
 
-  return <Dialog key="editor" title={current ? 'Edit Root' : 'Add source'} onClose={() => { if (!busy) close(); }} footer={<>
+  return <Dialog key="editor" title={current ? 'Edit Root' : 'Add Root'} onClose={() => { if (!busy) close(); }} footer={<>
     <Button size="slim" form={formId} tone="primary" type="submit" disabled={busy || !label.trim() || !path.trim()}>Save</Button>
     {current && !current.managed && <Button size="slim" disabled={busy} onClick={() => {
       if (path.trim()) setConfirmLibrary(true);

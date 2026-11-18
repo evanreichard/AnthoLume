@@ -181,6 +181,7 @@
 .settingsFields { display: grid; gap: 14px; margin: 0; padding: 0; border: 0; min-width: 0; }
 .form .settingsCheck { display: flex; align-items: center; }
 .settingsCheck input { width: auto; min-height: auto; }
+.deviceLastSynced { color: var(--muted); font-size: .8125rem; }
 .dialog::backdrop { background: #17221bb3; }
 .dialog[data-size='wide'] { width: min(620px, calc(100% - 24px)); max-height: min(760px, calc(100dvh - 48px)); padding: clamp(16px, 4vw, 24px); overscroll-behavior: contain; }
 .dialog[data-placement='mobile-sheet'] { width: min(540px, calc(100% - 24px)); max-height: min(640px, calc(100dvh - 32px)); padding: 20px; overscroll-behavior: contain; }
