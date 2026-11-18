@@ -2,7 +2,7 @@ import { EpubCFI } from 'epubjs';
 import type Book from 'epubjs/types/book';
 import type Section from 'epubjs/types/section';
 
-export type CodecResult = { ok: true; cfi: string; original: string; precision: 'element' } | { ok: false; original: string; reason: string };
+export type CodecResult = { ok: true; cfi: string; original: string; precision: 'element' } | { ok: false; original: string; reason: string; phase: 'position' | 'chapter' };
 
 export function parseKO(original: string): { spine: number; steps: { tag: string; index: number }[] } {
   const match = /^\/body\/DocFragment\[([1-9]\d*)\]\/body((?:\/[a-zA-Z][\w-]*(?:\[[1-9]\d*\])?)*)(?:\/text\(\)(?:\[[1-9]\d*\])?)?(?:\.\d+)?$/.exec(original);
@@ -52,16 +52,19 @@ export function koFromElement(spine: number, element: Element): string {
 }
 
 export async function toCFI(book: Book, original: string): Promise<CodecResult> {
+  let phase: 'position' | 'chapter' = 'position';
   try {
     const { spine } = parseKO(original);
     const section = book.spine.get(spine) as Section | undefined;
     if (!section) throw new Error('Saved spine unavailable');
+    phase = 'chapter';
     const root = await section.load(book.load.bind(book));
+    phase = 'position';
     const element = elementFromKO(root.ownerDocument!, original);
     let cfi = section.cfiFromElement(element);
     if (cfi.endsWith('!/)')) cfi = cfi.slice(0, -1) + '0)';
     return { ok: true, cfi, original, precision: 'element' };
-  } catch (error) { return { ok: false, original, reason: String(error) }; }
+  } catch (error) { return { ok: false, original, reason: String(error), phase }; }
 }
 
 export async function canonicalPosition(book: Book, spine: number, element: Element) {

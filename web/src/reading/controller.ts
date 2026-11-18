@@ -143,7 +143,8 @@ export class ReaderController {
       if (saved) {
         const result = await toCFI(book, saved);
         if (!result.ok) {
-          this.send({ state: 'error', message: `Saved location unavailable; original retained: ${saved}` });
+          const message = result.phase === 'chapter' ? `Could not load the saved chapter: ${result.reason}` : `Saved location unavailable; original retained: ${saved}`;
+          this.send({ state: 'error', message });
           return;
         }
         target = result.cfi;

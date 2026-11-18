@@ -38,7 +38,9 @@ func (api *API) serveAppShell(c *gin.Context) {
 	}
 	c.Header("Cache-Control", "no-cache")
 	c.Header("X-Content-Type-Options", "nosniff")
-	c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self' blob: data:; connect-src 'self'; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
+	// WebKit Blob Frames - frame-ancestors on the shell also blocks EPUB.js's blob documents.
+	c.Header("X-Frame-Options", "DENY")
+	c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self' blob: data:; connect-src 'self'; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'")
 	c.Data(200, "text/html; charset=utf-8", b)
 }
 func (api *API) retirementBootstrap(c *gin.Context) {

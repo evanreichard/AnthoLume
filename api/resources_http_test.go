@@ -163,7 +163,9 @@ func TestAppShellBoundaryAndRetirementBootstrap(t *testing.T) {
 		require.Equal(t, 200, r.status, path)
 		require.Equal(t, shell, string(r.body))
 		require.Equal(t, "no-cache", r.header.Get("Cache-Control"))
+		require.Equal(t, "DENY", r.header.Get("X-Frame-Options"))
 		require.Contains(t, r.header.Get("Content-Security-Policy"), "object-src 'none'")
+		require.NotContains(t, r.header.Get("Content-Security-Policy"), "frame-ancestors")
 	}
 	for _, path := range []string{"/app/unknown", "/app/assets/missing.js", "/assets/app/assets/missing.js", "/assets/app/index.html", "/api/v1/unknown", "/api/ko/no-such-route", "/api/opds/no-such-route"} {
 		r := f.call("GET", path, nil, nil)

@@ -88,6 +88,21 @@ test('reviewed rawtext, whole-document, structural, CSS/font/SVG and navigation 
   });
   expect(result.count).toBeGreaterThan(65); expect(result.failures).toEqual([]); expect(result.engines).toBe(0); expect(result.wholeDoc).toBe(true); expect(forbidden).toEqual([]);
 });
+test('chapter head text boundaries do not affect EPUB validation or saved body anchors', async ({ page }) => {
+  const result = await page.evaluate(() => {
+    const p = window.readingTest;
+    const doc = new DOMParser().parseFromString('<html xmlns="http://www.w3.org/1999/xhtml"><head><style>/*<![CDATA[p { color: inherit }]]>*/</style> <!-- keep --> <script/> </head><body><p id="anchor">Start</p></body></html>', 'application/xhtml+xml');
+    doc.querySelector('script')!.remove();
+    p.requireStableBody(doc);
+    const anchor = p.elementFromKO(doc, '/body/DocFragment[1]/body/p[1]').id;
+    doc.querySelector('p')!.firstChild!.textContent = 'Start';
+    doc.querySelector('p')!.append(doc.createTextNode(' again'));
+    let bodyChangeRejected = false;
+    try { p.requireStableBody(doc); } catch { bodyChangeRejected = true; }
+    return { anchor, bodyChangeRejected };
+  });
+  expect(result).toEqual({ anchor: 'anchor', bodyChangeRejected: true });
+});
 test('historical child-first reading remains; canonical new writing succeeds and invalid saved positions never publish', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const p = window.readingTest, doc = new DOMParser().parseFromString('<html xmlns="http://www.w3.org/1999/xhtml"><head/><body><div><blockquote><p id="nested">N</p></blockquote><p id="first">F</p><p id="second">S</p></div></body></html>', 'application/xhtml+xml');
