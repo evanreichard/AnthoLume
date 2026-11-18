@@ -10,6 +10,7 @@ import { AppLoading, Auth } from './routes/Auth';
 import { Insights } from './routes/Insights';
 import { Settings } from './routes/More';
 import { Administration, AdminUsers, AdminLibrary, AdminSystem } from './routes/Administration';
+import { AdminLogs } from './routes/AdminLogs';
 import { LocalBookExport } from './routes/LocalBookExport';
 import { ErrorNotice, PageHeader } from './ui';
 import { Icon } from './Icon';
@@ -133,6 +134,7 @@ const router = createBrowserRouter([{
         { path: 'import', element: <Navigate to="../library" replace /> },
         { path: 'backups', element: <Navigate to="../library" replace /> },
         { path: 'system', Component: AdminSystem },
+        { path: 'logs', Component: AdminLogs },
       ] },
       { path: 'more', element: <Navigate to="/settings" replace /> },
       { path: '*', element: <><PageHeader title="Page not found" /><Link to="/library">Library</Link></> },

@@ -6,8 +6,9 @@ import type { components } from '../api/schema.gen';
 import { ReadingHTTPError, type Account } from '../reading';
 import { session } from '../session';
 import { Dialog, ErrorNotice } from '../ui';
-import { ActionRow, ActionRows, Card, CardHeader, CompactPill, Pager, PillSelect } from '../Controls';
+import { ActionRow, ActionRows, Card, CardHeader, Pager, Button, Dropdown } from '../Controls';
 import styles from '../App.module.css';
+import { SkeletonRows } from '../Skeleton';
 
 type Device = components['schemas']['ManagedDevice'];
 const zones = ['UTC', ...(Intl.supportedValuesOf?.('timeZone') ?? [])];
@@ -25,9 +26,9 @@ function zoneOption(zone: string) {
 function TimeZonePicker({ current }: { current: string }) {
   const options = [...new Set([...zones, current, Intl.DateTimeFormat().resolvedOptions().timeZone].filter(Boolean))]
     .map(id => ({ id, label: zoneOption(id) })).sort((a, b) => a.label.localeCompare(b.label));
-  return <label>Time zone<PillSelect stretch name="timezone" required defaultValue={current}>
+  return <label>Time zone<Dropdown stretch name="timezone" required defaultValue={current}>
     {options.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
-  </PillSelect></label>;
+  </Dropdown></label>;
 }
 
 function SettingsForm({ action, children, onClose }: { action(data: FormData): Promise<void>; children: ReactNode; onClose(): void }) {
@@ -44,7 +45,7 @@ function SettingsForm({ action, children, onClose }: { action(data: FormData): P
   return <form className={styles.form} onSubmit={submit}>
     <fieldset className={styles.settingsFields} disabled={busy}>{children}</fieldset>
     <ErrorNotice error={error} />
-    <div className={styles.actions}><button className={styles.filledPill} disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button><button type="button" className={styles.pillAction} disabled={busy} onClick={onClose}>Cancel</button></div>
+    <div className={styles.actions}><Button type="submit" tone="primary" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</Button><Button type="button" disabled={busy} onClick={onClose}>Cancel</Button></div>
   </form>;
 }
 
@@ -86,9 +87,9 @@ export function AccountSettings({ account, timezone, readOnly, syncStatus, syncD
     <Card aria-labelledby="account-heading">
       <CardHeader id="account-heading" title="Account" subtitle={account.userId}
         leading={<span className={styles.accountAvatar}><Icon name="user" size={18} /></span>}
-        action={<CompactPill onClick={onSignOut}>Sign out</CompactPill>} />
+        action={<Button size="slim" onClick={onSignOut}>Sign out</Button>} />
       <ActionRows>
-        <ActionRow divider label="Time zone" value={timezoneLabel} disabled={readOnly} onClick={() => setModal('timezone')} />
+        <ActionRow divider label="Locale" value={timezoneLabel} disabled={readOnly} onClick={() => setModal('timezone')} />
         <ActionRow divider label="Password" disabled={readOnly} onClick={() => setModal('password')} />
         <ActionRow divider label="Sync" value={syncStatus} aria-expanded={showSync} aria-controls="account-sync-details" onClick={toggleSync} />
         <div id="account-sync-details" hidden={!showSync}>{syncDetails}</div>
@@ -99,14 +100,14 @@ export function AccountSettings({ account, timezone, readOnly, syncStatus, syncD
     <Card aria-labelledby="devices-heading">
       <CardHeader id="devices-heading" title="Devices" />
       <ErrorNotice error={devices.error} />
-      {devices.isPending && <p className={styles.settingsCardFeedback} role="status">Loading devices…</p>}
+      {devices.isPending && <SkeletonRows label="Loading devices…" />}
       {devices.data && (visibleDevices.length ? deviceRows(visibleDevices) : <p className={styles.settingsCardFeedback}>No devices yet.</p>)}
       {devicePages > 1 && <Pager label="Device pages" page={currentPage + 1} total={devicePages}
         hasNext={currentPage + 1 < devicePages} onPageChange={page => setDevicePage(page - 1)} />}
     </Card>
     {children}
     </div>
-    {modal === 'timezone' && <Dialog title="Change time zone" onClose={close}><SettingsForm onClose={close} action={async data => {
+    {modal === 'timezone' && <Dialog title="Change locale" onClose={close}><SettingsForm onClose={close} action={async data => {
       try { await session.updateTimezone(account, String(data.get('timezone'))); }
       catch (err) { if (err instanceof ReadingHTTPError && err.problem.code === 'invalid_timezone') throw new Error('Choose a time zone supported by this server.'); throw err; }
       setFeedback('Timezone updated.');

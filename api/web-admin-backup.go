@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
@@ -60,6 +61,53 @@ func (api *API) createAdminBackup(ctx context.Context) error {
 		return err
 	}
 	return syncAdminDirectory(dir)
+}
+
+func (api *API) walkBackupBooks(ctx context.Context, db *sql.DB, add func(string, *os.File) error) (AdminBackupPreview, error) {
+	var out AdminBackupPreview
+	root, err := api.queryStorageRoot(ctx, db, libraryRoot)
+	if err != nil {
+		return out, err
+	}
+	rows, err := db.QueryContext(ctx, `SELECT DISTINCT filepath FROM documents WHERE NOT deleted AND COALESCE(storage_root_id,'library')='library' AND filepath IS NOT NULL ORDER BY filepath`)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return out, err
+		}
+		f, err := openStoredFile(root.Path, name)
+		if err != nil {
+			out.Missing++
+			continue
+		}
+		info, err := f.Stat()
+		if err == nil && add != nil {
+			err = add(name, f)
+		}
+		f.Close()
+		if err != nil {
+			return out, err
+		}
+		out.Files++
+		out.Bytes += info.Size()
+	}
+	return out, rows.Err()
+}
+
+func (s *webAPI) PreviewAdminBackup(ctx context.Context, _ PreviewAdminBackupRequestObject) (PreviewAdminBackupResponseObject, error) {
+	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
+		return nil, adminFailure(403, "forbidden")
+	}
+	ctx = requestContext(ctx)
+	preview, err := s.api.walkBackupBooks(ctx, s.api.db.DB, nil)
+	if err != nil {
+		return nil, err
+	}
+	return PreviewAdminBackup200JSONResponse(preview), nil
 }
 
 func (s *webAPI) DownloadAdminBackup(ctx context.Context, r DownloadAdminBackupRequestObject) (DownloadAdminBackupResponseObject, error) {

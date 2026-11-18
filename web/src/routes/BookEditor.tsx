@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { Button } from '../Controls';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { components } from '../api/schema.gen';
 import type { BookRef } from '../reading';
 import { session } from '../session';
@@ -21,6 +22,7 @@ function MatchCover({ id, className, alt, onLoad }: { id: number; className: str
 export function BookEditor({ book, refId, document, onClose, onSaved }: {
   book: LibraryBook; refId: ServerBook; document: Document; onClose(): void; onSaved(): void;
 }) {
+  const formId = useId();
   const [draft, setDraft] = useState({ title: document.title ?? '', author: document.author ?? '', description: document.description ?? '', isbn10: document.isbn10 ?? '', isbn13: document.isbn13 ?? '' });
   const [cover, setCover] = useState<File | null>(null), [remove, setRemove] = useState(false), [preview, setPreview] = useState('');
   const [lookup, setLookup] = useState(false), [selected, setSelected] = useState<Match | null>(null);
@@ -64,7 +66,17 @@ export function BookEditor({ book, refId, document, onClose, onSaved }: {
   }
   function setField(key: keyof typeof draft, value: string) { setDraft(old => ({ ...old, [key]: value })); }
 
-  return <Dialog title={lookup ? 'Find book metadata' : 'Edit book'} className={lookup ? styles.metadataDialog : styles.bookEditor} onClose={() => { if (!busy) { if (lookup) closeLookup(); else onClose(); } }}>
+  return <Dialog
+    title={lookup ? 'Identify Book' : 'Edit book'}
+    size={lookup ? 'default' : 'wide'}
+    placement={lookup ? 'mobile-sheet' : 'center'}
+    onClose={() => { if (!busy) { if (lookup) closeLookup(); else onClose(); } }}
+    footer={!lookup ? <>
+      <Button size="slim" form={formId} type="submit" tone="primary" disabled={busy || !draft.title.trim()}>{busy ? 'Saving…' : 'Save'}</Button>
+      <Button size="slim" ref={lookupButton} disabled={busy} onClick={() => { setError(null); setLookup(true); }}>Identify</Button>
+      <Button size="slim" disabled={busy} onClick={onClose}>Cancel</Button>
+    </> : null}
+  >
     {lookup ? <>
       {!selected && <div ref={lookupHeading} tabIndex={-1} className={styles.lookupIntro}>
         <form className={styles.lookupSearch} onSubmit={e => { e.preventDefault(); setMatches(null); void run(async signal => {
@@ -91,22 +103,22 @@ export function BookEditor({ book, refId, document, onClose, onSaved }: {
         </div>
         {selected.description && <p className={styles.lookupHint}>Excerpt: {selected.description}</p>}
         <div className={styles.actions}>
-          <button className={styles.primary} disabled={busy} onClick={() => useMatch(selected)}>Use this match</button>
-          {selected.cover_id && loadedCover === selected.cover_id && <button disabled={busy} onClick={() => void run(async signal => {
+          <Button tone="primary" disabled={busy} onClick={() => useMatch(selected)}>Use this match</Button>
+          {selected.cover_id && loadedCover === selected.cover_id && <Button disabled={busy} onClick={() => void run(async signal => {
             const response = await fetch(metadataCoverURL(selected.cover_id!), { signal, cache: 'no-store' });
             if (!response.ok || response.headers.get('Content-Type') !== 'image/jpeg') throw new Error('This cover is unavailable. You can still choose a file.');
             const image = await response.blob();
             if (signal.aborted) return;
             setCover(new File([image], 'open-library.jpg', { type: 'image/jpeg' }));
             setRemove(false); closeLookup();
-          })}>Use this cover</button>}
+          })}>Use this cover</Button>}
         </div>
       </section> : matches?.length ? <ul className={styles.metadataResults}>{matches.map(match => <li key={match.id}><button onClick={() => { setLoadedCover(null); setSelected(match); }}>
         {match.cover_id && <MatchCover id={match.cover_id} className={styles.metadataThumb} alt="" />}
         <div><strong>{match.title}</strong><span>{[match.author, match.year].filter(Boolean).join(' · ')}</span></div>
       </button></li>)}</ul> : null}
       {!selected && <button className={styles.lookupBack} disabled={busy} onClick={closeLookup}><Icon name="back" size={16} />Back to editor</button>}
-    </> : <form className={styles.form} onSubmit={e => {
+    </> : <form id={formId} className={styles.form} onSubmit={e => {
       e.preventDefault();
       void run(async signal => {
         const bytes = cover ? new Uint8Array(await cover.arrayBuffer()) : null;
@@ -127,8 +139,8 @@ export function BookEditor({ book, refId, document, onClose, onSaved }: {
             if (file.size > 2 * 1024 * 1024) { e.currentTarget.value = ''; setError(new Error('Choose a JPEG or PNG up to 2 MiB.')); return; }
             setError(null); setRemove(false); setCover(file);
           }} /></label>
-          {(cover || remove) ? <button type="button" disabled={busy} onClick={() => { setCover(null); setRemove(false); }}>Keep original cover</button> :
-            document.cover_available && <button type="button" disabled={busy} onClick={() => setRemove(true)}>Remove cover</button>}
+          {(cover || remove) ? <Button size="slim" disabled={busy} onClick={() => { setCover(null); setRemove(false); }}>Keep original cover</Button> :
+            document.cover_available && <Button size="slim" disabled={busy} onClick={() => setRemove(true)}>Remove cover</Button>}
         </div>
       </div>
       <label>Title<input required maxLength={512} value={draft.title} onChange={e => setField('title', e.target.value)} /></label>
@@ -137,13 +149,8 @@ export function BookEditor({ book, refId, document, onClose, onSaved }: {
         <label>ISBN-10<input pattern="[0-9]{9}[0-9X]" maxLength={10} value={draft.isbn10} onChange={e => setField('isbn10', e.target.value.toUpperCase())} /></label>
         <label>ISBN-13<input inputMode="numeric" pattern="[0-9]{13}" maxLength={13} value={draft.isbn13} onChange={e => setField('isbn13', e.target.value)} /></label>
       </div>
-      <label>Synopsis<textarea rows={5} maxLength={16000} value={draft.description} onChange={e => setField('description', e.target.value)} /></label>
+      <label>Synopsis<textarea className={styles.editorSynopsis} rows={5} maxLength={16000} value={draft.description} onChange={e => setField('description', e.target.value)} /></label>
       <ErrorNotice error={error} />
-      <div className={`${styles.actions} ${styles.editorActions}`}>
-        <button className={styles.primary} disabled={busy || !draft.title.trim()}>{busy ? 'Saving…' : 'Save changes'}</button>
-        <button ref={lookupButton} type="button" disabled={busy} onClick={() => { setError(null); setLookup(true); }}>Look up metadata</button>
-        <button type="button" disabled={busy} onClick={onClose}>Cancel</button>
-      </div>
     </form>}
   </Dialog>;
 }

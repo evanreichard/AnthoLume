@@ -25,10 +25,10 @@ func TestReadingAdditiveMigrationPreservesHistoricalRowsAndOrphans(t *testing.T)
 	for _, name := range []string{"reading_user_deleted", "reading_document_deleted", "reading_document_tombstoned", "reading_progress_writer", "reading_progress_update_writer", "reading_activity_writer"} {
 		exec("DROP TRIGGER " + name)
 	}
-	exec("DROP TABLE reading_receipts; DROP TABLE reading_heads; DELETE FROM goose_db_version WHERE version_id>=20261118000000")
+	exec("DROP TABLE reading_receipts; DROP TABLE reading_heads; ALTER TABLE documents DROP COLUMN storage_root_id; DROP TABLE storage_roots; DELETE FROM goose_db_version WHERE version_id>=20261126000000")
 	exec(`INSERT INTO users(id,pass,auth_hash) VALUES('alice','synthetic','hash')`)
 	external := filepath.Join(root, "external-library")
-	exec(`INSERT INTO documents(id,title,basepath,filepath) VALUES('tie','Untouched title',?,'original.epub'),('older','Older',NULL,NULL),('empty',NULL,NULL,NULL)`, external)
+	exec(`INSERT INTO documents(id,title,basepath,filepath) VALUES('tie','Untouched title',?,'./original.epub'),('older','Older',NULL,NULL),('empty',NULL,NULL,NULL),('docker-book','Docker book','/data/documents','./book.epub')`, external)
 	exec(`INSERT INTO devices(id,user_id,device_name) VALUES('device-b','alice','B'),('device-a','alice','A')`)
 	exec(`INSERT INTO document_progress(user_id,document_id,device_id,percentage,progress,created_at) VALUES
  ('alice','tie','device-b',0.99,'B exact position','2026-01-01T00:00:00Z'),
@@ -55,8 +55,15 @@ func TestReadingAdditiveMigrationPreservesHistoricalRowsAndOrphans(t *testing.T)
 	require.Equal(t, "device-a", device)
 	require.NoError(t, db.DB.QueryRow(`SELECT position FROM reading_heads WHERE document_id='older'`).Scan(&position))
 	require.Equal(t, "old later position", position)
-	require.NoError(t, db.DB.QueryRow(`SELECT basepath FROM documents WHERE id='tie'`).Scan(&basepath))
+	require.NoError(t, db.DB.QueryRow(`SELECT r.legacy_path FROM documents d JOIN storage_roots r ON r.id=d.storage_root_id WHERE d.id='tie'`).Scan(&basepath))
 	require.Equal(t, external, basepath)
+	var file string
+	require.NoError(t, db.DB.QueryRow(`SELECT filepath FROM documents WHERE id='tie'`).Scan(&file))
+	require.Equal(t, "original.epub", file)
+	var rootID string
+	require.NoError(t, db.DB.QueryRow(`SELECT storage_root_id,filepath FROM documents WHERE id='docker-book'`).Scan(&rootID, &file))
+	require.NotEqual(t, "library", rootID)
+	require.Equal(t, "book.epub", file)
 	var metadata, activity, heads int
 	require.NoError(t, db.DB.QueryRow("SELECT count(*) FROM metadata").Scan(&metadata))
 	require.Equal(t, 2, metadata)
@@ -86,7 +93,7 @@ func TestReadingAdditiveMigrationPreservesHistoricalRowsAndOrphans(t *testing.T)
 	// The schema extension is the same source used by Goose and may be executed repeatedly without rewriting data.
 	exec(dbmigrations.ReadingSchema)
 	require.Equal(t, before, snapshot())
-	require.ErrorContains(t, goose.DownToContext(context.Background(), db.DB, "migrations", 20261118000000), "downgrade is unsafe")
+	require.ErrorContains(t, goose.DownToContext(context.Background(), db.DB, "migrations", 20240510123707), "downgrade is unsafe")
 }
 
 func TestReadingSchemaDeletionAndRevisionBounds(t *testing.T) {
@@ -115,5 +122,5 @@ func TestReadingSchemaDeletionAndRevisionBounds(t *testing.T) {
 	require.Equal(t, "ok", integrity)
 	var version int64
 	require.NoError(t, db.DB.QueryRow("SELECT max(version_id) FROM goose_db_version WHERE is_applied=1").Scan(&version))
-	require.Equal(t, int64(20261122000000), version)
+	require.Equal(t, int64(20261126000000), version)
 }

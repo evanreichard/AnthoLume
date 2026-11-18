@@ -186,6 +186,7 @@ func (dbm *DBManager) updateSettings(ctx context.Context) error {
 func (dbm *DBManager) performMigrations(isNew bool) error {
 	// Create context
 	ctx := context.WithValue(context.Background(), "isNew", isNew) // nolint
+	ctx = dbmigrations.WithStorageDataPath(ctx, dbm.cfg.DataPath)
 
 	// Set DB migration
 	goose.SetBaseFS(migrations)

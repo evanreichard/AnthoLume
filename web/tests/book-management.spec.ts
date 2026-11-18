@@ -29,16 +29,24 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   }
   await edit.click();
   let dialog = page.getByRole('dialog');
+  await expect(dialog).toHaveAccessibleName('Edit book');
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    const editor = (await dialog.boundingBox())!;
+    expect(editor.width).toBeLessThanOrEqual(width - 24);
+    expect(Math.abs(editor.y - (844 - editor.y - editor.height))).toBeLessThanOrEqual(1);
+    expect(editor.y).toBeGreaterThanOrEqual(23);
+  }
   await page.setViewportSize({ width: 390, height: 844 });
-  await dialog.getByRole('button', { name: 'Look up metadata' }).click();
-  await expect(dialog).toHaveAccessibleName('Find book metadata');
+  await dialog.getByRole('button', { name: 'Identify', exact: true }).click();
+  await expect(dialog).toHaveAccessibleName('Identify Book');
   const sheet = (await dialog.boundingBox())!;
   expect(sheet.y).toBeGreaterThan(100);
   expect(sheet.y + sheet.height).toBeCloseTo(844);
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveAccessibleName('Edit book');
-  await expect(dialog.getByRole('button', { name: 'Look up metadata' })).toBeFocused();
-  await dialog.getByRole('button', { name: 'Look up metadata' }).click();
+  await expect(dialog.getByRole('button', { name: 'Identify', exact: true })).toBeFocused();
+  await dialog.getByRole('button', { name: 'Identify', exact: true }).click();
   await dialog.getByRole('button', { name: 'Search Open Library' }).click();
   await dialog.getByRole('button', { name: /Looked-up title/ }).click();
   await expect(dialog.getByRole('region', { name: 'Match preview' })).toBeVisible();
@@ -54,13 +62,13 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   dialog = page.getByRole('dialog');
   await dialog.getByLabel('Title', { exact: true }).fill('Edited book');
   await dialog.getByLabel('Synopsis').fill('Saved from Book Details.');
-  await dialog.getByRole('button', { name: 'Look up metadata' }).click();
+  await dialog.getByRole('button', { name: 'Identify', exact: true }).click();
   await dialog.getByRole('button', { name: 'Search Open Library' }).click();
   await dialog.getByRole('button', { name: /Looked-up title/ }).click();
   await dialog.getByRole('button', { name: 'Use this cover' }).click();
   await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue('Edited book');
   await expect(dialog.getByRole('img', { name: 'New cover preview' })).toBeVisible();
-  await dialog.getByRole('button', { name: 'Save changes' }).click();
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Edited book', exact: true })).toBeVisible();
   await expect(page.getByText('Saved from Book Details.')).toBeVisible();
@@ -69,7 +77,7 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edited book', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Delete from shared library', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Delete book', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(page).toHaveURL(`${server.origin}/app/library`);
   await expect(page.getByRole('heading', { name: 'Edited book', exact: true })).toHaveCount(0);
 });

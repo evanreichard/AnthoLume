@@ -5,6 +5,7 @@ go 1.26.11
 require (
 	github.com/PuerkitoBio/goquery v1.10.3
 	github.com/alexedwards/argon2id v1.0.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/gabriel-vasile/mimetype v1.4.13
 	github.com/getkin/kin-openapi v0.152.0
 	github.com/gin-contrib/multitemplate v1.1.1

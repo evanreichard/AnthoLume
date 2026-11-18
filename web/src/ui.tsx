@@ -1,3 +1,4 @@
+import { ButtonLink } from './Controls';
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -22,16 +23,33 @@ export function PageHeader({ title, headingRef, leading, actions }: PageHeaderPr
   </header>;
 }
 
-export function Dialog({ title, children, onClose, className }: { title: string; children: ReactNode; onClose: () => void; className?: string }) {
+type DialogProps = {
+  title: string;
+  children: ReactNode;
+  onClose: () => void;
+  size?: 'default' | 'wide';
+  layout?: 'content' | 'scroll-body';
+  placement?: 'center' | 'mobile-sheet';
+  toolbar?: ReactNode;
+  footer?: ReactNode;
+};
+
+export function Dialog({ title, children, onClose, size = 'default', layout = 'content', placement = 'center', toolbar, footer }: DialogProps) {
+  const titleId = useId();
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     ref.current?.showModal();
     return () => { ref.current?.close(); if (previous?.isConnected) previous.focus(); };
   }, []);
-  return <dialog ref={ref} className={[styles.dialog, className].filter(Boolean).join(' ')} onCancel={(event) => { event.preventDefault(); onClose(); }} onClick={(event) => { if (event.target === ref.current) onClose(); }} aria-labelledby="dialog-title">
-    <div className={styles.row}><h2 id="dialog-title">{title}</h2><button className={styles.icon} onClick={onClose} aria-label="Close dialog">×</button></div>
-    {children}
+  return <dialog ref={ref} className={styles.dialog} data-size={size} data-layout={layout} data-placement={placement} onCancel={(event) => { event.preventDefault(); onClose(); }} onClick={(event) => { if (event.target === ref.current) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom) onClose();
+  } }} aria-labelledby={titleId}>
+    <header className={styles.dialogHeader}><h2 id={titleId}>{title}</h2><button type="button" className={styles.icon} onClick={onClose} aria-label="Close dialog">×</button></header>
+    {toolbar != null && <div className={styles.dialogToolbar}>{toolbar}</div>}
+    {layout === 'scroll-body' ? <div className={styles.dialogBody}>{children}</div> : children}
+    {footer != null && <footer className={styles.dialogFooter}>{footer}</footer>}
   </dialog>;
 }
 const coverHues = [24, 46, 104, 167, 211, 267, 336];
@@ -43,9 +61,12 @@ function placeholderHue(ref: BookRef) {
   return coverHues[(hash >>> 0) % coverHues.length];
 }
 
-export function Cover({ book, sourceId, thumbnail = false }: {
+export const missingFileLabel = 'Book file unavailable';
+
+export function Cover({ book, sourceId, warningId, thumbnail = false }: {
   book: LibraryBook;
   sourceId?: string;
+  warningId?: string;
   thumbnail?: boolean;
 }) {
   const { access } = useSession();
@@ -107,6 +128,7 @@ export function Cover({ book, sourceId, thumbnail = false }: {
         </div>
       </div>
     )}
+    {warningId && book.document?.file_available === false && <span id={warningId} className={styles.coverWarning} role="img" aria-label={missingFileLabel} title={missingFileLabel}><Icon name="warning" size={17} /></span>}
     <div className={styles.coverBadges}>
       <span id={sourceId} className={styles.provenance} role="img" aria-label={sourceLabel} title={sourceLabel}><Icon name={ref.kind === 'local' ? 'device' : 'cloud'} size={14} /></span>
     </div>
@@ -145,8 +167,8 @@ export function BookHero(props: BookHeroProps) {
 export function BookCard({ book, children }: { book: LibraryBook; children?: ReactNode }) {
   const id = useId();
   return <article className={styles.card}>
-    <Link to={bookPath(book.ref)} className={styles.bookLink} aria-labelledby={`${id}-source ${id}-title ${id}-author`}>
-      <Cover book={book} thumbnail sourceId={`${id}-source`} />
+    <Link to={bookPath(book.ref)} className={styles.bookLink} aria-labelledby={`${id}-source ${id}-title ${id}-author`} aria-describedby={book.document?.file_available === false ? `${id}-warning` : undefined}>
+      <Cover book={book} thumbnail sourceId={`${id}-source`} warningId={`${id}-warning`} />
       <div>
         <h2 id={`${id}-title`} className={styles.cardTitle}>{book.title || 'Untitled'}</h2>
         <p id={`${id}-author`}>{book.author || 'Unknown author'}</p>
@@ -156,7 +178,7 @@ export function BookCard({ book, children }: { book: LibraryBook; children?: Rea
   </article>;
 }
 export function Resume({ book, children = 'Resume' }: { book: BookRef; children?: ReactNode }) {
-  return <Link className={styles.primary} to={bookPath(book, 'read')}><Icon name="book" size={17} />{children}</Link>;
+  return <ButtonLink tone="primary" to={bookPath(book, 'read')}><Icon name="book" size={17} />{children}</ButtonLink>;
 }
 export function ErrorNotice({ error }: { error: unknown }) {
   return error ? <p role="alert" className={styles.error}>{error instanceof Error ? error.message : String(error)}</p> : null;

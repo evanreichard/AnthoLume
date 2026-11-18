@@ -1,0 +1,32 @@
+.sticky { position: sticky; top: 0; z-index: 2; padding-bottom: 8px; background: var(--bg); }
+.sticky > nav { margin-bottom: 8px; }
+.more { display: flex; justify-content: center; margin-top: 8px; }
+.filters { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; }
+.searchForm { position: relative; min-width: 0; }
+.searchForm input { padding-inline-start: 44px; padding-inline-end: 6px; }
+.searchForm button { position: absolute; inset-block: 0; inset-inline-start: 0; display: grid; place-items: center; width: 44px; padding: 0; border: 0; background: transparent; color: var(--muted); }
+.searchForm button:hover { color: var(--ink); }
+.searchForm button:focus-visible { outline-offset: -3px; }
+.summary { margin: 8px 0; color: var(--muted); font-size: .8125rem; }
+.entries { list-style: none; padding: 0; margin: 0; }
+.entries li + li { border-top: 1px solid var(--line); }
+.event { cursor: pointer; display: grid; grid-template-columns: max-content 4.5rem minmax(0, 1fr); align-items: baseline; gap: 4px 12px; padding: 8px 4px; font-size: .875rem; white-space: nowrap; }
+.event time { min-width: 12rem; }
+.event time { grid-column: 1; grid-row: 1; }
+.event .level { grid-column: 2; grid-row: 1; }
+.event strong { grid-column: 3; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 650; }
+.event strong::before { content: '▸'; color: var(--muted); padding-inline-end: 5px; }
+details[open] > .event strong::before { content: '▾'; }
+.details { margin: 0 0 8px; padding: 10px; overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); white-space: pre; font: .75rem/1.5 ui-monospace, monospace; }
+.details:focus-visible { outline-offset: -2px; }
+.entries time { font-size: .8125rem; color: var(--muted); }
+.level { color: var(--muted); font-size: .8125rem; font-weight: 650; }
+.level[data-level='warn'] { color: var(--ink); }
+.level:is([data-level='error'], [data-level='fatal'], [data-level='panic']) { color: var(--danger); }
+@media (max-width: 600px) {
+  .event { grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; }
+  .event strong { grid-column: 1 / -1; }
+  .event .level { grid-column: 1; grid-row: 2; }
+  .event time { grid-column: 2; grid-row: 2; min-width: 0; }
+  .entries time, .level { font-size: .75rem; }
+}

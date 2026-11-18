@@ -29,7 +29,8 @@ func TestWebLibraryBinariesAndOPDSWire(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, png.Encode(cover, image.NewRGBA(image.Rect(0, 0, 2, 2))))
 	require.NoError(t, cover.Close())
-	f.exec(`INSERT INTO documents(id,title,author,description,basepath,filepath,coverfile) VALUES('opaque-book','Literal %_ Title','Author','<script>untrusted text</script>',?,'original.epub','actual.png')`, external)
+	f.exec(`INSERT INTO storage_roots(id,label,path,managed) VALUES('external','External',?,0)`, external)
+	f.exec(`INSERT INTO documents(id,title,author,description,storage_root_id,filepath,coverfile) VALUES('opaque-book','Literal %_ Title','Author','<script>untrusted text</script>','external','original.epub','actual.png')`)
 	f.exec(`INSERT INTO documents(id,title) VALUES('z-book',NULL),('deleted','Deleted')`)
 	f.exec("UPDATE documents SET deleted=1 WHERE id='deleted'")
 	r := f.call("GET", "/api/v1/documents?page_size=1&q=%25_", nil, nil)
@@ -93,7 +94,7 @@ func TestWebLibraryBinariesAndOPDSWire(t *testing.T) {
 	require.Zero(t, f.count("metadata"))
 	assertProblem(t, f.call("GET", "/api/v1/documents/z-book/cover", nil, nil), 404, "not_found")
 	require.Zero(t, f.count("metadata"))
-	f.exec("INSERT INTO documents(id,basepath,filepath) VALUES('traversal',?,'../secret.epub')", external)
+	f.exec("INSERT INTO documents(id,storage_root_id,filepath) VALUES('traversal','external','../secret.epub')")
 	require.NoError(t, os.Symlink(filepath.Join(external, "original.epub"), filepath.Join(f.cfg.DataPath, "documents", "escape.epub")))
 	f.exec("INSERT INTO documents(id,filepath) VALUES('symlink','escape.epub')")
 	for _, id := range []string{"z-book", "missing", "traversal", "symlink"} {
@@ -157,7 +158,7 @@ func TestAppShellBoundaryAndRetirementBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	f.server.Config.Handler = api.Handler()
 	f.server.Start()
-	for _, path := range []string{"/app/", "/app/library", "/app/admin/library", "/app/insights", "/app/insights/activity", "/app/insights/progress", "/app/insights/rankings", "/app/offline", "/app/books/server/opaque-book", "/app/read/local/local-id", "/?antholume-retirement=legacy-v1"} {
+	for _, path := range []string{"/app/", "/app/library", "/app/admin/library", "/app/admin/logs", "/app/insights", "/app/insights/activity", "/app/insights/progress", "/app/insights/rankings", "/app/offline", "/app/books/server/opaque-book", "/app/read/local/local-id", "/?antholume-retirement=legacy-v1"} {
 		r := f.call("GET", path, nil, nil)
 		require.Equal(t, 200, r.status, path)
 		require.Equal(t, shell, string(r.body))

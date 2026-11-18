@@ -35,18 +35,8 @@ func (api *API) createDownloadDocumentHandler(errorFunc func(*gin.Context, int, 
 			return
 		}
 
-		// Derive Basepath
-		basepath := filepath.Join(api.cfg.DataPath, "documents")
-		if document.Basepath != nil && *document.Basepath != "" {
-			basepath = *document.Basepath
-		}
-
-		// Derive Storage Location
-		filePath := filepath.Join(basepath, *document.Filepath)
-
-		// Validate File Exists
-		_, err = os.Stat(filePath)
-		if os.IsNotExist(err) {
+		f, err := api.openDocument(c.Request.Context(), document)
+		if err != nil {
 			log.Error("File should but doesn't exist: ", err)
 			errorFunc(c, http.StatusBadRequest, "Document Doesn't Exist")
 			return
@@ -54,7 +44,13 @@ func (api *API) createDownloadDocumentHandler(errorFunc func(*gin.Context, int, 
 
 		// Force Download
 		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(*document.Filepath)))
-		c.File(filePath)
+		defer f.Close()
+		info, err := f.Stat()
+		if err != nil {
+			errorFunc(c, http.StatusNotFound, "Document Doesn't Exist")
+			return
+		}
+		http.ServeContent(c.Writer, c.Request, filepath.Base(*document.Filepath), info.ModTime(), f)
 	}
 }
 

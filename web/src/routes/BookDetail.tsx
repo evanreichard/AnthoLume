@@ -4,12 +4,12 @@ import { Link, useNavigate } from 'react-router';
 import { useReading } from '../reading';
 import { bookKey, combineBooks } from '../library';
 import { queryClient, session, useSession } from '../session';
-import { BookHero, Dialog, ErrorNotice, PageHeader } from '../ui';
+import { BookHero, Dialog, ErrorNotice, missingFileLabel, PageHeader } from '../ui';
 import { Icon } from '../Icon';
 import { BookEditor } from './BookEditor';
 import { useBookRef } from './bookRef';
 import styles from '../App.module.css';
-import { BackPill } from '../Controls';
+import { BackPill, JoinedAction, JoinedActions, Button } from '../Controls';
 
 function duration(seconds: number) {
   if (!seconds) return '0 min';
@@ -82,6 +82,7 @@ function BookDetailContent() {
     }
   }
   const metadata = document.data;
+  const fileUnavailable = metadata?.file_available === false;
   const stats = metadata?.reading_stats;
   const checkpoint = stored?.checkpoint ?? state.data;
   const fraction = checkpoint?.fraction ?? 0;
@@ -92,12 +93,18 @@ function BookDetailContent() {
   const canManage = ref.kind === 'server' && access.kind === 'authenticated' && !!document.data && !!capabilities && !capabilities.demo_mode;
   return <article className={styles.bookPage}>
     <PageHeader leading={<BackPill to="/library" onClick={(event) => { if (window.history.state?.idx > 0) { event.preventDefault(); navigate(-1); } }}>Library</BackPill>}
-      actions={canManage && <div className={styles.bookTopActions} role="group" aria-label="Manage book">
-        <button type="button" className={styles.icon} aria-label="Edit book" title="Edit book" onClick={() => setManagement('edit')}><Icon name="edit" size={18} /></button>
-        <button type="button" className={`${styles.icon} ${styles.deleteAction}`} aria-label="Delete from shared library" title="Delete from shared library" onClick={() => { setDeleteError(null); setManagement('delete'); }}><Icon name="trash" size={18} /></button>
-      </div>} />
-    <BookHero variant="detail" book={{ ...book, title }} headingRef={heading} progress={started ? Math.round(fraction * 100) : null} series={metadata?.series} edition={edition?.[2]}
-      action={metadata?.file_available ? (started ? 'Resume' : 'Read') : null} />
+      actions={canManage && <JoinedActions label="Manage book">
+        <JoinedAction aria-label="Edit book" title="Edit book" onClick={() => setManagement('edit')}><Icon name="edit" size={18} /></JoinedAction>
+        <JoinedAction tone="danger" aria-label="Delete from shared library" title="Delete from shared library" onClick={() => { setDeleteError(null); setManagement('delete'); }}><Icon name="trash" size={18} /></JoinedAction>
+      </JoinedActions>} />
+    <div className={styles.bookOverview}>
+      <BookHero variant="detail" book={{ ...book, title }} headingRef={heading} progress={started ? Math.round(fraction * 100) : null} series={metadata?.series} edition={edition?.[2]}
+        action={metadata?.file_available ? (started ? 'Resume' : 'Read') : null} />
+      {fileUnavailable && <div className={styles.bookFileWarning} role="status">
+        <Icon name="warning" size={18} />
+        <p><strong>{missingFileLabel}</strong> <span>The server can’t find or read this file.</span></p>
+      </div>}
+    </div>
     <section className={`${styles.detailSection} ${styles.detailReading}`} aria-labelledby="book-reading">
       <div className={styles.detailReadingHeading}>
         <h2 id="book-reading">Your reading</h2>
@@ -112,16 +119,16 @@ function BookDetailContent() {
         <div><dt>Reading pace</dt><dd>{stats.words_per_minute ? `${stats.words_per_minute.toLocaleString()} wpm` : '—'}</dd></div>
       </dl>}
     </section>
-    <section className={`${styles.detailSection} ${styles.detailInfo}`} aria-labelledby="book-information">
-      <h2 id="book-information">Book information</h2>
-      <p className={styles.description}>{metadata?.description?.trim() || 'No synopsis available for this edition.'}</p>
+    <section className={`${styles.detailSection} ${styles.detailInfo}`} aria-label="Book details">
       <dl className={styles.detailMeta}>
         <div><dt>Author</dt><dd>{book.author || 'Unknown'}</dd></div>
-        {metadata?.series && <div><dt>Series</dt><dd>{metadata.series}</dd></div>}
-        {metadata?.lang && <div><dt>Language</dt><dd>{languageName(metadata.lang)}</dd></div>}
         {format && <div><dt>Format</dt><dd>{format}</dd></div>}
         {stats?.word_count != null && stats.word_count > 0 && <div><dt>Length</dt><dd>{stats.word_count.toLocaleString()} words</dd></div>}
+        {metadata?.series && <div><dt>Series</dt><dd>{metadata.series}</dd></div>}
+        {metadata?.lang && <div><dt>Language</dt><dd>{languageName(metadata.lang)}</dd></div>}
       </dl>
+      <h2 className={styles.synopsisHeading}>Synopsis</h2>
+      <p className={styles.description}>{metadata?.description?.trim() || 'No synopsis available for this edition.'}</p>
     </section>
     {ref.kind === 'server' && document.data && access.kind === 'authenticated' && management === 'edit' &&
       <BookEditor book={book} refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={() => { refreshManagement(); setManagement(null); }} />}
@@ -129,8 +136,8 @@ function BookDetailContent() {
       <p>“{title}” will be removed from the shared library for everyone. The server keeps the original file and reading history. This does not remove downloads from other devices.</p>
       <ErrorNotice error={deleteError} />
       <div className={styles.actions}>
-        <button disabled={deleting} onClick={() => setManagement(null)}>Cancel</button>
-        <button disabled={deleting} className={styles.deleteAction} onClick={() => void deleteSharedBook()}>{deleting ? 'Deleting…' : 'Delete book'}</button>
+        <Button disabled={deleting} onClick={() => setManagement(null)}>Cancel</Button>
+        <Button tone="danger" disabled={deleting} onClick={() => void deleteSharedBook()}>{deleting ? 'Deleting…' : 'Delete'}</Button>
       </div>
     </Dialog>}
     <ErrorNotice error={document.error} />

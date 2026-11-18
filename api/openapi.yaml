@@ -444,8 +444,9 @@ paths:
               required: [kind]
               properties:
                 kind: {type: string, enum: [statistics, backup, full_backup, import]}
-                directory: {type: string, maxLength: 512}
                 reference: {type: boolean}
+                relink_missing: {type: boolean}
+                root_id: {$ref: '#/components/schemas/StorageRootID'}
       responses:
         '202':
           description: Started or currently running job
@@ -464,6 +465,16 @@ paths:
           content:
             application/octet-stream:
               schema: {type: string, format: binary}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/backup/preview:
+    get:
+      operationId: previewAdminBackup
+      responses:
+        '200':
+          description: Estimated files and bytes in the managed library
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminBackupPreview'}
         default: {$ref: '#/components/responses/Problem'}
   /api/v1/admin/restore:
     post:
@@ -488,25 +499,133 @@ paths:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/AdminRestore'}
+            schema: {$ref: '#/components/schemas/AdminRestoreApply'}
       responses:
         '204': {description: Database replaced and sessions invalidated}
         default: {$ref: '#/components/responses/Problem'}
   /api/v1/admin/logs:
     get:
       operationId: listAdminLogs
+      parameters:
+        - {in: query, name: cursor, schema: {type: string, maxLength: 128}}
+        - {in: query, name: q, schema: {type: string, maxLength: 200}}
+        - {in: query, name: level, schema: {$ref: '#/components/schemas/AdminLogLevel'}}
       responses:
         '200':
-          description: Recent sanitized server log entries
+          description: Page of retained server logs, newest first
           content:
             application/json:
-              schema: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/AdminLog'}}
+              schema: {$ref: '#/components/schemas/AdminLogPage'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/storage-roots:
+    get:
+      operationId: listAdminStorageRoots
+      responses:
+        '200':
+          description: Configured storage roots
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/AdminStorageRoot'}}
+        default: {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: saveAdminStorageRoot
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminStorageRootInput'}
+      responses:
+        '204': {description: Storage root saved}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/storage-roots/make-library:
+    get:
+      operationId: previewMakeLibrary
+      parameters:
+        - {in: query, name: id, required: true, schema: {$ref: '#/components/schemas/StorageRootID'}}
+        - {in: query, name: path, schema: {type: string, minLength: 1, maxLength: 4096}}
+      responses:
+        '200':
+          description: Proposed Library change
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MakeLibraryPlan'}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: makeLibrary
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MakeLibraryPlan'}
+      responses:
+        '204': {description: Library changed}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/storage-directories:
+    get:
+      operationId: browseAdminStorageDirectories
+      parameters:
+        - {in: query, name: path, schema: {type: string, maxLength: 4096}}
+      responses:
+        '200':
+          description: Directories visible to the server process
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminStorageDirectories'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/auto-import:
+    get:
+      operationId: listAdminAutoImports
+      responses:
+        '200':
+          description: Configured automatic import rules
+          content:
+            application/json:
+              schema: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/AdminAutoImport'}}
+        default: {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: saveAdminAutoImport
+      parameters:
+        - {$ref: '#/components/parameters/Origin'}
+        - {$ref: '#/components/parameters/CSRF'}
+        - {in: query, name: id, schema: {$ref: '#/components/schemas/AutoImportID'}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminAutoImportSettings'}
+      responses:
+        '204': {description: Automatic import rule saved}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: queueAdminAutoImport
+      parameters:
+        - {$ref: '#/components/parameters/Origin'}
+        - {$ref: '#/components/parameters/CSRF'}
+        - {in: query, name: id, required: true, schema: {$ref: '#/components/schemas/AutoImportID'}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: false}
+      responses:
+        '204': {description: Scan queued}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteAdminAutoImport
+      parameters:
+        - {$ref: '#/components/parameters/Origin'}
+        - {$ref: '#/components/parameters/CSRF'}
+        - {in: query, name: id, required: true, schema: {$ref: '#/components/schemas/AutoImportID'}}
+      responses:
+        '204': {description: Rule deleted}
         default: {$ref: '#/components/responses/Problem'}
   /api/v1/admin/import:
     get:
       operationId: previewAdminImport
       parameters:
-        - {in: query, name: directory, required: true, schema: {type: string, maxLength: 512}}
+        - {in: query, name: root_id, schema: {$ref: '#/components/schemas/StorageRootID'}}
       responses:
         '200':
           description: EPUB files in an import folder
@@ -602,6 +721,84 @@ components:
         status: {type: string, enum: [running, succeeded, failed, interrupted]}
         started_at: {type: string}
         finished_at: {type: string, nullable: true}
+    StorageRootID: {type: string, minLength: 1, maxLength: 64, pattern: '^[a-z0-9][a-z0-9-]*$'}
+    AdminStorageRoot:
+      type: object
+      additionalProperties: false
+      required: [id, label, path, managed, directory_available, book_count]
+      properties:
+        id: {$ref: '#/components/schemas/StorageRootID'}
+        label: {type: string, minLength: 1, maxLength: 128}
+        path: {type: string, maxLength: 4096}
+        managed: {type: boolean}
+        directory_available: {type: boolean, description: Whether the displayed path exists as a directory on the server}
+        legacy_path: {type: string}
+        book_count: {type: integer, minimum: 0, description: Number of catalog books assigned to this root}
+    AdminStorageRootInput:
+      type: object
+      additionalProperties: false
+      required: [id, label, path]
+      properties:
+        id: {$ref: '#/components/schemas/StorageRootID'}
+        label: {type: string, minLength: 1, maxLength: 128}
+        path: {type: string, maxLength: 4096}
+    MakeLibraryPlan:
+      type: object
+      additionalProperties: false
+      required: [id, source_path, configured_source_path, library_path, incoming, outgoing, paused_rules, same_folder]
+      properties:
+        id: {$ref: '#/components/schemas/StorageRootID'}
+        source_path: {type: string, maxLength: 4096}
+        configured_source_path: {type: string}
+        library_path: {type: string}
+        incoming: {type: integer, minimum: 0}
+        outgoing: {type: integer, minimum: 0}
+        paused_rules: {type: integer, minimum: 0}
+        same_folder: {type: boolean}
+    AdminStorageDirectories:
+      type: object
+      additionalProperties: false
+      required: [path, parent, entries]
+      properties:
+        path: {type: string}
+        parent: {type: string}
+        entries: {type: array, items: {type: string}}
+    AdminBackupPreview:
+      type: object
+      additionalProperties: false
+      required: [files, bytes, missing]
+      properties:
+        files: {type: integer, minimum: 0}
+        bytes: {type: integer, format: int64, minimum: 0}
+        missing: {type: integer, minimum: 0}
+    AutoImportID: {type: string, pattern: '^[a-f0-9]{32}$'}
+    AdminAutoImportSettings:
+      type: object
+      additionalProperties: false
+      required: [name, root_id, enabled, watch, interval_minutes, reference]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        root_id: {$ref: '#/components/schemas/StorageRootID'}
+        enabled: {type: boolean}
+        watch: {type: boolean}
+        interval_minutes: {type: integer, minimum: 1, maximum: 1440}
+        reference: {type: boolean}
+    AdminAutoImport:
+      type: object
+      additionalProperties: false
+      required: [id, settings, status]
+      properties:
+        id: {$ref: '#/components/schemas/AutoImportID'}
+        settings: {$ref: '#/components/schemas/AdminAutoImportSettings'}
+        status: {type: string, enum: [idle, complete, errors, unavailable]}
+        last_scan: {type: string}
+        next_scan: {type: string}
+    AdminRestoreApply:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: {type: string, pattern: '^[a-f0-9]{64}$'}
     AdminRestore:
       type: object
       additionalProperties: false
@@ -609,21 +806,32 @@ components:
       properties:
         token: {type: string, pattern: '^[a-f0-9]{64}$'}
         files: {type: integer, minimum: 0, maximum: 50000}
+    AdminLogLevel:
+      type: string
+      enum: [trace, debug, info, warn, error, fatal, panic]
+    AdminLogPage:
+      type: object
+      additionalProperties: false
+      required: [entries]
+      properties:
+        entries: {type: array, maxItems: 15, items: {$ref: '#/components/schemas/AdminLog'}}
+        next_cursor: {type: string, maxLength: 128}
     AdminLog:
       type: object
       additionalProperties: false
-      required: [time, level, operation]
+      required: [time, level, message, details]
       properties:
         time: {type: string}
-        level: {type: string}
-        operation: {type: string}
+        level: {$ref: '#/components/schemas/AdminLogLevel'}
+        message: {type: string}
+        details: {type: string, description: JSON event with credentials redacted}
     AdminImportResult:
       type: object
       additionalProperties: false
       required: [file, status]
       properties:
         file: {type: string}
-        status: {type: string, enum: [imported, skipped, failed]}
+        status: {type: string, enum: [imported, relinked, skipped, failed]}
     AdminSystem:
       type: object
       additionalProperties: false

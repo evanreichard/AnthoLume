@@ -42,7 +42,7 @@ func New(c *config.Config, assets fs.FS) *server {
 // Start server
 func (s *server) Start() {
 	log.Info("Starting server...")
-	s.wg.Add(2)
+	s.wg.Add(3)
 
 	go func() {
 		defer s.wg.Done()
@@ -57,6 +57,11 @@ func (s *server) Start() {
 		defer s.wg.Done()
 
 		s.runTaskRunner(15*time.Minute, 5*time.Minute)
+	}()
+
+	go func() {
+		defer s.wg.Done()
+		s.api.RunAutoImports(s.workerCtx)
 	}()
 
 	log.Info("Server started")

@@ -24,10 +24,35 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AdminAutoImportStatus.
+const (
+	Complete    AdminAutoImportStatus = "complete"
+	Errors      AdminAutoImportStatus = "errors"
+	Idle        AdminAutoImportStatus = "idle"
+	Unavailable AdminAutoImportStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the AdminAutoImportStatus enum.
+func (e AdminAutoImportStatus) Valid() bool {
+	switch e {
+	case Complete:
+		return true
+	case Errors:
+		return true
+	case Idle:
+		return true
+	case Unavailable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminImportResultStatus.
 const (
 	AdminImportResultStatusFailed   AdminImportResultStatus = "failed"
 	AdminImportResultStatusImported AdminImportResultStatus = "imported"
+	AdminImportResultStatusRelinked AdminImportResultStatus = "relinked"
 	AdminImportResultStatusSkipped  AdminImportResultStatus = "skipped"
 )
 
@@ -37,6 +62,8 @@ func (e AdminImportResultStatus) Valid() bool {
 	case AdminImportResultStatusFailed:
 		return true
 	case AdminImportResultStatusImported:
+		return true
+	case AdminImportResultStatusRelinked:
 		return true
 	case AdminImportResultStatusSkipped:
 		return true
@@ -87,6 +114,39 @@ func (e AdminJobStatus) Valid() bool {
 	case AdminJobStatusRunning:
 		return true
 	case AdminJobStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminLogLevel.
+const (
+	Debug AdminLogLevel = "debug"
+	Error AdminLogLevel = "error"
+	Fatal AdminLogLevel = "fatal"
+	Info  AdminLogLevel = "info"
+	Panic AdminLogLevel = "panic"
+	Trace AdminLogLevel = "trace"
+	Warn  AdminLogLevel = "warn"
+)
+
+// Valid indicates whether the value is a known member of the AdminLogLevel enum.
+func (e AdminLogLevel) Valid() bool {
+	switch e {
+	case Debug:
+		return true
+	case Error:
+		return true
+	case Fatal:
+		return true
+	case Info:
+		return true
+	case Panic:
+		return true
+	case Trace:
+		return true
+	case Warn:
 		return true
 	default:
 		return false
@@ -239,6 +299,35 @@ type ActivityEvent struct {
 	StartTime     time.Time `json:"start_time"`
 }
 
+// AdminAutoImport defines model for AdminAutoImport.
+type AdminAutoImport struct {
+	Id       AutoImportID            `json:"id"`
+	LastScan *string                 `json:"last_scan,omitempty"`
+	NextScan *string                 `json:"next_scan,omitempty"`
+	Settings AdminAutoImportSettings `json:"settings"`
+	Status   AdminAutoImportStatus   `json:"status"`
+}
+
+// AdminAutoImportStatus defines model for AdminAutoImport.Status.
+type AdminAutoImportStatus string
+
+// AdminAutoImportSettings defines model for AdminAutoImportSettings.
+type AdminAutoImportSettings struct {
+	Enabled         bool          `json:"enabled"`
+	IntervalMinutes int           `json:"interval_minutes"`
+	Name            string        `json:"name"`
+	Reference       bool          `json:"reference"`
+	RootId          StorageRootID `json:"root_id"`
+	Watch           bool          `json:"watch"`
+}
+
+// AdminBackupPreview defines model for AdminBackupPreview.
+type AdminBackupPreview struct {
+	Bytes   int64 `json:"bytes"`
+	Files   int   `json:"files"`
+	Missing int   `json:"missing"`
+}
+
 // AdminImportResult defines model for AdminImportResult.
 type AdminImportResult struct {
 	File   string                  `json:"file"`
@@ -265,15 +354,59 @@ type AdminJobStatus string
 
 // AdminLog defines model for AdminLog.
 type AdminLog struct {
-	Level     string `json:"level"`
-	Operation string `json:"operation"`
-	Time      string `json:"time"`
+	// Details JSON event with credentials redacted
+	Details string        `json:"details"`
+	Level   AdminLogLevel `json:"level"`
+	Message string        `json:"message"`
+	Time    string        `json:"time"`
+}
+
+// AdminLogLevel defines model for AdminLogLevel.
+type AdminLogLevel string
+
+// AdminLogPage defines model for AdminLogPage.
+type AdminLogPage struct {
+	Entries    []AdminLog `json:"entries"`
+	NextCursor *string    `json:"next_cursor,omitempty"`
 }
 
 // AdminRestore defines model for AdminRestore.
 type AdminRestore struct {
 	Files int    `json:"files"`
 	Token string `json:"token"`
+}
+
+// AdminRestoreApply defines model for AdminRestoreApply.
+type AdminRestoreApply struct {
+	Token string `json:"token"`
+}
+
+// AdminStorageDirectories defines model for AdminStorageDirectories.
+type AdminStorageDirectories struct {
+	Entries []string `json:"entries"`
+	Parent  string   `json:"parent"`
+	Path    string   `json:"path"`
+}
+
+// AdminStorageRoot defines model for AdminStorageRoot.
+type AdminStorageRoot struct {
+	// BookCount Number of catalog books assigned to this root
+	BookCount int `json:"book_count"`
+
+	// DirectoryAvailable Whether the displayed path exists as a directory on the server
+	DirectoryAvailable bool          `json:"directory_available"`
+	Id                 StorageRootID `json:"id"`
+	Label              string        `json:"label"`
+	LegacyPath         *string       `json:"legacy_path,omitempty"`
+	Managed            bool          `json:"managed"`
+	Path               string        `json:"path"`
+}
+
+// AdminStorageRootInput defines model for AdminStorageRootInput.
+type AdminStorageRootInput struct {
+	Id    StorageRootID `json:"id"`
+	Label string        `json:"label"`
+	Path  string        `json:"path"`
 }
 
 // AdminSystem defines model for AdminSystem.
@@ -299,6 +432,9 @@ type AdminUserUpdate struct {
 	IsAdmin  *bool   `json:"is_admin,omitempty"`
 	Password *string `json:"password,omitempty"`
 }
+
+// AutoImportID defines model for AutoImportID.
+type AutoImportID = string
 
 // BookReadingStats Account-scoped statistics returned on the book detail endpoint.
 type BookReadingStats struct {
@@ -446,6 +582,18 @@ type Insights struct {
 	Timezone          string       `json:"timezone"`
 }
 
+// MakeLibraryPlan defines model for MakeLibraryPlan.
+type MakeLibraryPlan struct {
+	ConfiguredSourcePath string        `json:"configured_source_path"`
+	Id                   StorageRootID `json:"id"`
+	Incoming             int           `json:"incoming"`
+	LibraryPath          string        `json:"library_path"`
+	Outgoing             int           `json:"outgoing"`
+	PausedRules          int           `json:"paused_rules"`
+	SameFolder           bool          `json:"same_folder"`
+	SourcePath           string        `json:"source_path"`
+}
+
 // ManagedDevice defines model for ManagedDevice.
 type ManagedDevice struct {
 	Archived   bool      `json:"archived"`
@@ -533,11 +681,50 @@ type Session struct {
 	} `json:"user"`
 }
 
+// StorageRootID defines model for StorageRootID.
+type StorageRootID = string
+
 // CSRF defines model for CSRF.
 type CSRF = string
 
 // Origin defines model for Origin.
 type Origin = string
+
+// DeleteAdminAutoImportParams defines parameters for DeleteAdminAutoImport.
+type DeleteAdminAutoImportParams struct {
+	Id AutoImportID `form:"id" json:"id"`
+
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// QueueAdminAutoImportJSONBody defines parameters for QueueAdminAutoImport.
+type QueueAdminAutoImportJSONBody = map[string]interface{}
+
+// QueueAdminAutoImportParams defines parameters for QueueAdminAutoImport.
+type QueueAdminAutoImportParams struct {
+	Id AutoImportID `form:"id" json:"id"`
+
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// SaveAdminAutoImportParams defines parameters for SaveAdminAutoImport.
+type SaveAdminAutoImportParams struct {
+	Id *AutoImportID `form:"id,omitempty" json:"id,omitempty"`
+
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
 
 // DownloadAdminBackupParams defines parameters for DownloadAdminBackup.
 type DownloadAdminBackupParams struct {
@@ -546,7 +733,7 @@ type DownloadAdminBackupParams struct {
 
 // PreviewAdminImportParams defines parameters for PreviewAdminImport.
 type PreviewAdminImportParams struct {
-	Directory string `form:"directory" json:"directory"`
+	RootId *StorageRootID `form:"root_id,omitempty" json:"root_id,omitempty"`
 }
 
 // ListAdminImportResultsParams defines parameters for ListAdminImportResults.
@@ -564,9 +751,10 @@ type ListAdminJobsParamsKind string
 
 // StartAdminJobJSONBody defines parameters for StartAdminJob.
 type StartAdminJobJSONBody struct {
-	Directory *string                   `json:"directory,omitempty"`
-	Kind      StartAdminJobJSONBodyKind `json:"kind"`
-	Reference *bool                     `json:"reference,omitempty"`
+	Kind          StartAdminJobJSONBodyKind `json:"kind"`
+	Reference     *bool                     `json:"reference,omitempty"`
+	RelinkMissing *bool                     `json:"relink_missing,omitempty"`
+	RootId        *StorageRootID            `json:"root_id,omitempty"`
 }
 
 // StartAdminJobParams defines parameters for StartAdminJob.
@@ -581,6 +769,13 @@ type StartAdminJobParams struct {
 // StartAdminJobJSONBodyKind defines parameters for StartAdminJob.
 type StartAdminJobJSONBodyKind string
 
+// ListAdminLogsParams defines parameters for ListAdminLogs.
+type ListAdminLogsParams struct {
+	Cursor *string        `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Q      *string        `form:"q,omitempty" json:"q,omitempty"`
+	Level  *AdminLogLevel `form:"level,omitempty" json:"level,omitempty"`
+}
+
 // ApplyAdminRestoreParams defines parameters for ApplyAdminRestore.
 type ApplyAdminRestoreParams struct {
 	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
@@ -592,6 +787,35 @@ type ApplyAdminRestoreParams struct {
 
 // StageAdminRestoreParams defines parameters for StageAdminRestore.
 type StageAdminRestoreParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// BrowseAdminStorageDirectoriesParams defines parameters for BrowseAdminStorageDirectories.
+type BrowseAdminStorageDirectoriesParams struct {
+	Path *string `form:"path,omitempty" json:"path,omitempty"`
+}
+
+// SaveAdminStorageRootParams defines parameters for SaveAdminStorageRoot.
+type SaveAdminStorageRootParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// PreviewMakeLibraryParams defines parameters for PreviewMakeLibrary.
+type PreviewMakeLibraryParams struct {
+	Id   StorageRootID `form:"id" json:"id"`
+	Path *string       `form:"path,omitempty" json:"path,omitempty"`
+}
+
+// MakeLibraryParams defines parameters for MakeLibrary.
+type MakeLibraryParams struct {
 	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
 	Origin *Origin `json:"Origin,omitempty"`
 
@@ -784,11 +1008,23 @@ type RegisterParams struct {
 	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
 }
 
+// QueueAdminAutoImportJSONRequestBody defines body for QueueAdminAutoImport for application/json ContentType.
+type QueueAdminAutoImportJSONRequestBody = QueueAdminAutoImportJSONBody
+
+// SaveAdminAutoImportJSONRequestBody defines body for SaveAdminAutoImport for application/json ContentType.
+type SaveAdminAutoImportJSONRequestBody = AdminAutoImportSettings
+
 // StartAdminJobJSONRequestBody defines body for StartAdminJob for application/json ContentType.
 type StartAdminJobJSONRequestBody StartAdminJobJSONBody
 
 // ApplyAdminRestoreJSONRequestBody defines body for ApplyAdminRestore for application/json ContentType.
-type ApplyAdminRestoreJSONRequestBody = AdminRestore
+type ApplyAdminRestoreJSONRequestBody = AdminRestoreApply
+
+// SaveAdminStorageRootJSONRequestBody defines body for SaveAdminStorageRoot for application/json ContentType.
+type SaveAdminStorageRootJSONRequestBody = AdminStorageRootInput
+
+// MakeLibraryJSONRequestBody defines body for MakeLibrary for application/json ContentType.
+type MakeLibraryJSONRequestBody = MakeLibraryPlan
 
 // CreateAdminUserJSONRequestBody defines body for CreateAdminUser for application/json ContentType.
 type CreateAdminUserJSONRequestBody = AdminUserCreate
@@ -829,8 +1065,23 @@ type RegisterJSONRequestBody = Credentials
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
+	// (DELETE /api/v1/admin/auto-import)
+	DeleteAdminAutoImport(c *gin.Context, params DeleteAdminAutoImportParams)
+
+	// (GET /api/v1/admin/auto-import)
+	ListAdminAutoImports(c *gin.Context)
+
+	// (POST /api/v1/admin/auto-import)
+	QueueAdminAutoImport(c *gin.Context, params QueueAdminAutoImportParams)
+
+	// (PUT /api/v1/admin/auto-import)
+	SaveAdminAutoImport(c *gin.Context, params SaveAdminAutoImportParams)
+
 	// (GET /api/v1/admin/backup)
 	DownloadAdminBackup(c *gin.Context, params DownloadAdminBackupParams)
+
+	// (GET /api/v1/admin/backup/preview)
+	PreviewAdminBackup(c *gin.Context)
 
 	// (GET /api/v1/admin/import)
 	PreviewAdminImport(c *gin.Context, params PreviewAdminImportParams)
@@ -845,13 +1096,28 @@ type ServerInterface interface {
 	StartAdminJob(c *gin.Context, params StartAdminJobParams)
 
 	// (GET /api/v1/admin/logs)
-	ListAdminLogs(c *gin.Context)
+	ListAdminLogs(c *gin.Context, params ListAdminLogsParams)
 
 	// (PATCH /api/v1/admin/restore)
 	ApplyAdminRestore(c *gin.Context, params ApplyAdminRestoreParams)
 
 	// (POST /api/v1/admin/restore)
 	StageAdminRestore(c *gin.Context, params StageAdminRestoreParams)
+
+	// (GET /api/v1/admin/storage-directories)
+	BrowseAdminStorageDirectories(c *gin.Context, params BrowseAdminStorageDirectoriesParams)
+
+	// (GET /api/v1/admin/storage-roots)
+	ListAdminStorageRoots(c *gin.Context)
+
+	// (PUT /api/v1/admin/storage-roots)
+	SaveAdminStorageRoot(c *gin.Context, params SaveAdminStorageRootParams)
+
+	// (GET /api/v1/admin/storage-roots/make-library)
+	PreviewMakeLibrary(c *gin.Context, params PreviewMakeLibraryParams)
+
+	// (POST /api/v1/admin/storage-roots/make-library)
+	MakeLibrary(c *gin.Context, params MakeLibraryParams)
 
 	// (GET /api/v1/admin/system)
 	GetAdminSystem(c *gin.Context)
@@ -956,6 +1222,220 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(c *gin.Context)
 
+// DeleteAdminAutoImport operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminAutoImport(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteAdminAutoImportParams
+
+	// ------------- Required query parameter "id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "id", c.Request.URL.Query(), &params.Id, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAdminAutoImport(c, params)
+}
+
+// ListAdminAutoImports operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminAutoImports(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminAutoImports(c)
+}
+
+// QueueAdminAutoImport operation middleware
+func (siw *ServerInterfaceWrapper) QueueAdminAutoImport(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params QueueAdminAutoImportParams
+
+	// ------------- Required query parameter "id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "id", c.Request.URL.Query(), &params.Id, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.QueueAdminAutoImport(c, params)
+}
+
+// SaveAdminAutoImport operation middleware
+func (siw *ServerInterfaceWrapper) SaveAdminAutoImport(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SaveAdminAutoImportParams
+
+	// ------------- Optional query parameter "id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "id", c.Request.URL.Query(), &params.Id, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SaveAdminAutoImport(c, params)
+}
+
 // DownloadAdminBackup operation middleware
 func (siw *ServerInterfaceWrapper) DownloadAdminBackup(c *gin.Context) {
 
@@ -983,6 +1463,19 @@ func (siw *ServerInterfaceWrapper) DownloadAdminBackup(c *gin.Context) {
 	siw.Handler.DownloadAdminBackup(c, params)
 }
 
+// PreviewAdminBackup operation middleware
+func (siw *ServerInterfaceWrapper) PreviewAdminBackup(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PreviewAdminBackup(c)
+}
+
 // PreviewAdminImport operation middleware
 func (siw *ServerInterfaceWrapper) PreviewAdminImport(c *gin.Context) {
 
@@ -992,11 +1485,11 @@ func (siw *ServerInterfaceWrapper) PreviewAdminImport(c *gin.Context) {
 	// Parameter object where we will unmarshal all parameters from the context
 	var params PreviewAdminImportParams
 
-	// ------------- Required query parameter "directory" -------------
+	// ------------- Optional query parameter "root_id" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "directory", c.Request.URL.Query(), &params.Directory, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "root_id", c.Request.URL.Query(), &params.RootId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter directory: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter root_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -1126,6 +1619,36 @@ func (siw *ServerInterfaceWrapper) StartAdminJob(c *gin.Context) {
 // ListAdminLogs operation middleware
 func (siw *ServerInterfaceWrapper) ListAdminLogs(c *gin.Context) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminLogsParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", c.Request.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter cursor: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", c.Request.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "level" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "level", c.Request.URL.Query(), &params.Level, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter level: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1133,7 +1656,7 @@ func (siw *ServerInterfaceWrapper) ListAdminLogs(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.ListAdminLogs(c)
+	siw.Handler.ListAdminLogs(c, params)
 }
 
 // ApplyAdminRestore operation middleware
@@ -1252,6 +1775,199 @@ func (siw *ServerInterfaceWrapper) StageAdminRestore(c *gin.Context) {
 	}
 
 	siw.Handler.StageAdminRestore(c, params)
+}
+
+// BrowseAdminStorageDirectories operation middleware
+func (siw *ServerInterfaceWrapper) BrowseAdminStorageDirectories(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params BrowseAdminStorageDirectoriesParams
+
+	// ------------- Optional query parameter "path" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "path", c.Request.URL.Query(), &params.Path, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter path: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BrowseAdminStorageDirectories(c, params)
+}
+
+// ListAdminStorageRoots operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminStorageRoots(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminStorageRoots(c)
+}
+
+// SaveAdminStorageRoot operation middleware
+func (siw *ServerInterfaceWrapper) SaveAdminStorageRoot(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SaveAdminStorageRootParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SaveAdminStorageRoot(c, params)
+}
+
+// PreviewMakeLibrary operation middleware
+func (siw *ServerInterfaceWrapper) PreviewMakeLibrary(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PreviewMakeLibraryParams
+
+	// ------------- Required query parameter "id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "id", c.Request.URL.Query(), &params.Id, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "path" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "path", c.Request.URL.Query(), &params.Path, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter path: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PreviewMakeLibrary(c, params)
+}
+
+// MakeLibrary operation middleware
+func (siw *ServerInterfaceWrapper) MakeLibrary(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params MakeLibraryParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.MakeLibrary(c, params)
 }
 
 // GetAdminSystem operation middleware
@@ -2652,9 +3368,19 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/api/v1/admin/jobs", wrapper.ListAdminJobs)
 	router.POST(options.BaseURL+"/api/v1/admin/jobs", wrapper.StartAdminJob)
 	router.GET(options.BaseURL+"/api/v1/admin/backup", wrapper.DownloadAdminBackup)
+	router.GET(options.BaseURL+"/api/v1/admin/backup/preview", wrapper.PreviewAdminBackup)
 	router.PATCH(options.BaseURL+"/api/v1/admin/restore", wrapper.ApplyAdminRestore)
 	router.POST(options.BaseURL+"/api/v1/admin/restore", wrapper.StageAdminRestore)
 	router.GET(options.BaseURL+"/api/v1/admin/logs", wrapper.ListAdminLogs)
+	router.GET(options.BaseURL+"/api/v1/admin/storage-roots", wrapper.ListAdminStorageRoots)
+	router.PUT(options.BaseURL+"/api/v1/admin/storage-roots", wrapper.SaveAdminStorageRoot)
+	router.GET(options.BaseURL+"/api/v1/admin/storage-roots/make-library", wrapper.PreviewMakeLibrary)
+	router.POST(options.BaseURL+"/api/v1/admin/storage-roots/make-library", wrapper.MakeLibrary)
+	router.GET(options.BaseURL+"/api/v1/admin/storage-directories", wrapper.BrowseAdminStorageDirectories)
+	router.DELETE(options.BaseURL+"/api/v1/admin/auto-import", wrapper.DeleteAdminAutoImport)
+	router.GET(options.BaseURL+"/api/v1/admin/auto-import", wrapper.ListAdminAutoImports)
+	router.POST(options.BaseURL+"/api/v1/admin/auto-import", wrapper.QueueAdminAutoImport)
+	router.PUT(options.BaseURL+"/api/v1/admin/auto-import", wrapper.SaveAdminAutoImport)
 	router.GET(options.BaseURL+"/api/v1/admin/import", wrapper.PreviewAdminImport)
 	router.GET(options.BaseURL+"/api/v1/admin/import/results", wrapper.ListAdminImportResults)
 	router.GET(options.BaseURL+"/api/v1/admin/system", wrapper.GetAdminSystem)
@@ -2667,6 +3393,161 @@ type ProblemApplicationProblemPlusJSONResponse struct {
 	Body Problem
 
 	Headers ProblemResponseHeaders
+}
+
+type DeleteAdminAutoImportRequestObject struct {
+	Params DeleteAdminAutoImportParams
+}
+
+type DeleteAdminAutoImportResponseObject interface {
+	VisitDeleteAdminAutoImportResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminAutoImport204Response struct {
+}
+
+func (response DeleteAdminAutoImport204Response) VisitDeleteAdminAutoImportResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminAutoImportdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response DeleteAdminAutoImportdefaultApplicationProblemPlusJSONResponse) VisitDeleteAdminAutoImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAutoImportsRequestObject struct {
+}
+
+type ListAdminAutoImportsResponseObject interface {
+	VisitListAdminAutoImportsResponse(w http.ResponseWriter) error
+}
+
+type ListAdminAutoImports200JSONResponse []AdminAutoImport
+
+func (response ListAdminAutoImports200JSONResponse) VisitListAdminAutoImportsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAutoImportsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response ListAdminAutoImportsdefaultApplicationProblemPlusJSONResponse) VisitListAdminAutoImportsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type QueueAdminAutoImportRequestObject struct {
+	Params QueueAdminAutoImportParams
+	Body   *QueueAdminAutoImportJSONRequestBody
+}
+
+type QueueAdminAutoImportResponseObject interface {
+	VisitQueueAdminAutoImportResponse(w http.ResponseWriter) error
+}
+
+type QueueAdminAutoImport204Response struct {
+}
+
+func (response QueueAdminAutoImport204Response) VisitQueueAdminAutoImportResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type QueueAdminAutoImportdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response QueueAdminAutoImportdefaultApplicationProblemPlusJSONResponse) VisitQueueAdminAutoImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveAdminAutoImportRequestObject struct {
+	Params SaveAdminAutoImportParams
+	Body   *SaveAdminAutoImportJSONRequestBody
+}
+
+type SaveAdminAutoImportResponseObject interface {
+	VisitSaveAdminAutoImportResponse(w http.ResponseWriter) error
+}
+
+type SaveAdminAutoImport204Response struct {
+}
+
+func (response SaveAdminAutoImport204Response) VisitSaveAdminAutoImportResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type SaveAdminAutoImportdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response SaveAdminAutoImportdefaultApplicationProblemPlusJSONResponse) VisitSaveAdminAutoImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type DownloadAdminBackupRequestObject struct {
@@ -2704,6 +3585,48 @@ type DownloadAdminBackupdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response DownloadAdminBackupdefaultApplicationProblemPlusJSONResponse) VisitDownloadAdminBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewAdminBackupRequestObject struct {
+}
+
+type PreviewAdminBackupResponseObject interface {
+	VisitPreviewAdminBackupResponse(w http.ResponseWriter) error
+}
+
+type PreviewAdminBackup200JSONResponse AdminBackupPreview
+
+func (response PreviewAdminBackup200JSONResponse) VisitPreviewAdminBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewAdminBackupdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response PreviewAdminBackupdefaultApplicationProblemPlusJSONResponse) VisitPreviewAdminBackupResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -2892,13 +3815,14 @@ func (response StartAdminJobdefaultApplicationProblemPlusJSONResponse) VisitStar
 }
 
 type ListAdminLogsRequestObject struct {
+	Params ListAdminLogsParams
 }
 
 type ListAdminLogsResponseObject interface {
 	VisitListAdminLogsResponse(w http.ResponseWriter) error
 }
 
-type ListAdminLogs200JSONResponse []AdminLog
+type ListAdminLogs200JSONResponse AdminLogPage
 
 func (response ListAdminLogs200JSONResponse) VisitListAdminLogsResponse(w http.ResponseWriter) error {
 
@@ -3001,6 +3925,210 @@ type StageAdminRestoredefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response StageAdminRestoredefaultApplicationProblemPlusJSONResponse) VisitStageAdminRestoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BrowseAdminStorageDirectoriesRequestObject struct {
+	Params BrowseAdminStorageDirectoriesParams
+}
+
+type BrowseAdminStorageDirectoriesResponseObject interface {
+	VisitBrowseAdminStorageDirectoriesResponse(w http.ResponseWriter) error
+}
+
+type BrowseAdminStorageDirectories200JSONResponse AdminStorageDirectories
+
+func (response BrowseAdminStorageDirectories200JSONResponse) VisitBrowseAdminStorageDirectoriesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BrowseAdminStorageDirectoriesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response BrowseAdminStorageDirectoriesdefaultApplicationProblemPlusJSONResponse) VisitBrowseAdminStorageDirectoriesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminStorageRootsRequestObject struct {
+}
+
+type ListAdminStorageRootsResponseObject interface {
+	VisitListAdminStorageRootsResponse(w http.ResponseWriter) error
+}
+
+type ListAdminStorageRoots200JSONResponse []AdminStorageRoot
+
+func (response ListAdminStorageRoots200JSONResponse) VisitListAdminStorageRootsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminStorageRootsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response ListAdminStorageRootsdefaultApplicationProblemPlusJSONResponse) VisitListAdminStorageRootsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveAdminStorageRootRequestObject struct {
+	Params SaveAdminStorageRootParams
+	Body   *SaveAdminStorageRootJSONRequestBody
+}
+
+type SaveAdminStorageRootResponseObject interface {
+	VisitSaveAdminStorageRootResponse(w http.ResponseWriter) error
+}
+
+type SaveAdminStorageRoot204Response struct {
+}
+
+func (response SaveAdminStorageRoot204Response) VisitSaveAdminStorageRootResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type SaveAdminStorageRootdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response SaveAdminStorageRootdefaultApplicationProblemPlusJSONResponse) VisitSaveAdminStorageRootResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewMakeLibraryRequestObject struct {
+	Params PreviewMakeLibraryParams
+}
+
+type PreviewMakeLibraryResponseObject interface {
+	VisitPreviewMakeLibraryResponse(w http.ResponseWriter) error
+}
+
+type PreviewMakeLibrary200JSONResponse MakeLibraryPlan
+
+func (response PreviewMakeLibrary200JSONResponse) VisitPreviewMakeLibraryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewMakeLibrarydefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response PreviewMakeLibrarydefaultApplicationProblemPlusJSONResponse) VisitPreviewMakeLibraryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MakeLibraryRequestObject struct {
+	Params MakeLibraryParams
+	Body   *MakeLibraryJSONRequestBody
+}
+
+type MakeLibraryResponseObject interface {
+	VisitMakeLibraryResponse(w http.ResponseWriter) error
+}
+
+type MakeLibrary204Response struct {
+}
+
+func (response MakeLibrary204Response) VisitMakeLibraryResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type MakeLibrarydefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response MakeLibrarydefaultApplicationProblemPlusJSONResponse) VisitMakeLibraryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -4438,8 +5566,23 @@ func (response RegisterdefaultApplicationProblemPlusJSONResponse) VisitRegisterR
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 
+	// (DELETE /api/v1/admin/auto-import)
+	DeleteAdminAutoImport(ctx context.Context, request DeleteAdminAutoImportRequestObject) (DeleteAdminAutoImportResponseObject, error)
+
+	// (GET /api/v1/admin/auto-import)
+	ListAdminAutoImports(ctx context.Context, request ListAdminAutoImportsRequestObject) (ListAdminAutoImportsResponseObject, error)
+
+	// (POST /api/v1/admin/auto-import)
+	QueueAdminAutoImport(ctx context.Context, request QueueAdminAutoImportRequestObject) (QueueAdminAutoImportResponseObject, error)
+
+	// (PUT /api/v1/admin/auto-import)
+	SaveAdminAutoImport(ctx context.Context, request SaveAdminAutoImportRequestObject) (SaveAdminAutoImportResponseObject, error)
+
 	// (GET /api/v1/admin/backup)
 	DownloadAdminBackup(ctx context.Context, request DownloadAdminBackupRequestObject) (DownloadAdminBackupResponseObject, error)
+
+	// (GET /api/v1/admin/backup/preview)
+	PreviewAdminBackup(ctx context.Context, request PreviewAdminBackupRequestObject) (PreviewAdminBackupResponseObject, error)
 
 	// (GET /api/v1/admin/import)
 	PreviewAdminImport(ctx context.Context, request PreviewAdminImportRequestObject) (PreviewAdminImportResponseObject, error)
@@ -4461,6 +5604,21 @@ type StrictServerInterface interface {
 
 	// (POST /api/v1/admin/restore)
 	StageAdminRestore(ctx context.Context, request StageAdminRestoreRequestObject) (StageAdminRestoreResponseObject, error)
+
+	// (GET /api/v1/admin/storage-directories)
+	BrowseAdminStorageDirectories(ctx context.Context, request BrowseAdminStorageDirectoriesRequestObject) (BrowseAdminStorageDirectoriesResponseObject, error)
+
+	// (GET /api/v1/admin/storage-roots)
+	ListAdminStorageRoots(ctx context.Context, request ListAdminStorageRootsRequestObject) (ListAdminStorageRootsResponseObject, error)
+
+	// (PUT /api/v1/admin/storage-roots)
+	SaveAdminStorageRoot(ctx context.Context, request SaveAdminStorageRootRequestObject) (SaveAdminStorageRootResponseObject, error)
+
+	// (GET /api/v1/admin/storage-roots/make-library)
+	PreviewMakeLibrary(ctx context.Context, request PreviewMakeLibraryRequestObject) (PreviewMakeLibraryResponseObject, error)
+
+	// (POST /api/v1/admin/storage-roots/make-library)
+	MakeLibrary(ctx context.Context, request MakeLibraryRequestObject) (MakeLibraryResponseObject, error)
 
 	// (GET /api/v1/admin/system)
 	GetAdminSystem(ctx context.Context, request GetAdminSystemRequestObject) (GetAdminSystemResponseObject, error)
@@ -4613,6 +5771,144 @@ type strictHandler struct {
 	options     StrictGinServerOptions
 }
 
+// DeleteAdminAutoImport operation middleware
+func (sh *strictHandler) DeleteAdminAutoImport(ctx *gin.Context, params DeleteAdminAutoImportParams) {
+	var request DeleteAdminAutoImportRequestObject
+
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminAutoImport(ctx, request.(DeleteAdminAutoImportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminAutoImport")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(DeleteAdminAutoImportResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminAutoImportResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminAutoImports operation middleware
+func (sh *strictHandler) ListAdminAutoImports(ctx *gin.Context) {
+	var request ListAdminAutoImportsRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminAutoImports(ctx, request.(ListAdminAutoImportsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminAutoImports")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ListAdminAutoImportsResponseObject); ok {
+		if err := validResponse.VisitListAdminAutoImportsResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// QueueAdminAutoImport operation middleware
+func (sh *strictHandler) QueueAdminAutoImport(ctx *gin.Context, params QueueAdminAutoImportParams) {
+	var request QueueAdminAutoImportRequestObject
+
+	request.Params = params
+
+	var body QueueAdminAutoImportJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.QueueAdminAutoImport(ctx, request.(QueueAdminAutoImportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "QueueAdminAutoImport")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(QueueAdminAutoImportResponseObject); ok {
+		if err := validResponse.VisitQueueAdminAutoImportResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SaveAdminAutoImport operation middleware
+func (sh *strictHandler) SaveAdminAutoImport(ctx *gin.Context, params SaveAdminAutoImportParams) {
+	var request SaveAdminAutoImportRequestObject
+
+	request.Params = params
+
+	var body SaveAdminAutoImportJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.SaveAdminAutoImport(ctx, request.(SaveAdminAutoImportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SaveAdminAutoImport")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(SaveAdminAutoImportResponseObject); ok {
+		if err := validResponse.VisitSaveAdminAutoImportResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // DownloadAdminBackup operation middleware
 func (sh *strictHandler) DownloadAdminBackup(ctx *gin.Context, params DownloadAdminBackupParams) {
 	var request DownloadAdminBackupRequestObject
@@ -4632,6 +5928,30 @@ func (sh *strictHandler) DownloadAdminBackup(ctx *gin.Context, params DownloadAd
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(DownloadAdminBackupResponseObject); ok {
 		if err := validResponse.VisitDownloadAdminBackupResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PreviewAdminBackup operation middleware
+func (sh *strictHandler) PreviewAdminBackup(ctx *gin.Context) {
+	var request PreviewAdminBackupRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.PreviewAdminBackup(ctx, request.(PreviewAdminBackupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreviewAdminBackup")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(PreviewAdminBackupResponseObject); ok {
+		if err := validResponse.VisitPreviewAdminBackupResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -4762,8 +6082,10 @@ func (sh *strictHandler) StartAdminJob(ctx *gin.Context, params StartAdminJobPar
 }
 
 // ListAdminLogs operation middleware
-func (sh *strictHandler) ListAdminLogs(ctx *gin.Context) {
+func (sh *strictHandler) ListAdminLogs(ctx *gin.Context, params ListAdminLogsParams) {
 	var request ListAdminLogsRequestObject
+
+	request.Params = params
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.ListAdminLogs(ctx, request.(ListAdminLogsRequestObject))
@@ -4850,6 +6172,170 @@ func (sh *strictHandler) StageAdminRestore(ctx *gin.Context, params StageAdminRe
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(StageAdminRestoreResponseObject); ok {
 		if err := validResponse.VisitStageAdminRestoreResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// BrowseAdminStorageDirectories operation middleware
+func (sh *strictHandler) BrowseAdminStorageDirectories(ctx *gin.Context, params BrowseAdminStorageDirectoriesParams) {
+	var request BrowseAdminStorageDirectoriesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.BrowseAdminStorageDirectories(ctx, request.(BrowseAdminStorageDirectoriesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "BrowseAdminStorageDirectories")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(BrowseAdminStorageDirectoriesResponseObject); ok {
+		if err := validResponse.VisitBrowseAdminStorageDirectoriesResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminStorageRoots operation middleware
+func (sh *strictHandler) ListAdminStorageRoots(ctx *gin.Context) {
+	var request ListAdminStorageRootsRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminStorageRoots(ctx, request.(ListAdminStorageRootsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminStorageRoots")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ListAdminStorageRootsResponseObject); ok {
+		if err := validResponse.VisitListAdminStorageRootsResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SaveAdminStorageRoot operation middleware
+func (sh *strictHandler) SaveAdminStorageRoot(ctx *gin.Context, params SaveAdminStorageRootParams) {
+	var request SaveAdminStorageRootRequestObject
+
+	request.Params = params
+
+	var body SaveAdminStorageRootJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.SaveAdminStorageRoot(ctx, request.(SaveAdminStorageRootRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SaveAdminStorageRoot")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(SaveAdminStorageRootResponseObject); ok {
+		if err := validResponse.VisitSaveAdminStorageRootResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PreviewMakeLibrary operation middleware
+func (sh *strictHandler) PreviewMakeLibrary(ctx *gin.Context, params PreviewMakeLibraryParams) {
+	var request PreviewMakeLibraryRequestObject
+
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.PreviewMakeLibrary(ctx, request.(PreviewMakeLibraryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreviewMakeLibrary")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(PreviewMakeLibraryResponseObject); ok {
+		if err := validResponse.VisitPreviewMakeLibraryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// MakeLibrary operation middleware
+func (sh *strictHandler) MakeLibrary(ctx *gin.Context, params MakeLibraryParams) {
+	var request MakeLibraryRequestObject
+
+	request.Params = params
+
+	var body MakeLibraryJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.MakeLibrary(ctx, request.(MakeLibraryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MakeLibrary")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(MakeLibraryResponseObject); ok {
+		if err := validResponse.VisitMakeLibraryResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -5881,77 +7367,93 @@ func (sh *strictHandler) Register(ctx *gin.Context, params RegisterParams) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

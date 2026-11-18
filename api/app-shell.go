@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var appNavigation = regexp.MustCompile(`^/(?:|library/?|offline/?|local-book-export/?|login/?|register/?|settings/?|admin(?:/(?:library|users|import|backups|system))?/?|more/?|sync/?|insights(?:/(?:activity|progress|rankings))?/?|(?:books|read)/(?:local|server)/[^/]+/?)$`)
+var appNavigation = regexp.MustCompile(`^/(?:|library/?|offline/?|local-book-export/?|login/?|register/?|settings/?|admin(?:/(?:library|users|import|backups|system|logs))?/?|more/?|sync/?|insights(?:/(?:activity|progress|rankings))?/?|(?:books|read)/(?:local|server)/[^/]+/?)$`)
 var hashedAsset = regexp.MustCompile(`-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$`)
 
 func CheckAppAssets(assets fs.FS) error {

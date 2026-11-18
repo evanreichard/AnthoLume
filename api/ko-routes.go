@@ -423,8 +423,12 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 	})
 
 	// Generate Storage Path
-	basePath := filepath.Join(api.cfg.DataPath, "documents")
-	safePath := filepath.Join(basePath, fileName)
+	root, err := api.storageRoot(c.Request.Context(), libraryRoot)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	safePath := filepath.Join(root.Path, fileName)
 
 	// Save & Prevent Overwrites
 	_, err = os.Stat(safePath)
@@ -447,11 +451,11 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 
 	// Upsert Document
 	if _, err = api.db.Queries.UpsertDocument(c.Request.Context(), database.UpsertDocumentParams{
-		ID:       document.ID,
-		Md5:      metadataInfo.MD5,
-		Words:    metadataInfo.WordCount,
-		Filepath: &fileName,
-		Basepath: &basePath,
+		ID:            document.ID,
+		Md5:           metadataInfo.MD5,
+		Words:         metadataInfo.WordCount,
+		Filepath:      &fileName,
+		StorageRootID: &root.Id,
 	}); err != nil {
 		log.Error("UpsertDocument DB Error:", err)
 		apiErrorPage(c, http.StatusBadRequest, "Document Error")

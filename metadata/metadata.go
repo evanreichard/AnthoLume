@@ -10,17 +10,11 @@ import (
 	"reichard.io/antholume/utils"
 )
 
-type MetadataHandler func(string) (*MetadataInfo, error)
-
 type DocumentType string
 
 const (
 	TYPE_EPUB DocumentType = ".epub"
 )
-
-var extensionHandlerMap = map[DocumentType]MetadataHandler{
-	TYPE_EPUB: getEPUBMetadata,
-}
 
 type Source int
 
@@ -85,34 +79,35 @@ func GetWordCount(filepath string) (*int64, error) {
 // Returns embedded metadata of the provided file. An error will be returned if
 // the file is not supported.
 func GetMetadata(filepath string) (*MetadataInfo, error) {
-	docType, err := detectDocumentType(filepath)
+	f, err := os.Open(filepath)
 	if err != nil {
 		return nil, err
 	}
-	handler := extensionHandlerMap[docType]
+	defer f.Close()
+	return GetOpenedMetadata(f)
+}
 
-	// Acquire Metadata
-	metadataInfo, err := handler(filepath)
+func GetOpenedMetadata(f *os.File) (*MetadataInfo, error) {
+	stat, err := f.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("unable to acquire metadata: %w", err)
+		return nil, err
 	}
-
-	// Calculate MD5 & Partial MD5
-	partialMD5, err := utils.CalculatePartialMD5(filepath)
+	book, err := readEPUB(f)
 	if err != nil {
-		return nil, fmt.Errorf("unable to calculate partial MD5")
+		return nil, err
 	}
-
-	// Calculate Actual MD5
-	MD5, err := utils.CalculateMD5(filepath)
+	metadataInfo := epubMetadata(book)
+	partialMD5, err := utils.CalculatePartialMD5Reader(f)
 	if err != nil {
-		return nil, fmt.Errorf("unable to calculate MD5")
+		return nil, err
 	}
-
-	// Calculate Word Count
-	wordCount, err := countEPUBWords(filepath)
+	MD5, err := utils.CalculateMD5Reader(io.NewSectionReader(f, 0, stat.Size()))
 	if err != nil {
-		return nil, fmt.Errorf("unable to calculate word count: %w", err)
+		return nil, err
+	}
+	wordCount, err := epubWords(book)
+	if err != nil {
+		return nil, err
 	}
 
 	metadataInfo.WordCount = &wordCount

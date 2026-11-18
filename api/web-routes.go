@@ -232,7 +232,7 @@ func (s *webAPI) ListDocuments(ctx context.Context, r ListDocumentsRequestObject
 		if err != nil {
 			return nil, err
 		}
-		item := s.api.documentDTO(d)
+		item := s.api.documentDTOWith(ctx, tx, d)
 		item.AddedAt, item.LastReadAt, item.ResumeFraction = row.added, row.read, row.fraction
 		result.Items = append(result.Items, item)
 	}

@@ -209,7 +209,7 @@ func (api *API) registerWebAppRoutes(router *gin.Engine) {
 	router.GET("/logout", api.authWebAppMiddleware, api.appAuthLogout)
 	router.GET("/register", api.appGetRegister)
 	router.GET("/settings", api.authWebAppMiddleware, api.appGetSettings)
-	for _, route := range []struct{ old, next string }{{"/admin", "/app/admin"}, {"/admin/users", "/app/admin/users"}, {"/admin/import", "/app/admin/import"}, {"/admin/logs", "/app/admin/system"}} {
+	for _, route := range []struct{ old, next string }{{"/admin", "/app/admin"}, {"/admin/users", "/app/admin/users"}, {"/admin/import", "/app/admin/import"}, {"/admin/logs", "/app/admin/logs"}} {
 		router.GET(route.old, func(c *gin.Context) { c.Redirect(http.StatusTemporaryRedirect, route.next) })
 	}
 	router.POST("/login", api.appAuthLogin)

@@ -7,7 +7,9 @@ import { queryClient, session, useSession } from '../session';
 import { BookCard, Dialog, ErrorNotice, PageHeader } from '../ui';
 import styles from '../App.module.css';
 import { Icon } from '../Icon';
+import { LoadingStatus, Skeleton } from '../Skeleton';
 import { RecentBooks } from '../RecentBooks';
+import { Button } from '../Controls';
 
 export function Library() {
   const { access, capabilities } = useSession();
@@ -127,7 +129,7 @@ export function Library() {
   return <>
     <PageHeader title="Library" headingRef={heading}
       actions={reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>} />
-    {!reading.ready && <p role="status">Opening your stored library…</p>}
+    {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}
     <RecentBooks books={recent} />
     <form className={styles.searchRow} role="search" onSubmit={(event) => { event.preventDefault(); update('q', input.trim()); }}>
       <div className={styles.search}>
@@ -140,12 +142,19 @@ export function Library() {
     </form>
     <div className={styles.divider} />
     <ErrorNotice error={documents.error} />
-    {documents.isPending && documents.fetchStatus === 'fetching' && <p role="status">Loading shared books…</p>}
+    {documents.isPending && documents.fetchStatus === 'fetching' && <LoadingStatus>Loading shared books…</LoadingStatus>}
     {!books.length && reading.ready && !documents.isFetching && !(sharedEnabled && hasNextPage) && <p>No matching books. Try another search or add an EPUB.</p>}
-    <div className={styles.grid}>{books.map((book) => <BookCard key={bookKey(book.ref)} book={book} />)}</div>
+    <div className={styles.grid}>
+      {books.map((book) => <BookCard key={bookKey(book.ref)} book={book} />)}
+      {!books.length && (!reading.ready || documents.isPending && documents.fetchStatus === 'fetching') && Array.from({ length: 6 }, (_, index) => <div key={index} className={styles.card} aria-hidden="true">
+        <Skeleton block className={`${styles.cover} ${styles.coverThumbnail}`} />
+        <h2 className={styles.cardTitle}><Skeleton width="75%" /></h2>
+        <p><Skeleton width="52%" /></p>
+      </div>)}
+    </div>
     {importNotice && <p role="status">{importNotice}</p>}
     <ErrorNotice error={dialog === 'add' ? null : error} />
-    {sharedEnabled && hasNextPage && <button ref={loadMore} className={styles.loadMore} disabled={isFetching} onClick={() => void fetchNextPage({ cancelRefetch: false })}>{documents.isFetchingNextPage ? 'Loading…' : isFetchNextPageError ? 'Retry loading shared books' : 'Load more shared books'}</button>}
+    {sharedEnabled && hasNextPage && <div className={styles.loadMore}><Button ref={loadMore} disabled={isFetching} onClick={() => void fetchNextPage({ cancelRefetch: false })}>{documents.isFetchingNextPage ? 'Loading…' : isFetchNextPageError ? 'Retry loading shared books' : 'Load more shared books'}</Button></div>}
     {dialog === 'sort' && <Dialog title="Sort books" onClose={close}><div className={styles.sortOptions}>
       {sortOptions.map(([value, label]) => <button key={value} type="button" aria-pressed={sort === value} onClick={() => applySort(value)}>
         {label}{sort === value && <Icon name="check" size={17} />}
@@ -158,7 +167,7 @@ export function Library() {
       {newBook && <p role="status">Book is in the shared library. <Link to={newBook}>Open book</Link></p>}
       <ErrorNotice error={error} />
       {capabilities?.search_enabled && <a href="/search">Find and acquire books ↗ (original site)</a>}
-      <button onClick={close}>{importing ? 'Cancel upload' : 'Done'}</button>
+      <Button onClick={close}>{importing ? 'Cancel upload' : 'Done'}</Button>
     </div></Dialog>}
   </>;
 }

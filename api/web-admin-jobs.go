@@ -52,15 +52,22 @@ func (s *webAPI) StartAdminJob(ctx context.Context, r StartAdminJobRequestObject
 		return nil, adminFailure(400, "invalid_request")
 	}
 	kind := string(r.Body.Kind)
-	directory, reference := "", false
+	reference, relink := false, false
+	source := importsRoot
 	if kind == "import" {
-		if r.Body.Directory != nil {
-			directory = *r.Body.Directory
+		if r.Body.RelinkMissing != nil {
+			relink = *r.Body.RelinkMissing
 		}
 		if r.Body.Reference != nil {
 			reference = *r.Body.Reference
 		}
-		root, files, err := s.api.importFolder(requestContext(ctx), directory)
+		if r.Body.RootId != nil {
+			source = *r.Body.RootId
+		}
+		if _, err := s.api.importDestination(requestContext(ctx), source, reference); err != nil {
+			return nil, err
+		}
+		root, files, err := s.api.importFolder(requestContext(ctx), source)
 		if err != nil {
 			return nil, err
 		}
@@ -97,12 +104,12 @@ func (s *webAPI) StartAdminJob(ctx context.Context, r StartAdminJobRequestObject
 		return nil, err
 	}
 	if started {
-		go s.api.runAdminJob(job.Id, kind, directory, reference, now.Add(adminJobLifetime))
+		go s.api.runAdminJob(job.Id, kind, source, reference, relink, now.Add(adminJobLifetime))
 	}
 	return StartAdminJob202JSONResponse(job), nil
 }
 
-func (api *API) runAdminJob(id, kind, directory string, reference bool, deadline time.Time) {
+func (api *API) runAdminJob(id, kind, source string, reference, relink bool, deadline time.Time) {
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
 	status := "succeeded"
@@ -113,7 +120,9 @@ func (api *API) runAdminJob(id, kind, directory string, reference bool, deadline
 	case "full_backup":
 		work = api.createFullBackup
 	case "import":
-		work = func(ctx context.Context) error { return api.runLibraryImport(ctx, id, directory, reference) }
+		work = func(ctx context.Context) error {
+			return api.runLibraryImport(ctx, id, source, reference, relink)
+		}
 	}
 	api.adminFiles.Lock()
 	err := work(ctx)

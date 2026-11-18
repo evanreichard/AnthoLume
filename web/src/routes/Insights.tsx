@@ -6,7 +6,8 @@ import { session, useSession } from '../session';
 import { bookPath } from '../library';
 import { ErrorNotice, PageHeader } from '../ui';
 import styles from './Insights.module.css';
-import { Card, CardHeader, Pager, PillSelect, SectionTabs } from '../Controls';
+import { LoadingStatus, Skeleton, SkeletonRows } from '../Skeleton';
+import { Card, CardHeader, Pager, SectionTabs, SegmentedControl, Dropdown } from '../Controls';
 
 type Activity = components['schemas']['InsightActivity'];
 const tabs = [['', 'Overview'], ['activity', 'Activity'], ['progress', 'Progress']] as const;
@@ -31,30 +32,47 @@ function ActivityList({ account, items, timezone }: { account: Account; items: A
   </li>)}</ul>;
 }
 
+function SkeletonLine({ width }: { width: string }) {
+  return <Skeleton width={width} />;
+}
+
+function StreakSkeleton({ label }: { label: string }) {
+  return <section>
+    <p className={styles.kicker}><SkeletonLine width={label} /></p>
+    <h2><SkeletonLine width="3.75rem" /></h2>
+    <p><SkeletonLine width="5.5rem" /></p>
+  </section>;
+}
+
 function Overview({ account }: { account: Account }) {
   const summary = useQuery({ staleTime: 0, refetchInterval: 30_000, queryKey: ['insights', account], queryFn: ({ signal }) => session.api.insights(account, signal) });
   const data = summary.data;
   const peak = Math.max(1, ...(data?.days.map(day => day.seconds_read) ?? []));
   return <>
     <ErrorNotice error={summary.error} />
-    {summary.isPending && <p role="status">Loading your reading journal…</p>}
-    {data && <>
-      <Card aria-labelledby="insight-chart">
+    {summary.isPending && <LoadingStatus>Loading your reading journal…</LoadingStatus>}
+    {(data || summary.isPending) && <>
+      <Card aria-labelledby={data ? 'insight-chart' : undefined} aria-hidden={!data || undefined}>
         <div className={styles.chartHeading}>
           <div>
-            <h2 id="insight-chart" className={styles.kicker}>Last 30 days</h2>
-            <p>{count(data.active_days, 'active day')}</p>
+            <h2 id="insight-chart" className={styles.kicker}>{data ? 'Last 30 days' : <SkeletonLine width="6rem" />}</h2>
+            <p>{data ? count(data.active_days, 'active day') : <SkeletonLine width="4.75rem" />}</p>
           </div>
-          <strong className={styles.chartTotal}>{duration(data.seconds_read)} read</strong>
+          <strong className={styles.chartTotal}>{data ? `${duration(data.seconds_read)} read` : <SkeletonLine width="5.25rem" />}</strong>
         </div>
-        <div className={styles.chart} aria-label="Daily reading time">
-          {data.days.map(day => <Link key={day.date} to={`/insights/activity?day=${day.date}`} style={{ '--bar': `${100 * day.seconds_read / peak}%` } as React.CSSProperties} aria-label={`${dateLabel(day.date)}: ${duration(day.seconds_read)}`}><span /></Link>)}
+        <div className={styles.chart} aria-label={data ? 'Daily reading time' : undefined}>
+          {data ? data.days.map(day => <Link key={day.date} to={`/insights/activity?day=${day.date}`} style={{ '--bar': `${100 * day.seconds_read / peak}%` } as React.CSSProperties} aria-label={`${dateLabel(day.date)}: ${duration(day.seconds_read)}`}><span /></Link>)
+            : Array.from({ length: 30 }, (_, index) => <Skeleton block key={index} className={styles.skeletonBar} style={{ '--bar': `${[22, 47, 32, 66, 18, 81, 38, 57, 24, 42][index % 10]}%` } as React.CSSProperties} />)}
         </div>
-        <div className={styles.axis}><time>{dateLabel(data.days[0]!.date)}</time><time>{dateLabel(data.days.at(-1)!.date)}</time></div>
+        <div className={styles.axis}>{data
+          ? <><time>{dateLabel(data.days[0]!.date)}</time><time>{dateLabel(data.days.at(-1)!.date)}</time></>
+          : <><SkeletonLine width="2.75rem" /><SkeletonLine width="2.75rem" /></>}</div>
       </Card>
-      <div className={styles.streaks}>
-        <section><p className={styles.kicker}>Daily streak</p><h2>{count(data.current_streak, 'day')}</h2><p>Best: {count(data.longest_streak, 'day')}</p></section>
-        <section><p className={styles.kicker}>Weekly streak</p><h2>{count(data.current_week_streak, 'week')}</h2><p>Best: {count(data.longest_week_streak, 'week')}</p></section>
+      <div className={styles.streaks} aria-hidden={!data || undefined}>
+        {data ? <>
+          <section><p className={styles.kicker}>Daily streak</p><h2>{count(data.current_streak, 'day')}</h2><p>Best: {count(data.longest_streak, 'day')}</p></section>
+          <section><p className={styles.kicker}>Weekly streak</p><h2>{count(data.current_week_streak, 'week')}</h2><p>Best: {count(data.longest_week_streak, 'week')}</p></section>
+        </> : <><StreakSkeleton label="5rem" /><StreakSkeleton label="6rem" /></>}
       </div>
     </>}
     <Rankings account={account} preview />
@@ -77,7 +95,7 @@ function History({ account, view }: { account: Account; view: 'activity' | 'prog
       <Link to="/insights/activity">Clear filters</Link>
     </div>}
     <ErrorNotice error={current.error} />
-    {current.isPending && <p role="status">Loading reading records…</p>}
+    {current.isPending && <SkeletonRows label="Loading reading records…" count={4} />}
     {current.data && !current.data.items.length && <p className={styles.muted}>No reading records {day ? 'for this day' : 'to show'}.</p>}
     {view === 'activity' && activity.data && <ActivityList account={account} items={activity.data.items} timezone={activity.data.timezone} />}
     {view === 'progress' && progress.data && <ul className={styles.entries}>{progress.data.items.map(item => <li key={item.document_id}>
@@ -107,15 +125,20 @@ function Rankings({ account, preview = false }: { account: Account; preview?: bo
   const Frame = preview ? Card : 'section';
   return <Frame className={styles.rankings} aria-labelledby="ranking-title">
     <CardHeader id="ranking-title" title="Rankings" action={
-      <PillSelect aria-label="Ranking period" value={period} onChange={event => setFilter('period', event.target.value)}><option value="week">Last 7 days</option><option value="month">Last 30 days</option><option value="year">Last 365 days</option><option value="all">All time</option></PillSelect>
+      <Dropdown size="slim" aria-label="Ranking period" value={period} onChange={event => setFilter('period', event.target.value)}><option value="week">Last 7 days</option><option value="month">Last 30 days</option><option value="year">Last 365 days</option><option value="all">All time</option></Dropdown>
     } />
-    <div className={styles.metricSwitch} role="group" aria-label="Ranking metric">
-      {rankingMetrics.map(([value, label]) => <button key={value} type="button" aria-pressed={metric === value} onClick={() => setFilter('metric', value)}><span>{label}</span></button>)}
-    </div>
+    <SegmentedControl className={styles.metricSwitch} label="Ranking metric" options={rankingMetrics} value={metric} onChange={value => setFilter('metric', value)} />
     {!preview && <p className={styles.rankingNote}>Words and pace are estimates.</p>}
     <div aria-live="polite" aria-atomic="true">
       <ErrorNotice error={result.error} />
-      {result.isPending && <p className={styles.muted}>Loading rankings…</p>}
+      {result.isPending && <>
+        <LoadingStatus>Loading rankings…</LoadingStatus>
+        <ol className={styles.rankRows} aria-hidden="true">{['6rem', '5rem', '7rem'].map(width => <li key={width}>
+          <Skeleton block className={styles.rankNumber} />
+          <SkeletonLine width={width} />
+          <SkeletonLine width="3rem" />
+        </li>)}</ol>
+      </>}
       {items && (items.length ? <ol className={styles.rankRows}>{items.map((item, i) => <li key={item.user}>
         <span aria-hidden="true" className={styles.rankNumber}>{i + 1}</span>
         <strong className={styles.rankName}>{item.user}{item.user === account.userId ? ' (you)' : ''}</strong>

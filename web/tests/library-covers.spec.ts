@@ -1,6 +1,55 @@
+import { randomUUID } from 'node:crypto';
+import { rename } from 'node:fs/promises';
 import { expect, register, test } from './fixtures';
 
 test.use({ serviceWorkers: 'block' });
+
+test('missing server files are flagged on the cover and book detail', async ({ page, server }, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await register(page, server.origin, 'missing-file-reader');
+  const endpoint = `${server.origin}/api/v1`;
+  const { csrf_token } = await (await page.request.get(`${endpoint}/session`)).json();
+  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token };
+  const device_id = 'missing-file-device';
+  expect((await page.request.post(`${endpoint}/me/devices`, { headers, data: { id: device_id, name: 'Reader' } })).status()).toBe(200);
+  expect((await page.request.post(`${endpoint}/me/reading-progress`, { headers, data: {
+    event_id: randomUUID(), document_id: 'book-001', device_id, base_revision: '0', observed_at: new Date().toISOString(), position: '/body/DocFragment[1]/body/p[2]', fraction: .54,
+  } })).status()).toBe(200);
+  const card = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Public book 01', exact: true }) });
+  const link = card.getByRole('link');
+  const file = `${server.data}/documents/public.epub`;
+  const warning = card.getByRole('img', { name: 'Book file unavailable' });
+  await expect(warning).toHaveCount(0);
+  await rename(file, `${file}.missing`);
+  await page.reload();
+  await expect(warning).toBeVisible();
+  await expect(link).toHaveAccessibleDescription('Book file unavailable');
+  await expect(card.locator('img')).toBeVisible();
+  await card.screenshot({ path: testInfo.outputPath('missing-cover-320.png') });
+  await link.click();
+  const hero = page.getByRole('region', { name: 'Public book 01', exact: true });
+  const status = page.getByRole('status').filter({ hasText: 'Book file unavailable' });
+  await expect(status).toContainText('The server can’t find or read this file.');
+  await expect(hero).not.toContainText('Book file unavailable');
+  await expect(hero.getByText('54%', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Your reading' })).toContainText('54%');
+  await expect(page.getByRole('link', { name: /^(Read|Resume)$/ })).toHaveCount(0);
+  for (const [width, colorScheme] of [[320, 'light'], [1440, 'dark']] as const) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.emulateMedia({ colorScheme });
+    const [heroBox, statusBox] = await Promise.all([hero.boundingBox(), status.boundingBox()]);
+    expect(statusBox!.y).toBeGreaterThan(heroBox!.y + heroBox!.height);
+    expect(statusBox!.width).toBeCloseTo(heroBox!.width);
+    const [icon, text] = await Promise.all([status.locator('svg').boundingBox(), status.locator('p').boundingBox()]);
+    expect(icon!.y + icon!.height / 2).toBeCloseTo(text!.y + text!.height / 2, 0);
+    await page.screenshot({ path: testInfo.outputPath(`missing-detail-${width}.png`) });
+  }
+  await rename(`${file}.missing`, file);
+  await page.reload();
+  await expect(page.getByRole('link', { name: 'Resume', exact: true })).toBeVisible();
+  await expect(hero).toContainText('54%');
+  await expect(status).toHaveCount(0);
+});
 
 test('library thumbnails fill a responsive 2:3 frame across artwork sizes', async ({ page, server }) => {
   const sizes = { '001': [120, 180], '002': [160, 160], '003': [80, 180], '004': [180, 100] } as const;

@@ -1,7 +1,7 @@
 import createClient from 'openapi-fetch';
 import type { paths, components, operations } from './schema.gen';
 import { ReadingHTTPError, type Account, type ReadingBridge } from '../reading';
-import { InvalidResponse, isAdminRestore, isAdminLogs, isImportPreview, isImportResults, isAdminJob, isAdminJobs, isAdminSystem, isAdminUser, isAdminUsers, isCapabilities, isDevice, isDocument, isInsights, isMetadataMatches, isManagedDevice, isManagedDevices, isInsightActivity, isInsightProgress, isInsightRankings, isPage, isProblem, isSession, isState, validated } from './validate';
+import { InvalidResponse, isMakeLibraryPlan, isAdminAutoImport, isAdminRestore, isStorageRoots, isStorageDirectories, isBackupPreview, isAdminLogs, isImportPreview, isImportResults, isAdminJob, isAdminJobs, isAdminSystem, isAdminUser, isAdminUsers, isCapabilities, isDevice, isDocument, isInsights, isMetadataMatches, isManagedDevice, isManagedDevices, isInsightActivity, isInsightProgress, isInsightRankings, isPage, isProblem, isSession, isState, validated } from './validate';
 
 type S = components['schemas'];
 const configuredOrigin = new URL(import.meta.env.VITE_API_ORIGIN || window.location.origin);
@@ -64,12 +64,22 @@ export function createAPI(gate: SessionGate) {
     updateAdminUser: (account: Account, id: string, body: S['AdminUserUpdate']) => consume(() => client.PATCH('/api/v1/admin/users/{id}', { params: path(id), body, parseAs: 'stream' }), isAdminUser, 200, account),
     deleteAdminUser: (account: Account, id: string) => consume(() => client.DELETE('/api/v1/admin/users/{id}', { params: path(id), parseAs: 'stream' }), (value): value is null => value === null, 204, account),
     adminJobs: (account: Account, kind: S['AdminJob']['kind'], signal: AbortSignal) => consume(() => client.GET('/api/v1/admin/jobs', { params: { query: { kind } }, signal, parseAs: 'stream' }), isAdminJobs, 200, account),
-    startAdminJob: (account: Account, kind: S['AdminJob']['kind'], options?: { directory: string; reference: boolean }) => consume(() => client.POST('/api/v1/admin/jobs', { body: { kind, ...options }, parseAs: 'stream' }), isAdminJob, 202, account),
-    previewAdminImport: (account: Account, directory: string) => consume(() => client.GET('/api/v1/admin/import', { params: { query: { directory } }, parseAs: 'stream' }), isImportPreview, 200, account),
+    startAdminJob: (account: Account, kind: S['AdminJob']['kind'], options?: Omit<operations['startAdminJob']['requestBody']['content']['application/json'], 'kind'>) => consume(() => client.POST('/api/v1/admin/jobs', { body: { kind, ...options }, parseAs: 'stream' }), isAdminJob, 202, account),
+    adminStorageRoots: (account: Account, signal?: AbortSignal) => consume(() => client.GET('/api/v1/admin/storage-roots', { signal, parseAs: 'stream' }), isStorageRoots, 200, account),
+    saveAdminStorageRoot: (account: Account, body: S['AdminStorageRootInput']) => consume(() => client.PUT('/api/v1/admin/storage-roots', { body, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
+    previewMakeLibrary: (account: Account, id: string, path: string, signal?: AbortSignal) => consume(() => client.GET('/api/v1/admin/storage-roots/make-library', { params: { query: { id, path } }, signal, parseAs: 'stream' }), isMakeLibraryPlan, 200, account),
+    makeLibrary: (account: Account, body: S['MakeLibraryPlan']) => consume(() => client.POST('/api/v1/admin/storage-roots/make-library', { body, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
+    adminAutoImports: (account: Account, signal?: AbortSignal) => consume(() => client.GET('/api/v1/admin/auto-import', { signal, parseAs: 'stream' }), isAdminAutoImport, 200, account),
+    saveAdminAutoImport: (account: Account, body: S['AdminAutoImportSettings'], id?: string) => consume(() => client.PUT('/api/v1/admin/auto-import', { params: { query: { id } }, body, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
+    queueAdminAutoImport: (account: Account, id: string) => consume(() => client.POST('/api/v1/admin/auto-import', { params: { query: { id } }, body: {}, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
+    deleteAdminAutoImport: (account: Account, id: string) => consume(() => client.DELETE('/api/v1/admin/auto-import', { params: { query: { id } }, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
+    adminStorageDirectories: (account: Account, path: string, signal?: AbortSignal) => consume(() => client.GET('/api/v1/admin/storage-directories', { signal, params: { query: { path } }, parseAs: 'stream' }), isStorageDirectories, 200, account),
+    previewAdminBackup: (account: Account, signal?: AbortSignal) => consume(() => client.GET('/api/v1/admin/backup/preview', { signal, parseAs: 'stream' }), isBackupPreview, 200, account),
+    previewAdminImport: (account: Account, root_id: string) => consume(() => client.GET('/api/v1/admin/import', { params: { query: { root_id } }, parseAs: 'stream' }), isImportPreview, 200, account),
     adminImportResults: (account: Account, job: string, signal: AbortSignal) => consume(() => client.GET('/api/v1/admin/import/results', { params: { query: { job } }, signal, parseAs: 'stream' }), isImportResults, 200, account),
-    adminLogs: (account: Account, signal: AbortSignal) => consume(() => client.GET('/api/v1/admin/logs', { signal, parseAs: 'stream' }), isAdminLogs, 200, account),
+    adminLogs: (account: Account, params: { cursor?: string; q?: string; level?: S['AdminLogLevel'] }, signal: AbortSignal) => consume(() => client.GET('/api/v1/admin/logs', { params: { query: params }, signal, parseAs: 'stream' }), isAdminLogs, 200, account),
     stageAdminRestore: (account: Account, file: File) => consume(() => client.POST('/api/v1/admin/restore', { body: file, bodySerializer: value => value, headers: { 'Content-Type': 'application/octet-stream' }, parseAs: 'stream' }), isAdminRestore, 200, account),
-    applyAdminRestore: (account: Account, body: S['AdminRestore']) => consume(() => client.PATCH('/api/v1/admin/restore', { body, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
+    applyAdminRestore: (account: Account, body: S['AdminRestoreApply']) => consume(() => client.PATCH('/api/v1/admin/restore', { body, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
     adminSystem: (account: Account, signal: AbortSignal) => consume(() => client.GET('/api/v1/admin/system', { signal, parseAs: 'stream' }), isAdminSystem, 200, account),
     devices: (account: Account, signal: AbortSignal) => consume(() => client.GET('/api/v1/me/devices', { signal, parseAs: 'stream' }), isManagedDevices, 200, account),
     updateDevice: (account: Account, id: string, body: S['DevicePreferences']) => consume(() => client.PATCH('/api/v1/me/devices/{id}', { params: path(id), body, parseAs: 'stream' }), isManagedDevice, 200, account),

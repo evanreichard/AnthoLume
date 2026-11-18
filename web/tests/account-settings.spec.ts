@@ -14,7 +14,7 @@ test('Settings updates timezone, manages devices and rotates the current passwor
   const account = page.getByRole('region', { name: 'Account', exact: true });
   await expect(page.getByRole('main').getByRole('region').first()).toHaveAccessibleName('Account');
   const sync = account.getByRole('button', { name: 'Sync', exact: true });
-  const timezone = account.getByRole('button', { name: 'Time zone', exact: true });
+  const timezone = account.getByRole('button', { name: 'Locale', exact: true });
   const password = account.getByRole('button', { name: 'Password', exact: true });
   const signOut = account.getByRole('button', { name: 'Sign out', exact: true });
   await expect(sync).toHaveAttribute('aria-expanded', 'false');
@@ -42,6 +42,7 @@ test('Settings updates timezone, manages devices and rotates the current passwor
   const modal = page.getByRole('dialog');
   const save = modal.getByRole('button', { name: 'Save changes' });
   await timezone.click();
+  await expect(modal).toHaveAccessibleName('Change locale');
   await expect(modal.getByRole('searchbox')).toHaveCount(0);
   const picker = modal.getByRole('combobox', { name: 'Time zone' });
   await expect(picker.getByRole('option', { name: 'Tokyo · Asia' })).toHaveCount(1);

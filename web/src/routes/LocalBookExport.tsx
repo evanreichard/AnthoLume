@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { useReading, type BookRef } from '../reading';
 import { ErrorNotice, PageHeader } from '../ui';
+import { Button } from '../Controls';
 
 export function LocalBookExport() {
   const reading = useReading();
@@ -26,7 +27,7 @@ export function LocalBookExport() {
     <p>Local-only reading has been retired. Save the original EPUBs from this browser, then add them to the shared Library if you want to read them here.</p>
     <ErrorNotice error={error} />
     {reading.ready ? books.length ? <ul>{books.map(({ ref, title }) => <li key={ref.localId}>
-      <button disabled={busy !== null} onClick={() => void save(ref, title || 'Untitled')}>Export {title || 'Untitled'}</button>
+      <Button disabled={busy !== null} onClick={() => void save(ref, title || 'Untitled')}>Export {title || 'Untitled'}</Button>
     </li>)}</ul> : <p>No local books found in this browser.</p> : <p role="status">Checking this browser for local books…</p>}
   </>;
 }

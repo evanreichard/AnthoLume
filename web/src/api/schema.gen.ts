@@ -425,6 +425,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/backup/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["previewAdminBackup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/restore": {
         parameters: {
             query?: never;
@@ -452,6 +468,70 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/storage-roots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAdminStorageRoots"];
+        put: operations["saveAdminStorageRoot"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/storage-roots/make-library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["previewMakeLibrary"];
+        put?: never;
+        post: operations["makeLibrary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/storage-directories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["browseAdminStorageDirectories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auto-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAdminAutoImports"];
+        put: operations["saveAdminAutoImport"];
+        post: operations["queueAdminAutoImport"];
+        delete: operations["deleteAdminAutoImport"];
         options?: never;
         head?: never;
         patch?: never;
@@ -531,19 +611,85 @@ export interface components {
             started_at: string;
             finished_at: string | null;
         };
+        StorageRootID: string;
+        AdminStorageRoot: {
+            id: components["schemas"]["StorageRootID"];
+            label: string;
+            path: string;
+            managed: boolean;
+            /** @description Whether the displayed path exists as a directory on the server */
+            directory_available: boolean;
+            legacy_path?: string;
+            /** @description Number of catalog books assigned to this root */
+            book_count: number;
+        };
+        AdminStorageRootInput: {
+            id: components["schemas"]["StorageRootID"];
+            label: string;
+            path: string;
+        };
+        MakeLibraryPlan: {
+            id: components["schemas"]["StorageRootID"];
+            source_path: string;
+            configured_source_path: string;
+            library_path: string;
+            incoming: number;
+            outgoing: number;
+            paused_rules: number;
+            same_folder: boolean;
+        };
+        AdminStorageDirectories: {
+            path: string;
+            parent: string;
+            entries: string[];
+        };
+        AdminBackupPreview: {
+            files: number;
+            /** Format: int64 */
+            bytes: number;
+            missing: number;
+        };
+        AutoImportID: string;
+        AdminAutoImportSettings: {
+            name: string;
+            root_id: components["schemas"]["StorageRootID"];
+            enabled: boolean;
+            watch: boolean;
+            interval_minutes: number;
+            reference: boolean;
+        };
+        AdminAutoImport: {
+            id: components["schemas"]["AutoImportID"];
+            settings: components["schemas"]["AdminAutoImportSettings"];
+            /** @enum {string} */
+            status: "idle" | "complete" | "errors" | "unavailable";
+            last_scan?: string;
+            next_scan?: string;
+        };
+        AdminRestoreApply: {
+            token: string;
+        };
         AdminRestore: {
             token: string;
             files: number;
         };
+        /** @enum {string} */
+        AdminLogLevel: "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "panic";
+        AdminLogPage: {
+            entries: components["schemas"]["AdminLog"][];
+            next_cursor?: string;
+        };
         AdminLog: {
             time: string;
-            level: string;
-            operation: string;
+            level: components["schemas"]["AdminLogLevel"];
+            message: string;
+            /** @description JSON event with credentials redacted */
+            details: string;
         };
         AdminImportResult: {
             file: string;
             /** @enum {string} */
-            status: "imported" | "skipped" | "failed";
+            status: "imported" | "relinked" | "skipped" | "failed";
         };
         AdminSystem: {
             version: string;
@@ -1661,8 +1807,9 @@ export interface operations {
                 "application/json": {
                     /** @enum {string} */
                     kind: "statistics" | "backup" | "full_backup" | "import";
-                    directory?: string;
                     reference?: boolean;
+                    relink_missing?: boolean;
+                    root_id?: components["schemas"]["StorageRootID"];
                 };
             };
         };
@@ -1697,6 +1844,27 @@ export interface operations {
                 };
                 content: {
                     "application/octet-stream": Blob;
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    previewAdminBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Estimated files and bytes in the managed library */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBackupPreview"];
                 };
             };
             default: components["responses"]["Problem"];
@@ -1746,7 +1914,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AdminRestore"];
+                "application/json": components["schemas"]["AdminRestoreApply"];
             };
         };
         responses: {
@@ -1762,6 +1930,31 @@ export interface operations {
     };
     listAdminLogs: {
         parameters: {
+            query?: {
+                cursor?: string;
+                q?: string;
+                level?: components["schemas"]["AdminLogLevel"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page of retained server logs, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLogPage"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listAdminStorageRoots: {
+        parameters: {
             query?: never;
             header?: never;
             path?: never;
@@ -1769,22 +1962,232 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Recent sanitized server log entries */
+            /** @description Configured storage roots */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminLog"][];
+                    "application/json": components["schemas"]["AdminStorageRoot"][];
                 };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    saveAdminStorageRoot: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStorageRootInput"];
+            };
+        };
+        responses: {
+            /** @description Storage root saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    previewMakeLibrary: {
+        parameters: {
+            query: {
+                id: components["schemas"]["StorageRootID"];
+                path?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Proposed Library change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MakeLibraryPlan"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    makeLibrary: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MakeLibraryPlan"];
+            };
+        };
+        responses: {
+            /** @description Library changed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    browseAdminStorageDirectories: {
+        parameters: {
+            query?: {
+                path?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Directories visible to the server process */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStorageDirectories"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listAdminAutoImports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Configured automatic import rules */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAutoImport"][];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    saveAdminAutoImport: {
+        parameters: {
+            query?: {
+                id?: components["schemas"]["AutoImportID"];
+            };
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAutoImportSettings"];
+            };
+        };
+        responses: {
+            /** @description Automatic import rule saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    queueAdminAutoImport: {
+        parameters: {
+            query: {
+                id: components["schemas"]["AutoImportID"];
+            };
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Scan queued */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    deleteAdminAutoImport: {
+        parameters: {
+            query: {
+                id: components["schemas"]["AutoImportID"];
+            };
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rule deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Problem"];
         };
     };
     previewAdminImport: {
         parameters: {
-            query: {
-                directory: string;
+            query?: {
+                root_id?: components["schemas"]["StorageRootID"];
             };
             header?: never;
             path?: never;

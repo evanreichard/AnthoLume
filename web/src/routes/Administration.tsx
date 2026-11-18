@@ -1,87 +1,61 @@
 import { useState, type FormEvent } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Outlet, useOutletContext } from 'react-router';
+import { Outlet, useMatch, useOutletContext } from 'react-router';
 import type { components } from '../api/schema.gen';
 import { ReadingHTTPError, type Account } from '../reading';
 import { session, useSession } from '../session';
-import { Dialog, ErrorNotice } from '../ui';
-import { ActionRow, Card, CardHeader, CompactPill, CompactPillLink, Disclosure, PillSelect, SectionTabs, WorkspaceHeader } from '../Controls';
+import { Dialog, ErrorNotice, PageHeader } from '../ui';
+import { ActionRow, AddPill, Card, CardHeader, Disclosure, SectionTabs, Button, ButtonLink, Dropdown } from '../Controls';
 import { Icon } from '../Icon';
+import { AdminImport } from './AdminImport';
+import { SkeletonRows } from '../Skeleton';
+import { StorageRoots, storageRootsKey, type StorageRoot } from './AdminStorage';
 import styles from '../App.module.css';
 
 type User = components['schemas']['AdminUser'];
 type UserAction = { kind: 'create' } | { kind: 'edit' | 'delete'; user: User };
 
-const tabs = [['library', 'Library'], ['users', 'Users'], ['system', 'System']] as const;
+const tabs = [['library', 'Library'], ['users', 'Users'], ['system', 'System'], ['logs', 'Logs']] as const;
 type AdminContext = { account: Account; readOnly: boolean };
 
+export function AdminSectionTabs() {
+  return <SectionTabs label="Administration sections" items={tabs.map(([path, label]) => ({ to: `/admin/${path}`, label }))} />;
+}
+
 export function Administration() {
+  const logs = useMatch('/admin/logs');
   const { access, session: current, capabilities } = useSession();
   const context: AdminContext | null = access.kind === 'authenticated' && current?.user?.is_admin
     ? { account: access.account, readOnly: !capabilities || capabilities.demo_mode }
     : null;
   return <>
-    <WorkspaceHeader title="Administration" backTo="/settings" backLabel="Settings" />
+    <PageHeader title="Administration" />
     {context ? <>
-      <SectionTabs label="Administration sections" items={tabs.map(([path, label]) => ({ to: `/admin/${path}`, label }))} />
-      <div className={styles.sectionContent}><Outlet context={context} /></div>
+      {logs ? <Outlet context={context} /> : <>
+        <AdminSectionTabs />
+        <div className={styles.sectionContent}><Outlet context={context} /></div>
+      </>}
     </> : <p>Administrator access is required.</p>}
   </>;
 }
 
 export function AdminLibrary() {
   const context = useOutletContext<AdminContext>();
-  return <div className={styles.settingsLayout}><AdminImport {...context} /><AdminBackups {...context} /></div>;
-}
-
-function AdminImport({ account, readOnly }: AdminContext) {
-  const client = useQueryClient();
-  const [directory, setDirectory] = useState('');
-  const [reference, setReference] = useState(false);
-  const [preview, setPreview] = useState<string[] | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<unknown>(null);
-  const queryKey = ['admin-jobs', account, 'import'] as const;
-  const jobs = useQuery({ queryKey, queryFn: ({ signal }) => session.api.adminJobs(account, 'import', signal), refetchInterval: query => query.state.data?.some(job => job.status === 'running') ? 1000 : false });
-  const latest = jobs.data?.[0];
-  const results = useQuery({ queryKey: ['admin-import-results', account, latest?.id], enabled: latest?.status === 'succeeded', queryFn: ({ signal }) => session.api.adminImportResults(account, latest!.id, signal) });
-  async function run(start: boolean) {
-    setBusy(true); setError(null);
-    try {
-      if (start) {
-        await session.api.startAdminJob(account, 'import', { directory, reference });
-        setPreview(null);
-        await client.invalidateQueries({ queryKey });
-      } else setPreview(await session.api.previewAdminImport(account, directory));
-    } catch (failure) { setError(failure); }
-    finally { setBusy(false); }
-  }
-  return <Card density="compact" aria-labelledby="admin-import-heading">
-      <CardHeader id="admin-import-heading" title="Import books" />
-      <p>EPUBs from the server’s <code>imports</code> folder</p>
-      <form className={styles.manageForm} onSubmit={event => { event.preventDefault(); void run(false); }}>
-        <label>Subfolder<input value={directory} maxLength={512} placeholder="All imports" onChange={event => { setDirectory(event.target.value); setPreview(null); }} /></label>
-        <label className={styles.settingsCheck}><input type="checkbox" checked={reference} onChange={event => { setReference(event.target.checked); setPreview(null); }} /> Reference in place</label>
-        <div className={styles.backupActions}><CompactPill type="submit" disabled={busy}>Preview import</CompactPill>
-          {!!preview?.length && <CompactPill tone="primary" disabled={readOnly || busy || latest?.status === 'running'} onClick={() => void run(true)}>Start import</CompactPill>}</div>
-      </form>
-      <ErrorNotice error={error || jobs.error || results.error} />
-      {preview?.length === 0 && <p>No EPUBs found.</p>}
-      <div className={styles.disclosureInset}><Disclosure inset title="Import options"><p>Enter a subfolder relative to <code>imports</code>. Referenced EPUBs stay in place and are excluded from backups.</p></Disclosure></div>
-      {!!preview?.length && <Disclosure inset title={preview.length === 1 ? '1 EPUB ready to review' : `${preview.length} EPUBs ready to review`}><ul>{preview.map(file => <li key={file}>{file}</li>)}</ul></Disclosure>}
-      {latest && <div className={styles.adminCardDetails}>
-        <p role="status">{latest.status === 'running' ? 'Import running…' : latest.status === 'succeeded' ? 'Import finished' : `Import ${latest.status}`}</p>
-        {results.data && <Disclosure inset title={results.data.length === 1 ? '1 file result' : `${results.data.length} file results`}><ul>{results.data.map(row => <li key={row.file}><span>{row.file}</span><strong>{row.status}</strong></li>)}</ul></Disclosure>}
-      </div>}
-    </Card>;
+  const query = useQuery({ queryKey: storageRootsKey(context.account), enabled: !context.readOnly, queryFn: ({ signal }) => session.api.adminStorageRoots(context.account, signal) });
+  const roots = query.data ?? [];
+  return <div className={styles.settingsLayout}>
+    {!context.readOnly && <StorageRoots account={context.account} roots={roots} error={query.error} />}
+    <AdminImport {...context} roots={roots} />
+    <AdminBackups {...context} />
+  </div>;
 }
 
 function AdminBackups({ account, readOnly }: AdminContext) {
   const [databaseOnly, setDatabaseOnly] = useState(false);
   return <Card density="compact" aria-labelledby="database-backup">
-    <CardHeader id="database-backup" title="Backup & restore" action={<PillSelect aria-label="Backup contents" value={databaseOnly ? 'database' : 'full'} onChange={event => setDatabaseOnly(event.target.value === 'database')}>
-      <option value="full">Full library</option><option value="database">Database only</option>
-    </PillSelect>} />
+    <CardHeader id="database-backup" title="Backup & Restore" action={<Dropdown size="slim" aria-label="Backup contents" value={databaseOnly ? 'database' : 'full'} onChange={event => setDatabaseOnly(event.target.value === 'database')}>
+      <option value="full">Database &amp; Library</option><option value="database">Database</option>
+    </Dropdown>} />
     <AdminJobs key={String(databaseOnly)} account={account} canRefresh={!readOnly} kind={databaseOnly ? 'backup' : 'full_backup'} />
     {!readOnly && <div className={styles.adminCardDetails}><RestoreBackup account={account} /></div>}
   </Card>;
@@ -97,9 +71,12 @@ function RestoreBackup({ account }: { account: Account }) {
     setBusy(true); setError(null);
     try {
       if (apply && candidate && confirm === 'RESTORE') {
-        await session.api.applyAdminRestore(account, candidate);
+        await session.api.applyAdminRestore(account, { token: candidate.token });
         window.location.assign('/app/login');
-      } else if (!apply && file) setCandidate(await session.api.stageAdminRestore(account, file));
+      } else if (!apply && file) {
+        const staged = await session.api.stageAdminRestore(account, file);
+        setCandidate(staged);
+      }
     } catch (failure) {
       const code = failure instanceof ReadingHTTPError ? failure.problem.code : '';
       setError(code === 'incompatible_restore_database' ? new Error('The database is damaged, has no administrator, or does not match this server’s schema.') : code === 'server_busy' ? new Error('The server is busy. Wait for other requests and jobs to finish, then retry.') : code === 'invalid_restore_archive' ? new Error('Choose a valid AnthoLume backup.') : failure);
@@ -108,7 +85,7 @@ function RestoreBackup({ account }: { account: Account }) {
   return <Disclosure inset title="Restore a backup">
     <div className={styles.manageForm}>
       <label>Backup file<input type="file" accept=".zip,.db" disabled={busy} onChange={event => { setFile(event.target.files?.[0] ?? null); setCandidate(null); setConfirm(''); setError(null); }} /></label>
-      <div><CompactPill disabled={!file || busy} onClick={() => void restore(false)}>{busy && !candidate ? 'Validating…' : 'Validate backup'}</CompactPill></div>
+      <div><Button size="slim" disabled={!file || busy} onClick={() => void restore(false)}>{busy && !candidate ? 'Validating…' : 'Validate backup'}</Button></div>
       <ErrorNotice error={!candidate ? error : null} />
     </div>
     {candidate && <Dialog title="Confirm restore" onClose={() => { if (!busy) setCandidate(null); }}>
@@ -116,7 +93,7 @@ function RestoreBackup({ account }: { account: Account }) {
         <p>{candidate.files ? `${candidate.files} library files will be restored.` : 'No library files are included.'} The server saves a recovery snapshot and signs everyone out.</p>
         <label>Type RESTORE to confirm<input autoComplete="off" value={confirm} disabled={busy} onChange={event => setConfirm(event.target.value)} /></label>
         <ErrorNotice error={error} />
-        <div className={styles.actions}><button className={styles.dangerPill} disabled={confirm !== 'RESTORE' || busy} onClick={() => void restore(true)}>Restore backup</button><button className={styles.pillAction} disabled={busy} onClick={() => setCandidate(null)}>Cancel</button></div>
+        <div className={styles.actions}><Button tone="danger" disabled={confirm !== 'RESTORE' || busy} onClick={() => void restore(true)}>Restore backup</Button><Button disabled={busy} onClick={() => setCandidate(null)}>Cancel</Button></div>
       </div>
     </Dialog>}
   </Disclosure>;
@@ -128,6 +105,7 @@ export function AdminSystem() {
 }
 
 function AdminJobs({ account, canRefresh, kind = 'statistics' }: { account: Account; canRefresh: boolean; kind?: 'statistics' | 'backup' | 'full_backup' }) {
+  const preview = useQuery({ queryKey: ['admin-backup-preview', account], enabled: kind === 'full_backup' && canRefresh, queryFn: ({ signal }) => session.api.previewAdminBackup(account, signal) });
   const client = useQueryClient();
   const queryKey = ['admin-jobs', account, kind] as const;
   const jobs = useQuery({ queryKey, queryFn: ({ signal }) => session.api.adminJobs(account, kind, signal), refetchInterval: query => query.state.data?.some(job => job.status === 'running') ? 1000 : 15_000 });
@@ -148,6 +126,8 @@ function AdminJobs({ account, canRefresh, kind = 'statistics' }: { account: Acco
     const formatDate = (value: string) => new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
     return <>
       <p>{full ? 'Database, books & covers' : 'Database only · no library files'}</p>
+      {full && preview.data && <p role="status">{preview.data.files} book files · {preview.data.bytes > 0 && preview.data.bytes < 1048576 ? '< 1 MiB' : `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(preview.data.bytes / 1048576)} MiB`}{preview.data.missing ? ` · ${preview.data.missing} missing` : ''}</p>}
+      <ErrorNotice error={preview.error} />
       <div className={styles.backupLatest} aria-live="polite">
         <div>
           <strong>{saved ? 'Latest snapshot' : jobs.isPending ? 'Checking for backups…' : jobs.isError && !latest ? 'Backup status unavailable' : 'No snapshot available'}</strong>
@@ -157,28 +137,27 @@ function AdminJobs({ account, canRefresh, kind = 'statistics' }: { account: Acco
       </div>
       <ErrorNotice error={error || jobs.error} />
       {(canRefresh || saved) && <div className={styles.backupActions}>
-        {saved && <CompactPillLink tone="primary" href={full ? '/api/v1/admin/backup?full=true' : '/api/v1/admin/backup'} download><Icon name="download" size={16} /> Download backup</CompactPillLink>}
-        {canRefresh && <CompactPill tone={saved ? undefined : 'primary'} disabled={running} onClick={() => void refresh()}>{running ? 'Creating…' : 'Create backup'}</CompactPill>}
+        {saved && <ButtonLink size="slim" tone="primary" href={full ? '/api/v1/admin/backup?full=true' : '/api/v1/admin/backup'} download><Icon name="download" size={16} /> Download backup</ButtonLink>}
+        {canRefresh && <Button size="slim" tone={saved ? undefined : 'primary'} disabled={running || full && (!preview.data || preview.isError)} onClick={() => void refresh()}>{running ? 'Creating…' : 'Create backup'}</Button>}
       </div>}
-      <div className={styles.disclosureInset}>
-        {full && <Disclosure inset title="What’s included"><p>Managed EPUBs and covers are included. Referenced files and server configuration are excluded.</p></Disclosure>}
-        {earlier.length > 0 && <Disclosure inset title={`Earlier runs (${earlier.length})`}>
+      {earlier.length > 0 && <div className={styles.disclosureInset}>
+        <Disclosure inset title={`Earlier runs (${earlier.length})`}>
           <ul>{earlier.map(job => <li key={job.id}><time dateTime={job.started_at}>{formatDate(job.started_at)}</time><span className={styles.jobStatus} data-status={job.status}>{labels[job.status]}</span></li>)}</ul>
-        </Disclosure>}
-      </div>
+        </Disclosure>
+      </div>}
     </>;
   }
   const latestStatus = jobs.data?.[0]?.status;
   return <div className={styles.settingsStack}>
     {canRefresh && <Card aria-labelledby="admin-maintenance-heading">
       <CardHeader id="admin-maintenance-heading" title="Maintenance" subtitle="Reading statistics"
-        action={<CompactPill aria-label="Refresh statistics" disabled={starting || jobs.data?.some(job => job.status === 'running')} onClick={() => void refresh()}>Refresh</CompactPill>} />
+        action={<Button size="slim" aria-label="Refresh statistics" disabled={starting || jobs.data?.some(job => job.status === 'running')} onClick={() => void refresh()}>Refresh</Button>} />
       <ErrorNotice error={error} />
     </Card>}
     <Card aria-label="Recent jobs">
       <Disclosure inset title="Recent jobs" trailing={latestStatus && <span className={styles.jobStatus} role="status" data-status={latestStatus}>{labels[latestStatus]}</span>}>
       <ErrorNotice error={jobs.error} />
-      {jobs.isPending && <p className={styles.settingsCardFeedback} role="status">Loading jobs…</p>}
+      {jobs.isPending && <SkeletonRows label="Loading jobs…" />}
       {jobs.data?.length === 0 && <p className={styles.settingsCardFeedback}>No maintenance jobs yet.</p>}
       {!!jobs.data?.length && <div className={styles.settingsCardRows}>{jobs.data.map(job => <div className={styles.settingsRow} key={job.id}>
         <div><strong>Statistics refresh</strong><p><time dateTime={job.started_at}>{new Date(job.started_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time></p></div>
@@ -194,22 +173,9 @@ function SystemDetails({ account }: { account: Account }) {
   return <Card aria-labelledby="admin-server-heading">
     <CardHeader id="admin-server-heading" title="Server" />
     <ErrorNotice error={info.error} />
-    {info.isPending && <p className={styles.settingsCardFeedback} role="status">Loading server details…</p>}
+    {info.isPending && <SkeletonRows label="Loading server details…" count={1} secondary={false} />}
     {info.data && <p className={styles.settingsCardFeedback}>Version: {info.data.version || 'Development build'}</p>}
-    <div className={styles.disclosureInset}><AdminLogs account={account} /></div>
   </Card>;
-}
-
-function AdminLogs({ account }: { account: Account }) {
-  const [filter, setFilter] = useState('');
-  const logs = useQuery({ queryKey: ['admin-logs', account], queryFn: ({ signal }) => session.api.adminLogs(account, signal) });
-  const visible = logs.data?.filter(row => `${row.level} ${row.operation}`.toLowerCase().includes(filter.trim().toLowerCase()));
-  return <Disclosure inset title="Recent server logs">
-    <label className={styles.manageForm}>Filter logs<input type="search" value={filter} onChange={event => setFilter(event.target.value)} /></label>
-    <ErrorNotice error={logs.error} />
-    {visible?.length === 0 && <p>No matching log entries.</p>}
-    <ul>{visible?.map((row, index) => <li key={index}><span>{row.operation} · {row.level}</span><time dateTime={row.time}>{new Date(row.time).toLocaleString()}</time></li>)}</ul>
-  </Disclosure>;
 }
 
 export function AdminUsers() {
@@ -257,12 +223,12 @@ function UserList({ account, readOnly }: { account: Account; readOnly: boolean }
   return <section className={styles.settingsGroup} aria-labelledby="admin-users-heading">
     <div className={`${styles.settingsHeading} ${styles.userListHeading}`}>
       <h2 id="admin-users-heading">Users {accounts && <span className={styles.settingsCount}>{accounts.length}{users.hasNextPage ? '+' : ''}</span>}</h2>
-      <button type="button" className={`${styles.pillAction} ${styles.pillIcon}`} aria-label="Create user" title="Create user" disabled={readOnly} onClick={() => select({ kind: 'create' })}><span><Icon name="add" size={16} /></span></button>
+      <AddPill label="Create user" disabled={readOnly} onClick={() => select({ kind: 'create' })} />
     </div>
     {notice && <p role="status">{notice}</p>}
     {readOnly && <p>Account changes are unavailable in this deployment.</p>}
     <ErrorNotice error={users.error} />
-    {users.isPending && <p role="status">Loading users…</p>}
+    {users.isPending && <div className={`${styles.settingsSurface} ${styles.userList}`}><SkeletonRows label="Loading users…" /></div>}
     {accounts && <ul className={`${styles.settingsSurface} ${styles.userList}`}>{accounts.map(user => {
       const own = user.id === account.userId;
       const identity = <span className={styles.userIdentity}>
@@ -273,7 +239,7 @@ function UserList({ account, readOnly }: { account: Account; readOnly: boolean }
         ? <div className={styles.userRow}>{identity}</div>
         : <ActionRow label={identity} aria-label={`Manage ${user.id}`} onClick={() => select({ kind: 'edit', user })} />}</li>;
     })}</ul>}
-    {users.hasNextPage && <button className={styles.pillAction} disabled={users.isFetchingNextPage} onClick={() => void users.fetchNextPage()}>Load more users</button>}
+    {users.hasNextPage && <Button size="slim" disabled={users.isFetchingNextPage} onClick={() => void users.fetchNextPage()}>Load more users</Button>}
     {action && <Dialog key={action.kind} title={action.kind === 'create' ? 'Create user' : action.kind === 'edit' ? `Manage ${action.user.id}` : `Delete ${action.user.id}?`} onClose={() => { if (!busy) setAction(null); }}>
       <form className={styles.form} onSubmit={submit}>
         <fieldset className={styles.settingsFields} disabled={busy}>
@@ -284,9 +250,9 @@ function UserList({ account, readOnly }: { account: Account; readOnly: boolean }
             <label className={styles.settingsCheck}><input name="admin" type="checkbox" defaultChecked={action.kind === 'edit' && action.user.is_admin} /> Administrator</label>
           </>}
         </fieldset>
-        {action.kind === 'edit' && <button type="button" className={`${styles.rowAction} ${styles.rowActionDanger}`} disabled={busy} aria-label={`Delete ${action.user.id}`} onClick={() => select({ kind: 'delete', user: action.user })}>Delete account</button>}
+        {action.kind === 'edit' && <Button size="slim" tone="danger" disabled={busy} aria-label={`Delete ${action.user.id}`} onClick={() => select({ kind: 'delete', user: action.user })}>Delete account</Button>}
         <ErrorNotice error={error} />
-        <div className={styles.actions}><button className={action.kind === 'delete' ? styles.dangerPill : styles.filledPill} disabled={busy}>{busy ? 'Working…' : action.kind === 'delete' ? 'Delete user' : action.kind === 'create' ? 'Create account' : 'Save changes'}</button><button type="button" className={styles.pillAction} disabled={busy} onClick={() => setAction(null)}>Cancel</button></div>
+        <div className={styles.actions}><Button type="submit" tone={action.kind === 'delete' ? 'danger' : 'primary'} disabled={busy}>{busy ? 'Working…' : action.kind === 'delete' ? 'Delete user' : action.kind === 'create' ? 'Create account' : 'Save changes'}</Button><Button type="button" disabled={busy} onClick={() => setAction(null)}>Cancel</Button></div>
       </form>
     </Dialog>}
   </section>;

@@ -17,7 +17,7 @@ import (
 	"reichard.io/antholume/reading"
 )
 
-// File Capability - An imported basepath is intentional authority, but its relative filename cannot escape that root, including via symlinks.
+// Cover Containment - Older cover records still resolve under the configured cover directory.
 func containedFile(base string, name *string) (string, error) {
 	if name == nil || *name == "" || filepath.IsAbs(*name) {
 		return "", os.ErrNotExist
@@ -40,12 +40,22 @@ func containedFile(base string, name *string) (string, error) {
 	}
 	return resolved, nil
 }
-func (api *API) filePath(d database.Document) (string, error) {
-	base := filepath.Join(api.cfg.DataPath, "documents")
-	if d.Basepath != nil && *d.Basepath != "" {
-		base = *d.Basepath
+func (api *API) openDocument(ctx context.Context, d database.Document) (*os.File, error) {
+	return api.openDocumentWith(ctx, api.db.DB, d)
+}
+func (api *API) openDocumentWith(ctx context.Context, q storageQuerier, d database.Document) (*os.File, error) {
+	if d.Filepath == nil {
+		return nil, os.ErrNotExist
 	}
-	return containedFile(base, d.Filepath)
+	id := libraryRoot
+	if d.StorageRootID != nil {
+		id = *d.StorageRootID
+	}
+	root, err := api.queryStorageRoot(ctx, q, id)
+	if err != nil {
+		return nil, err
+	}
+	return openStoredFile(root.Path, *d.Filepath)
 }
 func (api *API) coverPath(d database.Document) (string, error) {
 	if d.Coverfile != nil && *d.Coverfile == "UNKNOWN" {
@@ -64,13 +74,17 @@ func fileMedia(name string) string {
 	return media
 }
 func (api *API) documentDTO(d database.Document) Document {
+	return api.documentDTOWith(context.Background(), api.db.DB, d)
+}
+func (api *API) documentDTOWith(ctx context.Context, q storageQuerier, d database.Document) Document {
 	out := Document{Id: d.ID, Title: d.Title, Author: d.Author, Series: d.Series, Description: d.Description, Lang: d.Lang, Isbn10: d.Isbn10, Isbn13: d.Isbn13}
-	if path, err := api.filePath(d); err == nil {
-		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
+	if file, err := api.openDocumentWith(ctx, q, d); err == nil {
+		defer file.Close()
+		if info, err := file.Stat(); err == nil && info.Mode().IsRegular() {
 			out.FileAvailable = true
 			size := info.Size()
 			out.FileSizeBytes = &size
-			media := fileMedia(path)
+			media := fileMedia(*d.Filepath)
 			out.MediaType = &media
 		}
 	}
@@ -98,15 +112,18 @@ func (api *API) documentBinary(ctx context.Context, id string, cover bool) (*fil
 		return nil, err
 	}
 	var path string
+	var f *os.File
 	if cover {
 		path, err = api.coverPath(d)
+		if err == nil {
+			f, err = os.Open(path)
+		}
 	} else {
-		path, err = api.filePath(d)
+		f, err = api.openDocument(requestContext(ctx), d)
+		if err == nil {
+			path = *d.Filepath
+		}
 	}
-	if err != nil {
-		return nil, &reading.Failure{Status: 404, Code: "not_found"}
-	}
-	f, err := os.Open(path)
 	if err != nil {
 		return nil, &reading.Failure{Status: 404, Code: "not_found"}
 	}

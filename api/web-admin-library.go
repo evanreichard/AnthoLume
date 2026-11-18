@@ -2,7 +2,6 @@ package api
 
 import (
 	"archive/zip"
-	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -12,9 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
-	"time"
+	"syscall"
 
 	"reichard.io/antholume/metadata"
 )
@@ -49,6 +47,9 @@ func (api *API) createFullBackup(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		if len(name) > maxRestorePath || !bookRelativePath(name) {
+			return errors.New("file location exceeds archive path limits")
+		}
 		info, err := file.Stat()
 		if err != nil {
 			return err
@@ -82,7 +83,17 @@ func (api *API) createFullBackup(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	for _, folder := range []string{"documents", "covers"} {
+	catalog, err := sql.Open("sqlite", snapshotURI(snapshot))
+	if err != nil {
+		return err
+	}
+	defer catalog.Close()
+	_, err = api.walkBackupBooks(ctx, catalog, func(name string, f *os.File) error { return add("documents/library/"+name, f) })
+	if err != nil {
+		return err
+	}
+	{
+		folder := "covers"
 		root, err := os.OpenRoot(filepath.Join(api.cfg.DataPath, folder))
 		if err != nil {
 			return err
@@ -172,21 +183,10 @@ func ensurePrivateAdminDir(dir string) error {
 	return nil
 }
 
-func (api *API) importFolder(ctx context.Context, directory string) (*os.Root, []string, error) {
-	if directory == "" {
-		directory = "."
-	}
-	if !filepath.IsLocal(directory) {
-		return nil, nil, adminFailure(400, "invalid_import_folder")
-	}
-	root, err := os.OpenRoot(filepath.Join(api.cfg.DataPath, "imports"))
+func (api *API) importFolder(ctx context.Context, rootID string) (*os.Root, []string, error) {
+	folder, err := api.openImportSource(ctx, rootID)
 	if err != nil {
-		return nil, nil, adminFailure(404, "import_folder_not_found")
-	}
-	folder, err := root.OpenRoot(directory)
-	root.Close()
-	if err != nil {
-		return nil, nil, adminFailure(404, "import_folder_not_found")
+		return nil, nil, err
 	}
 	files := []string{}
 	visited := 0
@@ -217,10 +217,14 @@ func (api *API) importFolder(ctx context.Context, directory string) (*os.Root, [
 }
 
 func (s *webAPI) PreviewAdminImport(ctx context.Context, r PreviewAdminImportRequestObject) (PreviewAdminImportResponseObject, error) {
-	if !webUser(ctx).IsAdmin {
+	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
-	root, files, err := s.api.importFolder(requestContext(ctx), r.Params.Directory)
+	source := importsRoot
+	if r.Params.RootId != nil {
+		source = *r.Params.RootId
+	}
+	root, files, err := s.api.importFolder(requestContext(ctx), source)
 	if err != nil {
 		return nil, err
 	}
@@ -228,8 +232,8 @@ func (s *webAPI) PreviewAdminImport(ctx context.Context, r PreviewAdminImportReq
 	return PreviewAdminImport200JSONResponse(files), nil
 }
 
-func (api *API) importBook(ctx context.Context, root *os.Root, base, name string, reference bool) (AdminImportResultStatus, error) {
-	source, err := root.Open(name)
+func (api *API) importBook(ctx context.Context, root *os.Root, destination AdminStorageRoot, name string, reference, relink bool) (AdminImportResultStatus, error) {
+	source, err := root.OpenFile(filepath.FromSlash(name), os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return "failed", err
 	}
@@ -238,37 +242,40 @@ func (api *API) importBook(ctx context.Context, root *os.Root, base, name string
 	if err != nil || !info.Mode().IsRegular() || info.Size() > metadata.MaxDocumentSize {
 		return "failed", errors.New("invalid source file")
 	}
-	temp, err := os.CreateTemp(filepath.Join(api.cfg.DataPath, "documents"), "import-*.epub")
-	if err != nil {
-		return "failed", err
-	}
+	open := source
+	target := name
 	kept := false
-	defer func() {
-		temp.Close()
-		if !kept {
-			os.Remove(temp.Name())
+	if !reference {
+		temp, err := os.CreateTemp(destination.Path, "import-*.epub")
+		if err != nil {
+			return "failed", err
 		}
-	}()
-	if n, err := io.Copy(temp, io.LimitReader(contextReader{ctx, source}, metadata.MaxDocumentSize+1)); err != nil || n != info.Size() {
-		return "failed", errors.New("incomplete import")
+		defer func() {
+			temp.Close()
+			if !kept {
+				os.Remove(temp.Name())
+			}
+		}()
+		n, err := io.Copy(temp, io.LimitReader(contextReader{ctx, source}, metadata.MaxDocumentSize+1))
+		if err != nil || n != info.Size() {
+			return "failed", errors.New("incomplete import")
+		}
+		if err := temp.Sync(); err != nil {
+			return "failed", err
+		}
+		if err := syncAdminDirectory(destination.Path); err != nil {
+			return "failed", err
+		}
+		open, target = temp, filepath.Base(temp.Name())
 	}
-	if err := temp.Sync(); err != nil {
-		return "failed", err
-	}
-	if err := temp.Close(); err != nil {
-		return "failed", err
-	}
-	m, err := metadata.GetMetadata(temp.Name())
+	m, err := metadata.GetOpenedMetadata(open)
 	if err != nil {
 		return "failed", err
 	}
-	var basepath *string
-	target := filepath.Base(temp.Name())
-	if reference {
-		basepath = &base
-		target = name
+	if after, err := source.Stat(); err != nil || after.Size() != info.Size() || after.ModTime() != info.ModTime() {
+		return "failed", errors.New("source changed during import")
 	}
-	res, err := api.db.DB.ExecContext(ctx, `INSERT INTO documents(id,md5,filepath,basepath,title,author,description,words) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`, *m.PartialMD5, m.MD5, target, basepath, m.Title, m.Author, m.Description, m.WordCount)
+	res, err := api.db.DB.ExecContext(ctx, `INSERT INTO documents(id,md5,filepath,storage_root_id,title,author,description,words) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`, *m.PartialMD5, m.MD5, target, destination.Id, m.Title, m.Author, m.Description, m.WordCount)
 	if err != nil {
 		return "failed", err
 	}
@@ -277,31 +284,71 @@ func (api *API) importBook(ctx context.Context, root *os.Root, base, name string
 		return "failed", err
 	}
 	if n == 0 {
-		return "skipped", nil
+		if !relink {
+			return "skipped", nil
+		}
+		updated, err := api.relinkImportedBook(ctx, *m.PartialMD5, *m.MD5, destination.Id, target)
+		if err != nil {
+			return "failed", err
+		}
+		if !updated {
+			return "skipped", nil
+		}
+		kept = !reference
+		return "relinked", nil
 	}
 	kept = !reference
 	return "imported", nil
 }
 
+func (api *API) relinkImportedBook(ctx context.Context, id, hash, root, target string) (bool, error) {
+	d, err := api.db.Queries.GetDocument(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	if d.Deleted || d.Md5 == nil || *d.Md5 != hash {
+		return false, nil
+	}
+	current, err := api.openDocument(ctx, d)
+	if err == nil {
+		current.Close()
+		return false, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+	result, err := api.db.DB.ExecContext(ctx, `UPDATE documents SET storage_root_id=?,filepath=? WHERE id=? AND md5=? AND NOT deleted AND filepath IS ? AND storage_root_id IS ?`, root, target, id, hash, d.Filepath, d.StorageRootID)
+	if err != nil {
+		return false, err
+	}
+	count, err := result.RowsAffected()
+	return count == 1, err
+}
+
+func (api *API) importDestination(ctx context.Context, source string, reference bool) (AdminStorageRoot, error) {
+	dest := libraryRoot
+	if reference {
+		dest = source
+	}
+	root, err := api.storageRoot(ctx, dest)
+	if errors.Is(err, sql.ErrNoRows) {
+		return root, adminFailure(404, "storage_root_not_found")
+	}
+	if err != nil {
+		return root, err
+	}
+	if root.Managed == reference || root.Path == "" || !isDirectory(root.Path) {
+		return root, adminFailure(400, "invalid_import_destination")
+	}
+	return root, nil
+}
+
 var adminJobID = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
-func (api *API) runLibraryImport(ctx context.Context, id, directory string, reference bool) error {
-	root, files, err := api.importFolder(ctx, directory)
+func (api *API) runLibraryImport(ctx context.Context, id, sourceID string, reference, relink bool) error {
+	results, err := api.importBooks(ctx, sourceID, reference, relink, nil)
 	if err != nil {
 		return err
-	}
-	defer root.Close()
-	base, err := filepath.Abs(filepath.Join(api.cfg.DataPath, "imports", directory))
-	if err != nil {
-		return err
-	}
-	results := make([]AdminImportResult, 0, len(files))
-	for _, file := range files {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		status, _ := api.importBook(ctx, root, base, file, reference)
-		results = append(results, AdminImportResult{File: file, Status: status})
 	}
 	encoded, err := json.Marshal(results)
 	if err != nil {
@@ -309,6 +356,30 @@ func (api *API) runLibraryImport(ctx context.Context, id, directory string, refe
 	}
 	_, err = api.db.DB.ExecContext(ctx, `UPDATE admin_jobs SET result=? WHERE id=? AND status='running'`, encoded, id)
 	return err
+}
+
+func (api *API) importBooks(ctx context.Context, sourceID string, reference, relink bool, accept func(*os.Root, string) bool) ([]AdminImportResult, error) {
+	root, files, err := api.importFolder(ctx, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	target, err := api.importDestination(ctx, sourceID, reference)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]AdminImportResult, 0, len(files))
+	for _, file := range files {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if accept != nil && !accept(root, file) {
+			continue
+		}
+		status, _ := api.importBook(ctx, root, target, file, reference, relink)
+		results = append(results, AdminImportResult{File: file, Status: status})
+	}
+	return results, nil
 }
 
 func (s *webAPI) ListAdminImportResults(ctx context.Context, r ListAdminImportResultsRequestObject) (ListAdminImportResultsResponseObject, error) {
@@ -327,66 +398,4 @@ func (s *webAPI) ListAdminImportResults(ctx context.Context, r ListAdminImportRe
 	rows := ListAdminImportResults200JSONResponse{}
 	err := json.Unmarshal(result, &rows)
 	return rows, err
-}
-
-func (s *webAPI) ListAdminLogs(ctx context.Context, _ ListAdminLogsRequestObject) (ListAdminLogsResponseObject, error) {
-	if !webUser(ctx).IsAdmin {
-		return nil, adminFailure(403, "forbidden")
-	}
-	out := ListAdminLogs200JSONResponse{}
-	f, err := os.Open(filepath.Join(s.api.cfg.ConfigPath, "logs", "antholume.log"))
-	if errors.Is(err, os.ErrNotExist) {
-		return out, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
-	if !info.Mode().IsRegular() {
-		return nil, errors.New("log is not a regular file")
-	}
-	const capBytes = 512 << 10
-	start := max(int64(0), info.Size()-capBytes)
-	scan := bufio.NewScanner(io.NewSectionReader(f, start, capBytes))
-	scan.Buffer(make([]byte, 4096), capBytes)
-	if start > 0 {
-		scan.Scan()
-	}
-	for scan.Scan() {
-		var line struct {
-			Time   string `json:"time"`
-			Level  string `json:"level"`
-			Type   string `json:"type"`
-			Method string `json:"method"`
-			Status int    `json:"status"`
-		}
-		if json.Unmarshal(scan.Bytes(), &line) != nil {
-			continue
-		}
-		parsed, err := time.Parse(time.RFC3339, line.Time)
-		if err != nil {
-			continue
-		}
-		switch line.Level {
-		case "debug", "info", "warn", "error", "fatal", "panic", "trace":
-		default:
-			continue
-		}
-		operation := "Server event"
-		if line.Type == "access" && line.Status >= 100 && line.Status <= 599 {
-			operation = "HTTP " + strconv.Itoa(line.Status)
-		}
-		out = append(out, AdminLog{Time: parsed.Format(time.RFC3339), Level: line.Level, Operation: operation})
-		if len(out) > 100 {
-			out = out[1:]
-		}
-	}
-	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
-		out[i], out[j] = out[j], out[i]
-	}
-	return out, scan.Err()
 }

@@ -1,0 +1,9 @@
+.form { display: grid; gap: 10px; min-width: 0; }
+.form > label:not(.setting, .enabled) { display: grid; gap: 4px; }
+.setting, .enabled { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; }
+.setting > span { min-width: 0; max-width: 70%; }
+.method { min-width: 0; margin: 0; padding: 0; border: 0; }
+.method legend { padding: 0; }
+.method p { margin: 2px 0 0; font-size: .8125rem; color: var(--muted); }
+.enabled { border-top: 1px solid var(--line); cursor: pointer; }
+.enabled input { width: 18px; min-height: 0; height: 18px; margin: 0 4px; accent-color: var(--accent); }

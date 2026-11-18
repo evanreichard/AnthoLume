@@ -496,8 +496,12 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 
 	// Derive & Sanitize File Name
 	fileName := deriveBaseFileName(metadataInfo)
-	basePath := filepath.Join(api.cfg.DataPath, "documents")
-	safePath := filepath.Join(basePath, fileName)
+	root, err := api.storageRoot(c.Request.Context(), libraryRoot)
+	if err != nil {
+		appErrorPage(c, http.StatusInternalServerError, "Library storage unavailable")
+		return
+	}
+	safePath := filepath.Join(root.Path, fileName)
 
 	// Open Destination File
 	destFile, err := os.Create(safePath)
@@ -517,14 +521,14 @@ func (api *API) appUploadNewDocument(c *gin.Context) {
 
 	// Upsert Document
 	if _, err = api.db.Queries.UpsertDocument(c, database.UpsertDocumentParams{
-		ID:          *metadataInfo.PartialMD5,
-		Title:       metadataInfo.Title,
-		Author:      metadataInfo.Author,
-		Description: metadataInfo.Description,
-		Md5:         metadataInfo.MD5,
-		Words:       metadataInfo.WordCount,
-		Filepath:    &fileName,
-		Basepath:    &basePath,
+		ID:            *metadataInfo.PartialMD5,
+		Title:         metadataInfo.Title,
+		Author:        metadataInfo.Author,
+		Description:   metadataInfo.Description,
+		Md5:           metadataInfo.MD5,
+		Words:         metadataInfo.WordCount,
+		Filepath:      &fileName,
+		StorageRootID: &root.Id,
 	}); err != nil {
 		log.Errorf("UpsertDocument DB Error: %v", err)
 		appErrorPage(c, http.StatusInternalServerError, fmt.Sprintf("UpsertDocument DB Error: %v", err))
@@ -825,8 +829,12 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 	defer sourceFile.Close()
 
 	// Generate Storage Path & Open File
-	basePath := filepath.Join(api.cfg.DataPath, "documents")
-	safePath := filepath.Join(basePath, fileName)
+	root, err := api.storageRoot(c.Request.Context(), libraryRoot)
+	if err != nil {
+		appErrorPage(c, http.StatusInternalServerError, "Library storage unavailable")
+		return
+	}
+	safePath := filepath.Join(root.Path, fileName)
 
 	destFile, err := os.Create(safePath)
 	if err != nil {
@@ -848,13 +856,13 @@ func (api *API) appSaveNewDocument(c *gin.Context) {
 
 	// Upsert Document
 	if _, err = api.db.Queries.UpsertDocument(c, database.UpsertDocumentParams{
-		ID:       *metadata.PartialMD5,
-		Title:    &docTitle,
-		Author:   &docAuthor,
-		Md5:      metadata.MD5,
-		Words:    metadata.WordCount,
-		Filepath: &fileName,
-		Basepath: &basePath,
+		ID:            *metadata.PartialMD5,
+		Title:         &docTitle,
+		Author:        &docAuthor,
+		Md5:           metadata.MD5,
+		Words:         metadata.WordCount,
+		Filepath:      &fileName,
+		StorageRootID: &root.Id,
 	}); err != nil {
 		log.Error("UpsertDocument DB Error: ", err)
 		sendDownloadMessage("Unable to save to database", gin.H{"Error": true})
@@ -987,8 +995,13 @@ func (api *API) getDocumentsWordCount(ctx context.Context, documents []database.
 
 	for _, item := range documents {
 		if item.Words == nil && item.Filepath != nil {
-			filePath := filepath.Join(api.cfg.DataPath, "documents", *item.Filepath)
-			wordCount, err := metadata.GetWordCount(filePath)
+			file, err := api.openDocumentWith(ctx, tx, database.Document{Filepath: item.Filepath, StorageRootID: item.StorageRootID})
+			if err != nil {
+				log.Warn("Book unavailable for word count: ", err)
+				continue
+			}
+			wordCount, err := metadata.GetOpenedWordCount(file)
+			file.Close()
 			if err != nil {
 				log.Warn("Word Count Error: ", err)
 			} else {

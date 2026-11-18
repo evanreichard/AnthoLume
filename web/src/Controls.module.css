@@ -14,30 +14,33 @@
 .sectionTabs a { flex: 1; display: grid; place-items: center; min-height: 44px; min-width: max-content; white-space: nowrap; text-decoration: none; padding: .85rem .55rem; font-size: .84rem; color: var(--muted); border-bottom: 2px solid transparent; }
 .sectionTabs a[aria-current] { border-color: var(--accent); color: var(--ink); font-weight: 700; }
 .sectionTabs a:focus-visible { outline-offset: -3px; }
-.pillSelect { width: auto; flex: none; border-radius: 999px; font-size: .8rem; padding-inline: .7rem; }
-.pillSelect[data-stretch] { width: 100%; font-size: 16px; }
-.compactPill, .compactSelect {
-  --compact-hit: 44px;
-  --compact-face: 32px;
-  --compact-inline: 10px;
-  display: inline-grid;
-  align-items: center;
-  min-height: var(--compact-hit);
-  font: 650 .875rem/1.2 var(--sans, sans-serif);
+.button, .dropdown, .joinedActions {
+  --control-hit: 44px;
+  --control-face: 44px;
+  --control-inline: 11px;
 }
-.compactSelect { position: relative; isolation: isolate; min-width: 5.25rem; max-width: 100%; }
-.compactSelect > select { width: 100%; min-height: var(--compact-hit); padding-inline: var(--compact-inline); border-color: transparent; background: transparent; font: inherit; }
-.compactPill { justify-items: center; min-width: var(--compact-hit); padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--ink); text-decoration: none; }
-.compactPill > span, .compactSelect::before { border: 1px solid var(--line); border-radius: 999px; background: var(--surface); box-shadow: inset 0 1px color-mix(in srgb, var(--ink) 5%, transparent); }
-.compactPill > span { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: var(--compact-face); padding: 4px var(--compact-inline); }
-.compactSelect::before { content: ''; position: absolute; z-index: -1; inset-inline: 0; top: 50%; height: var(--compact-face); transform: translateY(-50%); box-sizing: border-box; }
-.compactPill[data-tone='primary'] > span { border-color: transparent; background: var(--accent); color: var(--accent-ink); }
+:is(.button, .dropdown, .joinedActions)[data-size='slim'] { --control-face: 32px; --control-inline: 10px; }
+.button, .dropdown { display: inline-grid; align-items: center; min-height: var(--control-hit); font: 650 .875rem/1.2 var(--sans, sans-serif); }
+.segmentedControl { --segment-gap: 3px; --segment-target: 44px; --segment-face: 32px; position: relative; isolation: isolate; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--segment-gap); padding: var(--segment-gap); }
+.segmentedControl::before { content: ''; position: absolute; z-index: -1; inset: calc((var(--segment-target) - var(--segment-face)) / 2) 0; border: 1px solid var(--line); border-radius: .8rem; background: var(--bg); }
+.segmentedControl button { display: grid; align-items: center; min-height: var(--segment-target); padding: 0; background: transparent; border: 0; font-size: .8rem; color: var(--muted); }
+.segmentedControl button span { display: grid; place-items: center; min-height: var(--segment-face); border: 1px solid transparent; border-radius: var(--radius); }
+.segmentedControl button[aria-pressed='true'] span { background: var(--hero); border-color: var(--line); color: var(--ink); font-weight: 700; }
+
+.dropdown { position: relative; isolation: isolate; min-width: 5.25rem; max-width: 100%; }
+.dropdown[data-stretch] { width: 100%; font-size: 16px; }
+.dropdown > select { width: 100%; min-height: var(--control-hit); padding-inline: var(--control-inline); border-color: transparent; border-radius: 999px; background: transparent; font: inherit; }
+.button { min-width: var(--control-hit); padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--ink); text-decoration: none; text-align: center; }
+.button > span, .dropdown::before { border: 1px solid var(--line); border-radius: 999px; background: var(--surface); box-shadow: inset 0 1px color-mix(in srgb, var(--ink) 5%, transparent); }
+.button > span { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: var(--control-face); padding: 4px var(--control-inline); }
+.dropdown::before { content: ''; position: absolute; z-index: -1; inset-inline: 0; top: 50%; height: var(--control-face); transform: translateY(-50%); }
+.button[data-tone='primary'] > span { border-color: transparent; background: var(--accent); color: var(--accent-ink); }
+.button[data-tone='danger'] { color: var(--danger); }
 @media (hover: hover) {
-  .compactPill:hover:not(:disabled, [aria-disabled='true']) > span { background: var(--hero); }
-  .compactPill[data-tone='primary']:hover:not(:disabled) > span { background: color-mix(in srgb, var(--accent) 92%, var(--ink)); }
-  .compactSelect:hover::before { background: var(--hero); }
+  .button:hover:not(:disabled, [aria-disabled='true']) > span, .dropdown:has(select:hover:not(:disabled))::before { background: var(--hero); }
+  .button[data-tone='primary']:hover:not(:disabled) > span { background: color-mix(in srgb, var(--accent) 92%, var(--ink)); }
 }
-.compactPill:active:not(:disabled, [aria-disabled='true']) > span { box-shadow: inset 0 0 0 1px var(--line); }
+.button:active:not(:disabled, [aria-disabled='true']) > span { box-shadow: inset 0 0 0 1px var(--line); }
 .pager { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-top: 1px solid color-mix(in srgb, var(--line) 42%, transparent); margin-top: 8px; padding-top: 8px; }
 .pager span { color: var(--muted); font-size: .8rem; }
 .pager button[aria-disabled='true'] { opacity: .55; cursor: default; }
@@ -47,11 +50,28 @@
 .row > :first-child { min-width: 0; overflow-wrap: anywhere; }
 .row p { margin: 1px 0 0; color: var(--muted); font-size: .8rem; }
 
+.iconButton { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 44px; height: 44px; min-width: 44px; padding: 0; border-radius: 50%; font-size: 23px; font-weight: 400; }
+.iconButton:hover:not(:disabled) { background: var(--hero); }
+.joinedActions { display: flex; border: 1px solid var(--line); border-radius: 99px; background: var(--surface); }
+.joinedActions > button { display: grid; place-items: center; min-width: 44px; min-height: 44px; padding-inline: 9px; border: 0; border-radius: 99px; background: transparent; color: var(--ink); font: inherit; font-size: .8rem; font-weight: 650; }
+.joinedActions > button:not(:last-child) { border-start-end-radius: 0; border-end-end-radius: 0; }
+.joinedActions > button + button { border-inline-start: 1px solid var(--line); border-start-start-radius: 0; border-end-start-radius: 0; }
+.joinedActions > button:hover:not(:disabled) { background: var(--hero); }
+.joinedActions > button[data-tone='danger'] { color: var(--danger); }
+.joinedActions > button > span { display: flex; align-items: center; justify-content: center; }
+.joinedActions[data-size='slim'] { border: 0; background: transparent; }
+.joinedActions[data-size='slim'] > button { min-height: var(--control-hit); min-width: var(--control-hit); padding: 0; border: 0; background: transparent; }
+.joinedActions[data-size='slim'] > button > span { width: 100%; min-height: var(--control-face); padding-inline: var(--control-inline); border: 1px solid var(--line); border-radius: inherit; background: var(--surface); box-shadow: inset 0 1px color-mix(in srgb, var(--ink) 5%, transparent); }
+.joinedActions[data-size='slim'] > button + button > span { border-inline-start: 0; }
+@media (hover: hover) {
+  .joinedActions[data-size='slim'] > button:hover:not(:disabled) > span { background: var(--hero); }
+}
 .pill { display: inline-flex; align-items: center; justify-content: center; flex: none; gap: 5px; min-width: 44px; min-height: 44px; padding: 4px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); box-shadow: inset 0 1px color-mix(in srgb, var(--ink) 5%, transparent); font-size: .875rem; line-height: 1.2; font-weight: 650; text-decoration: none; }
 .pill:hover:not(:disabled) { background: var(--hero); }
-.filled { composes: pill; border-color: transparent; background: var(--accent); color: var(--accent-ink); }
-.filled:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 92%, var(--ink)); }
-.danger { composes: pill; color: var(--danger); }
+.pillIcon { composes: pill; width: 44px; padding: 0; border-color: transparent; background: transparent; box-shadow: none; }
+.pillIcon > span { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); }
+.pillIcon:hover:not(:disabled) { background: transparent; }
+.pillIcon:hover:not(:disabled) > span { background: var(--hero); }
 .back { composes: pill; padding-inline-start: 7px; }
 
 .disclosure { min-width: 0; }

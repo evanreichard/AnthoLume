@@ -1,21 +1,36 @@
-import { useId, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
+import { useId, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes } from 'react';
 import { Link, NavLink, type LinkProps } from 'react-router';
 import { Icon } from './Icon';
-import { PageHeader } from './ui';
 import styles from './Controls.module.css';
+
+export function IconButton({ type = 'button', ...props }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> & { 'aria-label': string }) {
+  return <button {...props} type={type} className={styles.iconButton} />;
+}
 
 export function BackPill({ children, ...props }: Omit<LinkProps, 'className'>) {
   return <Link {...props} className={styles.back}><Icon name="back" size={16} />{children}</Link>;
-}
-
-export function WorkspaceHeader({ title, backTo, backLabel }: { title: string; backTo: LinkProps['to']; backLabel: string }) {
-  return <PageHeader title={title} leading={<BackPill to={backTo} aria-label={`Back to ${backLabel}`}>{backLabel}</BackPill>} />;
 }
 
 export function SectionTabs({ label, items }: { label: string; items: readonly { to: string; label: string }[] }) {
   return <nav className={styles.sectionTabs} aria-label={label}>
     {items.map(item => <NavLink key={item.to} to={item.to} end>{item.label}</NavLink>)}
   </nav>;
+}
+
+export function SegmentedControl<T extends string>({ label, options, value, onChange, className }: { label: string; options: readonly (readonly [T, string])[]; value: T; onChange: (value: T) => void; className?: string }) {
+  return <div className={[styles.segmentedControl, className].filter(Boolean).join(' ')} role="group" aria-label={label}>
+    {options.map(([id, text]) => <button key={id} type="button" aria-pressed={value === id} onClick={() => { if (value !== id) onChange(id); }}><span>{text}</span></button>)}
+  </div>;
+}
+
+type ControlSize = 'full' | 'slim';
+
+export function JoinedActions({ label, children, size = 'full' }: { label: string; children: ReactNode; size?: ControlSize }) {
+  return <div className={styles.joinedActions} data-size={size} role="group" aria-label={label}>{children}</div>;
+}
+
+export function JoinedAction({ children, tone, ...props }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> & { tone?: 'danger' }) {
+  return <button {...props} type="button" data-tone={tone}><span>{children}</span></button>;
 }
 
 export function Card({ as: Tag = 'section', density = 'regular', className, ...props }: HTMLAttributes<HTMLElement> & { as?: 'section' | 'article'; density?: 'regular' | 'compact' }) {
@@ -32,28 +47,33 @@ export function CardHeader({ title, id, subtitle, leading, action }: { title: Re
   </div>;
 }
 
-type CompactTone = { tone?: 'primary' };
-type CompactButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> & CompactTone;
-type CompactLinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'className'> & CompactTone;
+type ButtonStyle = { size?: ControlSize; tone?: 'primary' | 'danger' };
 
-export function CompactPill({ children, tone, type = 'button', ...props }: CompactButtonProps) {
-  return <button {...props} type={type} className={styles.compactPill} data-tone={tone}><span>{children}</span></button>;
+export function Button({ children, size = 'full', tone, type = 'button', ...props }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> & ButtonStyle & { ref?: Ref<HTMLButtonElement> }) {
+  return <button {...props} type={type} className={styles.button} data-size={size} data-tone={tone}><span>{children}</span></button>;
 }
 
-export function CompactPillLink({ children, tone, ...props }: CompactLinkProps) {
-  return <a {...props} className={styles.compactPill} data-tone={tone}><span>{children}</span></a>;
+export function AddPill({ label, ...props }: Pick<ButtonHTMLAttributes<HTMLButtonElement>, 'disabled' | 'onClick'> & { label: string }) {
+  return <button {...props} type="button" className={styles.pillIcon} aria-label={label} title={label}><span><Icon name="add" size={16} /></span></button>;
 }
 
-export function PillSelect({ stretch = false, ...props }: Omit<SelectHTMLAttributes<HTMLSelectElement>, 'className'> & { stretch?: boolean }) {
-  const select = <select {...props} className={styles.pillSelect} data-stretch={stretch || undefined} />;
-  return stretch ? select : <span className={styles.compactSelect}>{select}</span>;
+type ButtonLinkProps = ButtonStyle & (Omit<LinkProps, 'className' | 'href'> | Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'className'>);
+
+export function ButtonLink({ children, size = 'full', tone, ...props }: ButtonLinkProps) {
+  const appearance = { className: styles.button, 'data-size': size, 'data-tone': tone };
+  const face = <span>{children}</span>;
+  return 'to' in props ? <Link {...props} {...appearance}>{face}</Link> : <a {...props} {...appearance}>{face}</a>;
+}
+
+export function Dropdown({ size = 'full', stretch = false, ...props }: Omit<SelectHTMLAttributes<HTMLSelectElement>, 'className' | 'size'> & { size?: ControlSize; stretch?: boolean }) {
+  return <span className={styles.dropdown} data-size={size} data-stretch={stretch || undefined}><select {...props} /></span>;
 }
 
 export function Pager({ label, page, total, hasNext, onPageChange }: { label: string; page: number; total?: number; hasNext: boolean; onPageChange: (page: number) => void }) {
   return <nav className={styles.pager} aria-label={label}>
-    <CompactPill aria-disabled={page <= 1} onClick={() => { if (page > 1) onPageChange(page - 1); }}>Previous</CompactPill>
+    <Button size="slim" aria-disabled={page <= 1} onClick={() => { if (page > 1) onPageChange(page - 1); }}>Previous</Button>
     <span role="status">{total == null ? `Page ${page}` : `${page} of ${total}`}</span>
-    <CompactPill aria-disabled={!hasNext} onClick={() => { if (hasNext) onPageChange(page + 1); }}>Next</CompactPill>
+    <Button size="slim" aria-disabled={!hasNext} onClick={() => { if (hasNext) onPageChange(page + 1); }}>Next</Button>
   </nav>;
 }
 

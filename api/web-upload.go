@@ -19,7 +19,11 @@ func (s *webAPI) UploadDocument(ctx context.Context, r UploadDocumentRequestObje
 	if api.cfg.DemoMode {
 		return nil, &reading.Failure{Status: http.StatusForbidden, Code: "forbidden"}
 	}
-	file, err := os.CreateTemp(filepath.Join(api.cfg.DataPath, "documents"), "upload-*.epub")
+	root, err := api.storageRoot(ctx, libraryRoot)
+	if err != nil {
+		return nil, err
+	}
+	file, err := os.CreateTemp(root.Path, "upload-*.epub")
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +59,7 @@ func (s *webAPI) UploadDocument(ctx context.Context, r UploadDocumentRequestObje
 		return nil, &reading.Failure{Status: status, Code: "invalid_request"}
 	}
 	id := *info.PartialMD5
-	result, err := api.db.DB.ExecContext(ctx, `INSERT INTO documents(id,md5,filepath,title,author,description,words) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`, id, info.MD5, filepath.Base(file.Name()), info.Title, info.Author, info.Description, info.WordCount)
+	result, err := api.db.DB.ExecContext(ctx, `INSERT INTO documents(id,md5,filepath,title,author,description,words,storage_root_id) VALUES(?,?,?,?,?,?,?,'library') ON CONFLICT(id) DO NOTHING`, id, info.MD5, filepath.Base(file.Name()), info.Title, info.Author, info.Description, info.WordCount)
 	if err != nil {
 		return nil, err
 	}

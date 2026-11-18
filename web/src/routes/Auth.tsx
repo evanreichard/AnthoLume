@@ -1,3 +1,4 @@
+import { Button } from '../Controls';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { session, useSession } from '../session';
@@ -43,7 +44,7 @@ export function Auth({ mode }: { mode: 'login' | 'register' }) {
     {mode === 'register' && capabilities?.registration_enabled === false ? <p>Registration is disabled on this server.</p> : <form className={styles.form} onSubmit={submit}>
       <label>Username<input name="username" autoComplete="username" required maxLength={256} autoCapitalize="none" spellCheck={false} /></label>
       <label>Password<input type="password" name="password" required maxLength={256} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /></label>
-      <ErrorNotice error={error} /><button className={styles.primary} disabled={busy || submitting}>{busy || submitting ? 'Connecting…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>
+      <ErrorNotice error={error} /><Button type="submit" tone="primary" disabled={busy || submitting}>{busy || submitting ? 'Connecting…' : mode === 'login' ? 'Sign in' : 'Create account'}</Button>
     </form>}
     {mode === 'login' && capabilities?.registration_enabled && <Link to={authPath('register', intent)}>Create an account</Link>}
     {mode === 'register' && <Link to={authPath('login', intent)}>Already have an account? Sign in</Link>}

@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect, register } from './fixtures';
 
-test('Library, Insights, Settings and Book Detail share mobile and desktop gutters', async ({ page, server }) => {
+test('Library, Insights, Settings and Book Detail share mobile and desktop gutters', async ({ page, server }, testInfo) => {
   await register(page, server.origin, 'header-reader');
   const nav = page.getByRole('navigation', { name: 'Main navigation' });
-  for (const width of [320, 1440]) {
+  for (const width of [320, 390, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     const position = async (title: string) => {
       await nav.getByRole('link', { name: title, exact: true }).click();
@@ -39,7 +39,8 @@ test('Library, Insights, Settings and Book Detail share mobile and desktop gutte
     await position('Library');
     await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
     const reading = page.getByRole('region', { name: 'Your reading' });
-    const info = page.getByRole('region', { name: 'Book information' });
+    const info = page.getByRole('region', { name: 'Book details' });
+    await expect(info.getByRole('heading', { name: 'Book information', exact: true })).toHaveCount(0);
     const hero = page.getByRole('region', { name: 'Public book 01', exact: true });
     const cta = hero.getByRole('link', { name: 'Read', exact: true });
     await expect(cta).toBeVisible();
@@ -50,7 +51,10 @@ test('Library, Insights, Settings and Book Detail share mobile and desktop gutte
     expect(resume.y).toBeGreaterThan(title.y + title.height);
     expect(resume.width).toBeLessThan(160);
     expect(resume.height).toBeGreaterThanOrEqual(44);
-    if (width === 320) {
+    const synopsis = info.getByRole('heading', { name: 'Synopsis', exact: true, level: 2 });
+    const author = info.getByText('Author', { exact: true });
+    expect((await author.boundingBox())!.y).toBeLessThan((await synopsis.boundingBox())!.y);
+    if (width < 1040) {
       await expectLibraryGutters(hero);
       await expectLibraryGutters(reading);
       await expectLibraryGutters(info);
@@ -59,10 +63,39 @@ test('Library, Insights, Settings and Book Detail share mobile and desktop gutte
       const [sidebar, details, feature] = await Promise.all([reading.boundingBox(), info.boundingBox(), hero.boundingBox()]);
       expect(details!.x).toBe(libraryGrid.x);
       expect(sidebar!.x + sidebar!.width).toBeCloseTo(libraryGrid.x + libraryGrid.width);
-      expect(sidebar!.x).toBeGreaterThan(details!.x + details!.width);
+      expect(sidebar!.x - (feature!.x + feature!.width)).toBeCloseTo(24);
       expect(sidebar!.y).toBeCloseTo(feature!.y);
     }
+    if (width !== 320) await page.screenshot({ path: testInfo.outputPath(`book-detail-${width}.png`) });
   }
+});
+
+test('Insights reserves the overview layout while loading and respects reduced motion', async ({ page, server }, testInfo) => {
+  await register(page, server.origin, 'skeleton-reader');
+  let finish!: () => void;
+  const waiting = new Promise<void>(resolve => { finish = resolve; });
+  await page.route('**/api/v1/me/insights', async route => { await waiting; await route.continue(); });
+  try {
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Insights' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Loading your reading journal' })).toHaveCount(1);
+    const bars = page.locator('[class*="skeletonBar"]');
+    await expect(bars).toHaveCount(30);
+    const animation = () => bars.first().evaluate(el => getComputedStyle(el, '::after').animationName);
+    expect(await animation()).not.toBe('none');
+    const rankings = page.getByRole('region', { name: 'Rankings' });
+    const top = (await rankings.boundingBox())!.y;
+    await page.screenshot({ path: testInfo.outputPath('overview-skeleton-320.png') });
+    await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    expect(await animation()).toBe('none');
+    await page.screenshot({ path: testInfo.outputPath('overview-skeleton-1440.png') });
+    await page.setViewportSize({ width: 320, height: 844 });
+    finish();
+    await expect(page.getByRole('region', { name: 'Last 30 days' })).toBeVisible();
+    await expect(bars).toHaveCount(0);
+    expect(Math.abs((await rankings.boundingBox())!.y - top)).toBeLessThan(3);
+  } finally { finish(); }
 });
 
 test('Insights shows acknowledged activity, links chart days and books, and keeps rankings secondary', async ({ page, server }, testInfo) => {
@@ -139,8 +172,11 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
   await expect(activity.getByRole('link', { name: 'Clear filters' })).toBeVisible();
   await expect(activity.locator('time').first()).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}$/);
   await expect(activity.getByRole('heading')).toHaveCount(0);
+  await page.setViewportSize({ width: 1440, height: 844 });
   await page.getByRole('link', { name: 'Public book 01' }).click();
-  await expect(page.getByRole('heading', { name: 'Public book 01' })).toBeVisible();
+  const bookHero = page.getByRole('region', { name: 'Public book 01', exact: true });
+  await expect(bookHero.getByRole('heading', { name: 'Public book 01' })).toBeVisible();
+  await expect(bookHero.getByText('20%', { exact: true })).toBeVisible();
   await page.getByRole('region', { name: 'Your reading' }).getByRole('link', { name: 'View activity', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Public book 01' })).toBeVisible();
   const sections = page.getByRole('navigation', { name: 'Insights sections' });

@@ -7,10 +7,11 @@
 .chart { display: grid; grid-template-columns: repeat(30, minmax(0, 1fr)); gap: clamp(1px, .55vw, 5px); height: 78px; padding-top: .5rem; }
 .chart a { display: flex; align-items: flex-end; justify-content: center; border-radius: 4px; }
 .chart a:is(:hover,:focus-visible) { background: var(--hero); }
-.chart span { display: block; width: 100%; height: max(2px, var(--bar)); border-radius: 4px 4px 2px 2px; background: var(--accent); }
+.chart a > span { display: block; width: 100%; height: max(2px, var(--bar)); border-radius: 4px 4px 2px 2px; background: var(--accent); }
+.chart .skeletonBar { align-self: end; height: var(--bar); border-radius: 4px 4px 2px 2px; }
 .chart a[aria-label$=': 0 min'] span { background: var(--line); }
 .axis, .historyFilters { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-.axis { margin-top: .5rem; font-size: .75rem; }
+.axis { margin-top: .5rem; font-size: .75rem; min-height: 1lh; }
 .streaks { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .65rem; margin-block: .8rem 1.4rem; }
 .streaks section { background: var(--surface); border: 1px solid var(--line); border-radius: .85rem; padding: .85rem; }
 .streaks h2, .streaks p:last-child { margin: 0; }
@@ -24,14 +25,11 @@
 .entries small { display: block; margin-top: .25rem; }
 .value { flex: none; font-variant-numeric: tabular-nums; font-size: .85rem; }
 .rankings { margin-top: 1.35rem; }
-.metricSwitch { --metric-gap: 3px; --metric-target: 44px; --metric-face: 32px; position: relative; isolation: isolate; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--metric-gap); padding: var(--metric-gap); margin-block: .9rem .5rem; }
-.metricSwitch::before { content: ''; position: absolute; z-index: -1; inset: calc((var(--metric-target) - var(--metric-face)) / 2) 0; border: 1px solid var(--line); border-radius: .8rem; background: var(--bg); }
-.metricSwitch button { display: grid; align-items: center; min-height: var(--metric-target); padding: 0; background: transparent; border: 0; font-size: .8rem; color: var(--muted); }
-.metricSwitch button span { display: grid; place-items: center; min-height: var(--metric-face); border: 1px solid transparent; border-radius: var(--radius); }
-.metricSwitch button[aria-pressed='true'] span { background: var(--hero); border-color: var(--line); color: var(--ink); font-weight: 700; }
+.metricSwitch { margin-block: .9rem .5rem; }
 .rankingNote { color: var(--muted); font-size: .82rem; }
 .rankRows { padding: 0; margin: .4rem 0 0; list-style: none; }
 .rankRows li { display: grid; grid-template-columns: 1.75rem minmax(0, 1fr) auto; align-items: center; gap: .6rem; padding: .7rem 0; border-bottom: 1px solid var(--line); }
 .rankNumber { display: grid; place-items: center; min-height: 1.75rem; border-radius: .4rem; background: var(--hero); color: var(--ink); font-size: .75rem; font-weight: 700; }
+.rankRows .rankNumber[aria-hidden] { width: 1.75rem; }
 .rankName { overflow-wrap: anywhere; }
 .fullRankings { display: inline-flex; align-items: center; gap: .4rem; min-height: 44px; margin-top: .25rem; font-size: .85rem; }
