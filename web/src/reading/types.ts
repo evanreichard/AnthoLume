@@ -11,7 +11,7 @@ export type SyncStatus = 'idle' | 'pending' | 'syncing' | 'auth-required' | 'ret
 export interface ReadingBridge {
   registerDevice(account: Account, device: S['Device'], signal: AbortSignal): Promise<S['Device']>;
   getState(account: Account, documentId: string, signal: AbortSignal): Promise<S['ReadingState']>;
-  fetchFile(account: Account, documentId: string, signal: AbortSignal): Promise<Response>;
+  fetchFile(account: Account, documentId: string, signal: AbortSignal, etag?: string): Promise<Response>;
   fetchCover(account: Account, documentId: string, signal: AbortSignal): Promise<Response>;
   submitProgress(account: Account, event: S['ProgressEvent'], signal: AbortSignal): Promise<Delivery>;
   submitActivity(account: Account, event: S['ActivityEvent'], signal: AbortSignal): Promise<Delivery>;
@@ -22,13 +22,11 @@ export class ReadingHTTPError extends Error {
 }
 export interface ReadingSnapshot {
   ready: boolean; resumeAccount: Account | null; books: readonly StoredBook[]; sync: SyncStatus; pendingCount: number; conflicts: readonly Conflict[];
-  downloads: readonly { ref: BookRef; receivedBytes: number; totalBytes: number | null }[];
+  downloads: readonly { ref: BookRef; receivedBytes: number; totalBytes: number | null; preparing?: boolean }[];
   update: 'idle' | 'available' | 'blocked' | 'error'; error: string | null;
 }
 export interface ReadingActions {
-  importLocal(file: File, signal?: AbortSignal): Promise<BookRef>;
-  download(document: S['Document'], signal?: AbortSignal): Promise<BookRef>;
-  removeBook(ref: BookRef): Promise<void>;
+  exportLocal(ref: Extract<BookRef, { kind: 'local' }>): Promise<Blob>;
   replay(): Promise<void>;
   applyUpdate(): Promise<void>;
   refreshConflict(eventId: string): Promise<Conflict>;

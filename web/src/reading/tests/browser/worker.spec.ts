@@ -28,7 +28,7 @@ test('actual busy CPU workers hard-deadline on the parent without blocking UI or
     try { await p.sourceTask(p.blobSource(new Blob(['x'])), 'index', undefined, controller.signal); } catch (e) { error = String(e); }
     clearInterval(heartbeat); clearTimeout(rescue); return { error, ticks, elapsed: performance.now() - start, scheduler: { ...p.sourceScheduler } };
   });
-  expect(result.error).toContain('deadline exceeded'); expect(result.elapsed).toBeGreaterThan(9000); expect(result.elapsed).toBeLessThan(13000); expect(result.ticks).toBeGreaterThan(100); expect(result.scheduler.active).toBe(0); expect(result.scheduler.queued).toBe(0); expect(spawned).toBe(1); await expect.poll(() => closed).toBe(1);
+  expect(result.error).toContain('No progress while indexing the EPUB'); expect(result.elapsed).toBeGreaterThan(9000); expect(result.elapsed).toBeLessThan(13000); expect(result.ticks).toBeGreaterThan(100); expect(result.scheduler.active).toBe(0); expect(result.scheduler.queued).toBe(0); expect(spawned).toBe(1); await expect.poll(() => closed).toBe(1);
 });
 
 test('bounded source queue rejects overflow and abort physically terminates busy and queued work', async ({ page }) => {

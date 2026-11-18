@@ -153,7 +153,7 @@
 .pinchHud { position: absolute; z-index: 2; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; padding: .55rem 1rem; font-variant-numeric: tabular-nums; }
 .pinchHud strong { margin-inline-start: .25rem; }
 .message { inset: calc(3.5rem + env(safe-area-inset-top)) 1rem auto; max-width: 32rem; margin-inline: auto; }
-.loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: .45rem .8rem; border-radius: 1rem; background: inherit; opacity: .8; font-size: .85rem; }
+.loading { display: grid; justify-items: center; gap: .35rem; white-space: nowrap; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: .45rem .8rem; border-radius: 1rem; background: inherit; opacity: .8; font-size: .85rem; }
 .srOnly { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
 .hint { position: absolute; z-index: 2; bottom: calc(env(safe-area-inset-bottom) + 1rem); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 2rem); margin: 0; padding: .5rem .8rem; text-align: center; pointer-events: none; }
 .mouseHint { display: none; }

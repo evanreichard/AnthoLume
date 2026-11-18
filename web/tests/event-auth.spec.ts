@@ -1,20 +1,18 @@
 import { readFile, unlink, writeFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
-import { test, expect, register, signIn } from './fixtures';
+import { test, expect, register } from './fixtures';
 import { pendingIds, serverEffects, storedRows } from './storage';
 
 async function prepare(page: Page, origin: string, user: string) {
   await register(page, origin, user);
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
-  await page.getByRole('button', { name: 'Download', exact: true }).click();
-  await expect(page.getByText('✓ Available offline', { exact: true })).toBeVisible();
 }
 async function turn(page: Page) {
-  await page.getByRole('link', { name: 'Resume', exact: true }).click();
+  await page.getByRole('link', { name: /^(Read|Resume)$/ }).click();
   await expect(page.locator('footer')).toContainText('1 /');
+  await page.keyboard.press('c');
   await page.getByRole('button', { name: 'Next page', exact: true }).click();
   await expect(page.locator('footer')).toContainText('2 /');
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
 }
 
 for (const fault of ['malformed-401', 'valid-401']) {
@@ -27,24 +25,30 @@ for (const fault of ['malformed-401', 'valid-401']) {
       await turn(page);
       await expect.poll(() => serverEffects(server.data, user).receipts.length).toBe(1);
       if (fault === 'malformed-401') {
-        await expect(page.getByRole('banner').getByRole('link', { name: 'Account', exact: true })).toBeVisible();
+        await page.goBack();
+        await expect(page.getByRole('link', { name: 'Settings', exact: true })).toBeVisible();
         await expect.poll(() => pendingIds(page)).toHaveLength(1);
         await expect.poll(() => storedRows(page, 'access')).toEqual(before);
-        await page.getByRole('banner').getByRole('link', { name: /pending/ }).click();
+        await page.getByRole('link', { name: 'Settings', exact: true }).click();
+        await page.getByRole('link', { name: 'Synchronization', exact: true }).click();
         await expect(page.getByRole('heading', { name: 'retryable-error', exact: true })).toBeVisible();
         expect(await storedRows(page, 'access')).toEqual(before);
       } else {
-        await expect(page.getByRole('link', { name: 'Sign in again', exact: true })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
         expect((await storedRows(page, 'access'))[0].authenticated).toBe(false);
         expect(await pendingIds(page)).toHaveLength(1);
       }
       const effects = serverEffects(server.data, user);
       await unlink(`${server.data}/receipt-fault`);
-      if (fault === 'valid-401') await signIn(page, server.origin, user);
-      else await page.getByRole('button', { name: 'Retry synchronization', exact: true }).click();
+      if (fault === 'valid-401') {
+        // The fault expires the client session without invalidating the fixture's cookie.
+        await page.getByLabel('Username', { exact: true }).fill(user);
+        await page.getByLabel('Password', { exact: true }).fill('synthetic-public-password');
+        await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+      } else await page.getByRole('button', { name: 'Retry synchronization', exact: true }).click();
       await expect.poll(() => pendingIds(page)).toEqual([]);
       expect(serverEffects(server.data, user)).toEqual(effects);
-      await expect(page.getByRole('banner').getByRole('link', { name: 'Account', exact: true })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Settings', exact: true })).toBeVisible();
     } finally { await unlink(`${server.data}/receipt-fault`).catch(() => undefined); }
   });
 }
@@ -55,9 +59,10 @@ test('late valid event 401 after real two-tab lease takeover cannot expire uncha
   const other = await context.newPage();
   try {
     await other.goto(`${server.origin}/app/library`);
-    await expect(other.getByRole('banner').getByRole('link', { name: 'Account', exact: true })).toBeVisible();
+    await expect(other.getByRole('link', { name: 'Settings', exact: true })).toBeVisible();
     await expect(other.getByRole('button', { name: 'Add book', exact: true })).toBeEnabled();
-    await other.getByRole('banner').getByRole('link', { name: 'Sync', exact: true }).click();
+    await other.getByRole('link', { name: 'Settings', exact: true }).click();
+    await other.getByRole('link', { name: 'Synchronization', exact: true }).click();
     await expect(other.getByRole('button', { name: 'Retry synchronization', exact: true })).toBeVisible();
     await expect.poll(async () => (await storedRows(other, 'access'))[0]?.authenticated).toBe(true);
     const accessBefore = await storedRows(page, 'access');
@@ -89,7 +94,7 @@ test('late valid event 401 after real two-tab lease takeover cannot expire uncha
     const delivered = page.waitForResponse((response) => response.url().endsWith('/api/v1/me/reading-progress') && response.status() === 401);
     await writeFile(`${server.data}/release-event`, 'release the old lease response');
     await delivered;
-    await expect(page.getByRole('banner').getByRole('link', { name: 'Account', exact: true })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Book reader', exact: true })).toHaveAttribute('data-reader-state', 'ready');
     await expect.poll(() => storedRows(page, 'access')).toEqual(accessBefore);
     expect(bootstrapRequests).toBe(0);
     expect(serverEffects(server.data, user).receipts).toHaveLength(1);

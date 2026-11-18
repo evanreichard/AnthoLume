@@ -89,13 +89,3 @@ export async function signIn(page: import('@playwright/test').Page, origin: stri
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
 }
-export async function importBook(page: import('@playwright/test').Page, title = 'Local public book') {
-  const library = new URL('/app/library', page.url()).href;
-  await page.goto(new URL('/app/offline', library).href);
-  await page.getByRole('button', { name: 'Import local EPUB', exact: true }).click();
-  await page.getByLabel('Choose local EPUB').setInputFiles({ name: 'public.epub', mimeType: 'application/epub+zip', buffer: await epub(title) });
-  await expect(page.getByText('Book saved.', { exact: false })).toBeVisible({ timeout: 30_000 });
-  await page.getByRole('button', { name: 'Done', exact: true }).click();
-  await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
-  await page.goto(library);
-}

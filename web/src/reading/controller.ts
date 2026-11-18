@@ -40,6 +40,7 @@ export class ReaderController {
   private pendingActivity?: CapturedActivity;
   private appearance: Appearance = { size: 100, font: 'serif', theme: 'tan' };
   private readyToInteract = false;
+  private reportedCSSDrops = false;
   private viewportSize?: { width: number; height: number };
   private tocTargets = new Map<string, ReturnType<ChapterPolicy['navigation']>>();
   private contentCleanup = new Map<Document, () => void>();
@@ -69,18 +70,18 @@ export class ReaderController {
     this.tail = result.catch(error => { this.readyToInteract = false; this.send({ state: 'error', message: String(error), location: this.location, toc: this.tocItems(), diagnostics: this.diagnostics() }); });
     return this.tail as Promise<void>;
   }
-  open(input: Source | Blob | ArrayBuffer, saved?: string, signal?: AbortSignal, manifest?: BookManifest) {
+  open(input: Source | Blob | ArrayBuffer, saved?: string, signal?: AbortSignal, manifest?: BookManifest, appearance?: Appearance) {
     if (this.dead || this.openRequested) return Promise.reject(new Error('Controller open is single-use; create a new controller'));
     this.openRequested = true;
+    if (appearance) this.appearance = appearance;
     const abort = () => this.lifetime.abort(signal?.reason);
     signal?.addEventListener('abort', abort, { once: true }); this.removeAbort = () => signal?.removeEventListener('abort', abort); if (signal?.aborted) abort();
     return this.enqueue(async () => {
       this.send({ state: 'opening', message: 'Validating EPUB' });
       const source = input instanceof Blob ? blobSource(input) : input instanceof ArrayBuffer ? blobSource(new Blob([input])) : input;
       this.policy = manifest ? new ChapterPolicy(new ArchiveReader(source, manifest.index, this.lifetime.signal), manifest) : await validateEPUB(source, this.lifetime.signal);
-      const cssDrops = this.policy.manifest.cssDrops;
-      if (cssDrops && Object.keys(cssDrops).length) console.warn('[AnthoLume reader] Skipped unsupported EPUB styling', cssDrops);
-      this.wordCounts = this.policy.spine.map(path => this.policy!.manifest.documents[path]!.words);
+      const { manifest: bookManifest, reader } = this.policy;
+      this.wordCounts = this.policy.spine.map(path => bookManifest.lazy ? Math.max(1, Math.round(reader.byName.get(path)!.expanded / 8)) : bookManifest.documents[path]!.words);
       if (this.dead) return;
       const book = this.book = new Book({ replacements: 'none', requestMethod: () => Promise.reject(new Error('Engine network requests are disabled')) });
       lifecycle.engines++; settleBookFailures(book);
@@ -161,6 +162,11 @@ export class ReaderController {
     return flatten(this.book?.navigation?.toc || []);
   }
   private ready(message: string) {
+    const cssDrops = this.policy?.manifest.cssDrops;
+    if (!this.reportedCSSDrops && cssDrops && Object.keys(cssDrops).length) {
+      this.reportedCSSDrops = true;
+      console.warn('[AnthoLume reader] Skipped unsupported EPUB styling', { ...cssDrops });
+    }
     this.readyToInteract = true;
     this.releaseInactive();
     this.send({ state: 'ready', message, location: this.location, toc: this.tocItems(), diagnostics: this.diagnostics() });
@@ -379,7 +385,11 @@ export class ReaderController {
     const body = range.startContainer.ownerDocument!.querySelector('body')!;
     const before = body.ownerDocument.createRange(); before.selectNodeContents(body); before.setEnd(range.startContainer, range.startOffset);
     const index = new EpubCFI(location.start.cfi).spinePos;
-    return { currentWord: this.wordCounts.slice(0, index).reduce((a, b) => a + b, 0) + this.words(before.toString()), totalWords: this.wordCounts.reduce((a, b) => a + b, 0) };
+    const textBefore = before.toString();
+    const wordsBefore = this.policy!.manifest.lazy && !textBefore.trim() ? 0 : this.words(textBefore);
+    // Stable Chapter Weights - Visiting another chapter must not change the percentage of a previously visited anchor.
+    const within = this.policy!.manifest.lazy ? this.wordCounts[index]! * Math.min(1, wordsBefore / this.words(body.textContent || '')) : wordsBefore;
+    return { currentWord: this.wordCounts.slice(0, index).reduce((a, b) => a + b, 0) + within, totalWords: this.wordCounts.reduce((a, b) => a + b, 0) };
   }
   private async captureActivity() {
     if (this.options.localOnly) return;

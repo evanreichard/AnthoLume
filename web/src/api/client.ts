@@ -78,10 +78,10 @@ export function createAPI(gate: SessionGate) {
     lookupMetadata: (account: Account, q: string, signal: AbortSignal) => consume(() => client.GET('/api/v1/metadata/search', { params: { query: { q } }, signal, parseAs: 'stream' }), isMetadataMatches, 200, account),
     document: (account: Account, id: string, signal: AbortSignal) => consume(() => client.GET('/api/v1/documents/{id}', { params: path(id), signal, parseAs: 'stream' }), isDocument, 200, account),
   };
-  async function binary(account: Account, id: string, kind: 'file' | 'cover', signal: AbortSignal) {
+  async function binary(account: Account, id: string, kind: 'file' | 'cover', signal: AbortSignal, etag?: string) {
     const epoch = gate.epoch();
     gate.assert(account, epoch);
-    const response = await fetch(`${apiOrigin}/api/v1/documents/${encodeURIComponent(id)}/${kind}`, { credentials: 'same-origin', cache: 'no-store', signal });
+    const response = await fetch(`${apiOrigin}/api/v1/documents/${encodeURIComponent(id)}/${kind}`, { credentials: 'same-origin', cache: 'no-store', signal, headers: etag ? { 'If-None-Match': etag } : undefined });
     try { gate.assert(account, epoch); } catch (error) { await response.body?.cancel(); throw error; }
     if (response.status === 401 && !response.redirected && response.headers.get('content-type')?.split(';')[0].trim() === 'application/problem+json') {
       const problem: unknown = await response.clone().json().catch(() => null);
@@ -116,7 +116,7 @@ export function createAPI(gate: SessionGate) {
       if (result.document_id !== documentId) throw new InvalidResponse();
       return result;
     },
-    fetchFile: (account, documentId, signal) => binary(account, documentId, 'file', signal),
+    fetchFile: (account, documentId, signal, etag) => binary(account, documentId, 'file', signal, etag),
     fetchCover: (account, documentId, signal) => binary(account, documentId, 'cover', signal),
     submitProgress: (account, event, signal) => deliver(account, event, 'progress', signal),
     submitActivity: (account, event, signal) => deliver(account, event, 'activity', signal),

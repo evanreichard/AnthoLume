@@ -31,13 +31,21 @@ export async function sourceTask<T>(source: Source, operation: 'hash' | 'index' 
     let worker: Worker;
     try { worker = new Worker(new URL('./source.worker.ts', import.meta.url), { type: 'module' }); } catch (error) { release(); reject(error); return; }
     let finished = false, releaseWorker: Worker | undefined, releaseBytes = 0;
-    const finish = (error?: Error, result?: T) => { if (finished) return; finished = true; clearTimeout(timer); worker.terminate(); releaseWorker?.terminate(); release(); signal?.removeEventListener('abort', abort); if (error) reject(error); else resolve(result!); };
+    const finish = (error?: Error, result?: T) => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(idle); worker.terminate(); releaseWorker?.terminate(); release(); signal?.removeEventListener('abort', abort); if (error) reject(error); else resolve(result!); };
     const abort = () => finish(new DOMException('Source operation cancelled', 'AbortError'));
-    const timer = setTimeout(() => finish(new Error('Source worker deadline exceeded')), operation === 'hash' ? 90000 : 10000);
+    const phase = operation === 'entry' ? 'unpacking an EPUB entry' : operation === 'hash' ? 'checking EPUB integrity' : 'indexing the EPUB';
+    const timer = setTimeout(() => finish(new Error(`Time limit exceeded while ${phase}`)), 90_000);
+    let idle: ReturnType<typeof setTimeout>;
+    const watchProgress = () => {
+      clearTimeout(idle);
+      idle = setTimeout(() => finish(new Error(`No progress while ${phase}`)), 10_000);
+    };
+    watchProgress();
     signal?.addEventListener('abort', abort, { once: true });
     worker.onerror = () => finish(new Error('Source worker failed'));
     worker.onmessage = (event: MessageEvent<{ error?: string; result: T; stats: IOStats; release?: ArrayBuffer; releaseId?: number }>) => {
       if (event.data.release) {
+        watchProgress();
         try {
           const bytes = event.data.release.byteLength;
           if (bytes > 8 * 1024 * 1024) throw new Error('Source buffer release window exceeded');

@@ -16,6 +16,8 @@ export function supportedCSS(text: string, resolve: ResolveAsset, context: 'styl
   css.walk(ast, function(node, item, list) {
     if (++nodes > 50000) throw new Error('CSS complexity budget exceeded');
     if (node.type === 'Raw') {
+      // Unparsed Resource Syntax - Escapes and unparsed URL tokens cannot go through the typed asset resolver.
+      if (/\\|\burl\s*\(/i.test(node.value)) throw new Error('Unparsed CSS resource syntax');
       if (this.declaration) omit.set(this.declaration, 'unparsed');
       else if (list && (this.block?.children === list || ast.type === 'DeclarationList' && ast.children === list)) {
         list.remove(item);
@@ -26,7 +28,7 @@ export function supportedCSS(text: string, resolve: ResolveAsset, context: 'styl
     if (node.type === 'Function') {
       const name = css.ident.decode(node.name).toLowerCase();
       if (!functions.has(name)) {
-        if (!this.declaration || ['local', 'image-set', '-webkit-image-set'].includes(name)) throw new Error(`Unsupported CSS function: ${name}`);
+        if (!this.declaration || ['url', 'local', 'image-set', '-webkit-image-set'].includes(name)) throw new Error(`Unsupported CSS function: ${name}`);
         omit.set(this.declaration, 'unsupportedFunction');
       }
       node.name = name;

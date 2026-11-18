@@ -1,5 +1,5 @@
 import { unlink, writeFile } from 'node:fs/promises';
-import { test, expect, register, importBook } from './fixtures';
+import { test, expect, register } from './fixtures';
 import { pendingIds } from './storage';
 
 const requested = (origin: string, id: string) => `${origin}/?${new URLSearchParams({ 'antholume-retirement': 'legacy-v1', legacyDocument: id, origin: 'https://untrusted.example', account: 'old-account' })}`;
@@ -7,14 +7,11 @@ const requested = (origin: string, id: string) => `${origin}/?${new URLSearchPar
 test('root retirement keeps only document intent through logout/login/register/reload, then opens an exact authorized BookRef', async ({ page, server }) => {
   const user = `intent-${Date.now()}`;
   await register(page, server.origin, user);
-  await importBook(page, 'Retained local intent book');
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
-  await page.getByRole('button', { name: 'Download', exact: true }).click();
-  await expect(page.getByText('✓ Available offline', { exact: true })).toBeVisible();
   await page.goto(`${server.origin}/app/more`);
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Sign out', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
   const resources: string[] = [];
   page.on('request', (request) => resources.push(new URL(request.url()).pathname));
   await page.goto(requested(server.origin, 'book-001'));
@@ -45,15 +42,15 @@ test('expired-account retirement intent hides retained pending counts until expl
   const user = `intent-expired-${Date.now()}`;
   await register(page, server.origin, user);
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
-  await page.getByRole('button', { name: 'Download', exact: true }).click();
-  await expect(page.getByText('✓ Available offline', { exact: true })).toBeVisible();
   await writeFile(`${server.data}/receipt-fault`, 'extra-field');
   try {
-    await page.getByRole('link', { name: 'Resume', exact: true }).click();
+    await page.getByRole('link', { name: /^(Read|Resume)$/ }).click();
     await expect(page.locator('footer')).toContainText('1 /');
+    await page.keyboard.press('c');
     await page.getByRole('button', { name: 'Next page', exact: true }).click();
     await expect(page.locator('footer')).toContainText('2 /');
-    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.keyboard.press('c');
+    await page.getByRole('button', { name: 'Library', exact: true }).click();
     await expect.poll(async () => (await pendingIds(page)).length).toBe(1);
     await context.clearCookies();
     await page.goto(requested(server.origin, 'book-001'));

@@ -52,7 +52,8 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
   const [readerState, setReaderState] = useState<{ key: string; value: ReaderStatus }>({ key, value: { state: 'opening', message: 'Opening stored book' } });
   const status: ReaderStatus = readerState.key === key ? readerState.value : { state: 'opening', message: 'Opening stored book' };
   const setStatus = (value: ReaderStatus) => setReaderState({ key, value });
-  const [panel, setPanel] = useState<'toc' | 'appearance' | 'hide'>('hide'), [appearance, setAppearance] = useState(defaults);
+  const [panel, setPanel] = useState<'toc' | 'appearance' | 'hide'>('hide'), [storedAppearance, setAppearance] = useState<Appearance>();
+  const appearance = storedAppearance ?? defaults;
   const [chrome, setChrome] = useState({ visible: false, activity: 0 });
   const [hovering, setHovering] = useState(false), [showHint, setShowHint] = useState(false);
   const [hasOpened, setHasOpened] = useState(false), [showLoading, setShowLoading] = useState(false);
@@ -65,10 +66,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
   const pendingAppearance = useRef<Appearance | null>(null);
   const applyingAppearance = useRef<ReaderController | null>(null);
   const [attempt, setAttempt] = useState(0), [explicitBeginning, setExplicitBeginning] = useState(false);
-  const seenStored = useRef<string | null>(null);
-  const storedVisible = snapshot.books.some(row => refKey(row.ref) === key);
-  if (storedVisible) seenStored.current = key;
-  const permitted = book.kind === 'local' || ('account' in access && access.kind !== 'logout' && sameAccount(access.account, book.account) && (seenStored.current !== key || storedVisible));
+  const permitted = book.kind === 'local' || (access.kind === 'authenticated' && sameAccount(access.account, book.account));
   const appearanceRef = useRef(appearance), appliedAppearance = useRef(defaults);
   function refreshChrome() { setChrome(current => ({ ...current, activity: current.activity + 1 })); }
   function reveal(action: ChromeAction) {
@@ -126,7 +124,6 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
       abort.abort();
       if (alive) setStatus({ state: 'error', message: 'The book took too long to prepare. Check your connection and retry.' });
     }, 90_000);
-    runtime.worker.reading++;
     const instance = new ReaderController(host.current, next => {
       if (!alive) return;
       if (next.state === 'ready') setHasOpened(true);
@@ -155,19 +152,14 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
       clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (alive && controller.current === instance) { const current = appliedAppearance.current; void instance.reflow(current.size, current.font, current.theme); } }, 150);
     });
     void (async () => {
-      let stored = await runtime.repo.db.books.get(key);
-      if (stored?.availability !== 'available' && book.kind === 'server') {
-        const document: S['Document'] = { id: book.documentId, title: stored?.title ?? null, author: stored?.author ?? null, series: null, description: null, lang: null, file_available: true, cover_available: false, media_type: 'application/epub+zip', file_size_bytes: null };
-        await runtime.download(document, abort.signal);
-      }
-      const opened = await runtime.repo.open(book); stored = opened.row;
-      if (!alive) return;
       const pref = (await runtime.repo.db.meta.get('appearance'))?.value as Appearance | undefined;
+      if (!alive) return;
       const chosen = pref && Object.hasOwn(palette, pref.theme) && readerFontNames.includes(pref.font) && Number.isFinite(pref.size) && pref.size >= minTextSize && pref.size <= maxTextSize ? pref : defaults;
       appliedAppearance.current = chosen; appearanceRef.current = chosen; setAppearance(chosen);
-      await instance.open(opened.source, explicitBeginning ? undefined : stored.checkpoint.position || undefined, abort.signal, opened.manifest);
+      const opened = book.kind === 'server' ? await runtime.openServerBook(book, abort.signal) : await runtime.repo.open(book);
       if (!alive) return;
-      if (controller.current === instance && (chosen.size !== defaults.size || chosen.font !== defaults.font || chosen.theme !== defaults.theme)) await instance.reflow(chosen.size, chosen.font, chosen.theme);
+      await instance.open(opened.source, explicitBeginning ? undefined : opened.row.checkpoint.position || undefined, abort.signal, opened.manifest, chosen);
+      if (!alive) return;
       if (host.current) observer.observe(host.current);
     })().catch(error => {
       if (alive && !abort.signal.aborted) setStatus({ state: 'error', message: String(error) });
@@ -177,7 +169,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
       clearTimeout(appearanceTimer.current); appearanceTimer.current = undefined;
       clearTimeout(pinchTimer.current); pinchBase.current = null;
       pendingAppearance.current = null; draggingSize.current = false; controller.current = null;
-      void instance.dispose().finally(() => { runtime.worker.reading--; void runtime.refresh(); });
+      void instance.dispose();
     };
   }, [runtime, snapshot.ready, key, permitted, attempt, explicitBeginning, parentGestures]);
   async function applyAppearance() {
@@ -185,7 +177,6 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
     const instance = controller.current;
     if (!runtime || !instance || applyingAppearance.current === instance) return;
     applyingAppearance.current = instance;
-    runtime.worker.busy++;
     try {
       while (controller.current === instance && pendingAppearance.current && !draggingSize.current && appearanceTimer.current === undefined) {
         const next = pendingAppearance.current;
@@ -197,7 +188,6 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
     } catch {
       if (controller.current === instance) setStatus({ state: 'error', message: 'Could not apply reading preferences. Please try again.' });
     } finally {
-      runtime.worker.busy--;
       if (applyingAppearance.current === instance) applyingAppearance.current = null;
     }
   }
@@ -231,7 +221,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
   }
   const [background, color] = palette[appearance.theme];
   useLayoutEffect(() => {
-    if (!permitted) return;
+    if (!permitted || !storedAppearance) return;
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     const previous = meta?.content;
     const surfaces = [document.documentElement, document.body];
@@ -243,13 +233,13 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
       if (meta && previous !== undefined) meta.content = previous;
       surfaces.forEach((element, i) => { element.style.backgroundColor = backgrounds[i]!; });
     };
-  }, [background, permitted]);
+  }, [background, permitted, !!storedAppearance]);
   const location = status.location;
   const currentChapter = status.toc?.find(item => item.href.split('#')[0] === location?.chapter.split('#')[0]);
   const canTurn = permitted && status.state === 'ready';
   const download = snapshot.downloads.find(item => refKey(item.ref) === key);
   const loadingMessage = !snapshot.ready ? 'Starting reader storage…' : download
-    ? download.receivedBytes === download.totalBytes ? 'Preparing EPUB…' : 'Downloading EPUB…'
+    ? download.preparing ? 'Preparing EPUB…' : 'Downloading EPUB…'
     : 'Opening book…';
   const storageError = !hasOpened && !snapshot.ready ? snapshot.error : null;
   const chromeVisible = chrome.visible || panel !== 'hide';
@@ -263,7 +253,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
   const turn = (forward: boolean) => {
     if (canTurn) void (forward ? controller.current?.next() : controller.current?.previous());
   };
-  return <section className={styles.reader} style={{ background, color, colorScheme: appearance.theme === 'gray' || appearance.theme === 'black' ? 'dark' : 'light', '--reader-paper': background } as CSSProperties} aria-label="Book reader" data-reader-state={status.state} data-reader-metrics={permitted ? JSON.stringify(status.diagnostics) : undefined}>
+  return <section className={styles.reader} style={{ visibility: !storedAppearance && status.state === 'opening' && !storageError ? 'hidden' : undefined, background, color, colorScheme: appearance.theme === 'gray' || appearance.theme === 'black' ? 'dark' : 'light', '--reader-paper': background } as CSSProperties} aria-label="Book reader" data-reader-state={status.state} data-reader-metrics={permitted ? JSON.stringify(status.diagnostics) : undefined}>
     {hasOpened && permitted && status.state !== 'error' && <button ref={keyboardReveal} type="button" className={`${styles.srOnly} ${styles.keyboardReveal}`} aria-keyshortcuts="C" onClick={() => reveal('focus')}>Show reader controls</button>}
     <header ref={top} inert={!chromeVisible && permitted && status.state !== 'error' && hasOpened} className={`${styles.bar} ${styles.top}`}>
       <button {...chromeEvents} className={styles.glass} onClick={onClose}><Chevron /><span>Library</span></button>
@@ -287,7 +277,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
     {selecting && permitted && <button className={`${styles.doneSelecting} ${styles.glass}`} onClick={() => { setSelecting(false); reveal('show'); }}>Done selecting</button>}
     {showHint && !chromeVisible && canTurn && <p className={`${styles.hint} ${styles.glass}`} role="status"><span className={styles.touchHint}>Tap the center for controls</span><span className={styles.mouseHint}>Move to the center or press C for controls</span></p>}
     {status.state === 'opening' && <span className={styles.srOnly} role="status">{hasOpened ? 'Updating page' : 'Opening book'}</span>}
-    {showLoading && permitted && !hasOpened && status.state === 'opening' && !storageError && <div className={styles.loading} aria-hidden="true">{loadingMessage}</div>}
+    {showLoading && permitted && !hasOpened && status.state === 'opening' && !storageError && <div className={styles.loading}><span>{loadingMessage}</span>{download && !download.preparing && <><progress aria-label="EPUB download progress" max={download.totalBytes || undefined} value={download.totalBytes ? Math.min(download.receivedBytes, download.totalBytes) : undefined} /><small>{(download.receivedBytes / 1048576).toFixed(1)} MiB{download.totalBytes ? ` / ${(download.totalBytes / 1048576).toFixed(1)} MiB · ${Math.floor(Math.min(1, download.receivedBytes / download.totalBytes) * 100)}%` : ''}</small></>}</div>}
     {permitted && storageError && <div className={styles.message} role="alert"><p>Could not start reader storage. {storageError}</p><button onClick={() => window.location.reload()}>Reload reader</button></div>}
     {(!permitted || status.state === 'error') && <div className={styles.message} role="alert">
       <p>{!permitted ? 'Sign in to this account to open its books.' : status.message}</p>

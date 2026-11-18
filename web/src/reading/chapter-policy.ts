@@ -3,7 +3,7 @@ import { supportedCSS, type AssetKind, type CSSDropReason } from './css-policy';
 import { requireSafeHTMLStyle } from './body-contract';
 import { ArchiveReader, sourceLimits } from './source';
 import type { BookManifest } from './book-manifest';
-import { parseDocument } from './content-policy';
+import { documentInfo, parseDocument, validateBinary, validateLoadedDocument } from './content-policy';
 import { mediaLimits } from './media-budget';
 export function passiveExternalLink(value: string) { try { const url = new URL(value); return ['http:', 'https:', 'mailto:'].includes(url.protocol) && !/[\u0000-\u0020\u007f]/.test(value); } catch { return false; } }
 export const chapterCSP = "default-src 'none'; script-src 'none'; connect-src 'none'; img-src blob:; style-src 'unsafe-inline' blob:; font-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
@@ -22,6 +22,8 @@ export class ChapterPolicy {
   readonly roles: Map<string, string>;
   readonly spine: string[];
   readonly opf: string;
+  private infoBytes = 0;
+  private validatedAssets = new Set<string>();
   private documents = new Map<string, { document: Document; bytes: number }>();
   readonly stats = { cachedDOMs: 0, cachedDOMBytes: 0, assetBytes: 0, urls: 0, peakDOMs: 0, peakAssetBytes: 0 };
   constructor(readonly reader: ArchiveReader, readonly manifest: BookManifest) {
@@ -29,17 +31,32 @@ export class ChapterPolicy {
     this.dependencies = new Map(manifest.dependencies.map(([name, paths]) => [name, new Set(paths)]));
     this.staticDependencies = new Map(manifest.staticDependencies.map(([name, paths]) => [name, new Set(paths)]));
   }
+  allowsDocument(path: string) {
+    return this.manifest.lazy
+      ? path === this.opf || ['application/xhtml+xml', 'application/x-dtbncx+xml'].includes(this.roles.get(path) || '')
+      : Object.hasOwn(this.manifest.documents, path);
+  }
   async document(path: string): Promise<Document> {
     const cached = this.documents.get(path);
     if (cached) { this.documents.delete(path); this.documents.set(path, cached); return cached.document; }
     const bytes = await this.reader.bytes(path), document = parseDocument(bytes);
+    if (this.manifest.lazy && path !== this.opf) {
+      const info = documentInfo(document, bytes.length), previous = this.manifest.documents[path];
+      const size = previous ? 0 : new Blob([JSON.stringify(info)]).size;
+      if (this.infoBytes + size > 8 * 1024 * 1024) throw new Error('Document identity metadata exceeds 8 MiB');
+      // Local SVG paint checks need IDs from this document, but failed validation must not publish them.
+      this.manifest.documents[path] = info;
+      try { validateLoadedDocument(document, path, this, info); }
+      catch (error) { if (previous) this.manifest.documents[path] = previous; else delete this.manifest.documents[path]; throw error; }
+      this.infoBytes += size;
+    }
     while (this.documents.size >= 2 || this.stats.cachedDOMBytes + bytes.length > sourceLimits.chapterBytes) { const key = this.documents.keys().next().value; if (!key) break; this.stats.cachedDOMBytes -= this.documents.get(key)!.bytes; this.documents.delete(key); }
     this.documents.set(path, { document, bytes: bytes.length }); this.stats.cachedDOMBytes += bytes.length; this.stats.cachedDOMs = this.documents.size; this.stats.peakDOMs = Math.max(this.stats.peakDOMs, this.documents.size); return document;
   }
   clearDocuments() { this.documents.clear(); this.stats.cachedDOMBytes = 0; this.stats.cachedDOMs = 0; }
   navigation(value: string, entry: string): ArchiveReference & { index: number } {
     const ref = archiveReference(value, entry), index = this.spine.indexOf(ref.path);
-    if (index < 0 || ref.fragment && !this.manifest.documents[ref.path]?.ids.includes(ref.fragment)) throw new Error('Internal navigation target unavailable');
+    if (index < 0 || ref.fragment && !this.manifest.lazy && !this.manifest.documents[ref.path]?.ids.includes(ref.fragment)) throw new Error('Internal navigation target unavailable');
     return { ...ref, index };
   }
   navigationDocument(value: string): string {
@@ -52,10 +69,13 @@ export class ChapterPolicy {
       if (!value.startsWith('#') || !this.manifest.documents[entry]?.svgIds.includes(ref.fragment)) throw new Error('SVG paint must reference a local SVG ID');
     } else {
       if (!(kind === 'font' ? fontTypes : imageTypes).has(this.roles.get(ref.path) || '')) throw new Error('Asset role mismatch or unmanifested asset');
-      if (ref.fragment && (this.roles.get(ref.path) !== 'image/svg+xml' || !this.manifest.documents[ref.path]?.ids.includes(ref.fragment))) throw new Error('Unsupported or missing asset fragment');
+      if (ref.fragment && (this.roles.get(ref.path) !== 'image/svg+xml' || !this.manifest.lazy && !this.manifest.documents[ref.path]?.ids.includes(ref.fragment))) throw new Error('Unsupported or missing asset fragment');
       this.addDependency(entry, ref.path, isStatic);
     }
     return ref;
+  }
+  private requireFragment(ref: ArchiveReference) {
+    if (ref.fragment && !this.manifest.documents[ref.path]?.svgIds.includes(ref.fragment)) throw new Error('Unsupported or missing asset fragment');
   }
   private url(path: string) { const value = this.urls.get(path); if (!value) throw new Error('Asset not leased before chapter serialization'); return value.url; }
   private countCSSDrop = (reason: CSSDropReason) => {
@@ -63,11 +83,11 @@ export class ChapterPolicy {
     counts[reason] = (counts[reason] ?? 0) + 1;
   };
   css(text: string, entry: string, render = false, context: 'stylesheet' | 'declarationList' = 'stylesheet') {
-    return supportedCSS(text, (value, kind) => { const ref = this.assetReference(value, entry, kind); return render && kind !== 'paint' ? this.url(ref.path) + (ref.fragment ? `#${encodeURIComponent(ref.fragment)}` : '') : value; }, context, render ? undefined : this.countCSSDrop);
+    return supportedCSS(text, (value, kind) => { const ref = this.assetReference(value, entry, kind); if (render && kind !== 'paint') this.requireFragment(ref); return render && kind !== 'paint' ? this.url(ref.path) + (ref.fragment ? `#${encodeURIComponent(ref.fragment)}` : '') : value; }, context, render ? undefined : this.countCSSDrop);
   }
   htmlStyle(text: string, entry: string, render = false): string {
     requireSafeHTMLStyle(text);
-    const generated = supportedCSS(text, (value, kind) => { const ref = this.assetReference(value, entry, kind); return kind === 'paint' ? value : render ? this.url(ref.path) + (ref.fragment ? `#${encodeURIComponent(ref.fragment)}` : '') : 'blob:validated-asset'; }, 'stylesheet', render ? undefined : this.countCSSDrop);
+    const generated = supportedCSS(text, (value, kind) => { const ref = this.assetReference(value, entry, kind); if (render && kind !== 'paint') this.requireFragment(ref); return kind === 'paint' ? value : render ? this.url(ref.path) + (ref.fragment ? `#${encodeURIComponent(ref.fragment)}` : '') : 'blob:validated-asset'; }, 'stylesheet', render ? undefined : this.countCSSDrop);
     requireSafeHTMLStyle(generated); return render ? generated : text;
   }
   stylesheet(value: string, entry: string): string {
@@ -87,6 +107,29 @@ export class ChapterPolicy {
     const pending = new Set<string>(), done = new Set<string>(); let edges = 0;
     const visit = (path: string, depth: number) => { if (pending.has(path) || depth > 64) throw new Error('Cyclic/deep archive assets are unsupported'); if (done.has(path)) return; pending.add(path); for (const target of this.dependencies.get(path) || []) { if (++edges > 131072) throw new Error('Asset graph budget exceeded'); visit(target, depth + 1); } pending.delete(path); done.add(path); };
     for (const path of this.dependencies.keys()) visit(path, 0);
+  }
+  private async validateAsset(path: string, pending: Set<string>) {
+    if (pending.has(path) || pending.size >= 64) throw new Error('Cyclic/deep archive assets are unsupported');
+    if (this.validatedAssets.has(path)) return;
+    pending.add(path);
+    try {
+      const media = this.roles.get(path);
+      if (!media || !(media === 'text/css' || imageTypes.has(media) || fontTypes.has(media))) throw new Error('Invalid chapter asset role');
+      if (media === 'image/svg+xml') await this.document(path);
+      else {
+        const bytes = await this.reader.bytes(path);
+        if (media === 'text/css') this.css(new TextDecoder('utf-8', { fatal: true }).decode(bytes), path);
+        else {
+          const dimensions = validateBinary(media, bytes);
+          if (dimensions) {
+            this.manifest.images[path] = dimensions;
+            this.manifest.pixels[path] = dimensions.width * dimensions.height;
+          }
+        }
+      }
+      for (const child of this.dependencies.get(path) || []) await this.validateAsset(child, pending);
+      this.validatedAssets.add(path);
+    } finally { pending.delete(path); }
   }
   private async acquire(path: string, owner: string) {
     const cached = this.urls.get(path); if (cached) { cached.owners.add(owner); return; }
@@ -125,6 +168,7 @@ export class ChapterPolicy {
         const svg = element.namespaceURI === 'http://www.w3.org/2000/svg';
         if (name === 'src' && element.localName === 'img' || name === 'background' || svg && name === 'href' && element.localName === 'image') {
           const ref = this.assetReference(attr.value, entry, 'image', element.localName !== 'img'), dimensions = this.manifest.images[ref.path];
+          this.requireFragment(ref);
           if (lazy && element.localName === 'img' && dimensions) {
             const placeholder = this.intrinsic(ref.path, entry);
             this.images.get(entry)!.push({ index: imageOrder.get(element as HTMLImageElement)!, ...ref, placeholder });
@@ -139,6 +183,7 @@ export class ChapterPolicy {
   }
   async prepareChapter(doc: Document, index: number) {
     const entry = this.spine[index]; if (!entry) throw new Error('Unvalidated chapter');
+    if (this.manifest.lazy) for (const path of this.dependencies.get(entry) || []) await this.validateAsset(path, new Set());
     const closure = new Set<string>();
     const collect = (path: string, root = false) => { for (const dependency of (root ? this.staticDependencies : this.dependencies).get(path) || []) if (!closure.has(dependency)) { closure.add(dependency); collect(dependency); } }; collect(entry, true);
     for (const image of doc.querySelectorAll('img[src]')) { const ref = this.assetReference(image.getAttribute('src')!, entry, 'image', false); if (!this.manifest.images[ref.path]) { closure.add(ref.path); collect(ref.path); } }

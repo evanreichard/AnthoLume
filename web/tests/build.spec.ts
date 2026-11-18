@@ -2,18 +2,19 @@ import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { test, expect, root } from './fixtures';
 
-test('Go serves exact complete build hashes, root install identity and real errors instead of SPA fallback', async ({ request, server }) => {
+test('Go serves the compiled application, retirement worker and real errors instead of SPA fallback', async ({ request, server }) => {
+  const worker = await request.get(`${server.origin}/sw.js`);
+  expect(worker.status()).toBe(200);
+  expect(worker.headers()['content-type']).toMatch(/javascript/);
+  expect(worker.headers()['cache-control']).toContain('no-cache');
   const compiled = await readFile(`${root}assets/app/sw.js`, 'utf8');
-  const injected = compiled.match(/^self\.__ANTHOLUME_PRECACHE__=(\[.*?\]);self\.__ANTHOLUME_BUILD__="([a-f0-9]{64})";/);
-  expect(injected).not.toBeNull();
-  const entries: { url: string; sha256: string }[] = JSON.parse(injected![1]);
-  const workerCode = compiled.slice(injected![0].length + 1);
-  expect(createHash('sha256').update(JSON.stringify(entries) + workerCode).digest('hex')).toBe(injected![2]);
+  expect(await worker.text()).toBe(compiled);
+  expect(compiled).not.toContain('__ANTHOLUME_PRECACHE__');
   const assets = await readdir(`${root}assets/app/assets`);
-  expect(entries.map((entry) => entry.url).sort()).toEqual(['/app/', ...assets.map((asset) => `/assets/app/assets/${asset}`)].sort());
-  expect(entries.some((entry) => /ReaderRoute-.*\.js$/.test(entry.url))).toBe(true);
-  expect(entries.some((entry) => /source\.worker-.*\.js$/.test(entry.url))).toBe(true);
-  expect(entries.some((entry) => /staging\.worker-.*\.js$/.test(entry.url))).toBe(true);
+  expect(assets.some((name) => /ReaderRoute-.*\.js$/.test(name))).toBe(true);
+  expect(assets.some((name) => /source\.worker-.*\.js$/.test(name))).toBe(true);
+  expect(assets.some((name) => /staging\.worker-.*\.js$/.test(name))).toBe(true);
+  const entries = await Promise.all([['/app/', 'index.html'], ...assets.map(name => [`/assets/app/assets/${name}`, `assets/${name}`])].map(async ([url, file]) => ({ url, sha256: createHash('sha256').update(await readFile(`${root}assets/app/${file}`)).digest('hex') })));
   for (const entry of entries) {
     const response = await request.get(`${server.origin}${entry.url}`);
     expect(response.status()).toBe(200);

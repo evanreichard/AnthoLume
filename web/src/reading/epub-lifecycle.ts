@@ -47,7 +47,7 @@ export function useValidatedDocuments(book: Book, policy: ChapterPolicy) {
   // Declared XHTML Role - EPUB.js otherwise parses .html as HTML, repairing the original XML tree before content hooks run.
   book.load = (input: string) => {
     const path = decodeURIComponent(new URL(book.resolve(input), 'https://epub.invalid/').pathname).replace(/^\//, '');
-    if (!policy.manifest.documents[path]) return Promise.reject(new Error('Unvalidated engine document request'));
+    if (!policy.allowsDocument(path)) return Promise.reject(new Error('Unvalidated engine document request'));
     return policy.document(path).then(doc => doc.cloneNode(true));
   };
 }

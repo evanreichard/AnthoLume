@@ -8,19 +8,17 @@ for (const fault of ['503', 'malformed-200']) {
     const user = `outage-${fault}-${Date.now()}`;
     await register(page, server.origin, user);
     await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
-    await page.getByRole('button', { name: 'Download', exact: true }).click();
-    await expect(page.getByText('✓ Available offline', { exact: true })).toBeVisible();
-    await server.stop();
-    await context.setOffline(true);
-    await page.reload();
     const started = Date.now();
     await page.clock.setFixedTime(started);
-    await page.getByRole('link', { name: 'Resume', exact: true }).click();
+    await page.getByRole('link', { name: /^(Read|Resume)$/ }).click();
     await expect(page.locator('footer')).toContainText('1 /');
+    await context.setOffline(true);
+    await page.keyboard.press('c');
     await page.getByRole('button', { name: 'Next page', exact: true }).click();
     await expect(page.locator('footer')).toContainText('2 /');
     await expect.poll(async () => (await storedRows(page, 'events')).length).toBe(1);
     await page.clock.setFixedTime(started + 30_000);
+    await page.keyboard.press('c');
     await page.getByRole('button', { name: 'Next page', exact: true }).click();
     await expect(page.locator('footer')).toContainText('3 /');
     await expect.poll(async () => (await storedRows(page, 'events')).length).toBe(3);
@@ -30,12 +28,10 @@ for (const fault of ['503', 'malformed-200']) {
     expect(progress).toHaveLength(2);
     expect(activity).toHaveLength(1);
     expect(activity[0].payload?.duration).toBe(30);
-    await page.getByRole('button', { name: 'Close', exact: true }).click();
-    await page.getByRole('banner').getByRole('link', { name: /pending/ }).click();
-    await expect(page.getByRole('heading', { name: 'Synchronization', exact: true })).toBeVisible();
+    await page.keyboard.press('c');
+    await page.getByRole('button', { name: 'Library', exact: true }).click();
     await writeFile(`${server.data}/state-fault`, fault);
     try {
-      await server.start();
       await ko(server.origin, user, .8);
       const timeline: { path: string; status: number }[] = [];
       let progressPosts = 0, activityPosts = 0;
@@ -49,6 +45,8 @@ for (const fault of ['503', 'malformed-200']) {
         if (path.startsWith('/api/v1/me/')) timeline.push({ path, status: response.status() });
       });
       await context.setOffline(false);
+      await page.goto(`${server.origin}/app/sync`);
+      await expect(page.getByRole('heading', { name: 'Synchronization', exact: true })).toBeVisible();
       await expect.poll(() => serverEffects(server.data, user).activity).toBe(1);
       await expect.poll(async () => (await storedRows(page, 'conflicts')).length).toBe(2);
       const conflicts = await storedRows(page, 'conflicts');

@@ -1,17 +1,18 @@
-import { test, expect, importBook, scratch } from './fixtures';
+import { test, expect, register, scratch } from './fixtures';
 import { storedRows } from './storage';
 
-test('actual local reader checkpoint drives compact Folio Resume, provenance, density and touch without server events', async ({ page, server }) => {
+test('online reader checkpoint drives compact Folio Resume, density and touch', async ({ page, server }) => {
   const outgoing: string[] = [];
   page.on('request', (request) => { if (/\/api\/v1\/me\/(activity|reading-progress|devices)$/.test(request.url())) outgoing.push(request.url()); });
-  await page.goto(`${server.origin}/app/library`);
-  await importBook(page, 'Compact original');
-  await page.getByRole('heading', { name: 'Compact original', exact: true }).click();
-  await page.getByRole('link', { name: 'Resume', exact: true }).click();
+  await register(page, server.origin, 'compact-online');
+  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
+  await page.getByRole('link', { name: 'Read', exact: true }).click();
   await expect(page.frameLocator('iframe').first().getByRole('heading', { name: 'Public chapter', exact: true })).toBeVisible();
+  await page.keyboard.press('c');
   await page.getByRole('button', { name: 'Next page', exact: true }).click();
   await expect(page.locator('footer')).toContainText('2 /');
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.keyboard.press('c');
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Resume', exact: true })).toBeVisible();
   await page.goto(`${server.origin}/app/library`);
   const feature = page.getByRole('region', { name: 'Continue reading', exact: true });
@@ -32,8 +33,7 @@ test('actual local reader checkpoint drives compact Folio Resume, provenance, de
     }
     await page.screenshot({ path: `${scratch}folio-${width}.png`, fullPage: true });
   }
-  await expect(page.getByRole('img', { name: 'Local-only book', exact: true })).toHaveCount(2);
-  await expect(page.getByText('✓ Available offline', { exact: true })).toHaveCount(1);
-  expect(await storedRows(page, 'events')).toEqual([]);
-  expect(outgoing).toEqual([]);
+  await expect(feature.getByRole('heading', { name: 'Public book 01', exact: true })).toBeVisible();
+  await expect.poll(async () => (await storedRows(page, 'events')).length).toBe(1);
+  expect(outgoing.some(url => url.endsWith('/reading-progress'))).toBe(true);
 });

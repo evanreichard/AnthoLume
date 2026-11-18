@@ -23,7 +23,7 @@ export function WorkerRecovery({ duringReading = false }: { duringReading?: bool
     setFailure(null);
     try { await reading.applyUpdate(); } catch (error) { setFailure({ scope, error }); } finally { setBusy(false); }
   }
-  const message = reading.update === 'available' ? 'An update is ready. Saved books and pending events will be retained.' : reading.update === 'blocked' ? 'Update waiting. Finish reading and close older app tabs, then retry.' : 'Update could not complete. Your saved books have been retained. Allow browser storage and retry.';
+  const message = reading.update === 'available' ? 'An update is ready. Saved books and pending events will be retained.' : reading.update === 'blocked' ? 'Update waiting. Finish reading and close older app tabs, then retry.' : 'The old offline worker could not be checked for retirement. You can still read online and save your progress.';
   const workerLabel = reading.update === 'available' ? 'Update app' : 'Retry update / recovery';
   return <>
     <section className={duringReading ? styles.recoveryDock : styles.notice} aria-label="App update and recovery">
@@ -40,7 +40,7 @@ export function WorkerRecovery({ duringReading = false }: { duringReading?: bool
     {details && <Dialog title="App recovery details" onClose={() => setDetails(false)}>
       {sessionError && <ErrorNotice error={sessionError} />}
       {workerVisible && <><p>{message}</p><ErrorNotice error={error} /></>}
-      <p>Saved books and pending events are retained. Close this dialog to reconnect or retry the update.</p>
+      <p>Retiring the offline worker does not delete books or pending progress.</p>
       <button onClick={() => setDetails(false)}>Close recovery details</button>
     </Dialog>}
   </>;

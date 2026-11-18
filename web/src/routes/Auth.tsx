@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation } from 'react-router';
 import { session, useSession } from '../session';
 import { authPath, legacyDocument } from '../retirement';
 import { ErrorNotice } from '../ui';
+import { useReading } from '../reading';
 import { WorkerRecovery } from '../WorkerRecovery';
 import styles from '../App.module.css';
 
@@ -12,6 +13,7 @@ export function AppLoading({ message = 'Connecting…' }: { message?: string }) 
 
 export function Auth({ mode }: { mode: 'login' | 'register' }) {
   const { capabilities, busy, access } = useSession();
+  const { books } = useReading();
   const [error, setError] = useState<unknown>(null);
   const [submitting, setSubmitting] = useState(false);
   const location = useLocation();
@@ -45,5 +47,6 @@ export function Auth({ mode }: { mode: 'login' | 'register' }) {
     </form>}
     {mode === 'login' && capabilities?.registration_enabled && <Link to={authPath('register', intent)}>Create an account</Link>}
     {mode === 'register' && <Link to={authPath('login', intent)}>Already have an account? Sign in</Link>}
+    {!intent && books.some(book => book.ref.kind === 'local') && <Link to="/local-book-export">Export local books</Link>}
   </main>;
 }

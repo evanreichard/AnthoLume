@@ -32,19 +32,11 @@ function BookDetailContent() {
   const reading = useReading();
   const { access, capabilities } = useSession();
   const navigate = useNavigate();
-  const [error, setError] = useState<unknown>(null);
-  const [removing, setRemoving] = useState(false);
   const [management, setManagement] = useState<'edit' | 'delete' | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<unknown>(null);
-  const [downloading, setDownloading] = useState(false);
-  const [removingBusy, setRemovingBusy] = useState(false);
-  const [focusAfterAction, setFocusAfterAction] = useState<'download' | 'remove' | 'cancel' | null>(null);
-  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
-  const [cancelling, setCancelling] = useState(false);
-  const downloadController = useRef<AbortController | null>(null);
   const deleteController = useRef<AbortController | null>(null);
-  useEffect(() => () => { downloadController.current?.abort(); deleteController.current?.abort(); }, []);
+  useEffect(() => () => deleteController.current?.abort(), []);
   const heading = useRef<HTMLHeadingElement>(null);
   const document = useQuery({
     queryKey: ['document', ref],
@@ -63,17 +55,9 @@ function BookDetailContent() {
     },
   });
   const stored = ref ? reading.books.find((book) => bookKey(book.ref) === bookKey(ref)) : undefined;
-  const activeDownload = ref ? reading.downloads.find((download) => bookKey(download.ref) === bookKey(ref)) : undefined;
-  const book = combineBooks(stored ? [stored] : [], document.data ? [document.data] : [], ref?.kind === 'server' ? ref.account : null)[0];
-  useEffect(() => {
-    const projected = focusAfterAction === 'download' ? stored?.availability === 'available' : focusAfterAction === 'remove' ? stored?.availability !== 'available' : true;
-    if (focusAfterAction && !removing && projected && heading.current) {
-      heading.current.focus();
-      setFocusAfterAction(null);
-    }
-  }, [focusAfterAction, removing, stored?.availability]);
-  if (!ref) return <><h1 ref={heading} tabIndex={-1}>Book not available</h1><p>This account cannot access that book. Local books are still available.</p><Link to="/library">Return to Library</Link></>;
-  if (!book) return <><Link to="/library">← Library</Link><ErrorNotice error={document.error} /><h1 ref={heading} tabIndex={-1}>{document.isFetching || !reading.ready ? 'Opening book…' : 'Book not stored on this device'}</h1></>;
+  const book = document.data && ref?.kind === 'server' ? combineBooks(stored ? [stored] : [], [document.data], ref.account).find(item => !!item.document) : undefined;
+  if (!ref || ref.kind !== 'server') return <><h1>Book not available</h1><Link to="/library">Return to Library</Link></>;
+  if (!book) return <><Link to="/library">← Library</Link><ErrorNotice error={document.error} /><h1 ref={heading} tabIndex={-1}>{document.isPending ? 'Opening book…' : 'Book not available'}</h1></>;
   function refreshManagement() {
     void queryClient.invalidateQueries({ queryKey: ['document', ref] });
     void queryClient.invalidateQueries({ queryKey: ['cover', ref] });
@@ -96,36 +80,6 @@ function BookDetailContent() {
       if (!controller.signal.aborted) setDeleting(false);
     }
   }
-  async function download() {
-    if (!document.data) return;
-    const controller = new AbortController();
-    downloadController.current = controller;
-    setDownloading(true); setCancelling(false); setError(null); setDownloadNotice(null);
-    try {
-      await reading.download(document.data, controller.signal);
-      if (!controller.signal.aborted) setFocusAfterAction('download');
-    } catch (failure) { if (!controller.signal.aborted) setError(failure); }
-    finally {
-      if (controller.signal.aborted) {
-        setDownloadNotice('Download cancelled. Any fully saved copy is retained; unfinished work is not available offline.');
-        setFocusAfterAction('cancel');
-      }
-      downloadController.current = null;
-      setDownloading(false); setCancelling(false);
-    }
-  }
-  async function remove() {
-    if (!ref) return;
-    setError(null);
-    setRemovingBusy(true);
-    try {
-      await reading.removeBook(ref);
-      setRemoving(false);
-      if (ref.kind === 'local') navigate('/library', { replace: true, state: { focusLibrary: true } });
-      else setFocusAfterAction('remove');
-    } catch (failure) { setError(failure); }
-    finally { setRemovingBusy(false); }
-  }
   const metadata = document.data;
   const stats = metadata?.reading_stats;
   const checkpoint = stored?.checkpoint ?? state.data;
@@ -133,8 +87,7 @@ function BookDetailContent() {
   const started = !!checkpoint?.position || fraction > 0;
   const edition = (book.title || 'Untitled').match(/^(.+?)\s+\/\s+(.+)$/);
   const title = edition?.[1] ?? (book.title || 'Untitled');
-  const offlineEnabled = window.isSecureContext;
-  const format = metadata?.media_type === 'application/epub+zip' || ref.kind === 'local' ? 'EPUB' : null;
+  const format = metadata?.media_type === 'application/epub+zip' ? 'EPUB' : null;
   const canManage = ref.kind === 'server' && access.kind === 'authenticated' && !!document.data && !!capabilities && !capabilities.demo_mode;
   return <article className={styles.bookPage}>
     <div className={styles.bookTop}>
@@ -153,7 +106,7 @@ function BookDetailContent() {
           <p className={styles.detailAuthor}>{book.author || 'Unknown author'}</p>
           {edition && <p className={styles.detailEdition}>{edition[2]}</p>}
         </div>
-        {(stored?.availability === 'available' || metadata?.file_available) && <div className={styles.detailActions}>
+        {metadata?.file_available && <div className={styles.detailActions}>
           <Resume book={ref}>{started ? 'Resume' : 'Read'}</Resume>
         </div>}
       </div>
@@ -183,13 +136,6 @@ function BookDetailContent() {
         {stats?.word_count != null && stats.word_count > 0 && <div><dt>Length</dt><dd>{stats.word_count.toLocaleString()} words</dd></div>}
       </dl>
     </section>
-    <div className={styles.bookTools} aria-label="Book actions">
-      {offlineEnabled && ref.kind === 'server' && stored?.availability !== 'available' && metadata?.file_available && !downloading && <button className={styles.downloadAction} onClick={() => void download()} disabled={!reading.ready}><Icon name="download" size={17} /> Download</button>}
-      {downloading && <button disabled={cancelling} onClick={() => { setCancelling(true); setDownloadNotice('Cancelling download…'); downloadController.current?.abort(); }}>{cancelling ? 'Cancelling…' : 'Cancel download'}</button>}
-      {stored?.availability === 'available' && (offlineEnabled || ref.kind === 'local') && <button disabled={!reading.ready} onClick={() => setRemoving(true)}>{ref.kind === 'local' ? 'Remove local book' : 'Remove offline'}</button>}
-    </div>
-    {downloading && <p role="status">{activeDownload ? `Downloading · ${Math.round(activeDownload.receivedBytes / 1024)} KB` : 'Preparing download…'}</p>}
-    {downloadNotice && <p role="status">{downloadNotice}</p>}
     {ref.kind === 'server' && document.data && access.kind === 'authenticated' && management === 'edit' &&
       <BookEditor book={book} refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={() => { refreshManagement(); setManagement(null); }} />}
     {ref.kind === 'server' && access.kind === 'authenticated' && management === 'delete' && <Dialog title="Delete from shared library?" onClose={() => { if (!deleting) setManagement(null); }}>
@@ -200,7 +146,6 @@ function BookDetailContent() {
         <button disabled={deleting} className={styles.deleteAction} onClick={() => void deleteSharedBook()}>{deleting ? 'Deleting…' : 'Delete book'}</button>
       </div>
     </Dialog>}
-    <ErrorNotice error={error || document.error} />
-    {removing && <Dialog title={ref.kind === 'local' ? 'Remove local book?' : 'Remove offline download?'} onClose={() => { if (!removingBusy) setRemoving(false); }}><div className={styles.form}><p>{ref.kind === 'local' ? 'This deletes the local book and its local reading records. It was never uploaded. Keep the original EPUB if you want to import it again.' : 'The server book and unsent reading events remain. You can download the book again when connected.'}</p><ErrorNotice error={error} /><button disabled={removingBusy} onClick={() => void remove()}>{removingBusy ? 'Removing…' : 'Remove offline'}</button><button disabled={removingBusy} onClick={() => setRemoving(false)}>Keep book</button></div></Dialog>}
+    <ErrorNotice error={document.error} />
   </article>;
 }

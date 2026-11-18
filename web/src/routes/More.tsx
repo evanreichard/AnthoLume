@@ -9,6 +9,7 @@ import styles from '../App.module.css';
 
 export function Settings() {
   const { session: current, capabilities, access } = useSession();
+  const { books } = useReading();
   const [logout, setLogout] = useState(false);
   const navigate = useNavigate();
   return <>
@@ -16,7 +17,7 @@ export function Settings() {
     <section className={styles.panel}><h2>Account</h2><p>Signed in. Shared books synchronize with this account.</p><div className={styles.actions}>
       <button onClick={() => setLogout(true)}>Sign out</button>
       <Link className={styles.actionLink} to="/sync">Synchronization</Link>
-      <Link className={styles.actionLink} to="/offline">Offline books</Link>
+      {books.some(book => book.ref.kind === 'local') && <Link className={styles.actionLink} to="/local-book-export">Export local books</Link>}
     </div></section>
     {access.kind === 'authenticated' && current?.user && <AccountSettings key={access.account.userId} account={access.account} timezone={current.user.timezone} readOnly={!capabilities || capabilities.demo_mode} />}
     <section className={styles.panel}><h2>Original site</h2><p>These features still open the server-rendered site. Their React migration comes later.</p><nav aria-label="Original site features" className={styles.menu}>
@@ -24,7 +25,7 @@ export function Settings() {
       {capabilities?.search_enabled && <a href="/search">Find & acquire books ↗</a>}
       {current?.user?.is_admin && <a href="/admin">Administration ↗</a>}
     </nav></section>
-    {logout && <Dialog title="Sign out on this device?" onClose={() => setLogout(false)}><div className={styles.form}><p>Local books, shared downloads, and pending events stay on this device. To access shared downloads again, sign in to the same account. If you sign out offline, the server session is closed when you reconnect.</p><button onClick={() => { void session.logout(); navigate('/login', { replace: true }); }}>Sign out</button><button onClick={() => setLogout(false)}>Keep signed in</button></div></Dialog>}
+    {logout && <Dialog title="Sign out on this device?" onClose={() => setLogout(false)}><div className={styles.form}><p>Pending progress and activity stay on this device and can sync only after you sign back into this account.</p><button onClick={() => { void session.logout(); navigate('/login', { replace: true }); }}>Sign out</button><button onClick={() => setLogout(false)}>Keep signed in</button></div></Dialog>}
   </>;
 }
 function ConflictChoice({ conflict }: { conflict: Conflict }) {
@@ -53,10 +54,10 @@ export function Sync() {
   const { access } = useSession();
   const [error, setError] = useState<unknown>(null);
   return <><PageHeader title="Synchronization" />
-    <section className={styles.panel}><h2>{reading.sync}</h2><p>{reading.pendingCount} pending events. Books and reading checkpoints are stored by the reader, not the query cache.</p>
+    <section className={styles.panel}><h2>{reading.sync}</h2><p>{reading.pendingCount} pending events. Pending progress and activity are retried when connected.</p>
       {access.kind !== 'authenticated' ? <p><Link to="/login">Sign in</Link> to resume sending this account’s saved events.</p> : <button onClick={() => { setError(null); void reading.replay().catch(setError); }}>Retry synchronization</button>}
       <ErrorNotice error={error} /></section>
     {reading.conflicts.map((conflict) => <ConflictChoice key={conflict.eventId} conflict={conflict} />)}
-    <section className={styles.panel}><h2>About the browser update</h2><p>The first update retires the old offline reader’s downloads, local-only imports and settings. Re-import those original EPUBs. This app’s new saved books and pending events are retained on later updates and sign-out.</p></section>
+    <section className={styles.panel}><h2>About the browser update</h2><p>Books open online and the browser can reuse recently read EPUBs. Pending reading progress and activity are separate from that cache and are not removed when it is cleared.</p></section>
   </>;
 }

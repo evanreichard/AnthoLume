@@ -32,7 +32,7 @@ export function parseDocument(value: Uint8Array): Document {
   for (const element of elements) { let depth = 0, ancestor = element.parentElement; while (ancestor) { if (++depth > 64) throw new Error('Document depth budget exceeded'); ancestor = ancestor.parentElement; } }
   return doc;
 }
-export async function validateEPUB(input: Source | Blob | ArrayBuffer, signal?: AbortSignal): Promise<ChapterPolicy> {
+export async function validateEPUB(input: Source | Blob | ArrayBuffer, signal?: AbortSignal, lazy = false): Promise<ChapterPolicy> {
   let source: Source = input instanceof Blob ? blobSource(input) : input instanceof ArrayBuffer ? blobSource(new Blob([input])) : input;
   const integrity = await hashSource(source, signal); source = { ...source, digests: integrity.digests };
   const index = await sourceTask<ZipIndex>(source, 'index', undefined, signal), reader = new ArchiveReader(source, index, signal);
@@ -42,17 +42,22 @@ export async function validateEPUB(input: Source | Blob | ArrayBuffer, signal?: 
     const name = entry.name;
     if (name.endsWith('/')) { if (entry.expanded) throw new Error('Nonempty directory'); continue; }
     if (name !== 'mimetype' && !/\.(xhtml|html|xml|opf|ncx|css|svg|png|jpe?g|gif|webp|woff2?|ttf|otf)$/i.test(name)) throw new Error('Unsupported archive resource type');
-    if (!/\.(xhtml|html|xml|opf|ncx|svg)$/i.test(name)) continue;
+    if (lazy || !/\.(xhtml|html|xml|opf|ncx|svg)$/i.test(name)) continue;
     const doc = parseDocument(await reader.bytes(name));
-    const info: DocumentInfo = { root: doc.documentElement.localName, namespace: doc.documentElement.namespaceURI, ids: [...doc.querySelectorAll('[id]')].map(e => e.id), svgIds: [...doc.querySelectorAll('[id]')].filter(e => e.namespaceURI === SVG).map(e => e.id), words: (doc.querySelector('body')?.textContent || '').trim().split(/\s+/).length, bytes: entry.expanded, head: !!doc.querySelector('html > head'), body: !!doc.querySelector('html > body') };
+    const info = documentInfo(doc, entry.expanded);
     infoBytes += new Blob([JSON.stringify(info)]).size; if (infoBytes > 8 * 1024 * 1024) throw new Error('Document identity metadata exceeds 8 MiB'); infos[name] = info;
   }
   const container = parseDocument(await reader.bytes('META-INF/container.xml'));
   const opfPath = requireResource(container.querySelector('rootfile')?.getAttribute('full-path') || '', '', reader.byName), opf = parseDocument(await reader.bytes(opfPath));
   const docs = new Map([['META-INF/container.xml', container], [opfPath, opf]]);
-  const manifest: BookManifest = { version: 2, integrity, index, opf: opfPath, spine: [], navigation: [], roles: [], documents: infos, dependencies: [], staticDependencies: [], images: {}, pixels: {}, title: opf.getElementsByTagNameNS('http://purl.org/dc/elements/1.1/', 'title')[0]?.textContent || null, author: opf.getElementsByTagNameNS('http://purl.org/dc/elements/1.1/', 'creator')[0]?.textContent || null };
+  const manifest: BookManifest = { version: 2, ...(lazy ? { lazy: true } : {}), integrity, index, opf: opfPath, spine: [], navigation: [], roles: [], documents: infos, dependencies: [], staticDependencies: [], images: {}, pixels: {}, title: opf.getElementsByTagNameNS('http://purl.org/dc/elements/1.1/', 'title')[0]?.textContent || null, author: opf.getElementsByTagNameNS('http://purl.org/dc/elements/1.1/', 'creator')[0]?.textContent || null };
   const policy = validateStructure(docs, reader, manifest);
   try {
+    if (lazy) {
+      validateDocument(opf, opfPath, policy);
+      for (const path of manifest.navigation) await policy.document(path);
+      return policy;
+    }
     for (const entry of index.entries) {
       if (entry.name.endsWith('/')) { await reader.bytes(entry.name); continue; }
       signal?.throwIfAborted(); const value = await reader.bytes(entry.name), media = policy.roles.get(entry.name);
@@ -64,6 +69,20 @@ export async function validateEPUB(input: Source | Blob | ArrayBuffer, signal?: 
     if (new Blob([JSON.stringify(manifest)]).size > 16 * 1024 * 1024) throw new Error('Validated index metadata exceeds 16 MiB');
     return policy;
   } catch (error) { policy.dispose(); throw error; }
+}
+
+export function documentInfo(doc: Document, bytes: number): DocumentInfo {
+  const ids = [...doc.querySelectorAll('[id]')];
+  return { root: doc.documentElement.localName, namespace: doc.documentElement.namespaceURI, ids: ids.map(e => e.id), svgIds: ids.filter(e => e.namespaceURI === SVG).map(e => e.id), words: (doc.querySelector('body')?.textContent || '').trim().split(/\s+/).length, bytes, head: !!doc.querySelector('html > head'), body: !!doc.querySelector('html > body') };
+}
+
+export function validateLoadedDocument(doc: Document, entry: string, policy: ChapterPolicy, info: DocumentInfo) {
+  const media = policy.roles.get(entry);
+  if (media === 'application/xhtml+xml' && (info.root !== 'html' || info.namespace !== XHTML || !info.head || !info.body)) throw new Error('Invalid XHTML resource');
+  if (media === 'image/svg+xml' && (info.root !== 'svg' || info.namespace !== SVG)) throw new Error('Invalid packaged SVG');
+  if (media === 'application/x-dtbncx+xml' && (info.root !== 'ncx' || info.namespace !== 'http://www.daisy.org/z3986/2005/ncx/')) throw new Error('Invalid NCX resource');
+  validateDocument(doc, entry, policy);
+  if (info.namespace === XHTML) requireStableBody(doc);
 }
 
 function validateDocument(doc: Document, entry: string, policy: ChapterPolicy) {
@@ -107,7 +126,7 @@ function validateDocument(doc: Document, entry: string, policy: ChapterPolicy) {
   }
 }
 
-function validateBinary(media: string, value: Uint8Array) {
+export function validateBinary(media: string, value: Uint8Array) {
   const magic = new TextDecoder('latin1').decode(value.slice(0, 12)), signature = (prefix: number[]) => prefix.every((byte, index) => value[index] === byte);
   if ((media === 'font/woff2' && !signature([119,79,70,50])) || (media === 'font/woff' && !signature([119,79,70,70])) || (media === 'font/ttf' && !signature([0,1,0,0])) || (media === 'font/otf' && !signature([79,84,84,79]))) throw new Error('Font content/media mismatch');
   if ((media === 'image/png' && !signature([137,80,78,71,13,10,26,10])) || (media === 'image/jpeg' && !(value[0] === 255 && value[1] === 216)) || (media === 'image/gif' && !magic.startsWith('GIF8')) || (media === 'image/webp' && !(magic.startsWith('RIFF') && magic.slice(8) === 'WEBP'))) throw new Error('Binary image role mismatch');
@@ -135,11 +154,11 @@ function validateStructure(documents: Map<string, Document>, reader: ArchiveRead
     if (!id || manifest.has(id) || roles.has(path) || href.includes('#')) throw new Error('Invalid or duplicate manifest identity/resource');
     const extension = path.split('.').pop()!;
     if (mediaByExtension[extension] !== media) throw new Error(`Manifest extension/media-type mismatch (${extension}:${media})`);
-    if (media === 'application/xhtml+xml') {
+    if (!metadata.lazy && media === 'application/xhtml+xml') {
       const doc = metadata.documents[path];
       if (doc?.root !== 'html' || doc.namespace !== XHTML || !doc.head || !doc.body) throw new Error('Invalid XHTML resource');
     }
-    if (media === 'image/svg+xml' && (metadata.documents[path]?.root !== 'svg' || metadata.documents[path]?.namespace !== SVG)) throw new Error('Invalid packaged SVG');
+    if (!metadata.lazy && media === 'image/svg+xml' && (metadata.documents[path]?.root !== 'svg' || metadata.documents[path]?.namespace !== SVG)) throw new Error('Invalid packaged SVG');
     manifest.set(id, { path, media }); roles.set(path, media);
   }
   const spine: string[] = [];

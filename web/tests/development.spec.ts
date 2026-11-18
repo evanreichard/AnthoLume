@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, epub, importBook, register, root, scratch } from './fixtures';
+import { test, expect, epub, register, root, scratch } from './fixtures';
 
 async function stop(child: ChildProcess) {
   if (child.exitCode !== null) return;
@@ -13,7 +13,7 @@ async function stop(child: ChildProcess) {
   await exited;
 }
 
-test('loopback Vite serves development routes while proxying the compiled worker shell and exact public Origin', async ({ page, server }) => {
+test('loopback Vite serves development routes while proxying APIs and enforcing the exact public Origin', async ({ page, server }) => {
   void server;
   const data = `${scratch}dev-${Date.now()}`;
   await mkdir(`${data}/documents`, { recursive: true });
@@ -32,14 +32,11 @@ test('loopback Vite serves development routes while proxying the compiled worker
       try { return (await fetch(`${origin}/api/v1/session`, { signal: AbortSignal.timeout(1000) })).status; } catch { return 0; }
     }).toBe(200);
     await register(page, origin, `dev-${Date.now()}`);
-    await importBook(page, 'Development local original');
-    await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller?.scriptURL)).toBe(`${origin}/sw.js`);
+    expect(await page.evaluate(() => navigator.serviceWorker.getRegistration())).toBeUndefined();
     const bootstrap = await page.request.get(`${origin}/api/v1/session`);
     const session = await bootstrap.json();
     const wrongOrigin = await page.request.post(`${origin}/api/v1/session/logout`, { data: {}, headers: { Origin: 'http://127.0.0.1:5323', 'X-CSRF-Token': session.csrf_token } });
     expect(wrongOrigin.status()).toBe(403);
-    await page.goto(`${origin}/app/offline`);
-    await expect(page.getByRole('heading', { name: 'Development local original', exact: true })).toBeVisible();
     await page.goto(`${origin}/?antholume-retirement=legacy-v1`);
     await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
   } finally { await stop(vite); await stop(backend); await writeFile(`${scratch}development.log`, logs); }

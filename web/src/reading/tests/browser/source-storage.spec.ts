@@ -30,14 +30,30 @@ test('native v1 upgrade migrates a legacy Blob book without changing opaque chec
   expect(result).toEqual({ migrated: true, checkpoint: { position: '/body/DocFragment[1]/body/h1', fraction: .12345 }, sourceComplete: true, hashUnchanged: true, originalID: 'legacy-server-id', eventUnchanged: true, accessUnchanged: true, leaseUnchanged: true });
 });
 
-test('real streamed runtime preserves server identity and drops an unsafe-sized optional cover before publication', async ({ page }) => {
+test('real streamed runtime preserves server identity and caches the original without fetching a cover', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const p = window.readingTest, file = await (await fetch('/fixtures/synthetic.epub')).blob(), zip = await p.JSZip.loadAsync(await file.arrayBuffer()), pixel = await zip.file('pixel.png')!.async('uint8array'); new DataView(pixel.buffer, pixel.byteOffset, pixel.byteLength).setUint32(16, 8192); new DataView(pixel.buffer, pixel.byteOffset, pixel.byteLength).setUint32(20, 8192);
     const account = { origin: location.origin, userId: 'runtime-original' }, document: S['Document'] = { id: 'original-server-id', title: null, author: null, series: null, description: null, lang: null, file_available: true, cover_available: true, media_type: 'application/epub+zip', file_size_bytes: file.size }, calls: string[] = [];
     const noWrite = async () => { throw new Error('A download never writes activity or progress'); }, bridge: ReadingBridge = { getState: async (_, id) => { calls.push(id); return { document_id: id, revision: '0', position: '/body/DocFragment[1]/body/h1', fraction: .12345, device_id: null, updated_at: null }; }, fetchFile: async (_, id) => { calls.push(id); return new Response(file, { headers: { 'Content-Type': 'application/epub+zip', 'Content-Length': String(file.size) } }); }, fetchCover: async () => new Response(new Uint8Array(pixel), { headers: { 'Content-Type': 'image/png' } }), registerDevice: async (_, device) => device, submitActivity: noWrite, submitProgress: noWrite };
-    p.WorkerCoordinator.prototype.start = async function () { this.ready = true; }; const runtime = new p.ReadingRuntime(bridge, () => {}, () => {}); await runtime.start({ kind: 'authenticated', account }); const ref = await runtime.download(document), opened = await runtime.repo.open(ref), output = { ref, calls, checkpoint: opened.row.checkpoint, available: opened.row.availability, cover: opened.row.cover, sourceKind: opened.source.kind, chunks: await runtime.repo.db.sourceChunks.count(), events: await runtime.repo.db.events.count(), writers: p.stagingWorkers.active }; runtime.dispose(); await runtime.repo.db.delete(); return output;
+    p.WorkerCoordinator.prototype.start = async function () { this.ready = true; }; const runtime = new p.ReadingRuntime(bridge, () => {}, () => {}); await runtime.start({ kind: 'authenticated', account }); const ref = { kind: 'server' as const, account, documentId: document.id }, abort = new AbortController(), opened = await runtime.openServerBook(ref, abort.signal), output = { ref, calls, checkpoint: opened.row.checkpoint, available: opened.row.availability, cover: opened.row.cover, sourceKind: opened.source.kind, chunks: await runtime.repo.db.sourceChunks.count(), events: await runtime.repo.db.events.count(), writers: p.stagingWorkers.active }; abort.abort(); runtime.dispose(); await runtime.repo.db.delete(); return output;
   });
   expect(result).toMatchObject({ ref: { kind: 'server', documentId: 'original-server-id' }, calls: ['original-server-id', 'original-server-id'], checkpoint: { position: '/body/DocFragment[1]/body/h1', fraction: .12345 }, available: 'available', cover: null, sourceKind: 'idb', events: 0, writers: 0 }); expect(result.chunks).toBeGreaterThan(0);
+});
+
+test('an oversized WebKit-style fetch chunk is staged without transferring an oversized buffer', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(`coalesced-${crypto.randomUUID()}`));
+    const size = 9 * 1024 * 1024 + 123, bytes = new Uint8Array(size);
+    for (let i = 0; i < size; i++) bytes[i] = i % 251;
+    const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(bytes); controller.close(); } });
+    try {
+      const row = await repo.stageStream({ kind: 'local', localId: 'coalesced' }, stream);
+      const expected = await p.hashSource(p.blobSource(new Blob([bytes])));
+      const actual = await p.hashSource({ kind: 'idb', database: repo.db.name, id: row.id, size: row.size });
+      return { size: row.size, same: actual.sha256 === expected.sha256 };
+    } finally { await repo.db.delete(); }
+  });
+  expect(result).toEqual({ size: 9 * 1024 * 1024 + 123, same: true });
 });
 
 test('expired-source deletion rechecks renewed lease; local staging abort and locked stream leave no partial records', async ({ page }) => {

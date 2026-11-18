@@ -9,8 +9,12 @@ import { validState } from './protocol';
 import type { CapturedActivity } from './activity';
 import { StagingWriter } from './staging-writer';
 
-export type BookRow = StoredBook & { key: string; scope: string; bytes: Blob | null; sourceId?: string; checksum: string; protocolHash: string; size: number };
-export type SourceRow = { id: string; key: string; size: number; received: number; blob: Blob | null; complete: boolean; until: number; manifest?: BookManifest; manifestHash?: string };
+export type BookRow = StoredBook & { key: string; scope: string; bytes: Blob | null; sourceId?: string; checksum: string; protocolHash: string; size: number; etag?: string };
+export type SourceRow = { id: string; key: string; size: number; received: number; blob: Blob | null; complete: boolean; until: number; manifest?: BookManifest; manifestHash?: string; cacheUsedAt?: number; cacheReaders?: Record<string, number> };
+const bookCacheBytes = 768 * 1024 * 1024;
+const bookCacheCount = 6;
+const cacheLeaseMs = 15 * 60_000;
+const cacheLive = (row: SourceRow, now: number) => Object.values(row.cacheReaders ?? {}).some(until => until > now);
 export type SourceChunk = { key: string; sourceId: string; data: ArrayBuffer };
 export type EventRow = { id: string; key: string; scope: string; created: number; interval?: { id: string; startMs: number; endMs: number } } & Submission;
 type AccessRow = { key: string; account: Account; epoch: number; eligible: boolean; authenticated: boolean };
@@ -109,53 +113,138 @@ export class Repository {
         signal?.throwIfAborted(); let timer: ReturnType<typeof setTimeout> | undefined;
         const part = await Promise.race([read(), new Promise<never>((_, reject) => { timer = setTimeout(() => { abort(); reject(new Error('Original download idle deadline exceeded')); }, 30000); })]).finally(() => clearTimeout(timer));
         if (part.done) break;
-        if (!part.value?.length || part.value.buffer.byteLength > 2 * 1024 * 1024) throw new Error('Transport chunk exceeds 2 MiB bounded fallback');
-        this.stagingStats.maxIncoming = Math.max(this.stagingStats.maxIncoming, part.value.length); this.stagingStats.bytes += part.value.length; this.stagingStats.chunks++; incoming += part.value.length;
+        const bytes = part.value as Uint8Array<ArrayBuffer>;
+        if (!bytes.length) continue;
+        this.stagingStats.maxIncoming = Math.max(this.stagingStats.maxIncoming, bytes.length); this.stagingStats.bytes += bytes.length; this.stagingStats.chunks++; incoming += bytes.length;
         if (incoming > sourceLimits.diskBytes) throw new Error('Original download exceeds 512 MiB disk capacity');
-        let bytes = part.value as Uint8Array<ArrayBuffer>;
-        while (bytes.length) {
-          const amount = Math.min(bytes.length, writer.remaining), remainder = bytes.length > amount ? bytes.slice(amount) : null;
-          const result = await writer.write(bytes.subarray(0, amount)); row.received = result.received!; row.size = row.received; n = result.chunkNumber!; progress?.(row.received);
+        for (let offset = 0; offset < bytes.length;) {
+          signal?.throwIfAborted();
+          const amount = Math.min(bytes.length - offset, writer.remaining, sourceLimits.chunkBytes);
+          // Default Reader Chunking - WebKit can coalesce fetch chunks; only transfer bounded slices to staging.
+          const transfer = offset === 0 && amount === bytes.length && bytes.buffer.byteLength <= sourceLimits.chunkBytes ? bytes : bytes.slice(offset, offset + amount);
+          const last = transfer === bytes || offset + amount === bytes.length;
+          const result = await writer.write(transfer); row.received = result.received!; row.size = row.received; n = result.chunkNumber!; progress?.(row.received);
           if (writer.remaining === 0) { writer.dispose(); writer = createWriter(); await writer.ready; }
-          if (!remainder) break; bytes = remainder;
+          if (last) break;
+          offset += amount;
         }
       }
       signal?.throwIfAborted(); const final = await writer.write(new Uint8Array(0), true); row.received = final.received!; row.size = row.received; if (!row.size) throw new Error('Empty original download'); return row;
     } catch (error) { writer?.dispose(); await this.discardSource(row.id); signal?.throwIfAborted(); throw error; }
     finally { writer?.dispose(); signal?.removeEventListener('abort', abort); await reader.cancel().catch(() => undefined); reader.releaseLock(); }
   }
-  async validateStage(stage: SourceRow, signal?: AbortSignal) {
+  async validateStage(stage: SourceRow, signal?: AbortSignal, lazy = false) {
     const heartbeat = setInterval(() => { void this.db.sources.update(stage.id, { until: Date.now() + 120000 }).catch(() => undefined); }, 30000);
-    try { return await validateEPUB(this.descriptor(stage), signal); } finally { clearInterval(heartbeat); }
+    try { return await validateEPUB(this.descriptor(stage), signal, lazy); } finally { clearInterval(heartbeat); }
   }
-  async publish(ref: BookRef, stage: SourceRow, manifest: BookManifest, title: string | null, author: string | null, cover: Blob | null, state?: S['ReadingState'], signal?: AbortSignal) {
+  private async removeSource(id: string) {
+    await this.db.sourceChunks.where('sourceId').equals(id).delete();
+    await this.db.sources.delete(id);
+  }
+  private async trimServerCache(reserve: number, keepKey?: string, clear = false) {
+    const books = await this.db.books.filter(book => book.ref.kind === 'server' && book.availability === 'available').toArray();
+    const bySource = new Map(books.map(book => [book.sourceId, book]));
+    const sources = await this.db.sources.filter(source => source.complete && source.key.startsWith('["server",')).toArray();
+    const candidates = [...sources.map(source => ({ source, book: bySource.get(source.id), bytes: source.size, used: source.cacheUsedAt ?? 0 })),
+      ...books.filter(book => !book.sourceId || !sources.some(source => source.id === book.sourceId)).map(book => ({ source: undefined, book, bytes: book.size, used: 0 }))].sort((a, b) => a.used - b.used);
+    let bytes = candidates.reduce((sum, entry) => sum + entry.bytes, reserve), count = candidates.length + (reserve > 0 ? 1 : 0);
+    const now = Date.now();
+    for (const { source, book, bytes: size } of candidates) {
+      if (!clear && bytes <= bookCacheBytes && count <= bookCacheCount) break;
+      if (book?.key === keepKey || source && cacheLive(source, now)) continue;
+      if (source) await this.removeSource(source.id);
+      if (book) await this.db.books.update(book.key, { sourceId: undefined, bytes: null, cover: null, availability: 'unavailable', etag: undefined });
+      bytes -= size; count--;
+    }
+    if (!clear && (bytes > bookCacheBytes || count > bookCacheCount)) throw new Error('Close another open book before caching this EPUB');
+  }
+  async freeServerCache() {
+    await this.db.transaction('rw', this.db.books, this.db.sources, this.db.sourceChunks, () => this.trimServerCache(0, undefined, true));
+  }
+  private async refreshCheckpoint(ref: BookRef, previous: Checkpoint, state?: S['ReadingState']) {
+    if (!state) return { checkpoint: previous };
+    if (!validState(state, ref.kind === 'server' ? ref.documentId : '')) throw new Error('Invalid server state');
+    const key = refKey(ref), head = await this.db.heads.get(key);
+    const events = await this.db.events.where('key').equals(key).filter(event => event.kind === 'progress').toArray();
+    if ((await this.db.decisions.bulkGet(events.map(event => event.id))).some(decision => !decision)) return { checkpoint: previous };
+    if (head && BigInt(head.state.revision) > BigInt(state.revision)) return { checkpoint: previous };
+    await this.db.heads.put({ key, state });
+    return { checkpoint: { position: state.position, fraction: state.fraction }, ...(state.updated_at ? { lastReadAt: state.updated_at } : {}) };
+  }
+  async useCached(ref: Extract<BookRef, { kind: 'server' }>, sourceId: string, etag: string, state: S['ReadingState'], signal: AbortSignal) {
+    const opened = await this.open(ref);
+    if (opened.row.sourceId !== sourceId || opened.row.etag !== etag) throw new Error('Cached original changed');
+    return this.db.transaction('rw', [this.db.books, this.db.sources, this.db.heads, this.db.events, this.db.decisions, this.db.access], async () => {
+      signal.throwIfAborted();
+      const key = refKey(ref), row = await this.db.books.get(key);
+      if (!row || row.sourceId !== sourceId || row.etag !== etag || !(await this.db.access.get(row.scope))?.authenticated) throw new Error('Cached original or account changed');
+      await this.db.sources.update(sourceId, { cacheUsedAt: Date.now() });
+      const next = { ...row, ...await this.refreshCheckpoint(ref, row.checkpoint, state) };
+      await this.db.books.put(next);
+      signal.throwIfAborted();
+      return { ...opened, row: next };
+    });
+  }
+  async keepSource(id: string, signal: AbortSignal) {
+    signal.throwIfAborted();
+    const reader = crypto.randomUUID();
+    const update = (release = false) => this.db.transaction('rw', this.db.sources, async () => {
+      const row = await this.db.sources.get(id);
+      if (!row?.complete) { if (release) return; throw new Error('Cached original was evicted; reopen to download again'); }
+      const now = Date.now(), readers = Object.fromEntries(Object.entries(row.cacheReaders ?? {}).filter(([key, until]) => key !== reader && until > now));
+      if (!release) {
+        if (Object.keys(readers).length >= 32) throw new Error('Too many readers for this EPUB');
+        readers[reader] = now + cacheLeaseMs;
+      }
+      await this.db.sources.update(id, { cacheReaders: readers });
+    });
+    await update();
+    const renew = () => { if (!signal.aborted) void update().catch(() => undefined); };
+    const timer = setInterval(renew, 60_000);
+    const release = () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', renew);
+      signal.removeEventListener('abort', release);
+      void update(true).catch(() => undefined);
+    };
+    signal.addEventListener('abort', release, { once: true });
+    document.addEventListener('visibilitychange', renew);
+    if (signal.aborted) release();
+    signal.throwIfAborted();
+  }
+  async publish(ref: BookRef, stage: SourceRow, manifest: BookManifest, title: string | null, author: string | null, cover: Blob | null, state?: S['ReadingState'], signal?: AbortSignal, cache?: { etag?: string }) {
     signal?.throwIfAborted(); const key = refKey(ref), scope = scopeOf(ref);
     if (!await this.permitted(ref)) throw new Error('Account no longer accessible');
     const metadata = new Blob([JSON.stringify(manifest)]); if (metadata.size > 16 * 1024 * 1024) throw new Error('Validated index metadata exceeds 16 MiB');
     const manifestHash = await checksum(metadata), previous = await this.db.books.get(key);
     let reuse = false;
-    if (previous?.availability === 'available' && previous.sourceId && previous.checksum === manifest.integrity.sha256) {
+    if (!cache && previous?.availability === 'available' && previous.sourceId && previous.checksum === manifest.integrity.sha256) {
       const source = await this.db.sources.get(previous.sourceId);
       if (source?.complete) {
         try { reuse = (await hashSource({ ...this.descriptor(source), digests: manifest.integrity.digests }, signal)).sha256 === manifest.integrity.sha256; } catch { signal?.throwIfAborted(); }
       }
     }
     signal?.throwIfAborted();
-    await this.db.transaction('rw', this.db.books, this.db.heads, this.db.access, this.db.sources, this.db.sourceChunks, async () => {
-      if (!await this.permitted(ref)) throw new Error('Account no longer accessible');
+    await this.db.transaction('rw', [this.db.books, this.db.heads, this.db.access, this.db.sources, this.db.sourceChunks, this.db.events, this.db.decisions], async () => {
+      if (!await this.permitted(ref) || cache && !(await this.db.access.get(scope))?.authenticated) throw new Error('Account no longer accessible');
       const row = await this.db.sources.get(stage.id); if (!row || row.complete || row.size !== stage.size || row.received !== stage.size) throw new Error('Incomplete staged original');
       const old = await this.db.books.get(key);
-      if (old?.availability === 'available' && old.checksum !== manifest.integrity.sha256) throw new Error('Original server bytes changed; remove old download before replacing');
+      if (!cache && old?.availability === 'available' && old.checksum !== manifest.integrity.sha256) throw new Error('Original server bytes changed; remove old download before replacing');
       const checkpoint = old?.checkpoint || { position: state?.position ?? null, fraction: state?.fraction ?? null };
       if (old?.sourceId !== previous?.sourceId) throw new Error('Stored source changed during publication; retry');
       const existingSource = reuse ? old?.sourceId : undefined;
       if (existingSource) await this.db.sources.update(existingSource, { manifest, manifestHash });
       else {
-        await this.db.sources.put({ ...row, complete: true, manifest, manifestHash, until: 0 });
-        if (old?.sourceId) { await this.db.sourceChunks.where('sourceId').equals(old.sourceId).delete(); await this.db.sources.delete(old.sourceId); }
+        if (old?.sourceId) {
+          const existing = await this.db.sources.get(old.sourceId);
+          if (!existing || !cacheLive(existing, Date.now())) await this.removeSource(old.sourceId);
+        }
+        await this.db.sources.put({ ...row, complete: true, manifest, manifestHash, until: 0, ...(cache ? { cacheUsedAt: Date.now() } : {}) });
       }
-      await this.db.books.put({ key, scope, ref, title, author, cover, checkpoint, addedAt: old?.addedAt ?? new Date().toISOString(), lastReadAt: old?.lastReadAt ?? state?.updated_at ?? undefined, availability: 'available', bytes: null, sourceId: existingSource || stage.id, size: stage.size, checksum: manifest.integrity.sha256, protocolHash: manifest.integrity.protocolHash });
-      if (state) { if (!validState(state, ref.kind === 'server' ? ref.documentId : '')) throw new Error('Invalid server state'); const head = await this.db.heads.get(key); if (!head || BigInt(head.state.revision) < BigInt(state.revision)) await this.db.heads.put({ key, state }); }
+      const reading = cache ? await this.refreshCheckpoint(ref, checkpoint, state) : { checkpoint };
+      await this.db.books.put({ key, scope, ref, title, author, cover, addedAt: old?.addedAt ?? new Date().toISOString(), lastReadAt: old?.lastReadAt ?? state?.updated_at ?? undefined, ...reading, availability: 'available', bytes: null, sourceId: existingSource || stage.id, size: stage.size, checksum: manifest.integrity.sha256, protocolHash: manifest.integrity.protocolHash, etag: cache?.etag });
+      if (cache) await this.trimServerCache(0, key);
+      else if (state) { if (!validState(state, ref.kind === 'server' ? ref.documentId : '')) throw new Error('Invalid server state'); const head = await this.db.heads.get(key); if (!head || BigInt(head.state.revision) < BigInt(state.revision)) await this.db.heads.put({ key, state }); }
       signal?.throwIfAborted();
     });
   }
@@ -177,6 +266,14 @@ export class Repository {
     if (stored.manifestHash !== manifestHash) throw new Error('Validated index integrity mismatch');
     return { row, source: { ...this.descriptor(stored), digests: stored.manifest.integrity.digests }, manifest: stored.manifest };
   }
+  async exportLocal(ref: Extract<BookRef, { kind: 'local' }>): Promise<Blob> {
+    const book = await this.db.books.get(refKey(ref));
+    if (!book || book.ref.kind !== 'local') throw new Error('Local book not found');
+    if (book.bytes?.size) return book.bytes;
+    const source = book.sourceId && await this.db.sources.get(book.sourceId);
+    if (!source || !source.complete || source.key !== book.key || !source.blob || source.blob.size !== book.size) throw new Error('Original local EPUB is unavailable');
+    return source.blob;
+  }
   async remove(ref: BookRef) {
     await this.db.transaction('rw', this.db.books, this.db.access, this.db.sources, this.db.sourceChunks, async () => {
       if (!await this.permitted(ref)) throw new Error('Account hidden'); const key = refKey(ref), old = await this.db.books.get(key);
@@ -189,7 +286,7 @@ export class Repository {
     await this.db.transaction('rw', this.db.books, this.db.events, this.db.heads, this.db.access, async () => {
       if (!await this.permitted(ref)) throw new Error('Account hidden');
       const key = refKey(ref), book = await this.db.books.get(key);
-      if (!book || book.availability !== 'available') throw new Error('Book unavailable');
+      if (!book || ref.kind === 'local' && book.availability !== 'available') throw new Error('Book unavailable');
       await this.db.books.put({ ...book, checkpoint, lastReadAt: new Date().toISOString() });
       if (ref.kind === 'local') { if (activity) throw new Error('Local activity must never upload'); return; }
       const state = (await this.db.heads.get(key))?.state;

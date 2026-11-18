@@ -26,7 +26,6 @@ export function Dialog({ title, children, onClose, className }: { title: string;
     {children}
   </dialog>;
 }
-const offlineLabel = 'Available offline';
 const coverHues = [24, 46, 104, 167, 211, 267, 336];
 
 function placeholderHue(ref: BookRef) {
@@ -36,11 +35,9 @@ function placeholderHue(ref: BookRef) {
   return coverHues[(hash >>> 0) % coverHues.length];
 }
 
-export function Cover({ book, showOffline = false, sourceId, offlineId, thumbnail = false }: {
+export function Cover({ book, sourceId, thumbnail = false }: {
   book: LibraryBook;
-  showOffline?: boolean;
   sourceId?: string;
-  offlineId?: string;
   thumbnail?: boolean;
 }) {
   const { access } = useSession();
@@ -104,18 +101,14 @@ export function Cover({ book, showOffline = false, sourceId, offlineId, thumbnai
     )}
     <div className={styles.coverBadges}>
       <span id={sourceId} className={styles.provenance} role="img" aria-label={sourceLabel} title={sourceLabel}><Icon name={ref.kind === 'local' ? 'device' : 'cloud'} size={14} /></span>
-      {showOffline && book.stored?.availability === 'available' && (
-        <span id={offlineId} className={styles.offlineBadge} role="img" aria-label={offlineLabel} title={offlineLabel}><Icon name="check" size={14} /></span>
-      )}
     </div>
   </div>;
 }
 export function BookCard({ book, children }: { book: LibraryBook; children?: ReactNode }) {
   const id = useId();
-  const offlineId = book.stored?.availability === 'available' ? `${id}-offline` : undefined;
   return <article className={styles.card}>
-    <Link to={bookPath(book.ref)} className={styles.bookLink} aria-labelledby={`${id}-source ${id}-title ${id}-author`} aria-describedby={offlineId}>
-      <Cover book={book} thumbnail showOffline sourceId={`${id}-source`} offlineId={offlineId} />
+    <Link to={bookPath(book.ref)} className={styles.bookLink} aria-labelledby={`${id}-source ${id}-title ${id}-author`}>
+      <Cover book={book} thumbnail sourceId={`${id}-source`} />
       <div>
         <h2 id={`${id}-title`} className={styles.cardTitle}>{book.title || 'Untitled'}</h2>
         <p id={`${id}-author`}>{book.author || 'Unknown author'}</p>

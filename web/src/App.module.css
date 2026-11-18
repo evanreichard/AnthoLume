@@ -178,9 +178,6 @@
 .detailMeta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin: 14px 0 0; }
 .detailMeta dd { margin: 2px 0 0; overflow-wrap: anywhere; }
 .description { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); margin: 0; }
-.bookTools { border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding-top: 12px; }
-.bookTools a, .downloadAction { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
-.bookTools a { color: var(--muted); font-size: 13px; }
 @media (min-width: 1040px) {
   .bookPage { display: grid; grid-template-columns: minmax(0, 1fr) clamp(17rem, 28vw, 22rem); column-gap: clamp(24px, 4vw, 56px); align-items: start; }
   .bookPage > * { grid-column: 1 / -1; }
