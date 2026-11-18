@@ -359,7 +359,7 @@ paths:
       parameters:
         - name: period
           in: query
-          description: Current UTC calendar period through now. Weeks start Monday.
+          description: 'Rolling window through now: week is 7 days, month is 30 days, year is 365 days.'
           schema: {type: string, enum: [week, month, year, all], default: all}
         - {name: metric, in: query, schema: {type: string, enum: [time, words, pace]}}
       responses:

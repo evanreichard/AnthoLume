@@ -107,12 +107,12 @@ function Rankings({ account, preview = false }: { account: Account; preview?: bo
   const Frame = preview ? Card : 'section';
   return <Frame className={styles.rankings} aria-labelledby="ranking-title">
     <CardHeader id="ranking-title" title="Rankings" action={
-      <PillSelect aria-label="Ranking period" value={period} onChange={event => setFilter('period', event.target.value)}><option value="week">Week</option><option value="month">Month</option><option value="year">Year</option><option value="all">All time</option></PillSelect>
+      <PillSelect aria-label="Ranking period" value={period} onChange={event => setFilter('period', event.target.value)}><option value="week">Last 7 days</option><option value="month">Last 30 days</option><option value="year">Last 365 days</option><option value="all">All time</option></PillSelect>
     } />
     <div className={styles.metricSwitch} role="group" aria-label="Ranking metric">
       {rankingMetrics.map(([value, label]) => <button key={value} type="button" aria-pressed={metric === value} onClick={() => setFilter('metric', value)}><span>{label}</span></button>)}
     </div>
-    {!preview && <p className={styles.rankingNote}>Ranking periods use UTC. Words and pace are estimates.</p>}
+    {!preview && <p className={styles.rankingNote}>Words and pace are estimates.</p>}
     <div aria-live="polite" aria-atomic="true">
       <ErrorNotice error={result.error} />
       {result.isPending && <p className={styles.muted}>Loading rankings…</p>}

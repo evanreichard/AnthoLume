@@ -73,14 +73,14 @@ func TestInsightsReadAcknowledgedData(t *testing.T) {
 	assertProblem(t, f.call("GET", urls[1]+"?page=0", nil, nil), 400, "invalid_request")
 }
 
-func TestInsightRankingsCalendarPeriods(t *testing.T) {
+func TestInsightRankingsRollingPeriods(t *testing.T) {
 	f := newWebFixture(t)
 	f.readingSetup()
 	now := time.Date(2026, time.June, 17, 12, 0, 0, 0, time.UTC)
 	for _, instant := range []string{
-		"2025-12-31T23:59:59Z", "2026-01-01T00:00:00Z",
-		"2026-05-31T23:59:59Z", "2026-06-01T00:00:00Z",
-		"2026-06-14T23:59:59Z", "2026-06-15T00:00:00Z",
+		"2025-06-17T11:59:59Z", "2025-06-17T12:00:00Z",
+		"2026-05-18T11:59:59Z", "2026-05-18T12:00:00Z",
+		"2026-06-10T11:59:59Z", "2026-06-10T12:00:00Z",
 		"2026-06-17T12:00:00Z", "2026-06-17T12:00:01Z",
 	} {
 		f.exec("INSERT INTO activity (user_id,document_id,device_id,start_time,duration,start_percentage,end_percentage) VALUES ('alice','book-a','web-device',?,1,0,.1)", instant)

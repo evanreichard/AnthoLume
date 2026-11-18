@@ -1488,7 +1488,7 @@ export interface operations {
     listInsightRankings: {
         parameters: {
             query?: {
-                /** @description Current UTC calendar period through now. Weeks start Monday. */
+                /** @description Rolling window through now: week is 7 days, month is 30 days, year is 365 days. */
                 period?: "week" | "month" | "year" | "all";
                 metric?: "time" | "words" | "pace";
             };

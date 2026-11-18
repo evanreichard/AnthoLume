@@ -203,18 +203,18 @@ func (s *webAPI) listInsightRankingsAt(ctx context.Context, params ListInsightRa
 	if params.Period != nil {
 		switch *params.Period {
 		case "week":
-			start = monday(civilDay(now))
+			start = now.AddDate(0, 0, -7)
 		case "month":
-			start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+			start = now.AddDate(0, 0, -30)
 		case "year":
-			start = time.Date(now.Year(), time.January, 1, 0, 0, 0, 0, time.UTC)
+			start = now.AddDate(0, 0, -365)
 		case "all":
 		default:
 			return nil, &reading.Failure{Status: 400, Code: "invalid_request"}
 		}
 	}
-	lower := start.Format(time.DateOnly)
-	rows, err := s.api.db.DB.QueryContext(requestContext(ctx), `WITH totals AS (SELECT a.user_id, SUM(a.duration) AS seconds, SUM(MAX(0,COALESCE(d.words,0)*(a.end_percentage-a.start_percentage))) AS words FROM activity a JOIN users u ON u.id=a.user_id LEFT JOIN documents d ON d.id=a.document_id WHERE a.start_time>=? AND julianday(a.start_time)<=julianday(?) AND a.duration>0 GROUP BY a.user_id) SELECT user_id,CAST(`+expression+` AS INTEGER) AS value FROM totals WHERE `+expression+`>=1 ORDER BY value DESC,user_id ASC LIMIT 20`, lower, now.Format(time.RFC3339Nano))
+	lower := start.Format(time.RFC3339Nano)
+	rows, err := s.api.db.DB.QueryContext(requestContext(ctx), `WITH totals AS (SELECT a.user_id, SUM(a.duration) AS seconds, SUM(MAX(0,COALESCE(d.words,0)*(a.end_percentage-a.start_percentage))) AS words FROM activity a JOIN users u ON u.id=a.user_id LEFT JOIN documents d ON d.id=a.document_id WHERE julianday(a.start_time)>=julianday(?) AND julianday(a.start_time)<=julianday(?) AND a.duration>0 GROUP BY a.user_id) SELECT user_id,CAST(`+expression+` AS INTEGER) AS value FROM totals WHERE `+expression+`>=1 ORDER BY value DESC,user_id ASC LIMIT 20`, lower, now.Format(time.RFC3339Nano))
 	if err != nil {
 		return nil, err
 	}

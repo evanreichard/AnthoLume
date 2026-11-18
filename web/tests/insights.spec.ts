@@ -85,7 +85,7 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
   await page.setViewportSize({ width: 320, height: 844 });
   const rankings = page.getByRole('region', { name: 'Rankings', exact: true });
   const period = rankings.getByLabel('Ranking period');
-  await expect(period.getByRole('option')).toHaveText(['Week', 'Month', 'Year', 'All time']);
+  await expect(period.getByRole('option')).toHaveText(['Last 7 days', 'Last 30 days', 'Last 365 days', 'All time']);
   await expect(period).toHaveValue('month');
   const metric = rankings.getByRole('button', { name: 'Time', exact: true });
   const insets = await metric.evaluate(button => {
