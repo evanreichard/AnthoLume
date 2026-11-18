@@ -239,61 +239,10 @@
               </a>
             {{ end }}
             {{ if .Authorization.IsAdmin }}
-              <div
-                class="flex flex-col gap-4 p-2 pl-6 my-2 transition-colors duration-200 border-l-4 {{ if hasPrefix .RouteName "admin" }}
-                  dark:text-white border-purple-500
-                {{ else if true }}
-                  border-transparent text-gray-400
-                {{ end }}"
-              >
-                <a
-                  href="/admin"
-                  class="flex justify-start w-full {{ if not (hasPrefix .RouteName "admin") }}
-                    text-gray-400 hover:text-gray-800 dark:hover:text-gray-100
-                  {{ end }}"
-                >
-                  {{ template "svg/settings" (dict "Size" 20) }}
-                  <span class="mx-4 text-sm font-normal">Admin</span>
-                </a>
-                {{ if hasPrefix .RouteName "admin" }}
-                  <a
-                    href="/admin"
-                    style="padding-left: 1.75em"
-                    class="flex justify-start w-full {{ if not (eq .RouteName "admin") }}
-                      text-gray-400 hover:text-gray-800 dark:hover:text-gray-100
-                    {{ end }}"
-                  >
-                    <span class="mx-4 text-sm font-normal">General</span>
-                  </a>
-                  <a
-                    href="/admin/import"
-                    style="padding-left: 1.75em"
-                    class="flex justify-start w-full {{ if not (eq .RouteName "admin-import") }}
-                      text-gray-400 hover:text-gray-800 dark:hover:text-gray-100
-                    {{ end }}"
-                  >
-                    <span class="mx-4 text-sm font-normal">Import</span>
-                  </a>
-                  <a
-                    href="/admin/users"
-                    style="padding-left: 1.75em"
-                    class="flex justify-start w-full {{ if not (eq .RouteName "admin-users") }}
-                      text-gray-400 hover:text-gray-800 dark:hover:text-gray-100
-                    {{ end }}"
-                  >
-                    <span class="mx-4 text-sm font-normal">Users</span>
-                  </a>
-                  <a
-                    href="/admin/logs"
-                    style="padding-left: 1.75em"
-                    class="flex justify-start w-full {{ if not (eq .RouteName "admin-logs") }}
-                      text-gray-400 hover:text-gray-800 dark:hover:text-gray-100
-                    {{ end }}"
-                  >
-                    <span class="mx-4 text-sm font-normal">Logs</span>
-                  </a>
-                {{ end }}
-              </div>
+              <a href="/app/admin" class="flex justify-start p-2 pl-6 my-2 text-gray-400 hover:text-gray-800 dark:hover:text-gray-100">
+                {{ template "svg/settings" (dict "Size" 20) }}
+                <span class="mx-4 text-sm font-normal">Administration</span>
+              </a>
             {{ end }}
           </div>
           <a

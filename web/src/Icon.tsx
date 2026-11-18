@@ -1,4 +1,4 @@
-type Name = 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'device' | 'external' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'appearance';
+type Name = 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'device' | 'external' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'appearance' | 'user';
 
 const paths: Record<Name, string> = {
   library: 'M4 5h4v14H4z M8 5h4v14H8z M14 6l3.5-1 4 13-3.5 1z',
@@ -10,6 +10,7 @@ const paths: Record<Name, string> = {
   check: 'm5 12 4 4L19 6',
   cloud: 'M7 18a4 4 0 0 1-.5-8A5.5 5.5 0 0 1 17 9a4.5 4.5 0 1 1 1.5 9Z',
   device: 'M6 4h12v16H6z M10 16h4',
+  user: 'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM5 20v-1a7 7 0 0 1 14 0v1',
   external: 'M9 5h10v10 M19 5 6 18',
   search: 'M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Z M16 16l4 4',
   add: 'M12 5v14 M5 12h14',

@@ -141,19 +141,18 @@ func (dbm *DBManager) Reload(ctx context.Context) error {
 
 // CacheTempTables clears existing statistics and recalculates
 func (dbm *DBManager) CacheTempTables(ctx context.Context) error {
-	start := time.Now()
-	if _, err := dbm.DB.ExecContext(ctx, user_streaks); err != nil {
+	tx, err := dbm.DB.BeginTx(ctx, nil)
+	if err != nil {
 		return err
 	}
-	log.Debug("Cached 'user_streaks' in: ", time.Since(start))
-
-	start = time.Now()
-	if _, err := dbm.DB.ExecContext(ctx, document_user_statistics); err != nil {
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, user_streaks); err != nil {
 		return err
 	}
-	log.Debug("Cached 'document_user_statistics' in: ", time.Since(start))
-
-	return nil
+	if _, err := tx.ExecContext(ctx, document_user_statistics); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // updateSettings ensures that we're enforcing foreign keys and enable journal

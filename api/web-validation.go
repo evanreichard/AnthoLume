@@ -124,7 +124,7 @@ func (api *API) registerV1(router *gin.Engine) error {
 	group.Use(api.webBoundary)
 	group.Use(func(c *gin.Context) {
 		validation := options
-		if isDocumentUpload(c.Request) {
+		if isDocumentUpload(c.Request) || isRestoreUpload(c.Request) {
 			copy := *options
 			copy.Options.ExcludeRequestBody = true
 			validation = &copy
@@ -157,6 +157,10 @@ func (api *API) registerV1(router *gin.Engine) error {
 	RegisterHandlersWithOptions(group, strict, GinServerOptions{ErrorHandler: func(c *gin.Context, _ error, _ int) { abortProblem(c, 400, "invalid_request") }})
 	return nil
 }
+func isRestoreUpload(r *http.Request) bool {
+	return r.Method == http.MethodPost && r.URL.Path == "/api/v1/admin/restore"
+}
+
 func isDocumentUpload(r *http.Request) bool {
 	return r.Method == http.MethodPost && r.URL.Path == "/api/v1/documents"
 }
@@ -204,6 +208,14 @@ func (api *API) webBoundary(c *gin.Context) {
 		return
 	}
 	media, _, err := mime.ParseMediaType(c.GetHeader("Content-Type"))
+	if isRestoreUpload(c.Request) {
+		if err != nil || media != "application/octet-stream" {
+			abortProblem(c, 415, "invalid_request")
+			return
+		}
+		c.Next()
+		return
+	}
 	if isDocumentUpload(c.Request) {
 		if err != nil || media != "application/epub+zip" {
 			abortProblem(c, 415, "invalid_request")

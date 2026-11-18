@@ -4,9 +4,10 @@ import { Link, useLocation, useSearchParams } from 'react-router';
 import { useReading } from '../reading';
 import { bookKey, bookPath, combineBooks, parseSort, sortBooks, sortOptions, type LibrarySort } from '../library';
 import { queryClient, session, useSession } from '../session';
-import { BookCard, Cover, Dialog, ErrorNotice, PageHeader, Resume } from '../ui';
+import { BookCard, Dialog, ErrorNotice, PageHeader } from '../ui';
 import styles from '../App.module.css';
 import { Icon } from '../Icon';
+import { RecentBooks } from '../RecentBooks';
 
 export function Library() {
   const { access, capabilities } = useSession();
@@ -50,13 +51,13 @@ export function Library() {
     staleTime: 0,
     queryFn: async ({ signal }) => {
       let page: number | null = 1;
-      while (page !== null) {
+      const books: Awaited<ReturnType<typeof session.api.documents>>['items'] = [];
+      while (page !== null && books.length < 3) {
         const result = await session.api.documents(account!, page, '', 'read', signal, true);
-        const book = result.items.find(item => item.file_available);
-        if (book) return book;
+        books.push(...result.items.filter(item => item.file_available).slice(0, 3 - books.length));
         page = result.next_page;
       }
-      return null;
+      return books;
     },
   });
   const { hasNextPage, isFetching, isFetchNextPageError, fetchNextPage } = documents;
@@ -74,10 +75,9 @@ export function Library() {
   const serverDocuments = sharedEnabled ? documents.data?.pages.flatMap((page) => page.items) ?? [] : [];
   const serverRows = reading.books.filter(book => book.ref.kind === 'server');
   const books = sortBooks(combineBooks(serverRows, serverDocuments, account).filter(book => !!book.document), sort);
-  const featuredDocument = sharedEnabled ? resume.data : null;
-  const feature = !q && featuredDocument ? combineBooks(serverRows, [featuredDocument], account).find(book => !!book.document) : undefined;
-  const fraction = feature?.stored?.checkpoint.fraction ?? feature?.document?.resume_fraction;
-  const progress = fraction == null ? null : Math.round(fraction * 100);
+  const recent = sharedEnabled && !q && resume.data && account
+    ? resume.data.flatMap(document => combineBooks(serverRows.filter(book => book.ref.kind === 'server' && book.ref.documentId === document.id), [document], account))
+    : [];
   const update = (key: string, value: string) => {
     const next = new URLSearchParams(params);
     if (value && value !== 'all') next.set(key, value); else next.delete(key);
@@ -126,19 +126,9 @@ export function Library() {
   }
   return <>
     <PageHeader title="Library" headingRef={heading}
-      actions={reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/sync">{reading.pendingCount} pending</Link>} />
+      actions={reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>} />
     {!reading.ready && <p role="status">Opening your stored library…</p>}
-    {feature && <section className={styles.feature} aria-label="Continue reading">
-      <div className={styles.featureCopy}>
-        <p className={styles.eyebrow}>Continue reading</p>
-        <h2><Link to={bookPath(feature.ref)}>{feature.title || 'Untitled'}</Link></h2>
-        {feature.author && <p>{feature.author}</p>}
-        {progress !== null && <p className={styles.featureProgress}>{progress}% read</p>}
-        <Resume book={feature.ref} />
-      </div>
-      <div className={styles.featureCover}><Cover book={feature} /></div>
-      {progress !== null && <span className={styles.featureMark} aria-hidden="true">{progress}<small>%</small></span>}
-    </section>}
+    <RecentBooks books={recent} />
     <form className={styles.searchRow} role="search" onSubmit={(event) => { event.preventDefault(); update('q', input.trim()); }}>
       <div className={styles.search}>
         <button type="submit" className={styles.searchSubmit} aria-label="Search"><Icon name="search" size={17} /></button>

@@ -4,11 +4,12 @@ import { Link, useNavigate } from 'react-router';
 import { useReading } from '../reading';
 import { bookKey, combineBooks } from '../library';
 import { queryClient, session, useSession } from '../session';
-import { Cover, Dialog, ErrorNotice, Resume } from '../ui';
+import { BookHero, Dialog, ErrorNotice, PageHeader } from '../ui';
 import { Icon } from '../Icon';
 import { BookEditor } from './BookEditor';
 import { useBookRef } from './bookRef';
 import styles from '../App.module.css';
+import { BackPill } from '../Controls';
 
 function duration(seconds: number) {
   if (!seconds) return '0 min';
@@ -90,27 +91,13 @@ function BookDetailContent() {
   const format = metadata?.media_type === 'application/epub+zip' ? 'EPUB' : null;
   const canManage = ref.kind === 'server' && access.kind === 'authenticated' && !!document.data && !!capabilities && !capabilities.demo_mode;
   return <article className={styles.bookPage}>
-    <div className={styles.bookTop}>
-      <Link className={styles.back} to="/library" onClick={(event) => { if (window.history.state?.idx > 0) { event.preventDefault(); navigate(-1); } }}><Icon name="back" size={17} /> Library</Link>
-      {canManage && <div className={styles.bookTopActions} role="group" aria-label="Manage book">
+    <PageHeader leading={<BackPill to="/library" onClick={(event) => { if (window.history.state?.idx > 0) { event.preventDefault(); navigate(-1); } }}>Library</BackPill>}
+      actions={canManage && <div className={styles.bookTopActions} role="group" aria-label="Manage book">
         <button type="button" className={styles.icon} aria-label="Edit book" title="Edit book" onClick={() => setManagement('edit')}><Icon name="edit" size={18} /></button>
         <button type="button" className={`${styles.icon} ${styles.deleteAction}`} aria-label="Delete from shared library" title="Delete from shared library" onClick={() => { setDeleteError(null); setManagement('delete'); }}><Icon name="trash" size={18} /></button>
-      </div>}
-    </div>
-    <header className={styles.detail}>
-      <Cover book={{ ...book, title }} />
-      <div className={styles.detailCopy}>
-        <div className={styles.detailHeading}>
-          {metadata?.series && <p className={styles.eyebrow}>{metadata.series}</p>}
-          <h1 ref={heading} tabIndex={-1}>{title}</h1>
-          <p className={styles.detailAuthor}>{book.author || 'Unknown author'}</p>
-          {edition && <p className={styles.detailEdition}>{edition[2]}</p>}
-        </div>
-        {metadata?.file_available && <div className={styles.detailActions}>
-          <Resume book={ref}>{started ? 'Resume' : 'Read'}</Resume>
-        </div>}
-      </div>
-    </header>
+      </div>} />
+    <BookHero variant="detail" book={{ ...book, title }} headingRef={heading} progress={started ? Math.round(fraction * 100) : null} series={metadata?.series} edition={edition?.[2]}
+      action={metadata?.file_available ? (started ? 'Resume' : 'Read') : null} />
     <section className={`${styles.detailSection} ${styles.detailReading}`} aria-labelledby="book-reading">
       <div className={styles.detailReadingHeading}>
         <h2 id="book-reading">Your reading</h2>

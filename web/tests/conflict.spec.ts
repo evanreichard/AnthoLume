@@ -20,7 +20,7 @@ test('real KO conflict invalidates a stale local choice, accepts explicit backwa
   await page.getByRole('button', { name: 'Library', exact: true }).click();
   await ko(server.origin, user, .8);
   await context.setOffline(false);
-  await page.goto(`${server.origin}/app/sync`);
+  await page.goto(`${server.origin}/app/settings?sync=open`);
   await expect(page.getByRole('button', { name: 'Refresh shared position', exact: true })).toBeVisible();
   await expect.poll(() => serverEffects(server.data, user).activity).toBe(1);
   await page.getByRole('button', { name: 'Refresh shared position', exact: true }).click();
@@ -47,7 +47,7 @@ test('real KO conflict invalidates a stale local choice, accepts explicit backwa
   await expect.poll(async () => (await pendingIds(page)).length).toBe(1);
   await page.keyboard.press('c');
   await page.getByRole('button', { name: 'Library', exact: true }).click();
-  await page.goto(`${server.origin}/app/sync`);
+  await page.goto(`${server.origin}/app/settings?sync=open`);
   await expect(page.getByRole('button', { name: 'Refresh shared position', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Refresh shared position', exact: true }).click();
   await expect(page.getByText('Shared position: 95%', { exact: false })).toBeVisible();

@@ -9,21 +9,54 @@ test('Settings updates timezone, manages devices and rotates the current passwor
     data: { id: 'settings-device', name: 'Original reader' },
   });
   expect(registered.status()).toBe(200);
+  await page.setViewportSize({ width: 320, height: 800 });
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Settings' }).click();
+  const account = page.getByRole('region', { name: 'Account', exact: true });
+  await expect(page.getByRole('main').getByRole('region').first()).toHaveAccessibleName('Account');
+  const sync = account.getByRole('button', { name: 'Sync', exact: true });
+  const timezone = account.getByRole('button', { name: 'Time zone', exact: true });
+  const password = account.getByRole('button', { name: 'Password', exact: true });
+  const signOut = account.getByRole('button', { name: 'Sign out', exact: true });
+  await expect(sync).toHaveAttribute('aria-expanded', 'false');
+  await expect(account.getByRole('region', { name: 'Sync status' })).toBeHidden();
+  const rowWidth = (await sync.boundingBox())!.width;
+  for (const control of [sync, timezone, password, signOut]) {
+    await expect(control).toBeVisible();
+    const box = (await control.boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    if (control !== signOut) expect(box.width).toBe(rowWidth);
+  }
+  expect((await signOut.locator('span').boundingBox())!.height).toBe(32);
+  const devices = page.getByRole('region', { name: 'Devices' });
+  const originalDevice = devices.getByRole('button', { name: 'Manage Original reader' });
+  await expect(originalDevice).toBeVisible();
+  await expect(devices.getByRole('navigation', { name: 'Device pages' })).toHaveCount(0);
+  expect((await originalDevice.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await sync.click();
+  await expect(account.getByRole('region', { name: 'Sync status' }).getByText('0 pending')).toBeVisible();
+  await expect(page).toHaveURL(`${server.origin}/app/settings?sync=open`);
+  await sync.click();
+  await expect(account.getByRole('region', { name: 'Sync status' })).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+  await expect(devices.getByRole('button', { name: 'Manage Original reader' })).toBeVisible();
   const modal = page.getByRole('dialog');
   const save = modal.getByRole('button', { name: 'Save changes' });
-  await page.getByRole('button', { name: 'Change timezone' }).click();
-  await modal.getByLabel('Timezone').fill('Asia/Tokyo');
+  await timezone.click();
+  await expect(modal.getByRole('searchbox')).toHaveCount(0);
+  const picker = modal.getByRole('combobox', { name: 'Time zone' });
+  await expect(picker.getByRole('option', { name: 'Tokyo · Asia' })).toHaveCount(1);
+  await expect(picker.getByRole('option', { name: 'New York · America' })).toHaveCount(1);
+  await picker.selectOption({ label: 'Tokyo · Asia' });
   await save.click();
   await expect(page.getByText('Timezone updated.')).toBeVisible();
-  await page.getByRole('button', { name: 'Manage Original reader' }).click();
+  await expect(timezone).toHaveAccessibleDescription('Tokyo');
+  await page.getByRole('button', { name: 'Manage Original reader' }).getByText('Original reader', { exact: true }).click();
+  await expect(modal.getByText(/Last synced/)).toBeVisible();
   await modal.getByLabel('Custom name').fill('Bedside reader');
   await modal.getByLabel('Archive this device').check();
   await save.click();
-  await expect(page.getByRole('button', { name: 'Manage Bedside reader' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Show archived devices (1)' }).click();
-  await expect(page.getByText('Bedside reader · Archived')).toBeVisible();
-  await page.getByRole('button', { name: 'Change password' }).click();
+  await expect(devices.getByRole('button', { name: 'Manage Bedside reader' })).toContainText('Archived');
+  await password.click();
   await modal.getByLabel('Current password').fill('synthetic-public-password');
   await modal.getByLabel('New password', { exact: true }).fill('synthetic-replacement-password');
   await modal.getByLabel('Confirm new password').fill('synthetic-replacement-password');
@@ -34,6 +67,46 @@ test('Settings updates timezone, manages devices and rotates the current passwor
   await save.click();
   await expect(modal).toHaveCount(0);
   await page.reload();
-  await expect(page.getByText(/Asia\/Tokyo · Used for Insights/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Manage Bedside reader' })).toBeVisible();
+  await expect(timezone).toHaveAccessibleDescription('Tokyo');
+  await timezone.click();
+  await expect(picker).toHaveValue('Asia/Tokyo');
+  await expect(picker.locator('option:checked')).toHaveText('Tokyo · Asia');
+  await modal.getByRole('button', { name: 'Cancel' }).click();
+  await expect(devices.getByRole('button', { name: 'Manage Bedside reader' })).toContainText('Synced');
+});
+
+test('Devices lists ten per page without an expander', async ({ page, server }, testInfo) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await register(page, server.origin, 'device-pager');
+  const endpoint = `${server.origin}/api/v1`;
+  const { csrf_token } = await (await page.request.get(`${endpoint}/session`)).json();
+  for (let i = 0; i < 12; i++) {
+    const result = await page.request.post(`${endpoint}/me/devices`, {
+      headers: { Origin: server.origin, 'X-CSRF-Token': csrf_token },
+      data: { id: `pager-device-${i}`, name: `Reader ${i + 1}` },
+    });
+    expect(result.status()).toBe(200);
+  }
+  await page.goto(`${server.origin}/app/settings`);
+  const devices = page.getByRole('region', { name: 'Devices' });
+  const rows = devices.getByRole('listitem');
+  const pager = devices.getByRole('navigation', { name: 'Device pages' });
+  const previous = pager.getByRole('button', { name: 'Previous' });
+  const next = pager.getByRole('button', { name: 'Next' });
+  await expect(rows).toHaveCount(10);
+  await expect(previous).toBeDisabled();
+  const first = await rows.allTextContents();
+  await next.click();
+  await expect(rows).toHaveCount(2);
+  await expect(pager.getByRole('status')).toHaveText('2 of 2');
+  await expect(next).toBeDisabled();
+  await expect(next).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(pager.getByRole('status')).toHaveText('2 of 2');
+  expect((await rows.allTextContents()).every(row => !first.includes(row))).toBe(true);
+  await devices.screenshot({ path: testInfo.outputPath('devices-last-page.png'), animations: 'disabled' });
+  await previous.click();
+  await expect(rows).toHaveCount(10);
+  expect(await rows.allTextContents()).toEqual(first);
 });

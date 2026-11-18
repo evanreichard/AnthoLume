@@ -1,7 +1,7 @@
 import createClient from 'openapi-fetch';
-import type { paths, components } from './schema.gen';
+import type { paths, components, operations } from './schema.gen';
 import { ReadingHTTPError, type Account, type ReadingBridge } from '../reading';
-import { InvalidResponse, isCapabilities, isDevice, isDocument, isInsights, isMetadataMatches, isManagedDevice, isManagedDevices, isInsightActivity, isInsightProgress, isInsightRankings, isPage, isProblem, isSession, isState, validated } from './validate';
+import { InvalidResponse, isAdminRestore, isAdminLogs, isImportPreview, isImportResults, isAdminJob, isAdminJobs, isAdminSystem, isAdminUser, isAdminUsers, isCapabilities, isDevice, isDocument, isInsights, isMetadataMatches, isManagedDevice, isManagedDevices, isInsightActivity, isInsightProgress, isInsightRankings, isPage, isProblem, isSession, isState, validated } from './validate';
 
 type S = components['schemas'];
 const configuredOrigin = new URL(import.meta.env.VITE_API_ORIGIN || window.location.origin);
@@ -59,12 +59,24 @@ export function createAPI(gate: SessionGate) {
     logout: () => consume(() => client.POST('/api/v1/session/logout', { body: {}, parseAs: 'stream' }), isSession, 200),
     updatePreferences: (account: Account, timezone: string) => consume(() => client.PATCH('/api/v1/me/preferences', { body: { timezone }, parseAs: 'stream' }), isSession, 200, account),
     changePassword: (account: Account, body: S['PasswordChange']) => consume(() => client.POST('/api/v1/me/password', { body, parseAs: 'stream' }), isSession, 200, account),
+    adminUsers: (account: Account, after: string, signal: AbortSignal) => consume(() => client.GET('/api/v1/admin/users', { signal, params: { query: { after } }, parseAs: 'stream' }), isAdminUsers, 200, account),
+    createAdminUser: (account: Account, body: S['AdminUserCreate']) => consume(() => client.POST('/api/v1/admin/users', { body, parseAs: 'stream' }), isAdminUser, 201, account),
+    updateAdminUser: (account: Account, id: string, body: S['AdminUserUpdate']) => consume(() => client.PATCH('/api/v1/admin/users/{id}', { params: path(id), body, parseAs: 'stream' }), isAdminUser, 200, account),
+    deleteAdminUser: (account: Account, id: string) => consume(() => client.DELETE('/api/v1/admin/users/{id}', { params: path(id), parseAs: 'stream' }), (value): value is null => value === null, 204, account),
+    adminJobs: (account: Account, kind: S['AdminJob']['kind'], signal: AbortSignal) => consume(() => client.GET('/api/v1/admin/jobs', { params: { query: { kind } }, signal, parseAs: 'stream' }), isAdminJobs, 200, account),
+    startAdminJob: (account: Account, kind: S['AdminJob']['kind'], options?: { directory: string; reference: boolean }) => consume(() => client.POST('/api/v1/admin/jobs', { body: { kind, ...options }, parseAs: 'stream' }), isAdminJob, 202, account),
+    previewAdminImport: (account: Account, directory: string) => consume(() => client.GET('/api/v1/admin/import', { params: { query: { directory } }, parseAs: 'stream' }), isImportPreview, 200, account),
+    adminImportResults: (account: Account, job: string, signal: AbortSignal) => consume(() => client.GET('/api/v1/admin/import/results', { params: { query: { job } }, signal, parseAs: 'stream' }), isImportResults, 200, account),
+    adminLogs: (account: Account, signal: AbortSignal) => consume(() => client.GET('/api/v1/admin/logs', { signal, parseAs: 'stream' }), isAdminLogs, 200, account),
+    stageAdminRestore: (account: Account, file: File) => consume(() => client.POST('/api/v1/admin/restore', { body: file, bodySerializer: value => value, headers: { 'Content-Type': 'application/octet-stream' }, parseAs: 'stream' }), isAdminRestore, 200, account),
+    applyAdminRestore: (account: Account, body: S['AdminRestore']) => consume(() => client.PATCH('/api/v1/admin/restore', { body, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
+    adminSystem: (account: Account, signal: AbortSignal) => consume(() => client.GET('/api/v1/admin/system', { signal, parseAs: 'stream' }), isAdminSystem, 200, account),
     devices: (account: Account, signal: AbortSignal) => consume(() => client.GET('/api/v1/me/devices', { signal, parseAs: 'stream' }), isManagedDevices, 200, account),
     updateDevice: (account: Account, id: string, body: S['DevicePreferences']) => consume(() => client.PATCH('/api/v1/me/devices/{id}', { params: path(id), body, parseAs: 'stream' }), isManagedDevice, 200, account),
     insights: (account: Account, signal: AbortSignal) => consume(() => client.GET('/api/v1/me/insights', { signal, parseAs: 'stream' }), isInsights, 200, account),
     insightActivity: (account: Account, query: { page?: number; day?: string; document?: string }, signal: AbortSignal) => consume(() => client.GET('/api/v1/me/insights/activity', { params: { query }, signal, parseAs: 'stream' }), isInsightActivity, 200, account),
     insightProgress: (account: Account, page: number, signal: AbortSignal) => consume(() => client.GET('/api/v1/me/insights/progress', { params: { query: { page } }, signal, parseAs: 'stream' }), isInsightProgress, 200, account),
-    insightRankings: (account: Account, query: { days?: 7 | 30 | 365; metric: 'time' | 'words' | 'pace' }, signal: AbortSignal) => consume(() => client.GET('/api/v1/insights/rankings', { params: { query }, signal, parseAs: 'stream' }), isInsightRankings, 200, account),
+    insightRankings: (account: Account, query: NonNullable<operations['listInsightRankings']['parameters']['query']>, signal: AbortSignal) => consume(() => client.GET('/api/v1/insights/rankings', { params: { query }, signal, parseAs: 'stream' }), isInsightRankings, 200, account),
     documents: async (account: Account, page: number, q: string, sort: 'title' | 'author' | 'added' | 'read', signal: AbortSignal, resumable = false) => {
       const result = await consume(() => client.GET('/api/v1/documents', { params: { query: { page, page_size: 24, sort, ...(resumable ? { resumable: true } : {}), ...(q ? { q } : {}) } }, signal, parseAs: 'stream' }), isPage, 200, account);
       if (result.page !== page || result.page_size !== 24) throw new InvalidResponse();

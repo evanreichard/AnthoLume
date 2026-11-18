@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, NavLink, useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import type { Account } from '../reading';
 import type { components } from '../api/schema.gen';
 import { session, useSession } from '../session';
 import { bookPath } from '../library';
 import { ErrorNotice, PageHeader } from '../ui';
 import styles from './Insights.module.css';
+import { Card, CardHeader, Pager, PillSelect, SectionTabs } from '../Controls';
 
 type Activity = components['schemas']['InsightActivity'];
 const tabs = [['', 'Overview'], ['activity', 'Activity'], ['progress', 'Progress']] as const;
@@ -38,7 +39,7 @@ function Overview({ account }: { account: Account }) {
     <ErrorNotice error={summary.error} />
     {summary.isPending && <p role="status">Loading your reading journal…</p>}
     {data && <>
-      <section className={styles.chartCard} aria-labelledby="insight-chart">
+      <Card aria-labelledby="insight-chart">
         <div className={styles.chartHeading}>
           <div>
             <h2 id="insight-chart" className={styles.kicker}>Last 30 days</h2>
@@ -50,7 +51,7 @@ function Overview({ account }: { account: Account }) {
           {data.days.map(day => <Link key={day.date} to={`/insights/activity?day=${day.date}`} style={{ '--bar': `${100 * day.seconds_read / peak}%` } as React.CSSProperties} aria-label={`${dateLabel(day.date)}: ${duration(day.seconds_read)}`}><span /></Link>)}
         </div>
         <div className={styles.axis}><time>{dateLabel(data.days[0]!.date)}</time><time>{dateLabel(data.days.at(-1)!.date)}</time></div>
-      </section>
+      </Card>
       <div className={styles.streaks}>
         <section><p className={styles.kicker}>Daily streak</p><h2>{count(data.current_streak, 'day')}</h2><p>Best: {count(data.longest_streak, 'day')}</p></section>
         <section><p className={styles.kicker}>Weekly streak</p><h2>{count(data.current_week_streak, 'week')}</h2><p>Best: {count(data.longest_week_streak, 'week')}</p></section>
@@ -70,8 +71,11 @@ function History({ account, view }: { account: Account; view: 'activity' | 'prog
   const progress = useQuery({ enabled: view === 'progress', staleTime: 0, queryKey: ['insight-progress', account, page], queryFn: ({ signal }) => session.api.insightProgress(account, page, signal) });
   const current = view === 'activity' ? activity : progress;
   const go = (n: number) => setParams(previous => { const next = new URLSearchParams(previous); if (n === 1) next.delete('page'); else next.set('page', String(n)); return next; });
-  return <section className={styles.history}>
-    <div className={styles.sectionHeading}><h2>{view === 'activity' ? day ? `Activity · ${dateLabel(day)}` : 'Reading activity' : 'Saved progress'}</h2>{view === 'activity' && (day || document) && <Link to="/insights/activity">Clear filters</Link>}</div>
+  return <section className={styles.history} aria-label={view === 'activity' ? 'Reading activity' : 'Saved progress'}>
+    {view === 'activity' && (day || document) && <div className={styles.historyFilters}>
+      {day && <time dateTime={day}>{dateLabel(day)}</time>}
+      <Link to="/insights/activity">Clear filters</Link>
+    </div>}
     <ErrorNotice error={current.error} />
     {current.isPending && <p role="status">Loading reading records…</p>}
     {current.data && !current.data.items.length && <p className={styles.muted}>No reading records {day ? 'for this day' : 'to show'}.</p>}
@@ -80,7 +84,7 @@ function History({ account, view }: { account: Account; view: 'activity' | 'prog
       <div>{item.available ? <Link to={detail(account, item.document_id)}>{item.title}</Link> : <strong>{item.title}</strong>}
       <small><time dateTime={item.updated_at}>{dateLabel(item.updated_at, progress.data.timezone, true)}</time>{item.available && <> · <Link to={`/insights/activity?${new URLSearchParams({ document: item.document_id })}`}>Activity for this book</Link></>}</small></div>
       <strong className={styles.value}>{item.fraction == null ? 'Position saved' : percent(item.fraction)}</strong></li>)}</ul>}
-    {(page > 1 || current.data?.has_more) && <nav className={styles.pager} aria-label="History pages"><button onClick={() => go(page - 1)} disabled={page === 1}>Previous</button><span>Page {page}</span><button onClick={() => go(page + 1)} disabled={!current.data?.has_more || page === 100000}>Next</button></nav>}
+    {(page > 1 || current.data?.has_more) && <Pager label="History pages" page={page} hasNext={!!current.data?.has_more && page < 100000} onPageChange={go} />}
   </section>;
 }
 
@@ -88,25 +92,25 @@ const rankingMetrics = [['time', 'Time'], ['words', 'Words'], ['pace', 'Pace']] 
 
 function Rankings({ account, preview = false }: { account: Account; preview?: boolean }) {
   const [params, setParams] = useSearchParams();
-  const choice = params.get('metric'), period = params.get('days');
+  const choice = params.get('metric'), range = params.get('period');
   const metric = choice === 'words' || choice === 'pace' ? choice : 'time';
-  const days = period === 'all' ? undefined : period === '7' ? 7 : period === '365' ? 365 : 30;
-  const setFilter = (name: 'metric' | 'days', value: string) => {
+  const period = range === 'week' || range === 'year' || range === 'all' ? range : 'month';
+  const setFilter = (name: 'metric' | 'period', value: string) => {
     // Keep rapid filter changes from overwriting one another before the router rerenders.
     const next = new URLSearchParams(window.location.search);
     next.set(name, value);
     setParams(next, { replace: true, preventScrollReset: true });
   };
-  const result = useQuery({ queryKey: ['insight-rankings', account, days, metric], queryFn: ({ signal }) => session.api.insightRankings(account, { days, metric }, signal) });
+  const result = useQuery({ queryKey: ['insight-rankings', account, period, metric], queryFn: ({ signal }) => session.api.insightRankings(account, { period, metric }, signal) });
   const items = preview ? result.data?.items.slice(0, 3) : result.data?.items;
-  const fullPath = `/insights/rankings?${new URLSearchParams({ metric, days: String(days ?? 'all') })}`;
-  return <section className={`${styles.rankings} ${preview ? styles.chartCard : ''}`} aria-labelledby="ranking-title">
-    <div className={styles.rankingHeading}>
-      <h2 id="ranking-title">Rankings</h2>
-      <select aria-label="Ranking period" value={days ?? 'all'} onChange={event => setFilter('days', event.target.value)}><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="365">Last 365 days</option><option value="all">All time</option></select>
-    </div>
+  const fullPath = `/insights/rankings?${new URLSearchParams({ metric, period })}`;
+  const Frame = preview ? Card : 'section';
+  return <Frame className={styles.rankings} aria-labelledby="ranking-title">
+    <CardHeader id="ranking-title" title="Rankings" action={
+      <PillSelect aria-label="Ranking period" value={period} onChange={event => setFilter('period', event.target.value)}><option value="week">Week</option><option value="month">Month</option><option value="year">Year</option><option value="all">All time</option></PillSelect>
+    } />
     <div className={styles.metricSwitch} role="group" aria-label="Ranking metric">
-      {rankingMetrics.map(([value, label]) => <button key={value} type="button" aria-pressed={metric === value} onClick={() => setFilter('metric', value)}>{label}</button>)}
+      {rankingMetrics.map(([value, label]) => <button key={value} type="button" aria-pressed={metric === value} onClick={() => setFilter('metric', value)}><span>{label}</span></button>)}
     </div>
     {!preview && <p className={styles.rankingNote}>Ranking periods use UTC. Words and pace are estimates.</p>}
     <div aria-live="polite" aria-atomic="true">
@@ -119,14 +123,14 @@ function Rankings({ account, preview = false }: { account: Account; preview?: bo
       </li>)}</ol> : <p className={styles.muted}>No rankings for this selection.</p>)}
     </div>
     {preview && <Link className={styles.fullRankings} to={fullPath}>View full rankings <span aria-hidden="true">→</span></Link>}
-  </section>;
+  </Frame>;
 }
 
 export function Insights({ view = '' }: { view?: View }) {
   const { access } = useSession();
   return <>
     <PageHeader title="Insights" />
-    <nav className={styles.tabs} aria-label="Insights sections">{tabs.map(([route, label]) => <NavLink key={route} end to={route ? `/insights/${route}` : '/insights'}>{label}</NavLink>)}</nav>
+    <SectionTabs label="Insights sections" items={tabs.map(([route, label]) => ({ to: route ? `/insights/${route}` : '/insights', label }))} />
     {access.kind !== 'authenticated' ? <p>Connect and sign in to see your synced reading records.</p> : view === '' ? <Overview account={access.account} /> : view === 'rankings' ? <Rankings account={access.account} /> : <History account={access.account} view={view} />}
   </>;
 }

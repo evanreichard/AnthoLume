@@ -124,6 +124,7 @@ func (c *Config) EnsureDirectories() {
 	os.Mkdir(docDir, 0755)
 	os.Mkdir(coversDir, 0755)
 	os.Mkdir(backupDir, 0755)
+	os.Mkdir(filepath.Join(c.DataPath, "imports"), 0750)
 }
 
 func getEnv(key, fallback string) string {

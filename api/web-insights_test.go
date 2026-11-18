@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"net/http/cookiejar"
 	"testing"
@@ -66,10 +67,38 @@ func TestInsightsReadAcknowledgedData(t *testing.T) {
 	require.Equal(t, "book-b", progress.Items[0].DocumentId)
 	require.Equal(t, .37, *progress.Items[0].Fraction)
 	require.Empty(t, decodeWeb[InsightProgressPage](t, other.call("GET", urls[2], nil, nil)).Items)
-	r = f.call("GET", urls[3]+"?days=7&metric=time", nil, nil)
+	r = f.call("GET", urls[3]+"?period=all&metric=time", nil, nil)
 	require.Equal(t, 200, r.status, string(r.body))
 	require.Equal(t, []InsightRank{{User: "alice", Value: 30}}, decodeWeb[InsightRankings](t, r).Items)
 	assertProblem(t, f.call("GET", urls[1]+"?page=0", nil, nil), 400, "invalid_request")
+}
+
+func TestInsightRankingsCalendarPeriods(t *testing.T) {
+	f := newWebFixture(t)
+	f.readingSetup()
+	now := time.Date(2026, time.June, 17, 12, 0, 0, 0, time.UTC)
+	for _, instant := range []string{
+		"2025-12-31T23:59:59Z", "2026-01-01T00:00:00Z",
+		"2026-05-31T23:59:59Z", "2026-06-01T00:00:00Z",
+		"2026-06-14T23:59:59Z", "2026-06-15T00:00:00Z",
+		"2026-06-17T12:00:00Z", "2026-06-17T12:00:01Z",
+	} {
+		f.exec("INSERT INTO activity (user_id,document_id,device_id,start_time,duration,start_percentage,end_percentage) VALUES ('alice','book-a','web-device',?,1,0,.1)", instant)
+	}
+	s := &webAPI{f.api}
+	for _, tc := range []struct {
+		period ListInsightRankingsParamsPeriod
+		want   int64
+	}{
+		{"week", 2}, {"month", 4}, {"year", 6}, {"all", 7},
+	} {
+		t.Run(string(tc.period), func(t *testing.T) {
+			result, err := s.listInsightRankingsAt(context.Background(), ListInsightRankingsParams{Period: &tc.period}, now)
+			require.NoError(t, err)
+			require.Equal(t, []InsightRank{{User: "alice", Value: tc.want}}, result.(ListInsightRankings200JSONResponse).Items)
+		})
+	}
+	assertProblem(t, f.call("GET", "/api/v1/insights/rankings?period=invalid", nil, nil), 400, "invalid_request")
 }
 
 func TestLibraryLastReadSortsBeforePagination(t *testing.T) {

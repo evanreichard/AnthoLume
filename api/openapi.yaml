@@ -357,7 +357,10 @@ paths:
     get:
       operationId: listInsightRankings
       parameters:
-        - {name: days, in: query, schema: {type: integer, enum: [7, 30, 365]}}
+        - name: period
+          in: query
+          description: Current UTC calendar period through now. Weeks start Monday.
+          schema: {type: string, enum: [week, month, year, all], default: all}
         - {name: metric, in: query, schema: {type: string, enum: [time, words, pace]}}
       responses:
         '200':
@@ -365,6 +368,173 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/InsightRankings'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/users:
+    get:
+      operationId: listAdminUsers
+      parameters:
+        - {in: query, name: after, schema: {type: string, maxLength: 128}}
+      responses:
+        '200':
+          description: Users in ID order
+          content:
+            application/json:
+              schema: {type: array, maxItems: 51, items: {$ref: '#/components/schemas/AdminUser'}}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createAdminUser
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminUserCreate'}
+      responses:
+        '201':
+          description: Created account
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminUser'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/users/{id}:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    patch:
+      operationId: updateAdminUser
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminUserUpdate'}
+      responses:
+        '200':
+          description: Updated account
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminUser'}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteAdminUser
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      responses:
+        '204': {description: Account deleted after a verified database snapshot}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/jobs:
+    get:
+      operationId: listAdminJobs
+      parameters:
+        - {in: query, name: kind, schema: {type: string, enum: [statistics, backup, full_backup, import]}}
+      responses:
+        '200':
+          description: Recent maintenance jobs
+          content:
+            application/json:
+              schema: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/AdminJob'}}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: startAdminJob
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [kind]
+              properties:
+                kind: {type: string, enum: [statistics, backup, full_backup, import]}
+                directory: {type: string, maxLength: 512}
+                reference: {type: boolean}
+      responses:
+        '202':
+          description: Started or currently running job
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminJob'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/backup:
+    get:
+      operationId: downloadAdminBackup
+      parameters:
+        - {in: query, name: full, schema: {type: boolean, default: false}}
+      responses:
+        '200':
+          description: Latest verified database snapshot or full library archive
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/restore:
+    post:
+      operationId: stageAdminRestore
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: {type: string, format: binary}
+      responses:
+        '200':
+          description: Validated restore candidate
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminRestore'}
+        default: {$ref: '#/components/responses/Problem'}
+    patch:
+      operationId: applyAdminRestore
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminRestore'}
+      responses:
+        '204': {description: Database replaced and sessions invalidated}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/logs:
+    get:
+      operationId: listAdminLogs
+      responses:
+        '200':
+          description: Recent sanitized server log entries
+          content:
+            application/json:
+              schema: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/AdminLog'}}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/import:
+    get:
+      operationId: previewAdminImport
+      parameters:
+        - {in: query, name: directory, required: true, schema: {type: string, maxLength: 512}}
+      responses:
+        '200':
+          description: EPUB files in an import folder
+          content:
+            application/json:
+              schema: {type: array, maxItems: 1000, items: {type: string}}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/import/results:
+    get:
+      operationId: listAdminImportResults
+      parameters:
+        - {in: query, name: job, required: true, schema: {type: string, pattern: '^[a-f0-9]{64}$'}}
+      responses:
+        '200':
+          description: Per-file import results
+          content:
+            application/json:
+              schema: {type: array, maxItems: 1000, items: {$ref: '#/components/schemas/AdminImportResult'}}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/system:
+    get:
+      operationId: getAdminSystem
+      responses:
+        '200':
+          description: Server version
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminSystem'}
         default: {$ref: '#/components/responses/Problem'}
 components:
   securitySchemes:
@@ -400,6 +570,66 @@ components:
         application/problem+json:
           schema: {$ref: '#/components/schemas/Problem'}
   schemas:
+    AdminUser:
+      type: object
+      additionalProperties: false
+      required: [id, is_admin]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        is_admin: {type: boolean}
+    AdminUserCreate:
+      type: object
+      additionalProperties: false
+      required: [username, password, is_admin]
+      properties:
+        username: {$ref: '#/components/schemas/ID'}
+        password: {type: string, minLength: 1, maxLength: 256}
+        is_admin: {type: boolean}
+    AdminUserUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        password: {type: string, minLength: 1, maxLength: 256}
+        is_admin: {type: boolean}
+    AdminJob:
+      type: object
+      additionalProperties: false
+      required: [id, kind, status, started_at, finished_at]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        kind: {type: string, enum: [statistics, backup, full_backup, import]}
+        status: {type: string, enum: [running, succeeded, failed, interrupted]}
+        started_at: {type: string}
+        finished_at: {type: string, nullable: true}
+    AdminRestore:
+      type: object
+      additionalProperties: false
+      required: [token, files]
+      properties:
+        token: {type: string, pattern: '^[a-f0-9]{64}$'}
+        files: {type: integer, minimum: 0, maximum: 50000}
+    AdminLog:
+      type: object
+      additionalProperties: false
+      required: [time, level, operation]
+      properties:
+        time: {type: string}
+        level: {type: string}
+        operation: {type: string}
+    AdminImportResult:
+      type: object
+      additionalProperties: false
+      required: [file, status]
+      properties:
+        file: {type: string}
+        status: {type: string, enum: [imported, skipped, failed]}
+    AdminSystem:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: {type: string}
     ID: {type: string, minLength: 1, maxLength: 128}
     EventID: {type: string, format: uuid, minLength: 36, maxLength: 36, pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$', x-go-type: string}
     Revision: {type: string, pattern: '^(0|[1-9][0-9]{0,17})$'}

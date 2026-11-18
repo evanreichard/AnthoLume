@@ -181,11 +181,15 @@ func (s *webAPI) ListInsightProgress(ctx context.Context, r ListInsightProgressR
 }
 
 func (s *webAPI) ListInsightRankings(ctx context.Context, r ListInsightRankingsRequestObject) (ListInsightRankingsResponseObject, error) {
-	now := time.Now().UTC()
+	return s.listInsightRankingsAt(ctx, r.Params, time.Now())
+}
+
+func (s *webAPI) listInsightRankingsAt(ctx context.Context, params ListInsightRankingsParams, now time.Time) (ListInsightRankingsResponseObject, error) {
+	now = now.UTC()
 	out := InsightRankings{AsOf: now, Items: []InsightRank{}}
 	expression := "seconds"
-	if r.Params.Metric != nil {
-		switch *r.Params.Metric {
+	if params.Metric != nil {
+		switch *params.Metric {
 		case "time":
 		case "words":
 			expression = "words"
@@ -195,10 +199,21 @@ func (s *webAPI) ListInsightRankings(ctx context.Context, r ListInsightRankingsR
 			return nil, &reading.Failure{Status: 400, Code: "invalid_request"}
 		}
 	}
-	lower := "0001-01-01T00:00:00Z"
-	if r.Params.Days != nil {
-		lower = civilDay(now).AddDate(0, 0, 1-int(*r.Params.Days)).Format("2006-01-02T15:04:05")
+	var start time.Time
+	if params.Period != nil {
+		switch *params.Period {
+		case "week":
+			start = monday(civilDay(now))
+		case "month":
+			start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		case "year":
+			start = time.Date(now.Year(), time.January, 1, 0, 0, 0, 0, time.UTC)
+		case "all":
+		default:
+			return nil, &reading.Failure{Status: 400, Code: "invalid_request"}
+		}
 	}
+	lower := start.Format(time.DateOnly)
 	rows, err := s.api.db.DB.QueryContext(requestContext(ctx), `WITH totals AS (SELECT a.user_id, SUM(a.duration) AS seconds, SUM(MAX(0,COALESCE(d.words,0)*(a.end_percentage-a.start_percentage))) AS words FROM activity a JOIN users u ON u.id=a.user_id LEFT JOIN documents d ON d.id=a.document_id WHERE a.start_time>=? AND julianday(a.start_time)<=julianday(?) AND a.duration>0 GROUP BY a.user_id) SELECT user_id,CAST(`+expression+` AS INTEGER) AS value FROM totals WHERE `+expression+`>=1 ORDER BY value DESC,user_id ASC LIMIT 20`, lower, now.Format(time.RFC3339Nano))
 	if err != nil {
 		return nil, err

@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-contrib/multitemplate"
@@ -34,6 +35,8 @@ type API struct {
 	reading       *reading.Store
 	attempts      credentialLimiter
 	identitySlots chan struct{}
+	adminFiles    sync.RWMutex
+	restoreStage  sync.Mutex
 }
 
 var htmlPolicy = bluemonday.StrictPolicy()
@@ -77,6 +80,7 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 
 	// Add global logging middleware
 	router.Use(loggingMiddleware)
+	router.Use(api.adminFileBoundary)
 	router.Use(gin.CustomRecoveryWithWriter(io.Discard, func(c *gin.Context, _ any) {
 		log.Error("request handler panic")
 		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/") {
@@ -205,13 +209,9 @@ func (api *API) registerWebAppRoutes(router *gin.Engine) {
 	router.GET("/logout", api.authWebAppMiddleware, api.appAuthLogout)
 	router.GET("/register", api.appGetRegister)
 	router.GET("/settings", api.authWebAppMiddleware, api.appGetSettings)
-	router.GET("/admin/logs", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminLogs)
-	router.GET("/admin/import", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminImport)
-	router.POST("/admin/import", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appPerformAdminImport)
-	router.GET("/admin/users", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdminUsers)
-	router.POST("/admin/users", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appUpdateAdminUsers)
-	router.GET("/admin", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appGetAdmin)
-	router.POST("/admin", api.authWebAppMiddleware, api.authAdminWebAppMiddleware, api.appPerformAdminAction)
+	for _, route := range []struct{ old, next string }{{"/admin", "/app/admin"}, {"/admin/users", "/app/admin/users"}, {"/admin/import", "/app/admin/import"}, {"/admin/logs", "/app/admin/system"}} {
+		router.GET(route.old, func(c *gin.Context) { c.Redirect(http.StatusTemporaryRedirect, route.next) })
+	}
 	router.POST("/login", api.appAuthLogin)
 	router.POST("/register", api.appAuthRegister)
 

@@ -8,9 +8,10 @@ import { Library } from './routes/Library';
 import { BookDetail } from './routes/BookDetail';
 import { AppLoading, Auth } from './routes/Auth';
 import { Insights } from './routes/Insights';
-import { Settings, Sync } from './routes/More';
+import { Settings } from './routes/More';
+import { Administration, AdminUsers, AdminLibrary, AdminSystem } from './routes/Administration';
 import { LocalBookExport } from './routes/LocalBookExport';
-import { ErrorNotice } from './ui';
+import { ErrorNotice, PageHeader } from './ui';
 import { Icon } from './Icon';
 import { WorkerRecovery } from './WorkerRecovery';
 import { authPath, legacyDocument, retirementDestination } from './retirement';
@@ -56,14 +57,16 @@ function ProtectedApp() {
   useEffect(() => {
     if (access.kind !== 'loading' && access.kind !== 'authenticated' && session.getSnapshot().access === access) navigate('/login', { replace: true });
   }, [access, navigate]);
-  if (access.kind === 'loading') return <AppLoading />;
-  return access.kind === 'authenticated' ? <Shell /> : null;
+  if (access.kind === 'loading') return <p role="status">Connecting…</p>;
+  return access.kind === 'authenticated' ? <Outlet /> : null;
 }
 
 function Shell() {
   const reading = useReading();
   const location = useLocation();
   const reader = location.pathname.startsWith('/read/');
+  const { access } = useSession();
+  const showShell = access.kind === 'authenticated' || /^\/local-book-export\/?$/.test(location.pathname);
   const recovery = useRef<HTMLDivElement>(null);
   const main = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
@@ -74,10 +77,11 @@ function Shell() {
     const observer = new ResizeObserver(measure);
     observer.observe(target); measure();
     return () => observer.disconnect();
-  }, [reader]);
+  }, [reader, showShell]);
   useEffect(() => {
-    if (!reader) document.title = `AnthoLume · ${location.pathname.startsWith('/local-book-export') ? 'Export local books' : location.pathname.startsWith('/settings') ? 'Settings' : location.pathname.startsWith('/insights') ? 'Insights' : 'Library'}`;
-  }, [location.pathname, reader]);
+    if (!reader && showShell) document.title = `AnthoLume · ${location.pathname.startsWith('/local-book-export') ? 'Export local books' : location.pathname.startsWith('/settings') ? 'Settings' : location.pathname.startsWith('/insights') ? 'Insights' : 'Library'}`;
+  }, [location.pathname, reader, showShell]);
+  if (!showShell) return <Outlet />;
   return <div className={`${styles.shell} ${reader ? styles.readerShell : ''}`}>
       <a className={styles.skip} href="#content">Skip to content</a>
       <aside className={styles.rail}>
@@ -85,7 +89,7 @@ function Shell() {
         <nav aria-label="Main navigation" className={styles.tabs}>
           <NavLink to="/library"><i className={styles.tabIcon}><Icon name="library" /></i><span>Library</span></NavLink>
           <NavLink to="/insights"><i className={styles.tabIcon}><Icon name="insights" /></i><span>Insights</span></NavLink>
-          <NavLink to="/settings"><i className={styles.tabIcon}><Icon name="settings" /></i><span>Settings</span></NavLink>
+          <NavLink to="/settings" data-section-active={location.pathname.startsWith('/admin') || undefined}><i className={styles.tabIcon}><Icon name="settings" /></i><span>Settings</span></NavLink>
         </nav>
       </aside>
     <div className={styles.workspace}>
@@ -101,18 +105,18 @@ function Shell() {
 }
 function RouteError() {
   const error = useRouteError();
-  return <main className={styles.main}><h1>This page could not open</h1><ErrorNotice error={error} /><Link to="/library">Return to Library</Link></main>;
+  return <><PageHeader title="This page could not open" /><ErrorNotice error={error} /><Link to="/library">Return to Library</Link></>;
 }
 const router = createBrowserRouter([{
   Component: Providers,
-  ErrorBoundary: RouteError,
   HydrateFallback: AppLoading,
   children: [
     { path: 'login', element: <Auth key="login" mode="login" /> },
     { path: 'register', element: <Auth key="register" mode="register" /> },
-    { path: 'local-book-export', Component: LocalBookExport },
-    { path: 'offline', element: <Navigate to="/local-book-export" replace /> },
-    { Component: ProtectedApp, children: [
+    { Component: Shell, children: [
+      { path: 'local-book-export', Component: LocalBookExport, ErrorBoundary: RouteError },
+      { path: 'offline', element: <Navigate to="/local-book-export" replace /> },
+      { Component: ProtectedApp, ErrorBoundary: RouteError, children: [
       { index: true, element: <Navigate to="/library" replace /> },
       { path: 'library', Component: Library },
       { path: 'books/:kind/:id', Component: BookDetail },
@@ -122,9 +126,17 @@ const router = createBrowserRouter([{
       { path: 'insights/progress', element: <Insights view="progress" /> },
       { path: 'insights/rankings', element: <Insights view="rankings" /> },
       { path: 'settings', Component: Settings },
+      { path: 'admin', Component: Administration, children: [
+        { index: true, element: <Navigate to="library" replace /> },
+        { path: 'library', Component: AdminLibrary },
+        { path: 'users', Component: AdminUsers },
+        { path: 'import', element: <Navigate to="../library" replace /> },
+        { path: 'backups', element: <Navigate to="../library" replace /> },
+        { path: 'system', Component: AdminSystem },
+      ] },
       { path: 'more', element: <Navigate to="/settings" replace /> },
-      { path: 'sync', Component: Sync },
-      { path: '*', element: <><h1>Page not found</h1><Link to="/library">Library</Link></> },
+      { path: '*', element: <><PageHeader title="Page not found" /><Link to="/library">Library</Link></> },
+      ] },
     ] },
   ],
 }], { basename: '/app' });

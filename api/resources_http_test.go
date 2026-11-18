@@ -157,7 +157,7 @@ func TestAppShellBoundaryAndRetirementBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	f.server.Config.Handler = api.Handler()
 	f.server.Start()
-	for _, path := range []string{"/app/", "/app/library", "/app/insights", "/app/insights/activity", "/app/insights/progress", "/app/insights/rankings", "/app/offline", "/app/books/server/opaque-book", "/app/read/local/local-id", "/?antholume-retirement=legacy-v1"} {
+	for _, path := range []string{"/app/", "/app/library", "/app/admin/library", "/app/insights", "/app/insights/activity", "/app/insights/progress", "/app/insights/rankings", "/app/offline", "/app/books/server/opaque-book", "/app/read/local/local-id", "/?antholume-retirement=legacy-v1"} {
 		r := f.call("GET", path, nil, nil)
 		require.Equal(t, 200, r.status, path)
 		require.Equal(t, shell, string(r.body))

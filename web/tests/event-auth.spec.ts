@@ -30,8 +30,8 @@ for (const fault of ['malformed-401', 'valid-401']) {
         await expect.poll(() => pendingIds(page)).toHaveLength(1);
         await expect.poll(() => storedRows(page, 'access')).toEqual(before);
         await page.getByRole('link', { name: 'Settings', exact: true }).click();
-        await page.getByRole('link', { name: 'Synchronization', exact: true }).click();
-        await expect(page.getByRole('heading', { name: 'retryable-error', exact: true })).toBeVisible();
+        await page.getByRole('button', { name: 'Sync', exact: true }).click();
+        await expect(page.getByRole('region', { name: 'Sync status' }).getByRole('heading', { name: 'Waiting to retry', exact: true })).toBeVisible();
         expect(await storedRows(page, 'access')).toEqual(before);
       } else {
         await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
@@ -62,7 +62,7 @@ test('late valid event 401 after real two-tab lease takeover cannot expire uncha
     await expect(other.getByRole('link', { name: 'Settings', exact: true })).toBeVisible();
     await expect(other.getByRole('button', { name: 'Add book', exact: true })).toBeEnabled();
     await other.getByRole('link', { name: 'Settings', exact: true }).click();
-    await other.getByRole('link', { name: 'Synchronization', exact: true }).click();
+    await other.getByRole('button', { name: 'Sync', exact: true }).click();
     await expect(other.getByRole('button', { name: 'Retry synchronization', exact: true })).toBeVisible();
     await expect.poll(async () => (await storedRows(other, 'access'))[0]?.authenticated).toBe(true);
     const accessBefore = await storedRows(page, 'access');

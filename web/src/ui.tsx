@@ -7,9 +7,17 @@ import { session, useSession } from './session';
 import styles from './App.module.css';
 import { Icon } from './Icon';
 
-export function PageHeader({ title, headingRef, actions }: { title: string; headingRef?: Ref<HTMLHeadingElement>; actions?: ReactNode }) {
+type PageHeaderProps = { actions?: ReactNode } & (
+  | { title: string; headingRef?: Ref<HTMLHeadingElement>; leading?: ReactNode }
+  | { title?: never; headingRef?: never; leading: ReactNode }
+);
+
+export function PageHeader({ title, headingRef, leading, actions }: PageHeaderProps) {
   return <header className={styles.pageTitle}>
-    <h1 ref={headingRef} tabIndex={headingRef ? -1 : undefined}>{title}</h1>
+    <div className={styles.pageTitleStart}>
+      {leading}
+      {title && <h1 ref={headingRef} tabIndex={headingRef ? -1 : undefined}>{title}</h1>}
+    </div>
     {actions}
   </header>;
 }
@@ -104,6 +112,36 @@ export function Cover({ book, sourceId, thumbnail = false }: {
     </div>
   </div>;
 }
+type BookHeroProps = { book: LibraryBook; progress: number | null } & (
+  | { variant: 'continue' }
+  | { variant: 'detail'; headingRef: Ref<HTMLHeadingElement>; series?: string | null; edition?: string; action: 'Read' | 'Resume' | null }
+);
+
+export function BookHero(props: BookHeroProps) {
+  const id = useId();
+  const { book, variant, progress } = props;
+  const title = book.title || 'Untitled';
+  const detail = variant === 'detail';
+  const author = book.author || (detail ? 'Unknown author' : '');
+  const eyebrow = detail ? props.series : 'Continue reading';
+  const action = detail ? props.action : 'Resume';
+  return <section className={detail ? `${styles.feature} ${styles.bookHeroDetail}` : styles.feature}
+    aria-label={detail ? undefined : 'Continue reading'} aria-labelledby={detail ? id : undefined}>
+    <div className={styles.featureCopy}>
+      {eyebrow && <p className={styles.eyebrow}>{eyebrow}</p>}
+      <div className={styles.heroMetadata}>
+        {detail ? <h1 className={styles.heroTitle} id={id} ref={props.headingRef} tabIndex={-1}>{title}</h1> : <h2 className={styles.heroTitle}><Link to={bookPath(book.ref)}>{title}</Link></h2>}
+        {author && <p>{author}</p>}
+        {detail && props.edition && <p className={styles.heroEdition}>{props.edition}</p>}
+      </div>
+      {!detail && progress !== null && <span className={styles.srOnly}>{progress}% read</span>}
+      {action && <Resume book={book.ref}>{action}</Resume>}
+    </div>
+    <div className={styles.featureCover}><Cover book={book} /></div>
+    {progress !== null && <span className={styles.featureMark} aria-hidden="true">{progress}<small>%</small></span>}
+  </section>;
+}
+
 export function BookCard({ book, children }: { book: LibraryBook; children?: ReactNode }) {
   const id = useId();
   return <article className={styles.card}>

@@ -67,6 +67,8 @@ test('existing local originals are exportable without signing in and are not rem
   }, [...original]);
   await page.goto(`${server.origin}/app/offline`);
   await expect(page.getByRole('heading', { name: 'Export local books' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+  await expect(page.getByRole('main')).toHaveCount(1);
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export Local export' }).click();
   expect(await readFile((await (await download).path())!)).toEqual(original);

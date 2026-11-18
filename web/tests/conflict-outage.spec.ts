@@ -45,8 +45,8 @@ for (const fault of ['503', 'malformed-200']) {
         if (path.startsWith('/api/v1/me/')) timeline.push({ path, status: response.status() });
       });
       await context.setOffline(false);
-      await page.goto(`${server.origin}/app/sync`);
-      await expect(page.getByRole('heading', { name: 'Synchronization', exact: true })).toBeVisible();
+      await page.goto(`${server.origin}/app/settings?sync=open`);
+      await expect(page.getByRole('region', { name: 'Sync status' })).toBeVisible();
       await expect.poll(() => serverEffects(server.data, user).activity).toBe(1);
       await expect.poll(async () => (await storedRows(page, 'conflicts')).length).toBe(2);
       const conflicts = await storedRows(page, 'conflicts');
@@ -70,7 +70,7 @@ for (const fault of ['503', 'malformed-200']) {
       await server.stop();
       await server.start();
       await page.reload();
-      await expect(page.getByRole('heading', { name: 'Synchronization', exact: true })).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Sync status' })).toBeVisible();
       await expect(page.getByRole('alert').filter({ hasText: /needs fresh server details/ }).first()).toBeVisible();
       expect(serverEffects(server.data, user)).toEqual(effects);
       expect(progressPosts).toBe(2);

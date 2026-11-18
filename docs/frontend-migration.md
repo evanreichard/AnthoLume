@@ -248,7 +248,7 @@ Deliverables:
 
 ### M4 — Complete Application Coverage
 
-Status: in progress. Native Insights includes the personal 30-day overview, activity, saved progress, and rankings. The personal overview reads acknowledged records directly, using the account timezone and assigning each interval to its local start day. Rankings use separate UTC windows and label estimated words and pace.
+Status: in progress. Native Insights includes the personal 30-day overview, activity, saved progress, and rankings. Settings separates personal controls from the admin-only workspace. Native user management checks current roles, protects the acting admin account, and requires a verified database snapshot before deletion. Administration opens on Library for import and backup or restore. System shows the server version, collapses logs and job history, and runs statistics refresh as a durable maintenance job. React owns all Administration routes. Import reads EPUBs under DataPath/imports and records per-file results. Backups default to the database, managed documents, and covers; externally referenced files and configuration are excluded. Restore validates matching-schema snapshots, saves a recovery database under ConfigPath/backups, preserves the previous managed files, and invalidates sessions. System exposes bounded, sanitized logs; old admin GET URLs redirect to React and old form actions are removed.
 
 Deliverables:
 - [ ] Remaining library mutations, metadata/acquisition, dashboard/statistics, activity/progress, preferences/devices, and all administration workflows.

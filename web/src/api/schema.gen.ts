@@ -359,10 +359,195 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAdminUsers"];
+        put?: never;
+        post: operations["createAdminUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteAdminUser"];
+        options?: never;
+        head?: never;
+        patch: operations["updateAdminUser"];
+        trace?: never;
+    };
+    "/api/v1/admin/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAdminJobs"];
+        put?: never;
+        post: operations["startAdminJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadAdminBackup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stageAdminRestore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["applyAdminRestore"];
+        trace?: never;
+    };
+    "/api/v1/admin/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAdminLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["previewAdminImport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/import/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAdminImportResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAdminSystem"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AdminUser: {
+            id: components["schemas"]["ID"];
+            is_admin: boolean;
+        };
+        AdminUserCreate: {
+            username: components["schemas"]["ID"];
+            password: string;
+            is_admin: boolean;
+        };
+        AdminUserUpdate: {
+            password?: string;
+            is_admin?: boolean;
+        };
+        AdminJob: {
+            id: components["schemas"]["ID"];
+            /** @enum {string} */
+            kind: "statistics" | "backup" | "full_backup" | "import";
+            /** @enum {string} */
+            status: "running" | "succeeded" | "failed" | "interrupted";
+            started_at: string;
+            finished_at: string | null;
+        };
+        AdminRestore: {
+            token: string;
+            files: number;
+        };
+        AdminLog: {
+            time: string;
+            level: string;
+            operation: string;
+        };
+        AdminImportResult: {
+            file: string;
+            /** @enum {string} */
+            status: "imported" | "skipped" | "failed";
+        };
+        AdminSystem: {
+            version: string;
+        };
         ID: string;
         /** Format: uuid */
         EventID: string;
@@ -1303,7 +1488,8 @@ export interface operations {
     listInsightRankings: {
         parameters: {
             query?: {
-                days?: 7 | 30 | 365;
+                /** @description Current UTC calendar period through now. Weeks start Monday. */
+                period?: "week" | "month" | "year" | "all";
                 metric?: "time" | "words" | "pace";
             };
             header?: never;
@@ -1319,6 +1505,344 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InsightRankings"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listAdminUsers: {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Users in ID order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUser"][];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createAdminUser: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserCreate"];
+            };
+        };
+        responses: {
+            /** @description Created account */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUser"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    deleteAdminUser: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Account deleted after a verified database snapshot */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    updateAdminUser: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated account */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUser"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listAdminJobs: {
+        parameters: {
+            query?: {
+                kind?: "statistics" | "backup" | "full_backup" | "import";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent maintenance jobs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminJob"][];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    startAdminJob: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    kind: "statistics" | "backup" | "full_backup" | "import";
+                    directory?: string;
+                    reference?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Started or currently running job */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminJob"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    downloadAdminBackup: {
+        parameters: {
+            query?: {
+                full?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Latest verified database snapshot or full library archive */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": Blob;
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    stageAdminRestore: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": Blob;
+            };
+        };
+        responses: {
+            /** @description Validated restore candidate */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRestore"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    applyAdminRestore: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRestore"];
+            };
+        };
+        responses: {
+            /** @description Database replaced and sessions invalidated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listAdminLogs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent sanitized server log entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLog"][];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    previewAdminImport: {
+        parameters: {
+            query: {
+                directory: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description EPUB files in an import folder */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listAdminImportResults: {
+        parameters: {
+            query: {
+                job: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-file import results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminImportResult"][];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getAdminSystem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server version */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSystem"];
                 };
             };
             default: components["responses"]["Problem"];

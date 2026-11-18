@@ -10,7 +10,6 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"reichard.io/antholume/database"
 	"reichard.io/antholume/reading"
 )
 
@@ -107,14 +106,7 @@ func (api *API) authWebAppMiddleware(c *gin.Context) {
 	c.Redirect(302, "/login")
 	c.Abort()
 }
-func (api *API) authAdminWebAppMiddleware(c *gin.Context) {
-	if data, ok := c.Get("Authorization"); ok && data.(authData).IsAdmin {
-		c.Next()
-		return
-	}
-	appErrorPage(c, 401, "Admin Permissions Required")
-	c.Abort()
-}
+
 func credentialOverloadStatus(err error) int {
 	var failure *reading.Failure
 	if errors.As(err, &failure) && (failure.Status == http.StatusTooManyRequests || failure.Status == http.StatusServiceUnavailable) {
@@ -260,26 +252,4 @@ func (api *API) setSession(session sessions.Session, auth authData) error {
 	session.Set("authHash", auth.AuthHash)
 	session.Set("csrf", token)
 	return session.Save()
-}
-func (api *API) rotateAllAuthHashes(ctx context.Context) error {
-	tx, err := api.db.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	q := api.db.Queries.WithTx(tx)
-	users, err := q.GetUsers(ctx)
-	if err != nil {
-		return err
-	}
-	for _, u := range users {
-		hash, err := randomCSRF()
-		if err != nil {
-			return err
-		}
-		if _, err = q.UpdateUser(ctx, database.UpdateUserParams{UserID: u.ID, AuthHash: &hash, Admin: u.Admin}); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
 }
