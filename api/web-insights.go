@@ -7,6 +7,7 @@ import (
 	"time"
 
 	openapiTypes "github.com/oapi-codegen/runtime/types"
+	"reichard.io/antholume/database"
 	"reichard.io/antholume/reading"
 )
 
@@ -69,19 +70,15 @@ func (s *webAPI) GetInsights(ctx context.Context, _ GetInsightsRequestObject) (G
 	for i := range out.Days {
 		out.Days[i].Date = openapiTypes.Date{Time: today.AddDate(0, 0, i-29)}
 	}
-	rows, err := s.api.db.DB.QueryContext(requestContext(ctx), `SELECT LOCAL_DATE(start_time, ?), SUM(duration) FROM activity WHERE user_id=? AND julianday(start_time)<=julianday(?) AND duration>0 GROUP BY 1 ORDER BY 1 DESC`, zone.String(), webUser(ctx).UserName, now.Format(time.RFC3339Nano))
+	days, err := s.api.db.Queries.ListWebInsightDays(requestContext(ctx), database.ListWebInsightDaysParams{
+		Timezone: zone.String(), UserID: webUser(ctx).UserName, AsOf: now.Format(time.RFC3339Nano),
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	var daily, weekly streak
-	for rows.Next() {
-		var day string
-		var seconds int64
-		if err := rows.Scan(&day, &seconds); err != nil {
-			return nil, err
-		}
-		date, err := time.Parse(time.DateOnly, day)
+	for _, day := range days {
+		date, err := time.Parse(time.DateOnly, day.Day)
 		if err != nil {
 			return nil, err
 		}
@@ -90,13 +87,13 @@ func (s *webAPI) GetInsights(ctx context.Context, _ GetInsightsRequestObject) (G
 		index := 29 - int(today.Sub(date).Hours()/24)
 		if index >= 0 && index < len(out.Days) {
 			out.ActiveDays++
-			out.SecondsRead += seconds
-			out.Days[index].SecondsRead = seconds
+			out.SecondsRead += day.Seconds
+			out.Days[index].SecondsRead = day.Seconds
 		}
 	}
 	out.CurrentStreak, out.LongestStreak = daily.current, daily.longest
 	out.CurrentWeekStreak, out.LongestWeekStreak = weekly.current, weekly.longest
-	return GetInsights200JSONResponse(out), rows.Err()
+	return GetInsights200JSONResponse(out), nil
 }
 
 func insightOffset(page *int) int {
@@ -142,51 +139,44 @@ func (s *webAPI) ListInsightActivity(ctx context.Context, r ListInsightActivityR
 		return nil, err
 	}
 	out := InsightActivityPage{Timezone: zone.String(), Items: []InsightActivity{}}
-	query := `SELECT a.id,a.document_id,COALESCE(NULLIF(d.title,''),'Untitled book'),COALESCE(d.deleted=0,0),a.start_time,a.duration,a.start_percentage,a.end_percentage FROM activity a LEFT JOIN documents d ON d.id=a.document_id WHERE a.user_id=? AND julianday(a.start_time)<=julianday(?) AND a.duration>0`
-	args := []any{webUser(ctx).UserName, time.Now().UTC().Format(time.RFC3339Nano)}
-	if r.Params.Document != nil {
-		query += ` AND a.document_id=?`
-		args = append(args, *r.Params.Document)
+	params := database.ListWebInsightActivityParams{
+		UserID: webUser(ctx).UserName, AsOf: time.Now().UTC().Format(time.RFC3339Nano),
+		DocumentID: r.Params.Document, PageSize: insightPageSize + 1, PageOffset: int64(insightOffset(r.Params.Page)),
 	}
 	if r.Params.Day != nil {
 		day := r.Params.Day.Time
 		start := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, zone)
-		query += ` AND a.start_time>=? AND a.start_time<?`
-		args = append(args, start.UTC().Format("2006-01-02T15:04:05"), start.AddDate(0, 0, 1).UTC().Format("2006-01-02T15:04:05"))
+		dayStart := start.UTC().Format("2006-01-02T15:04:05")
+		dayEnd := start.AddDate(0, 0, 1).UTC().Format("2006-01-02T15:04:05")
+		params.DayStart, params.DayEnd = &dayStart, &dayEnd
 	}
 	cursor, err := parseInsightCursor(r.Params.Cursor, r.Params.Page)
 	if err != nil {
 		return nil, err
 	}
-	if cursor.ID != "" {
-		query += ` AND (julianday(a.start_time),a.id)<(julianday(?),?)`
-		args = append(args, cursor.Time, cursor.ID)
-	}
-	rows, err := s.api.db.DB.QueryContext(requestContext(ctx), query+` ORDER BY julianday(a.start_time) DESC,a.id DESC LIMIT ? OFFSET ?`, append(args, insightPageSize+1, insightOffset(r.Params.Page))...)
+	params.CursorID, params.CursorTime = cursor.ID, cursor.Time
+	rows, err := s.api.db.Queries.ListWebInsightActivity(requestContext(ctx), params)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	for rows.Next() {
+	for _, row := range rows {
 		if len(out.Items) == insightPageSize {
 			out.HasMore = true
 			next := cursor.encode()
 			out.NextCursor = &next
 			break
 		}
-		var v InsightActivity
-		var raw string
-		if err := rows.Scan(&v.Id, &v.DocumentId, &v.Title, &v.Available, &raw, &v.Duration, &v.StartFraction, &v.EndFraction); err != nil {
-			return nil, err
-		}
-		v.StartedAt, err = insightInstant(raw)
+		startedAt, err := insightInstant(row.StartTime)
 		if err != nil {
 			return nil, err
 		}
-		out.Items = append(out.Items, v)
-		cursor = insightCursor{Time: raw, ID: v.Id}
+		out.Items = append(out.Items, InsightActivity{
+			Id: row.ID, DocumentId: row.DocumentID, Title: row.Title, Available: row.Available,
+			StartedAt: startedAt, Duration: row.Duration, StartFraction: row.StartPercentage, EndFraction: row.EndPercentage,
+		})
+		cursor = insightCursor{Time: row.StartTime, ID: row.ID}
 	}
-	return ListInsightActivity200JSONResponse(out), rows.Err()
+	return ListInsightActivity200JSONResponse(out), nil
 }
 
 func (s *webAPI) ListInsightProgress(ctx context.Context, r ListInsightProgressRequestObject) (ListInsightProgressResponseObject, error) {
@@ -199,37 +189,31 @@ func (s *webAPI) ListInsightProgress(ctx context.Context, r ListInsightProgressR
 	if err != nil {
 		return nil, err
 	}
-	query := `SELECT h.document_id,COALESCE(NULLIF(d.title,''),'Untitled book'),COALESCE(d.deleted=0,0),h.updated_at,h.fraction FROM reading_heads h LEFT JOIN documents d ON d.id=h.document_id WHERE h.user_id=? AND h.position IS NOT NULL AND h.updated_at IS NOT NULL`
-	args := []any{webUser(ctx).UserName}
-	if cursor.ID != "" {
-		query += ` AND (julianday(h.updated_at)<julianday(?) OR (julianday(h.updated_at)=julianday(?) AND h.document_id>?))`
-		args = append(args, cursor.Time, cursor.Time, cursor.ID)
-	}
-	rows, err := s.api.db.DB.QueryContext(requestContext(ctx), query+` ORDER BY julianday(h.updated_at) DESC,h.document_id ASC LIMIT ? OFFSET ?`, append(args, insightPageSize+1, insightOffset(r.Params.Page))...)
+	rows, err := s.api.db.Queries.ListWebInsightProgress(requestContext(ctx), database.ListWebInsightProgressParams{
+		UserID: webUser(ctx).UserName, CursorTime: cursor.Time, CursorID: cursor.ID,
+		PageSize: insightPageSize + 1, PageOffset: int64(insightOffset(r.Params.Page)),
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	for rows.Next() {
+	for _, row := range rows {
 		if len(out.Items) == insightPageSize {
 			out.HasMore = true
 			next := cursor.encode()
 			out.NextCursor = &next
 			break
 		}
-		var v InsightProgress
-		var raw string
-		if err := rows.Scan(&v.DocumentId, &v.Title, &v.Available, &raw, &v.Fraction); err != nil {
-			return nil, err
-		}
-		v.UpdatedAt, err = insightInstant(raw)
+		updatedAt, err := insightInstant(row.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
-		out.Items = append(out.Items, v)
-		cursor = insightCursor{Time: raw, ID: v.DocumentId}
+		out.Items = append(out.Items, InsightProgress{
+			DocumentId: row.DocumentID, Title: row.Title, Available: row.Available,
+			UpdatedAt: updatedAt, Fraction: row.Fraction,
+		})
+		cursor = insightCursor{Time: row.UpdatedAt, ID: row.DocumentID}
 	}
-	return ListInsightProgress200JSONResponse(out), rows.Err()
+	return ListInsightProgress200JSONResponse(out), nil
 }
 
 func (s *webAPI) ListInsightRankings(ctx context.Context, r ListInsightRankingsRequestObject) (ListInsightRankingsResponseObject, error) {
@@ -239,14 +223,11 @@ func (s *webAPI) ListInsightRankings(ctx context.Context, r ListInsightRankingsR
 func (s *webAPI) listInsightRankingsAt(ctx context.Context, params ListInsightRankingsParams, now time.Time) (ListInsightRankingsResponseObject, error) {
 	now = now.UTC()
 	out := InsightRankings{AsOf: now, Items: []InsightRank{}}
-	expression := "seconds"
+	metric := "time"
 	if params.Metric != nil {
 		switch *params.Metric {
-		case "time":
-		case "words":
-			expression = "words"
-		case "pace":
-			expression = "words*60.0/seconds"
+		case "time", "words", "pace":
+			metric = string(*params.Metric)
 		default:
 			return nil, &reading.Failure{Status: 400, Code: "invalid_request"}
 		}
@@ -265,18 +246,14 @@ func (s *webAPI) listInsightRankingsAt(ctx context.Context, params ListInsightRa
 			return nil, &reading.Failure{Status: 400, Code: "invalid_request"}
 		}
 	}
-	lower := start.Format(time.RFC3339Nano)
-	rows, err := s.api.db.DB.QueryContext(requestContext(ctx), `WITH totals AS (SELECT a.user_id, SUM(a.duration) AS seconds, SUM(MAX(0,COALESCE(d.words,0)*(a.end_percentage-a.start_percentage))) AS words FROM activity a JOIN users u ON u.id=a.user_id LEFT JOIN documents d ON d.id=a.document_id WHERE julianday(a.start_time)>=julianday(?) AND julianday(a.start_time)<=julianday(?) AND a.duration>0 GROUP BY a.user_id) SELECT user_id,CAST(`+expression+` AS INTEGER) AS value FROM totals WHERE `+expression+`>=1 ORDER BY value DESC,user_id ASC LIMIT 20`, lower, now.Format(time.RFC3339Nano))
+	rows, err := s.api.db.Queries.ListWebInsightRankings(requestContext(ctx), database.ListWebInsightRankingsParams{
+		Metric: metric, PeriodStart: start.Format(time.RFC3339Nano), AsOf: now.Format(time.RFC3339Nano),
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var item InsightRank
-		if err := rows.Scan(&item.User, &item.Value); err != nil {
-			return nil, err
-		}
-		out.Items = append(out.Items, item)
+	for _, row := range rows {
+		out.Items = append(out.Items, InsightRank{User: row.UserID, Value: row.Value})
 	}
-	return ListInsightRankings200JSONResponse(out), rows.Err()
+	return ListInsightRankings200JSONResponse(out), nil
 }

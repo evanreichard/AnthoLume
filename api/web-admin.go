@@ -8,13 +8,17 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"reichard.io/antholume/database"
 )
 
 func adminFailure(status int, code string) error { return &webFailure{status: status, code: code} }
 
-func requireAdmin(ctx context.Context, tx *sql.Tx, principal authData) error {
-	var admin bool
-	err := tx.QueryRowContext(ctx, `SELECT admin FROM users WHERE id=? AND auth_hash=?`, principal.UserName, principal.AuthHash).Scan(&admin)
+func requireAdmin(ctx context.Context, q *database.Queries, principal authData) error {
+	admin, err := q.GetAdminSessionRole(ctx, database.GetAdminSessionRoleParams{
+		ID:       principal.UserName,
+		AuthHash: &principal.AuthHash,
+	})
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && !admin) {
 		return adminFailure(403, "forbidden")
 	}
@@ -32,7 +36,7 @@ func (s *webAPI) adminTransaction(ctx context.Context, action func(context.Conte
 		return err
 	}
 	defer tx.Rollback()
-	if err := requireAdmin(ctx, tx, principal); err != nil {
+	if err := requireAdmin(ctx, s.api.db.Queries.WithTx(tx), principal); err != nil {
 		return err
 	}
 	if err := action(ctx, tx); err != nil {
@@ -49,20 +53,15 @@ func (s *webAPI) ListAdminUsers(ctx context.Context, r ListAdminUsersRequestObje
 	if r.Params.After != nil {
 		after = *r.Params.After
 	}
-	rows, err := s.api.db.DB.QueryContext(requestContext(ctx), `SELECT id,admin FROM users WHERE id>? ORDER BY id LIMIT 51`, after)
+	rows, err := s.api.db.Queries.ListAdminUsers(requestContext(ctx), after)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := make(ListAdminUsers200JSONResponse, 0)
-	for rows.Next() {
-		var user AdminUser
-		if err = rows.Scan(&user.Id, &user.IsAdmin); err != nil {
-			return nil, err
-		}
-		out = append(out, user)
+	out := make(ListAdminUsers200JSONResponse, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, AdminUser{Id: row.ID, IsAdmin: row.Admin})
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 func (s *webAPI) adminPassword(ctx context.Context, raw string) (string, string, error) {
@@ -97,11 +96,12 @@ func (s *webAPI) CreateAdminUser(ctx context.Context, r CreateAdminUserRequestOb
 		return nil, err
 	}
 	err = s.adminTransaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `INSERT INTO users(id,pass,auth_hash,admin) VALUES(?,?,?,?) ON CONFLICT(id) DO NOTHING`, id, hash, token, r.Body.IsAdmin)
-		if err != nil {
-			return err
-		}
-		n, err := res.RowsAffected()
+		n, err := s.api.db.Queries.WithTx(tx).CreateAdminUser(ctx, database.CreateAdminUserParams{
+			ID:       id,
+			Pass:     &hash,
+			AuthHash: &token,
+			Admin:    r.Body.IsAdmin,
+		})
 		if err == nil && n == 0 {
 			return adminFailure(409, "user_conflict")
 		}
@@ -131,10 +131,16 @@ func (s *webAPI) UpdateAdminUser(ctx context.Context, r UpdateAdminUserRequestOb
 	}
 	out := UpdateAdminUser200JSONResponse{Id: r.Id}
 	err := s.adminTransaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
-		err := tx.QueryRowContext(ctx, `UPDATE users SET pass=coalesce(?,pass), auth_hash=coalesce(?,auth_hash), admin=coalesce(?,admin) WHERE id=? RETURNING admin`, hash, token, r.Body.IsAdmin, r.Id).Scan(&out.IsAdmin)
+		admin, err := s.api.db.Queries.WithTx(tx).UpdateAdminUser(ctx, database.UpdateAdminUserParams{
+			ID:       r.Id,
+			Pass:     hash,
+			AuthHash: token,
+			Admin:    r.Body.IsAdmin,
+		})
 		if errors.Is(err, sql.ErrNoRows) {
 			return adminFailure(404, "user_not_found")
 		}
+		out.IsAdmin = admin
 		return err
 	})
 	return out, err
@@ -157,22 +163,21 @@ func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestOb
 		return nil, err
 	}
 	err := s.adminTransaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
-		for _, query := range []string{`DELETE FROM document_user_statistics WHERE user_id=?`, `DELETE FROM user_streaks WHERE user_id=?`, `DELETE FROM document_progress WHERE user_id=?`, `DELETE FROM users WHERE id=?`} {
-			result, err := tx.ExecContext(ctx, query, r.Id)
-			if err != nil {
-				return err
-			}
-			if query == `DELETE FROM users WHERE id=?` {
-				n, err := result.RowsAffected()
-				if err != nil {
-					return err
-				}
-				if n == 0 {
-					return adminFailure(404, "user_not_found")
-				}
-			}
+		q := s.api.db.Queries.WithTx(tx)
+		if err := q.DeleteAdminUserStatistics(ctx, r.Id); err != nil {
+			return err
 		}
-		return nil
+		if err := q.DeleteAdminUserStreaks(ctx, r.Id); err != nil {
+			return err
+		}
+		if err := q.DeleteAdminUserProgress(ctx, r.Id); err != nil {
+			return err
+		}
+		n, err := q.DeleteUser(ctx, r.Id)
+		if err == nil && n == 0 {
+			return adminFailure(404, "user_not_found")
+		}
+		return err
 	})
 	return DeleteAdminUser204Response{}, err
 }

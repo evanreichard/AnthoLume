@@ -8,9 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"reichard.io/antholume/database"
 )
 
-func (api *API) makeLibraryPlan(ctx context.Context, q storageQuerier, id, proposedPath string) (MakeLibraryPlan, error) {
+func (api *API) makeLibraryPlan(ctx context.Context, q database.DBTX, id, proposedPath string) (MakeLibraryPlan, error) {
 	out := MakeLibraryPlan{Id: id}
 	if id == libraryRoot {
 		return out, adminFailure(400, "invalid_library_source")
@@ -57,10 +59,8 @@ func (api *API) makeLibraryPlan(ctx context.Context, q storageQuerier, id, propo
 			return out, adminFailure(409, "library_folders_overlap")
 		}
 	}
-	err = q.QueryRowContext(ctx, `SELECT
- (SELECT COUNT(*) FROM documents WHERE NOT deleted AND filepath IS NOT NULL AND storage_root_id=?1),
- (SELECT COUNT(*) FROM documents WHERE NOT deleted AND filepath IS NOT NULL AND COALESCE(storage_root_id,'library')='library'),
- (SELECT COUNT(*) FROM auto_import_rules WHERE enabled AND root_id=?1)`, id).Scan(&out.Incoming, &out.Outgoing, &out.PausedRules)
+	counts, err := database.New(q).GetMakeLibraryCounts(ctx, &id)
+	out.Incoming, out.Outgoing, out.PausedRules = int(counts.Incoming), int(counts.Outgoing), int(counts.PausedRules)
 	if out.SameFolder {
 		out.Outgoing = 0
 	}
@@ -110,8 +110,9 @@ func (s *webAPI) MakeLibrary(ctx context.Context, r MakeLibraryRequestObject) (M
 		if *r.Body != plan {
 			return adminFailure(409, "library_plan_changed")
 		}
-		var active bool
-		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM admin_jobs WHERE status='running' AND deadline>?)`, jobTime(time.Now())).Scan(&active); err != nil {
+		queries := api.db.Queries.WithTx(tx)
+		active, err := queries.HasRunningStorageJobs(ctx, jobTime(time.Now()))
+		if err != nil {
 			return err
 		}
 		if active {
@@ -132,24 +133,23 @@ func (s *webAPI) MakeLibrary(ctx context.Context, r MakeLibraryRequestObject) (M
 				return err
 			}
 			former := "former-" + id[:32]
-			if _, err := tx.ExecContext(ctx, `INSERT INTO storage_roots(id,label,path,managed) VALUES(?,'Former Library',?,0)`, former, plan.LibraryPath); err != nil {
+			if err := queries.InsertFormerLibraryRoot(ctx, database.InsertFormerLibraryRootParams{ID: former, Path: &plan.LibraryPath}); err != nil {
 				return err
 			}
-			if _, err := tx.ExecContext(ctx, `UPDATE documents SET storage_root_id=? WHERE COALESCE(storage_root_id,'library')='library' AND filepath IS NOT NULL`, former); err != nil {
+			if err := queries.MoveFormerLibraryDocuments(ctx, &former); err != nil {
 				return err
 			}
-			if _, err := tx.ExecContext(ctx, `UPDATE storage_roots SET path=? WHERE id='library'`, plan.SourcePath); err != nil {
+			if err := queries.SetLibraryRootPath(ctx, &plan.SourcePath); err != nil {
 				return err
 			}
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE documents SET storage_root_id='library' WHERE storage_root_id=?`, plan.Id); err != nil {
+		if err := queries.MoveDocumentsIntoLibrary(ctx, &plan.Id); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE auto_import_rules SET root_id='library',enabled=0,next_scan=NULL,status='idle' WHERE root_id=?`, plan.Id); err != nil {
+		if err := queries.MovePausedImportRulesIntoLibrary(ctx, plan.Id); err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, `DELETE FROM storage_roots WHERE id=?`, plan.Id)
-		return err
+		return queries.DeleteStorageRoot(ctx, plan.Id)
 	})
 	if err != nil {
 		return nil, err

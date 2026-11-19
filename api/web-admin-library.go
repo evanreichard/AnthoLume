@@ -14,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 
+	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
 )
 
@@ -323,11 +324,10 @@ func (api *API) relinkImportedBook(ctx context.Context, id, hash, root, target s
 	if !errors.Is(err, os.ErrNotExist) {
 		return false, err
 	}
-	result, err := api.db.DB.ExecContext(ctx, `UPDATE documents SET storage_root_id=?,filepath=? WHERE id=? AND md5=? AND NOT deleted AND filepath IS ? AND storage_root_id IS ?`, root, target, id, hash, d.Filepath, d.StorageRootID)
-	if err != nil {
-		return false, err
-	}
-	count, err := result.RowsAffected()
+	count, err := api.db.Queries.RelinkImportedDocument(ctx, database.RelinkImportedDocumentParams{
+		StorageRootID: &root, Filepath: &target, ID: id, Md5: &hash,
+		OldFilepath: d.Filepath, OldStorageRootID: d.StorageRootID,
+	})
 	return count == 1, err
 }
 
@@ -360,8 +360,7 @@ func (api *API) runLibraryImport(ctx context.Context, id, sourceID string, refer
 	if err != nil {
 		return err
 	}
-	_, err = api.db.DB.ExecContext(ctx, `UPDATE admin_jobs SET result=? WHERE id=? AND status='running'`, encoded, id)
-	return err
+	return api.db.Queries.SetLibraryImportResult(ctx, database.SetLibraryImportResultParams{Result: encoded, ID: id})
 }
 
 func (api *API) importBooks(ctx context.Context, sourceID string, reference, relink bool, accept func(*os.Root, string) bool) ([]AdminImportResult, error) {
@@ -395,13 +394,13 @@ func (s *webAPI) ListAdminImportResults(ctx context.Context, r ListAdminImportRe
 	if !adminJobID.MatchString(r.Params.Job) {
 		return nil, adminFailure(400, "invalid_request")
 	}
-	var result []byte
-	if err := s.api.db.DB.QueryRowContext(requestContext(ctx), `SELECT result FROM admin_jobs WHERE id=? AND kind='import' AND status='succeeded'`, r.Params.Job).Scan(&result); errors.Is(err, sql.ErrNoRows) {
+	result, err := s.api.db.Queries.GetSucceededLibraryImportResult(requestContext(ctx), r.Params.Job)
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, adminFailure(404, "job_not_found")
 	} else if err != nil {
 		return nil, err
 	}
 	rows := ListAdminImportResults200JSONResponse{}
-	err := json.Unmarshal(result, &rows)
+	err = json.Unmarshal(result, &rows)
 	return rows, err
 }

@@ -83,13 +83,15 @@ func WithAccountID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, accountIDKey{}, id)
 }
 
-func account(ctx context.Context, tx *sql.Tx, user string) error {
-	query, args := "SELECT count(*) FROM users WHERE id=?", []any{user}
+func account(ctx context.Context, q *database.Queries, user string) error {
+	var n int64
+	var err error
 	if id, ok := ctx.Value(accountIDKey{}).(string); ok {
-		query, args = "SELECT count(*) FROM account_identities WHERE user_id=? AND account_id=?", []any{user, id}
+		n, err = q.CountAccountIdentities(ctx, database.CountAccountIdentitiesParams{UserID: user, AccountID: id})
+	} else {
+		n, err = q.CountUsersByID(ctx, user)
 	}
-	var n int
-	if err := tx.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
+	if err != nil {
 		return err
 	}
 	if n != 1 {
@@ -97,9 +99,9 @@ func account(ctx context.Context, tx *sql.Tx, user string) error {
 	}
 	return nil
 }
-func live(ctx context.Context, tx *sql.Tx, document string) error {
-	var n int
-	if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM documents WHERE id=? AND deleted=0", document).Scan(&n); err != nil {
+func live(ctx context.Context, q *database.Queries, document string) error {
+	n, err := q.CountLiveDocuments(ctx, document)
+	if err != nil {
 		return err
 	}
 	if n != 1 {
@@ -107,9 +109,8 @@ func live(ctx context.Context, tx *sql.Tx, document string) error {
 	}
 	return nil
 }
-func owned(ctx context.Context, tx *sql.Tx, user, device string) error {
-	var owner string
-	err := tx.QueryRowContext(ctx, "SELECT user_id FROM devices WHERE id=?", device).Scan(&owner)
+func owned(ctx context.Context, q *database.Queries, user, device string) error {
+	owner, err := q.GetDeviceOwner(ctx, device)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fail(403, "forbidden")
 	}
@@ -121,20 +122,18 @@ func owned(ctx context.Context, tx *sql.Tx, user, device string) error {
 	}
 	return nil
 }
-func register(ctx context.Context, tx *sql.Tx, user, id, name string) error {
+func register(ctx context.Context, q *database.Queries, user, id, name string) error {
 	if !validID(id) || !utf8.ValidString(name) || utf8.RuneCountInString(name) > 128 {
 		return fail(400, "invalid_request")
 	}
-	var owner string
-	err := tx.QueryRowContext(ctx, "SELECT user_id FROM devices WHERE id=?", id).Scan(&owner)
+	owner, err := q.GetDeviceOwner(ctx, id)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
 	if err == nil && owner != user {
 		return fail(409, "device_conflict")
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO devices(id,user_id,device_name) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET device_name=excluded.device_name,last_synced=STRFTIME('%Y-%m-%dT%H:%M:%SZ','now')`, id, user, name)
-	return err
+	return q.RegisterReadingDevice(ctx, database.RegisterReadingDeviceParams{ID: id, UserID: user, DeviceName: name})
 }
 func (s *Store) RegisterDevice(ctx context.Context, user, id, name string) error {
 	tx, err := s.DB.BeginTx(ctx, nil)
@@ -142,24 +141,40 @@ func (s *Store) RegisterDevice(ctx context.Context, user, id, name string) error
 		return err
 	}
 	defer tx.Rollback()
-	if err = account(ctx, tx, user); err == nil {
-		err = register(ctx, tx, user, id, name)
+	q := database.New(tx)
+	if err = account(ctx, q, user); err == nil {
+		err = register(ctx, q, user, id, name)
 	}
 	if err != nil {
 		return err
 	}
 	return tx.Commit()
 }
-func state(ctx context.Context, tx *sql.Tx, user, document string) (State, error) {
-	out := State{DocumentID: document, Revision: "0"}
-	err := tx.QueryRowContext(ctx, `SELECT CAST(h.revision AS TEXT),h.position,h.fraction,h.device_id,h.updated_at,
- CASE WHEN s.user_id IS NOT NULL THEN s.external_id ELSE h.device_id END,COALESCE(s.device_name,d.device_name,'')
- FROM reading_heads h LEFT JOIN reading_head_devices s ON s.user_id=h.user_id AND s.document_id=h.document_id
- LEFT JOIN devices d ON d.id=h.device_id WHERE h.user_id=? AND h.document_id=?`, user, document).Scan(&out.Revision, &out.Position, &out.Fraction, &out.DeviceID, &out.UpdatedAt, &out.ExternalDeviceID, &out.DeviceName)
+func state(ctx context.Context, q *database.Queries, user, document string) (State, error) {
+	head, err := q.GetReadingHead(ctx, database.GetReadingHeadParams{UserID: user, DocumentID: document})
 	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
+		return State{DocumentID: document, Revision: "0"}, nil
 	}
-	return out, err
+	revision := head.Revision
+	if err != nil && revision == "" {
+		revision = "0"
+	}
+	// An existing snapshot may deliberately omit the external ID.
+	externalID := head.ExternalDeviceID
+	if err == nil && !head.HasDeviceSnapshot && head.DeviceID != nil {
+		id := *head.DeviceID
+		externalID = &id
+	}
+	return State{
+		DocumentID:       document,
+		Revision:         revision,
+		Position:         head.Position,
+		Fraction:         head.Fraction,
+		DeviceID:         head.DeviceID,
+		UpdatedAt:        head.UpdatedAt,
+		ExternalDeviceID: externalID,
+		DeviceName:       head.DeviceName,
+	}, err
 }
 func (s *Store) State(ctx context.Context, user, document string) (State, error) {
 	tx, err := s.DB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
@@ -167,25 +182,27 @@ func (s *Store) State(ctx context.Context, user, document string) (State, error)
 		return State{}, err
 	}
 	defer tx.Rollback()
-	if err = account(ctx, tx, user); err != nil {
+	q := database.New(tx)
+	if err = account(ctx, q, user); err != nil {
 		return State{}, err
 	}
-	if err = live(ctx, tx, document); err != nil {
+	if err = live(ctx, q, document); err != nil {
 		return State{}, err
 	}
-	out, err := state(ctx, tx, user, document)
+	out, err := state(ctx, q, user, document)
 	if err != nil {
 		return out, err
 	}
 	return out, tx.Commit()
 }
-func (s *Store) apply(ctx context.Context, user, event, document, device, kind, observed string, payload any, effect func(*sql.Tx) (Decision, error)) (Decision, error) {
+func (s *Store) apply(ctx context.Context, user, event, document, device, kind, observed string, payload any, effect func(*database.Queries) (Decision, error)) (Decision, error) {
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return Decision{}, err
 	}
 	defer tx.Rollback()
-	if err = account(ctx, tx, user); err != nil {
+	q := database.New(tx)
+	if err = account(ctx, q, user); err != nil {
 		return Decision{}, err
 	}
 	normalized, err := json.Marshal(payload)
@@ -194,31 +211,36 @@ func (s *Store) apply(ctx context.Context, user, event, document, device, kind, 
 	}
 	sum := sha256.Sum256(append([]byte("v1:"+kind+":"), normalized...))
 	digest := hex.EncodeToString(sum[:])
-	out := Decision{EventID: event, Kind: kind}
-	var old string
-	err = tx.QueryRowContext(ctx, `SELECT digest,status,revision,code,current_revision FROM reading_receipts WHERE user_id=? AND event_id=?`, user, event).Scan(&old, &out.Status, &out.Revision, &out.Code, &out.CurrentRevision)
+	receipt, err := q.GetReadingReceipt(ctx, database.GetReadingReceiptParams{UserID: user, EventID: event})
 	if err == nil {
-		if old != digest {
+		if receipt.Digest != digest {
 			return Decision{}, fail(409, "idempotency_conflict")
 		}
-		return out, nil
+		return Decision{
+			EventID: event, Kind: kind, Status: int(receipt.Status), Revision: receipt.Revision,
+			Code: receipt.Code, CurrentRevision: receipt.CurrentRevision,
+		}, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return Decision{}, err
 	}
-	if err = live(ctx, tx, document); err != nil {
+	if err = live(ctx, q, document); err != nil {
 		return Decision{}, err
 	}
-	if err = owned(ctx, tx, user, device); err != nil {
+	if err = owned(ctx, q, user, device); err != nil {
 		return Decision{}, err
 	}
-	out, err = effect(tx)
+	out, err := effect(q)
 	if err != nil {
 		return Decision{}, err
 	}
 	out.EventID = event
 	out.Kind = kind
-	_, err = tx.ExecContext(ctx, `INSERT INTO reading_receipts(user_id,event_id,document_id,kind,payload_version,payload,digest,observed_at,status,revision,code,current_revision) VALUES(?,?,?,?,1,?,?,?,?,?,?,?)`, user, event, document, kind, string(normalized), digest, observed, out.Status, out.Revision, out.Code, out.CurrentRevision)
+	err = q.InsertReadingReceipt(ctx, database.InsertReadingReceiptParams{
+		UserID: user, EventID: event, DocumentID: document, Kind: kind,
+		Payload: string(normalized), Digest: digest, ObservedAt: observed, Status: int64(out.Status),
+		Revision: out.Revision, Code: out.Code, CurrentRevision: out.CurrentRevision,
+	})
 	if err != nil {
 		return Decision{}, err
 	}
@@ -233,8 +255,8 @@ type deviceSnapshot struct {
 	Name       string
 }
 
-func advance(ctx context.Context, tx *sql.Tx, user, document, device, position string, f float64, base *string, snapshot *deviceSnapshot) (Decision, error) {
-	head, err := state(ctx, tx, user, document)
+func advance(ctx context.Context, q *database.Queries, user, document, device, position string, f float64, base *string, snapshot *deviceSnapshot) (Decision, error) {
+	head, err := state(ctx, q, user, document)
 	if err != nil {
 		return Decision{}, err
 	}
@@ -249,10 +271,11 @@ func advance(ctx context.Context, tx *sql.Tx, user, document, device, position s
 		return Decision{Status: 409, Code: "revision_exhausted", CurrentRevision: &head.Revision}, nil
 	}
 	if snapshot == nil {
-		snapshot = &deviceSnapshot{ExternalID: &device}
-		if err := tx.QueryRowContext(ctx, "SELECT device_name FROM devices WHERE id=?", device).Scan(&snapshot.Name); err != nil {
+		name, err := q.GetReadingDeviceName(ctx, device)
+		if err != nil {
 			return Decision{}, err
 		}
+		snapshot = &deviceSnapshot{ExternalID: &device, Name: name}
 	} else if snapshot.ExternalID == nil {
 		// Optional Field - Upstream HSET leaves an already stored device_id intact when the next write omits it.
 		snapshot.ExternalID = head.ExternalDeviceID
@@ -260,16 +283,18 @@ func advance(ctx context.Context, tx *sql.Tx, user, document, device, position s
 	next := strconv.FormatInt(n+1, 10)
 	// Accepted State - Server arrival advances the shared revision; observation time and fraction never select a winner.
 	updated := time.Now().UTC().Format(time.RFC3339)
-	_, err = tx.ExecContext(ctx, `INSERT INTO reading_heads(user_id,document_id,revision,position,fraction,device_id,updated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id,document_id) DO UPDATE SET revision=excluded.revision,position=excluded.position,fraction=excluded.fraction,device_id=excluded.device_id,updated_at=excluded.updated_at`, user, document, n+1, position, f, device, updated)
-	if err != nil {
+	if err = q.UpsertReadingHead(ctx, database.UpsertReadingHeadParams{
+		UserID: user, DocumentID: document, Revision: n + 1,
+		Position: &position, Fraction: &f, DeviceID: &device, UpdatedAt: &updated,
+	}); err != nil {
 		return Decision{}, err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO reading_head_devices(user_id,document_id,external_id,device_name) VALUES(?,?,?,?)
- ON CONFLICT(user_id,document_id) DO UPDATE SET external_id=excluded.external_id,device_name=excluded.device_name`, user, document, snapshot.ExternalID, snapshot.Name)
-	if err != nil {
+	if err = q.UpsertReadingHeadDevice(ctx, database.UpsertReadingHeadDeviceParams{
+		UserID: user, DocumentID: document, ExternalID: snapshot.ExternalID, DeviceName: snapshot.Name,
+	}); err != nil {
 		return Decision{}, err
 	}
-	_, err = database.New(tx).UpdateProgress(ctx, database.UpdateProgressParams{UserID: user, DocumentID: document, DeviceID: device, Percentage: f, Progress: position})
+	_, err = q.UpdateProgress(ctx, database.UpdateProgressParams{UserID: user, DocumentID: document, DeviceID: device, Percentage: f, Progress: position})
 	return Decision{Status: 200, Revision: &next}, err
 }
 func (s *Store) Progress(ctx context.Context, user string, e Progress) (Decision, error) {
@@ -278,16 +303,19 @@ func (s *Store) Progress(ctx context.Context, user string, e Progress) (Decision
 	}
 	e.ObservedAt = e.ObservedAt.UTC()
 	e.Fraction = zero(e.Fraction)
-	return s.apply(ctx, user, e.EventID, e.DocumentID, e.DeviceID, "progress", e.ObservedAt.Format(time.RFC3339Nano), e, func(tx *sql.Tx) (Decision, error) {
-		return advance(ctx, tx, user, e.DocumentID, e.DeviceID, e.Position, e.Fraction, &e.BaseRevision, nil)
+	return s.apply(ctx, user, e.EventID, e.DocumentID, e.DeviceID, "progress", e.ObservedAt.Format(time.RFC3339Nano), e, func(q *database.Queries) (Decision, error) {
+		return advance(ctx, q, user, e.DocumentID, e.DeviceID, e.Position, e.Fraction, &e.BaseRevision, nil)
 	})
 }
-func credit(ctx context.Context, tx *sql.Tx, user string, e Activity) error {
+func credit(ctx context.Context, q *database.Queries, user string, e Activity) error {
 	if !validID(e.DocumentID) || !validID(e.DeviceID) || !fraction(e.StartFraction) || !fraction(e.EndFraction) || e.StartFraction > e.EndFraction || e.Duration < 0 || e.Duration > 86400 || e.StartTime.IsZero() {
 		return fail(400, "invalid_request")
 	}
-	_, err := tx.ExecContext(ctx, `INSERT INTO activity(user_id,document_id,device_id,start_time,duration,start_percentage,end_percentage) VALUES(?,?,?,?,?,?,?)`, user, e.DocumentID, e.DeviceID, e.StartTime.UTC().Format(time.RFC3339Nano), e.Duration, e.StartFraction, e.EndFraction)
-	return err
+	return q.InsertReadingActivity(ctx, database.InsertReadingActivityParams{
+		UserID: user, DocumentID: e.DocumentID, DeviceID: e.DeviceID,
+		StartTime: e.StartTime.UTC().Format(time.RFC3339Nano), Duration: int64(e.Duration),
+		StartPercentage: e.StartFraction, EndPercentage: e.EndFraction,
+	})
 }
 func (s *Store) Activity(ctx context.Context, user string, e Activity) (Decision, error) {
 	e.StartTime = e.StartTime.UTC()
@@ -296,7 +324,9 @@ func (s *Store) Activity(ctx context.Context, user string, e Activity) (Decision
 	if !validID(e.EventID) {
 		return Decision{}, fail(400, "invalid_request")
 	}
-	return s.apply(ctx, user, e.EventID, e.DocumentID, e.DeviceID, "activity", e.StartTime.Format(time.RFC3339Nano), e, func(tx *sql.Tx) (Decision, error) { err := credit(ctx, tx, user, e); return Decision{Status: 200}, err })
+	return s.apply(ctx, user, e.EventID, e.DocumentID, e.DeviceID, "activity", e.StartTime.Format(time.RFC3339Nano), e, func(q *database.Queries) (Decision, error) {
+		return Decision{Status: 200}, credit(ctx, q, user, e)
+	})
 }
 
 // KOProgress resolves external identity in the same transaction as the shared head and per-device row.
@@ -309,29 +339,29 @@ func (s *Store) KOProgress(ctx context.Context, user, document string, externalI
 		return "", err
 	}
 	defer tx.Rollback()
-	if err = account(ctx, tx, user); err != nil {
+	q := database.New(tx)
+	if err = account(ctx, q, user); err != nil {
 		return "", err
 	}
-	device, err := koDevice(ctx, tx, user, externalID, name)
+	device, err := koDevice(ctx, q, user, externalID, name)
 	if err != nil {
 		return "", err
 	}
-	_, err = tx.ExecContext(ctx, "INSERT OR IGNORE INTO documents(id) VALUES(?)", document)
-	if err != nil {
+	if err = q.EnsureReadingDocument(ctx, document); err != nil {
 		return "", err
 	}
-	if err = live(ctx, tx, document); err != nil {
+	if err = live(ctx, q, document); err != nil {
 		return "", err
 	}
-	out, err := advance(ctx, tx, user, document, device, position, f, nil, &deviceSnapshot{ExternalID: externalID, Name: name})
+	out, err := advance(ctx, q, user, document, device, position, f, nil, &deviceSnapshot{ExternalID: externalID, Name: name})
 	if err != nil {
 		return "", err
 	}
 	if out.Status != 200 {
 		return "", fail(out.Status, out.Code)
 	}
-	var timestamp string
-	if err = tx.QueryRowContext(ctx, "SELECT updated_at FROM reading_heads WHERE user_id=? AND document_id=?", user, document).Scan(&timestamp); err != nil {
+	timestamp, err := q.GetReadingHeadUpdatedAt(ctx, database.GetReadingHeadUpdatedAtParams{UserID: user, DocumentID: document})
+	if err != nil {
 		return "", err
 	}
 	return timestamp, tx.Commit()
@@ -342,19 +372,20 @@ func (s *Store) KOActivity(ctx context.Context, user, device, name string, event
 		return err
 	}
 	defer tx.Rollback()
-	if err = account(ctx, tx, user); err == nil {
-		err = register(ctx, tx, user, device, name)
+	q := database.New(tx)
+	if err = account(ctx, q, user); err == nil {
+		err = register(ctx, q, user, device, name)
 	}
 	if err != nil {
 		return err
 	}
 	for _, e := range events {
 		e.DeviceID = device
-		if _, err = tx.ExecContext(ctx, "INSERT OR IGNORE INTO documents(id) VALUES(?)", e.DocumentID); err != nil {
+		if err = q.EnsureReadingDocument(ctx, e.DocumentID); err != nil {
 			return err
 		}
 		// SyncNinja Cursor - Historical activity advances the device cursor even when the book is no longer in the catalog.
-		if err = credit(ctx, tx, user, e); err != nil {
+		if err = credit(ctx, q, user, e); err != nil {
 			return err
 		}
 	}

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+
+	"reichard.io/antholume/database"
 )
 
 const maxAdminBackupBytes = 1 << 30
@@ -69,16 +71,15 @@ func (api *API) walkBackupBooks(ctx context.Context, db *sql.DB, add func(string
 	if err != nil {
 		return out, err
 	}
-	rows, err := db.QueryContext(ctx, `SELECT DISTINCT filepath FROM documents WHERE NOT deleted AND COALESCE(storage_root_id,'library')='library' AND filepath IS NOT NULL ORDER BY filepath`)
+	paths, err := database.New(db).ListBackupLibraryFilepaths(ctx)
 	if err != nil {
 		return out, err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
+	for _, path := range paths {
+		if err := ctx.Err(); err != nil {
 			return out, err
 		}
+		name := *path // The query excludes NULL filepaths.
 		f, err := openStoredFile(root.Path, name)
 		if err != nil {
 			out.Missing++
@@ -95,7 +96,7 @@ func (api *API) walkBackupBooks(ctx context.Context, db *sql.DB, add func(string
 		out.Files++
 		out.Bytes += info.Size()
 	}
-	return out, rows.Err()
+	return out, ctx.Err()
 }
 
 func (s *webAPI) PreviewAdminBackup(ctx context.Context, _ PreviewAdminBackupRequestObject) (PreviewAdminBackupResponseObject, error) {

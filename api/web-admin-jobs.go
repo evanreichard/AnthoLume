@@ -7,17 +7,21 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"reichard.io/antholume/database"
 )
 
-const adminJobFields = `id,kind,status,started_at,finished_at`
 const adminJobLifetime = 5 * time.Minute
 
 func jobTime(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000Z") }
 
-func scanAdminJob(row interface{ Scan(...any) error }) (AdminJob, error) {
-	var job AdminJob
-	err := row.Scan(&job.Id, &job.Kind, &job.Status, &job.StartedAt, &job.FinishedAt)
-	return job, err
+func adminJobResponse(id, kind, status, startedAt string, finishedAt *string) AdminJob {
+	return AdminJob{
+		Id:         id,
+		Kind:       AdminJobKind(kind),
+		Status:     AdminJobStatus(status),
+		StartedAt:  startedAt,
+		FinishedAt: finishedAt,
+	}
 }
 
 func (s *webAPI) ListAdminJobs(ctx context.Context, r ListAdminJobsRequestObject) (ListAdminJobsResponseObject, error) {
@@ -28,20 +32,21 @@ func (s *webAPI) ListAdminJobs(ctx context.Context, r ListAdminJobsRequestObject
 	if r.Params.Kind != nil {
 		kind = string(*r.Params.Kind)
 	}
-	rows, err := s.api.db.DB.QueryContext(requestContext(ctx), `SELECT id,kind,CASE WHEN status='running' AND deadline<=?1 THEN 'interrupted' ELSE status END,started_at,CASE WHEN status='running' AND deadline<=?1 THEN deadline ELSE finished_at END FROM admin_jobs WHERE (?2='' OR kind=?2) ORDER BY started_at DESC,id DESC LIMIT 20`, jobTime(time.Now()), kind)
+	rows, err := s.api.db.Queries.ListAdminJobs(requestContext(ctx), database.ListAdminJobsParams{
+		Now:  jobTime(time.Now()),
+		Kind: kind,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := make(ListAdminJobs200JSONResponse, 0)
-	for rows.Next() {
-		job, err := scanAdminJob(rows)
-		if err != nil {
-			return nil, err
+	out := make(ListAdminJobs200JSONResponse, 0, len(rows))
+	for _, row := range rows {
+		if row.Expired {
+			row.Status, row.FinishedAt = "interrupted", &row.Deadline
 		}
-		out = append(out, job)
+		out = append(out, adminJobResponse(row.ID, row.Kind, row.Status, row.StartedAt, row.FinishedAt))
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 func (s *webAPI) StartAdminJob(ctx context.Context, r StartAdminJobRequestObject) (StartAdminJobResponseObject, error) {
@@ -80,11 +85,15 @@ func (s *webAPI) StartAdminJob(ctx context.Context, r StartAdminJobRequestObject
 	var started bool
 	now := time.Now()
 	err := s.adminTransaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `UPDATE admin_jobs SET status='interrupted',finished_at=deadline WHERE status='running' AND deadline<=?`, jobTime(now)); err != nil {
+		q := s.api.db.Queries.WithTx(tx)
+		if err := q.InterruptExpiredAdminJobs(ctx, jobTime(now)); err != nil {
 			return err
 		}
-		var err error
-		job, err = scanAdminJob(tx.QueryRowContext(ctx, `SELECT `+adminJobFields+` FROM admin_jobs WHERE kind=? AND status='running'`, kind))
+		running, err := q.GetRunningAdminJob(ctx, kind)
+		if err == nil {
+			job = adminJobResponse(running.ID, running.Kind, running.Status, running.StartedAt, running.FinishedAt)
+			return nil
+		}
 		if !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
@@ -92,13 +101,21 @@ func (s *webAPI) StartAdminJob(ctx context.Context, r StartAdminJobRequestObject
 		if err != nil {
 			return err
 		}
-		job, err = scanAdminJob(tx.QueryRowContext(ctx, `INSERT INTO admin_jobs(id,kind,status,started_at,deadline) VALUES(?,?,'running',?,?) RETURNING `+adminJobFields, id, kind, jobTime(now), jobTime(now.Add(adminJobLifetime))))
+		created, err := q.CreateAdminJob(ctx, database.CreateAdminJobParams{
+			ID:        id,
+			Kind:      kind,
+			StartedAt: jobTime(now),
+			Deadline:  jobTime(now.Add(adminJobLifetime)),
+		})
 		if err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, `DELETE FROM admin_jobs WHERE kind=?1 AND status<>'running' AND id NOT IN (SELECT id FROM admin_jobs WHERE kind=?1 ORDER BY started_at DESC,id DESC LIMIT 20)`, kind)
-		started = err == nil
-		return err
+		if err := q.PruneAdminJobs(ctx, kind); err != nil {
+			return err
+		}
+		job = adminJobResponse(created.ID, created.Kind, created.Status, created.StartedAt, created.FinishedAt)
+		started = true
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -143,7 +160,12 @@ func (api *API) runAdminJob(id, kind, source string, reference, relink bool, dea
 	}
 	finish, stop := context.WithTimeout(context.Background(), 10*time.Second)
 	defer stop()
-	if _, err := api.db.DB.ExecContext(finish, `UPDATE admin_jobs SET status=?,finished_at=? WHERE id=? AND status='running'`, status, jobTime(time.Now()), id); err != nil {
+	finishedAt := jobTime(time.Now())
+	if err := api.db.Queries.FinishAdminJob(finish, database.FinishAdminJobParams{
+		ID:         id,
+		Status:     status,
+		FinishedAt: &finishedAt,
+	}); err != nil {
 		log.Error("Could not record admin job completion: ", err)
 	}
 }

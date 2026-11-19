@@ -20,6 +20,7 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"modernc.org/sqlite"
+	"reichard.io/antholume/database"
 	dbmigrations "reichard.io/antholume/database/migrations"
 	"reichard.io/antholume/pkg/storagepath"
 )
@@ -116,8 +117,8 @@ func (api *API) validateRestoreDB(ctx context.Context, name string) error {
 	if err := db.QueryRowContext(ctx, `PRAGMA quick_check`).Scan(&integrity); err != nil || integrity != "ok" {
 		return errors.New("snapshot integrity check failed")
 	}
-	var admins int
-	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM users WHERE admin=1 AND length(pass)>0`).Scan(&admins); err != nil || admins == 0 {
+	admins, err := database.New(db).CountSnapshotAdmins(ctx)
+	if err != nil || admins == 0 {
 		return errors.New("snapshot has no administrator")
 	}
 	return nil
@@ -271,27 +272,17 @@ func archivedRootIDs(stage string) ([]string, error) {
 }
 
 func (api *API) prepareRestoreLocations(ctx context.Context, db *sql.DB, stage, prefix string) (map[string]string, error) {
-	roots, err := db.QueryContext(ctx, `SELECT id,label,managed FROM storage_roots ORDER BY id`)
+	queries := database.New(db)
+	roots, err := queries.ListStorageRootsForRestore(ctx)
 	if err != nil {
 		return nil, err
 	}
-	archived := map[string]AdminStorageRoot{}
-	for roots.Next() {
-		var root AdminStorageRoot
-		if err := roots.Scan(&root.Id, &root.Label, &root.Managed); err != nil {
-			roots.Close()
-			return nil, err
-		}
-		if !storageRootID.MatchString(root.Id) || root.Managed != (root.Id == libraryRoot) {
-			roots.Close()
+	archived := make(map[string]database.ListStorageRootsForRestoreRow, len(roots))
+	for _, root := range roots {
+		if !storageRootID.MatchString(root.ID) || root.Managed != (root.ID == libraryRoot) {
 			return nil, errors.New("invalid snapshot storage root")
 		}
-		archived[root.Id] = root
-	}
-	err = roots.Err()
-	roots.Close()
-	if err != nil {
-		return nil, err
+		archived[root.ID] = root
 	}
 	if _, ok := archived[libraryRoot]; !ok {
 		return nil, errors.New("missing snapshot library root")
@@ -318,19 +309,18 @@ func (api *API) prepareRestoreLocations(ctx context.Context, db *sql.DB, stage, 
 		return nil, err
 	}
 	defer tx.Rollback()
+	staged := queries.WithTx(tx)
 	// Keep only mappings the local administrator configured; a snapshot cannot grant filesystem access.
-	if _, err := tx.ExecContext(ctx, `UPDATE storage_roots SET path=NULL`); err != nil {
+	if err := staged.ClearSnapshotStorageRootPaths(ctx); err != nil {
 		return nil, err
 	}
 	for id, root := range archived {
-		var configured *string
-		var managed bool
-		err := api.db.DB.QueryRowContext(ctx, `SELECT path,managed FROM storage_roots WHERE id=?`, id).Scan(&configured, &managed)
+		local, err := api.db.Queries.GetStorageRoot(ctx, id)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
-		if err == nil && managed == root.Managed && configured != nil {
-			if _, err := tx.ExecContext(ctx, `UPDATE storage_roots SET path=?,legacy_path=NULL WHERE id=?`, configured, id); err != nil {
+		if err == nil && local.Managed == root.Managed && local.Path != nil {
+			if err := staged.SetRestoredStorageRootPath(ctx, database.SetRestoredStorageRootPathParams{Path: local.Path, ID: id}); err != nil {
 				return nil, err
 			}
 		}
@@ -339,62 +329,57 @@ func (api *API) prepareRestoreLocations(ctx context.Context, db *sql.DB, stage, 
 		if _, ok := archived[target.Id]; ok {
 			continue
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO storage_roots(id,label,path,managed) VALUES(?,?,?,1)`, target.Id, target.Label, target.Path); err != nil {
+		if err := staged.InsertRestoredStorageRoot(ctx, database.InsertRestoredStorageRootParams{ID: target.Id, Label: target.Label, Path: &target.Path}); err != nil {
 			return nil, err
 		}
 	}
 
-	rows, err := tx.QueryContext(ctx, `SELECT id,filepath,COALESCE(storage_root_id,'library'),coverfile,deleted FROM documents`)
+	documents, err := staged.ListDocumentsForRestore(ctx)
 	if err != nil {
 		return nil, err
 	}
-	type update struct {
-		id, root    string
-		book, cover *string
-	}
-	var changes []update
 	consumed := map[string]bool{}
-	err = func() error {
-		defer rows.Close()
-		for rows.Next() {
-			var u update
-			var deleted bool
-			if err := rows.Scan(&u.id, &u.book, &u.root, &u.cover, &deleted); err != nil {
-				return err
-			}
-			if _, ok := archived[u.root]; !ok {
-				return errors.New("document has unknown root")
-			}
-			for _, field := range []*string{u.book, u.cover} {
-				if field == nil {
-					continue
-				}
-				canonical, ok := storagepath.NormalizeLegacy(*field)
-				if !ok {
-					return errors.New("invalid document or cover path")
-				}
-				*field = canonical
-			}
-			if local, ok := mapped[u.root]; ok && !deleted && u.book != nil {
-				archivedName := u.root + "/" + *u.book
-				if info, err := os.Stat(filepath.Join(stage, "documents", filepath.FromSlash(archivedName))); err == nil && info.Mode().IsRegular() {
-					consumed[archivedName] = true
-					relative := prefix + "/" + archivedName
-					u.book, u.root = &relative, local.Id
-				}
-			}
-			if u.cover != nil && *u.cover != "UNKNOWN" {
-				if info, err := os.Stat(filepath.Join(stage, "covers", filepath.FromSlash(*u.cover))); err == nil && info.Mode().IsRegular() {
-					relative := prefix + "/" + *u.cover
-					u.cover = &relative
-				}
-			}
-			changes = append(changes, u)
+	defaultRoot := libraryRoot
+	for i := range documents {
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
-		return rows.Err()
-	}()
-	if err != nil {
-		return nil, err
+		doc := &documents[i]
+		root := doc.StorageRootID
+		if root == nil {
+			root = &defaultRoot
+		}
+		if _, ok := archived[*root]; !ok {
+			return nil, errors.New("document has unknown root")
+		}
+		for _, field := range []*string{doc.Filepath, doc.Coverfile} {
+			if field == nil {
+				continue
+			}
+			canonical, ok := storagepath.NormalizeLegacy(*field)
+			if !ok {
+				return nil, errors.New("invalid document or cover path")
+			}
+			*field = canonical
+		}
+		if local, ok := mapped[*root]; ok && !doc.Deleted && doc.Filepath != nil {
+			archivedName := *root + "/" + *doc.Filepath
+			if info, err := os.Stat(filepath.Join(stage, "documents", filepath.FromSlash(archivedName))); err == nil && info.Mode().IsRegular() {
+				consumed[archivedName] = true
+				relative := prefix + "/" + archivedName
+				doc.Filepath, root = &relative, &local.Id
+			}
+		}
+		if doc.Coverfile != nil && *doc.Coverfile != "UNKNOWN" {
+			if info, err := os.Stat(filepath.Join(stage, "covers", filepath.FromSlash(*doc.Coverfile))); err == nil && info.Mode().IsRegular() {
+				relative := prefix + "/" + *doc.Coverfile
+				doc.Coverfile = &relative
+			}
+		}
+		if doc.Filepath == nil {
+			root = nil
+		}
+		doc.StorageRootID = root
 	}
 	for _, id := range ids {
 		err := fs.WalkDir(os.DirFS(filepath.Join(stage, "documents")), id, func(name string, entry fs.DirEntry, err error) error {
@@ -410,12 +395,10 @@ func (api *API) prepareRestoreLocations(ctx context.Context, db *sql.DB, stage, 
 			return nil, err
 		}
 	}
-	for _, u := range changes {
-		var root *string
-		if u.book != nil {
-			root = &u.root
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE documents SET filepath=?,storage_root_id=?,coverfile=?,basepath=NULL WHERE id=?`, u.book, root, u.cover, u.id); err != nil {
+	for _, doc := range documents {
+		if err := staged.SetRestoredDocumentPaths(ctx, database.SetRestoredDocumentPathsParams{
+			ID: doc.ID, Filepath: doc.Filepath, StorageRootID: doc.StorageRootID, Coverfile: doc.Coverfile,
+		}); err != nil {
 			return nil, err
 		}
 	}
@@ -423,11 +406,12 @@ func (api *API) prepareRestoreLocations(ctx context.Context, db *sql.DB, stage, 
 		return nil, err
 	}
 	// Restored Schedules - Confirm the new mounts before resuming automatic imports.
-	if _, err := tx.ExecContext(ctx, `UPDATE auto_import_rules SET enabled=0,next_scan=NULL,status='idle'`); err != nil {
+	if err := staged.PauseRestoredImportRules(ctx); err != nil {
 		return nil, err
 	}
 	// Interrupted Jobs - A snapshot may include the job that wrote it; no worker resumes after restore.
-	if _, err := tx.ExecContext(ctx, `UPDATE admin_jobs SET status='interrupted',finished_at=? WHERE status='running'`, jobTime(time.Now())); err != nil {
+	finishedAt := jobTime(time.Now())
+	if err := staged.InterruptRestoredJobs(ctx, &finishedAt); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -523,15 +507,15 @@ func (s *webAPI) ApplyAdminRestore(ctx context.Context, r ApplyAdminRestoreReque
 		return nil, adminFailure(404, "restore_expired")
 	}
 	req := requestContext(ctx)
-	var admin bool
-	if err := api.db.DB.QueryRowContext(req, `SELECT admin FROM users WHERE id=? AND auth_hash=?`, principal.UserName, principal.AuthHash).Scan(&admin); err != nil || !admin {
+	admin, err := api.db.Queries.GetStorageAdminByAuthHash(req, database.GetStorageAdminByAuthHashParams{ID: principal.UserName, AuthHash: &principal.AuthHash})
+	if err != nil || !admin {
 		return nil, adminFailure(403, "forbidden")
 	}
-	active := 0
-	if err := api.db.DB.QueryRowContext(req, `SELECT count(*) FROM admin_jobs WHERE status='running' AND deadline>?`, jobTime(time.Now())).Scan(&active); err != nil {
+	active, err := api.db.Queries.HasRunningStorageJobs(req, jobTime(time.Now()))
+	if err != nil {
 		return nil, err
 	}
-	if active > 0 {
+	if active {
 		return nil, adminFailure(409, "server_busy")
 	}
 	original := filepath.Join(stage, adminBackupName)
@@ -569,8 +553,7 @@ func (s *webAPI) ApplyAdminRestore(ctx context.Context, r ApplyAdminRestoreReque
 	roots, err := api.prepareRestoreLocations(req, db, stage, prefix)
 	if err == nil {
 		// Rotate in the staged database so no restored data is visible under the old generation.
-		_, err = db.ExecContext(req, `INSERT INTO reading_generation VALUES (1,lower(hex(randomblob(16))))
- ON CONFLICT(singleton) DO UPDATE SET generation=excluded.generation`)
+		err = database.New(db).RotateRestoredReadingGeneration(req)
 	}
 	closeErr = db.Close()
 	if err != nil || closeErr != nil {

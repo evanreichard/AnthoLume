@@ -4,6 +4,11 @@
 
 package database
 
+type AccountIdentity struct {
+	UserID    string `json:"user_id"`
+	AccountID string `json:"account_id"`
+}
+
 type Activity struct {
 	ID              int64   `json:"id"`
 	UserID          string  `json:"user_id"`
@@ -16,6 +21,29 @@ type Activity struct {
 	CreatedAt       string  `json:"created_at"`
 }
 
+type AdminJob struct {
+	ID         string  `json:"id"`
+	Kind       string  `json:"kind"`
+	Status     string  `json:"status"`
+	StartedAt  string  `json:"started_at"`
+	FinishedAt *string `json:"finished_at"`
+	Deadline   string  `json:"deadline"`
+	Result     []byte  `json:"result"`
+}
+
+type AutoImportRule struct {
+	ID              string  `json:"id"`
+	Name            string  `json:"name"`
+	RootID          string  `json:"root_id"`
+	Enabled         bool    `json:"enabled"`
+	Watch           bool    `json:"watch"`
+	IntervalMinutes int64   `json:"interval_minutes"`
+	Reference       bool    `json:"reference"`
+	LastScan        *string `json:"last_scan"`
+	NextScan        *string `json:"next_scan"`
+	Status          string  `json:"status"`
+}
+
 type Device struct {
 	ID         string `json:"id"`
 	UserID     string `json:"user_id"`
@@ -23,6 +51,12 @@ type Device struct {
 	LastSynced string `json:"last_synced"`
 	CreatedAt  string `json:"created_at"`
 	Sync       bool   `json:"sync"`
+}
+
+type DevicePreference struct {
+	DeviceID string `json:"device_id"`
+	Label    string `json:"label"`
+	Archived bool   `json:"archived"`
 }
 
 type Document struct {
@@ -79,6 +113,12 @@ type DocumentUserStatistic struct {
 	WeeklyWpm          float64 `json:"weekly_wpm"`
 }
 
+type KosyncDeviceAlias struct {
+	UserID     string `json:"user_id"`
+	ExternalID string `json:"external_id"`
+	DeviceID   string `json:"device_id"`
+}
+
 type Metadata struct {
 	ID          int64   `json:"id"`
 	DocumentID  string  `json:"document_id"`
@@ -90,6 +130,43 @@ type Metadata struct {
 	Isbn10      *string `json:"isbn10"`
 	Isbn13      *string `json:"isbn13"`
 	CreatedAt   string  `json:"created_at"`
+}
+
+type ReadingGeneration struct {
+	Singleton  int64  `json:"singleton"`
+	Generation string `json:"generation"`
+}
+
+type ReadingHead struct {
+	UserID     string   `json:"user_id"`
+	DocumentID string   `json:"document_id"`
+	Revision   int64    `json:"revision"`
+	Position   *string  `json:"position"`
+	Fraction   *float64 `json:"fraction"`
+	DeviceID   *string  `json:"device_id"`
+	UpdatedAt  *string  `json:"updated_at"`
+}
+
+type ReadingHeadDevice struct {
+	UserID     string  `json:"user_id"`
+	DocumentID string  `json:"document_id"`
+	ExternalID *string `json:"external_id"`
+	DeviceName string  `json:"device_name"`
+}
+
+type ReadingReceipt struct {
+	UserID          string  `json:"user_id"`
+	EventID         string  `json:"event_id"`
+	DocumentID      string  `json:"document_id"`
+	Kind            string  `json:"kind"`
+	PayloadVersion  int64   `json:"payload_version"`
+	Payload         string  `json:"payload"`
+	Digest          string  `json:"digest"`
+	ObservedAt      string  `json:"observed_at"`
+	Status          int64   `json:"status"`
+	Revision        *string `json:"revision"`
+	Code            string  `json:"code"`
+	CurrentRevision *string `json:"current_revision"`
 }
 
 type Setting struct {

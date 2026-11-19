@@ -9,6 +9,7 @@ import (
 	_ "time/tzdata"
 
 	"github.com/gin-contrib/sessions"
+	"reichard.io/antholume/database"
 	"reichard.io/antholume/reading"
 )
 
@@ -21,11 +22,9 @@ func (s *webAPI) UpdatePreferences(ctx context.Context, r UpdatePreferencesReque
 		return nil, &reading.Failure{Status: 400, Code: "invalid_timezone"}
 	}
 	principal := webUser(ctx)
-	result, err := s.api.db.DB.ExecContext(requestContext(ctx), `UPDATE users SET timezone=? WHERE id=? AND auth_hash=?`, zone, principal.UserName, principal.AuthHash)
-	if err != nil {
-		return nil, err
-	}
-	n, err := result.RowsAffected()
+	n, err := s.api.db.Queries.UpdateSessionTimezone(requestContext(ctx), database.UpdateSessionTimezoneParams{
+		Timezone: &zone, UserID: principal.UserName, AuthHash: &principal.AuthHash,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -65,11 +64,9 @@ func (s *webAPI) ChangePassword(ctx context.Context, r ChangePasswordRequestObje
 	if err != nil {
 		return nil, err
 	}
-	result, err := api.db.DB.ExecContext(request, `UPDATE users SET pass=?,auth_hash=? WHERE id=? AND auth_hash=?`, password, token, principal.UserName, principal.AuthHash)
-	if err != nil {
-		return nil, err
-	}
-	n, err := result.RowsAffected()
+	n, err := api.db.Queries.UpdateSessionPassword(request, database.UpdateSessionPasswordParams{
+		Pass: &password, NewAuthHash: &token, UserID: principal.UserName, CurrentAuthHash: &principal.AuthHash,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -84,39 +81,30 @@ func (s *webAPI) ChangePassword(ctx context.Context, r ChangePasswordRequestObje
 	return ChangePassword200JSONResponse(out), err
 }
 
-const managedDevices = `SELECT d.id,d.device_name,COALESCE(p.label,''),COALESCE(p.archived,0),d.last_synced FROM devices d LEFT JOIN device_preferences p ON p.device_id=d.id WHERE d.user_id=?`
-
-type deviceScanner interface{ Scan(...any) error }
-
-func scanManagedDevice(row deviceScanner) (ManagedDevice, error) {
-	var out ManagedDevice
-	var stamp string
-	if err := row.Scan(&out.Id, &out.Name, &out.Label, &out.Archived, &stamp); err != nil {
-		return out, err
-	}
-	last, err := time.Parse(time.RFC3339, stamp)
-	out.LastSynced = last.UTC()
-	return out, err
+func managedDevice(row database.GetManagedReadingDeviceRow) (ManagedDevice, error) {
+	last, err := time.Parse(time.RFC3339, row.LastSynced)
+	return ManagedDevice{
+		Id: row.ID, Name: row.DeviceName, Label: row.Label, Archived: row.Archived, LastSynced: last.UTC(),
+	}, err
 }
 
 func (s *webAPI) ListManagedDevices(ctx context.Context, _ ListManagedDevicesRequestObject) (ListManagedDevicesResponseObject, error) {
-	rows, err := s.api.db.DB.QueryContext(requestContext(ctx), managedDevices+` ORDER BY d.last_synced DESC,d.id ASC LIMIT 501`, webUser(ctx).UserName)
+	rows, err := s.api.db.Queries.ListManagedReadingDevices(requestContext(ctx), webUser(ctx).UserName)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := ListManagedDevices200JSONResponse{}
-	for rows.Next() {
+	out := make(ListManagedDevices200JSONResponse, 0, len(rows))
+	for _, row := range rows {
 		if len(out) >= 500 {
 			return nil, &reading.Failure{Status: 409, Code: "too_many_devices"}
 		}
-		device, err := scanManagedDevice(rows)
+		device, err := managedDevice(database.GetManagedReadingDeviceRow(row))
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, device)
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 func (s *webAPI) UpdateDevicePreferences(ctx context.Context, r UpdateDevicePreferencesRequestObject) (UpdateDevicePreferencesResponseObject, error) {
@@ -130,14 +118,20 @@ func (s *webAPI) UpdateDevicePreferences(ctx context.Context, r UpdateDevicePref
 		return nil, err
 	}
 	defer tx.Rollback()
-	_, err = tx.ExecContext(request, `INSERT INTO device_preferences(device_id,label,archived) SELECT id,?,? FROM devices WHERE user_id=? AND id=? ON CONFLICT(device_id) DO UPDATE SET label=excluded.label,archived=excluded.archived`, strings.TrimSpace(r.Body.Label), r.Body.Archived, user, r.Id)
-	if err != nil {
+	q := s.api.db.Queries.WithTx(tx)
+	if err = q.UpsertReadingDevicePreferences(request, database.UpsertReadingDevicePreferencesParams{
+		Label: strings.TrimSpace(r.Body.Label), Archived: r.Body.Archived, UserID: user, DeviceID: r.Id,
+	}); err != nil {
 		return nil, err
 	}
-	device, err := scanManagedDevice(tx.QueryRowContext(request, managedDevices+` AND d.id=?`, user, r.Id))
+	row, err := q.GetManagedReadingDevice(request, database.GetManagedReadingDeviceParams{UserID: user, ID: r.Id})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, &reading.Failure{Status: 404, Code: "not_found"}
 	}
+	if err != nil {
+		return nil, err
+	}
+	device, err := managedDevice(row)
 	if err != nil {
 		return nil, err
 	}

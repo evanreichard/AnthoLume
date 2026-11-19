@@ -7,9 +7,10 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"reichard.io/antholume/database"
 )
 
-func koDevice(ctx context.Context, tx *sql.Tx, user string, externalID *string, name string) (string, error) {
+func koDevice(ctx context.Context, q *database.Queries, user string, externalID *string, name string) (string, error) {
 	external := ""
 	if externalID != nil {
 		external = *externalID
@@ -17,10 +18,9 @@ func koDevice(ctx context.Context, tx *sql.Tx, user string, externalID *string, 
 	if external != "" && !validID(external) || !utf8.ValidString(name) || utf8.RuneCountInString(name) > 128 {
 		return "", fail(400, "invalid_request")
 	}
-	var internal string
-	err := tx.QueryRowContext(ctx, `SELECT device_id FROM kosync_device_aliases WHERE user_id=? AND external_id=?`, user, external).Scan(&internal)
+	internal, err := q.GetKOSyncDeviceAlias(ctx, database.GetKOSyncDeviceAliasParams{UserID: user, ExternalID: external})
 	if err == nil {
-		return internal, register(ctx, tx, user, internal, name)
+		return internal, register(ctx, q, user, internal, name)
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return "", err
@@ -28,8 +28,7 @@ func koDevice(ctx context.Context, tx *sql.Tx, user string, externalID *string, 
 
 	internal = external
 	if internal != "" {
-		var owner string
-		err = tx.QueryRowContext(ctx, "SELECT user_id FROM devices WHERE id=?", internal).Scan(&owner)
+		owner, err := q.GetDeviceOwner(ctx, internal)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return "", err
 		}
@@ -41,11 +40,9 @@ func koDevice(ctx context.Context, tx *sql.Tx, user string, externalID *string, 
 		// Internal Identity - Never upsert a random collision or expose this server-generated ID as the external ID.
 		for {
 			internal = uuid.NewString()
-			result, err := tx.ExecContext(ctx, `INSERT INTO devices(id,user_id,device_name) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING`, internal, user, name)
-			if err != nil {
-				return "", err
-			}
-			n, err := result.RowsAffected()
+			n, err := q.InsertKOSyncDeviceIfFree(ctx, database.InsertKOSyncDeviceIfFreeParams{
+				ID: internal, UserID: user, DeviceName: name,
+			})
 			if err != nil {
 				return "", err
 			}
@@ -53,9 +50,11 @@ func koDevice(ctx context.Context, tx *sql.Tx, user string, externalID *string, 
 				break
 			}
 		}
-	} else if err := register(ctx, tx, user, internal, name); err != nil {
+	} else if err := register(ctx, q, user, internal, name); err != nil {
 		return "", err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO kosync_device_aliases(user_id,external_id,device_id) VALUES(?,?,?)`, user, external, internal)
+	err = q.InsertKOSyncDeviceAlias(ctx, database.InsertKOSyncDeviceAliasParams{
+		UserID: user, ExternalID: external, DeviceID: internal,
+	})
 	return internal, err
 }

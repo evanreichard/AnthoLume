@@ -14,16 +14,26 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	log "github.com/sirupsen/logrus"
+	"reichard.io/antholume/database"
 )
 
 const autoImportQuiet = 5 * time.Second
-const autoImportFields = `id,name,root_id,enabled,watch,interval_minutes,reference,last_scan,next_scan,status`
 
-func scanAutoImport(row interface{ Scan(...any) error }) (AdminAutoImport, error) {
-	var out AdminAutoImport
-	s := &out.Settings
-	err := row.Scan(&out.Id, &s.Name, &s.RootId, &s.Enabled, &s.Watch, &s.IntervalMinutes, &s.Reference, &out.LastScan, &out.NextScan, &out.Status)
-	return out, err
+func autoImportResponse(row database.AutoImportRule) AdminAutoImport {
+	return AdminAutoImport{
+		Id:       row.ID,
+		LastScan: row.LastScan,
+		NextScan: row.NextScan,
+		Status:   AdminAutoImportStatus(row.Status),
+		Settings: AdminAutoImportSettings{
+			Name:            row.Name,
+			RootId:          row.RootID,
+			Enabled:         row.Enabled,
+			Watch:           row.Watch,
+			IntervalMinutes: int(row.IntervalMinutes),
+			Reference:       row.Reference,
+		},
+	}
 }
 
 func (api *API) autoImportSource(ctx context.Context, id string) (AdminStorageRoot, error) {
@@ -78,9 +88,12 @@ func (s *webAPI) SaveAdminAutoImport(ctx context.Context, r SaveAdminAutoImportR
 		id = *r.Params.Id
 	}
 	err := s.adminTransaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
+		q := s.api.db.Queries.WithTx(tx)
 		if cfg.Enabled {
-			var overlap bool
-			err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM auto_import_rules WHERE enabled AND root_id=?1 AND id<>?2)`, cfg.RootId, id).Scan(&overlap)
+			overlap, err := q.HasAutoImportOverlap(ctx, database.HasAutoImportOverlapParams{
+				RootID:    cfg.RootId,
+				ExcludeID: id,
+			})
 			if err != nil {
 				return err
 			}
@@ -94,8 +107,8 @@ func (s *webAPI) SaveAdminAutoImport(ctx context.Context, r SaveAdminAutoImportR
 			next = &now
 		}
 		if id == "" {
-			var count int
-			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM auto_import_rules`).Scan(&count); err != nil {
+			count, err := q.CountAutoImportRules(ctx)
+			if err != nil {
 				return err
 			}
 			if count >= 100 {
@@ -105,13 +118,28 @@ func (s *webAPI) SaveAdminAutoImport(ctx context.Context, r SaveAdminAutoImportR
 			if _, err := rand.Read(random[:]); err != nil {
 				return err
 			}
-			_, err := tx.ExecContext(ctx, `INSERT INTO auto_import_rules(id,name,root_id,enabled,watch,interval_minutes,reference,next_scan) VALUES(?,?,?,?,?,?,?,?)`,
-				hex.EncodeToString(random[:]), cfg.Name, cfg.RootId, cfg.Enabled, cfg.Watch, cfg.IntervalMinutes, cfg.Reference, next)
-			return err
+			return q.CreateAutoImportRule(ctx, database.CreateAutoImportRuleParams{
+				ID:              hex.EncodeToString(random[:]),
+				Name:            cfg.Name,
+				RootID:          cfg.RootId,
+				Enabled:         cfg.Enabled,
+				Watch:           cfg.Watch,
+				IntervalMinutes: int64(cfg.IntervalMinutes),
+				Reference:       cfg.Reference,
+				NextScan:        next,
+			})
 		}
-		result, err := tx.ExecContext(ctx, `UPDATE auto_import_rules SET name=?,root_id=?,enabled=?,watch=?,interval_minutes=?,reference=?,next_scan=?,status='idle',last_scan=NULL WHERE id=?`,
-			cfg.Name, cfg.RootId, cfg.Enabled, cfg.Watch, cfg.IntervalMinutes, cfg.Reference, next, id)
-		return autoImportMutation(result, err, "auto_import_not_found", 404)
+		n, err := q.UpdateAutoImportRule(ctx, database.UpdateAutoImportRuleParams{
+			ID:              id,
+			Name:            cfg.Name,
+			RootID:          cfg.RootId,
+			Enabled:         cfg.Enabled,
+			Watch:           cfg.Watch,
+			IntervalMinutes: int64(cfg.IntervalMinutes),
+			Reference:       cfg.Reference,
+			NextScan:        next,
+		})
+		return autoImportMutation(n, err, "auto_import_not_found", 404)
 	})
 	if err != nil {
 		return nil, err
@@ -119,11 +147,7 @@ func (s *webAPI) SaveAdminAutoImport(ctx context.Context, r SaveAdminAutoImportR
 	return SaveAdminAutoImport204Response{}, nil
 }
 
-func autoImportMutation(result sql.Result, err error, code string, status int) error {
-	if err != nil {
-		return err
-	}
-	n, err := result.RowsAffected()
+func autoImportMutation(n int64, err error, code string, status int) error {
 	if err == nil && n == 0 {
 		return adminFailure(status, code)
 	}
@@ -134,8 +158,12 @@ func (s *webAPI) QueueAdminAutoImport(ctx context.Context, r QueueAdminAutoImpor
 	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
-	result, err := s.api.db.DB.ExecContext(requestContext(ctx), `UPDATE auto_import_rules SET next_scan=? WHERE id=? AND enabled`, jobTime(time.Now()), r.Params.Id)
-	if err := autoImportMutation(result, err, "auto_import_disabled", 409); err != nil {
+	next := jobTime(time.Now())
+	n, err := s.api.db.Queries.QueueAutoImportRule(requestContext(ctx), database.QueueAutoImportRuleParams{
+		ID:       r.Params.Id,
+		NextScan: &next,
+	})
+	if err := autoImportMutation(n, err, "auto_import_disabled", 409); err != nil {
 		return nil, err
 	}
 	return QueueAdminAutoImport204Response{}, nil
@@ -145,34 +173,29 @@ func (s *webAPI) DeleteAdminAutoImport(ctx context.Context, r DeleteAdminAutoImp
 	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
-	result, err := s.api.db.DB.ExecContext(requestContext(ctx), `DELETE FROM auto_import_rules WHERE id=?`, r.Params.Id)
-	if err := autoImportMutation(result, err, "auto_import_not_found", 404); err != nil {
+	n, err := s.api.db.Queries.DeleteAutoImportRule(requestContext(ctx), r.Params.Id)
+	if err := autoImportMutation(n, err, "auto_import_not_found", 404); err != nil {
 		return nil, err
 	}
 	return DeleteAdminAutoImport204Response{}, nil
 }
 
 func (api *API) autoImportRules(ctx context.Context, enabled bool) ([]AdminAutoImport, error) {
-	query := `SELECT ` + autoImportFields + ` FROM auto_import_rules`
+	var rows []database.AutoImportRule
+	var err error
 	if enabled {
-		query += ` WHERE enabled ORDER BY COALESCE(next_scan,''),id`
+		rows, err = api.db.Queries.ListEnabledAutoImportRules(ctx)
 	} else {
-		query += ` ORDER BY name COLLATE NOCASE,id`
+		rows, err = api.db.Queries.ListAutoImportRules(ctx)
 	}
-	rows, err := api.db.DB.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := []AdminAutoImport{}
-	for rows.Next() {
-		row, err := scanAutoImport(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, row)
+	out := make([]AdminAutoImport, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, autoImportResponse(row))
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 type observedImportFile struct {
@@ -196,16 +219,15 @@ func (api *API) runAutoImport(ctx context.Context, id string, caches map[string]
 	defer api.libraryWrite.Unlock()
 	ctx, cancel := context.WithTimeout(ctx, adminJobLifetime)
 	defer cancel()
-	row, err := scanAutoImport(api.db.DB.QueryRowContext(ctx, `SELECT `+autoImportFields+` FROM auto_import_rules WHERE id=? AND enabled`, id))
+	q := api.db.Queries
+	cfg, err := q.GetEnabledAutoImportRule(ctx, id)
 	if err != nil {
 		return false
 	}
-	var active bool
-	if err := api.db.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM admin_jobs WHERE kind='import' AND status='running' AND deadline>?)`, jobTime(time.Now())).Scan(&active); err != nil || active {
+	if active, err := q.HasActiveAdminImportJob(ctx, jobTime(time.Now())); err != nil || active {
 		return false
 	}
-	cfg := row.Settings
-	source, err := api.autoImportSource(ctx, cfg.RootId)
+	source, err := api.autoImportSource(ctx, cfg.RootID)
 	status := "complete"
 	var retry bool
 	if err == nil {
@@ -215,7 +237,7 @@ func (api *API) runAutoImport(ctx context.Context, id string, caches map[string]
 		}
 		seen := map[string]observedImportFile{}
 		candidates := map[string]observedImportFile{}
-		results, scanErr := api.importBooks(ctx, cfg.RootId, cfg.Reference, false, func(root *os.Root, name string) bool {
+		results, scanErr := api.importBooks(ctx, cfg.RootID, cfg.Reference, false, func(root *os.Root, name string) bool {
 			info, statErr := root.Stat(name)
 			if statErr != nil {
 				retry = true
@@ -258,8 +280,13 @@ func (api *API) runAutoImport(ctx context.Context, id string, caches map[string]
 	if retry {
 		delay = min(delay, autoImportQuiet)
 	}
-	_, err = api.db.DB.ExecContext(ctx, `UPDATE auto_import_rules SET last_scan=?,next_scan=?,status=? WHERE id=?`, jobTime(now), jobTime(now.Add(delay)), status, id)
-	return err == nil
+	last, next := jobTime(now), jobTime(now.Add(delay))
+	return q.RecordAutoImportScan(ctx, database.RecordAutoImportScanParams{
+		ID:       id,
+		LastScan: &last,
+		NextScan: &next,
+		Status:   status,
+	}) == nil
 }
 
 // RunAutoImports owns one watcher and one scan loop for the server lifetime.

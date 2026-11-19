@@ -84,18 +84,18 @@ func (s *webAPI) EditDocument(ctx context.Context, r EditDocumentRequestObject) 
 		return nil, err
 	}
 	defer tx.Rollback()
-	result, err := tx.ExecContext(ctx, `UPDATE documents SET title=?, author=NULLIF(?,''), description=NULLIF(?,''), isbn10=NULLIF(?,''), isbn13=NULLIF(?,''), coverfile=COALESCE(?,coverfile) WHERE id=? AND deleted=0`, strings.TrimSpace(b.Title), strings.TrimSpace(b.Author), strings.TrimSpace(b.Description), b.Isbn10, b.Isbn13, cover, r.Id)
-	if err != nil {
-		return nil, err
-	}
-	n, err := result.RowsAffected()
+	queries := database.New(tx)
+	n, err := queries.UpdateWebDocumentMetadata(ctx, database.UpdateWebDocumentMetadataParams{
+		ID: r.Id, Title: strings.TrimSpace(b.Title), Author: strings.TrimSpace(b.Author),
+		Description: strings.TrimSpace(b.Description), Isbn10: b.Isbn10, Isbn13: b.Isbn13, Coverfile: cover,
+	})
 	if err != nil {
 		return nil, err
 	}
 	if n == 0 {
 		return nil, &reading.Failure{Status: 404, Code: "not_found"}
 	}
-	doc, err := database.New(tx).GetDocument(ctx, r.Id)
+	doc, err := queries.GetDocument(ctx, r.Id)
 	if err != nil {
 		return nil, err
 	}

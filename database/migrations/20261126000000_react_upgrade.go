@@ -4,12 +4,16 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	_ "embed"
 	"fmt"
 	"github.com/pressly/goose/v3"
 	"os"
 	"path/filepath"
 	"reichard.io/antholume/pkg/storagepath"
 )
+
+//go:embed schema/admin_jobs_schema.sql
+var adminJobsSchema string
 
 func init() { goose.AddMigrationContext(upReactUpgrade, downReactUpgrade) }
 
@@ -30,45 +34,9 @@ func downReactUpgrade(context.Context, *sql.Tx) error {
 }
 
 // ReadingSchema is shared by fresh schema initialization and the additive upgrade.
-const ReadingSchema = `
-CREATE TABLE IF NOT EXISTS reading_heads (
- user_id TEXT NOT NULL REFERENCES users(id),
- document_id TEXT NOT NULL REFERENCES documents(id),
- revision INTEGER NOT NULL DEFAULT 0 CHECK(revision BETWEEN 0 AND 999999999999999999),
- position TEXT, fraction REAL, device_id TEXT, updated_at TEXT,
- PRIMARY KEY(user_id, document_id)
-);
-CREATE TABLE IF NOT EXISTS reading_receipts (
- user_id TEXT NOT NULL REFERENCES users(id), event_id TEXT NOT NULL,
- document_id TEXT NOT NULL REFERENCES documents(id), kind TEXT NOT NULL,
- payload_version INTEGER NOT NULL, payload TEXT NOT NULL, digest TEXT NOT NULL,
- observed_at TEXT NOT NULL, status INTEGER NOT NULL,
- revision TEXT, code TEXT NOT NULL, current_revision TEXT,
- PRIMARY KEY(user_id, event_id)
-);
-CREATE TRIGGER IF NOT EXISTS reading_user_deleted BEFORE DELETE ON users BEGIN
- DELETE FROM reading_receipts WHERE user_id=OLD.id;
- DELETE FROM reading_heads WHERE user_id=OLD.id;
-END;
-CREATE TRIGGER IF NOT EXISTS reading_document_deleted BEFORE DELETE ON documents BEGIN
- DELETE FROM reading_receipts WHERE document_id=OLD.id;
- DELETE FROM reading_heads WHERE document_id=OLD.id;
-END;
-CREATE TRIGGER IF NOT EXISTS reading_document_tombstoned AFTER UPDATE OF deleted ON documents
-WHEN NEW.deleted=1 BEGIN
- DELETE FROM reading_receipts WHERE document_id=OLD.id;
- DELETE FROM reading_heads WHERE document_id=OLD.id;
-END;
-CREATE TRIGGER IF NOT EXISTS reading_progress_writer BEFORE INSERT ON document_progress BEGIN
- SELECT CASE WHEN READING_WRITER()!=1 THEN RAISE(ABORT,'reading writer required') END;
-END;
-CREATE TRIGGER IF NOT EXISTS reading_progress_update_writer BEFORE UPDATE ON document_progress BEGIN
- SELECT CASE WHEN READING_WRITER()!=1 THEN RAISE(ABORT,'reading writer required') END;
-END;
-CREATE TRIGGER IF NOT EXISTS reading_activity_writer BEFORE INSERT ON activity BEGIN
- SELECT CASE WHEN READING_WRITER()!=1 THEN RAISE(ABORT,'reading writer required') END;
-END;
-`
+//
+//go:embed schema/reading_schema.sql
+var ReadingSchema string
 
 func upReading(ctx context.Context, tx *sql.Tx) error {
 	if _, err := tx.ExecContext(ctx, ReadingSchema); err != nil {
@@ -85,28 +53,8 @@ func upReading(ctx context.Context, tx *sql.Tx) error {
 	return err
 }
 
-const KOSyncDeviceSchema = `
-CREATE TABLE IF NOT EXISTS kosync_device_aliases (
- user_id TEXT NOT NULL REFERENCES users(id),
- external_id TEXT NOT NULL,
- device_id TEXT NOT NULL REFERENCES devices(id),
- PRIMARY KEY(user_id, external_id)
-);
-CREATE TABLE IF NOT EXISTS reading_head_devices (
- user_id TEXT NOT NULL,
- document_id TEXT NOT NULL,
- external_id TEXT,
- device_name TEXT NOT NULL,
- PRIMARY KEY(user_id, document_id),
- FOREIGN KEY(user_id, document_id) REFERENCES reading_heads(user_id, document_id) ON DELETE CASCADE
-);
-CREATE TRIGGER IF NOT EXISTS kosync_alias_user_deleted BEFORE DELETE ON users BEGIN
- DELETE FROM kosync_device_aliases WHERE user_id=OLD.id;
-END;
-CREATE TRIGGER IF NOT EXISTS kosync_alias_device_deleted BEFORE DELETE ON devices BEGIN
- DELETE FROM kosync_device_aliases WHERE device_id=OLD.id;
-END;
-`
+//go:embed schema/kosync_device_schema.sql
+var KOSyncDeviceSchema string
 
 func upKOSyncDevices(ctx context.Context, tx *sql.Tx) error {
 	if _, err := tx.ExecContext(ctx, KOSyncDeviceSchema); err != nil {
@@ -120,13 +68,9 @@ func upKOSyncDevices(ctx context.Context, tx *sql.Tx) error {
 }
 
 // Separate Labels - Sync clients can continue reporting their own names without overwriting account preferences.
-const DevicePreferencesSchema = `
-CREATE TABLE IF NOT EXISTS device_preferences (
- device_id TEXT NOT NULL PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
- label TEXT NOT NULL,
- archived BOOLEAN NOT NULL CHECK (archived IN (0, 1))
-);
-`
+//
+//go:embed schema/device_preferences_schema.sql
+var DevicePreferencesSchema string
 
 func upDevicePreferences(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, DevicePreferencesSchema)
@@ -134,17 +78,12 @@ func upDevicePreferences(ctx context.Context, tx *sql.Tx) error {
 }
 
 func upAdminJobs(ctx context.Context, tx *sql.Tx) error {
-	_, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS admin_jobs (
- id TEXT PRIMARY KEY NOT NULL,
- kind TEXT NOT NULL,
- status TEXT NOT NULL CHECK(status IN ('running','succeeded','failed','interrupted')),
- started_at TEXT NOT NULL,
- finished_at TEXT,
- deadline TEXT NOT NULL
- );
- CREATE UNIQUE INDEX IF NOT EXISTS admin_jobs_running ON admin_jobs(kind) WHERE status='running';`)
+	_, err := tx.ExecContext(ctx, adminJobsSchema)
 	return err
 }
+
+//go:embed schema/admin_job_result_schema.sql
+var adminJobResultSchema string
 
 func upAdminImportResults(ctx context.Context, tx *sql.Tx) error {
 	rows, err := tx.QueryContext(ctx, `SELECT name FROM pragma_table_info('admin_jobs') WHERE name='result'`)
@@ -157,7 +96,7 @@ func upAdminImportResults(ctx context.Context, tx *sql.Tx) error {
 	if err != nil || exists {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `ALTER TABLE admin_jobs ADD COLUMN result BLOB`)
+	_, err = tx.ExecContext(ctx, adminJobResultSchema)
 	return err
 }
 
@@ -267,18 +206,8 @@ func upCanonicalStoragePaths(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
-const AutoImportRulesSchema = `CREATE TABLE IF NOT EXISTS auto_import_rules (
- id TEXT PRIMARY KEY NOT NULL,
- name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 120),
- root_id TEXT NOT NULL REFERENCES storage_roots(id) ON DELETE CASCADE,
- enabled BOOLEAN NOT NULL CHECK(enabled IN (0,1)),
- watch BOOLEAN NOT NULL CHECK(watch IN (0,1)),
- interval_minutes INTEGER NOT NULL CHECK(interval_minutes BETWEEN 1 AND 1440),
- reference BOOLEAN NOT NULL CHECK(reference IN (0,1)),
- last_scan TEXT,
- next_scan TEXT,
- status TEXT NOT NULL DEFAULT 'idle' CHECK(status IN ('idle','complete','errors','unavailable'))
-);`
+//go:embed schema/auto_import_rules_schema.sql
+var AutoImportRulesSchema string
 
 func upAutoImportRules(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, AutoImportRulesSchema)

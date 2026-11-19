@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 
+	"reichard.io/antholume/database"
 	"reichard.io/antholume/pkg/storagepath"
 )
 
@@ -35,14 +36,6 @@ func (api *API) effectiveRoot(root AdminStorageRoot) AdminStorageRoot {
 	return root
 }
 
-func scanStorageRoot(row interface{ Scan(...any) error }) (AdminStorageRoot, error) {
-	var root AdminStorageRoot
-	err := row.Scan(&root.Id, &root.Label, &root.Path, &root.Managed, &root.LegacyPath)
-	return root, err
-}
-
-const storageRootFields = `id,label,COALESCE(path,''),managed,legacy_path`
-
 type storageQuerier interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
@@ -51,8 +44,20 @@ func (api *API) storageRoot(ctx context.Context, id string) (AdminStorageRoot, e
 	return api.queryStorageRoot(ctx, api.db.DB, id)
 }
 func (api *API) queryStorageRoot(ctx context.Context, q storageQuerier, id string) (AdminStorageRoot, error) {
-	root, err := scanStorageRoot(q.QueryRowContext(ctx, `SELECT `+storageRootFields+` FROM storage_roots WHERE id=?`, id))
-	return api.effectiveRoot(root), err
+	// File helpers take a narrow interface; their database and transaction handles also satisfy sqlc.
+	db, ok := q.(database.DBTX)
+	if !ok {
+		return AdminStorageRoot{}, errors.New("unsupported storage query handle")
+	}
+	row, err := database.New(db).GetStorageRoot(ctx, id)
+	if err != nil {
+		return AdminStorageRoot{}, err
+	}
+	root := AdminStorageRoot{Id: row.ID, Label: row.Label, Managed: row.Managed, LegacyPath: row.LegacyPath}
+	if row.Path != nil {
+		root.Path = *row.Path
+	}
+	return api.effectiveRoot(root), nil
 }
 
 func bookRelativePath(name string) bool {
@@ -84,22 +89,15 @@ func (s *webAPI) ListAdminStorageRoots(ctx context.Context, _ ListAdminStorageRo
 	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
-	rows, err := s.api.db.DB.QueryContext(requestContext(ctx), `SELECT `+storageRootFields+`, COALESCE(book_counts.total,0)
- FROM storage_roots
- LEFT JOIN (
-   SELECT COALESCE(storage_root_id,'library') AS root_id, COUNT(*) AS total
-   FROM documents WHERE NOT deleted AND filepath IS NOT NULL GROUP BY 1
- ) AS book_counts ON book_counts.root_id=storage_roots.id
- ORDER BY id<>'library',label,id`)
+	rows, err := s.api.db.Queries.ListStorageRootsWithBookCounts(requestContext(ctx))
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := ListAdminStorageRoots200JSONResponse{}
-	for rows.Next() {
-		var r AdminStorageRoot
-		if err := rows.Scan(&r.Id, &r.Label, &r.Path, &r.Managed, &r.LegacyPath, &r.BookCount); err != nil {
-			return nil, err
+	out := make(ListAdminStorageRoots200JSONResponse, 0, len(rows))
+	for _, row := range rows {
+		r := AdminStorageRoot{Id: row.ID, Label: row.Label, Managed: row.Managed, LegacyPath: row.LegacyPath, BookCount: int(row.BookCount)}
+		if row.Path != nil {
+			r.Path = *row.Path
 		}
 		r = s.api.effectiveRoot(r)
 		path := r.Path
@@ -109,7 +107,7 @@ func (s *webAPI) ListAdminStorageRoots(ctx context.Context, _ ListAdminStorageRo
 		r.DirectoryAvailable = isDirectory(path)
 		out = append(out, r)
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 func (s *webAPI) SaveAdminStorageRoot(ctx context.Context, r SaveAdminStorageRootRequestObject) (SaveAdminStorageRootResponseObject, error) {
@@ -141,12 +139,13 @@ func (s *webAPI) SaveAdminStorageRoot(ctx context.Context, r SaveAdminStorageRoo
 	defer api.libraryWrite.Unlock()
 	principal := webUser(ctx)
 	ctx = requestContext(ctx)
-	var admin bool
-	if err := api.db.DB.QueryRowContext(ctx, `SELECT admin FROM users WHERE id=? AND auth_hash=?`, principal.UserName, principal.AuthHash).Scan(&admin); err != nil || !admin {
+	admin, err := api.db.Queries.GetStorageAdminByAuthHash(ctx, database.GetStorageAdminByAuthHashParams{ID: principal.UserName, AuthHash: &principal.AuthHash})
+	if err != nil || !admin {
 		return nil, adminFailure(403, "forbidden")
 	}
-	_, err := api.db.DB.ExecContext(ctx, `INSERT INTO storage_roots(id,label,path,managed) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET label=excluded.label,path=excluded.path,legacy_path=NULL`, root.Id, root.Label, path, root.Id == libraryRoot)
-	if err != nil {
+	if err := api.db.Queries.UpsertStorageRoot(ctx, database.UpsertStorageRootParams{
+		ID: root.Id, Label: root.Label, Path: path, Managed: root.Id == libraryRoot,
+	}); err != nil {
 		return nil, err
 	}
 	return SaveAdminStorageRoot204Response{}, nil

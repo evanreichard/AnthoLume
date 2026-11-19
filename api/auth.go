@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"reichard.io/antholume/database"
 	"reichard.io/antholume/reading"
 )
 
@@ -136,18 +137,19 @@ func (api *API) sessionIdentity(ctx context.Context, session sessions.Session) (
 	if !uok || !eok || !hok || !gok || expiry <= time.Now().Unix() {
 		return authData{}, false, nil
 	}
-	current := authData{UserName: user, AuthHash: hash, Generation: generation}
-	err := api.db.DB.QueryRowContext(ctx, `SELECT a.account_id,u.admin,u.timezone FROM users u
- JOIN account_identities a ON a.user_id=u.id
- JOIN reading_generation g ON g.singleton=1 AND g.generation=? WHERE u.id=? AND u.auth_hash=?`, generation, user, hash).
-		Scan(&current.AccountID, &current.IsAdmin, &current.Timezone)
+	current, err := api.db.Queries.GetSessionIdentity(ctx, database.GetSessionIdentityParams{
+		Generation: generation, UserID: user, AuthHash: &hash,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return authData{}, false, nil
 	}
 	if err != nil {
 		return authData{}, false, err
 	}
-	return current, true, nil
+	return authData{
+		UserName: user, AuthHash: hash, Generation: generation,
+		AccountID: current.AccountID, IsAdmin: current.Admin, Timezone: current.Timezone,
+	}, true, nil
 }
 func (api *API) anonymousSession(session sessions.Session) error {
 	token, err := randomCSRF()
@@ -160,8 +162,8 @@ func (api *API) anonymousSession(session sessions.Session) error {
 	return session.Save()
 }
 func (api *API) setSession(ctx context.Context, session sessions.Session, auth authData) error {
-	var generation string
-	if err := api.db.DB.QueryRowContext(ctx, `SELECT generation FROM reading_generation WHERE singleton=1`).Scan(&generation); err != nil {
+	generation, err := api.db.Queries.GetReadingGeneration(ctx)
+	if err != nil {
 		return err
 	}
 	token, err := randomCSRF()

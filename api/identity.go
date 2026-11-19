@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	argon2 "github.com/alexedwards/argon2id"
+	"reichard.io/antholume/database"
 	"reichard.io/antholume/reading"
 )
 
@@ -88,18 +89,21 @@ func (api *API) registerIdentity(ctx context.Context, username, password string)
 		return nil, err
 	}
 	defer tx.Rollback()
-	var exists int
-	if err = tx.QueryRowContext(ctx, "SELECT count(*) FROM users WHERE id=?", username).Scan(&exists); err != nil {
+	q := api.db.Queries.WithTx(tx)
+	exists, err := q.CountUsersByID(ctx, username)
+	if err != nil {
 		return nil, err
 	}
 	if exists != 0 {
 		return nil, &reading.Failure{Status: 409, Code: "user_conflict"}
 	}
-	var admin bool
-	if err = tx.QueryRowContext(ctx, "SELECT count(*)=0 FROM users").Scan(&admin); err != nil {
+	admin, err := q.IsFirstUser(ctx)
+	if err != nil {
 		return nil, err
 	}
-	if _, err = tx.ExecContext(ctx, "INSERT INTO users(id,pass,auth_hash,admin) VALUES(?,?,?,?)", username, hash, token, admin); err != nil {
+	if err = q.InsertIdentityUser(ctx, database.InsertIdentityUserParams{
+		ID: username, Pass: &hash, AuthHash: &token, Admin: admin,
+	}); err != nil {
 		return nil, err
 	}
 	if err = tx.Commit(); err != nil {
