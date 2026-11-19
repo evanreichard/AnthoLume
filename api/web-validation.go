@@ -176,9 +176,15 @@ func (api *API) webBoundary(c *gin.Context) {
 		handleWebError(c, err)
 		return
 	}
-	if ids := c.Request.Header.Values("X-AnthoLume-Account"); len(ids) != 0 && (!ok || len(ids) != 1 || ids[0] != auth.AccountID) {
-		abortProblem(c, 401, "unauthenticated")
-		return
+	if ids := c.Request.Header.Values("X-AnthoLume-Account"); len(ids) != 0 {
+		if !ok {
+			abortProblem(c, 401, "unauthenticated")
+			return
+		}
+		if len(ids) != 1 || ids[0] != auth.AccountID {
+			abortProblem(c, 401, "account_changed")
+			return
+		}
 	}
 	if ok {
 		c.Set("Authorization", auth)

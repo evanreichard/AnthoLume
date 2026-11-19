@@ -172,7 +172,9 @@ func (s *webAPI) ListInsightActivity(ctx context.Context, r ListInsightActivityR
 		}
 		out.Items = append(out.Items, InsightActivity{
 			Id: row.ID, DocumentId: row.DocumentID, Title: row.Title, Available: row.Available,
-			StartedAt: startedAt, Duration: row.Duration, StartFraction: row.StartPercentage, EndFraction: row.EndPercentage,
+			// Legacy Percentages - Old KO final-page activity could end above 100%; keep the raw history intact.
+			StartedAt: startedAt, Duration: row.Duration,
+			StartFraction: min(1, max(0, row.StartPercentage)), EndFraction: min(1, max(0, row.EndPercentage)),
 		})
 		cursor = insightCursor{Time: row.StartTime, ID: row.ID}
 	}

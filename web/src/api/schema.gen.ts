@@ -1885,6 +1885,10 @@ export interface operations {
         parameters: {
             query?: {
                 full?: boolean;
+                /** @description Expected browser account */
+                account?: string;
+                /** @description Expected browser reading generation */
+                generation?: string;
             };
             header?: never;
             path?: never;

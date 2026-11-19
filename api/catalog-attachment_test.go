@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"mime/multipart"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,8 +12,22 @@ import (
 	"reichard.io/antholume/metadata"
 )
 
+func (f *webFixture) koUpload(id string, book []byte) webResponse {
+	f.t.Helper()
+	var body bytes.Buffer
+	form := multipart.NewWriter(&body)
+	part, err := form.CreateFormFile("file", "test")
+	require.NoError(f.t, err)
+	_, err = part.Write(book)
+	require.NoError(f.t, err)
+	require.NoError(f.t, form.Close())
+	headers := koHeaders()
+	headers["Content-Type"] = form.FormDataContentType()
+	return f.call("PUT", "/api/ko/documents/"+id+"/file", body.String(), headers)
+}
+
 func TestCatalogIngestAttachesKOReaderPlaceholder(t *testing.T) {
-	for _, mode := range []string{"upload", "import copy", "import reference"} {
+	for _, mode := range []string{"upload", "KO upload", "import copy", "import reference"} {
 		t.Run(mode, func(t *testing.T) {
 			f := newWebFixture(t)
 			f.register("alice")
@@ -35,6 +51,22 @@ func TestCatalogIngestAttachesKOReaderPlaceholder(t *testing.T) {
 					doc := decodeWeb[Document](t, response)
 					require.Equal(t, id, doc.Id)
 					require.True(t, doc.FileAvailable)
+				}
+			} else if mode == "KO upload" {
+				func() {
+					f.api.libraryWrite.Lock()
+					defer f.api.libraryWrite.Unlock()
+					response := f.koUpload(id, book)
+					require.Equal(t, 409, response.status, string(response.body))
+					require.JSONEq(t, `{"error":"Library is busy"}`, string(response.body))
+				}()
+				entries, err := os.ReadDir(library)
+				require.NoError(t, err)
+				require.Empty(t, entries)
+				for range 2 {
+					response := f.koUpload(id, book)
+					require.Equal(t, 200, response.status, string(response.body))
+					require.JSONEq(t, `{"status":"ok"}`, string(response.body))
 				}
 			} else {
 				source := t.TempDir()
@@ -89,7 +121,7 @@ func TestUploadDoesNotReviveOrOverwriteCatalogBook(t *testing.T) {
 	} {
 		t.Run(state.name, func(t *testing.T) {
 			f := newWebFixture(t)
-			f.register("reader")
+			f.register("alice")
 			library := filepath.Join(f.cfg.DataPath, "documents")
 			if state.path != nil {
 				*state.path = "original.epub"
@@ -102,6 +134,9 @@ func TestUploadDoesNotReviveOrOverwriteCatalogBook(t *testing.T) {
 			f.exec(`INSERT INTO documents(id,md5,filepath,deleted,storage_root_id) VALUES(?,?,?,?,'library')`, *meta.PartialMD5, existingHash, state.path, state.deleted)
 			response := f.call("POST", "/api/v1/documents", string(book), map[string]string{"Content-Type": "application/epub+zip"})
 			assertProblem(t, response, 409, "conflict")
+			response = f.koUpload(*meta.PartialMD5, book)
+			require.Equal(t, 400, response.status, string(response.body))
+			require.Contains(t, string(response.body), `"error"`)
 			var hash string
 			var path *string
 			var deleted bool

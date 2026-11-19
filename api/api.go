@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -32,6 +34,7 @@ type API struct {
 	restoreGate   sync.RWMutex
 	libraryWrite  sync.Mutex
 	restoreStage  sync.Mutex
+	adminJobs     adminJobLifecycle
 }
 
 var htmlPolicy = bluemonday.StrictPolicy()
@@ -148,6 +151,14 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 		c.Status(404)
 	})
 
+	// Startup Recovery - This process is the sole owner, so old running rows have no worker.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := db.Queries.InterruptRunningAdminJobs(ctx, new(jobTime(time.Now()))); err != nil {
+		return nil, fmt.Errorf("reconcile interrupted admin jobs: %w", err)
+	}
+	api.adminJobs.ctx, api.adminJobs.cancel = context.WithCancel(context.Background())
+	api.adminJobs.drained = make(chan struct{})
 	return api, nil
 }
 
@@ -157,17 +168,23 @@ func (api *API) Start() error {
 	return api.httpServer.ListenAndServe()
 }
 
+func (api *API) Serve(listener net.Listener) error {
+	return api.httpServer.Serve(listener)
+}
+
 func (api *API) Stop() error {
-	// Stop server
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := api.httpServer.Shutdown(ctx)
-	if err != nil {
-		_ = api.httpServer.Close()
-		return err
-	}
+	return api.Shutdown(ctx)
+}
 
-	return nil
+func (api *API) Shutdown(ctx context.Context) error {
+	api.adminJobs.stop()
+	httpErr := api.httpServer.Shutdown(ctx)
+	if httpErr != nil {
+		_ = api.httpServer.Close()
+	}
+	return errors.Join(httpErr, api.adminJobs.wait(ctx))
 }
 
 func (api *API) registerKOAPIRoutes(apiGroup *gin.RouterGroup) {

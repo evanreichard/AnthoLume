@@ -70,13 +70,16 @@ INSERT OR IGNORE INTO storage_roots (id, label, path, managed) VALUES (?, ?, ?, 
 -- name: ListDocumentsForRestore :many
 SELECT id, filepath, storage_root_id, coverfile, deleted FROM documents;
 
+-- name: SetBackupDocumentPaths :exec
+UPDATE documents SET filepath = ?, coverfile = ? WHERE id = ?;
+
 -- name: SetRestoredDocumentPaths :exec
 UPDATE documents SET filepath = ?, storage_root_id = ?, coverfile = ?, basepath = NULL WHERE id = ?;
 
 -- name: PauseRestoredImportRules :exec
 UPDATE auto_import_rules SET enabled = 0, next_scan = NULL, status = 'idle';
 
--- name: InterruptRestoredJobs :exec
+-- name: InterruptRunningAdminJobs :exec
 UPDATE admin_jobs SET status = 'interrupted', finished_at = ? WHERE status = 'running';
 
 -- name: RotateRestoredReadingGeneration :exec

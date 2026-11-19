@@ -187,12 +187,12 @@ func (q *Queries) InsertRestoredStorageRoot(ctx context.Context, arg InsertResto
 	return err
 }
 
-const interruptRestoredJobs = `-- name: InterruptRestoredJobs :exec
+const interruptRunningAdminJobs = `-- name: InterruptRunningAdminJobs :exec
 UPDATE admin_jobs SET status = 'interrupted', finished_at = ? WHERE status = 'running'
 `
 
-func (q *Queries) InterruptRestoredJobs(ctx context.Context, finishedAt *string) error {
-	_, err := q.db.ExecContext(ctx, interruptRestoredJobs, finishedAt)
+func (q *Queries) InterruptRunningAdminJobs(ctx context.Context, finishedAt *string) error {
+	_, err := q.db.ExecContext(ctx, interruptRunningAdminJobs, finishedAt)
 	return err
 }
 
@@ -423,6 +423,21 @@ ON CONFLICT(singleton) DO UPDATE SET generation = excluded.generation
 
 func (q *Queries) RotateRestoredReadingGeneration(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, rotateRestoredReadingGeneration)
+	return err
+}
+
+const setBackupDocumentPaths = `-- name: SetBackupDocumentPaths :exec
+UPDATE documents SET filepath = ?, coverfile = ? WHERE id = ?
+`
+
+type SetBackupDocumentPathsParams struct {
+	Filepath  *string `json:"filepath"`
+	Coverfile *string `json:"coverfile"`
+	ID        string  `json:"id"`
+}
+
+func (q *Queries) SetBackupDocumentPaths(ctx context.Context, arg SetBackupDocumentPathsParams) error {
+	_, err := q.db.ExecContext(ctx, setBackupDocumentPaths, arg.Filepath, arg.Coverfile, arg.ID)
 	return err
 }
 

@@ -170,11 +170,13 @@ func (api *API) koAddActivities(c *gin.Context) {
 
 	events := make([]reading.Activity, 0, len(rActivity.Activity))
 	for _, item := range rActivity.Activity {
-		if item.Pages <= 0 || item.Page < 0 || item.Page >= item.Pages || item.Duration < 0 || item.Duration > 86400 {
+		if item.Pages <= 0 || item.Page < 0 || item.Page > item.Pages || item.Duration < 0 || item.Duration > 86400 {
 			apiErrorPage(c, 400, "Invalid Activity")
 			return
 		}
-		events = append(events, reading.Activity{DocumentID: item.DocumentID, DeviceID: rActivity.DeviceID, StartTime: time.Unix(item.StartTime, 0).UTC(), Duration: int(item.Duration), StartFraction: float64(item.Page) / float64(item.Pages), EndFraction: float64(item.Page+1) / float64(item.Pages)})
+		// Final Page - SyncNinja can report page == pages; credit that time to the last interval.
+		page := min(item.Page, item.Pages-1)
+		events = append(events, reading.Activity{DocumentID: item.DocumentID, DeviceID: rActivity.DeviceID, StartTime: time.Unix(item.StartTime, 0).UTC(), Duration: int(item.Duration), StartFraction: float64(page) / float64(item.Pages), EndFraction: float64(page+1) / float64(item.Pages)})
 	}
 	if err := api.reading.KOActivity(c.Request.Context(), auth.UserName, rActivity.DeviceID, rActivity.Device, events); err != nil {
 		koOperationError(c, err)
@@ -380,91 +382,93 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 		return
 	}
 
-	// Open Form File
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, metadata.MaxDocumentSize+(1<<20))
 	fileData, err := c.FormFile("file")
-	if err != nil {
-		log.Error("File Error:", err)
+	if err != nil || fileData.Size > metadata.MaxDocumentSize {
 		apiErrorPage(c, http.StatusBadRequest, "File error")
 		return
 	}
-
-	// Validate Document Exists in DB
-	document, err := api.db.Queries.GetDocument(c.Request.Context(), rDoc.DocumentID)
-	if err != nil {
-		log.Error("GetDocument DB Error:", err)
-		apiErrorPage(c, http.StatusBadRequest, "Unknown Document")
-		return
-	}
-
-	// Open File
 	uploadedFile, err := fileData.Open()
 	if err != nil {
-		log.Error("Unable to open file")
 		apiErrorPage(c, http.StatusBadRequest, "Unable to open file")
 		return
 	}
-
 	defer uploadedFile.Close()
 
-	// Check Support
-	docType, err := metadata.GetDocumentTypeReader(uploadedFile)
-	if err != nil {
-		log.Error("Unsupported file")
-		apiErrorPage(c, http.StatusBadRequest, "Unsupported file")
+	if !api.libraryWrite.TryLock() {
+		apiErrorPage(c, http.StatusConflict, "Library is busy")
 		return
 	}
+	defer api.libraryWrite.Unlock()
 
-	// Derive Filename
-	fileName := deriveBaseFileName(&metadata.MetadataInfo{
-		Type:       *docType,
-		PartialMD5: &document.ID,
-		Title:      document.Title,
-		Author:     document.Author,
-	})
-
-	// Generate Storage Path
-	root, err := api.storageRoot(c.Request.Context(), libraryRoot)
-	if err != nil {
-		c.Status(http.StatusInternalServerError)
+	ctx := c.Request.Context()
+	document, err := api.db.Queries.GetDocument(ctx, rDoc.DocumentID)
+	if err != nil || document.Deleted {
+		apiErrorPage(c, http.StatusBadRequest, "Unknown Document")
 		return
 	}
-	safePath := filepath.Join(root.Path, fileName)
-
-	// Save & Prevent Overwrites
-	_, err = os.Stat(safePath)
-	if os.IsNotExist(err) {
-		err = c.SaveUploadedFile(fileData, safePath)
-		if err != nil {
-			log.Error("Save Failure:", err)
-			apiErrorPage(c, http.StatusBadRequest, "File Error")
+	root, err := api.storageRoot(ctx, libraryRoot)
+	if err != nil {
+		apiErrorPage(c, http.StatusInternalServerError, "File error")
+		return
+	}
+	file, err := os.CreateTemp(root.Path, "upload-*.epub")
+	if err != nil {
+		apiErrorPage(c, http.StatusBadRequest, "File error")
+		return
+	}
+	committed := false
+	defer func() {
+		file.Close()
+		if !committed {
+			os.Remove(file.Name())
+		}
+	}()
+	n, err := io.Copy(file, io.LimitReader(contextReader{ctx, uploadedFile}, metadata.MaxDocumentSize+1))
+	if err != nil || n != fileData.Size {
+		apiErrorPage(c, http.StatusBadRequest, "File error")
+		return
+	}
+	info, err := metadata.GetOpenedMetadata(file)
+	if err != nil {
+		apiErrorPage(c, http.StatusBadRequest, "Unable to acquire metadata")
+		return
+	}
+	if *info.PartialMD5 != document.ID || document.Md5 != nil && *document.Md5 != *info.MD5 {
+		apiErrorPage(c, http.StatusBadRequest, "Document Error")
+		return
+	}
+	if document.Filepath != nil {
+		existing, err := api.openDocument(ctx, document)
+		if err != nil || document.Md5 == nil {
+			if existing != nil {
+				existing.Close()
+			}
+			apiErrorPage(c, http.StatusBadRequest, "Document Error")
+			return
+		}
+		existing.Close()
+	} else {
+		if err := file.Sync(); err != nil {
+			apiErrorPage(c, http.StatusBadRequest, "File error")
+			return
+		}
+		if err := file.Close(); err != nil {
+			apiErrorPage(c, http.StatusBadRequest, "File error")
+			return
+		}
+		if err := syncAdminDirectory(root.Path); err != nil {
+			apiErrorPage(c, http.StatusBadRequest, "File error")
+			return
+		}
+		committed, err = api.attachCatalogFile(ctx, root.Id, filepath.Base(file.Name()), info)
+		if err != nil || !committed {
+			apiErrorPage(c, http.StatusBadRequest, "Document Error")
 			return
 		}
 	}
 
-	// Acquire Metadata
-	metadataInfo, err := metadata.GetMetadata(safePath)
-	if err != nil {
-		log.Errorf("Unable to acquire metadata: %v", err)
-		apiErrorPage(c, http.StatusBadRequest, "Unable to acquire metadata")
-		return
-	}
-
-	// Upsert Document
-	if _, err = api.db.Queries.UpsertDocument(c.Request.Context(), database.UpsertDocumentParams{
-		ID:            document.ID,
-		Md5:           metadataInfo.MD5,
-		Words:         metadataInfo.WordCount,
-		Filepath:      &fileName,
-		StorageRootID: &root.Id,
-	}); err != nil {
-		log.Error("UpsertDocument DB Error:", err)
-		apiErrorPage(c, http.StatusBadRequest, "Document Error")
-		return
-	}
-
-	koJSON(c, http.StatusOK, gin.H{
-		"status": "ok",
-	})
+	koJSON(c, http.StatusOK, gin.H{"status": "ok"})
 }
 
 func (api *API) koDemoModeJSONError(c *gin.Context) {

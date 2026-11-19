@@ -37,10 +37,11 @@ export const test = base.extend<{ isolateServer: void }, { server: Server }>({
     execFileSync(go, ['build', '-mod=readonly', '-o', binary, './web/tests/server'], { cwd: root, env: { ...process.env, GOTOOLCHAIN: 'local' }, timeout: 180_000, stdio: 'pipe' });
     let child: ReturnType<typeof spawn> | null = null;
     let logs = '';
-    const origin = 'http://127.0.0.1:5323';
+    const addr = `127.0.0.1:${process.env.ANTHOLUME_TEST_PORT ?? 5323}`;
+    const origin = `http://${addr}`;
     async function start() {
       if (child) return;
-      child = spawn(binary, ['--root', root, '--data', data, '--addr', '127.0.0.1:5323'], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(binary, ['--root', root, '--data', data, '--addr', addr], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
       let startup = '';
       child.stdout!.on('data', (value) => { startup += String(value); logs = (logs + value).slice(-50000); });
       child.stderr!.on('data', (value) => { logs = (logs + value).slice(-50000); });

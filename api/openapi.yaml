@@ -477,6 +477,8 @@ paths:
       operationId: downloadAdminBackup
       parameters:
         - {in: query, name: full, schema: {type: boolean, default: false}}
+        - {in: query, name: account, description: Expected browser account, schema: {type: string}}
+        - {in: query, name: generation, description: Expected browser reading generation, schema: {type: string}}
       responses:
         '200':
           description: Latest verified database snapshot or full library archive
@@ -957,8 +959,8 @@ components:
         available: {type: boolean}
         started_at: {type: string, format: date-time}
         duration: {type: integer, format: int64}
-        start_fraction: {type: number, format: double}
-        end_fraction: {type: number, format: double}
+        start_fraction: {type: number, format: double, minimum: 0, maximum: 1}
+        end_fraction: {type: number, format: double, minimum: 0, maximum: 1}
     InsightProgress:
       type: object
       required: [document_id, title, available, updated_at, fraction]

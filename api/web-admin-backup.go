@@ -112,8 +112,18 @@ func (s *webAPI) PreviewAdminBackup(ctx context.Context, _ PreviewAdminBackupReq
 }
 
 func (s *webAPI) DownloadAdminBackup(ctx context.Context, r DownloadAdminBackupRequestObject) (DownloadAdminBackupResponseObject, error) {
-	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
+	user := webUser(ctx)
+	if !user.IsAdmin || s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
+	}
+	// Native Downloads - Browser links cannot send the expected account headers.
+	if r.Params.Account != nil || r.Params.Generation != nil {
+		if r.Params.Account == nil || *r.Params.Account != user.AccountID {
+			return nil, adminFailure(401, "account_changed")
+		}
+		if r.Params.Generation == nil || *r.Params.Generation != user.Generation {
+			return nil, adminFailure(409, "stale_reading_generation")
+		}
 	}
 	name, attachment, maxSize := adminBackupName, "antholume-backup.db", int64(maxAdminBackupBytes)
 	if r.Params.Full != nil && *r.Params.Full {

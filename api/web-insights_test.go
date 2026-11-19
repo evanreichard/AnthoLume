@@ -130,6 +130,39 @@ func TestLibraryLastReadSortsBeforePagination(t *testing.T) {
 	require.Nil(t, private.Items[0].LastReadAt)
 }
 
+func TestInsightActivityPagesPastLegacyFinalPage(t *testing.T) {
+	f := newWebFixture(t)
+	f.readingSetup()
+	base := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	for i := 0; i <= insightPageSize; i++ {
+		start, end := 0.2, 0.3
+		if i == insightPageSize {
+			start, end = 1, 1.1
+		}
+		f.exec(`INSERT INTO activity (user_id,document_id,device_id,start_time,duration,start_percentage,end_percentage)
+			VALUES ('alice','book-a','web-device',?,30,?,?)`, base.Add(time.Duration(i)*time.Minute).Format(time.RFC3339), start, end)
+	}
+	const path = "/api/v1/me/insights/activity"
+	r := f.call("GET", path, nil, nil)
+	require.Equal(t, 200, r.status, string(r.body))
+	page := decodeWeb[InsightActivityPage](t, r)
+	require.Len(t, page.Items, insightPageSize)
+	require.NotNil(t, page.NextCursor)
+	require.Equal(t, 1.0, page.Items[0].StartFraction)
+	require.Equal(t, 1.0, page.Items[0].EndFraction)
+	require.EqualValues(t, 30, page.Items[0].Duration)
+	r = f.call("GET", path+"?cursor="+*page.NextCursor, nil, nil)
+	require.Equal(t, 200, r.status, string(r.body))
+	older := decodeWeb[InsightActivityPage](t, r)
+	require.Len(t, older.Items, 1)
+	require.False(t, older.HasMore)
+	require.True(t, base.Equal(older.Items[0].StartedAt))
+	require.Equal(t, 0.3, older.Items[0].EndFraction)
+	var rawEnd float64
+	require.NoError(t, f.db.DB.QueryRow(`SELECT end_percentage FROM activity ORDER BY start_time DESC LIMIT 1`).Scan(&rawEnd))
+	require.Equal(t, 1.1, rawEnd)
+}
+
 func TestInsightDayFilterAcrossDST(t *testing.T) {
 	f := newWebFixture(t)
 	f.readingSetup()

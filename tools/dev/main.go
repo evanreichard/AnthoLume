@@ -150,12 +150,11 @@ func run(ctx context.Context, data, action, restore, resetUser string) error {
 	}
 	initialized = true
 
-	srv := &http.Server{Handler: app.Handler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	ctx, stop := context.WithCancel(ctx)
 	defer stop()
 	go func() { _, _ = io.Copy(io.Discard, os.Stdin); stop() }()
 	done := make(chan error, 1)
-	go func() { done <- srv.Serve(ln) }()
+	go func() { done <- app.Serve(ln) }()
 	fmt.Println("ready")
 	select {
 	case err := <-done:
@@ -166,7 +165,7 @@ func run(ctx context.Context, data, action, restore, resetUser string) error {
 	case <-ctx.Done():
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		return srv.Shutdown(shutdown)
+		return app.Shutdown(shutdown)
 	}
 }
 

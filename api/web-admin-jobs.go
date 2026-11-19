@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -11,6 +13,46 @@ import (
 )
 
 const adminJobLifetime = 5 * time.Minute
+
+type adminJobLifecycle struct {
+	ctx     context.Context
+	cancel  context.CancelFunc
+	mu      sync.Mutex
+	active  sync.WaitGroup
+	drained chan struct{}
+}
+
+func (j *adminJobLifecycle) reserve() bool {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.ctx.Err() != nil {
+		return false
+	}
+	j.active.Add(1)
+	return true
+}
+
+func (j *adminJobLifecycle) stop() {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.ctx.Err() != nil {
+		return
+	}
+	j.cancel()
+	go func() {
+		j.active.Wait()
+		close(j.drained)
+	}()
+}
+
+func (j *adminJobLifecycle) wait(ctx context.Context) error {
+	select {
+	case <-j.drained:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("drain admin jobs: %w", ctx.Err())
+	}
+}
 
 func jobTime(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000Z") }
 
@@ -81,6 +123,16 @@ func (s *webAPI) StartAdminJob(ctx context.Context, r StartAdminJobRequestObject
 			return nil, adminFailure(400, "no_import_files")
 		}
 	}
+	// Job Admission - Reserve before persisting a running row so shutdown cannot miss an accepted job.
+	if !s.api.adminJobs.reserve() {
+		return nil, adminFailure(503, "server_busy")
+	}
+	launched := false
+	defer func() {
+		if !launched {
+			s.api.adminJobs.active.Done()
+		}
+	}()
 	var job AdminJob
 	var started bool
 	now := time.Now()
@@ -121,6 +173,7 @@ func (s *webAPI) StartAdminJob(ctx context.Context, r StartAdminJobRequestObject
 		return nil, err
 	}
 	if started {
+		launched = true
 		go s.api.runAdminJob(job.Id, kind, source, reference, relink, now.Add(adminJobLifetime))
 	}
 	return StartAdminJob202JSONResponse(job), nil
@@ -138,9 +191,6 @@ func (api *API) checkDatabaseIntegrity(ctx context.Context) error {
 }
 
 func (api *API) runAdminJob(id, kind, source string, reference, relink bool, deadline time.Time) {
-	ctx, cancel := context.WithDeadline(context.Background(), deadline)
-	defer cancel()
-	status := "succeeded"
 	work := api.db.CacheTempTables
 	switch kind {
 	case "database_check":
@@ -154,9 +204,21 @@ func (api *API) runAdminJob(id, kind, source string, reference, relink bool, dea
 			return api.runLibraryImport(ctx, id, source, reference, relink)
 		}
 	}
+	api.finishAdminWork(id, kind, deadline, work)
+}
+
+func (api *API) finishAdminWork(id, kind string, deadline time.Time, work func(context.Context) error) {
+	defer api.adminJobs.active.Done()
+	ctx, cancel := context.WithDeadline(api.adminJobs.ctx, deadline)
+	defer cancel()
+	status := "succeeded"
 	if err := api.runAdminWork(ctx, kind, work); err != nil {
-		status = "failed"
-		log.WithField("kind", kind).Warn("Admin job failed")
+		if ctx.Err() != nil {
+			status = "interrupted"
+		} else {
+			status = "failed"
+			log.WithField("kind", kind).Warn("Admin job failed")
+		}
 	}
 	finish, stop := context.WithTimeout(context.Background(), 10*time.Second)
 	defer stop()
@@ -173,6 +235,9 @@ func (api *API) runAdminJob(id, kind, source string, reference, relink bool, dea
 func (api *API) runAdminWork(ctx context.Context, kind string, work func(context.Context) error) error {
 	api.restoreGate.RLock()
 	defer api.restoreGate.RUnlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if kind == "full_backup" || kind == "import" {
 		if !api.libraryWrite.TryLock() {
 			return errors.New("library busy")

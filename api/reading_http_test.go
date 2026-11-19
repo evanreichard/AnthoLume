@@ -240,6 +240,29 @@ func TestKOActivityCreditAndOwnerRollback(t *testing.T) {
 	require.Zero(t, f.count("reading_receipts"))
 }
 
+func TestSyncNinjaFinalPageActivityAdvancesCursor(t *testing.T) {
+	f := newWebFixture(t)
+	f.register("alice")
+	payload := `{"device_id":"ko-device","device":"KOReader","activity":[
+		{"document":"book","start_time":1767225600,"duration":20,"page":2,"pages":10},
+		{"document":"book","start_time":1767225660,"duration":30,"page":10,"pages":10}]}`
+	r := f.call("POST", "/api/ko/activity", payload, nil)
+	require.Equal(t, 200, r.status, string(r.body))
+	require.JSONEq(t, `{"added":2}`, string(r.body))
+	var duration int
+	var start, end float64
+	require.NoError(t, f.db.DB.QueryRow(`SELECT duration, start_percentage, end_percentage FROM activity ORDER BY start_time DESC LIMIT 1`).Scan(&duration, &start, &end))
+	require.Equal(t, 30, duration)
+	require.Equal(t, 0.9, start)
+	require.Equal(t, 1.0, end)
+	r = f.call("POST", "/api/ko/syncs/activity", `{"device_id":"ko-device","device":"KOReader"}`, nil)
+	require.Equal(t, 200, r.status)
+	require.JSONEq(t, `{"last_sync":1767225660}`, string(r.body))
+	r = f.call("POST", "/api/ko/activity", strings.Replace(payload, `"page":10`, `"page":11`, 1), nil)
+	require.Equal(t, 400, r.status)
+	require.Equal(t, 2, f.count("activity"))
+}
+
 func TestSyncNinjaDeletedBookActivityAdvancesCursor(t *testing.T) {
 	f := newWebFixture(t)
 	f.register("alice")

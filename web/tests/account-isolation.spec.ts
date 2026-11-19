@@ -2,6 +2,33 @@ import { DatabaseSync } from 'node:sqlite';
 import { test, expect, register, signIn } from './fixtures';
 import { pendingIds, serverEffects, storedRows } from './storage';
 
+test('a stale tab rejects another account’s activity and rechecks the session', async ({ page, context, browser, server }) => {
+  const activity = '/api/v1/me/insights/activity';
+  await register(page, server.origin, 'stale-reader');
+  const old = (await (await page.request.get(`${server.origin}/api/v1/session`)).json()).user;
+  await Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/me/insights' && response.ok()),
+    page.getByRole('link', { name: 'Insights', exact: true }).click(),
+  ]);
+  const replacement = await browser.newPage();
+  try {
+    await register(replacement, server.origin, 'replacement-reader');
+    // Change the shared cookie without delivering a cross-tab notification.
+    await context.addCookies(await replacement.context().cookies());
+  } finally {
+    await replacement.close();
+  }
+
+  const rejected = page.waitForResponse(response => new URL(response.url()).pathname === activity && response.status() === 401);
+  const rechecked = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/session' && response.ok());
+  await page.getByRole('navigation', { name: 'Insights sections' }).getByRole('link', { name: 'Activity', exact: true }).click();
+  const failure = await rejected;
+  expect(await failure.request().headerValue('x-antholume-account')).toBe(old.account_id);
+  expect(await failure.request().headerValue('x-antholume-reading-generation')).toBe(old.reading_generation);
+  expect(await failure.json()).toMatchObject({ code: 'account_changed' });
+  expect((await (await rechecked).json()).user.id).toBe('replacement-reader');
+});
+
 test('a recreated username cannot reopen the previous account URL, reuse its cache, or send its pending events', async ({ page, context, browser, server }) => {
   const username = 'reused-reader';
   const endpoint = `${server.origin}/api/v1`;

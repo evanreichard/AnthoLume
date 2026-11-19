@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -78,21 +79,26 @@ func (api *API) createFullBackup(ctx context.Context) error {
 		}
 		return nil
 	}
-	db, err := os.Open(snapshot)
-	if err != nil {
-		return err
-	}
-	err = add(adminBackupName, db)
-	db.Close()
-	if err != nil {
-		return err
-	}
-	catalog, err := sql.Open("sqlite", snapshotURI(snapshot))
+	uri := (&url.URL{Scheme: "file", Path: snapshot, RawQuery: "mode=rw&_pragma=trusted_schema(OFF)&_pragma=journal_mode(DELETE)"}).String()
+	catalog, err := sql.Open("sqlite", uri)
 	if err != nil {
 		return err
 	}
 	defer catalog.Close()
-	_, err = api.walkBackupBooks(ctx, catalog, func(name string, f *os.File) error { return add("documents/library/"+name, f) })
+	docs, err := database.New(catalog).ListDocumentsForRestore(ctx)
+	if err != nil {
+		return err
+	}
+	books, covers := newBackupPaths("documents/library/"), newBackupPaths("covers/")
+	for _, doc := range docs {
+		if doc.Filepath != nil && isBackupLibraryPath(doc.StorageRootID) {
+			books.reserved[*doc.Filepath] = true
+		}
+		if doc.Coverfile != nil {
+			covers.reserved[*doc.Coverfile] = true
+		}
+	}
+	_, err = api.walkBackupBooks(ctx, catalog, func(name string, f *os.File) error { return books.add(ctx, name, f, add) })
 	if err != nil {
 		return err
 	}
@@ -120,12 +126,27 @@ func (api *API) createFullBackup(ctx context.Context) error {
 				return err
 			}
 			defer f.Close()
-			return add(folder+"/"+path, f)
+			return covers.add(ctx, path, f, add)
 		})
 		root.Close()
 		if err != nil {
 			return err
 		}
+	}
+	if err := rewriteBackupPaths(ctx, catalog, docs, books, covers); err != nil {
+		return err
+	}
+	if err := catalog.Close(); err != nil {
+		return err
+	}
+	db, err := os.Open(snapshot)
+	if err != nil {
+		return err
+	}
+	err = add(adminBackupName, db)
+	db.Close()
+	if err != nil {
+		return err
 	}
 	if err := archive.Close(); err != nil {
 		return err

@@ -241,6 +241,20 @@ test('administrators manage users while members cannot open Administration', asy
     await page.screenshot({ path: testInfo.outputPath(`library-${width}-${colorScheme}.png`), animations: 'disabled' });
   }
   await page.setViewportSize({ width: 320, height: 800 });
+  const link = await downloadBackup.getAttribute('href');
+  const backupURL = new URL(link!, server.origin);
+  expect(backupURL.searchParams.get('account')).toBeTruthy();
+  expect(backupURL.searchParams.get('generation')).toBeTruthy();
+  const staleGeneration = new URL(backupURL);
+  staleGeneration.searchParams.set('generation', 'stale');
+  const rejected = await page.request.get(staleGeneration.toString());
+  expect(rejected.status()).toBe(409);
+  expect(await rejected.json()).toMatchObject({ code: 'stale_reading_generation' });
+  const wrongAccount = new URL(backupURL);
+  wrongAccount.searchParams.set('account', 'other-account');
+  const denied = await page.request.get(wrongAccount.toString());
+  expect(denied.status()).toBe(401);
+  expect(await denied.json()).toMatchObject({ code: 'account_changed' });
   const received = page.waitForEvent('download');
   await downloadBackup.click();
   const backup = await received;

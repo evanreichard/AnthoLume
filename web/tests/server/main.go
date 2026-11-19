@@ -284,4 +284,7 @@ func main() {
 	if err = server.Shutdown(ctx); err != nil {
 		panic(err)
 	}
+	if err = app.Shutdown(ctx); err != nil {
+		panic(err)
+	}
 }

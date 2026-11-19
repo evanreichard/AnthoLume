@@ -48,7 +48,7 @@ export function AdminBackups({ account, readOnly }: { account: Account; readOnly
     <div role="status">
       {rows.map(({ kind, saved }) => saved && <div className={styles.settingsRow} key={kind}>
         <div><strong>{titles[kind]}</strong><p><time dateTime={saved.finished_at ?? saved.started_at}>{date.format(new Date(saved.finished_at ?? saved.started_at))}</time></p></div>
-        <ButtonLink size="slim" aria-label={`Download ${titles[kind]} backup`} href={kind === 'full_backup' ? '/api/v1/admin/backup?full=true' : '/api/v1/admin/backup'} download><Icon name="download" size={16} /> Download</ButtonLink>
+        <ButtonLink size="slim" aria-label={`Download ${titles[kind]} backup`} href={`/api/v1/admin/backup?${new URLSearchParams({ full: String(kind === 'full_backup'), account: account.userId, generation: account.readingGeneration ?? '' })}`} download><Icon name="download" size={16} /> Download</ButtonLink>
       </div>)}
       {rows.map(({ kind, latest }) => latest && latest.status !== 'succeeded' && <p key={latest.id}>{titles[kind]}: {statuses[latest.status]}</p>)}
     </div>

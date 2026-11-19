@@ -1,9 +1,11 @@
 package api
 
 import (
+	"archive/zip"
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -79,6 +81,70 @@ func TestStartupRestoreInstallsLibraryOnlyIntoFreshInstance(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, book, actual)
 	require.ErrorContains(t, dest.api.RestoreFreshInstance(ctx, backup), "requires a fresh database")
+}
+
+func TestFullBackupRoundTripsNearLimitPaths(t *testing.T) {
+	ctx := context.Background()
+	source := newWebFixture(t)
+	source.register("owner")
+	type asset struct {
+		id, book, cover string
+	}
+	nearLimit := func(prefix, dir, base string) string {
+		return dir + "/" + strings.Repeat("b", maxBackupEntryPath-len(prefix+dir+"//"+base)) + "/" + base
+	}
+	books := []asset{
+		{"first", nearLimit("documents/library/", strings.Repeat("a", 245), "book.epub"), nearLimit("covers/", strings.Repeat("a", 245), "cover.jpg")},
+		{"second", nearLimit("documents/library/", strings.Repeat("z", 245), "book.epub"), nearLimit("covers/", strings.Repeat("z", 245), "cover.jpg")},
+	}
+	for _, a := range books {
+		for folder, name := range map[string]string{"documents": a.book, "covers": a.cover} {
+			file := filepath.Join(source.cfg.DataPath, folder, filepath.FromSlash(name))
+			require.NoError(t, os.MkdirAll(filepath.Dir(file), 0700))
+			require.NoError(t, os.WriteFile(file, []byte(a.id+folder), 0600))
+		}
+		source.exec(`INSERT INTO documents(id,filepath,storage_root_id,coverfile) VALUES(?,?,'library',?)`, a.id, a.book, a.cover)
+	}
+	var previousNames []string
+	for cycle := range 3 {
+		require.NoError(t, source.api.createFullBackup(ctx))
+		name := filepath.Join(source.api.adminBackupDir(), fullBackupName)
+		archive, err := zip.OpenReader(name)
+		require.NoError(t, err)
+		var names []string
+		for _, entry := range archive.File {
+			require.LessOrEqual(t, len(entry.Name), maxBackupEntryPath)
+			if entry.Name != adminBackupName {
+				names = append(names, entry.Name)
+			}
+		}
+		require.NoError(t, archive.Close())
+		require.Len(t, names, 4)
+		if cycle == 2 {
+			require.ElementsMatch(t, previousNames, names, "another restore must not change packed paths")
+		}
+		previousNames = names
+
+		backup, err := os.Open(name)
+		require.NoError(t, err)
+		dest := newWebFixture(t)
+		err = dest.api.RestoreFreshInstance(ctx, backup)
+		require.NoError(t, backup.Close())
+		require.NoError(t, err)
+		for i, a := range books {
+			var before asset
+			require.NoError(t, source.db.DB.QueryRow(`SELECT filepath,coverfile FROM documents WHERE id=?`, a.id).Scan(&before.book, &before.cover))
+			require.Equal(t, a.book, before.book, "backup must not rewrite the live catalog")
+			require.Equal(t, a.cover, before.cover)
+			require.NoError(t, dest.db.DB.QueryRow(`SELECT filepath,coverfile FROM documents WHERE id=?`, a.id).Scan(&books[i].book, &books[i].cover))
+			for folder, name := range map[string]string{"documents": books[i].book, "covers": books[i].cover} {
+				bytes, err := os.ReadFile(filepath.Join(dest.cfg.DataPath, folder, filepath.FromSlash(name)))
+				require.NoError(t, err)
+				require.Equal(t, a.id+folder, string(bytes))
+			}
+		}
+		source = dest
+	}
 }
 
 func TestRestoreUpgradedFullBackupOnFreshInstance(t *testing.T) {

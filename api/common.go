@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -19,36 +20,26 @@ func (api *API) createDownloadDocumentHandler(errorFunc func(*gin.Context, int, 
 			return
 		}
 
-		// Get Document
-		document, err := api.db.Queries.GetDocument(c, rDoc.DocumentID)
+		path, f, err := api.openDownload(c.Request.Context(), rDoc.DocumentID, true)
 		if err != nil {
-			log.Error("GetDocument DB Error:", err)
-			errorFunc(c, http.StatusBadRequest, "Unknown Document")
+			log.Error("Open document: ", err)
+			message := "Unknown Document"
+			if errors.Is(err, os.ErrNotExist) {
+				message = "Document Doesn't Exist"
+			}
+			errorFunc(c, http.StatusBadRequest, message)
 			return
 		}
 
-		if document.Filepath == nil {
-			log.Error("Document Doesn't Have File:", rDoc.DocumentID)
-			errorFunc(c, http.StatusBadRequest, "Document Doesn't Exist")
-			return
-		}
-
-		f, err := api.openDocument(c.Request.Context(), document)
-		if err != nil {
-			log.Error("File should but doesn't exist: ", err)
-			errorFunc(c, http.StatusBadRequest, "Document Doesn't Exist")
-			return
-		}
-
-		// Force Download
-		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(*document.Filepath)))
+		name := filepath.Base(path)
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", name))
 		defer f.Close()
 		info, err := f.Stat()
 		if err != nil {
 			errorFunc(c, http.StatusNotFound, "Document Doesn't Exist")
 			return
 		}
-		http.ServeContent(c.Writer, c.Request, filepath.Base(*document.Filepath), info.ModTime(), f)
+		http.ServeContent(c.Writer, c.Request, name, info.ModTime(), f)
 	}
 }
 

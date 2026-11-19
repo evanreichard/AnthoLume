@@ -28,6 +28,12 @@ class SessionCoordinator {
       if (epoch !== this.generation || access.kind !== 'authenticated' || !sameAccount(account, access.account)) throw new DOMException('Account changed', 'AbortError');
     },
     expired: (account) => this.expire(account),
+    changed: (account) => {
+      const access = this.snapshot.access;
+      if (access.kind !== 'authenticated' || !sameAccount(account, access.account)) return;
+      this.expire(account);
+      void this.checkSession();
+    },
   });
   constructor() {
     try { this.pendingLogout = localStorage.getItem(logoutKey) === '1'; } catch { this.storageBlocked = true; }
@@ -124,7 +130,7 @@ class SessionCoordinator {
       if (epoch !== this.generation) return;
       this.publish({ session });
       if (this.pendingLogout) {
-        if (session.user) session = await this.api.logout();
+        if (session.user) session = await this.api.logout(sessionAccount(session.user));
         if (epoch !== this.generation) return;
       }
       const account = session.user && !this.storageBlocked && !this.pendingLogout ? sessionAccount(session.user) : null;
@@ -192,7 +198,7 @@ class SessionCoordinator {
     const epoch = this.generation;
     try {
       if (!session) throw new Error('Offline sign-out is fenced. Reconnect to invalidate the server session.');
-      const anonymous = await this.api.logout();
+      const anonymous = session.user ? await this.api.logout(sessionAccount(session.user)) : session;
       if (epoch !== this.generation) return;
       this.publish({ session: anonymous });
     } catch (error) {

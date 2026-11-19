@@ -419,7 +419,7 @@ func (api *API) prepareRestoreLocations(ctx context.Context, db *sql.DB, stage, 
 	}
 	// Interrupted Jobs - A snapshot may include the job that wrote it; no worker resumes after restore.
 	finishedAt := jobTime(time.Now())
-	if err := staged.InterruptRestoredJobs(ctx, &finishedAt); err != nil {
+	if err := staged.InterruptRunningAdminJobs(ctx, &finishedAt); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {

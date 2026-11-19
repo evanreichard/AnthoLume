@@ -57,6 +57,27 @@ func (api *API) openDocumentWith(ctx context.Context, q storageQuerier, d databa
 	}
 	return openStoredFile(root.Path, *d.Filepath)
 }
+func (api *API) openDownload(ctx context.Context, id string, includeDeleted bool) (string, *os.File, error) {
+	tx, err := api.db.DB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return "", nil, err
+	}
+	defer tx.Rollback()
+
+	doc, err := api.db.Queries.WithTx(tx).GetDocument(ctx, id)
+	if err != nil {
+		return "", nil, err
+	}
+	if doc.Deleted && !includeDeleted {
+		return "", nil, sql.ErrNoRows
+	}
+	file, err := api.openDocumentWith(ctx, tx, doc)
+	if err != nil {
+		return "", nil, fmt.Errorf("%w: %v", os.ErrNotExist, err)
+	}
+	return *doc.Filepath, file, nil
+}
+
 func (api *API) coverPath(d database.Document) (string, error) {
 	if d.Coverfile != nil && *d.Coverfile == "UNKNOWN" {
 		return "", os.ErrNotExist
@@ -104,28 +125,33 @@ type fileResponse struct {
 }
 
 func (api *API) documentBinary(ctx context.Context, id string, cover bool) (*fileResponse, error) {
-	d, err := api.db.Queries.GetDocument(requestContext(ctx), id)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && d.Deleted {
-		return nil, &reading.Failure{Status: 404, Code: "not_found"}
-	}
-	if err != nil {
-		return nil, err
-	}
+	req := requestContext(ctx)
 	var path string
 	var f *os.File
+	var err error
 	if cover {
+		d, lookupErr := api.db.Queries.GetDocument(req, id)
+		if lookupErr != nil && !errors.Is(lookupErr, sql.ErrNoRows) {
+			return nil, lookupErr
+		}
+		if lookupErr != nil || d.Deleted {
+			return nil, &reading.Failure{Status: 404, Code: "not_found"}
+		}
 		path, err = api.coverPath(d)
 		if err == nil {
 			f, err = os.Open(path)
 		}
-	} else {
-		f, err = api.openDocument(requestContext(ctx), d)
-		if err == nil {
-			path = *d.Filepath
+		if err != nil {
+			return nil, &reading.Failure{Status: 404, Code: "not_found"}
 		}
+	} else {
+		path, f, err = api.openDownload(req, id, false)
+	}
+	if errors.Is(err, sql.ErrNoRows) || errors.Is(err, os.ErrNotExist) {
+		return nil, &reading.Failure{Status: 404, Code: "not_found"}
 	}
 	if err != nil {
-		return nil, &reading.Failure{Status: 404, Code: "not_found"}
+		return nil, err
 	}
 	info, err := f.Stat()
 	if err != nil || !info.Mode().IsRegular() {

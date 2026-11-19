@@ -53,7 +53,11 @@ func newWebFixture(t *testing.T) *webFixture {
 	require.NoError(t, err)
 	f := &webFixture{t: t, cfg: cfg, db: db, client: &http.Client{Jar: jar, Timeout: 10 * time.Second}}
 	f.start()
-	t.Cleanup(func() { f.server.Close(); require.NoError(t, f.db.DB.Close()) })
+	t.Cleanup(func() {
+		f.server.Close()
+		require.NoError(t, f.api.Stop())
+		require.NoError(t, f.db.DB.Close())
+	})
 	return f
 }
 func (f *webFixture) start() {
