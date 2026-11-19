@@ -16,7 +16,7 @@
 .streaks section { background: var(--surface); border: 1px solid var(--line); border-radius: .85rem; padding: .85rem; }
 .streaks h2, .streaks p:last-child { margin: 0; }
 .streaks p:last-child { color: var(--muted); font-size: .78rem; margin-top: .2rem; }
-.history { max-width: 54rem; margin-top: .75rem; }
+.history { margin-top: .75rem; }
 .historyFilters { gap: .75rem; color: var(--muted); font-size: .875rem; }
 .historyFilters a { display: inline-flex; align-items: center; min-height: 44px; margin-inline-start: auto; }
 .entries { margin: .5rem 0 0; list-style: none; padding: 0; }

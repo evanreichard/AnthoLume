@@ -178,7 +178,11 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
     await page.setViewportSize({ width, height: 844 });
     for (const [tab, name] of [['Activity', 'Reading activity'], ['Progress', 'Saved progress']] as const) {
       await sections.getByRole('link', { name: tab, exact: true }).click();
-      await expect(page.getByRole('region', { name }).getByRole('link', { name: 'Public book 01' })).toBeVisible();
+      const history = page.getByRole('region', { name });
+      await expect(history.getByRole('link', { name: 'Public book 01' })).toBeVisible();
+      const [listBox, tabsBox] = await Promise.all([history.boundingBox(), sections.boundingBox()]);
+      expect(listBox!.x).toBeCloseTo(tabsBox!.x);
+      expect(listBox!.width).toBeCloseTo(tabsBox!.width);
       await page.evaluate(() => document.fonts.ready);
       await page.screenshot({ path: testInfo.outputPath(`${tab.toLowerCase()}-${width}.png`), animations: 'disabled' });
     }
