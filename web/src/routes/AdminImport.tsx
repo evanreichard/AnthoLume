@@ -15,7 +15,7 @@ type Context = { account: Account; roots: StorageRoot[] };
 type Rule = components['schemas']['AdminAutoImport'];
 type Fields = { source: string; mode: 'copy' | 'reference' };
 const modes = [['copy', 'Copy'], ['reference', 'Reference']] as const;
-const statusLabels = { idle: 'Waiting for scan', complete: 'Scan complete', errors: 'Some files failed', unavailable: 'Source or destination unavailable' };
+const statusLabels = { idle: 'Waiting for scan', complete: 'Scan Complete', errors: 'Some files failed', unavailable: 'Source or destination unavailable' };
 const ruleKey = (account: Account) => ['auto-import-rules', account] as const;
 const jobsKey = (account: Account) => ['admin-jobs', account, 'import'] as const;
 const formatScanTime = (value: string) => new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -68,9 +68,9 @@ export function AdminImport({ account, roots, readOnly }: Context & { readOnly: 
     {rules.data?.length === 0 && <p>No auto-import rules yet.</p>}
     {rules.data?.map(rule => {
       const source = roots.find(root => root.id === rule.settings.root_id)?.label ?? rule.settings.root_id;
-      return <ActionRow key={rule.id} divider label={rule.settings.name} value={<>
-        {source}<br />{rule.settings.reference ? 'Reference' : 'Copy'} · {rule.settings.enabled ? statusLabels[rule.status] : 'Paused'}
-        <span className={layout.rowScanTime}>Last scan: {rule.last_scan ? <time dateTime={rule.last_scan}>{formatScanTime(rule.last_scan)}</time> : 'Never'}</span>
+      return <ActionRow key={rule.id} divider label={rule.settings.name} subtitle={source} value={<>
+        {rule.settings.enabled ? statusLabels[rule.status] : 'Paused'}
+        <span className={layout.rowScanTime}>{rule.last_scan ? <time dateTime={rule.last_scan}>{formatScanTime(rule.last_scan)}</time> : 'Never'}</span>
       </>} onClick={() => setEditor(rule)} />;
     })}
     {latest && <div className={styles.adminCardDetails}>
@@ -203,8 +203,8 @@ function RuleEditor({ account, roots, rule, close }: Context & { rule?: Rule; cl
         </div>
         {scanQueued ? <p className={layout.resultNote}>Waiting for the import worker.</p> : summary ? <>
           <dl className={layout.resultMetrics}>
-            <div><dt>Found in source</dt><dd>{summary.source_total.toLocaleString()}</dd></div>
-            <div><dt>Added this scan</dt><dd>{summary.books_added.toLocaleString()}</dd></div>
+            <div><dt>Found</dt><dd>{summary.source_total.toLocaleString()}</dd></div>
+            <div><dt>Added</dt><dd>{summary.books_added.toLocaleString()}</dd></div>
           </dl>
           {rule.status === 'errors' && <p className={layout.resultNote}>Some files failed to import.</p>}
         </> : <p className={layout.resultNote}>{statusLabels[rule.status]}</p>}

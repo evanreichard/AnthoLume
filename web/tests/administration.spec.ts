@@ -75,8 +75,8 @@ test('Import lists independent rules and opens editors on demand', async ({ page
   const result = dialog.getByRole('status');
   await expect(result.getByText('Last Scan', { exact: true })).toBeVisible();
   await expect(result.getByText('Manual', { exact: true })).toBeVisible();
-  await expect(result.locator('div').filter({ hasText: 'Found in source' }).locator('dd')).toHaveText('0');
-  await expect(result.locator('div').filter({ hasText: 'Added this scan' }).locator('dd')).toHaveText('0');
+  await expect(result.locator('div').filter({ has: page.getByText('Found', { exact: true }) }).locator('dd')).toHaveText('0');
+  await expect(result.locator('div').filter({ has: page.getByText('Added', { exact: true }) }).locator('dd')).toHaveText('0');
   await dialog.screenshot({ path: testInfo.outputPath('auto-import-result-320.png') });
   await page.setViewportSize({ width: 390, height: 844 });
   await dialog.screenshot({ path: testInfo.outputPath('auto-import-result-390.png') });
@@ -86,7 +86,7 @@ test('Import lists independent rules and opens editors on demand', async ({ page
   const completedScan = await lastScan.getAttribute('datetime');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   const ruleRow = imports.getByRole('button', { name: 'New arrivals', exact: true });
-  await expect(ruleRow).toHaveAccessibleDescription(/Last scan:/);
+  await expect(ruleRow).not.toContainText('Last scan:');
   await expect(ruleRow.locator('time')).toHaveAttribute('datetime', completedScan!);
   await ruleRow.click();
   await dialog.getByRole('button', { name: 'Delete', exact: true }).click();

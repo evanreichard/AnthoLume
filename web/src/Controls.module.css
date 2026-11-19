@@ -86,6 +86,8 @@
 .actionRow { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; padding-inline: 8px; }
 .actionRow[data-divider]::before { content: ''; position: absolute; inset: 0 8px auto; border-top: 1px solid color-mix(in srgb, var(--line) 42%, transparent); pointer-events: none; }
 .actionLabel { display: flex; align-items: center; gap: 10px; min-width: 0; overflow-wrap: anywhere; }
+.actionLabelStack { display: grid; gap: .15rem; min-width: 0; }
+.actionSubtitle { color: var(--muted); font-size: .75rem; font-weight: 500; }
 .actionValue { color: var(--muted); font-weight: 500; text-align: end; overflow-wrap: anywhere; }
 .actionRow > .chevron { grid-column: 3; }
 .actionRow:not(:has(.actionValue)) > .actionLabel { grid-column: 1 / 3; }

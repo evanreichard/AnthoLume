@@ -85,7 +85,7 @@ function Chevron() {
   return <span className={styles.chevron} aria-hidden="true" />;
 }
 
-type RowContent = { label: ReactNode; value?: ReactNode; leading?: ReactNode; divider?: boolean };
+type RowContent = { label: ReactNode; subtitle?: ReactNode; value?: ReactNode; leading?: ReactNode; divider?: boolean };
 type ActionRowProps = RowContent & (
   | ({ to: LinkProps['to'] } & Pick<LinkProps, 'aria-label'>)
   | ({ to?: never } & Pick<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick' | 'disabled' | 'aria-label' | 'aria-expanded' | 'aria-controls'>)
@@ -97,17 +97,22 @@ export function ActionRows({ children }: { children: ReactNode }) {
 
 export function ActionRow(props: ActionRowProps) {
   const valueId = useId();
-  const { label, value, leading, divider, 'aria-label': accessibleName } = props;
+  const { label, subtitle, value, leading, divider, 'aria-label': accessibleName } = props;
   const labelId = useId();
+  const subtitleId = useId();
   const attrs = {
     className: styles.actionRow,
     'data-divider': divider || undefined,
     'aria-label': accessibleName,
     'aria-labelledby': accessibleName ? undefined : labelId,
-    'aria-describedby': value == null ? undefined : valueId,
+    'aria-describedby': [subtitle == null ? null : subtitleId, value == null ? null : valueId].filter(Boolean).join(' ') || undefined,
   };
   const content = <>
-    <span id={labelId} className={styles.actionLabel}>{leading}{label}</span>
+    <span id={subtitle == null ? labelId : undefined} className={styles.actionLabel}>{leading}{subtitle == null ? label :
+      <span className={styles.actionLabelStack}>
+        <span id={labelId}>{label}</span>
+        <span id={subtitleId} className={styles.actionSubtitle}>{subtitle}</span>
+      </span>}</span>
     {value != null && <small className={styles.actionValue} id={valueId}>{value}</small>}
     <Chevron />
   </>;
