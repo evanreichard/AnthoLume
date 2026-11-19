@@ -14,7 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	sqlite "modernc.org/sqlite"
 	"reichard.io/antholume/config"
-	_ "reichard.io/antholume/database/migrations"
+	dbmigrations "reichard.io/antholume/database/migrations"
 )
 
 type DBManager struct {
@@ -37,6 +37,7 @@ var migrations embed.FS
 
 // Register scalar sqlite function on init
 func init() {
+	sqlite.MustRegisterFunction("READING_WRITER", &sqlite.FunctionImpl{NArgs: 0, Deterministic: true, Scalar: func(*sqlite.FunctionContext, []driver.Value) (driver.Value, error) { return int64(1), nil }})
 	sqlite.MustRegisterFunction("LOCAL_TIME", &sqlite.FunctionImpl{
 		NArgs:         2,
 		Deterministic: true,
@@ -95,7 +96,7 @@ func (dbm *DBManager) init(ctx context.Context) error {
 	dbm.Queries = New(dbm.DB)
 
 	// Execute schema
-	if _, err := dbm.DB.Exec(ddl, nil); err != nil {
+	if _, err := dbm.DB.Exec(ddl + dbmigrations.ReadingSchema + dbmigrations.KOSyncDeviceSchema + dbmigrations.DevicePreferencesSchema); err != nil {
 		log.Panicf("Error executing schema: %v", err)
 		return err
 	}
@@ -140,19 +141,18 @@ func (dbm *DBManager) Reload(ctx context.Context) error {
 
 // CacheTempTables clears existing statistics and recalculates
 func (dbm *DBManager) CacheTempTables(ctx context.Context) error {
-	start := time.Now()
-	if _, err := dbm.DB.ExecContext(ctx, user_streaks); err != nil {
+	tx, err := dbm.DB.BeginTx(ctx, nil)
+	if err != nil {
 		return err
 	}
-	log.Debug("Cached 'user_streaks' in: ", time.Since(start))
-
-	start = time.Now()
-	if _, err := dbm.DB.ExecContext(ctx, document_user_statistics); err != nil {
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, user_streaks); err != nil {
 		return err
 	}
-	log.Debug("Cached 'document_user_statistics' in: ", time.Since(start))
-
-	return nil
+	if _, err := tx.ExecContext(ctx, document_user_statistics); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // updateSettings ensures that we're enforcing foreign keys and enable journal
@@ -162,6 +162,8 @@ func (dbm *DBManager) updateSettings(ctx context.Context) error {
 	pragmaQuery := `
 		  PRAGMA foreign_keys = ON;
 		  PRAGMA journal_mode = WAL;
+          PRAGMA synchronous = FULL;
+          PRAGMA busy_timeout = 5000;
 		`
 	if _, err := dbm.DB.Exec(pragmaQuery, nil); err != nil {
 		log.Errorf("Error executing pragma: %v", err)
@@ -184,6 +186,7 @@ func (dbm *DBManager) updateSettings(ctx context.Context) error {
 func (dbm *DBManager) performMigrations(isNew bool) error {
 	// Create context
 	ctx := context.WithValue(context.Background(), "isNew", isNew) // nolint
+	ctx = dbmigrations.WithStorageDataPath(ctx, dbm.cfg.DataPath)
 
 	// Set DB migration
 	goose.SetBaseFS(migrations)

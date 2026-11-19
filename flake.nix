@@ -24,7 +24,6 @@
             gopls
             golangci-lint
             nodejs
-            tailwindcss
             python3Packages.grip
           ];
           shellHook = ''

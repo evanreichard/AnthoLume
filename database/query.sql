@@ -188,6 +188,7 @@ SELECT
     docs.isbn10,
     docs.isbn13,
     docs.filepath,
+    docs.storage_root_id,
     docs.words,
 
     CAST(COALESCE(dus.total_wpm, 0.0) AS INTEGER) AS wpm,
@@ -308,7 +309,7 @@ SELECT
     CAST(value AS TEXT) AS id,
     CAST((documents.filepath IS NULL) AS BOOLEAN) AS want_file,
     CAST((documents.id IS NULL) AS BOOLEAN) AS want_metadata
-FROM json_each(?1)
+FROM json_each(CAST(sqlc.arg(document_ids) AS TEXT))
 LEFT JOIN documents
 ON value = documents.id
 WHERE (
@@ -316,8 +317,7 @@ WHERE (
     AND documents.deleted = false
     AND documents.filepath IS NULL
 )
-OR (documents.id IS NULL)
-OR CAST($document_ids AS TEXT) != CAST($document_ids AS TEXT);
+OR (documents.id IS NULL);
 
 -- name: UpdateProgress :one
 INSERT OR REPLACE INTO document_progress (
@@ -362,7 +362,7 @@ RETURNING *;
 INSERT INTO documents (
     id,
     md5,
-    basepath,
+    storage_root_id,
     filepath,
     coverfile,
     title,
@@ -381,7 +381,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT DO UPDATE
 SET
     md5 =           COALESCE(excluded.md5, md5),
-    basepath =      COALESCE(excluded.basepath, basepath),
+    storage_root_id = COALESCE(excluded.storage_root_id, storage_root_id),
     filepath =      COALESCE(excluded.filepath, filepath),
     coverfile =     COALESCE(excluded.coverfile, coverfile),
     title =         COALESCE(excluded.title, title),

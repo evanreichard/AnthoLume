@@ -12,32 +12,34 @@ import (
 )
 
 func openEPUB(path string) (*epub.Reader, *os.File, error) {
-	if err := validateEPUBArchive(path); err != nil {
-		return nil, nil, err
-	}
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, nil, err
 	}
-	stat, err := f.Stat()
+	r, err := readEPUB(f)
 	if err != nil {
 		f.Close()
 		return nil, nil, err
 	}
-	r, err := epub.NewReader(f, stat.Size())
-	if err != nil {
-		f.Close()
-		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidDocument, err)
-	}
 	return r, f, nil
 }
 
-func getEPUBMetadata(filepath string) (*MetadataInfo, error) {
-	rc, f, err := openEPUB(filepath)
+func readEPUB(f *os.File) (*epub.Reader, error) {
+	stat, err := f.Stat()
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	if err := validateEPUBArchive(f, stat.Size()); err != nil {
+		return nil, err
+	}
+	r, err := epub.NewReader(f, stat.Size())
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidDocument, err)
+	}
+	return r, nil
+}
+
+func epubMetadata(rc *epub.Reader) *MetadataInfo {
 	rf := rc.Rootfiles[0]
 
 	parsedMetadata := &MetadataInfo{
@@ -67,7 +69,7 @@ func getEPUBMetadata(filepath string) (*MetadataInfo, error) {
 		}
 	}
 
-	return parsedMetadata, nil
+	return parsedMetadata
 }
 
 func countEPUBWords(filepath string) (int64, error) {
@@ -76,6 +78,19 @@ func countEPUBWords(filepath string) (int64, error) {
 		return 0, err
 	}
 	defer f.Close()
+	return epubWords(rc)
+}
+
+func GetOpenedWordCount(f *os.File) (*int64, error) {
+	r, err := readEPUB(f)
+	if err != nil {
+		return nil, err
+	}
+	n, err := epubWords(r)
+	return &n, err
+}
+
+func epubWords(rc *epub.Reader) (int64, error) {
 	rf := rc.Rootfiles[0]
 	if len(rf.Itemrefs) > maxArchiveEntries {
 		return 0, ErrArchiveTooLarge

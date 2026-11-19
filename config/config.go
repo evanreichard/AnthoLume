@@ -13,8 +13,9 @@ import (
 
 type Config struct {
 	// Server Config
-	Version    string
-	ListenPort string
+	Version      string
+	ListenPort   string
+	PublicOrigin string
 
 	// DB Configuration
 	DBType string
@@ -26,7 +27,6 @@ type Config struct {
 
 	// Miscellaneous Settings
 	RegistrationEnabled bool
-	SearchEnabled       bool
 	DemoMode            bool
 	LogLevel            string
 
@@ -56,6 +56,7 @@ var version string = "develop"
 func Load() *Config {
 	c := &Config{
 		Version:             version,
+		PublicOrigin:        strings.TrimSpace(getEnv("PUBLIC_ORIGIN", "")),
 		ConfigPath:          getEnv("CONFIG_PATH", "/config"),
 		DataPath:            getEnv("DATA_PATH", "/data"),
 		ListenPort:          getEnv("LISTEN_PORT", "8585"),
@@ -63,7 +64,6 @@ func Load() *Config {
 		DBName:              trimLowerString(getEnv("DATABASE_NAME", "antholume")),
 		RegistrationEnabled: trimLowerString(getEnv("REGISTRATION_ENABLED", "false")) == "true",
 		DemoMode:            trimLowerString(getEnv("DEMO_MODE", "false")) == "true",
-		SearchEnabled:       trimLowerString(getEnv("SEARCH_ENABLED", "false")) == "true",
 		CookieAuthKey:       trimLowerString(getEnv("COOKIE_AUTH_KEY", "")),
 		CookieEncKey:        trimLowerString(getEnv("COOKIE_ENC_KEY", "")),
 		LogLevel:            trimLowerString(getEnv("LOG_LEVEL", "info")),
@@ -122,6 +122,7 @@ func (c *Config) EnsureDirectories() {
 	os.Mkdir(docDir, 0755)
 	os.Mkdir(coversDir, 0755)
 	os.Mkdir(backupDir, 0755)
+	os.Mkdir(filepath.Join(c.DataPath, "imports"), 0750)
 }
 
 func getEnv(key, fallback string) string {

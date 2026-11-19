@@ -9,11 +9,12 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
+	"reichard.io/antholume/api"
 	"reichard.io/antholume/config"
 	"reichard.io/antholume/server"
 )
 
-//go:embed templates/* assets/*
+//go:embed assets
 var embeddedAssets embed.FS
 
 func main() {
@@ -45,11 +46,20 @@ func cmdServer(ctx *cli.Context) error {
 		assets = os.DirFS("./")
 	}
 
+	if err := c.ValidatePublicOrigin(); err != nil {
+		return err
+	}
+	if c.Version != "develop" {
+		if err := api.CheckAppAssets(assets); err != nil {
+			return err
+		}
+	}
 	log.Info("Starting AnthoLume Server")
 
 	// Create notify channel
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signals)
 
 	// Start server
 	s := server.New(c, assets)
@@ -58,9 +68,6 @@ func cmdServer(ctx *cli.Context) error {
 	// Wait & close
 	<-signals
 	s.Stop()
-
-	// Stop server
-	os.Exit(0)
 
 	return nil
 }

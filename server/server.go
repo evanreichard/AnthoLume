@@ -15,10 +15,13 @@ import (
 )
 
 type server struct {
-	db   *database.DBManager
-	api  *api.API
-	done chan int
-	wg   sync.WaitGroup
+	db        *database.DBManager
+	api       *api.API
+	done      chan int
+	wg        sync.WaitGroup
+	workerCtx context.Context
+	cancel    context.CancelFunc
+	stop      sync.Once
 }
 
 // Create new server
@@ -26,17 +29,20 @@ func New(c *config.Config, assets fs.FS) *server {
 	db := database.NewMgr(c)
 	api := api.NewApi(db, c, assets)
 
+	ctx, cancel := context.WithCancel(context.Background())
 	return &server{
-		db:   db,
-		api:  api,
-		done: make(chan int),
+		db:        db,
+		api:       api,
+		done:      make(chan int),
+		workerCtx: ctx,
+		cancel:    cancel,
 	}
 }
 
 // Start server
 func (s *server) Start() {
 	log.Info("Starting server...")
-	s.wg.Add(2)
+	s.wg.Add(3)
 
 	go func() {
 		defer s.wg.Done()
@@ -50,20 +56,12 @@ func (s *server) Start() {
 	go func() {
 		defer s.wg.Done()
 
-		ticker := time.NewTicker(15 * time.Minute)
-		defer ticker.Stop()
+		s.runTaskRunner(15*time.Minute, 5*time.Minute)
+	}()
 
-		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(5*time.Minute))
-		for {
-			select {
-			case <-ticker.C:
-				s.runScheduledTasks(ctx)
-			case <-s.done:
-				log.Info("Stopping task runner...")
-				cancel()
-				return
-			}
-		}
+	go func() {
+		defer s.wg.Done()
+		s.api.RunAutoImports(s.workerCtx)
 	}()
 
 	log.Info("Server started")
@@ -73,14 +71,34 @@ func (s *server) Start() {
 func (s *server) Stop() {
 	log.Info("Stopping server...")
 
-	if err := s.api.Stop(); err != nil {
-		log.Error("HTTP server stop failed: ", err)
-	}
-
-	close(s.done)
-	s.wg.Wait()
+	s.stop.Do(func() {
+		s.cancel()
+		close(s.done)
+		if err := s.api.Stop(); err != nil {
+			log.Error("HTTP server stop failed: ", err)
+		}
+		s.wg.Wait()
+		if err := s.db.DB.Close(); err != nil {
+			log.Error("Database close failed: ", err)
+		}
+	})
 
 	log.Info("Server stopped")
+}
+
+func (s *server) runTaskRunner(interval, timeout time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			ctx, cancel := context.WithTimeout(s.workerCtx, timeout)
+			s.runScheduledTasks(ctx)
+			cancel()
+		case <-s.done:
+			return
+		}
+	}
 }
 
 // Run normal scheduled tasks

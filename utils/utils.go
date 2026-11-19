@@ -17,7 +17,10 @@ func CalculatePartialMD5(filePath string) (*string, error) {
 	}
 
 	defer file.Close()
+	return CalculatePartialMD5Reader(file)
+}
 
+func CalculatePartialMD5Reader(file io.ReaderAt) (*string, error) {
 	var step int64 = 1024
 	var size int64 = 1024
 	var buf bytes.Buffer
@@ -36,6 +39,9 @@ func CalculatePartialMD5(filePath string) (*string, error) {
 		_, err := file.ReadAt(byteStep, newOffset)
 		if err == io.EOF {
 			break
+		}
+		if err != nil {
+			return nil, err
 		}
 		buf.Write(byteStep)
 	}
@@ -63,9 +69,12 @@ func CalculateMD5(filePath string) (*string, error) {
 	}
 
 	defer file.Close()
+	return CalculateMD5Reader(file)
+}
 
+func CalculateMD5Reader(file io.Reader) (*string, error) {
 	hash := md5.New()
-	_, err = io.Copy(hash, file)
+	_, err := io.Copy(hash, file)
 	if err != nil {
 		return nil, err
 	}

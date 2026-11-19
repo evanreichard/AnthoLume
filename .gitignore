@@ -2,6 +2,7 @@ TODO.md
 .DS_Store
 data/
 build/
+assets/app/
 .direnv/
 cover.html
 node_modules

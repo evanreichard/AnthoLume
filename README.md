@@ -36,10 +36,8 @@ AnthoLume is a Progressive Web App (PWA) that manages your EPUB documents, provi
 
 - OPDS API Endpoint
 - Local / Offline Reader (via ServiceWorker)
-- Metadata Scraping (Thanks [OpenLibrary](https://openlibrary.org/) & [Google Books API](https://developers.google.com/books/docs/v1/getting_started))
+- Book identification with [Open Library](https://openlibrary.org/)
 - Words / Minute (WPM) Tracking & Leaderboard (Amongst Server Users)
-
-While some features require JavaScript (Service Worker & EPUB Reader), we make an effort to limit JavaScript usage. Outside of the two aforementioned features, no JavaScript is used.
 
 ## Server
 
@@ -64,7 +62,7 @@ The OPDS API endpoint is located at: `http(s)://<SERVER>/api/opds`
 
 ### Quick Start
 
-**NOTE**: If you're accessing your instance over HTTP (not HTTPS), you must set `COOKIE_SECURE=false`, otherwise you will not be able to login.
+Set `PUBLIC_ORIGIN` to the exact browser origin, with no trailing slash. Use HTTPS for deployed instances. Loopback HTTP is allowed for local development and requires `COOKIE_SECURE=false`.
 
 ```bash
 # Make Data Directory
@@ -72,7 +70,8 @@ mkdir -p antholume_data
 
 # Run Server
 docker run \
-    -p 8585:8585 \
+    -p 127.0.0.1:8585:8585 \
+    -e PUBLIC_ORIGIN=http://localhost:8585 \
     -e COOKIE_SECURE=false \
     -e REGISTRATION_ENABLED=true \
     -v ./antholume_data:/config \
@@ -80,7 +79,13 @@ docker run \
     gitea.va.reichard.io/evan/antholume:latest
 ```
 
-The service is now accessible at: `http://localhost:8585`. I recommend registering an account and then disabling registration unless you expect more users.
+The service is now accessible at `http://localhost:8585`. Register an account, then disable registration unless you expect more users.
+
+### Book Storage and Upgrades
+
+Configure storage roots in **Settings → Administration → Library**. Library is the only managed root and defaults to `$DATA_PATH/documents`. Imported books can be copied into Library or referenced in place from a source root. In Docker, mount source directories into the container before adding them. To relocate a source without changing book IDs or reading history, edit the existing root and keep paths relative to that root unchanged.
+
+Backups always include the database; **Database + Library files** also includes cataloged Library EPUBs and covers. Source files are not included. After restore, review the source mappings before re-enabling auto-import schedules. **To restore a backup made by the previous release, restore it on that release before upgrading.**
 
 ### Configuration
 
@@ -90,6 +95,7 @@ The service is now accessible at: `http://localhost:8585`. I recommend registeri
 | DATABASE_NAME        | antholume     | The database name, or in SQLite's case, the filename                       |
 | CONFIG_PATH          | /config       | Directory where to store SQLite's DB                                       |
 | DATA_PATH            | /data         | Directory where to store the documents and cover metadata                  |
+| PUBLIC_ORIGIN        | Required      | Exact browser origin (HTTPS, or HTTP for loopback development)             |
 | LISTEN_PORT          | 8585          | Port the server listens at                                                 |
 | LOG_LEVEL            | info          | Set server log level                                                       |
 | REGISTRATION_ENABLED | false         | Whether to allow registration (applies to both WebApp & KOSync API)        |
@@ -131,11 +137,7 @@ Goose Migrations:
 go install github.com/pressly/goose/v3/cmd/goose@latest
 ```
 
-Run Development:
-
-```bash
-CONFIG_PATH=./data DATA_PATH=./data REGISTRATION_ENABLED=true go run main.go serve
-```
+Run the app locally with `make dev` and visit `http://127.0.0.1:8585`. See [web development](web/README.md) for frontend commands.
 
 ## Building
 
@@ -152,15 +154,15 @@ make docker_build_local
 make docker_build_release_latest
 make docker_build_release_dev
 
-# Generate Tailwind CSS
-make build_tailwind
+# Build React assets
+make build_web
 
 # Clean Local Build
 make clean
 
-# Tests (Unit & Integration - Google Books API)
-make tests_unit
-make tests_integration
+# Tests (after building React assets)
+make tests
+npm --prefix web test
 ```
 
 ## Notes

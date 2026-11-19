@@ -1,0 +1,9 @@
+.git
+_scratch
+**/node_modules
+assets/app
+build
+data
+**/coverage
+**/test-results
+**/playwright-report
