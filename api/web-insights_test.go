@@ -71,6 +71,8 @@ func TestInsightsReadAcknowledgedData(t *testing.T) {
 	require.Equal(t, 200, r.status, string(r.body))
 	require.Equal(t, []InsightRank{{User: "alice", Value: 30}}, decodeWeb[InsightRankings](t, r).Items)
 	assertProblem(t, f.call("GET", urls[1]+"?page=0", nil, nil), 400, "invalid_request")
+	assertProblem(t, f.call("GET", urls[1]+"?cursor=invalid", nil, nil), 400, "invalid_request")
+	assertProblem(t, f.call("GET", urls[2]+"?page=1&cursor="+((insightCursor{Time: "2026-06-17T12:00:00Z", ID: "book-b"}).encode()), nil, nil), 400, "invalid_request")
 }
 
 func TestInsightRankingsRollingPeriods(t *testing.T) {

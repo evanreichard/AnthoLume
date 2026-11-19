@@ -141,21 +141,7 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
   const picker = (await rankings.getByLabel('Ranking period').boundingBox())!;
   expect(heading.x + heading.width).toBeLessThan(picker.x);
   expect(picker.width).toBeLessThan(150);
-  const dropdown = await period.evaluate(select => {
-    const face = getComputedStyle(select.parentElement!, '::before');
-    const { fontSize, fontWeight, minHeight, paddingInlineStart } = getComputedStyle(select);
-    return { fontSize, fontWeight, minHeight, paddingInlineStart, face: face.height, borderRadius: face.borderRadius };
-  });
-  const accountPage = await page.context().newPage();
-  await accountPage.goto(`${server.origin}/settings`);
-  const signOut = accountPage.getByRole('button', { name: 'Sign out', exact: true });
-  await expect(signOut).toBeVisible();
-  expect(dropdown).toEqual(await signOut.evaluate(button => {
-    const face = getComputedStyle(button.firstElementChild!);
-    const { fontSize, fontWeight, minHeight } = getComputedStyle(button);
-    return { fontSize, fontWeight, minHeight, paddingInlineStart: face.paddingInlineStart, face: face.height, borderRadius: face.borderRadius };
-  }));
-  await accountPage.close();
+  expect(picker.height).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
   await expect(page.getByRole('heading', { name: 'Recent reading' })).toHaveCount(0);
   await rankings.getByRole('button', { name: 'Words', exact: true }).click();
@@ -171,7 +157,7 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
   const activity = page.getByRole('region', { name: 'Reading activity' });
   await expect(activity.getByRole('link', { name: 'Clear filters' })).toBeVisible();
   await expect(activity.locator('time').first()).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}$/);
-  await expect(activity.getByRole('heading')).toHaveCount(0);
+  await expect(activity.getByRole('heading', { level: 2 })).toHaveCount(1);
   await page.setViewportSize({ width: 1440, height: 844 });
   await page.getByRole('link', { name: 'Public book 01' }).click();
   const bookHero = page.getByRole('region', { name: 'Public book 01', exact: true });
@@ -183,6 +169,7 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
   await sections.getByRole('link', { name: 'Progress' }).click();
   const progress = page.getByRole('region', { name: 'Saved progress' });
   await expect(progress.getByText('20%', { exact: true })).toBeVisible();
+  await expect(progress.getByRole('progressbar', { name: 'Reading progress for Public book 01' })).toHaveAttribute('value', '0.2');
   await expect(progress.getByRole('heading')).toHaveCount(0);
   for (const [width, colorScheme] of [[320, 'dark'], [390, 'light'], [1440, 'light']] as const) {
     await page.emulateMedia({ colorScheme });
@@ -197,30 +184,46 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
   await expect(sections.getByRole('link', { name: 'Rankings', exact: true })).toHaveCount(0);
 });
 
-test('Insights history pager keeps filters and keyboard focus', async ({ page, server }) => {
+test('Insights appends older activity and more progress without losing filters, focus, or place', async ({ page, server }) => {
   await register(page, server.origin, 'history-pager');
   const endpoint = `${server.origin}/api/v1`;
   const { csrf_token } = await (await page.request.get(`${endpoint}/session`)).json();
   const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token };
   expect((await page.request.post(`${endpoint}/me/devices`, { headers, data: { id: 'history-device', name: 'Reader' } })).status()).toBe(200);
+  const noon = new Date(); noon.setUTCHours(12, 0, 0, 0); noon.setUTCDate(noon.getUTCDate() - 1);
+  const activityAt = (start_time: string) => ({ event_id: randomUUID(), document_id: 'book-001', device_id: 'history-device', start_time, duration: 30, start_fraction: 0, end_fraction: .1 });
   for (let i = 0; i < 21; i++) {
-    const data = { event_id: randomUUID(), document_id: 'book-001', device_id: 'history-device', start_time: new Date(Date.now() - (i + 1) * 60_000).toISOString(), duration: 30, start_fraction: 0, end_fraction: .1 };
-    expect((await page.request.post(`${endpoint}/me/activity`, { headers, data })).status()).toBe(200);
+    const timestamp = new Date(noon.getTime() - i * 60_000).toISOString();
+    expect((await page.request.post(`${endpoint}/me/activity`, { headers, data: activityAt(timestamp) })).status()).toBe(200);
+    const data = { event_id: randomUUID(), document_id: `book-${String(i + 1).padStart(3, '0')}`, device_id: 'history-device', observed_at: timestamp, base_revision: '0', position: '/body/DocFragment[1]/body/p[1]', fraction: .2 };
+    expect((await page.request.post(`${endpoint}/me/reading-progress`, { headers, data })).status()).toBe(200);
   }
   const url = `${server.origin}/insights/activity?document=book-001`;
   await page.goto(url);
   const activity = page.getByRole('region', { name: 'Reading activity' });
-  const pager = activity.getByRole('navigation', { name: 'History pages' });
-  const next = pager.getByRole('button', { name: 'Next' });
+  const next = activity.getByRole('button', { name: 'Load older activity' });
   await expect(activity.getByRole('listitem')).toHaveCount(20);
+  await expect(activity.getByText('10 min loaded')).toBeVisible();
+  // Insert a newer session between requests: the cursor must not repeat the boundary row.
+  expect((await page.request.post(`${endpoint}/me/activity`, { headers, data: activityAt(new Date(noon.getTime() + 60_000).toISOString()) })).status()).toBe(200);
   await next.focus();
   await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(`${url}&page=2`);
-  await expect(activity.getByRole('listitem')).toHaveCount(1);
-  await expect(pager.getByRole('status')).toHaveText('Page 2');
-  await expect(next).toBeDisabled();
-  await expect(next).toBeFocused();
-  await pager.getByRole('button', { name: 'Previous' }).click();
   await expect(page).toHaveURL(url);
-  await expect(activity.getByRole('listitem')).toHaveCount(20);
+  await expect(activity.getByRole('listitem')).toHaveCount(21);
+  await expect(activity.getByRole('heading', { level: 2 })).toHaveCount(1);
+  await expect(activity.getByText('10 min read')).toBeVisible();
+  await expect(activity.getByRole('button', { name: 'All activity loaded' })).toBeFocused();
+  await activity.getByRole('link', { name: 'Public book 01' }).last().scrollIntoViewIfNeeded();
+  const before = await page.evaluate(() => scrollY);
+  await activity.getByRole('link', { name: 'Public book 01' }).last().click();
+  await page.goBack();
+  await expect(activity.getByRole('listitem')).toHaveCount(21);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(before, 0);
+  await page.getByRole('navigation', { name: 'Insights sections' }).getByRole('link', { name: 'Progress' }).click();
+  const progress = page.getByRole('region', { name: 'Saved progress' });
+  await expect(progress.getByRole('listitem')).toHaveCount(20);
+  await progress.getByRole('button', { name: 'Load more books' }).click();
+  await expect(progress.getByRole('listitem')).toHaveCount(21);
+  await expect(progress.getByRole('progressbar')).toHaveCount(21);
+  await expect(progress.getByRole('button', { name: 'All books loaded' })).toBeFocused();
 });

@@ -787,11 +787,13 @@ export interface components {
         InsightActivityPage: {
             items: components["schemas"]["InsightActivity"][];
             has_more: boolean;
+            next_cursor?: string;
             timezone: string;
         };
         InsightProgressPage: {
             items: components["schemas"]["InsightProgress"][];
             has_more: boolean;
+            next_cursor?: string;
             timezone: string;
         };
         InsightRankings: {
@@ -1586,6 +1588,7 @@ export interface operations {
     listInsightActivity: {
         parameters: {
             query?: {
+                cursor?: string;
                 page?: number;
                 document?: string;
                 day?: string;
@@ -1611,6 +1614,7 @@ export interface operations {
     listInsightProgress: {
         parameters: {
             query?: {
+                cursor?: string;
                 page?: number;
             };
             header?: never;

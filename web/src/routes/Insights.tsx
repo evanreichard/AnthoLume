@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
 import type { Account } from '../reading';
 import type { components } from '../api/schema.gen';
@@ -7,7 +7,7 @@ import { bookPath } from '../library';
 import { ErrorNotice, PageHeader } from '../ui';
 import styles from './Insights.module.css';
 import { LoadingStatus, Skeleton, SkeletonRows } from '../Skeleton';
-import { Card, CardHeader, Pager, SectionTabs, SegmentedControl, Dropdown } from '../Controls';
+import { Button, Card, CardHeader, SectionTabs, SegmentedControl, Dropdown } from '../Controls';
 
 type Activity = components['schemas']['InsightActivity'];
 const tabs = [['', 'Overview'], ['activity', 'Activity'], ['progress', 'Progress']] as const;
@@ -24,11 +24,39 @@ const percent = (n: number) => new Intl.NumberFormat(undefined, { style: 'percen
 const dateLabel = (date: string, timezone = 'UTC', withTime = false) => new Intl.DateTimeFormat(undefined, { timeZone: timezone, month: 'short', day: 'numeric', ...(withTime ? { hour: 'numeric', minute: '2-digit' } : {}) }).format(new Date(date));
 const detail = (account: Account, documentId: string) => bookPath({ kind: 'server', account, documentId });
 
-function ActivityList({ account, items, timezone }: { account: Account; items: Activity[]; timezone: string }) {
-  return <ul className={styles.entries}>{items.map(item => <li key={item.id}>
-    <div>{item.available ? <Link to={detail(account, item.document_id)}>{item.title}</Link> : <strong>{item.title}</strong>}
-      <small><time dateTime={item.started_at}>{dateLabel(item.started_at, timezone, true)}</time> · {percent(item.start_fraction)} → {percent(item.end_fraction)}</small></div>
-    <strong className={styles.value}>{duration(item.duration)}</strong>
+function ActivityList({ account, items, timezone, hasMore }: { account: Account; items: Activity[]; timezone: string; hasMore: boolean }) {
+  const date = new Intl.DateTimeFormat('en', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+  const time = new Intl.DateTimeFormat(undefined, { timeZone: timezone, hour: 'numeric', minute: '2-digit' });
+  const headingDate = new Intl.DateTimeFormat(undefined, { timeZone: 'UTC', dateStyle: 'full' });
+  const groups = new Map<string, Activity[]>();
+  for (const item of items) {
+    const parts = date.formatToParts(new Date(item.started_at));
+    const day = ['year', 'month', 'day'].map(type => parts.find(part => part.type === type)?.value).join('-');
+    const sessions = groups.get(day);
+    if (sessions) sessions.push(item); else groups.set(day, [item]);
+  }
+  const lastDay = [...groups.keys()].at(-1);
+  return [...groups].map(([day, sessions]) => <section className={styles.journalDay} key={day}>
+    <header className={styles.dayHeader}>
+      <h2><time dateTime={day}>{headingDate.format(new Date(day))}</time></h2>
+      <span>{duration(sessions.reduce((sum, item) => sum + item.duration, 0))}{hasMore && day === lastDay ? ' loaded' : ' read'}</span>
+    </header>
+    <ul className={styles.entries}>{sessions.map(item => <li key={item.id}>
+      <div>{item.available ? <Link to={detail(account, item.document_id)}>{item.title}</Link> : <strong>{item.title}</strong>}
+        <small><time dateTime={item.started_at}>{time.format(new Date(item.started_at))}</time> · {percent(item.start_fraction)} → {percent(item.end_fraction)}</small></div>
+      <strong className={styles.value}>{duration(item.duration)}</strong>
+    </li>)}</ul>
+  </section>);
+}
+
+function ProgressList({ account, items, timezone }: { account: Account; items: components['schemas']['InsightProgress'][]; timezone: string }) {
+  return <ul className={`${styles.entries} ${styles.progressEntries}`}>{items.map(item => <li key={item.document_id}>
+    <div className={styles.progressHeading}>
+      {item.available ? <Link to={detail(account, item.document_id)}>{item.title}</Link> : <strong>{item.title}</strong>}
+      <strong className={styles.value}>{item.fraction == null ? 'Position saved' : percent(item.fraction)}</strong>
+    </div>
+    {item.fraction != null && <progress className={styles.bookProgress} max={1} value={item.fraction} aria-label={`Reading progress for ${item.title}`} />}
+    <small className={styles.progressMeta}><span>Last read <time dateTime={item.updated_at}>{dateLabel(item.updated_at, timezone, true)}</time></span>{item.available && <Link to={`/insights/activity?${new URLSearchParams({ document: item.document_id })}`}>Activity for this book</Link>}</small>
   </li>)}</ul>;
 }
 
@@ -79,16 +107,25 @@ function Overview({ account }: { account: Account }) {
   </>;
 }
 
+function uniqueBy<T>(items: T[], key: (item: T) => string): T[] {
+  const seen = new Set<string>();
+  return items.filter(item => { const id = key(item); if (seen.has(id)) return false; seen.add(id); return true; });
+}
+
 function History({ account, view }: { account: Account; view: 'activity' | 'progress' }) {
-  const [params, setParams] = useSearchParams();
-  const page = Math.max(1, Math.min(100000, Number.parseInt(params.get('page') || '1', 10) || 1));
+  const [params] = useSearchParams();
   const requestedDay = params.get('day') ?? '';
   const day = /^\d{4}-\d\d-\d\d$/.test(requestedDay) && Number.isFinite(Date.parse(requestedDay)) && new Date(requestedDay).toISOString().slice(0, 10) === requestedDay ? requestedDay : '';
   const document = Array.from(params.get('document') ?? '').slice(0, 128).join('');
-  const activity = useQuery({ enabled: view === 'activity', staleTime: 0, queryKey: ['insight-activity', account, page, day, document], queryFn: ({ signal }) => session.api.insightActivity(account, { page, ...(day ? { day } : {}), ...(document ? { document } : {}) }, signal) });
-  const progress = useQuery({ enabled: view === 'progress', staleTime: 0, queryKey: ['insight-progress', account, page], queryFn: ({ signal }) => session.api.insightProgress(account, page, signal) });
+  const pagination = { initialPageParam: undefined as string | undefined, gcTime: 30 * 60_000, staleTime: 30_000, refetchOnWindowFocus: false, refetchOnReconnect: false } as const;
+  const activity = useInfiniteQuery({ ...pagination, enabled: view === 'activity', queryKey: ['insight-activity', account, day, document], queryFn: ({ signal, pageParam }) => session.api.insightActivity(account, { cursor: pageParam, ...(day ? { day } : {}), ...(document ? { document } : {}) }, signal), getNextPageParam: page => page.next_cursor });
+  const progress = useInfiniteQuery({ ...pagination, enabled: view === 'progress', queryKey: ['insight-progress', account], queryFn: ({ signal, pageParam }) => session.api.insightProgress(account, pageParam, signal), getNextPageParam: page => page.next_cursor });
+  const activityItems = uniqueBy(activity.data?.pages.flatMap(page => page.items) ?? [], item => item.id);
+  const progressItems = uniqueBy(progress.data?.pages.flatMap(page => page.items) ?? [], item => item.document_id);
   const current = view === 'activity' ? activity : progress;
-  const go = (n: number) => setParams(previous => { const next = new URLSearchParams(previous); if (n === 1) next.delete('page'); else next.set('page', String(n)); return next; });
+  const items = view === 'activity' ? activityItems : progressItems;
+  const timezone = current.data?.pages[0]?.timezone ?? 'UTC';
+  const showLoad = current.hasNextPage || (current.data?.pages.length ?? 0) > 1;
   return <section className={styles.history} aria-label={view === 'activity' ? 'Reading activity' : 'Saved progress'}>
     {view === 'activity' && (day || document) && <div className={styles.historyFilters}>
       {day && <time dateTime={day}>{dateLabel(day)}</time>}
@@ -96,13 +133,15 @@ function History({ account, view }: { account: Account; view: 'activity' | 'prog
     </div>}
     <ErrorNotice error={current.error} />
     {current.isPending && <SkeletonRows label="Loading reading records…" count={4} />}
-    {current.data && !current.data.items.length && <p className={styles.muted}>No reading records {day ? 'for this day' : 'to show'}.</p>}
-    {view === 'activity' && activity.data && <ActivityList account={account} items={activity.data.items} timezone={activity.data.timezone} />}
-    {view === 'progress' && progress.data && <ul className={styles.entries}>{progress.data.items.map(item => <li key={item.document_id}>
-      <div>{item.available ? <Link to={detail(account, item.document_id)}>{item.title}</Link> : <strong>{item.title}</strong>}
-      <small><time dateTime={item.updated_at}>{dateLabel(item.updated_at, progress.data.timezone, true)}</time>{item.available && <> · <Link to={`/insights/activity?${new URLSearchParams({ document: item.document_id })}`}>Activity for this book</Link></>}</small></div>
-      <strong className={styles.value}>{item.fraction == null ? 'Position saved' : percent(item.fraction)}</strong></li>)}</ul>}
-    {(page > 1 || current.data?.has_more) && <Pager label="History pages" page={page} hasNext={!!current.data?.has_more && page < 100000} onPageChange={go} />}
+    {current.data && !items.length && <p className={styles.muted}>{view === 'progress' ? 'No saved reading progress yet.' : day ? 'No reading sessions for this day.' : 'No reading sessions yet.'}</p>}
+    {view === 'activity' && <ActivityList account={account} items={activityItems} timezone={timezone} hasMore={current.hasNextPage} />}
+    {view === 'progress' && progressItems.length > 0 && <ProgressList account={account} items={progressItems} timezone={timezone} />}
+    {showLoad && <div className={styles.loadMore}>
+      <Button aria-disabled={!current.hasNextPage || current.isFetching} onClick={() => { if (current.hasNextPage && !current.isFetching) void current.fetchNextPage(); }}>
+        {current.isFetchingNextPage ? 'Loading…' : !current.hasNextPage ? (view === 'activity' ? 'All activity loaded' : 'All books loaded') : current.isFetchNextPageError ? 'Try again' : view === 'activity' ? 'Load older activity' : 'Load more books'}
+      </Button>
+      <span className={styles.srOnly} role="status">{count(items.length, view === 'activity' ? 'session' : 'book')} shown</span>
+    </div>}
   </section>;
 }
 

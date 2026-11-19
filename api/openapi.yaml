@@ -331,6 +331,7 @@ paths:
     get:
       operationId: listInsightActivity
       parameters:
+        - {name: cursor, in: query, schema: {type: string, minLength: 1, maxLength: 1024}}
         - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 100000}}
         - {name: document, in: query, schema: {type: string, minLength: 1, maxLength: 128}}
         - {name: day, in: query, schema: {type: string, format: date}}
@@ -345,6 +346,7 @@ paths:
     get:
       operationId: listInsightProgress
       parameters:
+        - {name: cursor, in: query, schema: {type: string, minLength: 1, maxLength: 1024}}
         - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 100000}}
       responses:
         '200':
@@ -947,6 +949,7 @@ components:
       properties:
         items: {type: array, items: {$ref: '#/components/schemas/InsightActivity'}}
         has_more: {type: boolean}
+        next_cursor: {type: string}
         timezone: {type: string}
     InsightProgressPage:
       type: object
@@ -954,6 +957,7 @@ components:
       properties:
         items: {type: array, items: {$ref: '#/components/schemas/InsightProgress'}}
         has_more: {type: boolean}
+        next_cursor: {type: string}
         timezone: {type: string}
     InsightRankings:
       type: object

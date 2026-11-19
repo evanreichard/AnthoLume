@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"time"
 
 	openapiTypes "github.com/oapi-codegen/runtime/types"
@@ -103,6 +105,32 @@ func insightOffset(page *int) int {
 	}
 	return (*page - 1) * insightPageSize
 }
+
+type insightCursor struct {
+	Time string `json:"t"`
+	ID   string `json:"i"`
+}
+
+func (c insightCursor) encode() string {
+	data, _ := json.Marshal(c)
+	return base64.RawURLEncoding.EncodeToString(data)
+}
+
+func parseInsightCursor(raw *string, page *int) (insightCursor, error) {
+	var cursor insightCursor
+	if raw == nil {
+		return cursor, nil
+	}
+	data, err := base64.RawURLEncoding.DecodeString(*raw)
+	if page != nil || err != nil || json.Unmarshal(data, &cursor) != nil || len(cursor.ID) == 0 || len(cursor.ID) > 512 {
+		return cursor, &reading.Failure{Status: 400, Code: "invalid_request"}
+	}
+	if _, err := insightInstant(cursor.Time); err != nil {
+		return cursor, &reading.Failure{Status: 400, Code: "invalid_request"}
+	}
+	return cursor, nil
+}
+
 func insightInstant(raw string) (time.Time, error) {
 	value, err := time.Parse(time.RFC3339, raw)
 	return value.UTC(), err
@@ -126,6 +154,14 @@ func (s *webAPI) ListInsightActivity(ctx context.Context, r ListInsightActivityR
 		query += ` AND a.start_time>=? AND a.start_time<?`
 		args = append(args, start.UTC().Format("2006-01-02T15:04:05"), start.AddDate(0, 0, 1).UTC().Format("2006-01-02T15:04:05"))
 	}
+	cursor, err := parseInsightCursor(r.Params.Cursor, r.Params.Page)
+	if err != nil {
+		return nil, err
+	}
+	if cursor.ID != "" {
+		query += ` AND (julianday(a.start_time),a.id)<(julianday(?),?)`
+		args = append(args, cursor.Time, cursor.ID)
+	}
 	rows, err := s.api.db.DB.QueryContext(requestContext(ctx), query+` ORDER BY julianday(a.start_time) DESC,a.id DESC LIMIT ? OFFSET ?`, append(args, insightPageSize+1, insightOffset(r.Params.Page))...)
 	if err != nil {
 		return nil, err
@@ -134,6 +170,8 @@ func (s *webAPI) ListInsightActivity(ctx context.Context, r ListInsightActivityR
 	for rows.Next() {
 		if len(out.Items) == insightPageSize {
 			out.HasMore = true
+			next := cursor.encode()
+			out.NextCursor = &next
 			break
 		}
 		var v InsightActivity
@@ -146,6 +184,7 @@ func (s *webAPI) ListInsightActivity(ctx context.Context, r ListInsightActivityR
 			return nil, err
 		}
 		out.Items = append(out.Items, v)
+		cursor = insightCursor{Time: raw, ID: v.Id}
 	}
 	return ListInsightActivity200JSONResponse(out), rows.Err()
 }
@@ -156,7 +195,17 @@ func (s *webAPI) ListInsightProgress(ctx context.Context, r ListInsightProgressR
 		return nil, err
 	}
 	out := InsightProgressPage{Timezone: zone.String(), Items: []InsightProgress{}}
-	rows, err := s.api.db.DB.QueryContext(requestContext(ctx), `SELECT h.document_id,COALESCE(NULLIF(d.title,''),'Untitled book'),COALESCE(d.deleted=0,0),h.updated_at,h.fraction FROM reading_heads h LEFT JOIN documents d ON d.id=h.document_id WHERE h.user_id=? AND h.position IS NOT NULL AND h.updated_at IS NOT NULL ORDER BY h.updated_at DESC,h.document_id ASC LIMIT ? OFFSET ?`, webUser(ctx).UserName, insightPageSize+1, insightOffset(r.Params.Page))
+	cursor, err := parseInsightCursor(r.Params.Cursor, r.Params.Page)
+	if err != nil {
+		return nil, err
+	}
+	query := `SELECT h.document_id,COALESCE(NULLIF(d.title,''),'Untitled book'),COALESCE(d.deleted=0,0),h.updated_at,h.fraction FROM reading_heads h LEFT JOIN documents d ON d.id=h.document_id WHERE h.user_id=? AND h.position IS NOT NULL AND h.updated_at IS NOT NULL`
+	args := []any{webUser(ctx).UserName}
+	if cursor.ID != "" {
+		query += ` AND (julianday(h.updated_at)<julianday(?) OR (julianday(h.updated_at)=julianday(?) AND h.document_id>?))`
+		args = append(args, cursor.Time, cursor.Time, cursor.ID)
+	}
+	rows, err := s.api.db.DB.QueryContext(requestContext(ctx), query+` ORDER BY julianday(h.updated_at) DESC,h.document_id ASC LIMIT ? OFFSET ?`, append(args, insightPageSize+1, insightOffset(r.Params.Page))...)
 	if err != nil {
 		return nil, err
 	}
@@ -164,6 +213,8 @@ func (s *webAPI) ListInsightProgress(ctx context.Context, r ListInsightProgressR
 	for rows.Next() {
 		if len(out.Items) == insightPageSize {
 			out.HasMore = true
+			next := cursor.encode()
+			out.NextCursor = &next
 			break
 		}
 		var v InsightProgress
@@ -176,6 +227,7 @@ func (s *webAPI) ListInsightProgress(ctx context.Context, r ListInsightProgressR
 			return nil, err
 		}
 		out.Items = append(out.Items, v)
+		cursor = insightCursor{Time: raw, ID: v.DocumentId}
 	}
 	return ListInsightProgress200JSONResponse(out), rows.Err()
 }
