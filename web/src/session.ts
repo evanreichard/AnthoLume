@@ -5,6 +5,7 @@ import { apiOrigin, createAPI, sameAccount } from './api/client';
 import type { Account, ReadingAccess } from './reading';
 
 type S = components['schemas'];
+const sessionAccount = (user: NonNullable<S['Session']['user']>): Account => ({ origin: apiOrigin, userId: user.account_id, readingGeneration: user.reading_generation });
 const logoutKey = 'antholume:logout-pending';
 export const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000, gcTime: 300_000 } } });
 type Snapshot = { session: S['Session'] | null; capabilities: S['Capabilities'] | null; access: ReadingAccess; error: string | null; busy: boolean };
@@ -90,7 +91,7 @@ class SessionCoordinator {
     try {
       const session = await this.api.session(signal);
       if (refresh.signal.aborted) return;
-      const account = session.user ? { origin: apiOrigin, userId: session.user.account_id } : null;
+      const account = session.user ? sessionAccount(session.user) : null;
       if (!account) {
         this.expire(access.account);
         this.publish({ session });
@@ -126,7 +127,7 @@ class SessionCoordinator {
         if (session.user) session = await this.api.logout();
         if (epoch !== this.generation) return;
       }
-      const account = session.user && !this.storageBlocked && !this.pendingLogout ? { origin: apiOrigin, userId: session.user.account_id } : null;
+      const account = session.user && !this.storageBlocked && !this.pendingLogout ? sessionAccount(session.user) : null;
       this.publish({ session, busy: false, access: account ? { kind: 'authenticated', account } : this.retainedAccess(previous), error: this.storageBlocked ? 'Browser storage is unavailable. Automatic account access is disabled; sign in explicitly.' : null });
       try {
         const capabilities = await this.api.capabilities();
@@ -156,7 +157,7 @@ class SessionCoordinator {
       const session = await this.api[mode]({ username, password });
       if (epoch !== this.generation) throw new DOMException('Session changed', 'AbortError');
       if (!session.user) throw new Error('The server did not authenticate the account.');
-      this.publish({ session, busy: false, access: { kind: 'authenticated', account: { origin: apiOrigin, userId: session.user.account_id } } });
+      this.publish({ session, busy: false, access: { kind: 'authenticated', account: sessionAccount(session.user) } });
       this.channel?.postMessage('changed');
     } catch (error) {
       if (epoch === this.generation) this.publish({ busy: false, access: oldAccess.kind === 'authenticated' ? { kind: 'expired', account: oldAccess.account } : oldAccess, error: message(error) });
@@ -166,7 +167,7 @@ class SessionCoordinator {
   async updateTimezone(account: Account, timezone: string) {
     const epoch = this.generation;
     const current = await this.api.updatePreferences(account, timezone);
-    if (epoch !== this.generation || current.user?.account_id !== account.userId) throw new DOMException('Account changed', 'AbortError');
+    if (epoch !== this.generation || !current.user || !sameAccount(sessionAccount(current.user), account)) throw new DOMException('Account changed', 'AbortError');
     this.refresh?.abort();
     this.publish({ session: current });
     void queryClient.invalidateQueries({ predicate: query => ['insights', 'insight-activity', 'insight-progress'].includes(String(query.queryKey[0])) });
@@ -175,7 +176,7 @@ class SessionCoordinator {
   async changePassword(account: Account, body: S['PasswordChange']) {
     const epoch = this.generation;
     const current = await this.api.changePassword(account, body);
-    if (epoch !== this.generation || current.user?.account_id !== account.userId) throw new DOMException('Account changed', 'AbortError');
+    if (epoch !== this.generation || !current.user || !sameAccount(sessionAccount(current.user), account)) throw new DOMException('Account changed', 'AbortError');
     this.refresh?.abort();
     this.publish({ session: current });
     this.channel?.postMessage('session');

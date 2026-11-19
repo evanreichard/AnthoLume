@@ -27,13 +27,14 @@ import (
 )
 
 type webFixture struct {
-	t      *testing.T
-	cfg    *config.Config
-	db     *database.DBManager
-	api    *API
-	server *httptest.Server
-	client *http.Client
-	csrf   string
+	t          *testing.T
+	cfg        *config.Config
+	db         *database.DBManager
+	api        *API
+	server     *httptest.Server
+	client     *http.Client
+	csrf       string
+	generation string
 }
 type webResponse struct {
 	status int
@@ -94,6 +95,9 @@ func (f *webFixture) call(method, path string, body any, headers map[string]stri
 		r.Header.Set("Origin", f.cfg.PublicOrigin)
 		r.Header.Set("X-CSRF-Token", f.csrf)
 	}
+	if (path == "/api/v1/me/reading-progress" || path == "/api/v1/me/activity") && f.generation != "" {
+		r.Header.Set("X-AnthoLume-Reading-Generation", f.generation)
+	}
 	for k, v := range headers {
 		r.Header.Set(k, v)
 	}
@@ -114,7 +118,7 @@ func (f *webFixture) bootstrap() Session {
 	r := f.call("GET", "/api/v1/session", nil, nil)
 	require.Equal(f.t, 200, r.status, string(r.body))
 	out := decodeWeb[Session](f.t, r)
-	f.csrf = out.CsrfToken
+	f.setSession(out)
 	return out
 }
 func (f *webFixture) register(user string) Session {
@@ -122,8 +126,15 @@ func (f *webFixture) register(user string) Session {
 	r := f.call("POST", "/api/v1/session/register", Credentials{Username: user, Password: " password "}, nil)
 	require.Equal(f.t, 201, r.status, string(r.body))
 	out := decodeWeb[Session](f.t, r)
-	f.csrf = out.CsrfToken
+	f.setSession(out)
 	return out
+}
+func (f *webFixture) setSession(out Session) {
+	f.csrf = out.CsrfToken
+	f.generation = ""
+	if out.User != nil {
+		f.generation = out.User.ReadingGeneration
+	}
 }
 func (f *webFixture) exec(query string, args ...any) {
 	f.t.Helper()

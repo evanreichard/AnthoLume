@@ -6,8 +6,8 @@ test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
 test('Library rotates through the three newest books with dots, pause and native swipe', async ({ page, server }, testInfo) => {
   await register(page, server.origin, 'carousel-reader');
   const endpoint = `${server.origin}/api/v1`;
-  const { csrf_token } = await (await page.request.get(`${endpoint}/session`)).json();
-  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token };
+  const { csrf_token, user } = await (await page.request.get(`${endpoint}/session`)).json();
+  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': user.reading_generation };
   expect((await page.request.post(`${endpoint}/me/devices`, { headers, data: { id: 'carousel-device', name: 'Reader' } })).status()).toBe(200);
   for (let book = 1; book <= 4; book++) {
     if (book > 1) await new Promise(resolve => setTimeout(resolve, 1050));

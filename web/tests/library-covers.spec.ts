@@ -8,8 +8,8 @@ test('missing server files are flagged on the cover and book detail', async ({ p
   await page.setViewportSize({ width: 320, height: 800 });
   await register(page, server.origin, 'missing-file-reader');
   const endpoint = `${server.origin}/api/v1`;
-  const { csrf_token } = await (await page.request.get(`${endpoint}/session`)).json();
-  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token };
+  const { csrf_token, user } = await (await page.request.get(`${endpoint}/session`)).json();
+  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': user.reading_generation };
   const device_id = 'missing-file-device';
   expect((await page.request.post(`${endpoint}/me/devices`, { headers, data: { id: device_id, name: 'Reader' } })).status()).toBe(200);
   expect((await page.request.post(`${endpoint}/me/reading-progress`, { headers, data: {

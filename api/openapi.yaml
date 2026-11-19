@@ -302,6 +302,7 @@ paths:
   /api/v1/me/reading-progress:
     post:
       operationId: submitProgress
+      description: Requires X-AnthoLume-Reading-Generation matching the generation captured when the event was queued. A missing or stale generation returns 409.
       parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
       requestBody:
         required: true
@@ -318,6 +319,7 @@ paths:
   /api/v1/me/activity:
     post:
       operationId: submitActivity
+      description: Requires X-AnthoLume-Reading-Generation matching the generation captured when the event was queued. A missing or stale generation returns 409.
       parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
       requestBody:
         required: true
@@ -884,13 +886,17 @@ components:
       type: object
       nullable: true
       additionalProperties: false
-      required: [id, account_id, is_admin, timezone]
+      required: [id, account_id, reading_generation, is_admin, timezone]
       properties:
         id: {$ref: '#/components/schemas/ID'}
         account_id:
           type: string
           pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
           description: Immutable account identity for local storage scoping. When supplied as X-AnthoLume-Account, it must match the authenticated session.
+        reading_generation:
+          type: string
+          pattern: '^[0-9a-f]{32}$'
+          description: Ledger generation captured when queuing a reading event and required in X-AnthoLume-Reading-Generation on submission.
         is_admin: {type: boolean}
         timezone: {type: string}
     Session:

@@ -14,11 +14,12 @@ import (
 )
 
 type authData struct {
-	UserName  string
-	AccountID string
-	IsAdmin   bool
-	AuthHash  string
-	Timezone  *string
+	UserName   string
+	AccountID  string
+	Generation string
+	IsAdmin    bool
+	AuthHash   string
+	Timezone   *string
 }
 type authKOHeader struct {
 	AuthUser string `header:"x-auth-user"`
@@ -60,7 +61,7 @@ func (api *API) authKOMiddleware(c *gin.Context) {
 	refund()
 	// Session Isolation - Explicit reader credentials must not rotate a valid browser session or its CSRF token.
 	if _, ok := api.getSession(c.Request.Context(), session); !ok {
-		if err := api.setSession(session, *auth); err != nil {
+		if err := api.setSession(c.Request.Context(), session, *auth); err != nil {
 			koSyncOperationError(c, err)
 			return
 		}
@@ -131,12 +132,14 @@ func (api *API) sessionIdentity(ctx context.Context, session sessions.Session) (
 	user, uok := session.Get("authorizedUser").(string)
 	expiry, eok := session.Get("expiresAt").(int64)
 	hash, hok := session.Get("authHash").(string)
-	if !uok || !eok || !hok || expiry <= time.Now().Unix() {
+	generation, gok := session.Get("readingGeneration").(string)
+	if !uok || !eok || !hok || !gok || expiry <= time.Now().Unix() {
 		return authData{}, false, nil
 	}
-	current := authData{UserName: user, AuthHash: hash}
+	current := authData{UserName: user, AuthHash: hash, Generation: generation}
 	err := api.db.DB.QueryRowContext(ctx, `SELECT a.account_id,u.admin,u.timezone FROM users u
- JOIN account_identities a ON a.user_id=u.id WHERE u.id=? AND u.auth_hash=?`, user, hash).
+ JOIN account_identities a ON a.user_id=u.id
+ JOIN reading_generation g ON g.singleton=1 AND g.generation=? WHERE u.id=? AND u.auth_hash=?`, generation, user, hash).
 		Scan(&current.AccountID, &current.IsAdmin, &current.Timezone)
 	if errors.Is(err, sql.ErrNoRows) {
 		return authData{}, false, nil
@@ -156,7 +159,11 @@ func (api *API) anonymousSession(session sessions.Session) error {
 	session.Set("anonymousExpiresAt", time.Now().Add(7*24*time.Hour).Unix())
 	return session.Save()
 }
-func (api *API) setSession(session sessions.Session, auth authData) error {
+func (api *API) setSession(ctx context.Context, session sessions.Session, auth authData) error {
+	var generation string
+	if err := api.db.DB.QueryRowContext(ctx, `SELECT generation FROM reading_generation WHERE singleton=1`).Scan(&generation); err != nil {
+		return err
+	}
 	token, err := randomCSRF()
 	if err != nil {
 		return err
@@ -166,6 +173,7 @@ func (api *API) setSession(session sessions.Session, auth authData) error {
 	session.Set("isAdmin", auth.IsAdmin)
 	session.Set("expiresAt", time.Now().Add(7*24*time.Hour).Unix())
 	session.Set("authHash", auth.AuthHash)
+	session.Set("readingGeneration", generation)
 	session.Set("csrf", token)
 	return session.Save()
 }

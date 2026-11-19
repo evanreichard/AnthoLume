@@ -189,6 +189,10 @@ func (api *API) webBoundary(c *gin.Context) {
 		abortProblem(c, 401, "unauthenticated")
 		return
 	}
+	if generation := c.Request.Header.Values("X-AnthoLume-Reading-Generation"); len(generation) != 0 && (len(generation) != 1 || generation[0] != auth.Generation) {
+		abortProblem(c, 409, "stale_reading_generation")
+		return
+	}
 	if c.Request.Method == "GET" {
 		c.Next()
 		return

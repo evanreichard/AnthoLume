@@ -77,7 +77,7 @@ func (s *webAPI) ChangePassword(ctx context.Context, r ChangePasswordRequestObje
 		return nil, &reading.Failure{Status: 401, Code: "unauthenticated"}
 	}
 	verified.AuthHash = token
-	if err = api.setSession(sessions.Default(ginContext(ctx)), *verified); err != nil {
+	if err = api.setSession(request, sessions.Default(ginContext(ctx)), *verified); err != nil {
 		return nil, err
 	}
 	out, err := s.session(ctx)

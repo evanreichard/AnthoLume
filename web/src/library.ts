@@ -1,18 +1,18 @@
 import type { components } from './api/schema.gen';
-import type { BookRef, StoredBook } from './reading';
+import { refKey, sameAccount, type Account, type BookRef, type StoredBook } from './reading/types';
 
 type Document = components['schemas']['Document'];
 export type LibraryBook = { ref: BookRef; title: string | null; author: string | null; stored?: StoredBook; document?: Document };
 export function bookKey(ref: BookRef): string {
-  return JSON.stringify(ref.kind === 'local' ? ['local', ref.localId] : ['server', ref.account.origin, ref.account.userId, ref.documentId]);
+  return refKey(ref);
 }
 export function bookPath(ref: BookRef, action: 'books' | 'read' = 'books'): string {
   return `/${action}/${ref.kind}/${encodeURIComponent(ref.kind === 'local' ? ref.localId : ref.documentId)}${ref.kind === 'server' ? `?account=${encodeURIComponent(ref.account.userId)}&origin=${encodeURIComponent(ref.account.origin)}` : ''}`;
 }
-export function combineBooks(stored: readonly StoredBook[], documents: readonly Document[], account: { origin: string; userId: string } | null): LibraryBook[] {
+export function combineBooks(stored: readonly StoredBook[], documents: readonly Document[], account: Account | null): LibraryBook[] {
   const books = new Map<string, LibraryBook>();
   for (const book of stored) {
-    if (book.ref.kind === 'server' && (!account || book.ref.account.origin !== account.origin || book.ref.account.userId !== account.userId)) continue;
+    if (book.ref.kind === 'server' && (!account || !sameAccount(book.ref.account, account))) continue;
     books.set(bookKey(book.ref), { ref: book.ref, title: book.title, author: book.author, stored: book });
   }
   if (account) for (const document of documents) {

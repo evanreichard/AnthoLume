@@ -189,8 +189,8 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
 test('Insights appends older activity and more progress without losing filters, focus, or place', async ({ page, server }) => {
   await register(page, server.origin, 'history-pager');
   const endpoint = `${server.origin}/api/v1`;
-  const { csrf_token } = await (await page.request.get(`${endpoint}/session`)).json();
-  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token };
+  const { csrf_token, user } = await (await page.request.get(`${endpoint}/session`)).json();
+  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': user.reading_generation };
   expect((await page.request.post(`${endpoint}/me/devices`, { headers, data: { id: 'history-device', name: 'Reader' } })).status()).toBe(200);
   const noon = new Date(); noon.setUTCHours(12, 0, 0, 0); noon.setUTCDate(noon.getUTCDate() - 1);
   const activityAt = (start_time: string) => ({ event_id: randomUUID(), document_id: 'book-001', device_id: 'history-device', start_time, duration: 30, start_fraction: 0, end_fraction: .1 });

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { components } from '../api/schema.gen';
 export type S = components['schemas'];
-export type Account = { origin: string; userId: string };
+export type Account = { origin: string; userId: string; readingGeneration?: string };
 export type BookRef = { kind: 'local'; localId: string } | { kind: 'server'; account: Account; documentId: string };
 export type ReadingAccess = { kind: 'loading' } | { kind: 'anonymous' } | { kind: 'authenticated'; account: Account } | { kind: 'expired'; account: Account } | { kind: 'logout'; account: Account };
 export type Checkpoint = { position: string | null; fraction: number | null };
@@ -37,6 +37,6 @@ export interface ReadingActions {
 }
 export type ProviderProps = { access: ReadingAccess; bridge: ReadingBridge; onSessionExpired: (account: Account) => void; children: ReactNode };
 // Separate UUID scopes from the older username scopes, even for usernames that look like UUIDs.
-export function accountKey(account: Account): string { return JSON.stringify(['account', new URL(account.origin).origin, account.userId]); }
+export function accountKey(account: Account): string { return JSON.stringify(['account', new URL(account.origin).origin, account.userId, ...(account.readingGeneration ? [account.readingGeneration] : [])]); }
 export function refKey(ref: BookRef): string { return ref.kind === 'local' ? JSON.stringify(['local', ref.localId]) : JSON.stringify(['server', accountKey(ref.account), ref.documentId]); }
 export function sameAccount(a: Account, b: Account) { return accountKey(a) === accountKey(b); }

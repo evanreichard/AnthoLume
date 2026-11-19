@@ -186,6 +186,7 @@ func TestLostCommittedResponseReopenAndDeviceOwnership(t *testing.T) {
 		request.Header.Set("Content-Type", "application/json")
 		request.Header.Set("Origin", f.cfg.PublicOrigin)
 		request.Header.Set("X-CSRF-Token", f.csrf)
+		request.Header.Set("X-AnthoLume-Reading-Generation", f.generation)
 		request.Header.Set("X-Test-Drop-Response", "yes")
 		response, err := f.client.Do(request)
 		if response != nil {

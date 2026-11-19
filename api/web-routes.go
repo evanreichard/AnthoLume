@@ -45,7 +45,7 @@ func (s *webAPI) session(ctx context.Context) (Session, error) {
 		if auth.Timezone == nil {
 			return result, errInvalidSession
 		}
-		result.User = &SessionUser{Id: auth.UserName, AccountId: auth.AccountID, IsAdmin: auth.IsAdmin, Timezone: *auth.Timezone}
+		result.User = &SessionUser{Id: auth.UserName, AccountId: auth.AccountID, ReadingGeneration: auth.Generation, IsAdmin: auth.IsAdmin, Timezone: *auth.Timezone}
 		expiry := time.Unix(session.Get("expiresAt").(int64), 0).UTC()
 		result.ExpiresAt = &expiry
 	}
@@ -71,7 +71,7 @@ func (s *webAPI) Login(ctx context.Context, r LoginRequestObject) (LoginResponse
 	if auth == nil {
 		return nil, &reading.Failure{Status: 401, Code: "unauthenticated"}
 	}
-	if err := s.api.setSession(sessions.Default(ginContext(ctx)), *auth); err != nil {
+	if err := s.api.setSession(requestContext(ctx), sessions.Default(ginContext(ctx)), *auth); err != nil {
 		return nil, err
 	}
 	out, err := s.session(ctx)
@@ -86,7 +86,7 @@ func (s *webAPI) Register(ctx context.Context, r RegisterRequestObject) (Registe
 	if err != nil {
 		return nil, err
 	}
-	if err = s.api.setSession(sessions.Default(ginContext(ctx)), *auth); err != nil {
+	if err = s.api.setSession(requestContext(ctx), sessions.Default(ginContext(ctx)), *auth); err != nil {
 		return nil, err
 	}
 	out, err := s.session(ctx)
@@ -125,7 +125,18 @@ func receipt(out reading.Decision) (Receipt, error) {
 	}
 	return Receipt{EventId: out.EventID, Kind: ReceiptKind(out.Kind), Revision: out.Revision}, nil
 }
+func checkReadingGeneration(ctx context.Context) error {
+	ids := ginContext(ctx).Request.Header.Values("X-AnthoLume-Reading-Generation")
+	if len(ids) != 1 || ids[0] != webUser(ctx).Generation {
+		return &reading.Failure{Status: 409, Code: "stale_reading_generation"}
+	}
+	return nil
+}
+
 func (s *webAPI) SubmitProgress(ctx context.Context, r SubmitProgressRequestObject) (SubmitProgressResponseObject, error) {
+	if err := checkReadingGeneration(ctx); err != nil {
+		return nil, err
+	}
 	b := r.Body
 	out, err := s.api.reading.Progress(requestContext(ctx), webUser(ctx).UserName, reading.Progress{EventID: b.EventId, DocumentID: b.DocumentId, DeviceID: b.DeviceId, ObservedAt: b.ObservedAt, BaseRevision: b.BaseRevision, Position: b.Position, Fraction: b.Fraction})
 	if err != nil {
@@ -135,6 +146,9 @@ func (s *webAPI) SubmitProgress(ctx context.Context, r SubmitProgressRequestObje
 	return SubmitProgress200JSONResponse(result), err
 }
 func (s *webAPI) SubmitActivity(ctx context.Context, r SubmitActivityRequestObject) (SubmitActivityResponseObject, error) {
+	if err := checkReadingGeneration(ctx); err != nil {
+		return nil, err
+	}
 	b := r.Body
 	out, err := s.api.reading.Activity(requestContext(ctx), webUser(ctx).UserName, reading.Activity{EventID: b.EventId, DocumentID: b.DocumentId, DeviceID: b.DeviceId, StartTime: b.StartTime, Duration: b.Duration, StartFraction: b.StartFraction, EndFraction: b.EndFraction})
 	if err != nil {

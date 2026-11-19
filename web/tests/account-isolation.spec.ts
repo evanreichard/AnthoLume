@@ -18,7 +18,7 @@ test('a recreated username cannot reopen the previous account URL, reuse its cac
     await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
     await page.getByRole('link', { name: /^(Read|Resume)$/ }).click();
     await expect(page.locator('footer')).toContainText('1 /');
-    const originalScope = JSON.stringify(['account', server.origin, original.account_id]);
+    const originalScope = JSON.stringify(['account', server.origin, original.account_id, original.reading_generation]);
     await expect.poll(async () => (await storedRows(page, 'books')).some(row => row.ref?.documentId === 'book-001' && row.scope === originalScope)).toBe(true);
     const originalReader = page.url();
     expect(new URL(originalReader).searchParams.get('account')).toBe(original.account_id);

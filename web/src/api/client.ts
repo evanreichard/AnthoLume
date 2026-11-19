@@ -7,8 +7,8 @@ type S = components['schemas'];
 const configuredOrigin = new URL(import.meta.env.VITE_API_ORIGIN || window.location.origin);
 export const apiOrigin = configuredOrigin.origin;
 if (apiOrigin !== window.location.origin || configuredOrigin.pathname !== '/' || configuredOrigin.search || configuredOrigin.hash || configuredOrigin.username || configuredOrigin.password) throw new Error('VITE_API_ORIGIN must be the browser public origin. Configure the loopback proxy/PUBLIC_ORIGIN, not cross-origin credentials.');
-export const sameAccount = (a: Account, b: Account) => a.origin === b.origin && a.userId === b.userId;
-const accountHeader = (account: Account) => ({ 'X-AnthoLume-Account': account.userId });
+export const sameAccount = (a: Account, b: Account) => a.origin === b.origin && a.userId === b.userId && a.readingGeneration === b.readingGeneration;
+const accountHeader = (account: Account) => ({ 'X-AnthoLume-Account': account.userId, ...(account.readingGeneration ? { 'X-AnthoLume-Reading-Generation': account.readingGeneration } : {}) });
 export interface SessionGate {
   token(): string | null;
   epoch(): number;

@@ -288,6 +288,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Requires X-AnthoLume-Reading-Generation matching the generation captured when the event was queued. A missing or stale generation returns 409. */
         post: operations["submitProgress"];
         delete?: never;
         options?: never;
@@ -304,6 +305,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Requires X-AnthoLume-Reading-Generation matching the generation captured when the event was queued. A missing or stale generation returns 409. */
         post: operations["submitActivity"];
         delete?: never;
         options?: never;
@@ -732,6 +734,8 @@ export interface components {
             id: components["schemas"]["ID"];
             /** @description Immutable account identity for local storage scoping. When supplied as X-AnthoLume-Account, it must match the authenticated session. */
             account_id: string;
+            /** @description Ledger generation captured when queuing a reading event and required in X-AnthoLume-Reading-Generation on submission. */
+            reading_generation: string;
             is_admin: boolean;
             timezone: string;
         } | null;

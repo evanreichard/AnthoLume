@@ -20,7 +20,7 @@ func TestAccountIdentityBackfillAndUsernameReuse(t *testing.T) {
 	}
 	// Recreate the schema immediately before account identities were installed.
 	exec(`DROP TRIGGER account_identity_created; DROP TRIGGER account_identity_deleted; DROP TABLE account_identities;
- DELETE FROM goose_db_version WHERE version_id=20261126000001;
+ DELETE FROM goose_db_version WHERE version_id>=20261126000001;
  INSERT INTO users(id,pass,auth_hash) VALUES('alice','password','token'),('bob','password','token');`)
 	identity := func(username string) string {
 		t.Helper()

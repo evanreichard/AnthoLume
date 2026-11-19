@@ -567,8 +567,13 @@ func (s *webAPI) ApplyAdminRestore(ctx context.Context, r ApplyAdminRestoreReque
 		return nil, err
 	}
 	roots, err := api.prepareRestoreLocations(req, db, stage, prefix)
-	db.Close()
-	if err != nil {
+	if err == nil {
+		// Rotate in the staged database so no restored data is visible under the old generation.
+		_, err = db.ExecContext(req, `INSERT INTO reading_generation VALUES (1,lower(hex(randomblob(16))))
+ ON CONFLICT(singleton) DO UPDATE SET generation=excluded.generation`)
+	}
+	closeErr = db.Close()
+	if err != nil || closeErr != nil {
 		return nil, adminFailure(400, "invalid_restore_data")
 	}
 
