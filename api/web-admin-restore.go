@@ -24,15 +24,13 @@ import (
 	"reichard.io/antholume/pkg/storagepath"
 )
 
-func (api *API) adminFileBoundary(c *gin.Context) {
-	if (c.Request.Method == http.MethodPatch && c.Request.URL.Path == "/api/v1/admin/restore") ||
-		(c.Request.Method == http.MethodPut && c.Request.URL.Path == "/api/v1/admin/storage-roots") ||
-		(c.Request.Method == http.MethodPost && c.Request.URL.Path == "/api/v1/admin/storage-roots/make-library") {
+func (api *API) restoreBoundary(c *gin.Context) {
+	if c.Request.Method == http.MethodPatch && c.Request.URL.Path == "/api/v1/admin/restore" {
 		c.Next()
 		return
 	}
-	api.adminFiles.RLock()
-	defer api.adminFiles.RUnlock()
+	api.restoreGate.RLock()
+	defer api.restoreGate.RUnlock()
 	c.Next()
 }
 
@@ -40,7 +38,32 @@ func snapshotURI(name string) string {
 	return (&url.URL{Scheme: "file", Path: name, RawQuery: "mode=ro&_pragma=trusted_schema(OFF)"}).String()
 }
 
-var appendedStorageColumn = regexp.MustCompile(`,\s*storage_root_id TEXT REFERENCES storage_roots\s*\(id\)\s*\)$`)
+var (
+	backupSQLToken     = regexp.MustCompile(`'(?:''|[^'])*'|[a-zA-Z_][a-zA-Z_0-9]*|[0-9]+|[^\s]`)
+	backupMovedColumns = map[string][]*regexp.Regexp{
+		"documents": {regexp.MustCompile(`,\s*basepath TEXT\b`), regexp.MustCompile(`,\s*storage_root_id TEXT REFERENCES storage_roots\s*\(id\)`)},
+		"users":     {regexp.MustCompile(`,\s*auth_hash TEXT NOT NULL\b`), regexp.MustCompile(`,\s*timezone TEXT NOT NULL DEFAULT 'Europe/London'`)},
+	}
+)
+
+// Historical table layouts append these columns rather than placing them in their current positions.
+// Move only the known clauses; keep other columns, constraints, triggers, and indexes in the comparison.
+func backupTableSchema(name, ddl string) string {
+	columns, moved := backupMovedColumns[name]
+	if !moved && name != "storage_roots" {
+		return ddl
+	}
+	var suffix string
+	for _, column := range columns {
+		match := column.FindStringIndex(ddl)
+		if match == nil {
+			return ddl
+		}
+		suffix += ddl[match[0]:match[1]]
+		ddl = ddl[:match[0]] + ddl[match[1]:]
+	}
+	return strings.Join(backupSQLToken.FindAllString(ddl+suffix, -1), " ")
+}
 
 func snapshotSchema(ctx context.Context, db *sql.DB) ([][4]string, error) {
 	rows, err := db.QueryContext(ctx, `SELECT type,name,tbl_name,coalesce(sql,'') FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name`)
@@ -54,8 +77,8 @@ func snapshotSchema(ctx context.Context, db *sql.DB) ([][4]string, error) {
 		if err := rows.Scan(&r[0], &r[1], &r[2], &r[3]); err != nil {
 			return nil, err
 		}
-		if r[0] == "table" && r[1] == "documents" {
-			r[3] = appendedStorageColumn.ReplaceAllString(r[3], ",storage_root_id TEXT REFERENCES storage_roots(id))")
+		if r[0] == "table" {
+			r[3] = backupTableSchema(r[1], r[3])
 		}
 		schema = append(schema, r)
 		if len(schema) > 10000 {
@@ -100,8 +123,6 @@ func (api *API) validateRestoreDB(ctx context.Context, name string) error {
 	return nil
 }
 
-const maxRestorePath = 512
-
 func extractRestore(ctx context.Context, input, stage string) (int, error) {
 	f, err := os.Open(input)
 	if err != nil {
@@ -126,42 +147,21 @@ func extractRestore(ctx context.Context, input, stage string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if len(archive.File) > 50001 {
+	if len(archive.File) > maxBackupEntries {
 		return 0, errors.New("archive has too many entries")
 	}
 	seen := map[string]bool{}
-	var expanded uint64
+	var budget backupArchiveBudget
 	count := 0
 	for _, file := range archive.File {
-		name := file.Name
-		if name != "antholume.db" && !(strings.HasPrefix(name, "documents/") || strings.HasPrefix(name, "covers/")) {
-			return 0, errors.New("unexpected backup entry")
-		}
-		if len(name) > maxRestorePath || !file.Mode().IsRegular() {
-			return 0, errors.New("invalid backup entry")
-		}
-		if book, ok := strings.CutPrefix(name, "documents/"); ok {
-			root, rel, hasPath := strings.Cut(book, "/")
-			canonical, valid := storagepath.NormalizeLegacy(rel)
-			if !hasPath || root != libraryRoot || !valid {
-				return 0, errors.New("invalid archived book location")
-			}
-			name = "documents/" + root + "/" + canonical
-		} else if cover, ok := strings.CutPrefix(name, "covers/"); ok {
-			canonical, valid := storagepath.NormalizeLegacy(cover)
-			if !valid {
-				return 0, errors.New("invalid archived cover location")
-			}
-			name = "covers/" + canonical
-		}
-		if seen[name] {
+		name, err := backupEntryName(file.Name)
+		if err != nil || !file.Mode().IsRegular() || seen[name] {
 			return 0, errors.New("invalid backup entry")
 		}
 		seen[name] = true
-		if file.UncompressedSize64 > maxLibraryBackup-expanded || (name == adminBackupName && file.UncompressedSize64 > maxAdminBackupBytes) {
-			return 0, errors.New("archive size limit")
+		if err := budget.add(name, file.UncompressedSize64); err != nil {
+			return 0, err
 		}
-		expanded += file.UncompressedSize64
 		dest := filepath.Join(stage, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(dest), 0700); err != nil {
 			return 0, err
@@ -214,12 +214,12 @@ func (s *webAPI) StageAdminRestore(ctx context.Context, r StageAdminRestoreReque
 	if err != nil {
 		return nil, err
 	}
-	bytes, err := io.Copy(file, io.LimitReader(contextReader{ctx, r.Body}, maxLibraryBackup+(32<<20)+1))
+	bytes, err := io.Copy(file, io.LimitReader(contextReader{ctx, r.Body}, maxBackupArchiveBytes+1))
 	closeErr := file.Close()
 	if err != nil || closeErr != nil {
 		return nil, errors.New("restore upload failed")
 	}
-	if bytes > maxLibraryBackup+(32<<20) {
+	if bytes > maxBackupArchiveBytes {
 		return nil, adminFailure(413, "restore_too_large")
 	}
 	files, err := extractRestore(ctx, file.Name(), stage)
@@ -502,10 +502,10 @@ func (s *webAPI) ApplyAdminRestore(ctx context.Context, r ApplyAdminRestoreReque
 	if r.Body == nil || !adminJobID.MatchString(r.Body.Token) {
 		return nil, adminFailure(400, "invalid_request")
 	}
-	if !api.adminFiles.TryLock() {
+	if !api.restoreGate.TryLock() {
 		return nil, adminFailure(409, "server_busy")
 	}
-	defer api.adminFiles.Unlock()
+	defer api.restoreGate.Unlock()
 	if !api.restoreStage.TryLock() {
 		return nil, adminFailure(409, "restore_busy")
 	}

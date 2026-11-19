@@ -209,7 +209,7 @@ func (api *API) adminRecoverySnapshot(ctx context.Context, prefix string) error 
 }
 
 func (api *API) writeVerifiedSnapshot(ctx context.Context, filename string) error {
-	if _, err := api.db.DB.ExecContext(ctx, `VACUUM INTO ?`, filename); err != nil {
+	if err := api.db.BackupSnapshot(ctx, filename); err != nil {
 		return err
 	}
 	uri := (&url.URL{Scheme: "file", Path: filename, RawQuery: "mode=ro"}).String()

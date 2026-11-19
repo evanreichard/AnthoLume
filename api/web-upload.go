@@ -32,6 +32,10 @@ func (s *webAPI) UploadDocument(ctx context.Context, r UploadDocumentRequestObje
 	if api.cfg.DemoMode {
 		return nil, &reading.Failure{Status: http.StatusForbidden, Code: "forbidden"}
 	}
+	if !api.libraryWrite.TryLock() {
+		return nil, adminFailure(409, "server_busy")
+	}
+	defer api.libraryWrite.Unlock()
 	root, err := api.storageRoot(ctx, libraryRoot)
 	if err != nil {
 		return nil, err

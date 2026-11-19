@@ -116,7 +116,7 @@ func (s *webAPI) DownloadAdminBackup(ctx context.Context, r DownloadAdminBackupR
 	}
 	name, attachment, maxSize := adminBackupName, "antholume-backup.db", int64(maxAdminBackupBytes)
 	if r.Params.Full != nil && *r.Params.Full {
-		name, attachment, maxSize = fullBackupName, "antholume-backup.zip", maxLibraryBackup+(32<<20)
+		name, attachment, maxSize = fullBackupName, "antholume-backup.zip", maxBackupArchiveBytes
 	}
 	f, err := os.Open(filepath.Join(s.api.adminBackupDir(), name))
 	if errors.Is(err, os.ErrNotExist) {

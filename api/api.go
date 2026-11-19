@@ -29,7 +29,8 @@ type API struct {
 	reading       *reading.Store
 	attempts      credentialLimiter
 	identitySlots chan struct{}
-	adminFiles    sync.RWMutex
+	restoreGate   sync.RWMutex
+	libraryWrite  sync.Mutex
 	restoreStage  sync.Mutex
 }
 
@@ -73,7 +74,7 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 
 	// Add global logging middleware
 	router.Use(loggingMiddleware)
-	router.Use(api.adminFileBoundary)
+	router.Use(api.restoreBoundary)
 	router.Use(gin.CustomRecoveryWithWriter(io.Discard, func(c *gin.Context, _ any) {
 		log.Error("request handler panic")
 		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/") {

@@ -137,10 +137,7 @@ func (api *API) runAdminJob(id, kind, source string, reference, relink bool, dea
 			return api.runLibraryImport(ctx, id, source, reference, relink)
 		}
 	}
-	api.adminFiles.Lock()
-	err := work(ctx)
-	api.adminFiles.Unlock()
-	if err != nil {
+	if err := api.runAdminWork(ctx, kind, work); err != nil {
 		status = "failed"
 		log.WithField("kind", kind).Warn("Admin job failed")
 	}
@@ -149,4 +146,16 @@ func (api *API) runAdminJob(id, kind, source string, reference, relink bool, dea
 	if _, err := api.db.DB.ExecContext(finish, `UPDATE admin_jobs SET status=?,finished_at=? WHERE id=? AND status='running'`, status, jobTime(time.Now()), id); err != nil {
 		log.Error("Could not record admin job completion: ", err)
 	}
+}
+
+func (api *API) runAdminWork(ctx context.Context, kind string, work func(context.Context) error) error {
+	api.restoreGate.RLock()
+	defer api.restoreGate.RUnlock()
+	if kind == "full_backup" || kind == "import" {
+		if !api.libraryWrite.TryLock() {
+			return errors.New("library busy")
+		}
+		defer api.libraryWrite.Unlock()
+	}
+	return work(ctx)
 }

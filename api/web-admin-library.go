@@ -41,24 +41,27 @@ func (api *API) createFullBackup(ctx context.Context) error {
 	}
 	defer target.Close()
 	archive := zip.NewWriter(target)
-	var total int64
-	entries := 0
+	var budget backupArchiveBudget
+	seen := map[string]bool{}
 	add := func(name string, file *os.File) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if len(name) > maxRestorePath || !bookRelativePath(name) {
-			return errors.New("file location exceeds archive path limits")
+		canonical, err := backupEntryName(name)
+		if err != nil || canonical != name || seen[name] {
+			return errors.New("invalid backup entry name")
 		}
+		seen[name] = true
 		info, err := file.Stat()
 		if err != nil {
 			return err
 		}
-		if !info.Mode().IsRegular() || info.Size() > maxLibraryBackup-total || entries >= 50000 {
-			return errors.New("backup exceeds file limits")
+		if !info.Mode().IsRegular() {
+			return errors.New("backup entry is not a regular file")
 		}
-		total += info.Size()
-		entries++
+		if err := budget.add(name, uint64(info.Size())); err != nil {
+			return err
+		}
 		header := &zip.FileHeader{Name: name, Method: zip.Store}
 		header.SetModTime(info.ModTime())
 		w, err := archive.CreateHeader(header)
@@ -131,6 +134,13 @@ func (api *API) createFullBackup(ctx context.Context) error {
 	}
 	if err := target.Close(); err != nil {
 		return err
+	}
+	info, err := os.Stat(filename)
+	if err != nil {
+		return err
+	}
+	if info.Size() > maxBackupArchiveBytes {
+		return errors.New("backup archive exceeds upload limit")
 	}
 	verified, err := zip.OpenReader(filename)
 	if err != nil {

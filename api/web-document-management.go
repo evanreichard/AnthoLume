@@ -22,6 +22,10 @@ func (s *webAPI) EditDocument(ctx context.Context, r EditDocumentRequestObject) 
 	if api.cfg.DemoMode {
 		return nil, &reading.Failure{Status: 403, Code: "forbidden"}
 	}
+	if !api.libraryWrite.TryLock() {
+		return nil, adminFailure(409, "server_busy")
+	}
+	defer api.libraryWrite.Unlock()
 	ctx = requestContext(ctx)
 	b := r.Body
 	remove := b.RemoveCover != nil && *b.RemoveCover

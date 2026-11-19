@@ -135,10 +135,10 @@ func (s *webAPI) SaveAdminStorageRoot(ctx context.Context, r SaveAdminStorageRoo
 	} else if root.Id != libraryRoot && root.Id != importsRoot {
 		return nil, adminFailure(400, "invalid_storage_directory")
 	}
-	if !api.adminFiles.TryLock() {
+	if !api.libraryWrite.TryLock() {
 		return nil, adminFailure(409, "server_busy")
 	}
-	defer api.adminFiles.Unlock()
+	defer api.libraryWrite.Unlock()
 	principal := webUser(ctx)
 	ctx = requestContext(ctx)
 	var admin bool

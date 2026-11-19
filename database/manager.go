@@ -7,6 +7,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"time"
 
@@ -121,6 +122,26 @@ func (dbm *DBManager) init(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// BackupSnapshot uses a separate WAL reader so copying database pages does not occupy the request connection.
+func (dbm *DBManager) BackupSnapshot(ctx context.Context, dest string) error {
+	if dbm.cfg.DBType == "memory" {
+		_, err := dbm.DB.ExecContext(ctx, `VACUUM INTO ?`, dest)
+		return err
+	}
+	path, err := filepath.Abs(filepath.Join(dbm.cfg.ConfigPath, dbm.cfg.DBName+".db"))
+	if err != nil {
+		return err
+	}
+	uri := (&url.URL{Scheme: "file", Path: path, RawQuery: "mode=ro&_pragma=busy_timeout(5000)"}).String()
+	source, err := sql.Open("sqlite", uri)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+	_, err = source.ExecContext(ctx, `VACUUM INTO ?`, dest)
+	return err
 }
 
 // Reload closes the DB & reinits

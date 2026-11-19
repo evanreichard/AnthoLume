@@ -98,10 +98,10 @@ func (s *webAPI) MakeLibrary(ctx context.Context, r MakeLibraryRequestObject) (M
 	if r.Body == nil {
 		return nil, adminFailure(400, "invalid_request")
 	}
-	if !api.adminFiles.TryLock() {
+	if !api.libraryWrite.TryLock() {
 		return nil, adminFailure(409, "server_busy")
 	}
-	defer api.adminFiles.Unlock()
+	defer api.libraryWrite.Unlock()
 	err := s.adminTransaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
 		plan, err := api.makeLibraryPlan(ctx, tx, r.Body.Id, r.Body.SourcePath)
 		if err != nil {

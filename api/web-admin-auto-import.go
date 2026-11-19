@@ -186,10 +186,14 @@ type autoImportCache struct {
 }
 
 func (api *API) runAutoImport(ctx context.Context, id string, caches map[string]autoImportCache) bool {
-	if !api.adminFiles.TryLock() {
+	if !api.restoreGate.TryRLock() {
 		return false
 	}
-	defer api.adminFiles.Unlock()
+	defer api.restoreGate.RUnlock()
+	if !api.libraryWrite.TryLock() {
+		return false
+	}
+	defer api.libraryWrite.Unlock()
 	ctx, cancel := context.WithTimeout(ctx, adminJobLifetime)
 	defer cancel()
 	row, err := scanAutoImport(api.db.DB.QueryRowContext(ctx, `SELECT `+autoImportFields+` FROM auto_import_rules WHERE id=? AND enabled`, id))
