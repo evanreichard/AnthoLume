@@ -353,9 +353,7 @@ func (s *Store) KOActivity(ctx context.Context, user, device, name string, event
 		if _, err = tx.ExecContext(ctx, "INSERT OR IGNORE INTO documents(id) VALUES(?)", e.DocumentID); err != nil {
 			return err
 		}
-		if err = live(ctx, tx, e.DocumentID); err != nil {
-			return err
-		}
+		// SyncNinja Cursor - Historical activity advances the device cursor even when the book is no longer in the catalog.
 		if err = credit(ctx, tx, user, e); err != nil {
 			return err
 		}

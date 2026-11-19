@@ -239,3 +239,33 @@ func TestKOActivityCreditAndOwnerRollback(t *testing.T) {
 	require.Equal(t, 1, f.count("activity"))
 	require.Zero(t, f.count("reading_receipts"))
 }
+
+func TestSyncNinjaDeletedBookActivityAdvancesCursor(t *testing.T) {
+	f := newWebFixture(t)
+	f.register("alice")
+	f.exec(`INSERT INTO documents(id,deleted) VALUES('deleted-book',1),('live-book',0)`)
+	const check = `{"device_id":"ko-device","device":"KOReader"}`
+	cursor := func(want int64) {
+		t.Helper()
+		r := f.call("POST", "/api/ko/syncs/activity", check, nil)
+		require.Equal(t, 200, r.status, string(r.body))
+		require.Equal(t, want, decodeWeb[struct {
+			LastSync int64 `json:"last_sync"`
+		}](t, r).LastSync)
+	}
+	cursor(0)
+	r := f.call("POST", "/api/ko/activity", `{"device_id":"ko-device","device":"KOReader","activity":[
+		{"document":"deleted-book","start_time":1767225660,"duration":30,"page":2,"pages":10},
+		{"document":"live-book","start_time":1767225600,"duration":20,"page":3,"pages":10}]}`, nil)
+	require.Equal(t, 200, r.status, string(r.body))
+	require.JSONEq(t, `{"added":2}`, string(r.body))
+	cursor(1767225660)
+	assertProblem(t, f.call("GET", "/api/v1/documents/deleted-book", nil, nil), 404, "not_found")
+
+	r = f.call("POST", "/api/ko/activity", `{"device_id":"ko-device","device":"KOReader","activity":[
+		{"document":"live-book","start_time":1767225720,"duration":20,"page":4,"pages":10}]}`, nil)
+	require.Equal(t, 200, r.status, string(r.body))
+	require.JSONEq(t, `{"added":1}`, string(r.body))
+	cursor(1767225720)
+	require.Equal(t, 3, f.count("activity"))
+}
