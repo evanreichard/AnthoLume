@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"io"
 	"net/http"
@@ -75,22 +74,23 @@ func (s *webAPI) UploadDocument(ctx context.Context, r UploadDocumentRequestObje
 		}
 		return nil, &reading.Failure{Status: status, Code: "invalid_request"}
 	}
-	id := *info.PartialMD5
-	result, err := api.db.DB.ExecContext(ctx, `INSERT INTO documents(id,md5,filepath,title,author,description,words,storage_root_id) VALUES(?,?,?,?,?,?,?,'library') ON CONFLICT(id) DO NOTHING`, id, info.MD5, filepath.Base(file.Name()), info.Title, info.Author, info.Description, info.WordCount)
+	if err := syncAdminDirectory(root.Path); err != nil {
+		return nil, err
+	}
+	committed, err = api.attachCatalogFile(ctx, libraryRoot, filepath.Base(file.Name()), info)
 	if err != nil {
 		return nil, err
 	}
-	inserted, err := result.RowsAffected()
+	doc, err := api.db.Queries.GetDocument(ctx, *info.PartialMD5)
 	if err != nil {
 		return nil, err
 	}
-	committed = inserted == 1
-	doc, err := api.db.Queries.GetDocument(ctx, id)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && doc.Deleted {
+	if doc.Deleted || !committed && (doc.Md5 == nil || *doc.Md5 != *info.MD5) {
 		return nil, &reading.Failure{Status: http.StatusConflict, Code: "conflict"}
 	}
-	if err != nil {
-		return nil, err
+	out := api.documentDTOWith(ctx, api.db.DB, doc)
+	if !out.FileAvailable {
+		return nil, &reading.Failure{Status: http.StatusConflict, Code: "conflict"}
 	}
-	return UploadDocument200JSONResponse(api.documentDTO(doc)), nil
+	return UploadDocument200JSONResponse(out), nil
 }

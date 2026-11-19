@@ -285,15 +285,11 @@ func (api *API) importBook(ctx context.Context, root *os.Root, destination Admin
 	if after, err := source.Stat(); err != nil || after.Size() != info.Size() || after.ModTime() != info.ModTime() {
 		return "failed", errors.New("source changed during import")
 	}
-	res, err := api.db.DB.ExecContext(ctx, `INSERT INTO documents(id,md5,filepath,storage_root_id,title,author,description,words) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`, *m.PartialMD5, m.MD5, target, destination.Id, m.Title, m.Author, m.Description, m.WordCount)
+	attached, err := api.attachCatalogFile(ctx, destination.Id, target, m)
 	if err != nil {
 		return "failed", err
 	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return "failed", err
-	}
-	if n == 0 {
+	if !attached {
 		if !relink {
 			return "skipped", nil
 		}
