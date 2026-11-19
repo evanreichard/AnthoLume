@@ -59,6 +59,28 @@ func TestFullBackupDoesNotBlockReadingOrSync(t *testing.T) {
 	assertProblem(t, f.call("PATCH", "/api/v1/documents/book-a", DocumentEdit{Title: "changed"}, nil), 409, "server_busy")
 }
 
+func TestStartupRestoreInstallsLibraryOnlyIntoFreshInstance(t *testing.T) {
+	source := newWebFixture(t)
+	source.register("source-admin")
+	book := []byte("startup restore fixture")
+	require.NoError(t, os.WriteFile(filepath.Join(source.cfg.DataPath, "documents", "book.epub"), book, 0600))
+	source.exec(`INSERT INTO documents(id,title,filepath,storage_root_id) VALUES('book','Book','book.epub','library')`)
+	ctx := context.Background()
+	require.NoError(t, source.api.createFullBackup(ctx))
+	backup, err := os.Open(filepath.Join(source.api.adminBackupDir(), fullBackupName))
+	require.NoError(t, err)
+	defer backup.Close()
+
+	dest := newWebFixture(t)
+	require.NoError(t, dest.api.RestoreFreshInstance(ctx, backup))
+	var restoredPath string
+	require.NoError(t, dest.db.DB.QueryRow(`SELECT filepath FROM documents WHERE id='book'`).Scan(&restoredPath))
+	actual, err := os.ReadFile(filepath.Join(dest.cfg.DataPath, "documents", filepath.FromSlash(restoredPath)))
+	require.NoError(t, err)
+	require.Equal(t, book, actual)
+	require.ErrorContains(t, dest.api.RestoreFreshInstance(ctx, backup), "requires a fresh database")
+}
+
 func TestRestoreUpgradedFullBackupOnFreshInstance(t *testing.T) {
 	source := newWebFixture(t)
 	source.register("source-admin")

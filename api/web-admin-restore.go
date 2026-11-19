@@ -192,6 +192,30 @@ func extractRestore(ctx context.Context, input, stage string) (int, error) {
 	return count, nil
 }
 
+func (api *API) stageRestore(ctx context.Context, input io.Reader, stage string) (int, error) {
+	file, err := os.CreateTemp(stage, "upload-")
+	if err != nil {
+		return 0, err
+	}
+	defer os.Remove(file.Name())
+	bytes, err := io.Copy(file, io.LimitReader(contextReader{ctx, input}, maxBackupArchiveBytes+1))
+	closeErr := file.Close()
+	if err != nil || closeErr != nil {
+		return 0, errors.New("restore upload failed")
+	}
+	if bytes > maxBackupArchiveBytes {
+		return 0, adminFailure(413, "restore_too_large")
+	}
+	files, err := extractRestore(ctx, file.Name(), stage)
+	if err != nil {
+		return 0, adminFailure(400, "invalid_restore_archive")
+	}
+	if err = api.validateRestoreDB(ctx, filepath.Join(stage, adminBackupName)); err != nil {
+		return 0, adminFailure(400, "incompatible_restore_database")
+	}
+	return files, nil
+}
+
 func (s *webAPI) StageAdminRestore(ctx context.Context, r StageAdminRestoreRequestObject) (StageAdminRestoreResponseObject, error) {
 	principal := webUser(ctx)
 	api := s.api
@@ -211,25 +235,9 @@ func (s *webAPI) StageAdminRestore(ctx context.Context, r StageAdminRestoreReque
 		return nil, err
 	}
 	defer os.RemoveAll(stage)
-	file, err := os.CreateTemp(stage, "upload-")
+	files, err := api.stageRestore(ctx, r.Body, stage)
 	if err != nil {
 		return nil, err
-	}
-	bytes, err := io.Copy(file, io.LimitReader(contextReader{ctx, r.Body}, maxBackupArchiveBytes+1))
-	closeErr := file.Close()
-	if err != nil || closeErr != nil {
-		return nil, errors.New("restore upload failed")
-	}
-	if bytes > maxBackupArchiveBytes {
-		return nil, adminFailure(413, "restore_too_large")
-	}
-	files, err := extractRestore(ctx, file.Name(), stage)
-	if err != nil {
-		return nil, adminFailure(400, "invalid_restore_archive")
-	}
-	_ = os.Remove(file.Name())
-	if err = api.validateRestoreDB(ctx, filepath.Join(stage, adminBackupName)); err != nil {
-		return nil, adminFailure(400, "incompatible_restore_database")
 	}
 	token, err := randomCSRF()
 	if err != nil {
@@ -518,37 +526,74 @@ func (s *webAPI) ApplyAdminRestore(ctx context.Context, r ApplyAdminRestoreReque
 	if active {
 		return nil, adminFailure(409, "server_busy")
 	}
-	original := filepath.Join(stage, adminBackupName)
-	if err := api.validateRestoreDB(req, original); err != nil {
+	if err := api.validateRestoreDB(req, filepath.Join(stage, adminBackupName)); err != nil {
 		return nil, adminFailure(400, "incompatible_restore_database")
 	}
 	if err := api.adminRecoverySnapshot(req, "before-restore-"); err != nil {
 		return nil, err
 	}
+	if err := api.applyStagedRestore(req, stage, r.Body.Token); err != nil {
+		return nil, err
+	}
+	_ = os.RemoveAll(stage)
+	_ = api.anonymousSession(sessions.Default(ginContext(ctx)))
+	return ApplyAdminRestore204Response{}, nil
+}
+
+// RestoreFreshInstance - The dev launcher calls this before it serves requests. The
+// fresh database supplies local paths; no path stored in a backup grants access.
+func (api *API) RestoreFreshInstance(ctx context.Context, input io.Reader) error {
+	var hasAccounts bool
+	if err := api.db.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM users)`).Scan(&hasAccounts); err != nil {
+		return err
+	}
+	if hasAccounts {
+		return errors.New("startup restore requires a fresh database")
+	}
+	if err := ensurePrivateAdminDir(api.adminBackupDir()); err != nil {
+		return err
+	}
+	stage, err := os.MkdirTemp(api.adminBackupDir(), "restore-local-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(stage)
+	if _, err := api.stageRestore(ctx, input, stage); err != nil {
+		return err
+	}
+	token, err := randomCSRF()
+	if err != nil {
+		return err
+	}
+	return api.applyStagedRestore(ctx, stage, token)
+}
+
+func (api *API) applyStagedRestore(req context.Context, stage, token string) error {
+	original := filepath.Join(stage, adminBackupName)
 	apply, err := os.CreateTemp(stage, "apply-")
 	if err != nil {
-		return nil, err
+		return err
 	}
 	name := apply.Name()
 	defer os.Remove(name)
 	source, err := os.Open(original)
 	if err != nil {
 		apply.Close()
-		return nil, err
+		return err
 	}
 	_, err = io.Copy(apply, contextReader{req, source})
 	source.Close()
 	closeErr := apply.Close()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if closeErr != nil {
-		return nil, closeErr
+		return closeErr
 	}
-	prefix := "restore-" + r.Body.Token
+	prefix := "restore-" + token
 	db, err := sql.Open("sqlite", name+"?_pragma=trusted_schema(OFF)")
 	if err != nil {
-		return nil, err
+		return err
 	}
 	roots, err := api.prepareRestoreLocations(req, db, stage, prefix)
 	if err == nil {
@@ -557,7 +602,7 @@ func (s *webAPI) ApplyAdminRestore(ctx context.Context, r ApplyAdminRestoreReque
 	}
 	closeErr = db.Close()
 	if err != nil || closeErr != nil {
-		return nil, adminFailure(400, "invalid_restore_data")
+		return adminFailure(400, "invalid_restore_data")
 	}
 
 	var destinations []string
@@ -591,17 +636,17 @@ func (s *webAPI) ApplyAdminRestore(ctx context.Context, r ApplyAdminRestoreReque
 	}
 	for source, base := range roots {
 		if err := install(filepath.Join(stage, "documents", source), base, source); err != nil {
-			return nil, err
+			return err
 		}
 	}
 	if isDirectory(filepath.Join(stage, "covers")) {
 		if err := install(filepath.Join(stage, "covers"), filepath.Join(api.cfg.DataPath, "covers"), ""); err != nil {
-			return nil, err
+			return err
 		}
 	}
 	conn, err := api.db.DB.Conn(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer conn.Close()
 	err = conn.Raw(func(raw any) error {
@@ -631,10 +676,5 @@ func (s *webAPI) ApplyAdminRestore(ctx context.Context, r ApplyAdminRestoreReque
 			}
 		}
 	})
-	if err != nil {
-		return nil, err
-	}
-	_ = os.RemoveAll(stage)
-	_ = api.anonymousSession(sessions.Default(ginContext(ctx)))
-	return ApplyAdminRestore204Response{}, nil
+	return err
 }

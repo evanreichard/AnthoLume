@@ -40,15 +40,16 @@ generate:
 check_generation:
 	bash api/check-generation.sh
 
-dev: check_web
-	GIN_MODE=release \
-	CONFIG_PATH=./data \
-	DATA_PATH=./data \
-	REGISTRATION_ENABLED=true \
-	PUBLIC_ORIGIN=http://127.0.0.1:8585 \
-	COOKIE_SECURE=false \
-	COOKIE_AUTH_KEY=1234 \
-	LOG_LEVEL=debug go run main.go serve
+.PHONY: dev dev-tailnet clean-dev clean-dev-tailnet
+dev:
+	node web/dev.mjs
+
+dev-tailnet: dev
+
+clean-dev:
+	go run ./tools/dev clean
+
+clean-dev-tailnet: clean-dev
 
 clean:
 	rm -rf ./build

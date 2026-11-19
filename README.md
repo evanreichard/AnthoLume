@@ -132,7 +132,7 @@ Goose Migrations:
 go install github.com/pressly/goose/v3/cmd/goose@latest
 ```
 
-Run the app locally with `make dev` and visit `http://127.0.0.1:8585`. See [web development](web/README.md) for frontend commands.
+Run `make dev RESTORE=/path/to/backup.zip` to seed a local development library, then `make dev` to reuse it. Open `http://127.0.0.1:5323` or the printed Tailscale URL. See [web development](web/README.md) for setup and reset commands.
 
 ## Building
 
