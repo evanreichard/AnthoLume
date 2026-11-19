@@ -3,7 +3,7 @@ import { ReaderController, palette, type Appearance, type ReaderStatus } from '.
 import { useReadingContext } from './provider';
 import { sameAccount, refKey, type BookRef, type S } from './types';
 import { ReaderWakeLock } from './wake-lock';
-import { readerFontNames } from './reader-fonts';
+import { readerFontLabel, readerFontNames } from './reader-fonts';
 import { activityEvent } from './activity';
 import styles from './reader.module.css';
 import { Icon } from '../Icon';
@@ -285,7 +285,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
     </div>}
     {permitted && panel !== 'hide' && <aside id="reader-panel" className={`${styles.panel} ${panel === 'appearance' ? styles.progressPanel : ''}`} aria-labelledby="reader-panel-title">
       <div className={styles.panelHeader}>
-        <h2 id="reader-panel-title">{panel === 'toc' ? 'Contents' : 'Reading controls'}</h2>
+        <h2 id="reader-panel-title">{panel === 'toc' ? 'Contents' : 'Appearance'}</h2>
         <button onClick={(event) => { if (event.currentTarget.matches(':focus-visible')) (panel === 'toc' ? top : bottom).current?.querySelector<HTMLButtonElement>('[aria-expanded="true"]')?.focus(); closePanel(); }}>Done</button>
       </div>
       {panel === 'toc' ? <>
@@ -294,12 +294,6 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
           return <li key={`${item.href}:${i}`}><button aria-current={current ? 'location' : undefined} onClick={() => { closePanel(); reveal('show'); void controller.current?.toc(item.href); }}><span>{item.label}</span><Chevron right /></button></li>;
         })}</ol></nav> : <p className={styles.panelNote}>This book doesn’t have a table of contents.</p>}
       </> : <div className={styles.appearanceOptions}>
-        {location && <div className={styles.readingSummary}>
-          <p>{currentChapter ? 'Current chapter' : 'Reading progress'}</p>
-          {currentChapter && <strong>{currentChapter.label}</strong>}
-          <small>Page {location.page} of {location.pages} in this section · {Math.round(location.fraction * 100)}% of book</small>
-        </div>}
-        <h3>Appearance</h3>
         <div className={styles.size}>
           <label htmlFor="reader-text-size">Text size</label><output htmlFor="reader-text-size">{appearance.size}%</output>
           <div className={styles.sizeControls}>
@@ -308,7 +302,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
             <button aria-label="Increase text size" disabled={appearance.size >= maxTextSize} onClick={() => setTextSize(appearance.size + 10)}>A+</button>
           </div>
         </div>
-        <label className={styles.fontRow}>Font <select value={appearance.font} onChange={event => changeAppearance({ ...appearanceRef.current, font: event.target.value })}>{readerFontNames.map(font => <option key={font}>{font}</option>)}</select></label>
+        <label className={styles.fontRow}>Font <select value={appearance.font} onChange={event => changeAppearance({ ...appearanceRef.current, font: event.target.value })}>{readerFontNames.map(font => <option key={font} value={font}>{readerFontLabel(font)}</option>)}</select></label>
         <fieldset className={styles.themeField}>
           <legend>Theme</legend>
           <div className={styles.themes}>{(Object.keys(palette) as Appearance['theme'][]).map(theme => {

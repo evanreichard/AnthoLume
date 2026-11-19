@@ -121,10 +121,6 @@
 }
 .expandIcon { transition: rotate 180ms ease; }
 .bottom button[aria-expanded='true'] .expandIcon { rotate: 180deg; }
-.readingSummary { display: grid; gap: .3rem; padding: .75rem; border-radius: .85rem; background: color-mix(in srgb, currentColor 7%, transparent); }
-.readingSummary p, .readingSummary small { margin: 0; opacity: .76; }
-.readingSummary strong { overflow-wrap: anywhere; }
-.appearanceOptions h3 { margin: 0; font-size: .9rem; }
 .reader .selectAction { justify-content: flex-start; border-top: 1px solid color-mix(in srgb, currentColor 13%, transparent); border-radius: 0; }
 @media (prefers-reduced-motion: reduce) { .progressPanel { animation: none; } .expandIcon { transition: none; } }
 .panelHeader { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; align-items: center; gap: .75rem; background: var(--reader-paper); border-bottom: 1px solid color-mix(in srgb, currentColor 13%, transparent); padding-block: .35rem; }
@@ -141,9 +137,9 @@
 .themeField { min-width: 0; border: 0; padding: .35rem 0 0; margin: 0; }
 .themeField legend { padding: 0; }
 .themes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .25rem; }
-.reader .themes button { min-inline-size: 0; padding: .28rem .15rem; display: grid; gap: .25rem; font-size: .72rem; }
+.reader .themes button { min-inline-size: 0; padding: .28rem .15rem; display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: .25rem; font-size: .72rem; }
 .themes button[aria-pressed='true'] { background: color-mix(in srgb, currentColor 12%, transparent); font-weight: 700; }
-.themes span { display: grid; place-items: center; border-radius: .5rem; border: 1px solid color-mix(in srgb, currentColor 26%, transparent); font: 1.1rem Georgia, serif; height: 2rem; width: min(2.5rem, 100%); }
+.themes span { display: grid; place-items: center; box-sizing: border-box; border-radius: .5rem; border: 1px solid color-mix(in srgb, currentColor 26%, transparent); font: 1.1rem Georgia, serif; block-size: 2rem; inline-size: 2.5rem; max-inline-size: 100%; }
 .chapterList { list-style: none; margin: .35rem 0 0; padding: 0; }
 .chapterList li + li { border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent); }
 .reader .chapterList button { width: 100%; justify-content: space-between; text-align: start; gap: .65rem; padding: .65rem .45rem; }

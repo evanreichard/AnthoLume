@@ -32,7 +32,14 @@ test('when chapter callbacks are blocked, center taps and swipes work without en
   await expect(select).toBeHidden();
   const progress = reader.getByRole('button', { name: 'Reading progress and appearance' });
   await progress.tap();
-  await expect(reader.getByRole('heading', { name: 'Reading controls' })).toBeVisible();
+  const panel = reader.getByRole('complementary', { name: 'Appearance', exact: true });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByText('Reading progress', { exact: true })).toHaveCount(0);
+  await expect(progress).toHaveText(/\d+ \/ \d+ · \d+%/);
+  const fonts = reader.getByRole('combobox', { name: 'Font' });
+  await expect(fonts.getByRole('option', { name: 'System Serif', exact: true })).toHaveAttribute('value', 'serif');
+  await expect(fonts.getByRole('option', { name: 'System Sans Serif', exact: true })).toHaveAttribute('value', 'sans-serif');
+  await expect(fonts.getByRole('option', { name: 'System Monospace', exact: true })).toHaveAttribute('value', 'monospace');
   await expect(select).toBeVisible();
   await expect(reader.getByRole('button', { name: 'Contents' })).toBeVisible();
   await select.tap();

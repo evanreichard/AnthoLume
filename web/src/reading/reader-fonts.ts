@@ -1,5 +1,13 @@
 const assets = import.meta.glob<string>('./fonts/*.woff2', { eager: true, query: '?url', import: 'default' });
 export const readerFontNames = ['serif', 'Open Sans', 'Arbutus Slab', 'Lato', 'sans-serif', 'monospace', 'Georgia', 'Arial'];
+export function readerFontLabel(family: string) {
+  switch (family) {
+    case 'serif': return 'System Serif';
+    case 'sans-serif': return 'System Sans Serif';
+    case 'monospace': return 'System Monospace';
+    default: return family;
+  }
+}
 export class ReaderFonts {
   private css = new Map<string, string>();
   private styles = new WeakMap<Document, Element>();
