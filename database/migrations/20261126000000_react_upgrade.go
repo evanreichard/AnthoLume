@@ -207,21 +207,23 @@ func upStorageRoots(ctx context.Context, tx *sql.Tx) error {
 		return err
 	}
 	for _, base := range bases {
-		clean := filepath.Clean(base)
+		// Legacy Relative Paths - The old server opened relative base paths from its working directory.
+		resolved, err := filepath.Abs(base)
+		if err != nil {
+			return err
+		}
 		id := "library"
-		switch clean {
+		switch resolved {
 		case filepath.Join(data, "documents"):
 		case filepath.Join(data, "imports"):
 			id = "imports"
 		default:
 			id = fmt.Sprintf("legacy-%x", sha256.Sum256([]byte(base)))[:31]
 			var mapped *string
-			if filepath.IsAbs(clean) {
-				if info, err := os.Stat(clean); err == nil && info.IsDir() {
-					mapped = &clean
-				}
+			if info, err := os.Stat(resolved); err == nil && info.IsDir() {
+				mapped = &resolved
 			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO storage_roots(id,label,path,managed,legacy_path) VALUES(?,?,?,0,?)`, id, filepath.Base(clean), mapped, base); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO storage_roots(id,label,path,managed,legacy_path) VALUES(?,?,?,0,?)`, id, filepath.Base(resolved), mapped, base); err != nil {
 				return err
 			}
 		}

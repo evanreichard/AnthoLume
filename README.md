@@ -78,7 +78,7 @@ The service is now accessible at `http://localhost:8585`. Register an account, t
 
 ### Book Storage and Upgrades
 
-Configure storage roots in **Settings → Administration → Library**. Library is the only managed root and defaults to `$DATA_PATH/documents`. Imported books can be copied into Library or referenced in place from a source root. In Docker, mount source directories into the container before adding them. To relocate a source without changing book IDs or reading history, edit the existing root and keep paths relative to that root unchanged.
+Configure storage roots in **Settings → Administration → Library**. Library is the only managed root and defaults to `$DATA_PATH/documents`. Imported books can be copied into Library or referenced in place from a source root. In Docker, mount source directories into the container before adding them. To relocate a source without changing book IDs or reading history, edit the existing root and keep paths relative to that root unchanged. If you change `DATA_PATH` during an upgrade, books with a recorded path outside the new Library stay on an unmanaged source. If you moved those books into the new Library folder, point the source at that folder and confirm **Merge into Library**.
 
 Backups always include the database; **Database + Library files** also includes cataloged Library EPUBs and covers. Source files are not included. After restore, review the source mappings before re-enabling auto-import schedules. **To restore a backup made by the previous release, restore it on that release before upgrading.**
 
