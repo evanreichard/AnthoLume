@@ -19,7 +19,7 @@ const fraction = (value: unknown) => value === null || typeof value === 'number'
 export const isSession: Guard<S['Session']> = (value): value is S['Session'] => {
   if (!exact(value, ['user', 'csrf_token', 'expires_at']) || !string(value.csrf_token) || value.csrf_token.length < 32 || value.csrf_token.length > 128 || !nullableTime(value.expires_at)) return false;
   if (value.user === null) return value.expires_at === null;
-  return exact(value.user, ['id', 'is_admin', 'timezone']) && id(value.user.id) && typeof value.user.is_admin === 'boolean' && string(value.user.timezone) && timestamp(value.expires_at);
+  return exact(value.user, ['id', 'account_id', 'is_admin', 'timezone']) && id(value.user.id) && string(value.user.account_id) && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value.user.account_id) && typeof value.user.is_admin === 'boolean' && string(value.user.timezone) && timestamp(value.expires_at);
 };
 export const isCapabilities: Guard<S['Capabilities']> = (value): value is S['Capabilities'] => exact(value, ['registration_enabled', 'search_enabled', 'demo_mode']) && Object.values(value).every((entry) => typeof entry === 'boolean');
 const isReadingStats = (value: unknown) => exact(value, ['reading_seconds', 'words_per_minute', 'word_count']) && integer(value.reading_seconds) && integer(value.words_per_minute) && (value.word_count === null || integer(value.word_count));

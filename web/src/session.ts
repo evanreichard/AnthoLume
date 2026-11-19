@@ -95,7 +95,7 @@ class SessionCoordinator {
         if (session.user) session = await this.api.logout();
         if (epoch !== this.generation) return;
       }
-      const account = session.user && !this.storageBlocked && !this.pendingLogout ? { origin: apiOrigin, userId: session.user.id } : null;
+      const account = session.user && !this.storageBlocked && !this.pendingLogout ? { origin: apiOrigin, userId: session.user.account_id } : null;
       this.publish({ session, busy: false, access: account ? { kind: 'authenticated', account } : this.retainedAccess(previous), error: this.storageBlocked ? 'Browser storage is unavailable. Automatic account access is disabled; sign in explicitly.' : null });
       try {
         const capabilities = await this.api.capabilities();
@@ -125,7 +125,7 @@ class SessionCoordinator {
       const session = await this.api[mode]({ username, password });
       if (epoch !== this.generation) throw new DOMException('Session changed', 'AbortError');
       if (!session.user) throw new Error('The server did not authenticate the account.');
-      this.publish({ session, busy: false, access: { kind: 'authenticated', account: { origin: apiOrigin, userId: session.user.id } } });
+      this.publish({ session, busy: false, access: { kind: 'authenticated', account: { origin: apiOrigin, userId: session.user.account_id } } });
       this.channel?.postMessage('changed');
     } catch (error) {
       if (epoch === this.generation) this.publish({ busy: false, access: oldAccess.kind === 'authenticated' ? { kind: 'expired', account: oldAccess.account } : oldAccess, error: message(error) });
@@ -135,7 +135,7 @@ class SessionCoordinator {
   async updateTimezone(account: Account, timezone: string) {
     const epoch = this.generation;
     const current = await this.api.updatePreferences(account, timezone);
-    if (epoch !== this.generation || current.user?.id !== account.userId) throw new DOMException('Account changed', 'AbortError');
+    if (epoch !== this.generation || current.user?.account_id !== account.userId) throw new DOMException('Account changed', 'AbortError');
     this.publish({ session: current });
     void queryClient.invalidateQueries({ predicate: query => ['insights', 'insight-activity', 'insight-progress'].includes(String(query.queryKey[0])) });
     this.channel?.postMessage('session');
@@ -143,7 +143,7 @@ class SessionCoordinator {
   async changePassword(account: Account, body: S['PasswordChange']) {
     const epoch = this.generation;
     const current = await this.api.changePassword(account, body);
-    if (epoch !== this.generation || current.user?.id !== account.userId) throw new DOMException('Account changed', 'AbortError');
+    if (epoch !== this.generation || current.user?.account_id !== account.userId) throw new DOMException('Account changed', 'AbortError');
     this.publish({ session: current });
     this.channel?.postMessage('session');
   }

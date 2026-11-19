@@ -176,9 +176,14 @@ func (api *API) webBoundary(c *gin.Context) {
 		handleWebError(c, err)
 		return
 	}
+	if ids := c.Request.Header.Values("X-AnthoLume-Account"); len(ids) != 0 && (!ok || len(ids) != 1 || ids[0] != auth.AccountID) {
+		abortProblem(c, 401, "unauthenticated")
+		return
+	}
 	if ok {
 		c.Set("Authorization", auth)
-		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), webPrincipalKey{}, auth))
+		ctx := context.WithValue(c.Request.Context(), webPrincipalKey{}, auth)
+		c.Request = c.Request.WithContext(reading.WithAccountID(ctx, auth.AccountID))
 	}
 	if !public && !ok {
 		abortProblem(c, 401, "unauthenticated")

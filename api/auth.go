@@ -14,9 +14,11 @@ import (
 )
 
 type authData struct {
-	UserName string
-	IsAdmin  bool
-	AuthHash string
+	UserName  string
+	AccountID string
+	IsAdmin   bool
+	AuthHash  string
+	Timezone  *string
 }
 type authKOHeader struct {
 	AuthUser string `header:"x-auth-user"`
@@ -132,17 +134,17 @@ func (api *API) sessionIdentity(ctx context.Context, session sessions.Session) (
 	if !uok || !eok || !hok || expiry <= time.Now().Unix() {
 		return authData{}, false, nil
 	}
-	current, err := api.db.Queries.GetUser(ctx, user)
+	current := authData{UserName: user, AuthHash: hash}
+	err := api.db.DB.QueryRowContext(ctx, `SELECT a.account_id,u.admin,u.timezone FROM users u
+ JOIN account_identities a ON a.user_id=u.id WHERE u.id=? AND u.auth_hash=?`, user, hash).
+		Scan(&current.AccountID, &current.IsAdmin, &current.Timezone)
 	if errors.Is(err, sql.ErrNoRows) {
 		return authData{}, false, nil
 	}
 	if err != nil {
 		return authData{}, false, err
 	}
-	if current.AuthHash == nil || *current.AuthHash != hash {
-		return authData{}, false, nil
-	}
-	return authData{UserName: current.ID, IsAdmin: current.Admin, AuthHash: hash}, true, nil
+	return current, true, nil
 }
 func (api *API) anonymousSession(session sessions.Session) error {
 	token, err := randomCSRF()

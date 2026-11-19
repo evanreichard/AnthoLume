@@ -36,6 +36,7 @@ export interface ReadingActions {
   resolveConflict(eventId: string, choice: 'local' | 'server', observedRevision: string): Promise<void>;
 }
 export type ProviderProps = { access: ReadingAccess; bridge: ReadingBridge; onSessionExpired: (account: Account) => void; children: ReactNode };
-export function accountKey(account: Account): string { return JSON.stringify([new URL(account.origin).origin, account.userId]); }
+// Separate UUID scopes from the older username scopes, even for usernames that look like UUIDs.
+export function accountKey(account: Account): string { return JSON.stringify(['account', new URL(account.origin).origin, account.userId]); }
 export function refKey(ref: BookRef): string { return ref.kind === 'local' ? JSON.stringify(['local', ref.localId]) : JSON.stringify(['server', accountKey(ref.account), ref.documentId]); }
 export function sameAccount(a: Account, b: Account) { return accountKey(a) === accountKey(b); }

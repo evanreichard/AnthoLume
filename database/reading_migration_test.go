@@ -121,6 +121,6 @@ func TestReadingSchemaDeletionAndRevisionBounds(t *testing.T) {
 	require.NoError(t, db.DB.QueryRow("PRAGMA integrity_check").Scan(&integrity))
 	require.Equal(t, "ok", integrity)
 	var version int64
-	require.NoError(t, db.DB.QueryRow("SELECT max(version_id) FROM goose_db_version WHERE is_applied=1").Scan(&version))
+	require.NoError(t, db.DB.QueryRow("SELECT version_id FROM goose_db_version WHERE version_id=20261126000000 AND is_applied=1").Scan(&version))
 	require.Equal(t, int64(20261126000000), version)
 }

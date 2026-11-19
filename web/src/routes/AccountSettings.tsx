@@ -102,7 +102,7 @@ function ReaderCacheSettings() {
   </Card>;
 }
 
-export function AccountSettings({ account, timezone, readOnly, syncStatus, syncDetails, onSignOut, children }: { account: Account; timezone: string; readOnly: boolean; syncStatus: string; syncDetails: ReactNode; onSignOut(): void; children?: ReactNode }) {
+export function AccountSettings({ account, username, timezone, readOnly, syncStatus, syncDetails, onSignOut, children }: { account: Account; username: string; timezone: string; readOnly: boolean; syncStatus: string; syncDetails: ReactNode; onSignOut(): void; children?: ReactNode }) {
   const [modal, setModal] = useState<'timezone' | 'password' | Device | null>(null);
   const [feedback, setFeedback] = useState('');
   const close = () => setModal(null);
@@ -138,7 +138,7 @@ export function AccountSettings({ account, timezone, readOnly, syncStatus, syncD
   })}</ul>;
   return <>
     <Card aria-labelledby="account-heading">
-      <CardHeader id="account-heading" title="Account" subtitle={account.userId}
+      <CardHeader id="account-heading" title="Account" subtitle={username}
         leading={<span className={styles.accountAvatar}><Icon name="user" size={18} /></span>}
         action={<IconButton aria-label="Sign out" title="Sign out" onClick={onSignOut}><Icon name="sign-out" size={18} /></IconButton>} />
       <ActionRows>

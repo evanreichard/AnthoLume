@@ -14,6 +14,7 @@ export type SourceRow = { id: string; key: string; size: number; received: numbe
 const bookCacheBytes = 768 * 1024 * 1024;
 const bookCacheCount = 6;
 const cacheLeaseMs = 15 * 60_000;
+const resumeKey = 'resume:account';
 const cacheLive = (row: SourceRow, now: number) => Object.values(row.cacheReaders ?? {}).some(until => until > now);
 export type SourceChunk = { key: string; sourceId: string; data: ArrayBuffer };
 export type EventRow = { id: string; key: string; scope: string; created: number; interval?: { id: string; startMs: number; endMs: number } } & Submission;
@@ -52,12 +53,12 @@ export class Repository {
       if ('account' in access) {
         const key = accountKey(access.account), old = await this.db.access.get(key);
         await this.db.access.put({ key, account: access.account, epoch: old?.epoch || 1, eligible: access.kind !== 'logout', authenticated: access.kind === 'authenticated' });
-        await this.db.meta.put({ key: 'resume', value: access.kind === 'logout' ? null : access.account });
+        await this.db.meta.put({ key: resumeKey, value: access.kind === 'logout' ? null : access.account });
       }
     });
   }
   async resume(): Promise<Account | null> {
-    const account = (await this.db.meta.get('resume'))?.value as Account | null;
+    const account = (await this.db.meta.get(resumeKey))?.value as Account | null;
     return account && (await this.db.access.get(accountKey(account)))?.eligible ? account : null;
   }
   async permitted(ref: BookRef) { return ref.kind === 'local' || !!(await this.db.access.get(scopeOf(ref)))?.eligible; }

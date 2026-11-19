@@ -42,18 +42,10 @@ func (s *webAPI) session(ctx context.Context) (Session, error) {
 	}
 	result := Session{CsrfToken: token}
 	if ok {
-		user, err := api.db.Queries.GetUser(c.Request.Context(), auth.UserName)
-		if err != nil {
-			return result, err
-		}
-		if user.Timezone == nil {
+		if auth.Timezone == nil {
 			return result, errInvalidSession
 		}
-		result.User = &struct {
-			Id       ID     `json:"id"`
-			IsAdmin  bool   `json:"is_admin"`
-			Timezone string `json:"timezone"`
-		}{user.ID, user.Admin, *user.Timezone}
+		result.User = &SessionUser{Id: auth.UserName, AccountId: auth.AccountID, IsAdmin: auth.IsAdmin, Timezone: *auth.Timezone}
 		expiry := time.Unix(session.Get("expiresAt").(int64), 0).UTC()
 		result.ExpiresAt = &expiry
 	}

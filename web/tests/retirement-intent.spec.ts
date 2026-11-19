@@ -32,7 +32,9 @@ test('root retirement keeps only document intent through logout/login/register/r
   const destination = new URL(page.url());
   expect(destination.pathname).toBe('/read/server/book-001');
   expect(destination.searchParams.get('origin')).toBe(server.origin);
-  expect(destination.searchParams.get('account')).toBe(user);
+  const { user: signedIn } = await (await page.request.get(`${server.origin}/api/v1/session`)).json();
+  expect(signedIn.id).toBe(user);
+  expect(destination.searchParams.get('account')).toBe(signedIn.account_id);
   expect(destination.searchParams.has('legacyDocument')).toBe(false);
   expect(resources).not.toContain('/assets/reader/index.js');
   expect(resources).not.toContain('/assets/index.js');
@@ -79,6 +81,8 @@ test('already authenticated root retirement opens the original uncached document
   const destination = new URL(page.url());
   expect(destination.pathname).toBe('/read/server/book-002');
   expect(destination.searchParams.get('origin')).toBe(server.origin);
-  expect(destination.searchParams.get('account')).toBe(user);
+  const { user: signedIn } = await (await page.request.get(`${server.origin}/api/v1/session`)).json();
+  expect(signedIn.id).toBe(user);
+  expect(destination.searchParams.get('account')).toBe(signedIn.account_id);
   expect(scripts.some((path) => path.startsWith('/assets/reader/') || path === '/assets/index.js' || path === '/assets/common.js')).toBe(false);
 });

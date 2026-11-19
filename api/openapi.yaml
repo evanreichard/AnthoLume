@@ -880,20 +880,25 @@ components:
         registration_enabled: {type: boolean}
         search_enabled: {type: boolean}
         demo_mode: {type: boolean}
+    SessionUser:
+      type: object
+      nullable: true
+      additionalProperties: false
+      required: [id, account_id, is_admin, timezone]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        account_id:
+          type: string
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+          description: Immutable account identity for local storage scoping. When supplied as X-AnthoLume-Account, it must match the authenticated session.
+        is_admin: {type: boolean}
+        timezone: {type: string}
     Session:
       type: object
       additionalProperties: false
       required: [user, csrf_token, expires_at]
       properties:
-        user:
-          type: object
-          nullable: true
-          additionalProperties: false
-          required: [id, is_admin, timezone]
-          properties:
-            id: {$ref: '#/components/schemas/ID'}
-            is_admin: {type: boolean}
-            timezone: {type: string}
+        user: {$ref: '#/components/schemas/SessionUser'}
         csrf_token: {type: string, minLength: 32, maxLength: 128}
         expires_at: {type: string, format: date-time, nullable: true}
     Document:

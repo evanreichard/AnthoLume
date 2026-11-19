@@ -20,8 +20,17 @@ func (s *webAPI) UpdatePreferences(ctx context.Context, r UpdatePreferencesReque
 	if _, err := time.LoadLocation(zone); err != nil || zone == "" || zone == "Local" {
 		return nil, &reading.Failure{Status: 400, Code: "invalid_timezone"}
 	}
-	if _, err := s.api.db.DB.ExecContext(requestContext(ctx), `UPDATE users SET timezone=? WHERE id=?`, zone, webUser(ctx).UserName); err != nil {
+	principal := webUser(ctx)
+	result, err := s.api.db.DB.ExecContext(requestContext(ctx), `UPDATE users SET timezone=? WHERE id=? AND auth_hash=?`, zone, principal.UserName, principal.AuthHash)
+	if err != nil {
 		return nil, err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, &reading.Failure{Status: 401, Code: "unauthenticated"}
 	}
 	out, err := s.session(ctx)
 	return UpdatePreferences200JSONResponse(out), err

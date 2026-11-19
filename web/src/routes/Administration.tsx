@@ -17,7 +17,7 @@ type User = components['schemas']['AdminUser'];
 type UserAction = { kind: 'create' } | { kind: 'edit' | 'delete'; user: User };
 
 const tabs = [['library', 'Library'], ['users', 'Users'], ['system', 'System'], ['logs', 'Logs']] as const;
-type AdminContext = { account: Account; readOnly: boolean };
+type AdminContext = { account: Account; username: string; readOnly: boolean };
 
 export function AdminSectionTabs() {
   return <SectionTabs label="Administration sections" items={tabs.map(([path, label]) => ({ to: `/admin/${path}`, label }))} />;
@@ -27,7 +27,7 @@ export function Administration() {
   const logs = useMatch('/admin/logs');
   const { access, session: current, capabilities } = useSession();
   const context: AdminContext | null = access.kind === 'authenticated' && current?.user?.is_admin
-    ? { account: access.account, readOnly: !capabilities || capabilities.demo_mode }
+    ? { account: access.account, username: current.user.id, readOnly: !capabilities || capabilities.demo_mode }
     : null;
   return <>
     <PageHeader title="Administration" />
@@ -67,11 +67,11 @@ function SystemDetails({ account }: { account: Account }) {
 }
 
 export function AdminUsers() {
-  const { account, readOnly } = useOutletContext<AdminContext>();
-  return <UserList key={account.userId} account={account} readOnly={readOnly} />;
+  const context = useOutletContext<AdminContext>();
+  return <UserList key={context.account.userId} {...context} />;
 }
 
-function UserList({ account, readOnly }: { account: Account; readOnly: boolean }) {
+function UserList({ account, username, readOnly }: AdminContext) {
   const formId = useId();
   const client = useQueryClient();
   const queryKey = ['admin-users', account] as const;
@@ -117,7 +117,7 @@ function UserList({ account, readOnly }: { account: Account; readOnly: boolean }
     <ErrorNotice error={users.error} />
     {users.isPending && <SkeletonRows label="Loading users…" />}
     {accounts && <ul className={styles.userList}>{accounts.map(user => {
-      const own = user.id === account.userId;
+      const own = user.id === username;
       const identity = <span className={styles.userIdentity}>
         <span><strong>{user.id}</strong>{own && <small className={styles.userSelf}>You</small>}</span>
         <small>{user.is_admin ? 'Administrator' : 'Member'}</small>

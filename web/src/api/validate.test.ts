@@ -11,8 +11,11 @@ describe('consumed HTTP DTO validation', () => {
     expect(isSession({ ...anonymous, csrf_token: 'a'.repeat(129) })).toBe(false);
     expect(isSession({ ...anonymous, user: { id: 'a', is_admin: 'true', timezone: 'UTC' } })).toBe(false);
     expect(isSession({ ...anonymous, expires_at: '2026-02-31T00:00:00Z' })).toBe(false);
-    const user = { user: { id: 'a', is_admin: false, timezone: 'UTC' }, csrf_token: 'b'.repeat(128), expires_at: '2026-01-01T01:02:03.123456Z' };
+    const user = { user: { id: 'a', account_id: 'fe43a87f-48b6-43ef-afda-1ef2654c0844', is_admin: false, timezone: 'UTC' }, csrf_token: 'b'.repeat(128), expires_at: '2026-01-01T01:02:03.123456Z' };
     expect(isSession(user)).toBe(true);
+    for (const account_id of [undefined, user.user.id, user.user.account_id.toUpperCase(), user.user.account_id.replace('-43ef-', '-13ef-')]) {
+      expect(isSession({ ...user, user: { ...user.user, account_id } })).toBe(false);
+    }
     expect(isSession({ ...user, expires_at: '2026-02-31T01:02:03Z' })).toBe(false);
     expect(isSession({ ...anonymous, permissions: [] })).toBe(false);
     expect(isCapabilities({ registration_enabled: false, search_enabled: true, demo_mode: false })).toBe(true);

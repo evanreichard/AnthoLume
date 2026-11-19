@@ -728,12 +728,15 @@ export interface components {
             search_enabled: boolean;
             demo_mode: boolean;
         };
+        SessionUser: {
+            id: components["schemas"]["ID"];
+            /** @description Immutable account identity for local storage scoping. When supplied as X-AnthoLume-Account, it must match the authenticated session. */
+            account_id: string;
+            is_admin: boolean;
+            timezone: string;
+        } | null;
         Session: {
-            user: {
-                id: components["schemas"]["ID"];
-                is_admin: boolean;
-                timezone: string;
-            } | null;
+            user: components["schemas"]["SessionUser"];
             csrf_token: string;
             /** Format: date-time */
             expires_at: string | null;

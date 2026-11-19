@@ -47,6 +47,30 @@ test('account expiry permits offline real-engine opening; loading/logout/B hide 
   });
   expect(result).toMatchObject({ expiredBooks: 2, paused: null, stateName: 'ready', loadingBooks: 1, resumeAfterLoading: { userId: 'A' }, logoutBooks: 1, resumeAfterLogout: null, staleAck: true, denied: true, bBooks: ['Public local'], pending: 1 });
 });
+test('legacy username rows stay quarantined even when the username equals the active UUID', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(`legacy-scope-${crypto.randomUUID()}`));
+    const account = { origin: location.origin, userId: crypto.randomUUID() };
+    const ref = { kind: 'server' as const, account, documentId: 'same-document' };
+    const local = { kind: 'local' as const, localId: 'unscoped-book' };
+    const bytes = await (await fetch('/fixtures/synthetic.epub')).blob();
+    await repo.install(local, bytes, 'Local original', null, null);
+    const scope = JSON.stringify([account.origin, account.userId]), key = JSON.stringify(['server', scope, ref.documentId]);
+    await repo.db.access.add({ key: scope, account, epoch: 1, eligible: true, authenticated: true });
+    await repo.db.meta.put({ key: 'resume', value: account });
+    await repo.db.books.add({ key, scope, ref, title: 'Unverified legacy cache', author: null, cover: null, availability: 'available', checkpoint: { position: null, fraction: null }, bytes, size: bytes.size, checksum: null, protocolHash: null });
+    await repo.db.events.add({ key, scope, id: 'legacy-event', kind: 'progress', created: 1, payload: { event_id: 'legacy-event', document_id: ref.documentId, device_id: 'legacy-device', observed_at: '2026-01-01T00:00:00Z', base_revision: '0', position: '/body/p[1]', fraction: .2 } });
+    const legacyResume = await repo.resume();
+    await repo.setAccess({ kind: 'authenticated', account });
+    const books = (await repo.projection({ kind: 'authenticated', account })).map(book => book.title);
+    const lease = await repo.claim(account, 'current-reader');
+    const original = await repo.exportLocal(local);
+    const retained = (await repo.pending()).map(event => event.id);
+    await repo.db.delete();
+    return { legacyResume, books, lease, localPreserved: original.size === bytes.size, retained };
+  });
+  expect(result).toEqual({ legacyResume: null, books: ['Local original'], lease: null, localPreserved: true, retained: ['legacy-event'] });
+});
 test('real two-tab lease competition and fenced takeover reject stale holder without losing pending events', async ({ page, context }) => {
   const name = `two-tabs-${Date.now()}`;
   await page.evaluate(async name => { const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(name)), account = { origin: location.origin, userId: 'A' }, ref = { kind: 'server' as const, account, documentId: 'server-doc' }; await repo.setAccess({ kind: 'authenticated', account }); const bytes = await (await fetch('/fixtures/synthetic.epub')).arrayBuffer(); await repo.install(ref, bytes, null, null, null, { document_id: 'server-doc', revision: '0', position: null, fraction: null, device_id: null, updated_at: null }); await repo.save(ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .1 }); repo.db.close(); }, name);
@@ -80,7 +104,7 @@ test('progress conflicts do not block activity; exact receipt replay, durable ex
     const conflict = (await repo.db.conflicts.toArray())[0]!;
     const pendingAfterCredit = (await repo.pending()).length, decisionsAfterCredit = await repo.db.decisions.count();
     repo.db.close(); await repo.db.open();
-    const access = (await repo.db.access.get(JSON.stringify([location.origin, 'A'])))!;
+    const access = (await repo.db.access.get(JSON.stringify(['account', location.origin, 'A'])))!;
     await repo.refreshConflict(conflict.eventId, state(), access.epoch); await repo.resolve(conflict.eventId, 'local', revision);
     const replacement = (await repo.pending())[0]!, freshID = replacement.id !== conflict.eventId;
     revision = '2'; await replay.run(account); const again = (await repo.db.conflicts.toArray())[0]!;

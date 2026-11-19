@@ -18,7 +18,7 @@ export function Settings() {
   return <>
     <PageHeader title="Settings" actions={canAdminister && <ButtonLink to="/admin">Administration</ButtonLink>} />
     <div className={styles.settingsLayout}>
-    {access.kind === 'authenticated' && current?.user && <AccountSettings key={access.account.userId} account={access.account} timezone={current.user.timezone} readOnly={!capabilities || capabilities.demo_mode}
+    {access.kind === 'authenticated' && current?.user && <AccountSettings key={access.account.userId} account={access.account} username={current.user.id} timezone={current.user.timezone} readOnly={!capabilities || capabilities.demo_mode}
       syncStatus={sync === 'idle' && pendingCount ? `${pendingCount} pending` : syncLabels[sync]} syncDetails={<SyncDetails />}
       onSignOut={() => setLogout(true)}>{exportRow}</AccountSettings>}
     {access.kind !== 'authenticated' && exportRow}

@@ -148,6 +148,7 @@ function History({ account, view }: { account: Account; view: 'activity' | 'prog
 const rankingMetrics = [['time', 'Time'], ['words', 'Words'], ['pace', 'Pace']] as const;
 
 function Rankings({ account, preview = false }: { account: Account; preview?: boolean }) {
+  const username = useSession().session?.user?.id;
   const [params, setParams] = useSearchParams();
   const choice = params.get('metric'), range = params.get('period');
   const metric = choice === 'words' || choice === 'pace' ? choice : 'time';
@@ -180,7 +181,7 @@ function Rankings({ account, preview = false }: { account: Account; preview?: bo
       </>}
       {items && (items.length ? <ol className={styles.rankRows}>{items.map((item, i) => <li key={item.user}>
         <span aria-hidden="true" className={styles.rankNumber}>{i + 1}</span>
-        <strong className={styles.rankName}>{item.user}{item.user === account.userId ? ' (you)' : ''}</strong>
+        <strong className={styles.rankName}>{item.user}{item.user === username ? ' (you)' : ''}</strong>
         <strong className={styles.value}>{metric === 'time' ? duration(item.value) : `${item.value.toLocaleString()} ${metric === 'words' ? 'words' : 'wpm'}`}</strong>
       </li>)}</ol> : <p className={styles.muted}>No rankings for this selection.</p>)}
     </div>

@@ -75,9 +75,21 @@ func zero(f float64) float64 {
 	}
 	return f
 }
+
+type accountIDKey struct{}
+
+// WithAccountID binds web operations to the account instance selected at authentication.
+func WithAccountID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, accountIDKey{}, id)
+}
+
 func account(ctx context.Context, tx *sql.Tx, user string) error {
+	query, args := "SELECT count(*) FROM users WHERE id=?", []any{user}
+	if id, ok := ctx.Value(accountIDKey{}).(string); ok {
+		query, args = "SELECT count(*) FROM account_identities WHERE user_id=? AND account_id=?", []any{user, id}
+	}
 	var n int
-	if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM users WHERE id=?", user).Scan(&n); err != nil {
+	if err := tx.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
 		return err
 	}
 	if n != 1 {

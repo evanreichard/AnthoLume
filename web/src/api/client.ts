@@ -8,6 +8,7 @@ const configuredOrigin = new URL(import.meta.env.VITE_API_ORIGIN || window.locat
 export const apiOrigin = configuredOrigin.origin;
 if (apiOrigin !== window.location.origin || configuredOrigin.pathname !== '/' || configuredOrigin.search || configuredOrigin.hash || configuredOrigin.username || configuredOrigin.password) throw new Error('VITE_API_ORIGIN must be the browser public origin. Configure the loopback proxy/PUBLIC_ORIGIN, not cross-origin credentials.');
 export const sameAccount = (a: Account, b: Account) => a.origin === b.origin && a.userId === b.userId;
+const accountHeader = (account: Account) => ({ 'X-AnthoLume-Account': account.userId });
 export interface SessionGate {
   token(): string | null;
   epoch(): number;
@@ -57,8 +58,8 @@ export function createAPI(gate: SessionGate) {
     login: (credentials: { username: string; password: string }) => consume(() => client.POST('/api/v1/session/login', { body: credentials, parseAs: 'stream' }), isSession, 200),
     register: (credentials: { username: string; password: string }) => consume(() => client.POST('/api/v1/session/register', { body: credentials, parseAs: 'stream' }), isSession, 201),
     logout: () => consume(() => client.POST('/api/v1/session/logout', { body: {}, parseAs: 'stream' }), isSession, 200),
-    updatePreferences: (account: Account, timezone: string) => consume(() => client.PATCH('/api/v1/me/preferences', { body: { timezone }, parseAs: 'stream' }), isSession, 200, account),
-    changePassword: (account: Account, body: S['PasswordChange']) => consume(() => client.POST('/api/v1/me/password', { body, parseAs: 'stream' }), isSession, 200, account),
+    updatePreferences: (account: Account, timezone: string) => consume(() => client.PATCH('/api/v1/me/preferences', { headers: accountHeader(account), body: { timezone }, parseAs: 'stream' }), isSession, 200, account),
+    changePassword: (account: Account, body: S['PasswordChange']) => consume(() => client.POST('/api/v1/me/password', { headers: accountHeader(account), body, parseAs: 'stream' }), isSession, 200, account),
     adminUsers: (account: Account, after: string, signal: AbortSignal) => consume(() => client.GET('/api/v1/admin/users', { signal, params: { query: { after } }, parseAs: 'stream' }), isAdminUsers, 200, account),
     createAdminUser: (account: Account, body: S['AdminUserCreate']) => consume(() => client.POST('/api/v1/admin/users', { body, parseAs: 'stream' }), isAdminUser, 201, account),
     updateAdminUser: (account: Account, id: string, body: S['AdminUserUpdate']) => consume(() => client.PATCH('/api/v1/admin/users/{id}', { params: path(id), body, parseAs: 'stream' }), isAdminUser, 200, account),
@@ -104,7 +105,7 @@ export function createAPI(gate: SessionGate) {
   async function binary(account: Account, id: string, kind: 'file' | 'cover', signal: AbortSignal, etag?: string) {
     const epoch = gate.epoch();
     gate.assert(account, epoch);
-    const response = await fetch(`${apiOrigin}/api/v1/documents/${encodeURIComponent(id)}/${kind}`, { credentials: 'same-origin', cache: 'no-store', signal, headers: etag ? { 'If-None-Match': etag } : undefined });
+    const response = await fetch(`${apiOrigin}/api/v1/documents/${encodeURIComponent(id)}/${kind}`, { credentials: 'same-origin', cache: 'no-store', signal, headers: { ...accountHeader(account), ...(etag ? { 'If-None-Match': etag } : {}) } });
     try { gate.assert(account, epoch); } catch (error) { await response.body?.cancel(); throw error; }
     if (response.status === 401 && !response.redirected && response.headers.get('content-type')?.split(';')[0].trim() === 'application/problem+json') {
       const problem: unknown = await response.clone().json().catch(() => null);
@@ -117,8 +118,8 @@ export function createAPI(gate: SessionGate) {
     const epoch = gate.epoch();
     gate.assert(account, epoch);
     const pending = kind === 'progress'
-      ? client.POST('/api/v1/me/reading-progress', { body: event as S['ProgressEvent'], signal, parseAs: 'stream' })
-      : client.POST('/api/v1/me/activity', { body: event as S['ActivityEvent'], signal, parseAs: 'stream' });
+      ? client.POST('/api/v1/me/reading-progress', { headers: accountHeader(account), body: event as S['ProgressEvent'], signal, parseAs: 'stream' })
+      : client.POST('/api/v1/me/activity', { headers: accountHeader(account), body: event as S['ActivityEvent'], signal, parseAs: 'stream' });
     const { response, error } = await pending;
     gate.assert(account, epoch);
     let body: unknown = null;
@@ -130,12 +131,12 @@ export function createAPI(gate: SessionGate) {
   }
   const bridge: ReadingBridge = {
     registerDevice: async (account, device, signal) => {
-      const result = await consume(() => client.POST('/api/v1/me/devices', { body: device, signal, parseAs: 'stream' }), isDevice, 200, account);
+      const result = await consume(() => client.POST('/api/v1/me/devices', { headers: accountHeader(account), body: device, signal, parseAs: 'stream' }), isDevice, 200, account);
       if (result.id !== device.id) throw new InvalidResponse();
       return result;
     },
     getState: async (account, documentId, signal) => {
-      const result = await consume(() => client.GET('/api/v1/me/reading-state/{document_id}', { params: { path: { document_id: documentId } }, signal, parseAs: 'stream' }), isState, 200, account);
+      const result = await consume(() => client.GET('/api/v1/me/reading-state/{document_id}', { headers: accountHeader(account), params: { path: { document_id: documentId } }, signal, parseAs: 'stream' }), isState, 200, account);
       if (result.document_id !== documentId) throw new InvalidResponse();
       return result;
     },
