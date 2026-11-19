@@ -47,7 +47,7 @@ test('Import lists independent rules and opens editors on demand', async ({ page
     const cadence = dialog.getByRole('combobox', { name: 'Schedule', exact: true });
     await expect(cadence).toHaveValue('changes');
     if (folder === 'Archive') await cadence.selectOption('six-hourly');
-    await dialog.getByRole('button', { name: 'Save rule' }).click();
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(imports.getByRole('button', { name, exact: true })).toHaveAccessibleDescription(new RegExp(folder));
   }
   await imports.screenshot({ path: testInfo.outputPath('import-rules-320.png') });
@@ -57,10 +57,18 @@ test('Import lists independent rules and opens editors on demand', async ({ page
   const configured = await (await page.request.get(`${server.origin}/api/v1/admin/auto-import`)).json();
   expect(configured.map(({ settings }: { settings: { name: string; watch: boolean; interval_minutes: number } }) => [settings.name, settings.watch, settings.interval_minutes]))
     .toEqual([['Archive books', false, 360], ['New arrivals', true, 15]]);
-  await dialog.getByRole('button', { name: 'Scan now' }).click();
+  const enable = dialog.getByRole('switch', { name: 'Enable', exact: true });
+  await expect(enable).toBeChecked();
+  await enable.focus();
+  await page.keyboard.press('Space');
+  await expect(enable).not.toBeChecked();
+  await page.keyboard.press('Space');
+  await expect(enable).toBeChecked();
+  await expect(dialog.locator('dl').filter({ hasText: 'Last scan' }).locator('dt')).toHaveText(['Last scan', 'Next scan']);
+  await dialog.getByRole('button', { name: 'Scan', exact: true }).click();
   await expect(dialog.getByRole('status')).toHaveText('Scan queued.');
   await page.screenshot({ path: testInfo.outputPath('auto-import-320.png') });
-  await dialog.getByRole('button', { name: 'Delete…', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
   await dialog.getByRole('button', { name: 'Delete rule' }).click();
   await expect(imports.getByRole('button', { name: 'New arrivals', exact: true })).toHaveCount(0);
   await expect(imports.getByRole('button', { name: 'Archive books', exact: true })).toBeVisible();
@@ -182,7 +190,7 @@ test('administrators manage users while members cannot open Administration', asy
   await mkdir(`${server.data}/imports/nested`, { recursive: true });
   const original = await readFile(`${server.data}/documents/public.epub`);
   await writeFile(`${server.data}/imports/nested/sample.epub`, original);
-  await page.getByRole('button', { name: 'Preview import' }).click();
+  await page.getByRole('button', { name: 'Preview', exact: true }).click();
   await expect(page.getByText('1 EPUB ready to review')).toBeVisible();
   await page.getByRole('button', { name: 'Start import' }).click();
   await expect(page.getByText('Import finished', { exact: true })).toBeVisible();

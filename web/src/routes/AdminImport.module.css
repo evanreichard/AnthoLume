@@ -1,9 +1,20 @@
 .form { display: grid; gap: 10px; min-width: 0; }
-.form > label:not(.setting, .enabled) { display: grid; gap: 4px; }
+.form > label:not(.setting) { display: grid; gap: 4px; }
 .setting, .enabled { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; }
 .setting > span { min-width: 0; max-width: 70%; }
 .method { min-width: 0; margin: 0; padding: 0; border: 0; }
 .method legend { padding: 0; }
 .method p { margin: 2px 0 0; font-size: .8125rem; color: var(--muted); }
-.enabled { border-top: 1px solid var(--line); cursor: pointer; }
-.enabled input { width: 18px; min-height: 0; height: 18px; margin: 0 4px; accent-color: var(--accent); }
+.ruleStatus { padding: 0 .75rem; border: 1px solid var(--line); border-radius: .75rem; background: color-mix(in srgb, var(--hero) 40%, transparent); }
+.enabled { cursor: pointer; font-weight: 650; }
+.enabled:has(input:disabled) { cursor: default; opacity: .6; }
+.toggle { position: relative; display: inline-grid; align-items: center; inline-size: 2.35rem; block-size: 1.35rem; flex: none; }
+.toggle input { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; min-height: 0; margin: 0; opacity: 0; cursor: inherit; }
+.toggle > span { display: flex; align-items: center; block-size: 100%; padding-inline: .15rem; border: 1px solid var(--line); border-radius: 99px; background: var(--surface); pointer-events: none; }
+.toggle > span::after { content: ''; inline-size: .93rem; block-size: .93rem; border-radius: 50%; background: var(--muted); }
+.toggle input:checked + span { background: var(--accent); border-color: var(--accent); justify-content: flex-end; }
+.toggle input:checked + span::after { background: var(--surface); }
+.toggle input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 3px; }
+.scanTimes { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: .8rem; row-gap: .4rem; margin: 0; padding: .55rem 0 .7rem; border-top: 1px solid var(--line); font-size: .8125rem; line-height: 1.4; }
+.scanTimes dt { color: var(--muted); }
+.scanTimes dd { margin: 0; text-align: end; font-variant-numeric: tabular-nums; }

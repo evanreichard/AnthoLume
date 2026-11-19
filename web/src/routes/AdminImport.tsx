@@ -100,7 +100,7 @@ function ManualImport({ account, roots, running, close }: Context & { running: b
     finally { setBusy(false); }
   }
   return <Dialog title="Manual Import" onClose={() => { if (!busy) close(); }} footer={<>
-    <Button size="slim" form={formId} type="submit" tone={preview?.length ? undefined : 'primary'} disabled={busy || !mappedSource(roots, fields.source)}>Preview import</Button>
+    <Button size="slim" form={formId} type="submit" tone={preview?.length ? undefined : 'primary'} disabled={busy || !mappedSource(roots, fields.source)}>Preview</Button>
     {!!preview?.length && <Button size="slim" tone="primary" disabled={!validFields(roots, fields) || busy || running} onClick={() => void run(true)}>Start import</Button>}
     <Button size="slim" disabled={busy} onClick={close}>Cancel</Button>
   </>}>
@@ -159,10 +159,10 @@ function RuleEditor({ account, roots, rule, close }: Context & { rule?: Rule; cl
     <div className={styles.backupActions}><Button tone="danger" size="slim" type="button" disabled={busy} onClick={() => void run('delete')}>Delete rule</Button><Button size="slim" disabled={busy} onClick={() => setConfirmDelete(false)}>Cancel</Button></div>
   </Dialog>;
   return <Dialog title={rule ? 'Edit Auto Import Rule' : 'Add Auto Import Rule'} onClose={onClose} footer={<>
-    <Button size="slim" form={formId} type="submit" tone="primary" disabled={busy || !dirty || !valid}>Save rule</Button>
-    {rule?.settings.enabled && <Button size="slim" disabled={busy || dirty} onClick={() => void run('scan')}>Scan now</Button>}
+    <Button size="slim" form={formId} type="submit" tone="primary" disabled={busy || !dirty || !valid}>Save</Button>
+    {rule?.settings.enabled && <Button size="slim" disabled={busy || dirty} onClick={() => void run('scan')}>Scan</Button>}
     <Button size="slim" disabled={busy} onClick={onClose}>Cancel</Button>
-    {rule && <Button size="slim" tone="danger" disabled={busy} onClick={() => setConfirmDelete(true)}>Delete…</Button>}
+    {rule && <Button size="slim" tone="danger" disabled={busy} onClick={() => setConfirmDelete(true)}>Delete</Button>}
   </>}>
     <form id={formId} className={layout.form} onSubmit={event => { event.preventDefault(); void run('save'); }}>
       <label>Name<input required value={name} maxLength={120} onChange={event => setName(event.target.value)} /></label>
@@ -174,9 +174,19 @@ function RuleEditor({ account, roots, rule, close }: Context & { rule?: Rule; cl
         {before && !savedCadence && <option value="custom" disabled>Custom ({before.watch ? 'watch + ' : ''}{before.interval_minutes} min)</option>}
         {cadences.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
       </Dropdown></label>
-      <label className={layout.enabled}>Enable rule<input type="checkbox" checked={enabled} disabled={busy} onChange={event => setEnabled(event.target.checked)} /></label>
-      {rule?.last_scan && <p>Last scan: <time dateTime={rule.last_scan}>{format(rule.last_scan)}</time></p>}
-      {rule?.next_scan && <p>Next scan: <time dateTime={rule.next_scan}>{format(rule.next_scan)}</time></p>}
+      <div className={layout.ruleStatus}>
+        <label className={layout.enabled}>
+          <span>Enable</span>
+          <span className={layout.toggle}>
+            <input type="checkbox" role="switch" checked={enabled} disabled={busy} onChange={event => setEnabled(event.target.checked)} />
+            <span aria-hidden="true" />
+          </span>
+        </label>
+        {rule && <dl className={layout.scanTimes}>
+          <dt>Last scan</dt><dd>{rule.last_scan ? <time dateTime={rule.last_scan}>{format(rule.last_scan)}</time> : 'Never'}</dd>
+          <dt>Next scan</dt><dd>{rule.next_scan ? <time dateTime={rule.next_scan}>{format(rule.next_scan)}</time> : 'Not scheduled'}</dd>
+        </dl>}
+      </div>
       {notice && <p role="status">{notice}</p>}
       <ErrorNotice error={error} />
     </form>
