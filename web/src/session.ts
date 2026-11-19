@@ -14,6 +14,7 @@ class SessionCoordinator {
   private snapshot: Snapshot = { session: null, capabilities: null, access: { kind: 'loading' }, error: null, busy: false };
   private listeners = new Set<() => void>();
   private generation = 0;
+  private refresh: AbortController | null = null;
   private resume: Account | null = null;
   private pendingLogout = false;
   private storageBlocked = false;
@@ -29,20 +30,21 @@ class SessionCoordinator {
   });
   constructor() {
     try { this.pendingLogout = localStorage.getItem(logoutKey) === '1'; } catch { this.storageBlocked = true; }
-    this.channel?.addEventListener('message', () => { void this.bootstrap(); });
+    this.channel?.addEventListener('message', () => { void this.checkSession(); });
     window.addEventListener('storage', (event) => {
       if (event.key === logoutKey) {
         this.pendingLogout = event.newValue === '1';
         void this.bootstrap();
       }
     });
-    window.addEventListener('online', () => { void this.bootstrap(); });
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !this.snapshot.busy) void this.bootstrap(); });
+    window.addEventListener('online', () => { void this.checkSession(); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void this.checkSession(); });
   }
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   getSnapshot = () => this.snapshot;
   private publish(value: Partial<Snapshot>, fence = false) {
     if (fence) {
+      this.refresh?.abort();
       this.generation++;
       void queryClient.cancelQueries();
       queryClient.clear();
@@ -75,7 +77,36 @@ class SessionCoordinator {
   expire(account: Account) {
     const access = this.snapshot.access;
     if (access.kind !== 'authenticated' || !sameAccount(account, access.account)) return;
-    this.publish({ session: null, access: { kind: 'expired', account }, error: 'Your session expired. Stored books still work; sign in to synchronize.' }, true);
+    this.publish({ session: null, access: { kind: 'expired', account }, error: 'Your session expired. Sign in to continue reading and synchronizing.' }, true);
+  }
+  async checkSession() {
+    if (this.snapshot.busy) return;
+    const access = this.snapshot.access;
+    if (this.pendingLogout || access.kind !== 'authenticated') return this.bootstrap();
+    this.refresh?.abort();
+    const refresh = new AbortController();
+    this.refresh = refresh;
+    const signal = AbortSignal.any([refresh.signal, AbortSignal.timeout(10_000)]);
+    try {
+      const session = await this.api.session(signal);
+      if (refresh.signal.aborted) return;
+      const account = session.user ? { origin: apiOrigin, userId: session.user.account_id } : null;
+      if (!account) {
+        this.expire(access.account);
+        this.publish({ session });
+        return;
+      }
+      const same = sameAccount(account, access.account);
+      this.publish({ session, access: same ? access : { kind: 'authenticated', account }, error: null }, !same);
+      if (same && !this.snapshot.capabilities) {
+        const capabilities = await this.api.capabilities(signal);
+        if (!refresh.signal.aborted) this.publish({ capabilities });
+      }
+    } catch (error) {
+      if (!refresh.signal.aborted) this.publish({ error: message(error) });
+    } finally {
+      if (this.refresh === refresh) this.refresh = null;
+    }
   }
   async bootstrap() {
     try { this.pendingLogout = localStorage.getItem(logoutKey) === '1'; } catch { this.storageBlocked = true; }
@@ -136,6 +167,7 @@ class SessionCoordinator {
     const epoch = this.generation;
     const current = await this.api.updatePreferences(account, timezone);
     if (epoch !== this.generation || current.user?.account_id !== account.userId) throw new DOMException('Account changed', 'AbortError');
+    this.refresh?.abort();
     this.publish({ session: current });
     void queryClient.invalidateQueries({ predicate: query => ['insights', 'insight-activity', 'insight-progress'].includes(String(query.queryKey[0])) });
     this.channel?.postMessage('session');
@@ -144,6 +176,7 @@ class SessionCoordinator {
     const epoch = this.generation;
     const current = await this.api.changePassword(account, body);
     if (epoch !== this.generation || current.user?.account_id !== account.userId) throw new DOMException('Account changed', 'AbortError');
+    this.refresh?.abort();
     this.publish({ session: current });
     this.channel?.postMessage('session');
   }

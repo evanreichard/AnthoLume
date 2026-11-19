@@ -29,11 +29,11 @@ export function WorkerRecovery({ duringReading = false }: { duringReading?: bool
     <section className={duringReading ? styles.recoveryDock : styles.notice} aria-label="App update and recovery">
       {duringReading ? <>
         <span>{workerVisible ? reading.update === 'blocked' ? 'Update waiting' : 'App recovery' : 'Connection unavailable'}</span>
-        {sessionError && <button disabled={sessionBusy} onClick={() => void session.bootstrap()}>Reconnect</button>}
+        {sessionError && <button disabled={sessionBusy} onClick={() => void session.checkSession()}>Reconnect</button>}
         {workerVisible && <button disabled={busy} aria-label={workerLabel} onClick={() => void retry()}>{busy ? 'Retrying…' : reading.update === 'available' ? 'Update app' : 'Retry update'}</button>}
         <button onClick={() => setDetails(true)} aria-haspopup="dialog">Recovery details</button>
       </> : <>
-        {sessionError && <><ErrorNotice error={sessionError} /><button disabled={sessionBusy} onClick={() => void session.bootstrap()}>Reconnect</button></>}
+        {sessionError && <><ErrorNotice error={sessionError} /><button disabled={sessionBusy} onClick={() => void session.checkSession()}>Reconnect</button></>}
         {workerVisible && <><p>{message}</p><ErrorNotice error={error} /><button disabled={busy} onClick={() => void retry()}>{busy ? 'Retrying…' : workerLabel}</button></>}
       </>}
     </section>
