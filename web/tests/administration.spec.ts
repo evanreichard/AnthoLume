@@ -55,8 +55,10 @@ test('Import lists independent rules and opens editors on demand', async ({ page
   await imports.getByRole('button', { name: 'New arrivals', exact: true }).click();
   await expect(dialog.getByRole('combobox', { name: 'Schedule', exact: true })).toHaveValue('changes');
   const configured = await (await page.request.get(`${server.origin}/api/v1/admin/auto-import`)).json();
-  expect(configured.map(({ settings }: { settings: { name: string; watch: boolean; interval_minutes: number } }) => [settings.name, settings.watch, settings.interval_minutes]))
-    .toEqual([['Archive books', false, 360], ['New arrivals', true, 15]]);
+  expect(configured).toMatchObject([
+    { settings: { name: 'Archive books', watch: false, interval_minutes: 360 } },
+    { settings: { name: 'New arrivals', watch: true } },
+  ]);
   const enable = dialog.getByRole('switch', { name: 'Enable', exact: true });
   await expect(enable).toBeChecked();
   await enable.focus();
@@ -65,9 +67,28 @@ test('Import lists independent rules and opens editors on demand', async ({ page
   await page.keyboard.press('Space');
   await expect(enable).toBeChecked();
   await expect(dialog.locator('dl').filter({ hasText: 'Last scan' }).locator('dt')).toHaveText(['Last scan', 'Next scan']);
+  await expect(dialog.getByText('Not scheduled', { exact: true })).toBeVisible();
+  const lastScan = dialog.locator('dl time').first();
+  const previousScan = await lastScan.getAttribute('datetime');
   await dialog.getByRole('button', { name: 'Scan', exact: true }).click();
-  await expect(dialog.getByRole('status')).toHaveText('Scan queued.');
+  await expect(lastScan).not.toHaveAttribute('datetime', previousScan!);
+  const result = dialog.getByRole('status');
+  await expect(result.getByText('Last Scan', { exact: true })).toBeVisible();
+  await expect(result.getByText('Manual', { exact: true })).toBeVisible();
+  await expect(result.locator('div').filter({ hasText: 'Found in source' }).locator('dd')).toHaveText('0');
+  await expect(result.locator('div').filter({ hasText: 'Added this scan' }).locator('dd')).toHaveText('0');
+  await dialog.screenshot({ path: testInfo.outputPath('auto-import-result-320.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await dialog.screenshot({ path: testInfo.outputPath('auto-import-result-390.png') });
+  await page.setViewportSize({ width: 320, height: 800 });
+  await expect(dialog.getByText('Not scheduled', { exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('auto-import-320.png') });
+  const completedScan = await lastScan.getAttribute('datetime');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  const ruleRow = imports.getByRole('button', { name: 'New arrivals', exact: true });
+  await expect(ruleRow).toHaveAccessibleDescription(/Last scan:/);
+  await expect(ruleRow.locator('time')).toHaveAttribute('datetime', completedScan!);
+  await ruleRow.click();
   await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
   await dialog.getByRole('button', { name: 'Delete rule' }).click();
   await expect(imports.getByRole('button', { name: 'New arrivals', exact: true })).toHaveCount(0);

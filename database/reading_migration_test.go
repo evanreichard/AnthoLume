@@ -25,7 +25,7 @@ func TestReadingAdditiveMigrationPreservesHistoricalRowsAndOrphans(t *testing.T)
 	for _, name := range []string{"reading_user_deleted", "reading_document_deleted", "reading_document_tombstoned", "reading_progress_writer", "reading_progress_update_writer", "reading_activity_writer"} {
 		exec("DROP TRIGGER " + name)
 	}
-	exec("DROP TABLE reading_receipts; DROP TABLE reading_heads; ALTER TABLE documents DROP COLUMN storage_root_id; DROP TABLE storage_roots; DELETE FROM goose_db_version WHERE version_id>=20261126000000")
+	exec("DROP TABLE reading_receipts; DROP TABLE reading_heads; ALTER TABLE documents DROP COLUMN storage_root_id; DROP TABLE auto_import_rules; DROP TABLE storage_roots; DELETE FROM goose_db_version WHERE version_id>=20261126000000")
 	exec(`INSERT INTO users(id,pass,auth_hash) VALUES('alice','synthetic','hash')`)
 	external := filepath.Join(root, "external-library")
 	exec(`INSERT INTO documents(id,title,basepath,filepath) VALUES('tie','Untouched title',?,'./original.epub'),('older','Older',NULL,NULL),('empty',NULL,NULL,NULL),('docker-book','Docker book','/data/documents','./book.epub')`, external)

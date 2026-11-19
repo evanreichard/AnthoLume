@@ -159,6 +159,7 @@ func TestRestoreUpgradedFullBackupOnFreshInstance(t *testing.T) {
 	source.exec(`ALTER TABLE documents DROP COLUMN storage_root_id;
  ALTER TABLE documents DROP COLUMN basepath;
  ALTER TABLE documents ADD COLUMN basepath TEXT;
+ DROP TABLE auto_import_rules;
  DROP TABLE storage_roots;
  DELETE FROM goose_db_version WHERE version_id>=20261126000000;
  INSERT INTO documents(id,title,filepath,basepath) VALUES('legacy','Legacy book','book.epub',?)`, library)

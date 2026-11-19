@@ -801,7 +801,7 @@ components:
         root_id: {$ref: '#/components/schemas/StorageRootID'}
         enabled: {type: boolean}
         watch: {type: boolean}
-        interval_minutes: {type: integer, minimum: 1, maximum: 1440}
+        interval_minutes: {type: integer, minimum: 1, maximum: 1440, description: Ignored for on-change rules.}
         reference: {type: boolean}
     AdminAutoImport:
       type: object
@@ -812,7 +812,19 @@ components:
         settings: {$ref: '#/components/schemas/AdminAutoImportSettings'}
         status: {type: string, enum: [idle, complete, errors, unavailable]}
         last_scan: {type: string}
+        last_scan_trigger: {$ref: '#/components/schemas/AutoImportScanTrigger'}
         next_scan: {type: string}
+        scan_summary: {$ref: '#/components/schemas/AutoImportScanSummary'}
+    AutoImportScanTrigger:
+      type: string
+      enum: [on_change, scheduled, manual, initial]
+    AutoImportScanSummary:
+      type: object
+      additionalProperties: false
+      required: [books_added, source_total]
+      properties:
+        books_added: {type: integer, minimum: 0}
+        source_total: {type: integer, minimum: 0, description: EPUBs found in the rule's source during the scan.}
     AdminRestoreApply:
       type: object
       additionalProperties: false

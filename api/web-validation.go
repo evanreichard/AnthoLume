@@ -101,7 +101,7 @@ func (r decodedParameterRouter) FindRoute(request *http.Request) (*routers.Route
 	return route, params, nil
 }
 func (api *API) registerV1(router *gin.Engine) error {
-	spec, err := GetSwagger()
+	spec, err := loadOpenAPISpec()
 	if err != nil {
 		return err
 	}

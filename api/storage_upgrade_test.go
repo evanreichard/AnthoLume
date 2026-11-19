@@ -33,7 +33,7 @@ func TestStorageUpgradeRelativeBasePath(t *testing.T) {
 
 			// Recreate pre-upgrade storage columns and a historical device position.
 			f.exec(`ALTER TABLE documents DROP COLUMN storage_root_id;
- DROP TABLE storage_roots; DELETE FROM goose_db_version WHERE version_id>=20261126000000;
+ DROP TABLE auto_import_rules; DROP TABLE storage_roots; DELETE FROM goose_db_version WHERE version_id>=20261126000000;
  INSERT INTO documents(id,filepath,basepath) VALUES('legacy-book','./legacy.epub',?);
  INSERT INTO devices(id,user_id,device_name) VALUES('legacy-device','owner','Reader');
  INSERT INTO document_progress(user_id,document_id,device_id,progress,percentage) VALUES('owner','legacy-book','legacy-device','original position',0.25)`, legacyBase)

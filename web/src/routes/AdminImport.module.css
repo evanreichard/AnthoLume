@@ -1,3 +1,4 @@
+.rowScanTime { display: block; margin-top: .15rem; color: var(--muted); font-size: .75rem; }
 .form { display: grid; gap: 10px; min-width: 0; }
 .form > label:not(.setting) { display: grid; gap: 4px; }
 .setting, .enabled { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; }
@@ -18,3 +19,13 @@
 .scanTimes { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: .8rem; row-gap: .4rem; margin: 0; padding: .55rem 0 .7rem; border-top: 1px solid var(--line); font-size: .8125rem; line-height: 1.4; }
 .scanTimes dt { color: var(--muted); }
 .scanTimes dd { margin: 0; text-align: end; font-variant-numeric: tabular-nums; }
+.scanResult { padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .75rem; background: var(--hero); }
+.resultHeader { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
+.resultHeading { margin: 0; font-size: .8125rem; font-weight: 700; }
+.resultTrigger { color: var(--muted); font-size: .75rem; }
+.resultMetrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: .4rem 0 0; }
+.resultMetrics > div { display: flex; flex-direction: column-reverse; gap: .15rem; min-width: 0; }
+.resultMetrics > div + div { border-inline-start: 1px solid var(--line); padding-inline-start: .75rem; }
+.resultMetrics dt, .resultNote { color: var(--muted); font-size: .8125rem; line-height: 1.35; }
+.resultMetrics dd { margin: 0; font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.resultNote { margin: .35rem 0 0; }

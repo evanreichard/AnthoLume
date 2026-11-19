@@ -198,7 +198,7 @@ func TestAppShellBoundaryAndRetirementBootstrap(t *testing.T) {
 	require.Error(t, CheckAppAssets(fstest.MapFS{}))
 }
 func TestWebResponseSchemasAreClosed(t *testing.T) {
-	spec, err := GetSwagger()
+	spec, err := loadOpenAPISpec()
 	require.NoError(t, err)
 	require.NoError(t, spec.Validate(context.Background()))
 	f := newWebFixture(t)

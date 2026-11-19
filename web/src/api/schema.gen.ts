@@ -673,6 +673,7 @@ export interface components {
             root_id: components["schemas"]["StorageRootID"];
             enabled: boolean;
             watch: boolean;
+            /** @description Ignored for on-change rules. */
             interval_minutes: number;
             reference: boolean;
         };
@@ -682,7 +683,16 @@ export interface components {
             /** @enum {string} */
             status: "idle" | "complete" | "errors" | "unavailable";
             last_scan?: string;
+            last_scan_trigger?: components["schemas"]["AutoImportScanTrigger"];
             next_scan?: string;
+            scan_summary?: components["schemas"]["AutoImportScanSummary"];
+        };
+        /** @enum {string} */
+        AutoImportScanTrigger: "on_change" | "scheduled" | "manual" | "initial";
+        AutoImportScanSummary: {
+            books_added: number;
+            /** @description EPUBs found in the rule's source during the scan. */
+            source_total: number;
         };
         AdminRestoreApply: {
             token: string;

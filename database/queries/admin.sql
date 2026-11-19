@@ -83,30 +83,36 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: UpdateAutoImportRule :execrows
 UPDATE auto_import_rules
-SET name = ?, root_id = ?, enabled = ?, watch = ?, interval_minutes = ?, reference = ?, next_scan = ?, status = 'idle', last_scan = NULL
+SET name = ?, root_id = ?, enabled = ?, watch = ?, interval_minutes = ?, reference = ?, next_scan = ?, status = 'idle', last_scan = NULL,
+    books_added = NULL, source_total = NULL, last_scan_trigger = NULL, next_scan_trigger = NULL
 WHERE id = ?;
 
 -- name: QueueAutoImportRule :execrows
-UPDATE auto_import_rules SET next_scan = ? WHERE id = ? AND enabled;
+UPDATE auto_import_rules SET next_scan = ?, next_scan_trigger = 'manual' WHERE id = ? AND enabled;
 
 -- name: DeleteAutoImportRule :execrows
 DELETE FROM auto_import_rules WHERE id = ?;
 
 -- name: ListAutoImportRules :many
-SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status
+SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status, books_added, source_total, last_scan_trigger, next_scan_trigger
 FROM auto_import_rules
 ORDER BY name COLLATE NOCASE, id;
 
 -- name: ListEnabledAutoImportRules :many
-SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status
+SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status, books_added, source_total, last_scan_trigger, next_scan_trigger
 FROM auto_import_rules
 WHERE enabled
 ORDER BY COALESCE(next_scan, ''), id;
 
 -- name: GetEnabledAutoImportRule :one
-SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status
+SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status, books_added, source_total, last_scan_trigger, next_scan_trigger
 FROM auto_import_rules
 WHERE id = ? AND enabled;
 
 -- name: RecordAutoImportScan :exec
-UPDATE auto_import_rules SET last_scan = ?, next_scan = ?, status = ? WHERE id = ?;
+UPDATE auto_import_rules
+SET last_scan = sqlc.narg(last_scan), status = sqlc.arg(status), books_added = sqlc.narg(books_added),
+    source_total = sqlc.narg(source_total), last_scan_trigger = sqlc.narg(last_scan_trigger),
+    next_scan = CASE WHEN next_scan IS sqlc.narg(previous_next_scan) THEN sqlc.narg(next_scan) ELSE next_scan END,
+    next_scan_trigger = CASE WHEN next_scan IS sqlc.narg(previous_next_scan) THEN sqlc.narg(next_scan_trigger) ELSE next_scan_trigger END
+WHERE id = sqlc.arg(id);

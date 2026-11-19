@@ -109,6 +109,16 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	workerCtx, stopWorker := context.WithCancel(context.Background())
+	workerDone := make(chan struct{})
+	go func() {
+		defer close(workerDone)
+		app.RunAutoImports(workerCtx)
+	}()
+	defer func() {
+		stopWorker()
+		<-workerDone
+	}()
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/sw.js" {
 			if variant, err := os.ReadFile(filepath.Join(*data, "worker-update")); err == nil {

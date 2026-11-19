@@ -42,6 +42,10 @@ type AutoImportRule struct {
 	LastScan        *string `json:"last_scan"`
 	NextScan        *string `json:"next_scan"`
 	Status          string  `json:"status"`
+	BooksAdded      *int64  `json:"books_added"`
+	SourceTotal     *int64  `json:"source_total"`
+	LastScanTrigger *string `json:"last_scan_trigger"`
+	NextScanTrigger *string `json:"next_scan_trigger"`
 }
 
 type Device struct {

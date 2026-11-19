@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAutoImportScheduleAndWatch(t *testing.T) {
+func TestAutoImportWatchAndManualScan(t *testing.T) {
 	f := newWebFixture(t)
 	f.register("owner")
 	f.exec(`UPDATE users SET admin=1 WHERE id='owner'`)
@@ -38,24 +38,69 @@ func TestAutoImportScheduleAndWatch(t *testing.T) {
 	require.Eventually(t, func() bool { return read().LastScan != nil }, 8*time.Second, 150*time.Millisecond)
 	current := read()
 	require.Equal(t, config, current.Settings)
+	require.Equal(t, new(Initial), current.LastScanTrigger)
 	require.EqualValues(t, "complete", current.Status)
-	last, err := time.Parse(time.RFC3339, *current.LastScan)
-	require.NoError(t, err)
-	next, err := time.Parse(time.RFC3339, *current.NextScan)
-	require.NoError(t, err)
-	require.Equal(t, 20*time.Minute, next.Sub(last))
+	require.Nil(t, current.NextScan)
+	require.Equal(t, &AutoImportScanSummary{}, current.ScanSummary)
 	require.Zero(t, f.count("documents"))
 	book, err := os.ReadFile("../_test_files/alice.epub")
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "new.epub"), book, 0600))
-	require.Eventually(t, func() bool { return f.count("documents") == 1 }, 12*time.Second, 200*time.Millisecond)
+	require.Eventually(t, func() bool { return *read().LastScan != *current.LastScan }, 12*time.Second, 200*time.Millisecond)
+	current = read()
+	require.Nil(t, current.NextScan)
+	require.Equal(t, new(OnChange), current.LastScanTrigger)
+	require.Equal(t, &AutoImportScanSummary{BooksAdded: 1, SourceTotal: 1}, current.ScanSummary)
+	require.Equal(t, 1, f.count("documents"))
 	var root, path string
 	require.NoError(t, f.db.DB.QueryRow(`SELECT storage_root_id,filepath FROM documents`).Scan(&root, &path))
 	require.Equal(t, importsRoot, root)
 	require.Equal(t, "new.epub", path)
-	require.NoError(t, os.Rename(dir, dir+"-offline"))
+	f.exec(`INSERT INTO documents (id, title) VALUES ('another-book', 'Not in source')`)
 	queued := f.call("POST", query, map[string]any{}, nil)
 	require.Equal(t, 204, queued.status, string(queued.body))
+	require.Eventually(t, func() bool {
+		rule := read()
+		return *rule.LastScan != *current.LastScan
+	}, 8*time.Second, 150*time.Millisecond)
+	current = read()
+	require.Equal(t, new(Manual), current.LastScanTrigger)
+	require.Equal(t, &AutoImportScanSummary{SourceTotal: 1}, current.ScanSummary)
+	require.NoError(t, os.Rename(dir, dir+"-offline"))
+	queued = f.call("POST", query, map[string]any{}, nil)
+	require.Equal(t, 204, queued.status, string(queued.body))
 	require.Eventually(t, func() bool { return read().Status == "unavailable" }, 8*time.Second, 150*time.Millisecond)
-	require.Equal(t, 1, f.count("documents"))
+	current = read()
+	require.Nil(t, current.NextScan)
+	require.Equal(t, new(Manual), current.LastScanTrigger)
+	require.Nil(t, current.ScanSummary)
+	require.Equal(t, 2, f.count("documents"))
+}
+
+func TestAutoImportIntervalSchedulesNextScan(t *testing.T) {
+	f := newWebFixture(t)
+	f.register("owner")
+	f.exec(`UPDATE users SET admin=1 WHERE id='owner'`)
+	endpoint := "/api/v1/admin/auto-import"
+	config := AdminAutoImportSettings{Name: "Inbox", RootId: importsRoot, Reference: true, Enabled: true, IntervalMinutes: 60}
+	out := f.call("PUT", endpoint, config, nil)
+	require.Equal(t, 204, out.status, string(out.body))
+	read := func() AdminAutoImport {
+		return decodeWeb[[]AdminAutoImport](t, f.call("GET", endpoint, nil, nil))[0]
+	}
+	caches := make(map[string]autoImportCache)
+	require.True(t, f.api.runAutoImport(context.Background(), read().Id, false, caches))
+	current := read()
+	require.NotNil(t, current.LastScan)
+	require.NotNil(t, current.NextScan)
+	last, err := time.Parse(time.RFC3339, *current.LastScan)
+	require.NoError(t, err)
+	next, err := time.Parse(time.RFC3339, *current.NextScan)
+	require.NoError(t, err)
+	require.Equal(t, time.Hour, next.Sub(last))
+	require.Equal(t, new(Initial), current.LastScanTrigger)
+
+	f.exec(`UPDATE auto_import_rules SET next_scan='2000-01-01T00:00:00.000Z' WHERE id=?`, current.Id)
+	require.True(t, f.api.runAutoImport(context.Background(), current.Id, false, caches))
+	require.Equal(t, new(Scheduled), read().LastScanTrigger)
 }

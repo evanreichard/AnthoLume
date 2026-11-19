@@ -72,7 +72,7 @@ func TestChunkedJSONLimitAndReceiptResponseSchema(t *testing.T) {
 	response.Body.Close()
 	assertProblem(t, webResponse{response.StatusCode, response.Header, body}, 413, "invalid_request")
 	require.Zero(t, f.count("reading_receipts"))
-	spec, err := GetSwagger()
+	spec, err := loadOpenAPISpec()
 	require.NoError(t, err)
 	progress := progressPayload("0", 0.1)
 	progress["event_id"] = strings.ToUpper(progress["event_id"].(string))

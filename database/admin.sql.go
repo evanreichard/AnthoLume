@@ -186,7 +186,7 @@ func (q *Queries) GetAdminSessionRole(ctx context.Context, arg GetAdminSessionRo
 }
 
 const getEnabledAutoImportRule = `-- name: GetEnabledAutoImportRule :one
-SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status
+SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status, books_added, source_total, last_scan_trigger, next_scan_trigger
 FROM auto_import_rules
 WHERE id = ? AND enabled
 `
@@ -205,6 +205,10 @@ func (q *Queries) GetEnabledAutoImportRule(ctx context.Context, id string) (Auto
 		&i.LastScan,
 		&i.NextScan,
 		&i.Status,
+		&i.BooksAdded,
+		&i.SourceTotal,
+		&i.LastScanTrigger,
+		&i.NextScanTrigger,
 	)
 	return i, err
 }
@@ -370,7 +374,7 @@ func (q *Queries) ListAdminUsers(ctx context.Context, afterID string) ([]ListAdm
 }
 
 const listAutoImportRules = `-- name: ListAutoImportRules :many
-SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status
+SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status, books_added, source_total, last_scan_trigger, next_scan_trigger
 FROM auto_import_rules
 ORDER BY name COLLATE NOCASE, id
 `
@@ -395,6 +399,10 @@ func (q *Queries) ListAutoImportRules(ctx context.Context) ([]AutoImportRule, er
 			&i.LastScan,
 			&i.NextScan,
 			&i.Status,
+			&i.BooksAdded,
+			&i.SourceTotal,
+			&i.LastScanTrigger,
+			&i.NextScanTrigger,
 		); err != nil {
 			return nil, err
 		}
@@ -410,7 +418,7 @@ func (q *Queries) ListAutoImportRules(ctx context.Context) ([]AutoImportRule, er
 }
 
 const listEnabledAutoImportRules = `-- name: ListEnabledAutoImportRules :many
-SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status
+SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status, books_added, source_total, last_scan_trigger, next_scan_trigger
 FROM auto_import_rules
 WHERE enabled
 ORDER BY COALESCE(next_scan, ''), id
@@ -436,6 +444,10 @@ func (q *Queries) ListEnabledAutoImportRules(ctx context.Context) ([]AutoImportR
 			&i.LastScan,
 			&i.NextScan,
 			&i.Status,
+			&i.BooksAdded,
+			&i.SourceTotal,
+			&i.LastScanTrigger,
+			&i.NextScanTrigger,
 		); err != nil {
 			return nil, err
 		}
@@ -464,7 +476,7 @@ func (q *Queries) PruneAdminJobs(ctx context.Context, kind string) error {
 }
 
 const queueAutoImportRule = `-- name: QueueAutoImportRule :execrows
-UPDATE auto_import_rules SET next_scan = ? WHERE id = ? AND enabled
+UPDATE auto_import_rules SET next_scan = ?, next_scan_trigger = 'manual' WHERE id = ? AND enabled
 `
 
 type QueueAutoImportRuleParams struct {
@@ -481,21 +493,36 @@ func (q *Queries) QueueAutoImportRule(ctx context.Context, arg QueueAutoImportRu
 }
 
 const recordAutoImportScan = `-- name: RecordAutoImportScan :exec
-UPDATE auto_import_rules SET last_scan = ?, next_scan = ?, status = ? WHERE id = ?
+UPDATE auto_import_rules
+SET last_scan = ?1, status = ?2, books_added = ?3,
+    source_total = ?4, last_scan_trigger = ?5,
+    next_scan = CASE WHEN next_scan IS ?6 THEN ?7 ELSE next_scan END,
+    next_scan_trigger = CASE WHEN next_scan IS ?6 THEN ?8 ELSE next_scan_trigger END
+WHERE id = ?9
 `
 
 type RecordAutoImportScanParams struct {
-	LastScan *string `json:"last_scan"`
-	NextScan *string `json:"next_scan"`
-	Status   string  `json:"status"`
-	ID       string  `json:"id"`
+	LastScan         *string `json:"last_scan"`
+	Status           string  `json:"status"`
+	BooksAdded       *int64  `json:"books_added"`
+	SourceTotal      *int64  `json:"source_total"`
+	LastScanTrigger  *string `json:"last_scan_trigger"`
+	PreviousNextScan *string `json:"previous_next_scan"`
+	NextScan         *string `json:"next_scan"`
+	NextScanTrigger  *string `json:"next_scan_trigger"`
+	ID               string  `json:"id"`
 }
 
 func (q *Queries) RecordAutoImportScan(ctx context.Context, arg RecordAutoImportScanParams) error {
 	_, err := q.db.ExecContext(ctx, recordAutoImportScan,
 		arg.LastScan,
-		arg.NextScan,
 		arg.Status,
+		arg.BooksAdded,
+		arg.SourceTotal,
+		arg.LastScanTrigger,
+		arg.PreviousNextScan,
+		arg.NextScan,
+		arg.NextScanTrigger,
 		arg.ID,
 	)
 	return err
@@ -532,7 +559,8 @@ func (q *Queries) UpdateAdminUser(ctx context.Context, arg UpdateAdminUserParams
 
 const updateAutoImportRule = `-- name: UpdateAutoImportRule :execrows
 UPDATE auto_import_rules
-SET name = ?, root_id = ?, enabled = ?, watch = ?, interval_minutes = ?, reference = ?, next_scan = ?, status = 'idle', last_scan = NULL
+SET name = ?, root_id = ?, enabled = ?, watch = ?, interval_minutes = ?, reference = ?, next_scan = ?, status = 'idle', last_scan = NULL,
+    books_added = NULL, source_total = NULL, last_scan_trigger = NULL, next_scan_trigger = NULL
 WHERE id = ?
 `
 

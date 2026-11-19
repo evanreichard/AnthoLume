@@ -20,7 +20,7 @@ import (
 const autoImportQuiet = 5 * time.Second
 
 func autoImportResponse(row database.AutoImportRule) AdminAutoImport {
-	return AdminAutoImport{
+	rule := AdminAutoImport{
 		Id:       row.ID,
 		LastScan: row.LastScan,
 		NextScan: row.NextScan,
@@ -34,6 +34,14 @@ func autoImportResponse(row database.AutoImportRule) AdminAutoImport {
 			Reference:       row.Reference,
 		},
 	}
+	if row.LastScanTrigger != nil {
+		trigger := AutoImportScanTrigger(*row.LastScanTrigger)
+		rule.LastScanTrigger = &trigger
+	}
+	if row.BooksAdded != nil && row.SourceTotal != nil {
+		rule.ScanSummary = &AutoImportScanSummary{BooksAdded: int(*row.BooksAdded), SourceTotal: int(*row.SourceTotal)}
+	}
+	return rule
 }
 
 func (api *API) autoImportSource(ctx context.Context, id string) (AdminStorageRoot, error) {
@@ -208,7 +216,7 @@ type autoImportCache struct {
 	files     map[string]observedImportFile
 }
 
-func (api *API) runAutoImport(ctx context.Context, id string, caches map[string]autoImportCache) bool {
+func (api *API) runAutoImport(ctx context.Context, id string, changed bool, caches map[string]autoImportCache) bool {
 	if !api.restoreGate.TryRLock() {
 		return false
 	}
@@ -224,12 +232,29 @@ func (api *API) runAutoImport(ctx context.Context, id string, caches map[string]
 	if err != nil {
 		return false
 	}
-	if active, err := q.HasActiveAdminImportJob(ctx, jobTime(time.Now())); err != nil || active {
+	now := jobTime(time.Now())
+	var trigger *string
+	switch {
+	case cfg.NextScan != nil && *cfg.NextScan <= now:
+		trigger = cfg.NextScanTrigger
+		if trigger == nil && cfg.LastScan == nil {
+			trigger = new(string(Initial))
+		} else if trigger == nil && !cfg.Watch {
+			trigger = new(string(Scheduled))
+		}
+	case cfg.Watch && changed:
+		trigger = new(string(OnChange))
+	default:
+		return false
+	}
+	if active, err := q.HasActiveAdminImportJob(ctx, now); err != nil || active {
 		return false
 	}
 	source, err := api.autoImportSource(ctx, cfg.RootID)
 	status := "complete"
 	var retry bool
+	var imported, found int64
+	var booksAdded, sourceTotal *int64
 	if err == nil {
 		cache := caches[id]
 		if cache.source != source.Path || cache.reference != cfg.Reference || cache.files == nil {
@@ -238,6 +263,7 @@ func (api *API) runAutoImport(ctx context.Context, id string, caches map[string]
 		seen := map[string]observedImportFile{}
 		candidates := map[string]observedImportFile{}
 		results, scanErr := api.importBooks(ctx, cfg.RootID, cfg.Reference, false, func(root *os.Root, name string) bool {
+			found++
 			info, statErr := root.Stat(name)
 			if statErr != nil {
 				retry = true
@@ -262,10 +288,14 @@ func (api *API) runAutoImport(ctx context.Context, id string, caches map[string]
 					status = "errors"
 					continue
 				}
+				if result.Status == "imported" {
+					imported++
+				}
 				seen[result.File] = candidates[result.File]
 			}
 			cache.files = seen
 			caches[id] = cache
+			booksAdded, sourceTotal = &imported, &found
 		}
 	}
 	if err != nil {
@@ -275,17 +305,27 @@ func (api *API) runAutoImport(ctx context.Context, id string, caches map[string]
 	if ctx.Err() != nil {
 		return false
 	}
-	now := time.Now()
-	delay := time.Duration(cfg.IntervalMinutes) * time.Minute
-	if retry {
-		delay = min(delay, autoImportQuiet)
+	finished := time.Now()
+	last := jobTime(finished)
+	var next, nextTrigger *string
+	switch {
+	case retry:
+		next = new(jobTime(finished.Add(autoImportQuiet)))
+		nextTrigger = trigger
+	case !cfg.Watch:
+		next = new(jobTime(finished.Add(time.Duration(cfg.IntervalMinutes) * time.Minute)))
+		nextTrigger = new(string(Scheduled))
 	}
-	last, next := jobTime(now), jobTime(now.Add(delay))
 	return q.RecordAutoImportScan(ctx, database.RecordAutoImportScanParams{
-		ID:       id,
-		LastScan: &last,
-		NextScan: &next,
-		Status:   status,
+		ID:               id,
+		LastScan:         &last,
+		LastScanTrigger:  trigger,
+		PreviousNextScan: cfg.NextScan,
+		NextScan:         next,
+		NextScanTrigger:  nextTrigger,
+		Status:           status,
+		BooksAdded:       booksAdded,
+		SourceTotal:      sourceTotal,
 	}) == nil
 }
 
@@ -301,7 +341,7 @@ func (api *API) RunAutoImports(ctx context.Context) {
 		defer watcher.Close()
 		events, watchErrors = watcher.Events, watcher.Errors
 	} else {
-		log.Warn("Auto-import filesystem watch unavailable; scheduled scans remain active")
+		log.Warn("Auto-import filesystem watch unavailable; on-change rules will not detect changes")
 	}
 	tick := time.NewTicker(2 * time.Second)
 	defer tick.Stop()
@@ -348,12 +388,13 @@ func (api *API) RunAutoImports(ctx context.Context) {
 				id := row.Id
 				enabled[id] = true
 				eventTime, hasEvent := pending[id]
-				due := row.NextScan == nil || *row.NextScan <= jobTime(now)
+				due := row.NextScan != nil && *row.NextScan <= jobTime(now)
 				if !row.Settings.Watch {
 					delete(pending, id)
 				}
-				if due || row.Settings.Watch && hasEvent && !now.Before(eventTime) {
-					if api.runAutoImport(ctx, id, caches) {
+				changed := row.Settings.Watch && hasEvent && !now.Before(eventTime)
+				if due || changed {
+					if api.runAutoImport(ctx, id, changed, caches) {
 						delete(pending, id)
 					}
 				}

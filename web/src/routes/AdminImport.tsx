@@ -18,6 +18,7 @@ const modes = [['copy', 'Copy'], ['reference', 'Reference']] as const;
 const statusLabels = { idle: 'Waiting for scan', complete: 'Scan complete', errors: 'Some files failed', unavailable: 'Source or destination unavailable' };
 const ruleKey = (account: Account) => ['auto-import-rules', account] as const;
 const jobsKey = (account: Account) => ['admin-jobs', account, 'import'] as const;
+const formatScanTime = (value: string) => new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 const initialFields = (rule?: Rule): Fields => ({ source: rule?.settings.root_id ?? 'imports', mode: rule?.settings.reference ? 'reference' : 'copy' });
 const mappedSource = (roots: StorageRoot[], id: string) => roots.find(root => root.id === id && !root.managed && root.path);
 const validFields = (roots: StorageRoot[], fields: Fields) => !!mappedSource(roots, fields.source) && (fields.mode === 'reference' || roots.some(root => root.id === 'library' && root.path));
@@ -67,7 +68,10 @@ export function AdminImport({ account, roots, readOnly }: Context & { readOnly: 
     {rules.data?.length === 0 && <p>No auto-import rules yet.</p>}
     {rules.data?.map(rule => {
       const source = roots.find(root => root.id === rule.settings.root_id)?.label ?? rule.settings.root_id;
-      return <ActionRow key={rule.id} divider label={rule.settings.name} value={<>{source}<br />{rule.settings.reference ? 'Reference' : 'Copy'} · {rule.settings.enabled ? statusLabels[rule.status] : 'Paused'}</>} onClick={() => setEditor(rule)} />;
+      return <ActionRow key={rule.id} divider label={rule.settings.name} value={<>
+        {source}<br />{rule.settings.reference ? 'Reference' : 'Copy'} · {rule.settings.enabled ? statusLabels[rule.status] : 'Paused'}
+        <span className={layout.rowScanTime}>Last scan: {rule.last_scan ? <time dateTime={rule.last_scan}>{formatScanTime(rule.last_scan)}</time> : 'Never'}</span>
+      </>} onClick={() => setEditor(rule)} />;
     })}
     {latest && <div className={styles.adminCardDetails}>
       <p role="status">{latest.status === 'running' ? 'Import running…' : latest.status === 'succeeded' ? 'Import finished' : `Import ${latest.status}`}</p>
@@ -114,8 +118,10 @@ function ManualImport({ account, roots, running, close }: Context & { running: b
   </Dialog>;
 }
 
+const scanTriggers = { on_change: 'On Change', scheduled: 'Scheduled', manual: 'Manual', initial: 'Initial' } satisfies Record<components['schemas']['AutoImportScanTrigger'], string>;
+
 const cadences = [
-  { id: 'changes', label: 'On changes', watch: true, minutes: 15 },
+  { id: 'changes', label: scanTriggers.on_change, watch: true, minutes: null },
   { id: 'hourly', label: 'Every hour', watch: false, minutes: 60 },
   { id: 'six-hourly', label: 'Every 6 hours', watch: false, minutes: 360 },
   { id: 'twelve-hourly', label: 'Every 12 hours', watch: false, minutes: 720 },
@@ -129,30 +135,33 @@ function RuleEditor({ account, roots, rule, close }: Context & { rule?: Rule; cl
   const fields = rule ? draft : defaultRoots(roots, draft);
   const [name, setName] = useState(rule?.settings.name ?? '');
   const [enabled, setEnabled] = useState(rule?.settings.enabled ?? true);
-  const savedCadence = rule && cadences.find(item => item.watch === rule.settings.watch && item.minutes === rule.settings.interval_minutes);
+  const savedCadence = rule && cadences.find(item => item.watch === rule.settings.watch && (item.watch || item.minutes === rule.settings.interval_minutes));
   const [cadence, setCadence] = useState(() => rule ? savedCadence?.id ?? 'custom' : 'changes');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const [notice, setNotice] = useState('');
+  const [scanRequest, setScanRequest] = useState<{ lastScan: Rule['last_scan'] } | null>(null);
+  const summary = rule?.scan_summary;
+  const scanQueued = scanRequest !== null && scanRequest.lastScan === rule?.last_scan;
   const before = rule?.settings;
   const selectedCadence = cadences.find(item => item.id === cadence);
-  const body = { name: name.trim(), root_id: fields.source, enabled, watch: selectedCadence?.watch ?? before?.watch ?? true, interval_minutes: selectedCadence?.minutes ?? before?.interval_minutes ?? 15, reference: fields.mode === 'reference' };
+  const body = { name: name.trim(), root_id: fields.source, enabled, watch: selectedCadence?.watch ?? before?.watch ?? true, interval_minutes: selectedCadence?.minutes ?? before?.interval_minutes ?? 1, reference: fields.mode === 'reference' };
   const dirty = !before || Object.entries(body).some(([key, value]) => before[key as keyof typeof before] !== value);
   const valid = !!name.trim() && (!enabled || validFields(roots, fields));
   async function run(action: 'save' | 'scan' | 'delete') {
-    setBusy(true); setError(null); setNotice('');
+    setBusy(true); setError(null); setScanRequest(null);
     try {
       if (action === 'save') await session.api.saveAdminAutoImport(account, body, rule?.id);
-      else if (rule && action === 'scan') await session.api.queueAdminAutoImport(account, rule.id);
-      else if (rule) await session.api.deleteAdminAutoImport(account, rule.id);
+      else if (rule && action === 'scan') {
+        await session.api.queueAdminAutoImport(account, rule.id);
+        setScanRequest({ lastScan: rule.last_scan });
+      } else if (rule) await session.api.deleteAdminAutoImport(account, rule.id);
       await client.invalidateQueries({ queryKey: ruleKey(account) });
-      if (action === 'scan') setNotice('Scan queued.'); else close();
+      if (action !== 'scan') close();
     } catch (err) {
       setError(err instanceof ReadingHTTPError && err.problem.code === 'auto_import_overlap' ? new Error('This source already has an enabled rule.') : err);
     } finally { setBusy(false); }
   }
-  const format = (value: string) => new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   const onClose = () => { if (!busy) close(); };
   if (confirmDelete) return <Dialog title="Delete import rule?" onClose={onClose}>
     <p>Imported books will stay in the library.</p><ErrorNotice error={error} />
@@ -171,7 +180,7 @@ function RuleEditor({ account, roots, rule, close }: Context & { rule?: Rule; cl
         const value = cadences.find(item => item.id === event.target.value)?.id;
         if (value) setCadence(value);
       }}>
-        {before && !savedCadence && <option value="custom" disabled>Custom ({before.watch ? 'watch + ' : ''}{before.interval_minutes} min)</option>}
+        {before && !savedCadence && <option value="custom" disabled>Custom ({before.interval_minutes} min)</option>}
         {cadences.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
       </Dropdown></label>
       <div className={layout.ruleStatus}>
@@ -183,11 +192,23 @@ function RuleEditor({ account, roots, rule, close }: Context & { rule?: Rule; cl
           </span>
         </label>
         {rule && <dl className={layout.scanTimes}>
-          <dt>Last scan</dt><dd>{rule.last_scan ? <time dateTime={rule.last_scan}>{format(rule.last_scan)}</time> : 'Never'}</dd>
-          <dt>Next scan</dt><dd>{rule.next_scan ? <time dateTime={rule.next_scan}>{format(rule.next_scan)}</time> : 'Not scheduled'}</dd>
+          <dt>Last scan</dt><dd>{rule.last_scan ? <time dateTime={rule.last_scan}>{formatScanTime(rule.last_scan)}</time> : 'Never'}</dd>
+          <dt>Next scan</dt><dd>{rule.next_scan ? <time dateTime={rule.next_scan}>{formatScanTime(rule.next_scan)}</time> : 'Not scheduled'}</dd>
         </dl>}
       </div>
-      {notice && <p role="status">{notice}</p>}
+      {rule && (scanQueued || rule.last_scan) && <div className={layout.scanResult} role="status">
+        <div className={layout.resultHeader}>
+          <p className={layout.resultHeading}>{scanQueued ? 'Scan Queued' : 'Last Scan'}</p>
+          {!scanQueued && rule.last_scan_trigger && <span className={layout.resultTrigger}>{scanTriggers[rule.last_scan_trigger]}</span>}
+        </div>
+        {scanQueued ? <p className={layout.resultNote}>Waiting for the import worker.</p> : summary ? <>
+          <dl className={layout.resultMetrics}>
+            <div><dt>Found in source</dt><dd>{summary.source_total.toLocaleString()}</dd></div>
+            <div><dt>Added this scan</dt><dd>{summary.books_added.toLocaleString()}</dd></div>
+          </dl>
+          {rule.status === 'errors' && <p className={layout.resultNote}>Some files failed to import.</p>}
+        </> : <p className={layout.resultNote}>{statusLabels[rule.status]}</p>}
+      </div>}
       <ErrorNotice error={error} />
     </form>
   </Dialog>;
