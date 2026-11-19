@@ -38,7 +38,7 @@ function ConflictChoice({ conflict }: { conflict: Conflict }) {
   async function choose(choice: 'local' | 'server') {
     if (!observed) return;
     setBusy(true); setError(null);
-    try { await reading.resolveConflict(conflict.eventId, choice, observed.server.revision); setObserved(null); }
+    try { await reading.resolveConflict(conflict.eventId, choice, observed.server.revision, observed.local); setObserved(null); }
     catch (failure) { setError(failure); setObserved(null); } finally { setBusy(false); }
   }
   const title = reading.books.find((book) => bookKey(book.ref) === bookKey(conflict.ref))?.title || 'Shared book';

@@ -33,7 +33,7 @@ export interface ReadingActions {
   replay(): Promise<void>;
   applyUpdate(): Promise<void>;
   refreshConflict(eventId: string): Promise<Conflict>;
-  resolveConflict(eventId: string, choice: 'local' | 'server', observedRevision: string): Promise<void>;
+  resolveConflict(eventId: string, choice: 'local' | 'server', observedRevision: string, reviewedLocal: Checkpoint): Promise<void>;
 }
 export type ProviderProps = { access: ReadingAccess; bridge: ReadingBridge; onSessionExpired: (account: Account) => void; children: ReactNode };
 // Separate UUID scopes from the older username scopes, even for usernames that look like UUIDs.

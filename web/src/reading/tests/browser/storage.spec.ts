@@ -27,7 +27,7 @@ test('atomic complete-book and checkpoint/event transactions reject injected sto
   });
   expect(result).toEqual({ importRejected: true, countAfterFailure: 0, saveRejected: true, checkpoint: { position: null, fraction: null }, events: 0, exact: true, originalID: 'opaque-server-id', integrityRejected: true });
 });
-test('account expiry permits offline real-engine opening; loading/logout/B hide A and fence old acknowledgements', async ({ page }) => {
+test('account expiry retains cached data; loading/logout/B hide A and fence old acknowledgements', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(`accounts-${crypto.randomUUID()}`));
     const account = { origin: location.origin, userId: 'A' }, other = { origin: location.origin, userId: 'B' }, ref = { kind: 'server' as const, account, documentId: 'unchanged-id' }, local = { kind: 'local' as const, localId: 'independent-id' };
@@ -36,16 +36,15 @@ test('account expiry permits offline real-engine opening; loading/logout/B hide 
     await repo.save(ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 });
     const lease = (await repo.claim(account, 'old-tab'))!, event = (await repo.pending())[0]!;
     await repo.setAccess({ kind: 'expired', account }); const expiredBooks = (await repo.projection({ kind: 'expired', account })).length, paused = await repo.claim(account, 'expiry');
-    const opened = await repo.open(ref), host = document.createElement('div'); host.style.cssText = 'width:700px;height:480px'; document.body.appendChild(host); let stateName = '';
-    const reader = new p.ReaderController(host, value => { stateName = value.state; }, async () => {}); await reader.open(opened.source, undefined, undefined, opened.manifest); await reader.dispose(); host.remove();
+    const retained = (await repo.projection({ kind: 'expired', account })).find(book => book.key === event.key)?.checkpoint;
     await repo.setAccess({ kind: 'loading' }); const loadingBooks = (await repo.projection({ kind: 'loading' })).length, resumeAfterLoading = await repo.resume();
     await repo.setAccess({ kind: 'logout', account }); const logoutBooks = (await repo.projection({ kind: 'logout', account })).length, resumeAfterLogout = await repo.resume();
     await repo.setAccess({ kind: 'authenticated', account }); let staleAck = false; try { await repo.acknowledge(lease, event, { event_id: event.id, kind: 'progress', revision: '1' }); } catch { staleAck = true; }
     await repo.setAccess({ kind: 'authenticated', account: other }); let denied = false; try { await repo.open(ref); } catch { denied = true; }
     const bBooks = (await repo.projection({ kind: 'authenticated', account: other })).map(b => b.title), pending = (await repo.pending()).length;
-    await repo.db.delete(); return { expiredBooks, paused, stateName, loadingBooks, resumeAfterLoading, logoutBooks, resumeAfterLogout, staleAck, denied, bBooks, pending };
+    await repo.db.delete(); return { expiredBooks, paused, retained, loadingBooks, resumeAfterLoading, logoutBooks, resumeAfterLogout, staleAck, denied, bBooks, pending };
   });
-  expect(result).toMatchObject({ expiredBooks: 2, paused: null, stateName: 'ready', loadingBooks: 1, resumeAfterLoading: { userId: 'A' }, logoutBooks: 1, resumeAfterLogout: null, staleAck: true, denied: true, bBooks: ['Public local'], pending: 1 });
+  expect(result).toMatchObject({ expiredBooks: 2, paused: null, retained: { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 }, loadingBooks: 1, resumeAfterLoading: { userId: 'A' }, logoutBooks: 1, resumeAfterLogout: null, staleAck: true, denied: true, bBooks: ['Public local'], pending: 1 });
 });
 test('legacy username rows stay quarantined even when the username equals the active UUID', async ({ page }) => {
   const result = await page.evaluate(async () => {

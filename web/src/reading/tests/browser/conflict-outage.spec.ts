@@ -58,7 +58,11 @@ test('a full lease of needs-refresh conflicts cannot starve activity beyond the 
     await repo.install(ref, bytes, null, null, null, { document_id: ref.documentId, revision: '0', position: null, fraction: null, device_id: null, updated_at: null });
     const device = await repo.device(account), id = crypto.randomUUID(), realNow = Date.now; let clock = realNow(); Date.now = () => ++clock;
     try {
-      for (let n = 0; n < 32; n++) await repo.save(ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 });
+      for (let n = 0; n < 32; n++) {
+        const distinct = { ...ref, documentId: `conflicted-${n}` };
+        await repo.install(distinct, bytes, null, null, null, { document_id: distinct.documentId, revision: '0', position: null, fraction: null, device_id: null, updated_at: null });
+        await repo.save(distinct, { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 });
+      }
       await repo.credit(ref, { event_id: id, document_id: ref.documentId, device_id: device.id, start_time: '2026-01-01T00:00:00Z', duration: 30, start_fraction: .1, end_fraction: .2 });
     } finally { Date.now = realNow; }
     let activity = 0, progress = 0;

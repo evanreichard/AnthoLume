@@ -6,6 +6,7 @@ export type Receipt = components['schemas']['Receipt'];
 export type Submission = { kind: 'progress'; payload: ProgressEvent } | { kind: 'activity'; payload: ActivityEvent };
 export const revisionPattern = /^(0|[1-9][0-9]{0,17})$/;
 const fraction = (value: number) => Number.isFinite(value) && value >= 0 && value <= 1;
+export const validProgressPosition = (position: string, value: number) => typeof position === 'string' && position.length > 0 && position.length <= 4096 && fraction(value);
 const identifier = (value: string) => typeof value === 'string' && value.length > 0 && value.length <= 128;
 const timestamp = (value: string) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
 
@@ -16,7 +17,7 @@ export function validSubmission(event: Submission): boolean {
   if (!identifier(value.event_id) || !identifier(value.document_id) || !identifier(value.device_id)) return false;
   if (event.kind === 'progress') {
     const p = event.payload;
-    return typeof p.base_revision === 'string' && revisionPattern.test(p.base_revision) && fraction(p.fraction) && typeof p.position === 'string' && p.position.length > 0 && p.position.length <= 4096 && timestamp(p.observed_at);
+    return typeof p.base_revision === 'string' && revisionPattern.test(p.base_revision) && validProgressPosition(p.position, p.fraction) && timestamp(p.observed_at);
   }
   const a = event.payload;
   return Number.isInteger(a.duration) && a.duration >= 0 && a.duration <= 86400 && timestamp(a.start_time) && fraction(a.start_fraction) && fraction(a.end_fraction) && a.start_fraction <= a.end_fraction;

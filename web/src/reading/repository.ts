@@ -4,7 +4,7 @@ import { accountKey, refKey } from './types';
 import { blobSource, hashSource, sourceLimits, type Source } from './source';
 import { validateEPUB } from './content-policy';
 import type { BookManifest } from './book-manifest';
-import { receiptFor, validSubmission, revisionPattern, type Submission } from './wire';
+import { receiptFor, validSubmission, validProgressPosition, revisionPattern, type Submission } from './wire';
 import { validState } from './protocol';
 import type { CapturedActivity } from './activity';
 import { StagingWriter } from './staging-writer';
@@ -23,16 +23,19 @@ export type Lease = { scope: string; owner: string; fence: number; epoch: number
 type Decision = { id: string; outcome: 'receipt' | 'server' | 'local'; receipt?: S['Receipt']; replacement?: string; at: string };
 type ConflictRow = Omit<Conflict, 'server'> & { server: S['ReadingState'] | null; scope: string; key: string; refreshed: boolean; currentRevision?: string; refreshError?: string | null };
 type Head = { key: string; state: S['ReadingState'] };
+type ProgressDraft = { key: string; observedAt: string; position: string; fraction: number };
 type Meta = { key: string; value: unknown };
 export class ReadingDB extends Dexie {
   sources!: Table<SourceRow, string>; sourceChunks!: Table<SourceChunk, string>;
   books!: Table<BookRow, string>; events!: Table<EventRow, string>; access!: Table<AccessRow, string>;
   leases!: Table<Lease, string>; decisions!: Table<Decision, string>; conflicts!: Table<ConflictRow, string>;
+  progressDrafts!: Table<ProgressDraft, string>;
   heads!: Table<Head, string>; meta!: Table<Meta, string>; history!: Table<{ id: string; eventId: string; choice: string; observed: S['ReadingState']; replacement: string | null; at: string }, string>;
   constructor(name = 'antholume-reading-v1') {
     super(name);
     this.version(1).stores({ books: '&key,scope', events: '&id,scope,key,created', access: '&key', leases: '&scope', decisions: '&id', conflicts: '&eventId,scope,key', heads: '&key', meta: '&key', history: '&id,eventId' });
     this.version(2).stores({ sources: '&id,key,complete,until', sourceChunks: '&key,sourceId' });
+    this.version(3).stores({ progressDrafts: '&key' });
   }
 }
 export async function checksum(input: ArrayBuffer | Blob | Source): Promise<string> { return (await hashSource(input instanceof Blob ? blobSource(input) : input instanceof ArrayBuffer ? blobSource(new Blob([input])) : input)).sha256; }
@@ -40,7 +43,7 @@ export const scopeOf = (ref: BookRef) => ref.kind === 'local' ? 'local' : accoun
 export class Repository {
   readonly stagingStats = { maxIncoming: 0, bytes: 0, chunks: 0, buffer: sourceLimits.chunkBytes };
   constructor(readonly db = new ReadingDB()) {}
-  private tables() { return [this.db.books, this.db.events, this.db.access, this.db.leases, this.db.decisions, this.db.conflicts, this.db.heads, this.db.meta, this.db.history]; }
+  private tables() { return [this.db.books, this.db.events, this.db.access, this.db.leases, this.db.decisions, this.db.conflicts, this.db.heads, this.db.meta, this.db.history, this.db.progressDrafts]; }
   async setAccess(access: ReadingAccess) {
     await this.db.transaction('rw', this.db.access, this.db.leases, this.db.meta, async () => {
       for (const row of await this.db.access.toArray()) {
@@ -331,23 +334,35 @@ export class Repository {
       if (ref.kind === 'local') await this.db.books.delete(key); else if (old) await this.db.books.put({ ...old, sourceId: undefined, bytes: null, cover: null, availability: 'unavailable' });
     });
   }
+  private async addEvent(key: string, scope: string, event: Submission) {
+    if (!validSubmission(event)) throw new Error('Invalid immutable reading event');
+    await this.db.events.add({ ...event, id: event.payload.event_id, key, scope, created: Date.now() });
+  }
+  private async hasPendingProgress(key: string) {
+    const events = await this.db.events.where('key').equals(key).filter(e => e.kind === 'progress').toArray();
+    return (await this.db.decisions.bulkGet(events.map(e => e.id))).some(decision => !decision);
+  }
+  private async enqueueProgress(draft: ProgressDraft, scope: string, document: string, device: string, revision: string) {
+    await this.addEvent(draft.key, scope, { kind: 'progress', payload: { event_id: crypto.randomUUID(), document_id: document, device_id: device, observed_at: draft.observedAt, base_revision: revision, position: draft.position, fraction: draft.fraction } });
+  }
   async save(ref: BookRef, checkpoint: Checkpoint, activity?: S['ActivityEvent']) {
     const device = ref.kind === 'server' ? await this.device(ref.account) : null;
-    await this.db.transaction('rw', this.db.books, this.db.events, this.db.heads, this.db.access, async () => {
+    await this.db.transaction('rw', [this.db.books, this.db.events, this.db.heads, this.db.access, this.db.decisions, this.db.progressDrafts, this.db.conflicts], async () => {
       if (!await this.permitted(ref)) throw new Error('Account hidden');
       const key = refKey(ref), book = await this.db.books.get(key);
       if (!book || ref.kind === 'local' && book.availability !== 'available') throw new Error('Book unavailable');
       await this.db.books.put({ ...book, checkpoint, lastReadAt: new Date().toISOString() });
       if (ref.kind === 'local') { if (activity) throw new Error('Local activity must never upload'); return; }
       const state = (await this.db.heads.get(key))?.state;
-      if (!state || !checkpoint.position || checkpoint.fraction === null) throw new Error('A known server revision and recoverable position are required');
-      const submission: Submission = { kind: 'progress', payload: { event_id: crypto.randomUUID(), document_id: ref.documentId, device_id: device!.id, observed_at: new Date().toISOString(), base_revision: state.revision, position: checkpoint.position, fraction: checkpoint.fraction } };
-      const add = async (event: Submission) => {
-        if (!validSubmission(event)) throw new Error('Invalid immutable reading event');
-        await this.db.events.add({ ...event, id: event.payload.event_id, key, scope: scopeOf(ref), created: Date.now() });
-      };
-      await add(submission);
-      if (activity) await add({ kind: 'activity', payload: activity });
+      if (!state || checkpoint.position === null || checkpoint.fraction === null || !validProgressPosition(checkpoint.position, checkpoint.fraction)) throw new Error('A known server revision and recoverable position are required');
+      const scope = scopeOf(ref), draft = { key, observedAt: new Date().toISOString(), position: checkpoint.position, fraction: checkpoint.fraction };
+      if (await this.hasPendingProgress(key)) {
+        await this.db.progressDrafts.put(draft);
+        await this.db.conflicts.where('key').equals(key).modify({ local: checkpoint, refreshed: false });
+      } else {
+        await this.enqueueProgress(draft, scope, ref.documentId, device!.id, state.revision);
+      }
+      if (activity) await this.addEvent(key, scope, { kind: 'activity', payload: activity });
     });
   }
   async credit(ref: BookRef, payload: S['ActivityEvent'], measured?: CapturedActivity) {
@@ -403,12 +418,17 @@ export class Repository {
       if (event.kind === 'progress') {
         const old = (await this.db.heads.get(event.key))?.state;
         if (!old || BigInt(receipt.revision!) > BigInt(old.revision)) await this.db.heads.put({ key: event.key, state: { document_id: event.payload.document_id, revision: receipt.revision!, position: event.payload.position, fraction: event.payload.fraction, device_id: event.payload.device_id, updated_at: event.payload.observed_at } });
+        const draft = await this.db.progressDrafts.get(event.key);
+        if (draft && !await this.hasPendingProgress(event.key)) {
+          await this.enqueueProgress(draft, event.scope, event.payload.document_id, event.payload.device_id, receipt.revision!);
+          await this.db.progressDrafts.delete(event.key);
+        }
       }
     });
   }
   async recordConflict(lease: Lease, event: EventRow, state: S['ReadingState'] | null, revision = state?.revision, refreshError: string | null = null) {
     if (event.kind !== 'progress' || !revision || !revisionPattern.test(revision) || state !== null && !validState(state, event.payload.document_id)) throw new Error('Invalid conflict state');
-    await this.db.transaction('rw', this.db.access, this.db.leases, this.db.conflicts, this.db.events, this.db.decisions, async () => {
+    await this.db.transaction('rw', [this.db.access, this.db.leases, this.db.conflicts, this.db.events, this.db.decisions, this.db.progressDrafts], async () => {
       if (!await this.current(lease) || !lease.ids.includes(event.id) || event.scope !== lease.scope) throw new Error('Stale conflict response');
       // Resolution Race - Late detail results cannot resurrect a superseded event or replace a newer observed snapshot.
       if (await this.db.decisions.get(event.id)) return;
@@ -417,7 +437,8 @@ export class Repository {
       const existing = await this.db.conflicts.get(event.id);
       if (existing?.server && (!state || BigInt(existing.server.revision) > BigInt(state.revision))) return;
       const access = (await this.db.access.get(lease.scope))!;
-      await this.db.conflicts.put({ eventId: event.id, scope: lease.scope, key: event.key, ref: { kind: 'server', account: access.account, documentId: event.payload.document_id }, local: { position: event.payload.position, fraction: event.payload.fraction }, server: state, refreshed: false, currentRevision: revision, refreshError });
+      const local = await this.db.progressDrafts.get(event.key) ?? event.payload;
+      await this.db.conflicts.put({ eventId: event.id, scope: lease.scope, key: event.key, ref: { kind: 'server', account: access.account, documentId: event.payload.document_id }, local: { position: local.position, fraction: local.fraction }, server: state, refreshed: false, currentRevision: revision, refreshError });
     });
   }
   async refreshConflict(id: string, state: S['ReadingState'], epoch: number) {
@@ -427,22 +448,25 @@ export class Repository {
       const next = { ...row, server: state, refreshed: true, currentRevision: state.revision, refreshError: null }; await this.db.conflicts.put(next); return next;
     });
   }
-  async resolve(id: string, choice: 'local' | 'server', revision: string) {
+  async resolve(id: string, choice: 'local' | 'server', revision: string, reviewedLocal?: Checkpoint) {
     await this.db.transaction('rw', this.tables(), async () => {
       const conflict = await this.db.conflicts.get(id), event = await this.db.events.get(id);
       const access = conflict && await this.db.access.get(conflict.scope);
       if (!conflict?.refreshed || !conflict.server || !access?.authenticated || !access.eligible || !event || event.kind !== 'progress' || conflict.server.revision !== revision || await this.db.decisions.get(id)) throw new Error('Refresh the conflict before choosing');
+      if (reviewedLocal && (reviewedLocal.position !== conflict.local.position || reviewedLocal.fraction !== conflict.local.fraction)) throw new Error('This device’s position changed; review the conflict again');
+      const draft = await this.db.progressDrafts.get(conflict.key);
       let replacement: string | null = null;
       if (choice === 'local') {
         replacement = crypto.randomUUID();
-        const payload = { ...event.payload, event_id: replacement, base_revision: revision, observed_at: new Date().toISOString() };
+        const payload = { ...event.payload, event_id: replacement, base_revision: revision, observed_at: draft?.observedAt ?? new Date().toISOString(), position: draft?.position ?? event.payload.position, fraction: draft?.fraction ?? event.payload.fraction };
         await this.db.events.add({ ...event, id: replacement, payload, created: Date.now() });
       }
       await this.db.decisions.add({ id, outcome: choice, replacement: replacement || undefined, at: new Date().toISOString() });
       await this.db.history.add({ id: crypto.randomUUID(), eventId: id, choice, observed: conflict.server, replacement, at: new Date().toISOString() });
       await this.db.heads.put({ key: conflict.key, state: conflict.server });
       const book = await this.db.books.get(conflict.key);
-      // Newer Local Reading - An explicit choice resolves this event, never silently supersedes later checkpoints/events.
+      await this.db.progressDrafts.delete(conflict.key);
+      // Legacy queues can have a later sealed event that this choice did not review.
       if (choice === 'server' && book && book.checkpoint.position === conflict.local.position && book.checkpoint.fraction === conflict.local.fraction) await this.db.books.put({ ...book, checkpoint: { position: conflict.server.position, fraction: conflict.server.fraction } });
       await this.db.conflicts.delete(id);
     });

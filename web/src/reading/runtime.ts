@@ -195,11 +195,11 @@ export class ReadingRuntime implements ReadingActions {
     if (generation !== this.generation) throw new Error('Account changed');
     const result = await this.repo.refreshConflict(eventId, state, access.epoch); await this.refresh(); return result;
   }
-  resolveConflict = async (eventId: string, choice: 'local' | 'server', observedRevision: string) => {
+  resolveConflict = async (eventId: string, choice: 'local' | 'server', observedRevision: string, reviewedLocal: Checkpoint) => {
     this.selectedAccount();
     const fresh = await this.refreshConflict(eventId);
     if (fresh.server.revision !== observedRevision) throw new Error('Server changed again; review the refreshed conflict before choosing');
-    await this.write(() => this.repo.resolve(eventId, choice, observedRevision)); this.schedule(0);
+    await this.write(() => this.repo.resolve(eventId, choice, observedRevision, reviewedLocal)); this.schedule(0);
   };
   dispose() { this.disposed = true; this.sync.stop(); for (const [job] of this.jobs) job.abort(); clearTimeout(this.timer); this.subscription?.unsubscribe(); this.worker.dispose(); window.removeEventListener('online', this.foreground); document.removeEventListener('visibilitychange', this.foreground); void this.accessTail.finally(() => this.repo.db.close()); }
 }
