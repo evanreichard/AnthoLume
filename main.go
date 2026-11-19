@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"io/fs"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -61,9 +62,13 @@ func cmdServer(ctx *cli.Context) error {
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(signals)
 
-	// Start server
+	listener, err := net.Listen("tcp", net.JoinHostPort(c.ListenHost, c.ListenPort))
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
 	s := server.New(c, assets)
-	s.Start()
+	s.Start(listener)
 
 	// Wait & close
 	<-signals

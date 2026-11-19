@@ -69,7 +69,6 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 	// Add server
 	api.httpServer = &http.Server{
 		Handler:           router,
-		Addr:              (":" + c.ListenPort),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    1 << 20,
@@ -163,10 +162,6 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 }
 
 func (api *API) Handler() http.Handler { return api.httpServer.Handler }
-
-func (api *API) Start() error {
-	return api.httpServer.ListenAndServe()
-}
 
 func (api *API) Serve(listener net.Listener) error {
 	return api.httpServer.Serve(listener)

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"io/fs"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -40,14 +41,14 @@ func New(c *config.Config, assets fs.FS) *server {
 }
 
 // Start server
-func (s *server) Start() {
+func (s *server) Start(listener net.Listener) {
 	log.Info("Starting server...")
 	s.wg.Add(3)
 
 	go func() {
 		defer s.wg.Done()
 
-		err := s.api.Start()
+		err := s.api.Serve(listener)
 		if err != nil && err != http.ErrServerClosed {
 			log.Error("Starting server failed: ", err)
 		}

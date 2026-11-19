@@ -1,9 +1,9 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer as createListener, isIPv4 } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { createInterface } from 'node:readline';
+import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
 const web = fileURLToPath(new URL('./', import.meta.url));
@@ -33,12 +33,6 @@ const uuidFallback = `if (!crypto.randomUUID) crypto.randomUUID = () => {
 
 async function run() {
   const root = join(repo, 'data/dev');
-  const restore = process.env.RESTORE;
-  const existing = await stat(root).catch(() => null);
-  if (restore && existing) throw new Error('dev state already exists; run make clean-dev before restoring');
-  if (!restore && !(await stat(join(root, 'antholume.db')).catch(() => null))?.size) {
-    throw new Error('No existing database at data/dev/antholume.db. Run make dev RESTORE=/path/to/backup.zip (use make clean-dev first if the dev directory already exists).');
-  }
   const ip = tailnetIP();
   const vitePort = port('DEV_PORT', 5323);
   const goPort = port('DEV_GO_PORT', 5324);
@@ -48,14 +42,22 @@ async function run() {
   const target = `http://127.0.0.1:${goPort}`;
   process.env.ANTHOLUME_BACKEND = target;
 
-  let vite, extra, backend, buildDir, cleaning;
+  let vite, extra, child, buildDir, cleaning;
   const sockets = new Set();
+  const launch = (binary, args, env) => {
+    // Dev Lock - Keep the launcher's flock alive even if the launcher is killed before the child.
+    child = spawn(binary, args, { cwd: repo, stdio: ['ignore', 'inherit', 'inherit', 9], env });
+    return new Promise(resolve => {
+      child.once('error', error => resolve(error.message));
+      child.once('exit', (code, signal) => resolve(signal || code));
+    });
+  };
   const clean = () => cleaning ??= (async () => {
     const closed = extra?.listening ? new Promise(resolve => extra.close(resolve)) : null;
     for (const socket of sockets) socket.destroy();
-    if (backend?.pid && backend.exitCode === null && backend.signalCode === null) {
-      const done = new Promise(resolve => backend.once('exit', resolve));
-      backend.kill('SIGTERM');
+    if (child?.pid && child.exitCode === null && child.signalCode === null) {
+      const done = new Promise(resolve => child.once('exit', resolve));
+      child.kill('SIGTERM');
       await done;
     }
     await closed;
@@ -102,17 +104,41 @@ async function run() {
       });
     }
 
-    buildDir = await mkdtemp(join(tmpdir(), 'antholume-dev-'));
-    const binary = join(buildDir, 'backend');
-    execFileSync('go', ['build', '-o', binary, './tools/dev'], { cwd: repo, stdio: 'inherit' });
-    backend = spawn(binary, [String(goPort)], { cwd: repo, stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, GIN_MODE: 'release' } });
-    const output = createInterface({ input: backend.stdout });
-    const ready = new Promise(resolve => output.once('line', resolve));
-    const exited = new Promise(resolve => {
-      backend.once('error', error => resolve(`Go backend could not start: ${error.message}`));
-      backend.once('exit', (code, signal) => resolve(`Go backend exited (${signal || code})`));
+    const probe = createListener();
+    await new Promise((resolve, reject) => {
+      probe.once('error', reject);
+      probe.listen(goPort, '127.0.0.1', () => probe.close(resolve));
     });
+    buildDir = await mkdtemp(join(tmpdir(), 'antholume-dev-'));
+    const setup = join(buildDir, 'setup');
+    const binary = join(buildDir, 'antholume');
+    execFileSync('go', ['build', '-o', setup, './tools/dev'], { cwd: repo, stdio: 'inherit' });
+    execFileSync('go', ['build', '-o', binary, '.'], { cwd: repo, stdio: 'inherit' });
+    const prepared = await Promise.race([stopped, launch(setup, ['prepare'], { ...process.env, GIN_MODE: 'release' })]);
+    if (prepared === undefined) return;
+    if (prepared !== 0) throw new Error(`Go setup exited (${prepared})`);
+    const cookieKey = await readFile(join(root, 'cookie-auth.key'), 'utf8');
+    const exited = launch(binary, ['serve'], {
+      ...process.env, GIN_MODE: 'release', CONFIG_PATH: root, DATA_PATH: root,
+      LISTEN_HOST: '127.0.0.1', LISTEN_PORT: String(goPort), PUBLIC_ORIGIN: target,
+      DATABASE_TYPE: 'sqlite', DATABASE_NAME: 'antholume', REGISTRATION_ENABLED: 'false', DEMO_MODE: 'false',
+      COOKIE_AUTH_KEY: cookieKey, COOKIE_ENC_KEY: '', COOKIE_SECURE: 'false', COOKIE_HTTP_ONLY: 'true',
+    }).then(result => `Go backend exited (${result})`);
+    const cancelStartup = new AbortController();
+    const startup = AbortSignal.any([cancelStartup.signal, AbortSignal.timeout(30_000)]);
+    const ready = (async () => {
+      while (!startup.aborted) {
+        try {
+          const response = await fetch(`${target}/api/v1/session`, { signal: startup });
+          await response.body?.cancel();
+          if (response.ok) return 'ready';
+        } catch { /* The normal server has not begun accepting requests yet. */ }
+        await delay(100);
+      }
+      return 'Go backend did not become ready';
+    })();
     const result = await Promise.race([stopped, exited, ready]);
+    cancelStartup.abort();
     if (result === undefined) return;
     if (result !== 'ready') throw new Error(result);
     for (const address of [local, tailnet].filter(Boolean)) {

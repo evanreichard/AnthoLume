@@ -25,6 +25,7 @@
             golangci-lint
             nodejs
             python3Packages.grip
+            util-linux
           ];
           shellHook = ''
             export PATH=$PATH:~/go/bin

@@ -8,16 +8,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"log"
-	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/alexedwards/argon2id"
 	"reichard.io/antholume/api"
@@ -29,8 +25,8 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	args := os.Args[1:]
-	if len(args) != 1 {
-		log.Fatal("usage: dev-backend <loopback-port|clean>")
+	if len(args) != 1 || (args[0] != "prepare" && args[0] != "clean") {
+		log.Fatal("usage: dev-setup <prepare|clean>")
 	}
 	data, err := filepath.Abs("data")
 	if err == nil {
@@ -48,18 +44,6 @@ func run(ctx context.Context, data, action, restore, resetUser string) error {
 	if info, err := os.Lstat(data); err != nil || !info.IsDir() {
 		return fmt.Errorf("expected a local data directory at %s", data)
 	}
-	lock, err := os.OpenFile(filepath.Join(data, ".dev.lock"), os.O_CREATE|os.O_RDWR, 0600)
-	if err != nil {
-		return err
-	}
-	defer lock.Close()
-	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		if errors.Is(err, syscall.EWOULDBLOCK) {
-			return errors.New("dev is running; stop it first")
-		}
-		return err
-	}
-
 	root := filepath.Join(data, "dev")
 	rootInfo, err := os.Lstat(root)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -94,12 +78,6 @@ func run(ctx context.Context, data, action, restore, resetUser string) error {
 		return errors.New("no existing database at data/dev/antholume.db; run make dev RESTORE=/path/to/backup.zip (use make clean-dev first if the dev directory already exists)")
 	}
 
-	addr := net.JoinHostPort("127.0.0.1", action)
-	ln, err := net.Listen("tcp4", addr)
-	if err != nil {
-		return err
-	}
-	defer ln.Close()
 	if input != nil {
 		if err := os.Mkdir(root, 0700); err != nil {
 			return err
@@ -112,61 +90,40 @@ func run(ctx context.Context, data, action, restore, resetUser string) error {
 		}
 	}()
 
-	for _, name := range []string{"CONFIG_PATH", "DATA_PATH"} {
-		if err := os.Setenv(name, root); err != nil {
-			return err
-		}
-	}
-	cfg := config.Load()
-	cfg.PublicOrigin, cfg.ListenPort = "http://"+addr, action
-	cfg.DBType, cfg.DBName = "sqlite", "antholume"
-	cfg.RegistrationEnabled, cfg.DemoMode = false, false
-	cfg.CookieSecure, cfg.CookieHTTPOnly = false, true
-	cfg.CookieAuthKey, err = cookieKey(root)
+	key, err := cookieKey(root)
 	if err != nil {
 		return err
 	}
-	cfg.CookieEncKey = ""
-
-	db := database.NewMgr(cfg)
-	defer db.DB.Close()
-	app, err := api.NewAPI(db, cfg, os.DirFS("."))
-	if err != nil {
-		return err
-	}
-	if input != nil {
-		if err := app.RestoreFreshInstance(ctx, input); err != nil {
-			return fmt.Errorf("restore %s: %w", restore, err)
+	if input != nil || resetUser != "" {
+		cfg := &config.Config{
+			Version: "develop", ConfigPath: root, DataPath: root, DBType: "sqlite", DBName: "antholume",
+			PublicOrigin: "http://127.0.0.1", CookieAuthKey: key, CookieHTTPOnly: true,
 		}
-	}
-	if resetUser != "" {
-		if err := resetPassword(ctx, db.DB, resetUser); err != nil {
-			return err
+		cfg.EnsureDirectories()
+		db := database.NewMgr(cfg)
+		defer db.DB.Close()
+		if input != nil {
+			app, err := api.NewAPI(db, cfg, os.DirFS("."))
+			if err != nil {
+				return err
+			}
+			if err := app.RestoreFreshInstance(ctx, input); err != nil {
+				return fmt.Errorf("restore %s: %w", restore, err)
+			}
 		}
-		log.Printf("Reset password for dev account %q", resetUser)
+		if resetUser != "" {
+			if err := resetPassword(ctx, db.DB, resetUser); err != nil {
+				return err
+			}
+			log.Printf("Reset password for dev account %q", resetUser)
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	initialized = true
 
-	ctx, stop := context.WithCancel(ctx)
-	defer stop()
-	go func() { _, _ = io.Copy(io.Discard, os.Stdin); stop() }()
-	done := make(chan error, 1)
-	go func() { done <- app.Serve(ln) }()
-	fmt.Println("ready")
-	select {
-	case err := <-done:
-		if !errors.Is(err, http.ErrServerClosed) {
-			return err
-		}
-		return nil
-	case <-ctx.Done():
-		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		return app.Shutdown(shutdown)
-	}
+	return nil
 }
 
 func cookieKey(root string) (string, error) {

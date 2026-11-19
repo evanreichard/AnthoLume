@@ -42,12 +42,12 @@ check_generation:
 
 .PHONY: dev dev-tailnet clean-dev clean-dev-tailnet
 dev:
-	node web/dev.mjs
+	bash web/dev.sh start
 
 dev-tailnet: dev
 
 clean-dev:
-	go run ./tools/dev clean
+	bash web/dev.sh clean
 
 clean-dev-tailnet: clean-dev
 

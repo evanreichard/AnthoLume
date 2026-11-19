@@ -14,6 +14,7 @@ import (
 type Config struct {
 	// Server Config
 	Version      string
+	ListenHost   string
 	ListenPort   string
 	PublicOrigin string
 
@@ -59,6 +60,7 @@ func Load() *Config {
 		PublicOrigin:        strings.TrimSpace(getEnv("PUBLIC_ORIGIN", "")),
 		ConfigPath:          getEnv("CONFIG_PATH", "/config"),
 		DataPath:            getEnv("DATA_PATH", "/data"),
+		ListenHost:          strings.TrimSpace(getEnv("LISTEN_HOST", "")),
 		ListenPort:          getEnv("LISTEN_PORT", "8585"),
 		DBType:              trimLowerString(getEnv("DATABASE_TYPE", "SQLite")),
 		DBName:              trimLowerString(getEnv("DATABASE_NAME", "antholume")),

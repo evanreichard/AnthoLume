@@ -91,6 +91,7 @@ Backups always include the database; **Database + Library files** also includes 
 | CONFIG_PATH          | /config       | Directory where to store SQLite's DB                                       |
 | DATA_PATH            | /data         | Directory where to store the documents and cover metadata                  |
 | PUBLIC_ORIGIN        | Required      | Exact browser origin (HTTPS, or HTTP for loopback development)             |
+| LISTEN_HOST          |               | Interface address to bind; empty listens on all interfaces                |
 | LISTEN_PORT          | 8585          | Port the server listens at                                                 |
 | LOG_LEVEL            | info          | Set server log level                                                       |
 | REGISTRATION_ENABLED | false         | Whether to allow registration (applies to both WebApp & KOSync API)        |
