@@ -75,7 +75,7 @@ export const test = base.extend<{ isolateServer: void }, { server: Server }>({
 });
 export { expect };
 export async function register(page: import('@playwright/test').Page, origin: string, username: string) {
-  await page.goto(`${origin}/app/register`);
+  await page.goto(`${origin}/register`);
   await page.getByLabel('Username', { exact: true }).fill(username);
   await page.getByLabel('Password', { exact: true }).fill('synthetic-public-password');
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
@@ -83,7 +83,7 @@ export async function register(page: import('@playwright/test').Page, origin: st
   await expect(page.getByRole('heading', { name: 'Public book 01', exact: true })).toBeVisible();
 }
 export async function signIn(page: import('@playwright/test').Page, origin: string, username: string) {
-  await page.goto(`${origin}/app/login`);
+  await page.goto(`${origin}/login`);
   await page.getByLabel('Username', { exact: true }).fill(username);
   await page.getByLabel('Password', { exact: true }).fill('synthetic-public-password');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();

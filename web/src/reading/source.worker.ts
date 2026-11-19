@@ -78,38 +78,64 @@ function safeName(bytes: Uint8Array) {
 }
 function extras(bytes: Uint8Array) { for (let p = 0; p < bytes.length;) { const id = u16(bytes, p), length = u16(bytes, p + 2); requireZIP(id !== 1 && id !== 0x7075 && p + 4 + length <= bytes.length, 'ZIP64/alternate path/extra'); p += 4 + length; } }
 function limit(name: string) { return /\.css$/i.test(name) ? L.cssBytes : /\.(?:xhtml|html|xml|opf|ncx|svg)$/i.test(name) ? L.textBytes : L.entryBytes; }
-async function index(reader: RangeReader): Promise<ZipIndex> {
+async function index(reader: RangeReader, directoryOnly: boolean): Promise<ZipIndex> {
   const size = reader.source.size, tailStart = Math.max(0, size - 65557), tail = await reader.read(tailStart, size - tailStart);
   let end = tail.length - 22; while (end >= 0 && u32(tail, end) !== 0x06054b50) end--;
   requireZIP(end >= 0 && end + 22 + u16(tail, end + 20) === tail.length, 'end record');
   const count = u16(tail, end + 10), central = u32(tail, end + 16), centralSize = u32(tail, end + 12);
   requireZIP(!u16(tail, end + 4) && !u16(tail, end + 6) && u16(tail, end + 8) === count && count > 0 && count <= L.entries && centralSize <= L.centralBytes && central + centralSize === tailStart + end, 'central bounds/count/ZIP64');
-  const entries: ZipEntry[] = [], names = new Set<string>(); let position = central, expanded = 0;
+  await reader.releaseReads();
+  const directory = new Uint8Array(centralSize);
+  for (let p = 0; p < centralSize; p += L.chunkBytes) {
+    const window = directory.subarray(p, p + L.chunkBytes);
+    await reader.read(central + p, window.length, window);
+  }
+  const entries: ZipEntry[] = [], names = new Set<string>(); let position = 0, expanded = 0;
   for (let n = 0; n < count; n++) {
-    const h = await reader.read(position, 46); requireZIP(u32(h, 0) === 0x02014b50, 'central signature');
+    const h = directory.subarray(position, position + 46); requireZIP(h.length === 46 && u32(h, 0) === 0x02014b50, 'central signature');
     const flags = u16(h, 8), method = u16(h, 10), compressed = u32(h, 20), full = u32(h, 24), nl = u16(h, 28), extra = u16(h, 30), comment = u16(h, 32), offset = u32(h, 42);
-    requireZIP(validZipFlags(method, flags) && !u16(h, 34) && nl > 0 && nl <= 2048 && position + 46 + nl + extra + comment <= central + centralSize, 'flags/method/header bounds');
-    const nameBytes = await reader.read(position + 46, nl), name = safeName(nameBytes), normalized = name.replace(/\/$/, ''); requireZIP(!names.has(normalized), 'duplicate name'); names.add(normalized);
-    extras(await reader.read(position + 46 + nl, extra));
+    requireZIP(validZipFlags(method, flags) && !u16(h, 34) && nl > 0 && nl <= 2048 && position + 46 + nl + extra + comment <= centralSize, 'flags/method/header bounds');
+    const name = safeName(directory.subarray(position + 46, position + 46 + nl)), normalized = name.replace(/\/$/, ''); requireZIP(!names.has(normalized), 'duplicate name'); names.add(normalized);
+    extras(directory.subarray(position + 46 + nl, position + 46 + nl + extra));
     requireZIP(full <= limit(name) && full <= Math.max(1, compressed) * L.ratio && (method !== 0 || compressed === full), 'declared entry/ratio budget'); expanded += full; requireZIP(expanded <= L.expandedBytes, 'expanded disk capacity');
-    const local = await reader.read(offset, 30); requireZIP(u32(local, 0) === 0x04034b50 && u16(local, 6) === flags && u16(local, 8) === method && u16(local, 26) === nl, 'local header');
-    const lx = u16(local, 28), data = offset + 30 + nl + lx; requireZIP(data + compressed <= central, 'local data bounds');
-    const localName = await reader.read(offset + 30, nl); requireZIP(localName.every((v, i) => v === nameBytes[i]), 'local name'); extras(await reader.read(offset + 30 + nl, lx));
-    const crc = u32(h, 16);
-    for (const [p, expected] of [[14, crc], [18, compressed], [22, full]]) requireZIP(u32(local, p!) === expected || !!(flags & 8) && u32(local, p!) === 0, 'local/central disagreement');
-    let entryEnd = data + compressed;
-    if (flags & 8) { const descriptor = await reader.read(entryEnd, Math.min(16, central - entryEnd)), p = u32(descriptor, 0) === 0x08074b50 ? 4 : 0; requireZIP(u32(descriptor, p) === crc && u32(descriptor, p + 4) === compressed && u32(descriptor, p + 8) === full, 'descriptor'); entryEnd += p + 12; }
-    entries.push({ name, offset, data, size: compressed, expanded: full, crc, flags, method });
-    Object.assign(entries[entries.length - 1]!, { end: entryEnd }); position += 46 + nl + extra + comment;
+    entries.push({ name, offset, local: { nameLength: nl, end: 0 }, size: compressed, expanded: full, crc: u32(h, 16), flags, method });
+    position += 46 + nl + extra + comment;
+  }
+  requireZIP(position === centralSize, 'central count');
+  await retire(directory);
+  const ranges = [...entries].sort((a, b) => a.offset - b.offset);
+  requireZIP(ranges[0]?.offset === 0, 'overlap/hidden entry');
+  for (const [n, e] of ranges.entries()) {
+    const end = ranges[n + 1]?.offset ?? central;
+    requireZIP(e.offset + 30 + e.local!.nameLength + e.size + (e.flags & 8 ? 12 : 0) <= end, 'overlap/hidden entry');
+    e.local!.end = end;
+  }
+  if (!directoryOnly) for (const e of ranges) {
+    e.data = await localDataOffset(reader, e, e.local!);
+    delete e.local;
     await reader.releaseReads();
   }
-  requireZIP(position === central + centralSize, 'central count');
-  const ranges = [...entries].sort((a, b) => a.offset - b.offset) as (ZipEntry & { end: number })[];
-  requireZIP(ranges[0]?.offset === 0 && ranges.every((e, n) => e.end === (ranges[n + 1]?.offset ?? central)), 'overlap/hidden entry');
   return { entries, expanded };
 }
+async function localDataOffset(reader: RangeReader, e: ZipEntry, { nameLength, end }: NonNullable<ZipEntry['local']>) {
+  requireZIP(e.offset + 30 + nameLength <= end && end <= reader.source.size, 'local header bounds');
+  const h = await reader.read(e.offset, 30);
+  requireZIP(u32(h, 0) === 0x04034b50 && u16(h, 6) === e.flags && u16(h, 8) === e.method && u16(h, 26) === nameLength, 'local header');
+  const extra = u16(h, 28), data = e.offset + 30 + nameLength + extra, entryEnd = data + e.size;
+  requireZIP(entryEnd <= end, 'local data bounds');
+  requireZIP(safeName(await reader.read(e.offset + 30, nameLength)) === e.name, 'local name');
+  extras(await reader.read(e.offset + 30 + nameLength, extra));
+  for (const [p, expected] of [[14, e.crc], [18, e.size], [22, e.expanded]]) requireZIP(u32(h, p!) === expected || !!(e.flags & 8) && u32(h, p!) === 0, 'local/central disagreement');
+  if (e.flags & 8) {
+    const descriptor = await reader.read(entryEnd, Math.min(16, end - entryEnd)), p = u32(descriptor, 0) === 0x08074b50 ? 4 : 0;
+    requireZIP(u32(descriptor, p) === e.crc && u32(descriptor, p + 4) === e.size && u32(descriptor, p + 8) === e.expanded, 'descriptor');
+    requireZIP(entryEnd + p + 12 === end, 'overlap/hidden entry');
+  } else requireZIP(entryEnd === end, 'overlap/hidden entry');
+  return data;
+}
 async function entry(reader: RangeReader, e: ZipEntry) {
-  requireZIP(e.expanded <= limit(e.name) && e.data >= 0 && e.data + e.size <= reader.source.size && (e.method === 0 || e.method === 8), 'entry bounds');
+  const dataOffset = e.local ? await localDataOffset(reader, e, e.local) : e.data;
+  requireZIP(dataOffset !== undefined && e.expanded <= limit(e.name) && dataOffset >= 0 && dataOffset + e.size <= reader.source.size && (e.method === 0 || e.method === 8), 'entry bounds');
   const bytes = new Uint8Array(e.expanded), input = new Uint8Array(32768), hash = sha256.create(); let total = 0, crc = 0;
   const output = (part: Uint8Array) => {
     const end = total + part.length;
@@ -117,7 +143,7 @@ async function entry(reader: RangeReader, e: ZipEntry) {
     crc = crc32(part, crc); hash.update(part); bytes.set(part, total); total = end;
   };
   if (e.method === 0) {
-    for (let offset = 0; offset < e.size; offset += input.length) output(await reader.read(e.data + offset, Math.min(input.length, e.size - offset), input));
+    for (let offset = 0; offset < e.size; offset += input.length) output(await reader.read(dataOffset + offset, Math.min(input.length, e.size - offset), input));
   } else {
     // Native Streaming - Avoid per-push JavaScript inflater history copies; compressed feeds bound each native expansion burst.
     if (typeof DecompressionStream === 'undefined') throw new Error('Bounded raw DEFLATE decoding unavailable on this browser');
@@ -128,7 +154,7 @@ async function entry(reader: RangeReader, e: ZipEntry) {
     void consume.catch(error => { void writer.abort(error).catch(() => undefined); });
     try {
       for (let offset = 0; offset < e.size; offset += input.length) {
-        const data = await reader.read(e.data + offset, Math.min(input.length, e.size - offset), input);
+        const data = await reader.read(dataOffset + offset, Math.min(input.length, e.size - offset), input);
         for (let p = 0; p < data.length; p += 256) await writer.write(data.subarray(p, p + 256));
       }
       await writer.close(); await consume;
@@ -145,7 +171,7 @@ host.onmessage = async event => {
   const reader = new RangeReader(event.data.source);
   Object.assign(globalThis, { __ANTHOLUME_SOURCE_METRICS__: reader.stats });
   try {
-    const result = event.data.operation === 'hash' ? await hash(reader) : event.data.operation === 'index' ? await index(reader) : await entry(reader, event.data.entry!);
+    const result = event.data.operation === 'hash' ? await hash(reader) : event.data.operation === 'index' || event.data.operation === 'directory' ? await index(reader, event.data.operation === 'directory') : await entry(reader, event.data.entry!);
     await reader.releaseReads();
     host.postMessage({ result, stats: reader.stats }, 'bytes' in result ? [result.bytes.buffer] : []);
   } catch (error) { host.postMessage({ error: error instanceof Error ? error.message : 'Source worker failed', stats: reader.stats }); }

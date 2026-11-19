@@ -28,7 +28,7 @@ test('when chapter callbacks are blocked, center taps and swipes work without en
   await expect(reader.locator('iframe')).toHaveAttribute('sandbox', 'allow-same-origin');
   const box = (await layer.boundingBox())!, x = Math.round(box.x + box.width / 2), y = Math.round(box.y + box.height / 2);
   await page.touchscreen.tap(x, y);
-  const select = reader.getByRole('button', { name: 'Select text' });
+  const select = reader.getByRole('button', { name: 'Select Text', exact: true });
   await expect(select).toBeHidden();
   const progress = reader.getByRole('button', { name: 'Reading progress and appearance' });
   await progress.tap();
@@ -45,7 +45,7 @@ test('when chapter callbacks are blocked, center taps and swipes work without en
   await select.tap();
   await expect(layer).toHaveCount(0);
   expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.localName, { x, y })).toBe('iframe');
-  await reader.getByRole('button', { name: 'Done selecting' }).tap();
+  await reader.getByRole('button', { name: 'Done', exact: true }).tap();
   await expect(layer).toBeVisible();
   const cdp = await page.context().newCDPSession(page);
   const swipe = async (dx: number) => {

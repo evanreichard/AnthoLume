@@ -35,7 +35,7 @@ try {
   await context.setExtraHTTPHeaders({ Authorization: `Basic ${Buffer.from('alice:password').toString('base64')}`, 'X-Cover-Qualification': '1' });
   measuring = true;
   let index = 0;
-  for (const prefix of ['/api/v1/documents/', '/documents/', '/api/opds/documents/']) {
+  for (const prefix of ['/api/v1/documents/', '/api/opds/documents/']) {
     const svg = `${origin}${prefix}browser-svg/cover`;
     const response = await page.goto(svg);
     assert.equal(response.status(), 200);

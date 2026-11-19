@@ -28,6 +28,22 @@ test('Settings updates timezone, manages devices and rotates the current passwor
   }
   await expect(signOut.locator('svg')).toHaveCount(1);
   await expect(signOut).toHaveText('');
+  const debug = page.getByRole('region', { name: 'Debug' });
+  const readerCache = debug.getByRole('button', { name: 'Reader Cache', exact: true });
+  await readerCache.click();
+  const cacheDialog = page.getByRole('dialog', { name: 'Reader Cache', exact: true });
+  await expect(cacheDialog.locator('dd')).toHaveText(['0 (0 B)', '0 B']);
+  await expect(cacheDialog.getByText(/will download again/)).toHaveCount(0);
+  await cacheDialog.getByRole('button', { name: 'Clear', exact: true }).click();
+  const confirmation = page.getByRole('dialog', { name: 'Clear Reader Cache?', exact: true });
+  await expect(confirmation.getByText(/will download again/)).toBeVisible();
+  await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(cacheDialog.locator('dt')).toHaveText(['Books', 'Metadata']);
+  await cacheDialog.getByRole('button', { name: 'Clear', exact: true }).click();
+  await confirmation.getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect(cacheDialog.getByRole('status')).toHaveText('Reader cache cleared.');
+  await cacheDialog.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(cacheDialog).toHaveCount(0);
   const devices = page.getByRole('region', { name: 'Devices' });
   const originalDevice = devices.getByRole('button', { name: 'Manage Original reader' });
   await expect(originalDevice).toBeVisible();
@@ -35,7 +51,7 @@ test('Settings updates timezone, manages devices and rotates the current passwor
   expect((await originalDevice.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await sync.click();
   await expect(account.getByRole('region', { name: 'Sync status' }).getByText('0 pending')).toBeVisible();
-  await expect(page).toHaveURL(`${server.origin}/app/settings?sync=open`);
+  await expect(page).toHaveURL(`${server.origin}/settings?sync=open`);
   await sync.click();
   await expect(account.getByRole('region', { name: 'Sync status' })).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
@@ -106,7 +122,7 @@ test('Devices lists ten per page without an expander', async ({ page, server }, 
     });
     expect(result.status()).toBe(200);
   }
-  await page.goto(`${server.origin}/app/settings`);
+  await page.goto(`${server.origin}/settings`);
   const devices = page.getByRole('region', { name: 'Devices' });
   const rows = devices.getByRole('listitem');
   const pager = devices.getByRole('navigation', { name: 'Device pages' });

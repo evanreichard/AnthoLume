@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures';
 
 test('standalone sign-in gates app routes and Settings signs out immediately', async ({ page, server }) => {
-  const root = `${server.origin}/app`;
+  const root = `${server.origin}`;
   const nav = page.getByRole('navigation', { name: 'Main navigation' });
   const signIn = page.getByRole('heading', { name: 'Sign in', exact: true });
   await page.addInitScript(() => {
@@ -32,7 +32,7 @@ test('standalone sign-in gates app routes and Settings signs out immediately', a
     const path = new URL(request.url()).pathname;
     if (path.startsWith('/api/v1/documents')) documents.push(path);
   });
-  for (const route of ['library', 'settings', 'sync', 'books/server/book-001', 'read/server/book-001']) {
+  for (const route of ['library', 'settings', 'books/server/book-001', 'read/server/book-001']) {
     expect((await page.goto(`${root}/${route}`))?.ok()).toBe(true);
     await expect(signIn).toBeVisible();
     await expect(page).toHaveURL(`${root}/login`);
@@ -55,7 +55,7 @@ test('standalone sign-in gates app routes and Settings signs out immediately', a
   await expect(nav.getByRole('link')).toHaveCount(3);
   await expect(nav.getByRole('link', { name: 'Library', exact: true })).toBeVisible();
   const insights = nav.getByRole('link', { name: 'Insights', exact: true });
-  await expect(insights).toHaveAttribute('href', '/app/insights');
+  await expect(insights).toHaveAttribute('href', '/insights');
   await insights.click();
   await expect(page.getByRole('heading', { name: 'Insights', exact: true })).toBeVisible();
   await page.goto(`${root}/login`);
@@ -64,8 +64,7 @@ test('standalone sign-in gates app routes and Settings signs out immediately', a
   await expect(page).toHaveURL(`${root}/settings`);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
-  await page.goto(`${root}/more`);
-  await expect(page).toHaveURL(`${root}/settings`);
+  expect((await page.request.get(`${root}/more`, { maxRedirects: 0 })).status()).toBe(404);
 
   let finishLogout!: () => void;
   const logout = new Promise<void>((resolve) => { finishLogout = resolve; });

@@ -65,7 +65,7 @@ func (s *webAPI) GetSession(ctx context.Context, _ GetSessionRequestObject) (Get
 }
 func (s *webAPI) GetCapabilities(_ context.Context, _ GetCapabilitiesRequestObject) (GetCapabilitiesResponseObject, error) {
 	c := s.api.cfg
-	return GetCapabilities200JSONResponse{RegistrationEnabled: c.RegistrationEnabled, SearchEnabled: c.SearchEnabled, DemoMode: c.DemoMode}, nil
+	return GetCapabilities200JSONResponse{RegistrationEnabled: c.RegistrationEnabled, DemoMode: c.DemoMode}, nil
 }
 func (s *webAPI) Login(ctx context.Context, r LoginRequestObject) (LoginResponseObject, error) {
 	user, hash := rawCredentials(r.Body.Username, r.Body.Password)

@@ -166,7 +166,6 @@ export function Library() {
       {importing && <p role="status">Uploading to the shared library…</p>}
       {newBook && <p role="status">Book is in the shared library. <Link to={newBook}>Open book</Link></p>}
       <ErrorNotice error={error} />
-      {capabilities?.search_enabled && <a href="/search">Find and acquire books ↗ (original site)</a>}
       <Button onClick={close}>{importing ? 'Cancel upload' : 'Done'}</Button>
     </div></Dialog>}
   </>;

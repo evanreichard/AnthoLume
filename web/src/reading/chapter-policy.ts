@@ -24,6 +24,7 @@ export class ChapterPolicy {
   readonly opf: string;
   private infoBytes = 0;
   private validatedAssets = new Set<string>();
+  private unavailableAssets = new Set<string>();
   private documents = new Map<string, { document: Document; bytes: number }>();
   readonly stats = { cachedDOMs: 0, cachedDOMBytes: 0, assetBytes: 0, urls: 0, peakDOMs: 0, peakAssetBytes: 0 };
   constructor(readonly reader: ArchiveReader, readonly manifest: BookManifest) {
@@ -74,20 +75,42 @@ export class ChapterPolicy {
     }
     return ref;
   }
+  private optional<T>(resolve: () => T): T | null {
+    try { return resolve(); } catch (error) {
+      this.reader.signal?.throwIfAborted();
+      if (!this.manifest.lazy) throw error;
+      this.countCSSDrop('unavailableAsset');
+      return null;
+    }
+  }
+  optionalAsset(value: string, entry: string, kind: AssetKind, isStatic = true) {
+    if (kind === 'paint') return this.assetReference(value, entry, kind, isStatic);
+    return this.optional(() => {
+      const ref = this.assetReference(value, entry, kind, isStatic);
+      return this.unavailableAssets.has(ref.path) ? null : ref;
+    });
+  }
+  optionalStylesheet(value: string, entry: string) {
+    return this.optional(() => {
+      const path = this.stylesheet(value, entry);
+      return this.unavailableAssets.has(path) ? null : path;
+    });
+  }
   private requireFragment(ref: ArchiveReference) {
     if (ref.fragment && !this.manifest.documents[ref.path]?.svgIds.includes(ref.fragment)) throw new Error('Unsupported or missing asset fragment');
   }
   private url(path: string) { const value = this.urls.get(path); if (!value) throw new Error('Asset not leased before chapter serialization'); return value.url; }
+  recordUnavailableAsset() { this.countCSSDrop('unavailableAsset'); }
   private countCSSDrop = (reason: CSSDropReason) => {
     const counts = this.manifest.cssDrops ??= {};
     counts[reason] = (counts[reason] ?? 0) + 1;
   };
   css(text: string, entry: string, render = false, context: 'stylesheet' | 'declarationList' = 'stylesheet') {
-    return supportedCSS(text, (value, kind) => { const ref = this.assetReference(value, entry, kind); if (render && kind !== 'paint') this.requireFragment(ref); return render && kind !== 'paint' ? this.url(ref.path) + (ref.fragment ? `#${encodeURIComponent(ref.fragment)}` : '') : value; }, context, render ? undefined : this.countCSSDrop);
+    return supportedCSS(text, (value, kind) => { const ref = this.optionalAsset(value, entry, kind); if (!ref) return null; if (render && kind !== 'paint') this.requireFragment(ref); return render && kind !== 'paint' ? this.url(ref.path) + (ref.fragment ? `#${encodeURIComponent(ref.fragment)}` : '') : value; }, context, render ? undefined : this.countCSSDrop);
   }
   htmlStyle(text: string, entry: string, render = false): string {
     requireSafeHTMLStyle(text);
-    const generated = supportedCSS(text, (value, kind) => { const ref = this.assetReference(value, entry, kind); if (render && kind !== 'paint') this.requireFragment(ref); return kind === 'paint' ? value : render ? this.url(ref.path) + (ref.fragment ? `#${encodeURIComponent(ref.fragment)}` : '') : 'blob:validated-asset'; }, 'stylesheet', render ? undefined : this.countCSSDrop);
+    const generated = supportedCSS(text, (value, kind) => { const ref = this.optionalAsset(value, entry, kind); if (!ref) return null; if (render && kind !== 'paint') this.requireFragment(ref); return kind === 'paint' ? value : render ? this.url(ref.path) + (ref.fragment ? `#${encodeURIComponent(ref.fragment)}` : '') : 'blob:validated-asset'; }, 'stylesheet', render ? undefined : this.countCSSDrop);
     requireSafeHTMLStyle(generated); return render ? generated : text;
   }
   stylesheet(value: string, entry: string): string {
@@ -110,7 +133,7 @@ export class ChapterPolicy {
   }
   private async validateAsset(path: string, pending: Set<string>) {
     if (pending.has(path) || pending.size >= 64) throw new Error('Cyclic/deep archive assets are unsupported');
-    if (this.validatedAssets.has(path)) return;
+    if (this.validatedAssets.has(path) || this.unavailableAssets.has(path)) return;
     pending.add(path);
     try {
       const media = this.roles.get(path);
@@ -129,9 +152,15 @@ export class ChapterPolicy {
       }
       for (const child of this.dependencies.get(path) || []) await this.validateAsset(child, pending);
       this.validatedAssets.add(path);
+    } catch (error) {
+      this.reader.signal?.throwIfAborted();
+      if (!this.manifest.lazy) throw error;
+      this.unavailableAssets.add(path);
+      this.countCSSDrop('unavailableAsset');
     } finally { pending.delete(path); }
   }
   private async acquire(path: string, owner: string) {
+    if (this.unavailableAssets.has(path)) return;
     const cached = this.urls.get(path); if (cached) { cached.owners.add(owner); return; }
     if (this.building.has(path)) throw new Error('Cyclic archive assets are unsupported'); this.building.add(path);
     try {
@@ -167,7 +196,9 @@ export class ChapterPolicy {
         if (paintAttributes.has(name)) replacement = this.css(`${name}:${attr.value}`, entry, true, 'declarationList').slice(name.length + 1);
         const svg = element.namespaceURI === 'http://www.w3.org/2000/svg';
         if (name === 'src' && element.localName === 'img' || name === 'background' || svg && name === 'href' && element.localName === 'image') {
-          const ref = this.assetReference(attr.value, entry, 'image', element.localName !== 'img'), dimensions = this.manifest.images[ref.path];
+          const ref = this.optionalAsset(attr.value, entry, 'image', element.localName !== 'img');
+          if (!ref) { element.removeAttributeNode(attr); continue; }
+          const dimensions = this.manifest.images[ref.path];
           this.requireFragment(ref);
           if (lazy && element.localName === 'img' && dimensions) {
             const placeholder = this.intrinsic(ref.path, entry);
@@ -176,7 +207,12 @@ export class ChapterPolicy {
           }
           replacement = this.url(ref.path) + (ref.fragment ? `#${encodeURIComponent(ref.fragment)}` : '');
         }
-        if (element.localName === 'link' && name === 'href') { const rel = (element.getAttribute('rel') || '').toLowerCase(); if (rel === 'stylesheet') replacement = this.url(this.stylesheet(attr.value, entry)); if (rel === 'coverpage') replacement = this.url(this.assetReference(attr.value, entry, 'image').path); }
+        if (element.localName === 'link' && name === 'href') {
+          const rel = (element.getAttribute('rel') || '').toLowerCase();
+          const path = rel === 'stylesheet' ? this.optionalStylesheet(attr.value, entry) : this.optionalAsset(attr.value, entry, 'image')?.path;
+          if (!path) { element.removeAttributeNode(attr); continue; }
+          replacement = this.url(path);
+        }
         if (replacement !== undefined) element.setAttributeNS(attr.namespaceURI, attr.name, replacement);
       }
     }
@@ -185,8 +221,8 @@ export class ChapterPolicy {
     const entry = this.spine[index]; if (!entry) throw new Error('Unvalidated chapter');
     if (this.manifest.lazy) for (const path of this.dependencies.get(entry) || []) await this.validateAsset(path, new Set());
     const closure = new Set<string>();
-    const collect = (path: string, root = false) => { for (const dependency of (root ? this.staticDependencies : this.dependencies).get(path) || []) if (!closure.has(dependency)) { closure.add(dependency); collect(dependency); } }; collect(entry, true);
-    for (const image of doc.querySelectorAll('img[src]')) { const ref = this.assetReference(image.getAttribute('src')!, entry, 'image', false); if (!this.manifest.images[ref.path]) { closure.add(ref.path); collect(ref.path); } }
+    const collect = (path: string, root = false) => { for (const dependency of (root ? this.staticDependencies : this.dependencies).get(path) || []) if (!closure.has(dependency) && !this.unavailableAssets.has(dependency)) { closure.add(dependency); collect(dependency); } }; collect(entry, true);
+    for (const image of doc.querySelectorAll('img[src]')) { const ref = this.optionalAsset(image.getAttribute('src')!, entry, 'image', false); if (ref && !this.manifest.images[ref.path]) { closure.add(ref.path); collect(ref.path); } }
     this.images.set(entry, []);
     if ([...closure].reduce((n, path) => n + (this.manifest.pixels[path] || 0), 0) > mediaLimits.totalPixels) throw new Error('Active chapter decoded-pixel budget exceeded');
     if ([...closure].reduce((n, path) => n + (this.reader.byName.get(path)?.expanded || 0), 0) > sourceLimits.assetBytes) throw new Error('Chapter resource working set exceeds 32 MiB');
@@ -194,8 +230,8 @@ export class ChapterPolicy {
     const meta = doc.createElementNS('http://www.w3.org/1999/xhtml', 'meta'); meta.setAttribute('http-equiv', 'Content-Security-Policy'); meta.setAttribute('content', chapterCSP); doc.head.prepend(meta); this.rewriteAssets(doc, entry, true);
   }
   async loadVisible(doc: Document, entry: string, frame: HTMLIFrameElement, viewport: DOMRect) {
-    for (const image of Array.from(doc.images)) if (!image.complete || !image.naturalWidth) await image.decode();
-    for (const image of doc.querySelectorAll<SVGImageElement>('svg image')) await this.decodeURL(image.href.baseVal);
+    for (const image of Array.from(doc.images)) if (image.hasAttribute('src') && (!image.complete || !image.naturalWidth)) await image.decode();
+    for (const image of doc.querySelectorAll<SVGImageElement>('svg image')) if (image.href.baseVal) await this.decodeURL(image.href.baseVal);
     const origin = frame.getBoundingClientRect(), visible: { image: HTMLImageElement; target: { index: number; path: string; fragment: string }; owner: string }[] = [];
     for (const target of this.images.get(entry) || []) {
       const image = doc.images[target.index]; if (!image) throw new Error('Chapter image identity changed');
@@ -210,8 +246,8 @@ export class ChapterPolicy {
     if ([...needed].reduce((n, path) => n + (this.manifest.pixels[path] || 0), 0) > mediaLimits.totalPixels) throw new Error('Visible page decoded-pixel budget exceeded');
     if ([...needed].reduce((n, path) => n + (this.reader.byName.get(path)?.expanded || 0), 0) > sourceLimits.assetBytes) throw new Error('Visible page resource working set exceeds 32 MiB');
     for (const { image, target, owner } of visible) { await this.acquire(target.path, owner); const src = this.url(target.path) + (target.fragment ? `#${encodeURIComponent(target.fragment)}` : ''); if (image.getAttribute('src') !== src) image.setAttribute('src', src); await image.decode(); }
-    for (const image of Array.from(doc.images)) if (this.isVisible(image, frame, viewport)) await image.decode();
-    for (const image of doc.querySelectorAll<SVGImageElement>('svg image')) if (this.isVisible(image, frame, viewport)) await this.decodeURL(image.href.baseVal);
+    for (const image of Array.from(doc.images)) if (image.hasAttribute('src') && this.isVisible(image, frame, viewport)) await image.decode();
+    for (const image of doc.querySelectorAll<SVGImageElement>('svg image')) if (image.href.baseVal && this.isVisible(image, frame, viewport)) await this.decodeURL(image.href.baseVal);
   }
   private isVisible(element: Element, frame: HTMLIFrameElement, viewport: DOMRect) {
     const origin = frame.getBoundingClientRect();
@@ -226,13 +262,13 @@ export class ChapterPolicy {
   pageState(doc: Document, entry: string, frame: HTMLIFrameElement, viewport: DOMRect) {
     const targets = new Map((this.images.get(entry) || []).map(target => [target.index, target])); let pending = false;
     const state: unknown[] = [];
-    for (const [index, image] of Array.from(doc.images).entries()) if (this.isVisible(image, frame, viewport)) {
+    for (const [index, image] of Array.from(doc.images).entries()) if (image.hasAttribute('src') && this.isVisible(image, frame, viewport)) {
       const target = targets.get(index), src = image.getAttribute('src') || '';
       const real = this.isAsset(src) && (!target || src !== target.placeholder);
       pending ||= !real || !image.complete || !image.naturalWidth;
       const rect = image.getBoundingClientRect(); state.push([index, src, rect.x, rect.y, rect.width, rect.height]);
     }
-    for (const image of doc.querySelectorAll<SVGImageElement>('svg image')) if (this.isVisible(image, frame, viewport)) {
+    for (const image of doc.querySelectorAll<SVGImageElement>('svg image')) if (image.href.baseVal && this.isVisible(image, frame, viewport)) {
       pending ||= !this.isAsset(image.href.baseVal) || !this.decoded.has(image.href.baseVal);
       const rect = image.getBoundingClientRect(); state.push([image.href.baseVal, rect.x, rect.y, rect.width, rect.height]);
     }

@@ -1,6 +1,6 @@
 # AnthoLume web
 
-Production compact Folio React/TypeScript frontend at `/app/`. Shared books use the production HTTP API; local books, EPUB reading, durable events and service-worker registration belong to `src/reading`. Unported workflows link to the original SSR site.
+The React/TypeScript frontend is served at `/`. Shared books use the production HTTP API. EPUB reading, local-book export, and durable reading events belong to `src/reading`. External acquisition is not exposed in the app.
 
 Node **22.23.4** is build/dev-only.
 

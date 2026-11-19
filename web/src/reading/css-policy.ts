@@ -1,8 +1,8 @@
 import * as css from 'css-tree';
 
 export type AssetKind = 'image' | 'font' | 'paint';
-export type ResolveAsset = (value: string, kind: AssetKind) => string;
-export type CSSDropReason = 'unparsed' | 'unsupportedFunction' | 'unsupportedDeclaration' | 'customProperty';
+export type ResolveAsset = (value: string, kind: AssetKind) => string | null;
+export type CSSDropReason = 'unparsed' | 'unsupportedFunction' | 'unsupportedDeclaration' | 'customProperty' | 'unavailableAsset';
 export type CSSDropCounts = Partial<Record<CSSDropReason, number>>;
 const functions = new Set('rgb rgba hsl hsla calc min max clamp linear-gradient radial-gradient repeating-linear-gradient repeating-radial-gradient translate translatex translatey scale scalex scaley rotate matrix format'.split(' '));
 const paintProperties = new Set('fill stroke clip-path mask filter marker-start marker-mid marker-end'.split(' '));
@@ -61,6 +61,11 @@ export function supportedCSS(text: string, resolve: ResolveAsset, context: 'styl
       const property = this.declaration?.property;
       const kind: AssetKind = this.atrule?.name === 'font-face' && property === 'src' ? 'font' : paintProperties.has(property || '') ? 'paint' : 'image';
       const value = resolve(node.value, kind);
+      if (value === null) {
+        if (!this.declaration) throw new Error('CSS asset outside a declaration');
+        omit.set(this.declaration, 'unavailableAsset');
+        return;
+      }
       rewritten ||= value !== node.value;
       node.value = value;
     }

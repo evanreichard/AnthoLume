@@ -1,7 +1,7 @@
 export const sourceLimits = Object.freeze({ diskBytes: 512 * 1024 * 1024, chunkBytes: 256 * 1024, centralBytes: 8 * 1024 * 1024, entries: 16384, expandedBytes: 2 * 1024 * 1024 * 1024, entryBytes: 32 * 1024 * 1024, textBytes: 4 * 1024 * 1024, cssBytes: 512 * 1024, ratio: 200, assetBytes: 32 * 1024 * 1024, chapterBytes: 8 * 1024 * 1024 });
 export type Source = { kind: 'blob'; blob: Blob; size: number; digests?: string[] } | { kind: 'idb'; database: string; id: string; size: number; digests?: string[] };
 export type SourceIntegrity = { sha256: string; protocolHash: string; digests: string[] };
-export type ZipEntry = { name: string; offset: number; data: number; size: number; expanded: number; method: number; flags: number; crc: number; digest?: string };
+export type ZipEntry = { name: string; offset: number; data?: number; local?: { nameLength: number; end: number }; size: number; expanded: number; method: number; flags: number; crc: number; digest?: string };
 export type ZipIndex = { entries: ZipEntry[]; expanded: number };
 export const blobSource = (blob: Blob): Source => ({ kind: 'blob', blob, size: blob.size });
 export type IOStats = { reads: number; readBytes: number; maxRead: number; expanded: number; peakEntry: number };
@@ -22,7 +22,7 @@ async function slot(signal?: AbortSignal): Promise<() => void> {
   if (!reserved) sourceScheduler.active++; sourceScheduler.peak = Math.max(sourceScheduler.peak, sourceScheduler.active);
   return () => { const next = waiting.shift(); sourceScheduler.queued = waiting.length; if (next) next(); else sourceScheduler.active--; };
 }
-export async function sourceTask<T>(source: Source, operation: 'hash' | 'index' | 'entry', entry?: ZipEntry, signal?: AbortSignal): Promise<T> {
+export async function sourceTask<T>(source: Source, operation: 'hash' | 'index' | 'directory' | 'entry', entry?: ZipEntry, signal?: AbortSignal): Promise<T> {
   signal?.throwIfAborted();
   if (!source.size || source.size > sourceLimits.diskBytes) throw new Error('Original source exceeds 512 MiB disk capacity');
   const release = await slot(signal);

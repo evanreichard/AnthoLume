@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var appNavigation = regexp.MustCompile(`^/(?:|library/?|offline/?|local-book-export/?|login/?|register/?|settings/?|admin(?:/(?:library|users|import|backups|system|logs))?/?|more/?|sync/?|insights(?:/(?:activity|progress|rankings))?/?|(?:books|read)/(?:local|server)/[^/]+/?)$`)
+var appNavigation = regexp.MustCompile(`^/(?:|library/?|offline/?|local-book-export/?|login/?|register/?|settings/?|admin(?:/(?:library|users|system|logs))?/?|insights(?:/(?:activity|progress|rankings))?/?|(?:books|read)/(?:local|server)/[^/]+/?)$`)
 var hashedAsset = regexp.MustCompile(`-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$`)
 
 func CheckAppAssets(assets fs.FS) error {
@@ -21,13 +21,6 @@ func CheckAppAssets(assets fs.FS) error {
 		}
 	}
 	return nil
-}
-func (api *API) appShell(c *gin.Context) {
-	if !appNavigation.MatchString(c.Param("route")) && !appNavigation.MatchString(strings.TrimPrefix(c.Request.URL.EscapedPath(), "/app")) {
-		c.Status(404)
-		return
-	}
-	api.serveAppShell(c)
 }
 func (api *API) serveAppShell(c *gin.Context) {
 	b, err := fs.ReadFile(api.assets, "assets/app/index.html")
@@ -42,14 +35,6 @@ func (api *API) serveAppShell(c *gin.Context) {
 	c.Header("X-Frame-Options", "DENY")
 	c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self' blob: data:; connect-src 'self'; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'")
 	c.Data(200, "text/html; charset=utf-8", b)
-}
-func (api *API) retirementBootstrap(c *gin.Context) {
-	if c.Request.URL.Path == "/" && c.Query("antholume-retirement") == "legacy-v1" {
-		api.serveAppShell(c)
-		c.Abort()
-		return
-	}
-	c.Next()
 }
 func (api *API) appAssetPolicy(c *gin.Context) {
 	p := c.Request.URL.Path
@@ -71,13 +56,22 @@ func (api *API) appAssetPolicy(c *gin.Context) {
 	}
 	c.Next()
 }
-func (api *API) compiledOrLegacy(c *gin.Context, name, media string) {
-	source := "assets/app/" + name
-	if _, err := fs.Stat(api.assets, source); err != nil {
-		source = "assets/" + name
-	}
+func (api *API) appWebManifest(c *gin.Context) {
+	api.serveAppAsset(c, "manifest.json", "application/manifest+json")
+}
+
+func (api *API) appServiceWorker(c *gin.Context) {
+	c.Header("Service-Worker-Allowed", "/")
+	api.serveAppAsset(c, "sw.js", "text/javascript; charset=utf-8")
+}
+
+func (api *API) appFaviconIcon(c *gin.Context) {
+	c.FileFromFS("assets/icons/favicon.ico", http.FS(api.assets))
+}
+
+func (api *API) serveAppAsset(c *gin.Context, name, media string) {
 	c.Header("Cache-Control", "no-cache")
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.Header("Content-Type", media)
-	c.FileFromFS(source, http.FS(api.assets))
+	c.FileFromFS("assets/app/"+name, http.FS(api.assets))
 }

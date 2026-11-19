@@ -39,6 +39,7 @@ test('saved theme is already active while the EPUB is downloading', async ({ pag
     await page.getByRole('link', { name: 'Read', exact: true }).click();
     const progress = page.getByRole('progressbar', { name: 'EPUB download progress' });
     await expect(progress).toBeVisible();
+    await expect(page.getByText('Downloading EPUB…', { exact: true }).and(page.locator('span[aria-hidden="true"]'))).toBeVisible();
     await expect(progress).toHaveAttribute('max', /[1-9]\d*/);
     await expect(page.getByRole('region', { name: 'Book reader' })).toHaveCSS('background-color', 'rgb(18, 18, 18)');
     await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#121212');
@@ -48,7 +49,7 @@ test('saved theme is already active while the EPUB is downloading', async ({ pag
 });
 
 test('existing local originals are exportable without signing in and are not removed', async ({ page, server }) => {
-  await page.goto(`${server.origin}/app/login`);
+  await page.goto(`${server.origin}/login`);
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   const original = await epub('Local export');
   await page.evaluate(async bytes => {
@@ -65,7 +66,7 @@ test('existing local originals are exportable without signing in and are not rem
       });
     } finally { db.close(); }
   }, [...original]);
-  await page.goto(`${server.origin}/app/offline`);
+  await page.goto(`${server.origin}/offline`);
   await expect(page.getByRole('heading', { name: 'Export local books' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
   await expect(page.getByRole('main')).toHaveCount(1);

@@ -131,15 +131,12 @@ const router = createBrowserRouter([{
         { index: true, element: <Navigate to="library" replace /> },
         { path: 'library', Component: AdminLibrary },
         { path: 'users', Component: AdminUsers },
-        { path: 'import', element: <Navigate to="../library" replace /> },
-        { path: 'backups', element: <Navigate to="../library" replace /> },
         { path: 'system', Component: AdminSystem },
         { path: 'logs', Component: AdminLogs },
       ] },
-      { path: 'more', element: <Navigate to="/settings" replace /> },
       { path: '*', element: <><PageHeader title="Page not found" /><Link to="/library">Library</Link></> },
       ] },
     ] },
   ],
-}], { basename: '/app' });
+}]);
 export function App() { return <RouterProvider router={router} />; }

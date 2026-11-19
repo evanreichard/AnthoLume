@@ -7,7 +7,7 @@ test('actual bootstrap, credentials, server paging, inert detail, URL sorting an
   const loadMore = page.getByRole('button', { name: 'Load more shared books' });
   await loadMore.scrollIntoViewIfNeeded();
   await expect(page.getByRole('heading', { name: 'Public book 30', exact: true })).toBeAttached();
-  await expect(page.getByRole('article')).toHaveCount(30);
+  await expect(page.getByRole('article').filter({ has: page.getByRole('heading', { name: /^Public book \d+$/ }) })).toHaveCount(30);
   await expect(loadMore).toHaveCount(0);
   const sort = page.getByRole('button', { name: 'Sort Books' });
   await sort.click();
@@ -20,7 +20,7 @@ test('actual bootstrap, credentials, server paging, inert detail, URL sorting an
   await page.goBack();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(sort).toBeFocused();
-  await page.goto(`${server.origin}/app/library?q=Public+book+01`);
+  await page.goto(`${server.origin}/library?q=Public+book+01`);
   await expect(page.getByRole('article')).toHaveCount(1);
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Read', exact: true })).toBeVisible();
@@ -37,5 +37,5 @@ test('actual bootstrap, credentials, server paging, inert detail, URL sorting an
     }
   }
   await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link')).toHaveCount(3);
-  await expect(page.getByRole('link', { name: 'Insights', exact: true })).toHaveAttribute('href', '/app/insights');
+  await expect(page.getByRole('link', { name: 'Insights', exact: true })).toHaveAttribute('href', '/insights');
 });

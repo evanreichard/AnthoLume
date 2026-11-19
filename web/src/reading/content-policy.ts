@@ -32,16 +32,23 @@ export function parseDocument(value: Uint8Array): Document {
   for (const element of elements) { let depth = 0, ancestor = element.parentElement; while (ancestor) { if (++depth > 64) throw new Error('Document depth budget exceeded'); ancestor = ancestor.parentElement; } }
   return doc;
 }
-export async function validateEPUB(input: Source | Blob | ArrayBuffer, signal?: AbortSignal, lazy = false): Promise<ChapterPolicy> {
+export async function validateEPUB(input: Source | Blob | ArrayBuffer, signal?: AbortSignal, lazy = false, onStage?: (message: string) => void): Promise<ChapterPolicy> {
   let source: Source = input instanceof Blob ? blobSource(input) : input instanceof ArrayBuffer ? blobSource(new Blob([input])) : input;
-  const integrity = await hashSource(source, signal); source = { ...source, digests: integrity.digests };
-  const index = await sourceTask<ZipIndex>(source, 'index', undefined, signal), reader = new ArchiveReader(source, index, signal);
+  let integrity = null;
+  if (!lazy) {
+    onStage?.('Checking file integrity…');
+    integrity = await hashSource(source, signal);
+    source = { ...source, digests: integrity.digests };
+  }
+  onStage?.('Reading the ZIP directory…');
+  const index = await sourceTask<ZipIndex>(source, lazy ? 'directory' : 'index', undefined, signal), reader = new ArchiveReader(source, index, signal);
+  onStage?.('Checking the EPUB package…');
   if (!reader.byName.has('META-INF/container.xml') || text(await reader.bytes('mimetype')) !== 'application/epub+zip') throw new Error('Not an EPUB');
   const infos: Record<string, DocumentInfo> = Object.create(null); let infoBytes = 0;
   for (const entry of index.entries) {
     const name = entry.name;
     if (name.endsWith('/')) { if (entry.expanded) throw new Error('Nonempty directory'); continue; }
-    if (name !== 'mimetype' && !/\.(xhtml|html|xml|opf|ncx|css|svg|png|jpe?g|gif|webp|woff2?|ttf|otf)$/i.test(name)) throw new Error('Unsupported archive resource type');
+    if (!lazy && name !== 'mimetype' && !/\.(xhtml|html|xml|opf|ncx|css|svg|png|jpe?g|gif|webp|woff2?|ttf|otf)$/i.test(name)) throw new Error('Unsupported archive resource type');
     if (lazy || !/\.(xhtml|html|xml|opf|ncx|svg)$/i.test(name)) continue;
     const doc = parseDocument(await reader.bytes(name));
     const info = documentInfo(doc, entry.expanded);
@@ -89,7 +96,14 @@ function validateDocument(doc: Document, entry: string, policy: ChapterPolicy) {
   const content = doc.documentElement.namespaceURI === XHTML || doc.documentElement.namespaceURI === SVG;
   for (const element of doc.querySelectorAll('*')) {
     const tag = element.localName, lower = tag.toLowerCase(), svg = element.namespaceURI === SVG;
-    if (activeTags.has(lower)) throw new Error(`Active content element: ${tag}`);
+    if (activeTags.has(lower)) {
+      if (policy.manifest.lazy && lower === 'script' && content) {
+        element.remove();
+        policy.recordUnavailableAsset();
+        continue;
+      }
+      throw new Error(`Active content element: ${tag}`);
+    }
     if (content && (element.prefix || !(svg ? svgTags.has(tag) : element.namespaceURI === XHTML && passiveTags.has(tag)))) throw new Error(`Unsupported content element: ${tag}`);
     if (lower === 'style') {
       if (element.namespaceURI === XHTML) policy.htmlStyle(element.textContent || '', entry);
@@ -99,7 +113,12 @@ function validateDocument(doc: Document, entry: string, policy: ChapterPolicy) {
       const directive = (element.getAttribute('http-equiv') || '').toLowerCase(), value = element.getAttribute('content') || '';
       if (!(directive === 'content-type' && /^(?:application\/xhtml\+xml|text\/html);\s*charset=utf-8$/i.test(value)) && !(directive === 'content-style-type' && value === 'text/css') && !(directive === 'default-style' && value.length <= 256)) throw new Error('Active meta policy/navigation');
     }
-    if (lower === 'link' && !['stylesheet', 'coverpage'].includes((element.getAttribute('rel') || '').toLowerCase())) throw new Error('Unsupported book resource hint');
+    if (lower === 'link' && !['stylesheet', 'coverpage'].includes((element.getAttribute('rel') || '').toLowerCase())) {
+      if (!policy.manifest.lazy || svg || (!content && entry !== policy.opf)) throw new Error('Unsupported book resource hint');
+      element.remove();
+      policy.recordUnavailableAsset();
+      continue;
+    }
     for (const attr of Array.from(element.attributes)) {
       const name = attr.name.toLowerCase(), local = attr.localName.toLowerCase();
       if ((attr.namespaceURI === 'http://www.w3.org/XML/1998/namespace' && local === 'base') || name.startsWith('on') || local.startsWith('on') || ['srcdoc', 'srcset', 'ping', 'xml:base', 'target', 'download'].includes(name)) throw new Error(`Active attribute: ${name}`);
@@ -110,16 +129,16 @@ function validateDocument(doc: Document, entry: string, policy: ChapterPolicy) {
       if (local === 'href') {
         if (svg && tag === 'use') {
           if (!attr.value.startsWith('#') || doc.getElementById(archiveReference(attr.value, entry).fragment)?.namespaceURI !== SVG) throw new Error('SVG use must target a local ID');
-        } else if (svg && tag === 'image') policy.assetReference(attr.value, entry, 'image');
+        } else if (svg && tag === 'image') policy.optionalAsset(attr.value, entry, 'image');
         else if (lower === 'a') { if (!passiveExternalLink(attr.value) || policy.manifest.navigation.includes(entry)) policy.navigation(attr.value, entry); }
-        else if (lower === 'link' && (element.getAttribute('rel') || '').toLowerCase() === 'stylesheet') { policy.stylesheet(attr.value, entry); }
-        else if (lower === 'link') policy.assetReference(attr.value, entry, 'image');
-        else requireResource(attr.value, entry, policy.reader.byName);
+        else if (lower === 'link' && (element.getAttribute('rel') || '').toLowerCase() === 'stylesheet') policy.optionalStylesheet(attr.value, entry);
+        else if (lower === 'link') policy.optionalAsset(attr.value, entry, 'image');
+        else if (!(policy.manifest.lazy && lower === 'item' && entry === policy.opf)) requireResource(attr.value, entry, policy.reader.byName);
       }
-      if (local === 'src' && lower === 'img') policy.assetReference(attr.value, entry, 'image', false);
+      if (local === 'src' && lower === 'img') policy.optionalAsset(attr.value, entry, 'image', false);
       else if (local === 'src' && lower === 'content' && element.namespaceURI === 'http://www.daisy.org/z3986/2005/ncx/' && element.parentElement?.localName === 'navPoint') policy.navigation(attr.value, entry);
       else if (local === 'src') requireResource(attr.value, entry, policy.reader.byName);
-      if (local === 'background') policy.assetReference(attr.value, entry, 'image');
+      if (local === 'background') policy.optionalAsset(attr.value, entry, 'image');
       if (local === 'full-path') requireResource(attr.value, '', policy.reader.byName);
     }
     if (lower === 'item' && /scripted|remote-resources/i.test(element.getAttribute('properties') || '')) throw new Error('Active package property');
@@ -132,6 +151,11 @@ export function validateBinary(media: string, value: Uint8Array) {
   if ((media === 'image/png' && !signature([137,80,78,71,13,10,26,10])) || (media === 'image/jpeg' && !(value[0] === 255 && value[1] === 216)) || (media === 'image/gif' && !magic.startsWith('GIF8')) || (media === 'image/webp' && !(magic.startsWith('RIFF') && magic.slice(8) === 'WEBP'))) throw new Error('Binary image role mismatch');
   return rasterDimensions(media, value);
 }
+function recordUnavailableResource(manifest: BookManifest) {
+  const counts = manifest.cssDrops ??= {};
+  counts.unavailableAsset = (counts.unavailableAsset ?? 0) + 1;
+}
+
 function validateStructure(documents: Map<string, Document>, reader: ArchiveReader, metadata: BookManifest): ChapterPolicy {
   const data = reader.byName;
   const container = documents.get('META-INF/container.xml');
@@ -145,15 +169,27 @@ function validateStructure(documents: Map<string, Document>, reader: ArchiveRead
   const child = (tag: string) => Array.from(root.children).filter(element => element.localName === tag && element.namespaceURI === root.namespaceURI);
   if (['metadata', 'manifest', 'spine'].some(tag => child(tag).length !== 1 || opf.querySelectorAll(tag).length !== 1)) throw new Error('OPF metadata/manifest/spine required');
   const manifest = new Map<string, { path: string; media: string }>(), roles = new Map<string, string>();
+  const ids = new Set<string>(), paths = new Set<string>();
   for (const item of child('manifest')[0]!.children) {
     if (item.localName !== 'item' || item.namespaceURI !== root.namespaceURI || item.prefix || item.children.length) throw new Error('Invalid manifest child');
     const id = item.getAttribute('id') || '', href = item.getAttribute('href') || '';
-    const path = requireResource(href, opfPath, data), declaredMedia = item.getAttribute('media-type') || '';
-    const media = declaredMedia === 'application/vnd.ms-opentype' && /\.(ttf|otf)$/.test(path) ? path.endsWith('.ttf') ? 'font/ttf' : 'font/otf' : declaredMedia;
+    if (!id || ids.has(id) || href.includes('#')) throw new Error('Invalid or duplicate manifest identity/resource');
+    ids.add(id);
+    let path: string;
+    try { path = requireResource(href, opfPath, data); }
+    catch (error) { if (!metadata.lazy) throw error; recordUnavailableResource(metadata); continue; }
+    if (paths.has(path)) throw new Error('Invalid or duplicate manifest identity/resource');
+    paths.add(path);
+    const declaredMedia = item.getAttribute('media-type') || '';
+    const media = declaredMedia === 'application/x-font-ttf' && /\.ttf$/i.test(path) ? 'font/ttf'
+      : declaredMedia === 'application/vnd.ms-opentype' && /\.(ttf|otf)$/.test(path) ? path.endsWith('.ttf') ? 'font/ttf' : 'font/otf'
+      : declaredMedia;
+    const extension = path.split('.').pop()!.toLowerCase();
+    if (mediaByExtension[extension] !== media) {
+      if (metadata.lazy) { recordUnavailableResource(metadata); continue; }
+      throw new Error(`Manifest extension/media-type mismatch (${extension}:${media})`);
+    }
     if ((item.getAttribute('properties') || '').split(/\s+/).includes('nav') || media === 'application/x-dtbncx+xml') metadata.navigation.push(path);
-    if (!id || manifest.has(id) || roles.has(path) || href.includes('#')) throw new Error('Invalid or duplicate manifest identity/resource');
-    const extension = path.split('.').pop()!;
-    if (mediaByExtension[extension] !== media) throw new Error(`Manifest extension/media-type mismatch (${extension}:${media})`);
     if (!metadata.lazy && media === 'application/xhtml+xml') {
       const doc = metadata.documents[path];
       if (doc?.root !== 'html' || doc.namespace !== XHTML || !doc.head || !doc.body) throw new Error('Invalid XHTML resource');

@@ -147,7 +147,7 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
     return { fontSize, fontWeight, minHeight, paddingInlineStart, face: face.height, borderRadius: face.borderRadius };
   });
   const accountPage = await page.context().newPage();
-  await accountPage.goto(`${server.origin}/app/settings`);
+  await accountPage.goto(`${server.origin}/settings`);
   const signOut = accountPage.getByRole('button', { name: 'Sign out', exact: true });
   await expect(signOut).toBeVisible();
   expect(dropdown).toEqual(await signOut.evaluate(button => {
@@ -207,7 +207,7 @@ test('Insights history pager keeps filters and keyboard focus', async ({ page, s
     const data = { event_id: randomUUID(), document_id: 'book-001', device_id: 'history-device', start_time: new Date(Date.now() - (i + 1) * 60_000).toISOString(), duration: 30, start_fraction: 0, end_fraction: .1 };
     expect((await page.request.post(`${endpoint}/me/activity`, { headers, data })).status()).toBe(200);
   }
-  const url = `${server.origin}/app/insights/activity?document=book-001`;
+  const url = `${server.origin}/insights/activity?document=book-001`;
   await page.goto(url);
   const activity = page.getByRole('region', { name: 'Reading activity' });
   const pager = activity.getByRole('navigation', { name: 'History pages' });

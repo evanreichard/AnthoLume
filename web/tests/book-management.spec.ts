@@ -78,6 +78,6 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await expect(page.getByRole('heading', { name: 'Edited book', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Delete from shared library', exact: true }).click();
   await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
-  await expect(page).toHaveURL(`${server.origin}/app/library`);
+  await expect(page).toHaveURL(`${server.origin}/library`);
   await expect(page.getByRole('heading', { name: 'Edited book', exact: true })).toHaveCount(0);
 });

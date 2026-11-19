@@ -14,7 +14,7 @@ test('online reader checkpoint drives compact Folio Resume, density and touch', 
   await page.keyboard.press('c');
   await page.getByRole('button', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Resume', exact: true })).toBeVisible();
-  await page.goto(`${server.origin}/app/library`);
+  await page.goto(`${server.origin}/library`);
   const feature = page.getByRole('region', { name: 'Continue reading', exact: true });
   await expect(feature.getByRole('link', { name: 'Resume', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Add Book', exact: true })).toBeEnabled();

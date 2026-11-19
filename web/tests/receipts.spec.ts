@@ -20,7 +20,7 @@ for (const fault of ['extra-field', 'server-error']) {
       expect((await storedRows(page, 'decisions')).filter((row) => ids.includes(row.id!))).toEqual([]);
       await page.keyboard.press('c');
       await page.getByRole('button', { name: 'Library', exact: true }).click();
-      await page.goto(`${server.origin}/app/settings?sync=open`);
+      await page.goto(`${server.origin}/settings?sync=open`);
       await expect(page.getByRole('region', { name: 'Sync status' }).getByText('1 pending', { exact: true })).toBeVisible();
       expect(await pendingIds(page)).toEqual(ids);
       const effects = serverEffects(server.data, user);

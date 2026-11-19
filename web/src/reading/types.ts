@@ -25,7 +25,10 @@ export interface ReadingSnapshot {
   downloads: readonly { ref: BookRef; receivedBytes: number; totalBytes: number | null; preparing?: boolean }[];
   update: 'idle' | 'available' | 'blocked' | 'error'; error: string | null;
 }
+export type ReaderCacheSummary = { books: number; epubBytes: number; metadataBytes: number };
 export interface ReadingActions {
+  readerCacheSummary(): Promise<ReaderCacheSummary>;
+  clearReaderCache(): Promise<void>;
   exportLocal(ref: Extract<BookRef, { kind: 'local' }>): Promise<Blob>;
   replay(): Promise<void>;
   applyUpdate(): Promise<void>;

@@ -152,8 +152,8 @@ make docker_build_local
 make docker_build_release_latest
 make docker_build_release_dev
 
-# Generate Tailwind CSS
-make build_tailwind
+# Build React assets
+make build_web
 
 # Clean Local Build
 make clean

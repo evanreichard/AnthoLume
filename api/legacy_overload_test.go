@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/base64"
-	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,7 +10,6 @@ import (
 func TestLegacyCredentialOverloadRetryAfter(t *testing.T) {
 	f := newWebFixture(t)
 	f.register("alice")
-	form := map[string]string{"Content-Type": "application/x-www-form-urlencoded"}
 	cases := []struct {
 		name, method, path, body string
 		headers                  map[string]string
@@ -20,9 +18,6 @@ func TestLegacyCredentialOverloadRetryAfter(t *testing.T) {
 		{"ko-auth", "GET", "/api/ko/users/auth", "", koHeaders(), false},
 		{"opds-auth", "GET", "/api/opds/", "", map[string]string{"Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("alice:password"))}, false},
 		{"ko-register", "POST", "/api/ko/users/create", `{"username":"bob","password":"` + md5Password("password") + `"}`, nil, false},
-		{"ssr-login", "POST", "/login", url.Values{"username": {"alice"}, "password": {"password"}}.Encode(), form, false},
-		{"ssr-register", "POST", "/register", url.Values{"username": {"bob"}, "password": {"password"}}.Encode(), form, false},
-		{"ssr-password", "POST", "/settings", url.Values{"password": {"password"}, "new_password": {"replacement"}}.Encode(), form, true},
 	}
 	for _, test := range cases {
 		for _, status := range []int{429, 503} {

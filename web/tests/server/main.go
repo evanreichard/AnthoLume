@@ -128,13 +128,9 @@ func main() {
 				fmt.Fprintf(w, "self.__ANTHOLUME_PRECACHE__=%s;self.__ANTHOLUME_BUILD__=%q;\n%s", manifest, build, code)
 				return
 			}
-			if _, err := os.Stat(filepath.Join(*data, "legacy-worker")); err == nil {
+			if source, err := os.ReadFile(filepath.Join(*data, "legacy-worker")); err == nil {
 				w.Header().Set("Cache-Control", "no-cache")
 				w.Header().Set("Content-Type", "application/javascript")
-				source, err := os.ReadFile(filepath.Join(*root, "assets", "sw.js"))
-				if err != nil {
-					panic(err)
-				}
 				w.Write(source)
 				return
 			}

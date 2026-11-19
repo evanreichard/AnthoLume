@@ -28,6 +28,8 @@ export function useReading(): ReadingSnapshot & ReadingActions {
   const { runtime, snapshot } = useReadingContext();
   const requireRuntime = () => { if (!runtime) throw new Error('Reader storage is opening'); return runtime; };
   return { ...snapshot,
+    readerCacheSummary: () => requireRuntime().readerCacheSummary(),
+    clearReaderCache: () => requireRuntime().clearReaderCache(),
     exportLocal: ref => requireRuntime().exportLocal(ref), replay: () => requireRuntime().replay(), applyUpdate: () => requireRuntime().applyUpdate(),
     refreshConflict: id => requireRuntime().refreshConflict(id), resolveConflict: (id, choice, revision) => requireRuntime().resolveConflict(id, choice, revision),
   };

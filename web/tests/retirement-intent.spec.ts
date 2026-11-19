@@ -8,7 +8,7 @@ test('root retirement keeps only document intent through logout/login/register/r
   const user = `intent-${Date.now()}`;
   await register(page, server.origin, user);
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
-  await page.goto(`${server.origin}/app/more`);
+  await page.goto(`${server.origin}/settings`);
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
@@ -16,7 +16,7 @@ test('root retirement keeps only document intent through logout/login/register/r
   page.on('request', (request) => resources.push(new URL(request.url()).pathname));
   await page.goto(requested(server.origin, 'book-001'));
   await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
-  await expect(page).toHaveURL(/\/app\/login\?legacyDocument=book-001$/);
+  await expect(page).toHaveURL(/\/login\?legacyDocument=book-001$/);
   await expect(page.getByRole('heading', { name: 'Public book 01', exact: true })).toHaveCount(0);
   expect(resources.some((path) => path.startsWith('/api/v1/documents'))).toBe(false);
   await page.getByRole('link', { name: 'Create an account', exact: true }).click();
@@ -30,7 +30,7 @@ test('root retirement keeps only document intent through logout/login/register/r
   await expect(page.getByRole('region', { name: 'Book reader', exact: true })).toBeVisible();
   await expect(page.frameLocator('iframe').first().getByRole('heading', { name: 'Public chapter', exact: true })).toBeVisible();
   const destination = new URL(page.url());
-  expect(destination.pathname).toBe('/app/read/server/book-001');
+  expect(destination.pathname).toBe('/read/server/book-001');
   expect(destination.searchParams.get('origin')).toBe(server.origin);
   expect(destination.searchParams.get('account')).toBe(user);
   expect(destination.searchParams.has('legacyDocument')).toBe(false);
@@ -77,7 +77,7 @@ test('already authenticated root retirement opens the original uncached document
   await page.goto(requested(server.origin, 'book-002'));
   await expect(page.frameLocator('iframe').first().getByRole('heading', { name: 'Public chapter', exact: true })).toBeVisible();
   const destination = new URL(page.url());
-  expect(destination.pathname).toBe('/app/read/server/book-002');
+  expect(destination.pathname).toBe('/read/server/book-002');
   expect(destination.searchParams.get('origin')).toBe(server.origin);
   expect(destination.searchParams.get('account')).toBe(user);
   expect(scripts.some((path) => path.startsWith('/assets/reader/') || path === '/assets/index.js' || path === '/assets/common.js')).toBe(false);

@@ -49,8 +49,8 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
   const parentGestures = useParentGestures();
   const [selecting, setSelecting] = useState(false);
   const host = useRef<HTMLDivElement>(null), controller = useRef<ReaderController | null>(null);
-  const [readerState, setReaderState] = useState<{ key: string; value: ReaderStatus }>({ key, value: { state: 'opening', message: 'Opening stored book' } });
-  const status: ReaderStatus = readerState.key === key ? readerState.value : { state: 'opening', message: 'Opening stored book' };
+  const [readerState, setReaderState] = useState<{ key: string; value: ReaderStatus }>({ key, value: { state: 'opening', message: 'Getting the reader ready…' } });
+  const status: ReaderStatus = readerState.key === key ? readerState.value : { state: 'opening', message: 'Getting the reader ready…' };
   const setStatus = (value: ReaderStatus) => setReaderState({ key, value });
   const [panel, setPanel] = useState<'toc' | 'appearance' | 'hide'>('hide'), [storedAppearance, setAppearance] = useState<Appearance>();
   const appearance = storedAppearance ?? defaults;
@@ -118,7 +118,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
     if (!runtime || !snapshot.ready || !host.current || !permitted || parentGestures === undefined) return;
     let alive = true, resizeTimer: ReturnType<typeof setTimeout> | undefined;
     setHasOpened(false);
-    setStatus({ state: 'opening', message: 'Opening book' });
+    setStatus({ state: 'opening', message: 'Reading your preferences…' });
     const abort = new AbortController(), wake = new ReaderWakeLock();
     const deadline = setTimeout(() => {
       abort.abort();
@@ -156,7 +156,9 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
       if (!alive) return;
       const chosen = pref && Object.hasOwn(palette, pref.theme) && readerFontNames.includes(pref.font) && Number.isFinite(pref.size) && pref.size >= minTextSize && pref.size <= maxTextSize ? pref : defaults;
       appliedAppearance.current = chosen; appearanceRef.current = chosen; setAppearance(chosen);
-      const opened = book.kind === 'server' ? await runtime.openServerBook(book, abort.signal) : await runtime.repo.open(book);
+      const reportStage = (message: string) => { if (alive && !abort.signal.aborted) setStatus({ state: 'opening', message }); };
+      if (book.kind === 'local') reportStage('Opening stored copy…');
+      const opened = book.kind === 'server' ? await runtime.openServerBook(book, abort.signal, reportStage) : await runtime.repo.open(book);
       if (!alive) return;
       await instance.open(opened.source, explicitBeginning ? undefined : opened.row.checkpoint.position || undefined, abort.signal, opened.manifest, chosen);
       if (!alive) return;
@@ -238,9 +240,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
   const currentChapter = status.toc?.find(item => item.href.split('#')[0] === location?.chapter.split('#')[0]);
   const canTurn = permitted && status.state === 'ready';
   const download = snapshot.downloads.find(item => refKey(item.ref) === key);
-  const loadingMessage = !snapshot.ready ? 'Starting reader storage…' : download
-    ? download.preparing ? 'Preparing EPUB…' : 'Downloading EPUB…'
-    : 'Opening book…';
+  const loadingMessage = !snapshot.ready ? 'Starting reader storage…' : status.message;
   const storageError = !hasOpened && !snapshot.ready ? snapshot.error : null;
   const chromeVisible = chrome.visible || panel !== 'hide';
   const chromeEvents = {
@@ -253,7 +253,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
   const turn = (forward: boolean) => {
     if (canTurn) void (forward ? controller.current?.next() : controller.current?.previous());
   };
-  return <section className={styles.reader} style={{ visibility: !storedAppearance && status.state === 'opening' && !storageError ? 'hidden' : undefined, background, color, colorScheme: appearance.theme === 'gray' || appearance.theme === 'black' ? 'dark' : 'light', '--reader-paper': background } as CSSProperties} aria-label="Book reader" data-reader-state={status.state} data-reader-metrics={permitted ? JSON.stringify(status.diagnostics) : undefined}>
+  return <section className={styles.reader} style={{ visibility: !storedAppearance && !showLoading && status.state === 'opening' && !storageError ? 'hidden' : undefined, background, color, colorScheme: appearance.theme === 'gray' || appearance.theme === 'black' ? 'dark' : 'light', '--reader-paper': background } as CSSProperties} aria-label="Book reader" data-reader-state={status.state} data-reader-metrics={permitted ? JSON.stringify(status.diagnostics) : undefined}>
     {hasOpened && permitted && status.state !== 'error' && <button ref={keyboardReveal} type="button" className={`${styles.srOnly} ${styles.keyboardReveal}`} aria-keyshortcuts="C" onClick={() => reveal('focus')}>Show reader controls</button>}
     <header ref={top} inert={!chromeVisible && permitted && status.state !== 'error' && hasOpened} className={`${styles.bar} ${styles.top}`}>
       <button {...chromeEvents} className={styles.glass} onClick={onClose}><Chevron /><span>Library</span></button>
@@ -274,10 +274,10 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
         else reveal('toggle');
       }} />}
     {pinchSize !== null && permitted && <output className={`${styles.pinchHud} ${styles.glass}`} aria-label="Text size">Aa <strong>{pinchSize}%</strong></output>}
-    {selecting && permitted && <button className={`${styles.doneSelecting} ${styles.glass}`} onClick={() => { setSelecting(false); reveal('show'); }}>Done selecting</button>}
+    {selecting && permitted && <button className={`${styles.doneSelecting} ${styles.glass}`} onClick={() => { setSelecting(false); reveal('show'); }}>Done</button>}
     {showHint && !chromeVisible && canTurn && <p className={`${styles.hint} ${styles.glass}`} role="status"><span className={styles.touchHint}>Tap the center for controls</span><span className={styles.mouseHint}>Move to the center or press C for controls</span></p>}
-    {status.state === 'opening' && <span className={styles.srOnly} role="status">{hasOpened ? 'Updating page' : 'Opening book'}</span>}
-    {showLoading && permitted && !hasOpened && status.state === 'opening' && !storageError && <div className={styles.loading}><span>{loadingMessage}</span>{download && !download.preparing && <><progress aria-label="EPUB download progress" max={download.totalBytes || undefined} value={download.totalBytes ? Math.min(download.receivedBytes, download.totalBytes) : undefined} /><small>{(download.receivedBytes / 1048576).toFixed(1)} MiB{download.totalBytes ? ` / ${(download.totalBytes / 1048576).toFixed(1)} MiB · ${Math.floor(Math.min(1, download.receivedBytes / download.totalBytes) * 100)}%` : ''}</small></>}</div>}
+    {permitted && <span className={styles.srOnly} role="status">{status.state === 'opening' && !storageError ? loadingMessage : ''}</span>}
+    {showLoading && permitted && !hasOpened && status.state === 'opening' && !storageError && <div className={styles.loading}><span aria-hidden="true">{loadingMessage}</span>{download && !download.preparing && <><progress aria-label="EPUB download progress" max={download.totalBytes || undefined} value={download.totalBytes ? Math.min(download.receivedBytes, download.totalBytes) : undefined} /><small>{(download.receivedBytes / 1048576).toFixed(1)} MiB{download.totalBytes ? ` / ${(download.totalBytes / 1048576).toFixed(1)} MiB · ${Math.floor(Math.min(1, download.receivedBytes / download.totalBytes) * 100)}%` : ''}</small></>}</div>}
     {permitted && storageError && <div className={styles.message} role="alert"><p>Could not start reader storage. {storageError}</p><button onClick={() => window.location.reload()}>Reload reader</button></div>}
     {(!permitted || status.state === 'error') && <div className={styles.message} role="alert">
       <p>{!permitted ? 'Sign in to this account to open its books.' : status.message}</p>
@@ -312,7 +312,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
             </button>;
           })}</div>
         </fieldset>
-        {parentGestures && <button className={styles.selectAction} onClick={() => { setSelecting(true); reveal('hide'); }}>Select text</button>}
+        {parentGestures && <button className={styles.selectAction} onClick={() => { setSelecting(true); reveal('hide'); }}>Select Text</button>}
       </div>}
     </aside>}
     <footer ref={bottom} {...chromeEvents} inert={selecting || !chromeVisible || !hasOpened || !permitted || status.state === 'error'} className={`${styles.bar} ${styles.bottom} ${styles.glass}`}>

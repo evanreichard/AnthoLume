@@ -140,6 +140,11 @@
 .accountAvatar { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 50%; background: var(--hero); color: var(--ink); }
 .settingsCardRows { margin-top: 8px; }
 .settingsCardRows > .settingsRow:first-child { border-top: 0; }
+.readerCacheStats { display: grid; gap: .65rem; margin: 0; }
+.readerCacheStats > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .55rem; align-items: center; }
+.readerCacheStats dt { display: flex; align-items: center; gap: .55rem; }
+.readerCacheStats dt::after { content: ''; flex: 1; height: 1px; background: repeating-linear-gradient(to right, currentColor 0 5px, transparent 5px 15px); opacity: .25; }
+.readerCacheStats dd { margin: 0; text-align: end; color: var(--muted); font-variant-numeric: tabular-nums; }
 .settingsCardFeedback { margin: 8px 0 0; color: var(--muted); font-size: .875rem; }
 .inlineSync { margin-top: 8px; padding: 6px 10px; border-radius: 10px; background: var(--bg); }
 .inlineSync .syncRow h2 { font-size: .9rem; }

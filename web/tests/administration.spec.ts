@@ -14,7 +14,7 @@ test('Import lists independent rules and opens editors on demand', async ({ page
   const storageDb = new DatabaseSync(`${server.data}/browser.db`);
   try { storageDb.prepare("INSERT INTO storage_roots(id,label,path,managed) VALUES('archive','Archive',?,0)").run(archivePath); }
   finally { storageDb.close(); }
-  await page.goto(`${server.origin}/app/admin/library`);
+  await page.goto(`${server.origin}/admin/library`);
   const roots = page.getByRole('region', { name: 'Storage Roots' });
   const imports = page.getByRole('region', { name: 'Import', exact: true });
   const dialog = page.getByRole('dialog');
@@ -86,14 +86,13 @@ test('administrators manage users while members cannot open Administration', asy
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
   await adminLink.click();
   const sections = page.getByRole('navigation', { name: 'Administration sections' });
-  await expect(page).toHaveURL(`${server.origin}/app/admin/library`);
+  await expect(page).toHaveURL(`${server.origin}/admin/library`);
   await expect(sections.getByRole('link')).toHaveText(['Library', 'Users', 'System', 'Logs']);
   await expect(sections.getByRole('link', { name: 'Library', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('region', { name: 'Import', exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Backup & Restore', exact: true })).toBeVisible();
   await expect(page.getByLabel('Backup file')).toBeHidden();
-  await page.goto(`${server.origin}/app/admin/import`);
-  await expect(page).toHaveURL(`${server.origin}/app/admin/library`);
+  expect((await page.request.get(`${server.origin}/admin/import`)).status()).toBe(404);
   const title = page.getByRole('heading', { name: 'Administration', exact: true, level: 1 });
   await expect(title).toBeVisible();
   await expect(page.getByRole('link', { name: 'Back to Settings', exact: true })).toHaveCount(0);
@@ -107,7 +106,7 @@ test('administrators manage users while members cannot open Administration', asy
   }
   const navigation = page.getByRole('navigation', { name: 'Main navigation' });
   await navigation.getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(page).toHaveURL(`${server.origin}/app/settings`);
+  await expect(page).toHaveURL(`${server.origin}/settings`);
   const libraryTab = sections.getByRole('link', { name: 'Library', exact: true });
   const tabStyle = (tab: typeof libraryTab) => tab.evaluate(element => {
     const { borderBottomColor, borderBottomWidth, fontWeight } = getComputedStyle(element);
@@ -306,7 +305,7 @@ test('administrators manage users while members cannot open Administration', asy
     await signIn(tab, server.origin, 'admin-test-member');
     await tab.getByRole('link', { name: 'Settings', exact: true }).click();
     await expect(tab.getByRole('link', { name: 'Administration', exact: true })).toHaveCount(0);
-    await tab.goto(`${server.origin}/app/admin/users`);
+    await tab.goto(`${server.origin}/admin/users`);
     await expect(tab.getByText('Administrator access is required.')).toBeVisible();
     expect((await tab.request.get(`${server.origin}/api/v1/admin/users`)).status()).toBe(403);
     expect((await tab.request.get(`${server.origin}/api/v1/admin/backup`)).status()).toBe(403);
@@ -333,7 +332,7 @@ test('administrators manage users while members cannot open Administration', asy
   await writeFile(`${server.data}/logs/antholume-2026-03-09T00-00-00.000.log`, logFixture(410, 'info') + '\n');
   await page.setViewportSize({ width: 390, height: 500 });
   await page.goto(`${server.origin}/admin/logs`);
-  await expect(page).toHaveURL(`${server.origin}/app/admin/logs`);
+  await expect(page).toHaveURL(`${server.origin}/admin/logs`);
   await expect(sections.getByRole('link', { name: 'Logs', exact: true })).toHaveAttribute('aria-current', 'page');
   const logViewer = page.getByRole('region', { name: 'Logs', exact: true });
   const entries = logViewer.getByRole('list', { name: 'Log events' }).getByRole('listitem');
@@ -392,7 +391,7 @@ test('administrators manage users while members cannot open Administration', asy
       await dialog.getByRole('button', { name: 'Restore backup' }).click();
       expect((await applied).status()).toBe(204);
     }).toPass({ timeout: 5000 });
-    await expect(page).toHaveURL(`${server.origin}/app/login`);
+    await expect(page).toHaveURL(`${server.origin}/login`);
   };
   const changed = Buffer.from('replaced after backup');
   await writeFile(`${server.data}/documents/public.epub`, changed);
@@ -421,8 +420,8 @@ test('administrators manage users while members cannot open Administration', asy
     expect(await readFile(`${server.data}/documents/public.epub`)).toEqual(changed);
   } finally { rollbackDB.close(); }
 
-  await page.goto(`${server.origin}/app/admin/backups`);
-  await expect(page).toHaveURL(`${server.origin}/app/admin/library`);
+  expect((await page.request.get(`${server.origin}/admin/backups`)).status()).toBe(404);
+  await page.goto(`${server.origin}/admin/library`);
   await restoreBackup.click();
   await page.getByLabel('Backup file').setInputFiles(`${backups}/${rollback}/antholume.db`);
   await page.getByRole('button', { name: 'Validate', exact: true }).click();
@@ -444,7 +443,7 @@ test('Make Library previews the change and only applies after confirmation', asy
     db.exec("INSERT INTO documents(id,filepath,storage_root_id) VALUES('unavailable-book','book.epub','incoming')");
   } finally { db.close(); }
   await page.setViewportSize({ width: 320, height: 800 });
-  await page.goto(`${server.origin}/app/admin/library`);
+  await page.goto(`${server.origin}/admin/library`);
   const roots = page.getByRole('region', { name: 'Storage Roots' });
   const dialog = page.getByRole('dialog');
   const source = roots.getByRole('button', { name: 'Incoming library', exact: true });

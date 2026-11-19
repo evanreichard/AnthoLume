@@ -4,7 +4,7 @@ import { test, expect } from './fixtures';
 const ownedShell = `antholume-shell-${'0'.repeat(64)}`;
 
 test('fresh online React visits do not register a service worker or create a shell cache', async ({ page, server }) => {
-  await page.goto(`${server.origin}/app/login`);
+  await page.goto(`${server.origin}/login`);
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   expect(await page.evaluate(async () => ({ scopes: (await navigator.serviceWorker.getRegistrations()).map(worker => worker.scope), caches: await caches.keys() }))).toEqual({ scopes: [], caches: [] });
 });
@@ -12,7 +12,7 @@ test('fresh online React visits do not register a service worker or create a she
 test('an existing root worker is replaced and unregistered without removing books or unrelated storage', async ({ page, server }) => {
   test.setTimeout(60_000);
   const override = `${server.data}/legacy-worker`;
-  await writeFile(override, 'actual assets/sw.js');
+  await writeFile(override, "self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));");
   try {
     await page.goto(`${server.origin}/login`);
     await page.evaluate(async () => {
@@ -41,7 +41,7 @@ test('an existing root worker is replaced and unregistered without removing book
     }, ownedShell);
   } finally { await unlink(override); }
 
-  await page.goto(`${server.origin}/app/login`);
+  await page.goto(`${server.origin}/login`);
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
   await page.reload();

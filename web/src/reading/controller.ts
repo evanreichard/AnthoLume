@@ -77,15 +77,16 @@ export class ReaderController {
     const abort = () => this.lifetime.abort(signal?.reason);
     signal?.addEventListener('abort', abort, { once: true }); this.removeAbort = () => signal?.removeEventListener('abort', abort); if (signal?.aborted) abort();
     return this.enqueue(async () => {
-      this.send({ state: 'opening', message: 'Validating EPUB' });
+      const opening = (message: string) => this.send({ state: 'opening', message });
       const source = input instanceof Blob ? blobSource(input) : input instanceof ArrayBuffer ? blobSource(new Blob([input])) : input;
-      this.policy = manifest ? new ChapterPolicy(new ArchiveReader(source, manifest.index, this.lifetime.signal), manifest) : await validateEPUB(source, this.lifetime.signal);
+      this.policy = manifest ? new ChapterPolicy(new ArchiveReader(source, manifest.index, this.lifetime.signal), manifest) : await validateEPUB(source, this.lifetime.signal, false, opening);
       const { manifest: bookManifest, reader } = this.policy;
       this.wordCounts = this.policy.spine.map(path => bookManifest.lazy ? Math.max(1, Math.round(reader.byName.get(path)!.expanded / 8)) : bookManifest.documents[path]!.words);
       if (this.dead) return;
       const book = this.book = new Book({ replacements: 'none', requestMethod: () => Promise.reject(new Error('Engine network requests are disabled')) });
       lifecycle.engines++; settleBookFailures(book);
       useValidatedDocuments(book, this.policy);
+      opening('Loading the table of contents…');
       await book.open(`https://epub.invalid/${this.policy.opf}`, 'opf');
       await book.ready;
       if (this.dead) return;
@@ -141,6 +142,7 @@ export class ReaderController {
       });
       let target: string | undefined;
       if (saved) {
+        opening('Finding your saved page…');
         const result = await toCFI(book, saved);
         if (!result.ok) {
           const message = result.phase === 'chapter' ? `Could not load the saved chapter: ${result.reason}` : `Saved location unavailable; original retained: ${saved}`;
@@ -149,8 +151,10 @@ export class ReaderController {
         }
         target = result.cfi;
       }
-      await this.waitEngine(rendition.display(target));
+      opening('Loading the page…');
+      await this.waitEngine(rendition.display(target), 'displaying the opening chapter');
       if (this.dead) return;
+      opening('Laying out the page…');
       await this.observe(target);
       if (saved && target && this.location) this.location = { ...this.location, ko: saved, cfi: target };
       this.readyToInteract = true;
@@ -166,7 +170,7 @@ export class ReaderController {
     const cssDrops = this.policy?.manifest.cssDrops;
     if (!this.reportedCSSDrops && cssDrops && Object.keys(cssDrops).length) {
       this.reportedCSSDrops = true;
-      console.warn('[AnthoLume reader] Skipped unsupported EPUB styling', { ...cssDrops });
+      console.warn('[AnthoLume reader] Skipped optional EPUB resources or styling', { ...cssDrops });
     }
     this.readyToInteract = true;
     this.releaseInactive();
@@ -289,12 +293,12 @@ export class ReaderController {
       this.ready('Reflow retained logical anchor; no progress published');
     });
   }
-  private waitEngine<T>(operation: PromiseLike<T>) {
+  private waitEngine<T>(operation: PromiseLike<T>, phase = 'settling the book layout') {
     return new Promise<T>((resolve, reject) => {
       let finished = false;
       const finish = (error?: unknown, value?: T) => { if (finished) return; finished = true; clearTimeout(timer); this.lifetime.signal.removeEventListener('abort', abort); if (error) reject(error); else resolve(value!); };
       const abort = () => finish(this.lifetime.signal.reason);
-      const timer = setTimeout(() => this.lifetime.abort(new Error('Native book operation deadline exceeded')), 15000);
+      const timer = setTimeout(() => this.lifetime.abort(new Error(`Reader timed out while ${phase}`)), 15000);
       this.lifetime.signal.addEventListener('abort', abort, { once: true });
       Promise.resolve(operation).then(value => finish(undefined, value), error => finish(error));
       if (this.lifetime.signal.aborted) abort();

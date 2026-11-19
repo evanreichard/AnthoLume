@@ -32,11 +32,16 @@ test('loopback Vite serves development routes while proxying APIs and enforcing 
       try { return (await fetch(`${origin}/api/v1/session`, { signal: AbortSignal.timeout(1000) })).status; } catch { return 0; }
     }).toBe(200);
     await register(page, origin, `dev-${Date.now()}`);
+    for (const [rel, path] of [['manifest', '/manifest.json'], ['apple-touch-icon', '/assets/icons/icon512.png']]) {
+      await expect(page.locator(`link[rel="${rel}"]`)).toHaveAttribute('href', path);
+      expect((await page.request.get(`${origin}${path}`)).status()).toBe(200);
+    }
     expect(await page.evaluate(() => navigator.serviceWorker.getRegistration())).toBeUndefined();
     const bootstrap = await page.request.get(`${origin}/api/v1/session`);
     const session = await bootstrap.json();
     const wrongOrigin = await page.request.post(`${origin}/api/v1/session/logout`, { data: {}, headers: { Origin: 'http://127.0.0.1:5323', 'X-CSRF-Token': session.csrf_token } });
     expect(wrongOrigin.status()).toBe(403);
+    expect((await page.request.get(`${origin}/app/library`, { maxRedirects: 0 })).status()).toBe(404);
     await page.goto(`${origin}/?antholume-retirement=legacy-v1`);
     await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
   } finally { await stop(vite); await stop(backend); await writeFile(`${scratch}development.log`, logs); }

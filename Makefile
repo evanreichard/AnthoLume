@@ -1,4 +1,4 @@
-build_local: build_tailwind check_web
+build_local: check_web
 	go mod download
 	rm -r ./build || true
 	mkdir -p ./build
@@ -8,17 +8,17 @@ build_local: build_tailwind check_web
 	env GOOS=darwin GOARCH=arm64 go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/server_darwin_arm64
 	env GOOS=darwin GOARCH=amd64 go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/server_darwin_amd64
 
-docker_build_local: build_tailwind
+docker_build_local:
 	docker build -t antholume:latest .
 
-docker_build_release_dev: build_tailwind
+docker_build_release_dev:
 	docker buildx build \
 		--platform linux/amd64,linux/arm64 \
 		-t gitea.va.reichard.io/evan/antholume:dev \
 		-f Dockerfile-BuildKit \
 		--push .
 
-docker_build_release_latest: build_tailwind
+docker_build_release_latest:
 	docker buildx build \
 		--platform linux/amd64,linux/arm64 \
 		-t gitea.va.reichard.io/evan/antholume:latest \
@@ -40,14 +40,10 @@ generate:
 check_generation:
 	bash api/check-generation.sh
 
-build_tailwind:
-	tailwindcss build -o ./assets/style.css --minify
-
-dev: build_tailwind
+dev: check_web
 	GIN_MODE=release \
 	CONFIG_PATH=./data \
 	DATA_PATH=./data \
-	SEARCH_ENABLED=true \
 	REGISTRATION_ENABLED=true \
 	PUBLIC_ORIGIN=http://127.0.0.1:8585 \
 	COOKIE_SECURE=false \

@@ -45,7 +45,7 @@ for (const fault of ['503', 'malformed-200']) {
         if (path.startsWith('/api/v1/me/')) timeline.push({ path, status: response.status() });
       });
       await context.setOffline(false);
-      await page.goto(`${server.origin}/app/settings?sync=open`);
+      await page.goto(`${server.origin}/settings?sync=open`);
       await expect(page.getByRole('region', { name: 'Sync status' })).toBeVisible();
       await expect.poll(() => serverEffects(server.data, user).activity).toBe(1);
       await expect.poll(async () => (await storedRows(page, 'conflicts')).length).toBe(2);

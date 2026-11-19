@@ -41,7 +41,7 @@ func TestCoverServesRealSVGWithInertNavigationPolicy(t *testing.T) {
 		id, media string
 		body      []byte
 	}{{"svg", "image/svg+xml", cover}, {"raster", "image/png", raster.Bytes()}} {
-		for _, prefix := range []string{"/api/v1/documents/", "/documents/", "/api/opds/documents/"} {
+		for _, prefix := range []string{"/api/v1/documents/", "/api/opds/documents/"} {
 			path := prefix + item.id + "/cover"
 			t.Run(path, func(t *testing.T) {
 				r := f.call("GET", path, nil, headers)
@@ -64,7 +64,7 @@ func TestCoverServesRealSVGWithInertNavigationPolicy(t *testing.T) {
 	require.NoError(t, err)
 	f.exec("INSERT INTO documents(id,coverfile) VALUES('unknown-cover','UNKNOWN'),('missing-cover','gone.svg')")
 	for _, id := range []string{"unknown-cover", "missing-cover"} {
-		for _, prefix := range []string{"/documents/", "/api/opds/documents/"} {
+		for _, prefix := range []string{"/api/opds/documents/"} {
 			r := f.call("GET", prefix+id+"/cover", nil, headers)
 			require.Equal(t, 200, r.status)
 			require.Equal(t, fallback, r.body)

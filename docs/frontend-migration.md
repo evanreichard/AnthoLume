@@ -273,12 +273,12 @@ Deliverables:
 
 ### M6 — Cutover and Retire SSR
 
-Status: not started.
+Status: React owns site-root navigation. SSR templates, handlers, and assets have been removed. `/app/` and obsolete SSR paths return 404 without redirects. External acquisition is deferred; the Go search package remains. The root worker endpoint remains a retirement worker, not a new offline installation.
 
 Deliverables:
 - [ ] Reproducible frontend/API builds integrated into Go packaging, containers, and CI.
 - [ ] Production SPA routing/caching/security headers and stable external protocol routes.
-- [ ] Removal of obsolete templates, SSR handlers/helpers, old scripts, dependencies, and obsolete tests after parity approval.
+- [x] Removal of obsolete templates, SSR handlers/helpers, old scripts, and obsolete dependencies and tests after explicit cutover approval.
 - [ ] Updated installation/development documentation, published OpenAPI artifact, and operational recovery instructions.
 
 - [ ] Exit gate: fresh deployment and upgrade deployment both pass smoke tests; React is the sole production web frontend; no temporary migration bridge remains without an explicit external compatibility requirement.

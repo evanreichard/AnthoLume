@@ -76,13 +76,22 @@ func (api *API) opdsDocuments(c *gin.Context) {
 		auth = data.(authData)
 	}
 
-	// Potential URL Parameters (Default Pagination - 100)
-	qParams := bindQueryParams(c, 100)
+	qParams := struct {
+		Page   int64  `form:"page"`
+		Limit  int64  `form:"limit"`
+		Search string `form:"search"`
+	}{Page: 1, Limit: 100}
+	if err := c.ShouldBindQuery(&qParams); err != nil {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	qParams.Page = max(1, qParams.Page)
+	qParams.Limit = max(0, qParams.Limit)
 
 	// Possible Query
 	var query *string
-	if qParams.Search != nil && *qParams.Search != "" {
-		search := "%" + *qParams.Search + "%"
+	if qParams.Search != "" {
+		search := "%" + qParams.Search + "%"
 		query = &search
 	}
 
@@ -91,8 +100,8 @@ func (api *API) opdsDocuments(c *gin.Context) {
 		UserID:  auth.UserName,
 		Query:   query,
 		Deleted: ptr.Of(false),
-		Offset:  (*qParams.Page - 1) * *qParams.Limit,
-		Limit:   *qParams.Limit,
+		Offset:  (qParams.Page - 1) * qParams.Limit,
+		Limit:   qParams.Limit,
 	})
 	if err != nil {
 		log.Error("GetDocumentsWithStats DB Error:", err)

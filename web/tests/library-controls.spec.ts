@@ -3,7 +3,7 @@ import { test, expect, register, epub } from './fixtures';
 
 test('one named 44px Clear search clears draft and applied q, preserves sort, and returns focus to search', async ({ page, server }) => {
   await register(page, server.origin, `clear-${Date.now()}`);
-  await page.goto(`${server.origin}/app/library?q=Public+book+01&sort=author`);
+  await page.goto(`${server.origin}/library?q=Public+book+01&sort=author`);
   await expect(page.getByRole('article')).toHaveCount(1);
   const search = page.getByRole('searchbox', { name: 'Search title or author', exact: true });
   await search.fill('Different unsubmitted draft');
@@ -71,7 +71,7 @@ test('Add book uploads to the shared library and Recently added includes it on p
   });
   await expect(page.getByText('Book is in the shared library.', { exact: false })).toBeVisible();
   const detail = page.getByRole('link', { name: 'Open book', exact: true });
-  await expect(detail).toHaveAttribute('href', /\/app\/books\/server\//);
+  await expect(detail).toHaveAttribute('href', /\/books\/server\//);
   await detail.click();
   await expect(page.getByRole('heading', { name: 'ZZ Shared Upload', exact: true })).toBeVisible();
   const read = page.getByRole('link', { name: 'Read', exact: true });

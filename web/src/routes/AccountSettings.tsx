@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Icon } from '../Icon';
 import type { components } from '../api/schema.gen';
-import { ReadingHTTPError, type Account } from '../reading';
+import { ReadingHTTPError, useReading, type Account } from '../reading';
 import { session } from '../session';
 import { Dialog, ErrorNotice } from '../ui';
 import { ActionRow, ActionRows, Card, CardHeader, Pager, Button, Dropdown, IconButton } from '../Controls';
@@ -47,6 +47,59 @@ function SettingsForm({ action, children, onClose }: { action(data: FormData): P
     <ErrorNotice error={error} />
     <div className={styles.actions}><Button type="submit" tone="primary" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</Button><Button type="button" disabled={busy} onClick={onClose}>Cancel</Button></div>
   </form>;
+}
+
+function cacheSize(bytes: number) {
+  const unit = bytes >= 1024 ** 3 ? 'GiB' : bytes >= 1024 ** 2 ? 'MiB' : bytes >= 1024 ? 'KiB' : 'B';
+  const divisor = { GiB: 1024 ** 3, MiB: 1024 ** 2, KiB: 1024, B: 1 }[unit];
+  return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(bytes / divisor)} ${unit}`;
+}
+
+function ReaderCacheSettings() {
+  const { ready, readerCacheSummary, clearReaderCache } = useReading();
+  const [open, setOpen] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [cleared, setCleared] = useState(false);
+  const summary = useQuery({ queryKey: ['reader-cache-summary'], queryFn: readerCacheSummary, enabled: open && ready, retry: false });
+  function close() {
+    if (busy) return;
+    if (confirm) { setConfirm(false); setError(null); }
+    else setOpen(false);
+  }
+  async function clear() {
+    setBusy(true); setError(null); setCleared(false);
+    try { await clearReaderCache(); await summary.refetch(); setConfirm(false); setCleared(true); }
+    catch (err) { setError(err); }
+    finally { setBusy(false); }
+  }
+  return <Card aria-labelledby="debug-heading">
+    <CardHeader id="debug-heading" title="Debug" />
+    <ActionRows>
+      <ActionRow label="Reader Cache" disabled={!ready} onClick={() => { setError(null); setCleared(false); setOpen(true); }} />
+    </ActionRows>
+    {open && <Dialog title={confirm ? 'Clear Reader Cache?' : 'Reader Cache'} onClose={close} footer={<>
+      <Button type="button" tone="primary" disabled={!ready || busy} onClick={() => {
+        if (confirm) void clear();
+        else { setCleared(false); setConfirm(true); }
+      }}>{busy ? 'Clearing…' : 'Clear'}</Button>
+      <Button type="button" disabled={busy} onClick={close}>{confirm ? 'Cancel' : 'Done'}</Button>
+    </>}>
+      {confirm ? <>
+        <p>Cached books will download again the next time you open them. Local books, reading progress, and settings are kept.</p>
+        <ErrorNotice error={error} />
+      </> : <>
+        {summary.isPending && <SkeletonRows label="Checking reader cache…" count={2} secondary={false} />}
+        {summary.data && <dl className={styles.readerCacheStats}>
+          <div><dt>Books</dt><dd>{summary.data.books.toLocaleString()} ({cacheSize(summary.data.epubBytes)})</dd></div>
+          <div><dt>Metadata</dt><dd>{cacheSize(summary.data.metadataBytes)}</dd></div>
+        </dl>}
+        <ErrorNotice error={summary.error} />
+        {cleared && <p className={styles.settingsCardFeedback} role="status">Reader cache cleared.</p>}
+      </>}
+    </Dialog>}
+  </Card>;
 }
 
 export function AccountSettings({ account, timezone, readOnly, syncStatus, syncDetails, onSignOut, children }: { account: Account; timezone: string; readOnly: boolean; syncStatus: string; syncDetails: ReactNode; onSignOut(): void; children?: ReactNode }) {
@@ -105,6 +158,7 @@ export function AccountSettings({ account, timezone, readOnly, syncStatus, syncD
       {devicePages > 1 && <Pager label="Device pages" page={currentPage + 1} total={devicePages}
         hasNext={currentPage + 1 < devicePages} onPageChange={page => setDevicePage(page - 1)} />}
     </Card>
+    <ReaderCacheSettings />
     {children}
     </div>
     {modal === 'timezone' && <Dialog title="Change Locale" onClose={close}><SettingsForm onClose={close} action={async data => {

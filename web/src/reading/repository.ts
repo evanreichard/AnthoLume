@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { Account, BookRef, Checkpoint, Conflict, ReadingAccess, S, StoredBook } from './types';
+import type { Account, BookRef, Checkpoint, Conflict, ReaderCacheSummary, ReadingAccess, S, StoredBook } from './types';
 import { accountKey, refKey } from './types';
 import { blobSource, hashSource, sourceLimits, type Source } from './source';
 import { validateEPUB } from './content-policy';
@@ -9,8 +9,8 @@ import { validState } from './protocol';
 import type { CapturedActivity } from './activity';
 import { StagingWriter } from './staging-writer';
 
-export type BookRow = StoredBook & { key: string; scope: string; bytes: Blob | null; sourceId?: string; checksum: string; protocolHash: string; size: number; etag?: string };
-export type SourceRow = { id: string; key: string; size: number; received: number; blob: Blob | null; complete: boolean; until: number; manifest?: BookManifest; manifestHash?: string; cacheUsedAt?: number; cacheReaders?: Record<string, number> };
+export type BookRow = StoredBook & { key: string; scope: string; bytes: Blob | null; sourceId?: string; checksum: string | null; protocolHash: string | null; size: number; etag?: string };
+export type SourceRow = { id: string; key: string; size: number; received: number; blob: Blob | null; complete: boolean; until: number; manifest?: BookManifest; manifestHash?: string; cacheUsedAt?: number; cacheReaders?: Record<string, number>; evictOnRelease?: boolean };
 const bookCacheBytes = 768 * 1024 * 1024;
 const bookCacheCount = 6;
 const cacheLeaseMs = 15 * 60_000;
@@ -76,6 +76,10 @@ export class Repository {
   }
   async cleanupStages() {
     for (const id of await this.db.sources.where('until').between(1, Date.now(), true, false).primaryKeys()) await this.discardSource(id, true);
+    await this.db.transaction('rw', this.db.sources, this.db.sourceChunks, async () => {
+      const now = Date.now();
+      for (const row of await this.db.sources.filter(row => !!row.evictOnRelease && !cacheLive(row, now)).toArray()) await this.removeSource(row.id);
+    });
   }
   async discardSource(id: string, expiredOnly = false) {
     await this.db.transaction('rw', this.db.sources, this.db.sourceChunks, async () => { const row = await this.db.sources.get(id); if (row?.complete || expiredOnly && row && row.until >= Date.now()) return; await this.db.sourceChunks.where('sourceId').equals(id).delete(); await this.db.sources.delete(id); });
@@ -133,9 +137,9 @@ export class Repository {
     } catch (error) { writer?.dispose(); await this.discardSource(row.id); signal?.throwIfAborted(); throw error; }
     finally { writer?.dispose(); signal?.removeEventListener('abort', abort); await reader.cancel().catch(() => undefined); reader.releaseLock(); }
   }
-  async validateStage(stage: SourceRow, signal?: AbortSignal, lazy = false) {
+  async validateStage(stage: SourceRow, signal?: AbortSignal, lazy = false, onStage?: (message: string) => void) {
     const heartbeat = setInterval(() => { void this.db.sources.update(stage.id, { until: Date.now() + 120000 }).catch(() => undefined); }, 30000);
-    try { return await validateEPUB(this.descriptor(stage), signal, lazy); } finally { clearInterval(heartbeat); }
+    try { return await validateEPUB(this.descriptor(stage), signal, lazy, onStage); } finally { clearInterval(heartbeat); }
   }
   private async removeSource(id: string) {
     await this.db.sourceChunks.where('sourceId').equals(id).delete();
@@ -144,7 +148,7 @@ export class Repository {
   private async trimServerCache(reserve: number, keepKey?: string, clear = false) {
     const books = await this.db.books.filter(book => book.ref.kind === 'server' && book.availability === 'available').toArray();
     const bySource = new Map(books.map(book => [book.sourceId, book]));
-    const sources = await this.db.sources.filter(source => source.complete && source.key.startsWith('["server",')).toArray();
+    const sources = await this.db.sources.filter(source => source.complete && !source.evictOnRelease && source.key.startsWith('["server",')).toArray();
     const candidates = [...sources.map(source => ({ source, book: bySource.get(source.id), bytes: source.size, used: source.cacheUsedAt ?? 0 })),
       ...books.filter(book => !book.sourceId || !sources.some(source => source.id === book.sourceId)).map(book => ({ source: undefined, book, bytes: book.size, used: 0 }))].sort((a, b) => a.used - b.used);
     let bytes = candidates.reduce((sum, entry) => sum + entry.bytes, reserve), count = candidates.length + (reserve > 0 ? 1 : 0);
@@ -160,6 +164,43 @@ export class Repository {
   }
   async freeServerCache() {
     await this.db.transaction('rw', this.db.books, this.db.sources, this.db.sourceChunks, () => this.trimServerCache(0, undefined, true));
+  }
+  async readerCacheSummary(): Promise<ReaderCacheSummary> {
+    return this.db.transaction('r', this.db.books, this.db.sources, async () => {
+      const books = await this.db.books.filter(book => book.ref.kind === 'server' && book.availability === 'available').toArray();
+      const sources = await this.db.sources.filter(row => row.key.startsWith('["server",')).toArray();
+      const byId = new Map(sources.map(source => [source.id, source]));
+      const current = new Set<string>();
+      const summary = { books: 0, epubBytes: 0, metadataBytes: 0 };
+      for (const book of books) {
+        const source = book.sourceId && byId.get(book.sourceId);
+        if (source && source.complete && !source.evictOnRelease) {
+          summary.books++;
+          if (!current.has(source.id)) {
+            current.add(source.id);
+            summary.epubBytes += source.size;
+            if (source.manifest) summary.metadataBytes += new Blob([JSON.stringify(source.manifest)]).size;
+          }
+        } else if (book.bytes) {
+          summary.books++;
+          summary.epubBytes += book.bytes.size;
+        } else continue;
+        summary.metadataBytes += book.cover?.size ?? 0;
+      }
+      return summary;
+    });
+  }
+  async clearServerCache() {
+    await this.db.transaction('rw', this.db.books, this.db.sources, this.db.sourceChunks, async () => {
+      const now = Date.now();
+      const books = await this.db.books.filter(book => book.ref.kind === 'server' && book.availability === 'available').toArray();
+      for (const book of books) await this.db.books.update(book.key, { sourceId: undefined, bytes: null, cover: null, availability: 'unavailable', etag: undefined });
+      const sources = await this.db.sources.filter(source => source.key.startsWith('["server",') && (source.complete || source.until <= now)).toArray();
+      for (const source of sources) {
+        if (cacheLive(source, now)) await this.db.sources.update(source.id, { evictOnRelease: true });
+        else await this.removeSource(source.id);
+      }
+    });
   }
   private async refreshCheckpoint(ref: BookRef, previous: Checkpoint, state?: S['ReadingState']) {
     if (!state) return { checkpoint: previous };
@@ -188,15 +229,17 @@ export class Repository {
   async keepSource(id: string, signal: AbortSignal) {
     signal.throwIfAborted();
     const reader = crypto.randomUUID();
-    const update = (release = false) => this.db.transaction('rw', this.db.sources, async () => {
+    const update = (release = false) => this.db.transaction('rw', this.db.sources, this.db.sourceChunks, async () => {
       const row = await this.db.sources.get(id);
       if (!row?.complete) { if (release) return; throw new Error('Cached original was evicted; reopen to download again'); }
+      if (row.evictOnRelease && !release && !row.cacheReaders?.[reader]) throw new Error('Cached original was cleared; reopen to download again');
       const now = Date.now(), readers = Object.fromEntries(Object.entries(row.cacheReaders ?? {}).filter(([key, until]) => key !== reader && until > now));
       if (!release) {
         if (Object.keys(readers).length >= 32) throw new Error('Too many readers for this EPUB');
         readers[reader] = now + cacheLeaseMs;
       }
-      await this.db.sources.update(id, { cacheReaders: readers });
+      if (row.evictOnRelease && release && !Object.keys(readers).length) await this.removeSource(id);
+      else await this.db.sources.update(id, { cacheReaders: readers });
     });
     await update();
     const renew = () => { if (!signal.aborted) void update().catch(() => undefined); };
@@ -216,12 +259,14 @@ export class Repository {
     signal?.throwIfAborted(); const key = refKey(ref), scope = scopeOf(ref);
     if (!await this.permitted(ref)) throw new Error('Account no longer accessible');
     const metadata = new Blob([JSON.stringify(manifest)]); if (metadata.size > 16 * 1024 * 1024) throw new Error('Validated index metadata exceeds 16 MiB');
+    const integrity = manifest.integrity;
+    if (!integrity && (!manifest.lazy || !cache || ref.kind !== 'server')) throw new Error('Original fingerprint required');
     const manifestHash = await checksum(metadata), previous = await this.db.books.get(key);
     let reuse = false;
-    if (!cache && previous?.availability === 'available' && previous.sourceId && previous.checksum === manifest.integrity.sha256) {
+    if (!cache && integrity && previous?.availability === 'available' && previous.sourceId && previous.checksum === integrity.sha256) {
       const source = await this.db.sources.get(previous.sourceId);
       if (source?.complete) {
-        try { reuse = (await hashSource({ ...this.descriptor(source), digests: manifest.integrity.digests }, signal)).sha256 === manifest.integrity.sha256; } catch { signal?.throwIfAborted(); }
+        try { reuse = (await hashSource({ ...this.descriptor(source), digests: integrity.digests }, signal)).sha256 === integrity.sha256; } catch { signal?.throwIfAborted(); }
       }
     }
     signal?.throwIfAborted();
@@ -229,7 +274,7 @@ export class Repository {
       if (!await this.permitted(ref) || cache && !(await this.db.access.get(scope))?.authenticated) throw new Error('Account no longer accessible');
       const row = await this.db.sources.get(stage.id); if (!row || row.complete || row.size !== stage.size || row.received !== stage.size) throw new Error('Incomplete staged original');
       const old = await this.db.books.get(key);
-      if (!cache && old?.availability === 'available' && old.checksum !== manifest.integrity.sha256) throw new Error('Original server bytes changed; remove old download before replacing');
+      if (!cache && old?.availability === 'available' && old.checksum !== integrity?.sha256) throw new Error('Original server bytes changed; remove old download before replacing');
       const checkpoint = old?.checkpoint || { position: state?.position ?? null, fraction: state?.fraction ?? null };
       if (old?.sourceId !== previous?.sourceId) throw new Error('Stored source changed during publication; retry');
       const existingSource = reuse ? old?.sourceId : undefined;
@@ -242,7 +287,7 @@ export class Repository {
         await this.db.sources.put({ ...row, complete: true, manifest, manifestHash, until: 0, ...(cache ? { cacheUsedAt: Date.now() } : {}) });
       }
       const reading = cache ? await this.refreshCheckpoint(ref, checkpoint, state) : { checkpoint };
-      await this.db.books.put({ key, scope, ref, title, author, cover, addedAt: old?.addedAt ?? new Date().toISOString(), lastReadAt: old?.lastReadAt ?? state?.updated_at ?? undefined, ...reading, availability: 'available', bytes: null, sourceId: existingSource || stage.id, size: stage.size, checksum: manifest.integrity.sha256, protocolHash: manifest.integrity.protocolHash, etag: cache?.etag });
+      await this.db.books.put({ key, scope, ref, title, author, cover, addedAt: old?.addedAt ?? new Date().toISOString(), lastReadAt: old?.lastReadAt ?? state?.updated_at ?? undefined, ...reading, availability: 'available', bytes: null, sourceId: existingSource || stage.id, size: stage.size, checksum: integrity?.sha256 ?? null, protocolHash: integrity?.protocolHash ?? null, etag: cache?.etag });
       if (cache) await this.trimServerCache(0, key);
       else if (state) { if (!validState(state, ref.kind === 'server' ? ref.documentId : '')) throw new Error('Invalid server state'); const head = await this.db.heads.get(key); if (!head || BigInt(head.state.revision) < BigInt(state.revision)) await this.db.heads.put({ key, state }); }
       signal?.throwIfAborted();
@@ -259,12 +304,16 @@ export class Repository {
     if (!row || row.availability !== 'available') throw new Error('Book unavailable; download or re-import required');
     if (!row.sourceId && row.bytes) { await this.install(ref, row.bytes, row.title, row.author, row.cover); return this.open(ref); }
     const stored = row.sourceId && await this.db.sources.get(row.sourceId);
-    if (!stored || !stored.complete || !stored.manifest || stored.size !== row.size || stored.manifest.integrity.sha256 !== row.checksum) throw new Error('Original source/index unavailable');
+    if (!stored || !stored.complete || !stored.manifest || stored.size !== row.size) throw new Error('Original source/index unavailable');
+    const { integrity } = stored.manifest;
+    const identityMatches = integrity ? integrity.sha256 === row.checksum && integrity.protocolHash === row.protocolHash
+      : integrity === null && stored.manifest.lazy && ref.kind === 'server' && row.checksum === null && row.protocolHash === null;
+    if (!identityMatches) throw new Error('Original source/index unavailable');
     const metadata = new Blob([JSON.stringify(stored.manifest)]);
     if (metadata.size > 16 * 1024 * 1024 || !stored.manifestHash) throw new Error('Validated index integrity unavailable; re-import or download required');
     const manifestHash = await checksum(metadata);
     if (stored.manifestHash !== manifestHash) throw new Error('Validated index integrity mismatch');
-    return { row, source: { ...this.descriptor(stored), digests: stored.manifest.integrity.digests }, manifest: stored.manifest };
+    return { row, source: { ...this.descriptor(stored), digests: integrity?.digests }, manifest: stored.manifest };
   }
   async exportLocal(ref: Extract<BookRef, { kind: 'local' }>): Promise<Blob> {
     const book = await this.db.books.get(refKey(ref));

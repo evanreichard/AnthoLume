@@ -128,7 +128,7 @@ function RestoreBackup({ account, close }: { account: Account; close: () => void
     try {
       if (apply && candidate && confirm === 'RESTORE') {
         await session.api.applyAdminRestore(account, { token: candidate.token });
-        window.location.assign('/app/login');
+        window.location.assign('/login');
       } else if (!apply && file) {
         const staged = await session.api.stageAdminRestore(account, file);
         setCandidate(staged);

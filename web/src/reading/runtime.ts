@@ -75,10 +75,16 @@ export class ReadingRuntime implements ReadingActions {
       this.changed(this.snapshot);
     } catch (error) { if (!this.disposed) { this.snapshot = { ...this.snapshot, ready: false, error: String(error) }; this.changed(this.snapshot); } }
   }
-  private async write<T>(action: () => Promise<T>) {
+  private async write<T>(action: () => Promise<T>, readerOpen?: AbortSignal) {
     this.requireReady();
-    try { const result = await action(); this.quotaError = false; this.error = null; return result; } catch (error) { this.quotaError = error instanceof Error && error.name === 'QuotaExceededError'; this.error = this.quotaError ? 'Storage quota exceeded. No partial book/save was published.' : String(error); throw error; }
-    finally { await this.refresh(); }
+    try { const result = await action(); this.quotaError = false; this.error = null; return result; }
+    catch (error) {
+      if (!readerOpen?.aborted && (!readerOpen || error instanceof Error && error.name === 'QuotaExceededError')) {
+        this.quotaError = error instanceof Error && error.name === 'QuotaExceededError';
+        this.error = this.quotaError ? 'Storage quota exceeded. No partial book/save was published.' : String(error);
+      }
+      throw error;
+    } finally { await this.refresh(); }
   }
   private async job<T>(external: AbortSignal | undefined, action: (signal: AbortSignal) => Promise<T>, accountBound = true, deadlineMs = 1200000) {
     if (this.jobs.size >= 2) throw new Error('Two bounded reading operations are already active');
@@ -87,9 +93,13 @@ export class ReadingRuntime implements ReadingActions {
     const timer = setTimeout(() => controller.abort(new Error('Reading operation deadline exceeded')), deadlineMs);
     try { return await action(controller.signal); } finally { clearTimeout(timer); this.jobs.delete(controller); external?.removeEventListener('abort', abort); }
   }
-  async openServerBook(ref: Extract<BookRef, { kind: 'server' }>, external: AbortSignal) {
+  async openServerBook(ref: Extract<BookRef, { kind: 'server' }>, external: AbortSignal, onStage?: (message: string) => void) {
+    const stageMessage = (message: string) => { if (!external.aborted) onStage?.(message); };
     const account = this.selectedAccount(), generation = this.generation, key = refKey(ref);
     if (!sameAccount(account, ref.account)) throw new Error('Book belongs to another account');
+    if (this.appliedGeneration !== generation) await this.accessTail;
+    external.throwIfAborted();
+    if (generation !== this.generation) throw new DOMException('Book account changed', 'AbortError');
     const opened = await this.write(() => this.job(external, async signal => {
       const current = () => {
         signal.throwIfAborted();
@@ -99,11 +109,13 @@ export class ReadingRuntime implements ReadingActions {
       const etag = previous?.sourceId && previous.availability === 'available' ? cacheETag(previous.etag) : undefined;
       const fetchFile = async (validator?: string) => {
         current();
+        stageMessage(validator ? 'Checking cached copy…' : 'Connecting to the server…');
         const response = await this.bridge.fetchFile(account, ref.documentId, signal, validator);
         try { current(); } catch (error) { await response.body?.cancel(); throw error; }
         return response;
       };
       const getState = async () => {
+        stageMessage('Fetching your saved position…');
         const state = await this.bridge.getState(account, ref.documentId, signal);
         current();
         if (!validState(state, ref.documentId)) throw new Error('Invalid server reading state');
@@ -112,6 +124,7 @@ export class ReadingRuntime implements ReadingActions {
       let response = await fetchFile(etag);
       if (response.status === 304 && !response.redirected && etag && response.headers.get('ETag') === etag) {
         const state = await getState();
+        stageMessage('Opening cached copy…');
         try { return await this.repo.useCached(ref, previous!.sourceId!, etag, state, signal); }
         catch { current(); response = await fetchFile(); }
       }
@@ -124,6 +137,7 @@ export class ReadingRuntime implements ReadingActions {
           const rawLength = response.headers.get('Content-Length');
           const length = rawLength && /^\d+$/.test(rawLength) ? Number(rawLength) : null;
           if (length !== null && length > sourceLimits.diskBytes) { await response.body.cancel(); throw new Error('EPUB exceeds compressed budget'); }
+          stageMessage('Downloading EPUB…');
           this.snapshot = { ...this.snapshot, downloads: [...this.snapshot.downloads.filter(item => item.ref !== ref), { ref, receivedBytes: 0, totalBytes: length }] };
           this.changed(this.snapshot);
           try {
@@ -135,9 +149,10 @@ export class ReadingRuntime implements ReadingActions {
               if (length !== null && length !== stage.size) throw new Error('Incomplete EPUB download');
               this.snapshot = { ...this.snapshot, downloads: this.snapshot.downloads.map(item => item.ref === ref ? { ...item, receivedBytes: stage.size, preparing: true } : item) };
               this.changed(this.snapshot);
-              const policy = await this.repo.validateStage(stage, signal, true);
+              const policy = await this.repo.validateStage(stage, signal, true, stageMessage);
               try {
                 const state = await getState();
+                stageMessage('Saving a copy on this device…');
                 await this.repo.publish(ref, stage, policy.manifest, previous?.title ?? policy.manifest.title, previous?.author ?? policy.manifest.author, null, state, signal, { etag: cacheETag(response.headers.get('ETag')) });
               } finally { policy.dispose(); }
             } finally { await this.repo.discardSource(stage.id); }
@@ -152,11 +167,14 @@ export class ReadingRuntime implements ReadingActions {
       } finally {
         this.snapshot = { ...this.snapshot, downloads: this.snapshot.downloads.filter(item => item.ref !== ref) };
       }
-    }));
+    }), external);
+    external.throwIfAborted();
     if (generation !== this.generation || !opened.row.sourceId) throw new Error('Book account or source changed');
     await this.repo.keepSource(opened.row.sourceId, external);
     return opened;
   }
+  readerCacheSummary = () => { this.requireReady(); return this.repo.readerCacheSummary(); };
+  clearReaderCache = () => { this.requireReady(); return this.repo.clearServerCache(); };
   exportLocal = (ref: Extract<BookRef, { kind: 'local' }>) => this.repo.exportLocal(ref);
   async save(ref: BookRef, checkpoint: Checkpoint, activity?: S['ActivityEvent']) { await this.write(() => this.repo.save(ref, checkpoint, activity)); this.schedule(0); }
   async credit(ref: BookRef, event: S['ActivityEvent'], measured?: CapturedActivity) { await this.write(() => this.repo.credit(ref, event, measured)); this.schedule(0); }

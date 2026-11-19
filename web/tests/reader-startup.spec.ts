@@ -5,7 +5,7 @@ test('a real authenticated cookie cold-starts a new reader database without losi
   const context = await browser.newContext({ storageState: await page.context().storageState() });
   try {
     const cold = await context.newPage();
-    await cold.goto(`${server.origin}/app/library`);
+    await cold.goto(`${server.origin}/library`);
     await cold.getByRole('heading', { name: 'Public book 01', exact: true }).click();
     await cold.getByRole('link', { name: /^(Read|Resume)$/ }).click();
     await expect(cold.getByRole('region', { name: 'Book reader', exact: true })).toHaveAttribute('data-reader-state', 'ready');

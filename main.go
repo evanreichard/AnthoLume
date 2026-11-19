@@ -14,7 +14,7 @@ import (
 	"reichard.io/antholume/server"
 )
 
-//go:embed templates/* assets/*
+//go:embed assets
 var embeddedAssets embed.FS
 
 func main() {
