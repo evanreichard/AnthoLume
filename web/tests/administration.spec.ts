@@ -480,3 +480,39 @@ test('Make Library previews the change and only applies after confirmation', asy
   await expect(roots.getByRole('button', { name: 'Former Library', exact: true })).toBeVisible();
   await expect(roots.getByRole('button', { name: 'Library', exact: true })).toHaveAccessibleDescription(new RegExp(sourcePath));
 });
+
+test('Make Library offers an explicit merge when the proposed folder already is Library', async ({ page, server }) => {
+  await register(page, server.origin, 'merge-owner');
+  const libraryPath = `${server.data}/documents`;
+  const db = new DatabaseSync(`${server.data}/browser.db`);
+  try {
+    db.prepare("UPDATE users SET admin=1 WHERE id='merge-owner'").run();
+    db.prepare("UPDATE storage_roots SET path=? WHERE id='library'").run(libraryPath);
+    db.exec("INSERT INTO storage_roots(id,label,managed) VALUES('incoming','Incoming library',0); INSERT INTO documents(id,filepath,storage_root_id) VALUES('incoming-book','public.epub','incoming')");
+  } finally { db.close(); }
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto(`${server.origin}/admin/library`);
+  const roots = page.getByRole('region', { name: 'Storage Roots' });
+  const incoming = roots.getByRole('button', { name: 'Incoming library', exact: true });
+  await expect(incoming).toBeVisible();
+  const former = roots.getByRole('button', { name: 'Former Library', exact: true });
+  const formerCount = await former.count();
+  await incoming.click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Directory', { exact: true }).fill(libraryPath);
+  await dialog.getByRole('button', { name: 'Make Library', exact: true }).click();
+  await expect(dialog).toHaveAccessibleName('Merge into Library?');
+  await expect(dialog).toContainText('These books will be included in Library file backups.');
+  await expect(dialog).toContainText('No files will move.');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog).toHaveAccessibleName('Edit Root');
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(incoming).toBeVisible();
+  await incoming.click();
+  await dialog.getByRole('button', { name: 'Make Library', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Merge into Library', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(incoming).toHaveCount(0);
+  await expect(former).toHaveCount(formerCount);
+  await expect(roots.getByRole('button', { name: 'Library', exact: true })).toHaveAccessibleDescription(new RegExp(libraryPath));
+});

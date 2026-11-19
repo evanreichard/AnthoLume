@@ -111,18 +111,21 @@ function MakeLibraryDialog({ account, root, path, cancel, close }: { account: Ac
       } else setError(failure);
     } finally { setBusy(false); }
   }
-  return <Dialog key="make-library" title="Make this folder Library?" onClose={() => { if (!busy) cancel(); }} footer={<>
-    <Button size="slim" tone="primary" disabled={busy || query.isFetching || !plan} onClick={() => void apply()}>Make Library</Button>
+  const sameFolder = plan?.same_folder === true;
+  return <Dialog key="make-library" title={sameFolder ? 'Merge into Library?' : 'Make this folder Library?'} onClose={() => { if (!busy) cancel(); }} footer={<>
+    <Button size="slim" tone="primary" disabled={busy || query.isFetching || !plan} onClick={() => void apply()}>{sameFolder ? 'Merge into Library' : 'Make Library'}</Button>
     <Button size="slim" disabled={busy} onClick={cancel}>Cancel</Button>
   </>}>
     <div className={styles.manageForm}>
       {query.isPending && <SkeletonRows label="Checking Library change…" count={2} />}
       <ErrorNotice error={error || query.error} />
       {plan && <>
-        <p><strong>{root.label}</strong> will become the destination for copies and restored files.</p>
+        {sameFolder
+          ? <p>Library already points at this folder. Its path will stay the same.</p>
+          : <p><strong>{root.label}</strong> will become the destination for copies and restored files.</p>}
         <p className={storage.hint}>{plan.source_path}</p>
-        <p>{plan.incoming} books will join Library.  {plan.same_folder
-          ? 'The existing Library already points at this folder.'
+        <p>{plan.incoming} {plan.incoming === 1 ? 'book' : 'books'} will join Library. {sameFolder
+          ? 'These books will be included in Library file backups.'
           : `The former Library becomes a source; its ${plan.outgoing} books won’t be included in Library file backups.`}</p>
         {plan.paused_rules > 0 && <p>{plan.paused_rules} auto-import rules will be paused.</p>}
         <p>No files will move. Reading history stays intact.</p>
