@@ -142,7 +142,31 @@ func (s *webAPI) LookupMetadata(ctx context.Context, r LookupMetadataRequestObje
 	}
 	out := make([]MetadataMatch, 0, len(matches))
 	for _, m := range matches {
-		out = append(out, MetadataMatch{Id: m.ID, Title: m.Title, Author: m.Author, Year: m.Year, CoverId: m.CoverID, Description: m.Description, Isbn10: m.ISBN10, Isbn13: m.ISBN13})
+		out = append(out, metadataMatch(m))
 	}
 	return LookupMetadata200JSONResponse(out), nil
+}
+
+func metadataMatch(m metadata.LookupMatch) MetadataMatch {
+	return MetadataMatch{Id: m.ID, Title: m.Title, Author: m.Author, Year: m.Year, EditionId: m.EditionID, Publisher: m.Publisher, Published: m.Published, CoverId: m.CoverID, Description: m.Description, Isbn10: m.ISBN10, Isbn13: m.ISBN13}
+}
+
+func (s *webAPI) PreviewMetadataMatch(ctx context.Context, r PreviewMetadataMatchRequestObject) (PreviewMetadataMatchResponseObject, error) {
+	if s.api.cfg.DemoMode {
+		return nil, &reading.Failure{Status: 403, Code: "forbidden"}
+	}
+	value := func(p *string) string {
+		if p == nil {
+			return ""
+		}
+		return *p
+	}
+	m, err := metadata.ResolveOpenLibrary(requestContext(ctx), r.Params.WorkId, value(r.Params.EditionId), value(r.Params.Isbn))
+	if errors.Is(err, metadata.ErrInvalidLookupMatch) {
+		return nil, &reading.Failure{Status: 400, Code: "invalid_request"}
+	}
+	if err != nil {
+		return nil, &reading.Failure{Status: 503, Code: "metadata_unavailable"}
+	}
+	return PreviewMetadataMatch200JSONResponse(metadataMatch(m)), nil
 }

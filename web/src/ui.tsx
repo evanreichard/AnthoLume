@@ -31,22 +31,30 @@ type DialogProps = {
   layout?: 'content' | 'scroll-body';
   placement?: 'center' | 'mobile-sheet';
   toolbar?: ReactNode;
+  titleLeading?: ReactNode;
   footer?: ReactNode;
 };
 
-export function Dialog({ title, children, onClose, size = 'default', layout = 'content', placement = 'center', toolbar, footer }: DialogProps) {
+export function Dialog({ title, children, onClose, size = 'default', layout = 'content', placement = 'center', toolbar, titleLeading, footer }: DialogProps) {
   const titleId = useId();
   const ref = useRef<HTMLDialogElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
+    const dialog = ref.current;
+    const heading = titleRef.current;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    ref.current?.showModal();
-    return () => { ref.current?.close(); if (previous?.isConnected) previous.focus(); };
+    // Give native dialog focus a non-interactive target instead of the first button.
+    heading?.setAttribute('autofocus', '');
+    dialog?.showModal();
+    if (heading && document.activeElement !== heading) heading.focus({ preventScroll: true });
+    return () => { dialog?.close(); if (previous?.isConnected) previous.focus(); };
   }, []);
+  const heading = <h2 id={titleId} ref={titleRef} tabIndex={-1}>{title}</h2>;
   return <dialog ref={ref} className={styles.dialog} data-size={size} data-layout={layout} data-placement={placement} onCancel={(event) => { event.preventDefault(); onClose(); }} onClick={(event) => { if (event.target === ref.current) {
     const rect = event.currentTarget.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom) onClose();
   } }} aria-labelledby={titleId}>
-    <header className={styles.dialogHeader}><h2 id={titleId}>{title}</h2><button type="button" className={styles.icon} onClick={onClose} aria-label="Close dialog">×</button></header>
+    <header className={styles.dialogHeader}>{titleLeading ? <div className={styles.dialogTitleGroup}>{titleLeading}{heading}</div> : heading}<button type="button" className={styles.icon} onClick={onClose} aria-label="Close dialog">×</button></header>
     {toolbar != null && <div className={styles.dialogToolbar}>{toolbar}</div>}
     {layout === 'scroll-body' ? <div className={styles.dialogBody}>{children}</div> : children}
     {footer != null && <footer className={styles.dialogFooter}>{footer}</footer>}

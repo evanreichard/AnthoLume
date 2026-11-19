@@ -32,7 +32,7 @@ test('missing server files are flagged on the cover and book detail', async ({ p
   await expect(status).toContainText('The server can’t find or read this file.');
   await expect(hero).not.toContainText('Book file unavailable');
   await expect(hero.getByText('54%', { exact: true })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Your reading' })).toContainText('54%');
+  await expect(page.getByRole('region', { name: 'Reading progress' })).toContainText('54%');
   await expect(page.getByRole('link', { name: /^(Read|Resume)$/ })).toHaveCount(0);
   for (const [width, colorScheme] of [[320, 'light'], [1440, 'dark']] as const) {
     await page.setViewportSize({ width, height: 800 });

@@ -8,8 +8,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
-	"reichard.io/antholume/database"
-	"reichard.io/antholume/metadata"
 )
 
 func (api *API) createDownloadDocumentHandler(errorFunc func(*gin.Context, int, string)) func(*gin.Context) {
@@ -94,55 +92,6 @@ func (api *API) createGetCoverHandler(errorFunc func(*gin.Context, int, string))
 			return
 		}
 
-		// Attempt Metadata
-		var coverDir string = filepath.Join(api.cfg.DataPath, "covers")
-		var coverFile string = "UNKNOWN"
-
-		// Identify Documents & Save Covers
-		metadataResults, err := metadata.SearchMetadata(metadata.SOURCE_GBOOK, metadata.MetadataInfo{
-			Title:  document.Title,
-			Author: document.Author,
-		})
-
-		if err == nil && len(metadataResults) > 0 && metadataResults[0].ID != nil {
-			firstResult := metadataResults[0]
-
-			// Save Cover
-			fileName, err := metadata.CacheCover(*firstResult.ID, coverDir, document.ID, false)
-			if err == nil {
-				coverFile = *fileName
-			}
-
-			// Store First Metadata Result
-			if _, err = api.db.Queries.AddMetadata(c, database.AddMetadataParams{
-				DocumentID:  document.ID,
-				Title:       firstResult.Title,
-				Author:      firstResult.Author,
-				Description: firstResult.Description,
-				Gbid:        firstResult.ID,
-				Olid:        nil,
-				Isbn10:      firstResult.ISBN10,
-				Isbn13:      firstResult.ISBN13,
-			}); err != nil {
-				log.Error("AddMetadata DB Error:", err)
-			}
-		}
-
-		// Upsert Document
-		if _, err = api.db.Queries.UpsertDocument(c, database.UpsertDocumentParams{
-			ID:        document.ID,
-			Coverfile: &coverFile,
-		}); err != nil {
-			log.Warn("UpsertDocument DB Error:", err)
-		}
-
-		// Return Unknown Cover
-		if coverFile == "UNKNOWN" {
-			c.FileFromFS("assets/images/no-cover.jpg", http.FS(api.assets))
-			return
-		}
-
-		coverFilePath := filepath.Join(coverDir, coverFile)
-		c.File(coverFilePath)
+		c.FileFromFS("assets/images/no-cover.jpg", http.FS(api.assets))
 	}
 }

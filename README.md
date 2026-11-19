@@ -36,7 +36,7 @@ AnthoLume is a Progressive Web App (PWA) that manages your EPUB documents, provi
 
 - OPDS API Endpoint
 - Local / Offline Reader (via ServiceWorker)
-- Metadata Scraping (Thanks [OpenLibrary](https://openlibrary.org/) & [Google Books API](https://developers.google.com/books/docs/v1/getting_started))
+- Book identification with [Open Library](https://openlibrary.org/)
 - Words / Minute (WPM) Tracking & Leaderboard (Amongst Server Users)
 
 While some features require JavaScript (Service Worker & EPUB Reader), we make an effort to limit JavaScript usage. Outside of the two aforementioned features, no JavaScript is used.
@@ -158,7 +158,7 @@ make build_web
 # Clean Local Build
 make clean
 
-# Tests (Unit & Integration - Google Books API)
+# Tests (Unit & Integration)
 make tests_unit
 make tests_integration
 ```

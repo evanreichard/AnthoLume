@@ -118,6 +118,13 @@ func TestWebLibraryBinariesAndOPDSWire(t *testing.T) {
 	r = f.call("GET", "/api/opds/documents/opaque-book/file", nil, headers)
 	require.Equal(t, 200, r.status)
 	require.Equal(t, book, r.body)
+	r = f.call("GET", "/api/opds/documents/z-book/cover", nil, headers)
+	require.Equal(t, 200, r.status)
+	require.Equal(t, "image/jpeg", r.header.Get("Content-Type"))
+	require.Zero(t, f.count("metadata"))
+	var coverStillMissing bool
+	require.NoError(t, f.db.DB.QueryRow("SELECT coverfile IS NULL FROM documents WHERE id='z-book'").Scan(&coverStillMissing))
+	require.True(t, coverStillMissing)
 	f.exec("UPDATE documents SET filepath='missing.epub' WHERE id='opaque-book'")
 	assertProblem(t, f.call("GET", "/api/v1/documents/opaque-book/file", nil, nil), 404, "not_found")
 }

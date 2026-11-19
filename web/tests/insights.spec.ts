@@ -38,7 +38,9 @@ test('Library, Insights, Settings and Book Detail share mobile and desktop gutte
     }
     await position('Library');
     await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
-    const reading = page.getByRole('region', { name: 'Your reading' });
+    const reading = page.getByRole('region', { name: 'Reading progress' });
+    await expect(reading.getByRole('progressbar')).toBeVisible();
+    await expect(reading.getByRole('heading')).toHaveCount(0);
     const info = page.getByRole('region', { name: 'Book details' });
     await expect(info.getByRole('heading', { name: 'Book information', exact: true })).toHaveCount(0);
     const hero = page.getByRole('region', { name: 'Public book 01', exact: true });
@@ -163,7 +165,7 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
   const bookHero = page.getByRole('region', { name: 'Public book 01', exact: true });
   await expect(bookHero.getByRole('heading', { name: 'Public book 01' })).toBeVisible();
   await expect(bookHero.getByText('20%', { exact: true })).toBeVisible();
-  await page.getByRole('region', { name: 'Your reading' }).getByRole('link', { name: 'View activity', exact: true }).click();
+  await page.getByRole('group', { name: 'Book actions' }).getByRole('link', { name: 'Activity', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Public book 01' })).toBeVisible();
   const sections = page.getByRole('navigation', { name: 'Insights sections' });
   await sections.getByRole('link', { name: 'Progress' }).click();

@@ -1,11 +1,8 @@
 package metadata
 
 import (
-	"errors"
-	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"reichard.io/antholume/utils"
 )
@@ -14,13 +11,6 @@ type DocumentType string
 
 const (
 	TYPE_EPUB DocumentType = ".epub"
-)
-
-type Source int
-
-const (
-	SOURCE_GBOOK Source = iota
-	SOURCE_OLIB
 )
 
 type MetadataInfo struct {
@@ -35,35 +25,6 @@ type MetadataInfo struct {
 	ISBN10      *string
 	ISBN13      *string
 	Type        DocumentType
-}
-
-// Downloads the Google Books cover file and saves it to the provided directory.
-func CacheCover(gbid string, coverDir string, documentID string, overwrite bool) (*string, error) {
-	// Get Filepath
-	coverFile := "." + filepath.Clean(fmt.Sprintf("/%s.jpg", documentID))
-	coverFilePath := filepath.Join(coverDir, coverFile)
-
-	// Save Google Books
-	if err := saveGBooksCover(gbid, coverFilePath, overwrite); err != nil {
-		return nil, err
-	}
-
-	// TODO - Refactor & Allow Open Library / Alternative Sources
-
-	return &coverFile, nil
-}
-
-// Searches source for metadata based on the provided information.
-func SearchMetadata(s Source, metadataSearch MetadataInfo) ([]MetadataInfo, error) {
-	switch s {
-	case SOURCE_GBOOK:
-		return getGBooksMetadata(metadataSearch)
-	case SOURCE_OLIB:
-		return nil, errors.New("not implemented")
-	default:
-		return nil, errors.New("not implemented")
-
-	}
 }
 
 // Returns the word count of the provided filepath. An error will be returned

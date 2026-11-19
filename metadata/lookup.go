@@ -13,11 +13,12 @@ import (
 )
 
 type LookupMatch struct {
-	ID, Title, Author string
-	Year              *int
-	CoverID           *int64
-	Description       *string
-	ISBN10, ISBN13    *string
+	ID, Title, Author               string
+	Year                            *int
+	CoverID                         *int64
+	Description                     *string
+	EditionID, Publisher, Published *string
+	ISBN10, ISBN13                  *string
 }
 
 var lookupClient = &http.Client{Timeout: 6 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
@@ -30,7 +31,7 @@ var lookupISBN = regexp.MustCompile(`^(?:[0-9]{13}|[0-9]{9}[0-9X])$`)
 
 func lookupOpenLibrary(ctx context.Context, client *http.Client, endpoint, query string) ([]LookupMatch, error) {
 	isbn := strings.NewReplacer("-", "", " ", "").Replace(strings.ToUpper(query))
-	params := url.Values{"q": {query}, "limit": {"8"}, "fields": {"key,title,author_name,first_publish_year,first_sentence,cover_i"}}
+	params := url.Values{"q": {query}, "limit": {"8"}, "fields": {"key,title,author_name,first_publish_year,cover_edition_key,cover_i"}}
 	if lookupISBN.MatchString(isbn) {
 		params.Set("q", "isbn:"+isbn)
 		params.Set("fields", params.Get("fields")+",isbn")
@@ -58,13 +59,13 @@ func lookupOpenLibrary(ctx context.Context, client *http.Client, endpoint, query
 	}
 	var payload struct {
 		Docs []struct {
-			Key           string   `json:"key"`
-			Title         string   `json:"title"`
-			Authors       []string `json:"author_name"`
-			Year          *int     `json:"first_publish_year"`
-			CoverID       *int64   `json:"cover_i"`
-			ISBN          []string `json:"isbn"`
-			FirstSentence []string `json:"first_sentence"`
+			Key        string   `json:"key"`
+			Title      string   `json:"title"`
+			Authors    []string `json:"author_name"`
+			Year       *int     `json:"first_publish_year"`
+			EditionKey string   `json:"cover_edition_key"`
+			CoverID    int64    `json:"cover_i"`
+			ISBN       []string `json:"isbn"`
 		} `json:"docs"`
 	}
 	if err = json.Unmarshal(raw, &payload); err != nil {
@@ -77,18 +78,17 @@ func lookupOpenLibrary(ctx context.Context, client *http.Client, endpoint, query
 	seen := make(map[string]bool)
 	for _, d := range payload.Docs {
 		title := lookupText(d.Title, 512)
-		if title == "" || d.Key == "" || seen[d.Key] {
+		key := strings.TrimPrefix(d.Key, "/works/")
+		if title == "" || !workID.MatchString(key) || seen[key] {
 			continue
 		}
-		seen[d.Key] = true
-		m := LookupMatch{ID: d.Key, Title: title, Author: lookupText(strings.Join(d.Authors, ", "), 512), Year: d.Year}
-		if d.CoverID != nil && *d.CoverID > 0 && *d.CoverID <= 9999999999 {
-			m.CoverID = d.CoverID
+		seen[key] = true
+		m := LookupMatch{ID: key, Title: title, Author: lookupText(strings.Join(d.Authors, ", "), 512), Year: d.Year}
+		if d.CoverID > 0 && d.CoverID <= 9999999999 {
+			m.CoverID = &d.CoverID
 		}
-		if len(d.FirstSentence) > 0 {
-			if excerpt := lookupText(d.FirstSentence[0], 16000); excerpt != "" {
-				m.Description = &excerpt
-			}
+		if editionID.MatchString(d.EditionKey) {
+			m.EditionID = &d.EditionKey
 		}
 		for _, value := range d.ISBN {
 			if value != isbn || !lookupISBN.MatchString(value) {

@@ -147,6 +147,20 @@ paths:
             application/json:
               schema: {type: array, maxItems: 8, items: {$ref: '#/components/schemas/MetadataMatch'}}
         default: {$ref: '#/components/responses/Problem'}
+  /api/v1/metadata/match:
+    get:
+      operationId: previewMetadataMatch
+      parameters:
+        - {name: work_id, in: query, required: true, schema: {type: string, pattern: '^OL[0-9]{1,15}W$'}}
+        - {name: edition_id, in: query, schema: {type: string, pattern: '^OL[0-9]{1,15}M$'}}
+        - {name: isbn, in: query, schema: {type: string, pattern: '^([0-9]{13}|[0-9]{9}[0-9X])$'}}
+      responses:
+        '200':
+          description: Verified Work and optional Edition preview, not saved
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MetadataMatch'}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/metadata/covers/{cover_id}:
     get:
       operationId: getMetadataCover
@@ -992,6 +1006,9 @@ components:
         title: {type: string}
         author: {type: string}
         year: {type: integer}
+        edition_id: {type: string, pattern: '^OL[0-9]{1,15}M$'}
+        publisher: {type: string}
+        published: {type: string}
         cover_id: {type: integer, format: int64, minimum: 1, maximum: 9999999999}
         description: {type: string}
         isbn10: {type: string}

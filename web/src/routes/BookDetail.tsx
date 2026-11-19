@@ -7,9 +7,10 @@ import { queryClient, session, useSession } from '../session';
 import { BookHero, Dialog, ErrorNotice, missingFileLabel, PageHeader } from '../ui';
 import { Icon } from '../Icon';
 import { BookEditor } from './BookEditor';
+import { IdentifyBook } from './IdentifyBook';
 import { useBookRef } from './bookRef';
 import styles from '../App.module.css';
-import { BackPill, JoinedAction, JoinedActions, Button } from '../Controls';
+import { BackPill, JoinedAction, JoinedActions, JoinedActionLink, Button } from '../Controls';
 
 function duration(seconds: number) {
   if (!seconds) return '0 min';
@@ -33,7 +34,7 @@ function BookDetailContent() {
   const reading = useReading();
   const { access, capabilities } = useSession();
   const navigate = useNavigate();
-  const [management, setManagement] = useState<'edit' | 'delete' | null>(null);
+  const [management, setManagement] = useState<'edit' | 'identify' | 'delete' | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<unknown>(null);
   const deleteController = useRef<AbortController | null>(null);
@@ -93,9 +94,13 @@ function BookDetailContent() {
   const canManage = ref.kind === 'server' && access.kind === 'authenticated' && !!document.data && !!capabilities && !capabilities.demo_mode;
   return <article className={styles.bookPage}>
     <PageHeader leading={<BackPill to="/library" onClick={(event) => { if (window.history.state?.idx > 0) { event.preventDefault(); navigate(-1); } }}>Library</BackPill>}
-      actions={canManage && <JoinedActions label="Manage book">
-        <JoinedAction aria-label="Edit book" title="Edit book" onClick={() => setManagement('edit')}><Icon name="edit" size={18} /></JoinedAction>
-        <JoinedAction tone="danger" aria-label="Delete from shared library" title="Delete from shared library" onClick={() => { setDeleteError(null); setManagement('delete'); }}><Icon name="trash" size={18} /></JoinedAction>
+      actions={<JoinedActions label="Book actions">
+        <JoinedActionLink aria-label="Activity" title="Activity" to={`/insights/activity?${new URLSearchParams({ document: ref.documentId })}`}><Icon name="insights" size={18} /></JoinedActionLink>
+        {canManage && <>
+          <JoinedAction aria-label="Identify book" title="Identify book" onClick={() => setManagement('identify')}><Icon name="search" size={18} /></JoinedAction>
+          <JoinedAction aria-label="Edit book" title="Edit book" onClick={() => setManagement('edit')}><Icon name="edit" size={18} /></JoinedAction>
+          <JoinedAction tone="danger" aria-label="Delete from shared library" title="Delete from shared library" onClick={() => { setDeleteError(null); setManagement('delete'); }}><Icon name="trash" size={18} /></JoinedAction>
+        </>}
       </JoinedActions>} />
     <div className={styles.bookOverview}>
       <BookHero variant="detail" book={{ ...book, title }} headingRef={heading} progress={started ? Math.round(fraction * 100) : null} series={metadata?.series} edition={edition?.[2]}
@@ -105,11 +110,7 @@ function BookDetailContent() {
         <p><strong>{missingFileLabel}</strong> <span>The server can’t find or read this file.</span></p>
       </div>}
     </div>
-    <section className={`${styles.detailSection} ${styles.detailReading}`} aria-labelledby="book-reading">
-      <div className={styles.detailReadingHeading}>
-        <h2 id="book-reading">Your reading</h2>
-        {ref.kind === 'server' && <Link to={`/insights/activity?${new URLSearchParams({ document: ref.documentId })}`}>View activity</Link>}
-      </div>
+    <section className={`${styles.detailSection} ${styles.detailReading}`} aria-label="Reading progress">
       <div className={styles.detailProgress}>
         <span>{Math.round(fraction * 100)}%</span><span>{fraction >= 1 ? 'Finished' : started ? 'In progress' : 'Not started'}</span>
         <progress aria-label="Reading progress" max={1} value={fraction} />
@@ -126,12 +127,15 @@ function BookDetailContent() {
         {stats?.word_count != null && stats.word_count > 0 && <div><dt>Length</dt><dd>{stats.word_count.toLocaleString()} words</dd></div>}
         {metadata?.series && <div><dt>Series</dt><dd>{metadata.series}</dd></div>}
         {metadata?.lang && <div><dt>Language</dt><dd>{languageName(metadata.lang)}</dd></div>}
+        {metadata?.isbn13 ? <div><dt>ISBN-13</dt><dd>{metadata.isbn13}</dd></div> : metadata?.isbn10 && <div><dt>ISBN-10</dt><dd>{metadata.isbn10}</dd></div>}
       </dl>
       <h2 className={styles.synopsisHeading}>Synopsis</h2>
       <p className={styles.description}>{metadata?.description?.trim() || 'No synopsis available for this edition.'}</p>
     </section>
-    {ref.kind === 'server' && document.data && access.kind === 'authenticated' && management === 'edit' &&
+    {canManage && document.data && management === 'edit' &&
       <BookEditor book={book} refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={() => { refreshManagement(); setManagement(null); }} />}
+    {canManage && document.data && management === 'identify' &&
+      <IdentifyBook refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={() => { refreshManagement(); setManagement(null); }} />}
     {ref.kind === 'server' && access.kind === 'authenticated' && management === 'delete' && <Dialog title="Delete from shared library?" onClose={() => { if (!deleting) setManagement(null); }}>
       <p>“{title}” will be removed from the shared library for everyone. The server keeps the original file and reading history. This does not remove downloads from other devices.</p>
       <ErrorNotice error={deleteError} />

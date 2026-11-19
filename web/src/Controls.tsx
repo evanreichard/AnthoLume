@@ -33,6 +33,10 @@ export function JoinedAction({ children, tone, ...props }: Omit<ButtonHTMLAttrib
   return <button {...props} type="button" data-tone={tone}><span>{children}</span></button>;
 }
 
+export function JoinedActionLink({ children, ...props }: Omit<LinkProps, 'className'>) {
+  return <Link {...props}><span>{children}</span></Link>;
+}
+
 export function Card({ as: Tag = 'section', density = 'regular', className, ...props }: HTMLAttributes<HTMLElement> & { as?: 'section' | 'article'; density?: 'regular' | 'compact' }) {
   return <Tag {...props} className={[density === 'compact' ? styles.compactCard : styles.paddedSurface, className].filter(Boolean).join(' ')} />;
 }

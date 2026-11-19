@@ -129,6 +129,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/metadata/match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["previewMetadataMatch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/metadata/covers/{cover_id}": {
         parameters: {
             query?: never;
@@ -820,6 +836,9 @@ export interface components {
             title: string;
             author: string;
             year?: number;
+            edition_id?: string;
+            publisher?: string;
+            published?: string;
             /** Format: int64 */
             cover_id?: number;
             description?: string;
@@ -1225,6 +1244,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetadataMatch"][];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    previewMetadataMatch: {
+        parameters: {
+            query: {
+                work_id: string;
+                edition_id?: string;
+                isbn?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Verified Work and optional Edition preview, not saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetadataMatch"];
                 };
             };
             default: components["responses"]["Problem"];
