@@ -35,7 +35,7 @@
 AnthoLume is a Progressive Web App (PWA) that manages your EPUB documents, provides an EPUB reader, and tracks your reading activity! It also has a [KOReader KOSync](https://github.com/koreader/koreader-sync-server) compatible API, and a [KOReader](https://github.com/koreader/koreader) Plugin used to sync activity from your Kindle. Some additional features include:
 
 - OPDS API Endpoint
-- Local / Offline Reader (via ServiceWorker)
+- Browser EPUB reader with on-device caching
 - Book identification with [Open Library](https://openlibrary.org/)
 - Words / Minute (WPM) Tracking & Leaderboard (Amongst Server Users)
 
@@ -43,14 +43,9 @@ AnthoLume is a Progressive Web App (PWA) that manages your EPUB documents, provi
 
 Docker Image: `docker pull gitea.va.reichard.io/evan/antholume:latest`
 
-### Local / Offline Reader
+### EPUB Reader
 
-The Local / Offline reader allows you to use any AnthoLume server as a standalone offline accessible reading app! Some features:
-
-- Add local EPUB documents
-- Read both local and any cached server documents
-- Maintains progress for all types of documents (server / local)
-- Uploads any progress or activity for cached server documents once the internet is accessible
+Opening or reopening a book requires a connection to the server, even if the EPUB is cached on your device. The reader can continue displaying already loaded content during a connection drop, but the app does not support offline launch or reopening.
 
 ### KOSync API
 
