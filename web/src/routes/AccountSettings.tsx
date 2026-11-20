@@ -102,7 +102,7 @@ function ReaderCacheSettings() {
   </Card>;
 }
 
-export function AccountSettings({ account, username, timezone, readOnly, syncStatus, syncDetails, onSignOut, children }: { account: Account; username: string; timezone: string; readOnly: boolean; syncStatus: string; syncDetails: ReactNode; onSignOut(): void; children?: ReactNode }) {
+export function AccountSettings({ account, username, timezone, readOnly, syncStatus, syncDetails, onSignOut }: { account: Account; username: string; timezone: string; readOnly: boolean; syncStatus: string; syncDetails: ReactNode; onSignOut(): void }) {
   const [modal, setModal] = useState<'timezone' | 'password' | Device | null>(null);
   const [feedback, setFeedback] = useState('');
   const close = () => setModal(null);
@@ -159,7 +159,6 @@ export function AccountSettings({ account, username, timezone, readOnly, syncSta
         hasNext={currentPage + 1 < devicePages} onPageChange={page => setDevicePage(page - 1)} />}
     </Card>
     <ReaderCacheSettings />
-    {children}
     </div>
     {modal === 'timezone' && <Dialog title="Change Locale" onClose={close}><SettingsForm onClose={close} action={async data => {
       try { await session.updateTimezone(account, String(data.get('timezone'))); }

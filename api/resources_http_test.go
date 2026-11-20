@@ -170,7 +170,7 @@ func TestAppShellBoundaryAndRetirementBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	f.server.Config.Handler = api.Handler()
 	f.server.Start()
-	for _, path := range []string{"/", "/library", "/admin/library", "/admin/logs", "/insights", "/insights/activity", "/insights/progress", "/insights/rankings", "/offline", "/books/server/opaque-book", "/read/local/local-id", "/?antholume-retirement=legacy-v1"} {
+	for _, path := range []string{"/", "/library", "/admin/library", "/admin/logs", "/insights", "/insights/activity", "/insights/progress", "/insights/rankings", "/books/server/opaque-book", "/read/local/local-id", "/?antholume-retirement=legacy-v1"} {
 		r := f.call("GET", path, nil, nil)
 		require.Equal(t, 200, r.status, path)
 		require.Equal(t, shell, string(r.body))
@@ -179,7 +179,7 @@ func TestAppShellBoundaryAndRetirementBootstrap(t *testing.T) {
 		require.Contains(t, r.header.Get("Content-Security-Policy"), "object-src 'none'")
 		require.NotContains(t, r.header.Get("Content-Security-Policy"), "frame-ancestors")
 	}
-	for _, path := range []string{"/app", "/app/library", "/documents", "/documents/a/file", "/reader", "/reader/devices", "/search", "/local", "/logout", "/activity", "/progress", "/admin/import", "/admin/backups", "/assets/app/assets/missing.js", "/assets/app/index.html", "/api/v1/unknown", "/api/ko/no-such-route", "/api/opds/no-such-route"} {
+	for _, path := range []string{"/app", "/app/library", "/documents", "/documents/a/file", "/reader", "/reader/devices", "/search", "/local", "/offline", "/local-book-export", "/logout", "/activity", "/progress", "/admin/import", "/admin/backups", "/assets/app/assets/missing.js", "/assets/app/index.html", "/api/v1/unknown", "/api/ko/no-such-route", "/api/opds/no-such-route"} {
 		r := f.call("GET", path, nil, nil)
 		require.Equal(t, 404, r.status, path)
 		require.NotContains(t, string(r.body), "compiled fixture")

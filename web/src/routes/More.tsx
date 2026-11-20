@@ -3,24 +3,22 @@ import { useNavigate } from 'react-router';
 import { useReading } from '../reading';
 import { session, useSession } from '../session';
 import { Dialog, ErrorNotice, PageHeader } from '../ui';
-import { ActionRow, CardHeader, Button, ButtonLink } from '../Controls';
+import { CardHeader, Button, ButtonLink } from '../Controls';
 import { AccountSettings } from './AccountSettings';
 import styles from '../App.module.css';
 
 export function Settings() {
   const { session: current, capabilities, access } = useSession();
-  const { books, pendingCount, sync } = useReading();
+  const { pendingCount, sync } = useReading();
   const [logout, setLogout] = useState(false);
   const navigate = useNavigate();
   const canAdminister = access.kind === 'authenticated' && current?.user?.is_admin;
-  const exportRow = books.some(book => book.ref.kind === 'local') && <ActionRow to="/local-book-export" label="Export local books" />;
   return <>
     <PageHeader title="Settings" actions={canAdminister && <ButtonLink to="/admin">Administration</ButtonLink>} />
     <div className={styles.settingsLayout}>
     {access.kind === 'authenticated' && current?.user && <AccountSettings key={access.account.userId} account={access.account} username={current.user.id} timezone={current.user.timezone} readOnly={!capabilities || capabilities.demo_mode}
       syncStatus={sync === 'idle' && pendingCount ? `${pendingCount} pending` : syncLabels[sync]} syncDetails={<SyncDetails />}
-      onSignOut={() => setLogout(true)}>{exportRow}</AccountSettings>}
-    {access.kind !== 'authenticated' && exportRow}
+      onSignOut={() => setLogout(true)} />}
     </div>
     {logout && <Dialog title="Sign out on this device?" onClose={() => setLogout(false)}><div className={styles.form}><p>Pending progress and activity stay on this device and can sync only after you sign back into this account.</p><div className={styles.actions}><Button tone="danger" onClick={() => { void session.logout(); navigate('/login', { replace: true }); }}>Sign out</Button><Button onClick={() => setLogout(false)}>Keep signed in</Button></div></div></Dialog>}
   </>;

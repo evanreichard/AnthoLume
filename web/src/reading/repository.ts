@@ -321,14 +321,6 @@ export class Repository {
     if (stored.manifestHash !== manifestHash) throw new Error('Validated index integrity mismatch');
     return { row, source: { ...this.descriptor(stored), digests: integrity?.digests }, manifest: stored.manifest };
   }
-  async exportLocal(ref: Extract<BookRef, { kind: 'local' }>): Promise<Blob> {
-    const book = await this.db.books.get(refKey(ref));
-    if (!book || book.ref.kind !== 'local') throw new Error('Local book not found');
-    if (book.bytes?.size) return book.bytes;
-    const source = book.sourceId && await this.db.sources.get(book.sourceId);
-    if (!source || !source.complete || source.key !== book.key || !source.blob || source.blob.size !== book.size) throw new Error('Original local EPUB is unavailable');
-    return source.blob;
-  }
   private async addEvent(key: string, scope: string, event: Submission) {
     if (!validSubmission(event)) throw new Error('Invalid immutable reading event');
     await this.db.events.add({ ...event, id: event.payload.event_id, key, scope, created: Date.now() });

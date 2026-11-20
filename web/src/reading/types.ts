@@ -28,7 +28,6 @@ export type ReaderCacheSummary = { books: number; epubBytes: number; metadataByt
 export interface ReadingActions {
   readerCacheSummary(): Promise<ReaderCacheSummary>;
   clearReaderCache(): Promise<void>;
-  exportLocal(ref: Extract<BookRef, { kind: 'local' }>): Promise<Blob>;
   replay(): Promise<void>;
   applyUpdate(): Promise<void>;
 }

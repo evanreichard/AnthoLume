@@ -79,10 +79,10 @@ test('legacy username rows stay quarantined even when the username equals the ac
     await repo.setAccess({ kind: 'authenticated', account });
     const books = (await repo.projection({ kind: 'authenticated', account })).map(book => book.title);
     const batch = await repo.replayBatch(account);
-    const original = await repo.exportLocal(local);
+    const { source } = await repo.open(local);
     const retained = (await repo.pending()).map(event => event.id);
     await repo.db.delete();
-    return { legacyResume, books, batch, localPreserved: original.size === bytes.size, retained };
+    return { legacyResume, books, batch, localPreserved: source.kind === 'blob' && source.blob.size === bytes.size, retained };
   });
   expect(result).toEqual({ legacyResume: null, books: ['Local original'], batch: null, localPreserved: true, retained: ['legacy-event'] });
 });

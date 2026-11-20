@@ -112,13 +112,14 @@ test('authenticated EPUB cache revalidates, repairs and evicts without changing 
         await new Promise(resolve => setTimeout(resolve, 25));
       }
       await runtime.clearReaderCache();
+      const { source: localSource } = await runtime.repo.open(localBook);
       const cleared = {
         held: !!held?.evictOnRelease, unavailable, released,
         fetchedWithoutValidator: validators.at(-1) === null && reopened.row.sourceId !== opened.row.sourceId,
         serverSources: await runtime.repo.db.sources.filter(row => row.key.startsWith('["server",')).count(),
         retainedPending: (await runtime.repo.pending()).length,
         retainedCheckpoint: (await runtime.repo.db.books.get(first.row.key))?.checkpoint,
-        localBytes: (await runtime.repo.exportLocal(localBook)).size === original.size,
+        localBytes: localSource.kind === 'blob' && localSource.blob.size === original.size,
         summary: await runtime.readerCacheSummary(),
       };
       await runtime.setAccess({ kind: 'authenticated', account: other });

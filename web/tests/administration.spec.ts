@@ -107,7 +107,6 @@ test('administrators manage users while members cannot open Administration', asy
   const adminLink = header.getByRole('link', { name: 'Administration', exact: true });
   await expect(adminLink).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Tools', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Export local books', exact: true })).toHaveCount(0);
   const [settingsTitle, adminPill] = await Promise.all([header.getByRole('heading').boundingBox(), adminLink.boundingBox()]);
   expect(adminPill!.height).toBeGreaterThanOrEqual(44);
   expect(adminPill!.x).toBeGreaterThan(settingsTitle!.x + settingsTitle!.width);

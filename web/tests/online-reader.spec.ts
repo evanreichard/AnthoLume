@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { epub, expect, register, test } from './fixtures';
+import { expect, register, test } from './fixtures';
 
 test('Read opens online and revalidates the browser EPUB cache without transferring it again', async ({ page, server }) => {
   await register(page, server.origin, 'online-reader');
@@ -46,33 +45,4 @@ test('saved theme is already active while the EPUB is downloading', async ({ pag
   } finally { await cdp.detach(); }
   await expect(page.getByRole('region', { name: 'Book reader' })).toHaveAttribute('data-reader-state', 'ready');
   await expect(page.frameLocator('iframe').locator('body')).toHaveCSS('background-color', 'rgb(18, 18, 18)');
-});
-
-test('existing local originals are exportable without signing in and are not removed', async ({ page, server }) => {
-  await page.goto(`${server.origin}/login`);
-  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
-  const original = await epub('Local export');
-  await page.evaluate(async bytes => {
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open('antholume-reading-v1');
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction('books', 'readwrite');
-        tx.objectStore('books').put({ key: '["local","export-test"]', scope: 'local', ref: { kind: 'local', localId: 'export-test' }, title: 'Local export', author: null, cover: null, availability: 'available', checkpoint: { position: null, fraction: null }, bytes: new Blob([new Uint8Array(bytes)]) });
-        tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error);
-      });
-    } finally { db.close(); }
-  }, [...original]);
-  await page.goto(`${server.origin}/offline`);
-  await expect(page.getByRole('heading', { name: 'Export local books' })).toBeVisible();
-  await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
-  await expect(page.getByRole('main')).toHaveCount(1);
-  const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export Local export' }).click();
-  expect(await readFile((await (await download).path())!)).toEqual(original);
-  await page.reload();
-  await expect(page.getByRole('button', { name: 'Export Local export' })).toBeVisible();
 });

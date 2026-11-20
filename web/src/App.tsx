@@ -11,7 +11,6 @@ import { Insights } from './routes/Insights';
 import { Settings } from './routes/More';
 import { Administration, AdminUsers, AdminLibrary, AdminSystem } from './routes/Administration';
 import { AdminLogs } from './routes/AdminLogs';
-import { LocalBookExport } from './routes/LocalBookExport';
 import { ErrorNotice, PageHeader } from './ui';
 import { Icon } from './Icon';
 import { WorkerRecovery } from './WorkerRecovery';
@@ -67,7 +66,7 @@ function Shell() {
   const location = useLocation();
   const reader = location.pathname.startsWith('/read/');
   const { access } = useSession();
-  const showShell = access.kind === 'authenticated' || /^\/local-book-export\/?$/.test(location.pathname);
+  const showShell = access.kind === 'authenticated';
   const recovery = useRef<HTMLDivElement>(null);
   const main = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
@@ -80,7 +79,7 @@ function Shell() {
     return () => observer.disconnect();
   }, [reader, showShell]);
   useEffect(() => {
-    if (!reader && showShell) document.title = `AnthoLume · ${location.pathname.startsWith('/local-book-export') ? 'Export local books' : location.pathname.startsWith('/settings') ? 'Settings' : location.pathname.startsWith('/insights') ? 'Insights' : 'Library'}`;
+    if (!reader && showShell) document.title = `AnthoLume · ${location.pathname.startsWith('/settings') ? 'Settings' : location.pathname.startsWith('/insights') ? 'Insights' : 'Library'}`;
   }, [location.pathname, reader, showShell]);
   if (!showShell) return <Outlet />;
   return <div className={`${styles.shell} ${reader ? styles.readerShell : ''}`}>
@@ -116,8 +115,6 @@ const router = createBrowserRouter([{
     { path: 'login', element: <Auth key="login" mode="login" /> },
     { path: 'register', element: <Auth key="register" mode="register" /> },
     { Component: Shell, children: [
-      { path: 'local-book-export', Component: LocalBookExport, ErrorBoundary: RouteError },
-      { path: 'offline', element: <Navigate to="/local-book-export" replace /> },
       { Component: ProtectedApp, ErrorBoundary: RouteError, children: [
       { index: true, element: <Navigate to="/library" replace /> },
       { path: 'library', Component: Library },

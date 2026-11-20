@@ -175,7 +175,6 @@ export class ReadingRuntime implements ReadingActions {
   }
   readerCacheSummary = () => { this.requireReady(); return this.repo.readerCacheSummary(); };
   clearReaderCache = () => { this.requireReady(); return this.repo.clearServerCache(); };
-  exportLocal = (ref: Extract<BookRef, { kind: 'local' }>) => this.repo.exportLocal(ref);
   async save(ref: BookRef, checkpoint: Checkpoint, activity?: S['ActivityEvent']) { await this.write(() => this.repo.save(ref, checkpoint, activity)); this.schedule(0); }
   async credit(ref: BookRef, event: S['ActivityEvent'], measured?: CapturedActivity) { await this.write(() => this.repo.credit(ref, event, measured)); this.schedule(0); }
   async replay() {

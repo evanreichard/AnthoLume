@@ -30,6 +30,6 @@ export function useReading(): ReadingSnapshot & ReadingActions {
   return { ...snapshot,
     readerCacheSummary: () => requireRuntime().readerCacheSummary(),
     clearReaderCache: () => requireRuntime().clearReaderCache(),
-    exportLocal: ref => requireRuntime().exportLocal(ref), replay: () => requireRuntime().replay(), applyUpdate: () => requireRuntime().applyUpdate(),
+    replay: () => requireRuntime().replay(), applyUpdate: () => requireRuntime().applyUpdate(),
   };
 }
