@@ -113,6 +113,14 @@ func (api *API) validateRestoreDB(ctx context.Context, name string) error {
 	if err != nil || !reflect.DeepEqual(expected, actual) {
 		return errors.New("restore requires a database with this server's schema")
 	}
+	const latestApplied = `SELECT COALESCE(MAX(version_id), 0) FROM goose_db_version WHERE is_applied = 1`
+	var liveVersion, backupVersion int64
+	if err := api.db.DB.QueryRowContext(ctx, latestApplied).Scan(&liveVersion); err != nil {
+		return err
+	}
+	if err := db.QueryRowContext(ctx, latestApplied).Scan(&backupVersion); err != nil || backupVersion > liveVersion {
+		return errors.New("unsupported snapshot version")
+	}
 	var integrity string
 	if err := db.QueryRowContext(ctx, `PRAGMA quick_check`).Scan(&integrity); err != nil || integrity != "ok" {
 		return errors.New("snapshot integrity check failed")
@@ -124,7 +132,7 @@ func (api *API) validateRestoreDB(ctx context.Context, name string) error {
 	return nil
 }
 
-func extractRestore(ctx context.Context, input, stage string) (int, error) {
+func extractRestore(ctx context.Context, input, stage string, legacyArchive *bool) (int, error) {
 	f, err := os.Open(input)
 	if err != nil {
 		return 0, err
@@ -156,6 +164,10 @@ func extractRestore(ctx context.Context, input, stage string) (int, error) {
 	count := 0
 	for _, file := range archive.File {
 		name, err := backupEntryName(file.Name)
+		if flat, ok := strings.CutPrefix(file.Name, "documents/"); err != nil && legacyArchive != nil && ok && !strings.Contains(flat, "/") {
+			name, err = backupEntryName("documents/library/" + flat)
+			*legacyArchive = true
+		}
 		if err != nil || !file.Mode().IsRegular() || seen[name] {
 			return 0, errors.New("invalid backup entry")
 		}
@@ -209,12 +221,13 @@ func (api *API) stageRestore(ctx context.Context, input io.Reader, stage string)
 	if bytes > maxBackupArchiveBytes {
 		return 0, adminFailure(413, "restore_too_large")
 	}
-	files, err := extractRestore(ctx, file.Name(), stage)
+	var legacyArchive bool
+	files, err := extractRestore(ctx, file.Name(), stage, &legacyArchive)
 	if err != nil {
 		return 0, adminFailure(400, "invalid_restore_archive")
 	}
 	snapshot := filepath.Join(stage, adminBackupName)
-	if err = api.validateRestoreDB(ctx, snapshot); err != nil {
+	if err = api.upgradeRestoreSnapshot(ctx, snapshot, legacyArchive); err != nil {
 		return 0, adminFailure(400, "incompatible_restore_database")
 	}
 	if err = validateBackupCatalogFile(ctx, snapshot); err != nil {

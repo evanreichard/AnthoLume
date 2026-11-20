@@ -133,7 +133,7 @@ func TestStoragePathRestoreRejectsUnsafeEntries(t *testing.T) {
 			stage := t.TempDir()
 			input := filepath.Join(t.TempDir(), "backup.zip")
 			require.NoError(t, os.WriteFile(input, zipStoragePaths(t, []byte("snapshot"), entries, []byte("payload")), 0600))
-			_, err := extractRestore(context.Background(), input, stage)
+			_, err := extractRestore(context.Background(), input, stage, nil)
 			require.Error(t, err)
 		})
 	}

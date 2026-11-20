@@ -90,12 +90,18 @@ func upDevicePreferences(ctx context.Context, tx *sql.Tx) error {
 }
 
 type storageDataPathKey struct{}
+type restoreStorageKey struct{}
 
 func WithStorageDataPath(ctx context.Context, path string) context.Context {
 	return context.WithValue(ctx, storageDataPathKey{}, path)
 }
 
+func WithRestoreStorageDataPath(ctx context.Context, path string) context.Context {
+	return context.WithValue(WithStorageDataPath(ctx, path), restoreStorageKey{}, true)
+}
+
 func upStorageRoots(ctx context.Context, tx *sql.Tx) error {
+	restoring, _ := ctx.Value(restoreStorageKey{}).(bool)
 	path, _ := ctx.Value(storageDataPathKey{}).(string)
 	data, err := filepath.Abs(path)
 	if err != nil {
@@ -141,15 +147,17 @@ func upStorageRoots(ctx context.Context, tx *sql.Tx) error {
 			return err
 		}
 		id := "library"
-		switch resolved {
-		case filepath.Join(data, "documents"):
-		case filepath.Join(data, "imports"):
+		switch {
+		case resolved == filepath.Join(data, "documents") || restoring && resolved == filepath.FromSlash("/data/documents"):
+		case resolved == filepath.Join(data, "imports") || restoring && resolved == filepath.FromSlash("/data/imports"):
 			id = "imports"
 		default:
 			id = fmt.Sprintf("legacy-%x", sha256.Sum256([]byte(base)))[:31]
 			var mapped *string
-			if info, err := os.Stat(resolved); err == nil && info.IsDir() {
-				mapped = &resolved
+			if !restoring {
+				if info, err := os.Stat(resolved); err == nil && info.IsDir() {
+					mapped = &resolved
+				}
 			}
 			if _, err := tx.ExecContext(ctx, `INSERT INTO storage_roots(id,label,path,managed,legacy_path) VALUES(?,?,?,0,?)`, id, filepath.Base(resolved), mapped, base); err != nil {
 				return err
