@@ -86,6 +86,7 @@ jobs:
           platforms: linux/amd64
           push: true
           provenance: false
+          build-args: VERSION=${{ steps.image.outputs.tag }}
           tags: gitea.va.reichard.io/evan/antholume:${{ steps.image.outputs.tag }}
           cache-from: type=registry,ref=gitea.va.reichard.io/evan/antholume:dev
           cache-to: type=inline
