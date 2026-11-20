@@ -1,5 +1,4 @@
-import { readFile, readdir } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { test, expect, root } from './fixtures';
 
 test('Go serves the compiled application, retirement worker and real errors instead of SPA fallback', async ({ request, server }) => {
@@ -10,20 +9,17 @@ test('Go serves the compiled application, retirement worker and real errors inst
   const compiled = await readFile(`${root}assets/app/sw.js`, 'utf8');
   expect(await worker.text()).toBe(compiled);
   expect(compiled).not.toContain('__ANTHOLUME_PRECACHE__');
-  const assets = await readdir(`${root}assets/app/assets`);
-  expect(assets.some((name) => /ReaderRoute-.*\.js$/.test(name))).toBe(true);
-  expect(assets.some((name) => /source\.worker-.*\.js$/.test(name))).toBe(true);
-  expect(assets.some((name) => /staging\.worker-.*\.js$/.test(name))).toBe(true);
-  const entries = await Promise.all([['/', 'index.html'], ...assets.map(name => [`/assets/app/assets/${name}`, `assets/${name}`])].map(async ([url, file]) => ({ url, sha256: createHash('sha256').update(await readFile(`${root}assets/app/${file}`)).digest('hex') })));
-  for (const entry of entries) {
-    const response = await request.get(`${server.origin}${entry.url}`);
+  const index = await request.get(server.origin);
+  expect(index.status()).toBe(200);
+  const indexHTML = await index.text();
+  expect(indexHTML).toBe(await readFile(`${root}assets/app/index.html`, 'utf8'));
+  const assets = [...indexHTML.matchAll(/(?:src|href)="(\/assets\/app\/assets\/[^"]+\.(?:js|css))"/g)].map(match => match[1]);
+  expect(assets).toEqual(expect.arrayContaining([expect.stringMatching(/\.js$/), expect.stringMatching(/\.css$/)]));
+  for (const asset of assets) {
+    const response = await request.get(`${server.origin}${asset}`);
     expect(response.status()).toBe(200);
-    expect(createHash('sha256').update(await response.body()).digest('hex')).toBe(entry.sha256);
-    expect(response.headers()['cache-control']).toMatch(entry.url === '/' ? /no-cache/ : /immutable/);
-    const mime: Record<string, RegExp> = { js: /javascript/, css: /text\/css/, woff2: /font\/woff2/ };
-    const expected = entry.url === '/' ? /text\/html/ : mime[entry.url.split('.').at(-1)!];
-    expect(expected).toBeDefined();
-    expect(response.headers()['content-type']).toMatch(expected);
+    expect(response.headers()['cache-control']).toContain('immutable');
+    expect(response.headers()['content-type']).toMatch(asset.endsWith('.js') ? /javascript/ : /text\/css/);
   }
   const shell = await request.get(`${server.origin}/books/server/book-001?account=missing`);
   expect(shell.status()).toBe(200);

@@ -11,7 +11,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/opds"
-	"reichard.io/antholume/pkg/ptr"
 )
 
 var mimeMapping map[string]string = map[string]string{
@@ -95,16 +94,14 @@ func (api *API) opdsDocuments(c *gin.Context) {
 		query = &search
 	}
 
-	// Get Documents
-	documents, err := api.db.Queries.GetDocumentsWithStats(c, database.GetDocumentsWithStatsParams{
-		UserID:  auth.UserName,
-		Query:   query,
-		Deleted: ptr.Of(false),
-		Offset:  (qParams.Page - 1) * qParams.Limit,
-		Limit:   qParams.Limit,
+	documents, err := api.db.Queries.ListOPDSDocuments(c, database.ListOPDSDocumentsParams{
+		UserID: auth.UserName,
+		Query:  query,
+		Offset: (qParams.Page - 1) * qParams.Limit,
+		Limit:  qParams.Limit,
 	})
 	if err != nil {
-		log.Error("GetDocumentsWithStats DB Error:", err)
+		log.Error("ListOPDSDocuments DB Error:", err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
@@ -112,7 +109,7 @@ func (api *API) opdsDocuments(c *gin.Context) {
 	// Build OPDS Entries
 	var allEntries []opds.Entry
 	for _, doc := range documents {
-		// Require File
+		// Fileless Documents - They occupy slots in the paginated results but cannot be acquired.
 		if doc.Filepath != nil {
 			splitFilepath := strings.Split(*doc.Filepath, ".")
 			fileType := splitFilepath[len(splitFilepath)-1]

@@ -185,7 +185,7 @@ export function BookCard({ book, children }: { book: LibraryBook; children?: Rea
     {children}
   </article>;
 }
-export function Resume({ book, children = 'Resume' }: { book: BookRef; children?: ReactNode }) {
+function Resume({ book, children = 'Resume' }: { book: BookRef; children?: ReactNode }) {
   return <ButtonLink tone="primary" to={bookPath(book, 'read')}><Icon name="book" size={17} />{children}</ButtonLink>;
 }
 export function ErrorNotice({ error }: { error: unknown }) {

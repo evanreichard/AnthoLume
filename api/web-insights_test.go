@@ -75,6 +75,36 @@ func TestInsightsReadAcknowledgedData(t *testing.T) {
 	assertProblem(t, f.call("GET", urls[2]+"?page=1&cursor="+((insightCursor{Time: "2026-06-17T12:00:00Z", ID: "book-b"}).encode()), nil, nil), 400, "invalid_request")
 }
 
+func TestInsightsExactDayAndWeekStreaks(t *testing.T) {
+	f := newWebFixture(t)
+	f.readingSetup()
+	f.exec("UPDATE users SET timezone='UTC' WHERE id='alice'")
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	// The older runs beat the current streaks and sit outside the 30-day chart.
+	for _, offset := range []int{0, -1, -7, -42, -49, -53, -54, -55, -56} {
+		startedAt := today.AddDate(0, 0, offset).Format(time.RFC3339)
+		f.exec(`INSERT INTO activity (user_id,document_id,device_id,start_time,duration,start_percentage,end_percentage)
+			VALUES ('alice','book-a','web-device',?,30,0,.1)`, startedAt)
+	}
+	r := f.call("GET", "/api/v1/me/insights", nil, nil)
+	require.Equal(t, 200, r.status, string(r.body))
+	result := decodeWeb[Insights](t, r)
+	require.Equal(t, 2, result.CurrentStreak)
+	require.Equal(t, 4, result.LongestStreak)
+	require.Equal(t, 2, result.CurrentWeekStreak)
+	require.Equal(t, 3, result.LongestWeekStreak)
+	require.Len(t, result.Days, 30)
+	for i, day := range result.Days {
+		var want int64
+		switch i {
+		case 22, 28, 29:
+			want = 30
+		}
+		require.EqualValues(t, want, day.SecondsRead, "day %s", day.Date.Format(time.DateOnly))
+	}
+}
+
 func TestInsightRankingsRollingPeriods(t *testing.T) {
 	f := newWebFixture(t)
 	f.readingSetup()

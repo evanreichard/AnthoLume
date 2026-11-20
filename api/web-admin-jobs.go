@@ -95,7 +95,7 @@ func (s *webAPI) StartAdminJob(ctx context.Context, r StartAdminJobRequestObject
 	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
-	if r.Body == nil || (r.Body.Kind != "statistics" && r.Body.Kind != "database_check" && r.Body.Kind != "backup" && r.Body.Kind != "full_backup" && r.Body.Kind != "import") {
+	if r.Body == nil || (r.Body.Kind != "statistics" && r.Body.Kind != "database_check" && r.Body.Kind != "import") {
 		return nil, adminFailure(400, "invalid_request")
 	}
 	kind := string(r.Body.Kind)
@@ -195,10 +195,6 @@ func (api *API) runAdminJob(id, kind, source string, reference, relink bool, dea
 	switch kind {
 	case "database_check":
 		work = api.checkDatabaseIntegrity
-	case "backup":
-		work = api.createAdminBackup
-	case "full_backup":
-		work = api.createFullBackup
 	case "import":
 		work = func(ctx context.Context) error {
 			return api.runLibraryImport(ctx, id, source, reference, relink)
@@ -238,7 +234,7 @@ func (api *API) runAdminWork(ctx context.Context, kind string, work func(context
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if kind == "full_backup" || kind == "import" {
+	if kind == "import" {
 		if !api.libraryWrite.TryLock() {
 			return errors.New("library busy")
 		}

@@ -1,3 +1,12 @@
+.radioChoices { display: grid; gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.radioChoices legend { padding: 0 0 6px; color: var(--muted); font-size: .8125rem; }
+.radioChoices .radioChoice { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 10px; min-height: 44px; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; }
+.radioChoice:has(input:checked) { background: var(--hero); }
+.radioChoice:has(input:disabled) { cursor: default; }
+.radioChoices .radioChoice input { width: 16px; height: 16px; min-height: 0; margin: 3px 0 0; accent-color: var(--accent); }
+.radioCopy { display: grid; gap: 2px; }
+.radioDescription { color: var(--muted); font-size: .8125rem; }
+
 .surface { min-width: 0; border: 1px solid var(--line); border-radius: 1.1rem; background: var(--surface); }
 .paddedSurface { composes: surface; padding: clamp(1rem, 4vw, 1.5rem); }
 .cardTitle { margin: 0; font-size: clamp(1.25rem, 5vw, 1.65rem); }

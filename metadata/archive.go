@@ -27,15 +27,6 @@ const (
 	maxEPUBTextSize            = 8 << 20
 )
 
-func detectDocumentType(path string) (DocumentType, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	return detectOpenedDocument(f)
-}
-
 func detectOpenedDocument(f *os.File) (DocumentType, error) {
 	stat, err := f.Stat()
 	if err != nil {

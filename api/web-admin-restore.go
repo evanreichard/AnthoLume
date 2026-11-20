@@ -216,6 +216,8 @@ func (api *API) stageRestore(ctx context.Context, input io.Reader, stage string)
 	return files, nil
 }
 
+func (api *API) adminBackupDir() string { return filepath.Join(api.cfg.ConfigPath, "web-backups") }
+
 func (s *webAPI) StageAdminRestore(ctx context.Context, r StageAdminRestoreRequestObject) (StageAdminRestoreResponseObject, error) {
 	principal := webUser(ctx)
 	api := s.api

@@ -28,8 +28,9 @@ func TestRestoreFencesSessionsAndReadingEvents(t *testing.T) {
 		return session
 	}
 	old := login()
-	require.NoError(t, f.api.createAdminBackup(context.Background()))
-	payload, err := os.ReadFile(filepath.Join(f.api.adminBackupDir(), adminBackupName))
+	backupDir := filepath.Join(t.TempDir(), "export")
+	require.NoError(t, f.api.createAdminBackup(context.Background(), backupDir))
+	payload, err := os.ReadFile(filepath.Join(backupDir, adminBackupName))
 	require.NoError(t, err)
 	progress := progressPayload("0", .4)
 	activity := activityPayload()

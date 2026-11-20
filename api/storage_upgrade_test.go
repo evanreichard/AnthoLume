@@ -87,8 +87,9 @@ func TestStorageUpgradeRelativeBasePath(t *testing.T) {
 			}
 			file()
 			backupFiles(1)
-			require.NoError(t, f.api.createFullBackup(context.Background()))
-			archive, err := zip.OpenReader(filepath.Join(f.api.adminBackupDir(), fullBackupName))
+			backupDir := filepath.Join(t.TempDir(), "export")
+			require.NoError(t, f.api.createFullBackup(context.Background(), backupDir))
+			archive, err := zip.OpenReader(filepath.Join(backupDir, fullBackupName))
 			require.NoError(t, err)
 			defer archive.Close()
 			entry, err := archive.Open("documents/library/legacy.epub")

@@ -43,7 +43,7 @@ func containedFile(base string, name *string) (string, error) {
 func (api *API) openDocument(ctx context.Context, d database.Document) (*os.File, error) {
 	return api.openDocumentWith(ctx, api.db.DB, d)
 }
-func (api *API) openDocumentWith(ctx context.Context, q storageQuerier, d database.Document) (*os.File, error) {
+func (api *API) openDocumentWith(ctx context.Context, q database.DBTX, d database.Document) (*os.File, error) {
 	if d.Filepath == nil {
 		return nil, os.ErrNotExist
 	}
@@ -97,7 +97,7 @@ func fileMedia(name string) string {
 func (api *API) documentDTO(d database.Document) Document {
 	return api.documentDTOWith(context.Background(), api.db.DB, d)
 }
-func (api *API) documentDTOWith(ctx context.Context, q storageQuerier, d database.Document) Document {
+func (api *API) documentDTOWith(ctx context.Context, q database.DBTX, d database.Document) Document {
 	out := Document{Id: d.ID, Title: d.Title, Author: d.Author, Series: d.Series, Description: d.Description, Lang: d.Lang, Isbn10: d.Isbn10, Isbn13: d.Isbn13}
 	if file, err := api.openDocumentWith(ctx, q, d); err == nil {
 		defer file.Close()

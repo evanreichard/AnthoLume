@@ -5,15 +5,11 @@ sql:
       - database/schema.sql
       - database/migrations/schema/account_identities_schema.sql
       - database/migrations/schema/admin_jobs_schema.sql
-      - database/migrations/schema/admin_job_result_schema.sql
       - database/migrations/schema/auto_import_rules_schema.sql
       - database/migrations/schema/device_preferences_schema.sql
       - database/migrations/schema/kosync_device_schema.sql
       - database/migrations/schema/reading_generation_schema.sql
       - database/migrations/schema/reading_schema.sql
-      - database/migrations/20261126000003_auto_import_watch_only.sql
-      - database/migrations/20261126000004_auto_import_source_total.sql
-      - database/migrations/20261126000005_auto_import_scan_trigger.sql
     queries:
       - database/query.sql
       - database/queries

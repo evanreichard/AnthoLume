@@ -97,7 +97,7 @@ func run(ctx context.Context, data, action, restore, resetUser string) error {
 	if input != nil || resetUser != "" {
 		cfg := &config.Config{
 			Version: "develop", ConfigPath: root, DataPath: root, DBType: "sqlite", DBName: "antholume",
-			PublicOrigin: "http://127.0.0.1", CookieAuthKey: key, CookieHTTPOnly: true,
+			PublicOrigin: "http://127.0.0.1", CookieAuthKey: key,
 		}
 		cfg.EnsureDirectories()
 		db := database.NewMgr(cfg)

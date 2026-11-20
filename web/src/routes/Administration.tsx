@@ -5,12 +5,12 @@ import type { components } from '../api/schema.gen';
 import { ReadingHTTPError, type Account } from '../reading';
 import { session, useSession } from '../session';
 import { Dialog, ErrorNotice, PageHeader } from '../ui';
-import { ActionRow, AddPill, Card, CardHeader, SectionTabs, Button } from '../Controls';
+import { ActionRow, AddPill, Card, CardHeader, RadioChoices, SectionTabs, Button } from '../Controls';
 import { AdminBackups } from './AdminBackups';
 import { AdminImport } from './AdminImport';
 import { AdminMaintenance } from './AdminMaintenance';
 import { SkeletonRows } from '../Skeleton';
-import { StorageRoots, storageRootsKey, type StorageRoot } from './AdminStorage';
+import { StorageRoots, storageRootsKey } from './AdminStorage';
 import styles from '../App.module.css';
 
 type User = components['schemas']['AdminUser'];
@@ -88,11 +88,11 @@ function UserList({ account, username, readOnly }: AdminContext) {
     setBusy(true); setError(null);
     try {
       if (action.kind === 'create') {
-        const created = await session.api.createAdminUser(account, { username: String(data.get('username')), password: String(data.get('password')), is_admin: data.has('admin') });
+        const created = await session.api.createAdminUser(account, { username: String(data.get('username')), password: String(data.get('password')), is_admin: data.get('role') === 'administrator' });
         setNotice(`Created ${created.id}.`);
       } else if (action.kind === 'edit') {
         const password = String(data.get('password'));
-        const admin = data.has('admin');
+        const admin = data.get('role') === 'administrator';
         if (!password && admin === action.user.is_admin) { setAction(null); return; }
         await session.api.updateAdminUser(account, action.user.id, { ...(password ? { password } : {}), ...(admin !== action.user.is_admin ? { is_admin: admin } : {}) });
         setNotice(`Updated ${action.user.id}.`);
@@ -128,8 +128,9 @@ function UserList({ account, username, readOnly }: AdminContext) {
     })}</ul>}
     {users.hasNextPage && <Button size="slim" disabled={users.isFetchingNextPage} onClick={() => void users.fetchNextPage()}>Load more users</Button>}
     {action && <Dialog key={action.kind} title={action.kind === 'create' ? 'Add User' : action.kind === 'edit' ? `Manage ${action.user.id}` : `Delete ${action.user.id}?`} onClose={() => { if (!busy) setAction(null); }} footer={<>
-      <Button size="slim" form={formId} type="submit" tone={action.kind === 'delete' ? 'danger' : 'primary'} disabled={busy}>{busy ? 'Working…' : action.kind === 'delete' ? 'Delete user' : action.kind === 'create' ? 'Create' : 'Save changes'}</Button>
+      <Button size="slim" form={formId} type="submit" tone={action.kind === 'delete' ? 'danger' : 'primary'} disabled={busy}>{busy ? 'Working…' : action.kind === 'delete' ? 'Delete user' : action.kind === 'create' ? 'Create' : 'Save'}</Button>
       <Button size="slim" disabled={busy} onClick={() => setAction(null)}>Cancel</Button>
+      {action.kind === 'edit' && <Button size="slim" tone="danger" disabled={busy} onClick={() => select({ kind: 'delete', user: action.user })}>Delete</Button>}
     </>}>
       <form id={formId} className={styles.manageForm} onSubmit={submit}>
         <fieldset className={styles.settingsFields} disabled={busy}>
@@ -137,10 +138,12 @@ function UserList({ account, username, readOnly }: AdminContext) {
             {action.kind === 'create' && <label>Username<input name="username" autoComplete="off" maxLength={128} required /></label>}
             <label>{action.kind === 'create' ? 'Password' : 'New password (optional)'}<input name="password" type="password" autoComplete="new-password" maxLength={256} required={action.kind === 'create'} /></label>
             {action.kind === 'edit' && <p>A new password signs this user out.</p>}
-            <label className={styles.settingsCheck}><input name="admin" type="checkbox" defaultChecked={action.kind === 'edit' && action.user.is_admin} /> Administrator</label>
+            <RadioChoices legend="Role" name="role" defaultValue={action.kind === 'edit' && action.user.is_admin ? 'administrator' : 'member'} options={[
+              { value: 'member', label: 'Member', description: 'Use the Library and sync reading progress.' },
+              { value: 'administrator', label: 'Administrator', description: 'Also manage users, storage, and backups.' },
+            ]} />
           </>}
         </fieldset>
-        {action.kind === 'edit' && <Button size="slim" tone="danger" disabled={busy} aria-label={`Delete ${action.user.id}`} onClick={() => select({ kind: 'delete', user: action.user })}>Delete account</Button>}
         <ErrorNotice error={error} />
       </form>
     </Dialog>}

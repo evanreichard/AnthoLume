@@ -2,40 +2,41 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"reichard.io/antholume/config"
 )
 
-func TestAutoImportWatchOnlyClearsOldRecurringScans(t *testing.T) {
+func TestReactUpgradeCreatesFinalImportAndJobSchema(t *testing.T) {
 	dir := t.TempDir()
-	db := NewMgr(&config.Config{DBType: "sqlite", DBName: "auto-import", ConfigPath: dir, DataPath: dir})
-	defer func() { require.NoError(t, db.DB.Close()) }()
-
-	_, err := db.DB.Exec(`
-ALTER TABLE auto_import_rules DROP COLUMN next_scan_trigger;
-ALTER TABLE auto_import_rules DROP COLUMN last_scan_trigger;
-ALTER TABLE auto_import_rules DROP COLUMN source_total;
-ALTER TABLE auto_import_rules DROP COLUMN books_added;
-DELETE FROM goose_db_version WHERE version_id>=20261126000003;
-INSERT INTO auto_import_rules (id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan) VALUES
-	('watch', 'Watch', 'imports', 1, 1, 15, 1, '2026-11-30T12:00:00.123Z', '2026-11-30T12:15:00.123Z'),
-	('scheduled', 'Scheduled', 'imports', 1, 0, 15, 1, '2026-11-30T12:00:00.123Z', '2026-11-30T12:15:00.123Z'),
-	('manual', 'Manual', 'imports', 1, 1, 15, 1, '2026-11-30T12:00:00.123Z', '2026-11-30T12:01:00.123Z'),
-	('initial', 'Initial', 'imports', 1, 1, 15, 1, NULL, '2026-11-30T12:01:00.123Z');
-`)
-	require.NoError(t, err)
+	db := openPreReactDatabase(t, &config.Config{DBType: "sqlite", DBName: "react-upgrade", ConfigPath: dir, DataPath: dir})
 	require.NoError(t, db.Reload(context.Background()))
 
-	for id, want := range map[string]string{
-		"watch": "", "scheduled": "2026-11-30T12:15:00.123Z",
-		"manual": "2026-11-30T12:01:00.123Z", "initial": "2026-11-30T12:01:00.123Z",
-	} {
-		var next sql.NullString
-		require.NoError(t, db.DB.QueryRow(`SELECT next_scan FROM auto_import_rules WHERE id=?`, id).Scan(&next))
-		require.Equal(t, want != "", next.Valid, id)
-		require.Equal(t, want, next.String, id)
+	var version int64
+	require.NoError(t, db.DB.QueryRow(`SELECT version_id FROM goose_db_version WHERE version_id > 20240510123707 AND is_applied = 1`).Scan(&version))
+	require.EqualValues(t, 20261126000000, version)
+	var migrations, generations int
+	require.NoError(t, db.DB.QueryRow(`SELECT count(*) FROM goose_db_version WHERE version_id > 20240510123707 AND is_applied = 1`).Scan(&migrations))
+	require.Equal(t, 1, migrations)
+	require.NoError(t, db.DB.QueryRow(`SELECT count(*) FROM reading_generation WHERE length(generation) = 32`).Scan(&generations))
+	require.Equal(t, 1, generations)
+
+	_, err := db.DB.Exec(`INSERT INTO auto_import_rules
+		(id, name, root_id, enabled, watch, interval_minutes, reference, books_added, source_total, last_scan_trigger, next_scan_trigger)
+		VALUES ('watch', 'Watch', 'imports', 1, 1, 15, 1, 2, 12, 'on_change', 'manual')`)
+	require.NoError(t, err)
+	_, err = db.DB.Exec(`UPDATE auto_import_rules SET last_scan_trigger='unknown'`)
+	require.ErrorContains(t, err, "CHECK constraint failed")
+	_, err = db.DB.Exec(`SELECT library_total FROM auto_import_rules`)
+	require.ErrorContains(t, err, "no such column")
+
+	_, err = db.DB.Exec(`INSERT INTO admin_jobs (id, kind, status, started_at, deadline, result)
+		VALUES ('import', 'import', 'succeeded', 'start', 'deadline', X'00')`)
+	require.NoError(t, err)
+	for _, kind := range []string{"backup", "full_backup"} {
+		_, err = db.DB.Exec(`INSERT INTO admin_jobs (id, kind, status, started_at, deadline)
+			VALUES (?, ?, 'running', 'start', 'deadline')`, kind, kind)
+		require.ErrorContains(t, err, "CHECK constraint failed")
 	}
 }

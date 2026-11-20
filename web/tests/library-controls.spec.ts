@@ -41,8 +41,8 @@ test('one named 44px Clear search clears draft and applied q, preserves sort, an
 
 test('the Library defaults to Last read and features the last shared checkpoint independently of grid sort', async ({ page, server }) => {
   await register(page, server.origin, 'continue-reader');
-  const csrf = (await (await page.request.get(`${server.origin}/api/v1/session`)).json()).csrf_token;
-  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf };
+  const { csrf_token, user } = await (await page.request.get(`${server.origin}/api/v1/session`)).json();
+  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': user.reading_generation };
   for (const [path, data] of [
     ['devices', { id: 'other-device', name: 'Other device' }],
     ['reading-progress', { event_id: randomUUID(), document_id: 'book-030', device_id: 'other-device', observed_at: new Date().toISOString(), base_revision: '0', position: '/body/DocFragment[1]/body/p[2]', fraction: .24 }],

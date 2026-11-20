@@ -36,20 +36,11 @@ func (api *API) effectiveRoot(root AdminStorageRoot) AdminStorageRoot {
 	return root
 }
 
-type storageQuerier interface {
-	QueryRowContext(context.Context, string, ...any) *sql.Row
-}
-
 func (api *API) storageRoot(ctx context.Context, id string) (AdminStorageRoot, error) {
 	return api.queryStorageRoot(ctx, api.db.DB, id)
 }
-func (api *API) queryStorageRoot(ctx context.Context, q storageQuerier, id string) (AdminStorageRoot, error) {
-	// File helpers take a narrow interface; their database and transaction handles also satisfy sqlc.
-	db, ok := q.(database.DBTX)
-	if !ok {
-		return AdminStorageRoot{}, errors.New("unsupported storage query handle")
-	}
-	row, err := database.New(db).GetStorageRoot(ctx, id)
+func (api *API) queryStorageRoot(ctx context.Context, q database.DBTX, id string) (AdminStorageRoot, error) {
+	row, err := database.New(q).GetStorageRoot(ctx, id)
 	if err != nil {
 		return AdminStorageRoot{}, err
 	}

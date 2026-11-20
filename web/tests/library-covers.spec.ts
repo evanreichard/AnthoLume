@@ -1,8 +1,42 @@
 import { randomUUID } from 'node:crypto';
-import { rename } from 'node:fs/promises';
+import { rename, writeFile } from 'node:fs/promises';
+import { DatabaseSync } from 'node:sqlite';
 import { expect, register, test } from './fixtures';
 
 test.use({ serviceWorkers: 'block' });
+
+test('a stored SVG displays as a cover but is inert when opened directly', async ({ page, server }) => {
+  const path = '/api/v1/documents/book-001/cover';
+  const url = `${server.origin}${path}`;
+  const probe = `${server.origin}/api/v1/capabilities?svg-cover-probe=1`;
+  await writeFile(`${server.data}/covers/isolation.svg`, `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40">
+    <rect width="40" height="40" fill="navy"/>
+    <image href="${probe}" width="1" height="1"/>
+    <script>document.documentElement.setAttribute('data-script-ran', 'yes')</script>
+  </svg>`);
+  const db = new DatabaseSync(`${server.data}/browser.db`);
+  try { db.prepare('UPDATE documents SET coverfile=? WHERE id=?').run('isolation.svg', 'book-001'); }
+  finally { db.close(); }
+  let probeRequests = 0;
+  await page.route(probe, route => {
+    probeRequests++;
+    return route.fulfill({ status: 204 });
+  });
+  await register(page, server.origin, 'svg-cover-reader');
+  const card = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Public book 01', exact: true }) });
+  const cover = card.locator('img');
+  await expect(cover).toBeVisible();
+  await expect(cover).toHaveJSProperty('naturalWidth', 40);
+
+  const response = await page.goto(url);
+  expect(response?.status()).toBe(200);
+  expect(await page.evaluate(() => ({
+    root: document.documentElement.localName,
+    origin: window.origin,
+    scriptRan: document.documentElement.hasAttribute('data-script-ran'),
+  }))).toEqual({ root: 'svg', origin: 'null', scriptRan: false });
+  expect(probeRequests).toBe(0);
+});
 
 test('missing server files are flagged on the cover and book detail', async ({ page, server }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 800 });

@@ -105,8 +105,8 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Insights' }).click();
   const chart = page.getByRole('region', { name: 'Last 30 days' });
   await expect(chart.getByText('0 min read', { exact: true })).toBeVisible();
-  const csrf = (await (await page.request.get(`${server.origin}/api/v1/session`)).json()).csrf_token;
-  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf };
+  const { csrf_token, user } = await (await page.request.get(`${server.origin}/api/v1/session`)).json();
+  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': user.reading_generation };
   const submit = async (path: string, data: object) => {
     const response = await page.request.post(`${server.origin}/api/v1/me/${path}`, { headers, data });
     expect(response.status(), await response.text()).toBe(200);

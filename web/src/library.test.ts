@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { bookKey, bookPath, combineBooks, matchesBook, sortBooks } from './library';
+import { bookKey, bookPath, combineBooks, sortBooks } from './library';
 import type { StoredBook } from './reading';
 
 const a = { origin: 'https://books.example', userId: 'a' };
@@ -18,12 +18,13 @@ it('merges only composite server identities across real pages, never local recor
   expect(combineBooks([local, sharedA, sharedB], [], b).map((book) => book.ref)).toEqual([local.ref, sharedB.ref]);
   expect(combineBooks([local, sharedA], [], null).map((book) => book.ref)).toEqual([local.ref]);
 });
-it('sorts unread books after read books without hiding local copies', () => {
-  const local = stored({ kind: 'local', localId: 'one' });
-  const books = combineBooks([local], [doc], a);
-  local.lastReadAt = '2026-01-01T00:00:00.000Z';
-  expect(sortBooks(books, 'read').map(book => book.ref.kind)).toEqual(['local', 'server']);
-  expect(books.filter(book => matchesBook(book, 'writer'))).toHaveLength(1);
+it('sorts Last read by newest shared checkpoint, then puts unread books last', () => {
+  const books = combineBooks([], [
+    { ...doc, id: 'unread', title: 'A unread' },
+    { ...doc, id: 'older', title: 'B older', last_read_at: '2026-01-01T00:00:00Z' },
+    { ...doc, id: 'newer', title: 'C newer', last_read_at: '2026-01-02T00:00:00Z' },
+  ], a);
+  expect(sortBooks(books, 'read').map(book => book.document?.id)).toEqual(['newer', 'older', 'unread']);
 });
 it('routes preserve opaque IDs and account/origin intent', () => {
   const ref = { kind: 'server' as const, account: a, documentId: 'opaque/id' };

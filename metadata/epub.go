@@ -11,19 +11,6 @@ import (
 	"github.com/taylorskalyo/goreader/epub"
 )
 
-func openEPUB(path string) (*epub.Reader, *os.File, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, nil, err
-	}
-	r, err := readEPUB(f)
-	if err != nil {
-		f.Close()
-		return nil, nil, err
-	}
-	return r, f, nil
-}
-
 func readEPUB(f *os.File) (*epub.Reader, error) {
 	stat, err := f.Stat()
 	if err != nil {
@@ -70,24 +57,6 @@ func epubMetadata(rc *epub.Reader) *MetadataInfo {
 	}
 
 	return parsedMetadata
-}
-
-func countEPUBWords(filepath string) (int64, error) {
-	rc, f, err := openEPUB(filepath)
-	if err != nil {
-		return 0, err
-	}
-	defer f.Close()
-	return epubWords(rc)
-}
-
-func GetOpenedWordCount(f *os.File) (*int64, error) {
-	r, err := readEPUB(f)
-	if err != nil {
-		return nil, err
-	}
-	n, err := epubWords(r)
-	return &n, err
 }
 
 func epubWords(rc *epub.Reader) (int64, error) {

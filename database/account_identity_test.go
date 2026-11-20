@@ -11,21 +11,13 @@ import (
 
 func TestAccountIdentityBackfillAndUsernameReuse(t *testing.T) {
 	dir := t.TempDir()
-	db := NewMgr(&config.Config{DBType: "sqlite", DBName: "identities", ConfigPath: dir, DataPath: dir})
-	defer func() { require.NoError(t, db.DB.Close()) }()
+	db := openPreReactDatabase(t, &config.Config{DBType: "sqlite", DBName: "identities", ConfigPath: dir, DataPath: dir})
 	exec := func(q string) {
 		t.Helper()
 		_, err := db.DB.Exec(q)
 		require.NoError(t, err)
 	}
-	// Recreate the schema immediately before account identities were installed.
-	exec(`DROP TRIGGER account_identity_created; DROP TRIGGER account_identity_deleted; DROP TABLE account_identities;
- ALTER TABLE auto_import_rules DROP COLUMN next_scan_trigger;
- ALTER TABLE auto_import_rules DROP COLUMN last_scan_trigger;
- ALTER TABLE auto_import_rules DROP COLUMN source_total;
- ALTER TABLE auto_import_rules DROP COLUMN books_added;
- DELETE FROM goose_db_version WHERE version_id>=20261126000001;
- INSERT INTO users(id,pass,auth_hash) VALUES('alice','password','token'),('bob','password','token');`)
+	exec(`INSERT INTO users(id,pass,auth_hash) VALUES('alice','password','token'),('bob','password','token');`)
 	identity := func(username string) string {
 		t.Helper()
 		var id string

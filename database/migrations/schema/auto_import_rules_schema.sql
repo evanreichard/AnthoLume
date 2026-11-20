@@ -8,5 +8,9 @@ CREATE TABLE IF NOT EXISTS auto_import_rules (
  reference BOOLEAN NOT NULL CHECK(reference IN (0,1)),
  last_scan TEXT,
  next_scan TEXT,
- status TEXT NOT NULL DEFAULT 'idle' CHECK(status IN ('idle','complete','errors','unavailable'))
+ status TEXT NOT NULL DEFAULT 'idle' CHECK(status IN ('idle','complete','errors','unavailable')),
+ books_added INTEGER CHECK(books_added >= 0),
+ source_total INTEGER CHECK(source_total >= 0),
+ last_scan_trigger TEXT CHECK(last_scan_trigger IN ('on_change','scheduled','manual','initial')),
+ next_scan_trigger TEXT CHECK(next_scan_trigger IN ('on_change','scheduled','manual','initial'))
 );

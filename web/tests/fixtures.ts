@@ -1,7 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 import { spawn, execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import JSZip from 'jszip';
 
@@ -18,30 +18,32 @@ export async function epub(title = 'Local public book'): Promise<Buffer> {
 }
 
 type Server = { origin: string; data: string; stop: () => Promise<void>; start: () => Promise<void> };
-export const test = base.extend<{ isolateServer: void }, { server: Server }>({
-  isolateServer: [async ({ server }, use) => {
-    await server.stop();
-    await server.start();
-    await use();
-  }, { auto: true }],
-  server: [async ({}, use) => {
+export const test = base.extend<{ server: Server }, { serverBinary: string }>({
+  serverBinary: [async ({}, use) => {
     await mkdir(scratch, { recursive: true });
-    const data = `${scratch}browser-${Date.now()}-${process.pid}`;
-    await mkdir(`${data}/documents`, { recursive: true });
-    await mkdir(`${data}/covers`, { recursive: true });
-    await writeFile(`${data}/documents/public.epub`, await epub('Server public book'));
-    await writeFile(`${data}/covers/public.png`, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a8LsAAAAASUVORK5CYII=', 'base64'));
     const sdk = `${root}_scratch/m2/api-contract/toolchains/go/bin/go`;
     const go = process.env.GO_BINARY || (existsSync(sdk) ? sdk : 'go');
-    const binary = `${scratch}production-router-test`;
-    execFileSync(go, ['build', '-mod=readonly', '-o', binary, './web/tests/server'], { cwd: root, env: { ...process.env, GOTOOLCHAIN: 'local' }, timeout: 180_000, stdio: 'pipe' });
+    const binary = `${scratch}production-router-test-${process.pid}`;
+    try {
+      execFileSync(go, ['build', '-mod=readonly', '-o', binary, './web/tests/server'], { cwd: root, env: { ...process.env, GOTOOLCHAIN: 'local' }, timeout: 180_000, stdio: 'pipe' });
+      await use(binary);
+    } finally {
+      await rm(binary, { force: true });
+    }
+  }, { scope: 'worker', timeout: 240_000 }],
+  server: async ({ serverBinary }, use) => {
+    const data = await mkdtemp(`${scratch}browser-`);
+    await mkdir(`${data}/documents`);
+    await mkdir(`${data}/covers`);
+    await writeFile(`${data}/documents/public.epub`, await epub('Server public book'));
+    await writeFile(`${data}/covers/public.png`, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a8LsAAAAASUVORK5CYII=', 'base64'));
     let child: ReturnType<typeof spawn> | null = null;
     let logs = '';
     const addr = `127.0.0.1:${process.env.ANTHOLUME_TEST_PORT ?? 5323}`;
     const origin = `http://${addr}`;
     async function start() {
       if (child) return;
-      child = spawn(binary, ['--root', root, '--data', data, '--addr', addr], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(serverBinary, ['--root', root, '--data', data, '--addr', addr], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
       let startup = '';
       child.stdout!.on('data', (value) => { startup += String(value); logs = (logs + value).slice(-50000); });
       child.stderr!.on('data', (value) => { logs = (logs + value).slice(-50000); });
@@ -72,7 +74,7 @@ export const test = base.extend<{ isolateServer: void }, { server: Server }>({
       await stop();
       await writeFile(`${scratch}server-last.log`, logs);
     }
-  }, { scope: 'worker', timeout: 240_000 }],
+  },
 });
 export { expect };
 export async function register(page: import('@playwright/test').Page, origin: string, username: string) {

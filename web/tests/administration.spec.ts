@@ -224,7 +224,7 @@ test('administrators manage users while members cannot open Administration', asy
   const createBackup = backupActions.getByRole('button', { name: 'Create Backup', exact: true });
   const restoreBackup = backupActions.getByRole('button', { name: 'Restore Backup', exact: true });
   await expect(backupCard.getByLabel('Backup contents')).toHaveCount(0);
-  await expect(backupCard.getByText('No snapshots yet.')).toBeVisible();
+  await expect(backupCard.getByRole('link')).toHaveCount(0);
   for (const control of [createBackup, restoreBackup]) {
     expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     expect((await control.locator('span').boundingBox())!.height).toBe(32);
@@ -243,17 +243,22 @@ test('administrators manage users while members cannot open Administration', asy
     await dialog.screenshot({ path: testInfo.outputPath(`create-backup-${width}.png`) });
   }
   await page.setViewportSize({ width: 320, height: 800 });
-  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+  const received = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Download', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  const downloadBackup = backupCard.getByRole('link', { name: 'Download Database & Library backup', exact: true });
-  await expect(downloadBackup).toBeVisible();
+  const backup = await received;
+  expect(backup.suggestedFilename()).toBe('antholume-backup.zip');
+  const fullBackupPath = await backup.path();
   await createBackup.click();
   await fullBackup.focus();
   await page.keyboard.press('ArrowDown');
   await expect(databaseBackup).toBeChecked();
-  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(backupCard.getByRole('link', { name: 'Download Database backup', exact: true })).toBeVisible();
-  await expect(downloadBackup).toBeVisible();
+  const receivedDatabase = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Download', exact: true }).click();
+  const database = await receivedDatabase;
+  expect(database.suggestedFilename()).toBe('antholume-backup.db');
+  await database.path();
+  await expect(backupCard.getByRole('link')).toHaveCount(0);
   for (const [width, height, colorScheme] of [[320, 800, 'dark'], [390, 844, 'dark'], [1440, 900, 'light']] as const) {
     await page.emulateMedia({ colorScheme });
     await page.setViewportSize({ width, height });
@@ -262,8 +267,7 @@ test('administrators manage users while members cannot open Administration', asy
     await page.screenshot({ path: testInfo.outputPath(`library-${width}-${colorScheme}.png`), animations: 'disabled' });
   }
   await page.setViewportSize({ width: 320, height: 800 });
-  const link = await downloadBackup.getAttribute('href');
-  const backupURL = new URL(link!, server.origin);
+  const backupURL = new URL(backup.url());
   expect(backupURL.searchParams.get('account')).toBeTruthy();
   expect(backupURL.searchParams.get('generation')).toBeTruthy();
   const staleGeneration = new URL(backupURL);
@@ -276,11 +280,7 @@ test('administrators manage users while members cannot open Administration', asy
   const denied = await page.request.get(wrongAccount.toString());
   expect(denied.status()).toBe(401);
   expect(await denied.json()).toMatchObject({ code: 'account_changed' });
-  const received = page.waitForEvent('download');
-  await downloadBackup.click();
-  const backup = await received;
-  expect(backup.suggestedFilename()).toBe('antholume-backup.zip');
-  const archive = await JSZip.loadAsync(await readFile((await backup.path())!));
+  const archive = await JSZip.loadAsync(await readFile(fullBackupPath!));
   expect(await archive.file('documents/library/public.epub')?.async('nodebuffer')).toEqual(original);
   expect(archive.file('covers/public.png')).not.toBeNull();
   const databaseFile = testInfo.outputPath('backup.db');
@@ -355,12 +355,33 @@ test('administrators manage users while members cannot open Administration', asy
   } finally { await member.close(); }
 
   await page.getByRole('button', { name: 'Manage admin-test-member' }).getByText('admin-test-member', { exact: true }).click();
-  await dialog.getByLabel('Administrator').check();
-  await dialog.getByRole('button', { name: 'Save changes' }).click();
+  const roles = dialog.getByRole('group', { name: 'Role' });
+  const memberRole = roles.getByRole('radio', { name: 'Member', exact: true });
+  const adminRole = roles.getByRole('radio', { name: 'Administrator', exact: true });
+  await expect(memberRole).toBeChecked();
+  await memberRole.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(adminRole).toBeChecked();
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Updated admin-test-member.' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Delete admin-test-member' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Manage admin-test-member' }).click();
-  await dialog.getByRole('button', { name: 'Delete admin-test-member' }).click();
+  await expect(dialog).toHaveCount(0);
+  const manage = page.getByRole('button', { name: 'Manage admin-test-member' });
+  await expect(manage).toContainText('Administrator');
+  for (const [width, height, colorScheme] of [[320, 800, 'dark'], [390, 844, 'dark'], [1440, 900, 'light']] as const) {
+    await page.setViewportSize({ width, height });
+    await page.emulateMedia({ colorScheme });
+    await manage.click();
+    await expect(adminRole).toBeChecked();
+    const footer = dialog.locator('footer');
+    const actions = await Promise.all(['Save', 'Cancel', 'Delete'].map(name =>
+      footer.getByRole('button', { name, exact: true }).boundingBox()));
+    expect(new Set(actions.map(box => box?.y)).size).toBe(1);
+    await dialog.screenshot({ path: testInfo.outputPath(`manage-user-${width}-${colorScheme}.png`) });
+    await footer.getByRole('button', { name: 'Cancel', exact: true }).click();
+  }
+  await manage.click();
+  await dialog.locator('footer').getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(dialog).toHaveAccessibleName('Delete admin-test-member?');
   await dialog.getByLabel(/Type .* to confirm/).fill('wrong');
   await dialog.getByRole('button', { name: 'Delete user' }).click();
   await expect(dialog.getByRole('alert')).toHaveText('Enter the exact username to confirm.');

@@ -1,10 +1,8 @@
 package api
 
 import (
-	"crypto/md5"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"html"
 	"io"
 	"net/http"
@@ -494,33 +492,6 @@ func (api *API) sanitizeInput(val any) *string {
 		}
 	}
 	return nil
-}
-
-func getKeys[M ~map[K]V, K comparable, V any](m M) []K {
-	r := make([]K, 0, len(m))
-	for k := range m {
-		r = append(r, k)
-	}
-	return r
-}
-
-func getFileMD5(filePath string) (*string, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	defer file.Close()
-
-	hash := md5.New()
-	_, err = io.Copy(hash, file)
-	if err != nil {
-		return nil, err
-	}
-
-	fileHash := fmt.Sprintf("%x", hash.Sum(nil))
-
-	return &fileHash, nil
 }
 
 // koJSON forces koJSON Content-Type to only return `application/json`. This is addressing

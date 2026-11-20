@@ -68,9 +68,7 @@ func (e AdminImportResultStatus) Valid() bool {
 
 // Defines values for AdminJobKind.
 const (
-	AdminJobKindBackup        AdminJobKind = "backup"
 	AdminJobKindDatabaseCheck AdminJobKind = "database_check"
-	AdminJobKindFullBackup    AdminJobKind = "full_backup"
 	AdminJobKindImport        AdminJobKind = "import"
 	AdminJobKindStatistics    AdminJobKind = "statistics"
 )
@@ -78,11 +76,7 @@ const (
 // Valid indicates whether the value is a known member of the AdminJobKind enum.
 func (e AdminJobKind) Valid() bool {
 	switch e {
-	case AdminJobKindBackup:
-		return true
 	case AdminJobKindDatabaseCheck:
-		return true
-	case AdminJobKindFullBackup:
 		return true
 	case AdminJobKindImport:
 		return true
@@ -194,9 +188,7 @@ func (e ReceiptKind) Valid() bool {
 
 // Defines values for ListAdminJobsParamsKind.
 const (
-	ListAdminJobsParamsKindBackup        ListAdminJobsParamsKind = "backup"
 	ListAdminJobsParamsKindDatabaseCheck ListAdminJobsParamsKind = "database_check"
-	ListAdminJobsParamsKindFullBackup    ListAdminJobsParamsKind = "full_backup"
 	ListAdminJobsParamsKindImport        ListAdminJobsParamsKind = "import"
 	ListAdminJobsParamsKindStatistics    ListAdminJobsParamsKind = "statistics"
 )
@@ -204,11 +196,7 @@ const (
 // Valid indicates whether the value is a known member of the ListAdminJobsParamsKind enum.
 func (e ListAdminJobsParamsKind) Valid() bool {
 	switch e {
-	case ListAdminJobsParamsKindBackup:
-		return true
 	case ListAdminJobsParamsKindDatabaseCheck:
-		return true
-	case ListAdminJobsParamsKindFullBackup:
 		return true
 	case ListAdminJobsParamsKindImport:
 		return true
@@ -221,9 +209,7 @@ func (e ListAdminJobsParamsKind) Valid() bool {
 
 // Defines values for StartAdminJobJSONBodyKind.
 const (
-	StartAdminJobJSONBodyKindBackup        StartAdminJobJSONBodyKind = "backup"
 	StartAdminJobJSONBodyKindDatabaseCheck StartAdminJobJSONBodyKind = "database_check"
-	StartAdminJobJSONBodyKindFullBackup    StartAdminJobJSONBodyKind = "full_backup"
 	StartAdminJobJSONBodyKindImport        StartAdminJobJSONBodyKind = "import"
 	StartAdminJobJSONBodyKindStatistics    StartAdminJobJSONBodyKind = "statistics"
 )
@@ -231,11 +217,7 @@ const (
 // Valid indicates whether the value is a known member of the StartAdminJobJSONBodyKind enum.
 func (e StartAdminJobJSONBodyKind) Valid() bool {
 	switch e {
-	case StartAdminJobJSONBodyKindBackup:
-		return true
 	case StartAdminJobJSONBodyKindDatabaseCheck:
-		return true
-	case StartAdminJobJSONBodyKindFullBackup:
 		return true
 	case StartAdminJobJSONBodyKindImport:
 		return true

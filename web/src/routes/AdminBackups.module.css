@@ -1,8 +1,0 @@
-.choices { display: grid; gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; }
-.choices legend { padding: 0 0 6px; color: var(--muted); font-size: .8125rem; }
-.choices .choice { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 10px; min-height: 44px; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; }
-.choice:has(input:checked) { background: var(--hero); }
-.choice:has(input:disabled) { cursor: default; }
-.choice input { width: 16px; height: 16px; min-height: 0; margin: 3px 0 0; accent-color: var(--accent); }
-.copy { display: grid; gap: 2px; }
-.description { color: var(--muted); font-size: .8125rem; }

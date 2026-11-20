@@ -27,9 +27,6 @@ type DBManager struct {
 //go:embed schema.sql
 var ddl string
 
-//go:embed user_streaks.sql
-var user_streaks string
-
 //go:embed document_user_statistics.sql
 var document_user_statistics string
 
@@ -39,11 +36,6 @@ var migrations embed.FS
 // Register scalar sqlite function on init
 func init() {
 	sqlite.MustRegisterFunction("READING_WRITER", &sqlite.FunctionImpl{NArgs: 0, Deterministic: true, Scalar: func(*sqlite.FunctionContext, []driver.Value) (driver.Value, error) { return int64(1), nil }})
-	sqlite.MustRegisterFunction("LOCAL_TIME", &sqlite.FunctionImpl{
-		NArgs:         2,
-		Deterministic: true,
-		Scalar:        localTime,
-	})
 	sqlite.MustRegisterFunction("LOCAL_DATE", &sqlite.FunctionImpl{
 		NArgs:         2,
 		Deterministic: true,
@@ -116,9 +108,8 @@ func (dbm *DBManager) init(ctx context.Context) error {
 		return err
 	}
 
-	// Cache tables
 	if err := dbm.CacheTempTables(ctx); err != nil {
-		log.Warn("Refreshing temp table cache failed: ", err)
+		log.Warn("Refreshing document user statistics failed: ", err)
 	}
 
 	return nil
@@ -160,20 +151,10 @@ func (dbm *DBManager) Reload(ctx context.Context) error {
 	return nil
 }
 
-// CacheTempTables clears existing statistics and recalculates
+// CacheTempTables refreshes the document user statistics projection.
 func (dbm *DBManager) CacheTempTables(ctx context.Context) error {
-	tx, err := dbm.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, user_streaks); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, document_user_statistics); err != nil {
-		return err
-	}
-	return tx.Commit()
+	_, err := dbm.DB.ExecContext(ctx, document_user_statistics)
+	return err
 }
 
 // updateSettings ensures that we're enforcing foreign keys and enable journal
@@ -229,31 +210,6 @@ func isEmpty(db *sql.DB) (bool, error) {
 		return false, err
 	}
 	return tableCount == 0, nil
-}
-
-// localTime is a custom SQL function that is registered as LOCAL_TIME in the init function
-func localTime(ctx *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
-	timeStr, ok := args[0].(string)
-	if !ok {
-		return nil, errors.New("both arguments to TZTime must be strings")
-	}
-
-	timeZoneStr, ok := args[1].(string)
-	if !ok {
-		return nil, errors.New("both arguments to TZTime must be strings")
-	}
-
-	timeZone, err := time.LoadLocation(timeZoneStr)
-	if err != nil {
-		return nil, errors.New("unable to parse timezone")
-	}
-
-	formattedTime, err := time.ParseInLocation(time.RFC3339, timeStr, time.UTC)
-	if err != nil {
-		return nil, errors.New("unable to parse time")
-	}
-
-	return formattedTime.In(timeZone).Format(time.RFC3339), nil
 }
 
 // localDate is a custom SQL function that is registered as LOCAL_DATE in the init function

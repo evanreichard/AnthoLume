@@ -22,8 +22,7 @@ import (
 const fullBackupName = "antholume.zip"
 const maxLibraryBackup = 16 << 30
 
-func (api *API) createFullBackup(ctx context.Context) error {
-	dir := api.adminBackupDir()
+func (api *API) createFullBackup(ctx context.Context, dir string) error {
 	if err := ensurePrivateAdminDir(dir); err != nil {
 		return err
 	}

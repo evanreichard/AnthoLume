@@ -15,10 +15,9 @@ test('restore signs out another browser and preserves its old queue without repl
     const { user: old } = await (await page.request.get(`${endpoint}/session`)).json();
     const { csrf_token } = await (await admin.request.get(`${endpoint}/session`)).json();
     const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token };
-    const started = await admin.request.post(`${endpoint}/admin/jobs`, { headers, data: { kind: 'backup' } });
-    expect(started.status(), await started.text()).toBe(202);
-    await expect.poll(async () => (await admin.request.get(`${endpoint}/admin/backup`)).status()).toBe(200);
-    const backup = await (await admin.request.get(`${endpoint}/admin/backup`)).body();
+    const downloaded = await admin.request.get(`${endpoint}/admin/backup`);
+    expect(downloaded.status()).toBe(200);
+    const backup = await downloaded.body();
 
     const progress = '**/api/v1/me/reading-progress';
     await page.route(progress, route => route.abort());

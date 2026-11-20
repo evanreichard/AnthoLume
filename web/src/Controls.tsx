@@ -23,6 +23,36 @@ export function SegmentedControl<T extends string>({ label, options, value, onCh
   </div>;
 }
 
+type RadioChoice<T> = { value: T; label: string; description?: string; status?: string };
+type RadioChoiceSelection<T> = { value: T; onChange: (value: T) => void; defaultValue?: never }
+  | { defaultValue: T; value?: never; onChange?: never };
+
+export function RadioChoices<T extends string>({ legend, name, options, value, defaultValue, onChange }: {
+  legend: string;
+  name?: string;
+  options: readonly RadioChoice<T>[];
+} & RadioChoiceSelection<T>) {
+  const id = useId();
+  return <fieldset className={styles.radioChoices}>
+    <legend>{legend}</legend>
+    {options.map(option => {
+      const descriptionId = option.description ? `${id}-${option.value}` : undefined;
+      return <label className={styles.radioChoice} key={option.value}>
+        <input type="radio" name={name ?? id} value={option.value}
+          checked={value === undefined ? undefined : value === option.value}
+          defaultChecked={defaultValue === undefined ? undefined : defaultValue === option.value}
+          aria-label={option.label} aria-describedby={descriptionId}
+          onChange={onChange ? () => onChange(option.value) : undefined} />
+        <span className={styles.radioCopy}>
+          <span>{option.label}</span>
+          {option.description && <span id={descriptionId} className={styles.radioDescription}>{option.description}</span>}
+          {option.status && <span className={styles.radioDescription} role="status">{option.status}</span>}
+        </span>
+      </label>;
+    })}
+  </fieldset>;
+}
+
 type ControlSize = 'full' | 'slim';
 
 export function JoinedActions({ label, children, size = 'full' }: { label: string; children: ReactNode; size?: ControlSize }) {

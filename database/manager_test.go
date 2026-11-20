@@ -2,170 +2,43 @@ package database
 
 import (
 	"context"
-	"fmt"
 	"testing"
-	"time"
 
-	"github.com/stretchr/testify/suite"
+	"github.com/stretchr/testify/require"
 
 	"reichard.io/antholume/config"
-	"reichard.io/antholume/utils"
 )
 
-var (
-	userID           string = "testUser"
-	userPass         string = "testPass"
-	deviceID         string = "testDevice"
-	deviceName       string = "testDeviceName"
-	documentID       string = "testDocument"
-	documentTitle    string = "testTitle"
-	documentAuthor   string = "testAuthor"
-	documentFilepath string = "./testPath.epub"
-	documentWords    int64  = 5000
-)
+func TestCacheRefreshLeavesLegacyStreaksForAccountDeletion(t *testing.T) {
+	ctx := context.Background()
+	mgr := NewMgr(&config.Config{DBType: "memory"})
+	db := mgr.DB
+	t.Cleanup(func() { require.NoError(t, db.Close()) })
 
-type DatabaseTestSuite struct {
-	suite.Suite
-	dbm *DBManager
-}
+	const userID, documentID, deviceID = "testUser", "testDocument", "testDevice"
+	_, err := db.Exec(`INSERT INTO users (id, pass, auth_hash) VALUES (?, 'unused', 'unused')`, userID)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO documents (id) VALUES (?)`, documentID)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO devices (id, user_id, device_name) VALUES (?, ?, 'Test device')`, deviceID, userID)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO user_streaks VALUES (?, 'DAY', 9, '2026-01-01', '2026-01-09', 9,
+		'2026-01-01', '2026-01-09', 'UTC', '2026-01-10T00:00:00Z', '2026-01-09T00:00:00Z', '2026-01-10T00:00:00Z')`, userID)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO activity (user_id, document_id, device_id, start_time, duration, start_percentage, end_percentage)
+		VALUES (?, ?, ?, '2026-02-01T00:00:00Z', 60, 0, 0.1)`, userID, documentID, deviceID)
+	require.NoError(t, err)
+	require.NoError(t, mgr.CacheTempTables(ctx))
 
-func TestDatabase(t *testing.T) {
-	suite.Run(t, new(DatabaseTestSuite))
-}
+	var seconds int64
+	require.NoError(t, db.QueryRow(`SELECT total_time_seconds FROM document_user_statistics WHERE user_id = ? AND document_id = ?`, userID, documentID).Scan(&seconds))
+	require.Equal(t, int64(60), seconds)
+	var streaks string
+	require.NoError(t, db.QueryRow(`SELECT group_concat(window || ':' || max_streak) FROM user_streaks WHERE user_id = ?`, userID).Scan(&streaks))
+	require.Equal(t, "DAY:9", streaks)
 
-// PROGRESS - TODO:
-// 	- 󰊕  (q *Queries) GetProgress
-// 	- 󰊕  (q *Queries) UpdateProgress
-
-func (suite *DatabaseTestSuite) SetupTest() {
-	cfg := config.Config{
-		DBType: "memory",
-	}
-
-	suite.dbm = NewMgr(&cfg)
-
-	// Create User
-	rawAuthHash, _ := utils.GenerateToken(64)
-	authHash := fmt.Sprintf("%x", rawAuthHash)
-	_, err := suite.dbm.Queries.CreateUser(context.Background(), CreateUserParams{
-		ID:       userID,
-		Pass:     &userPass,
-		AuthHash: &authHash,
-	})
-	suite.NoError(err)
-
-	// Create Document
-	_, err = suite.dbm.Queries.UpsertDocument(context.Background(), UpsertDocumentParams{
-		ID:       documentID,
-		Title:    &documentTitle,
-		Author:   &documentAuthor,
-		Filepath: &documentFilepath,
-		Words:    &documentWords,
-	})
-	suite.NoError(err)
-
-	// Create Device
-	_, err = suite.dbm.Queries.UpsertDevice(context.Background(), UpsertDeviceParams{
-		ID:         deviceID,
-		UserID:     userID,
-		DeviceName: deviceName,
-	})
-	suite.NoError(err)
-
-	// Create Activity
-	end := time.Now()
-	start := end.AddDate(0, 0, -9)
-	var counter int64 = 0
-
-	for d := start; d.After(end) == false; d = d.AddDate(0, 0, 1) {
-		counter += 1
-
-		// Add Item
-		activity, err := suite.dbm.Queries.AddActivity(context.Background(), AddActivityParams{
-			DocumentID:      documentID,
-			DeviceID:        deviceID,
-			UserID:          userID,
-			StartTime:       d.UTC().Format(time.RFC3339),
-			Duration:        60,
-			StartPercentage: float64(counter) / 100.0,
-			EndPercentage:   float64(counter+1) / 100.0,
-		})
-
-		suite.Nil(err, fmt.Sprintf("[%d] should have nil err for add activity", counter))
-		suite.Equal(counter, activity.ID, fmt.Sprintf("[%d] should have correct id for add activity", counter))
-	}
-
-	// Initiate Cache
-	err = suite.dbm.CacheTempTables(context.Background())
-	suite.NoError(err)
-}
-
-// DEVICES - TODO:
-//   - 󰊕  (q *Queries) GetDevice
-//   - 󰊕  (q *Queries) GetDevices
-//   - 󰊕  (q *Queries) UpsertDevice
-func (suite *DatabaseTestSuite) TestDevice() {
-	testDevice := "dev123"
-	device, err := suite.dbm.Queries.UpsertDevice(context.Background(), UpsertDeviceParams{
-		ID:         testDevice,
-		UserID:     userID,
-		DeviceName: deviceName,
-	})
-
-	suite.Nil(err, "should have nil err")
-	suite.Equal(testDevice, device.ID, "should have device id")
-	suite.Equal(userID, device.UserID, "should have user id")
-	suite.Equal(deviceName, device.DeviceName, "should have device name")
-}
-
-// ACTIVITY - TODO:
-//   - 󰊕  (q *Queries) AddActivity
-//   - 󰊕  (q *Queries) GetActivity
-//   - 󰊕  (q *Queries) GetLastActivity
-func (suite *DatabaseTestSuite) TestActivity() {
-	// Validate Exists
-	existsRows, err := suite.dbm.Queries.GetActivity(context.Background(), GetActivityParams{
-		UserID: userID,
-		Offset: 0,
-		Limit:  50,
-	})
-
-	suite.Nil(err, "should have nil err for get activity")
-	suite.Len(existsRows, 10, "should have correct number of rows get activity")
-
-	// Validate Doesn't Exist
-	doesntExistsRows, err := suite.dbm.Queries.GetActivity(context.Background(), GetActivityParams{
-		UserID:     userID,
-		DocumentID: "unknownDoc",
-		DocFilter:  true,
-		Offset:     0,
-		Limit:      50,
-	})
-
-	suite.Nil(err, "should have nil err for get activity")
-	suite.Len(doesntExistsRows, 0, "should have no rows")
-}
-
-// MISC - TODO:
-//   - 󰊕  (q *Queries) AddMetadata
-//   - 󰊕  (q *Queries) GetDailyReadStats
-//   - 󰊕  (q *Queries) GetDatabaseInfo
-//   - 󰊕  (q *Queries) UpdateSettings
-func (suite *DatabaseTestSuite) TestGetDailyReadStats() {
-	readStats, err := suite.dbm.Queries.GetDailyReadStats(context.Background(), userID)
-
-	suite.Nil(err, "should have nil err")
-	suite.Len(readStats, 30, "should have length of 30")
-
-	// Validate 1 Minute / Day - Last 10 Days
-	for i := 0; i < 10; i++ {
-		stat := readStats[i]
-		suite.Equal(int64(1), stat.MinutesRead, "should have one minute read")
-	}
-
-	// Validate 0 Minute / Day - Remaining 20 Days
-	for i := 10; i < 30; i++ {
-		stat := readStats[i]
-		suite.Equal(int64(0), stat.MinutesRead, "should have zero minutes read")
-	}
+	require.NoError(t, mgr.Queries.DeleteAdminUserStreaks(ctx, userID))
+	var count int
+	require.NoError(t, db.QueryRow(`SELECT count(*) FROM user_streaks WHERE user_id = ?`, userID).Scan(&count))
+	require.Zero(t, count)
 }

@@ -34,10 +34,10 @@ jobs:
           go mod verify
           bash api/audit.sh
 
-      - name: Cover isolation in Chromium
+      - name: App browser tests
         run: |
           web/node_modules/.bin/playwright install --with-deps chromium
-          bash api/check-cover-browser.sh
+          npm --prefix web run test:browser
 
   publish:
     needs: tests

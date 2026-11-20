@@ -57,7 +57,7 @@ The OPDS API endpoint is located at: `http(s)://<SERVER>/api/opds`
 
 ### Quick Start
 
-Set `PUBLIC_ORIGIN` to the exact browser origin, with no trailing slash. Use HTTPS for deployed instances. Loopback HTTP is allowed for local development and requires `COOKIE_SECURE=false`.
+Set `PUBLIC_ORIGIN` to the exact browser origin, with no trailing slash. Use HTTPS for deployed instances. Loopback HTTP is allowed for local development. Cookies are always `HttpOnly` and use `Secure` when `PUBLIC_ORIGIN` is HTTPS.
 
 ```bash
 # Make Data Directory
@@ -67,7 +67,6 @@ mkdir -p antholume_data
 docker run \
     -p 127.0.0.1:8585:8585 \
     -e PUBLIC_ORIGIN=http://localhost:8585 \
-    -e COOKIE_SECURE=false \
     -e REGISTRATION_ENABLED=true \
     -v ./antholume_data:/config \
     -v ./antholume_data:/data \
@@ -80,7 +79,7 @@ The service is now accessible at `http://localhost:8585`. Register an account, t
 
 Configure storage roots in **Settings → Administration → Library**. Library is the only managed root and defaults to `$DATA_PATH/documents`. Imported books can be copied into Library or referenced in place from a source root. In Docker, mount source directories into the container before adding them. To relocate a source without changing book IDs or reading history, edit the existing root and keep paths relative to that root unchanged. If you change `DATA_PATH` during an upgrade, books with a recorded path outside the new Library stay on an unmanaged source. If you moved those books into the new Library folder, point the source at that folder and confirm **Merge into Library**.
 
-Backups always include the database; **Database + Library files** also includes cataloged Library EPUBs and covers. Source files are not included. After restore, review the source mappings before re-enabling auto-import schedules. **To restore a backup made by the previous release, restore it on that release before upgrading.**
+Backups download on demand and the server does not retain a copy. Backups always include the database; **Database + Library files** also includes cataloged Library EPUBs and covers. Source files are not included. After restore, review the source mappings before re-enabling auto-import schedules. **To restore a backup made by the previous release, restore it on that release before upgrading.**
 
 ### Configuration
 
@@ -97,8 +96,6 @@ Backups always include the database; **Database + Library files** also includes 
 | REGISTRATION_ENABLED | false         | Whether to allow registration (applies to both WebApp & KOSync API)        |
 | COOKIE_AUTH_KEY      | <EMPTY>       | Optional secret cookie authentication key (auto generated if not provided) |
 | COOKIE_ENC_KEY       | <EMPTY>       | Optional secret cookie encryption key (16 or 32 bytes)                     |
-| COOKIE_SECURE        | true          | Set Cookie `Secure` attribute (i.e. only works over HTTPS)                 |
-| COOKIE_HTTP_ONLY     | true          | Set Cookie `HttpOnly` attribute (i.e. inacessible via JavaScript)          |
 
 ## Security
 

@@ -6,6 +6,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"reichard.io/antholume/database"
 )
@@ -13,9 +16,7 @@ import (
 const maxAdminBackupBytes = 1 << 30
 const adminBackupName = "antholume.db"
 
-func (api *API) adminBackupDir() string { return filepath.Join(api.cfg.ConfigPath, "web-backups") }
-
-func (api *API) createAdminBackup(ctx context.Context) error {
+func (api *API) createAdminBackup(ctx context.Context, dir string) error {
 	var pages, pageSize int64
 	if err := api.db.DB.QueryRowContext(ctx, `SELECT page_count,page_size FROM pragma_page_count,pragma_page_size`).Scan(&pages, &pageSize); err != nil {
 		return err
@@ -23,7 +24,6 @@ func (api *API) createAdminBackup(ctx context.Context) error {
 	if pages <= 0 || pageSize <= 0 || pages > maxAdminBackupBytes/pageSize {
 		return errors.New("database exceeds backup size budget")
 	}
-	dir := api.adminBackupDir()
 	if err := os.Mkdir(dir, 0700); err != nil && !errors.Is(err, os.ErrExist) {
 		return err
 	}
@@ -125,22 +125,76 @@ func (s *webAPI) DownloadAdminBackup(ctx context.Context, r DownloadAdminBackupR
 			return nil, adminFailure(409, "stale_reading_generation")
 		}
 	}
-	name, attachment, maxSize := adminBackupName, "antholume-backup.db", int64(maxAdminBackupBytes)
-	if r.Params.Full != nil && *r.Params.Full {
-		name, attachment, maxSize = fullBackupName, "antholume-backup.zip", maxBackupArchiveBytes
+	if ginContext(ctx).GetHeader("Sec-Fetch-Site") == "cross-site" {
+		return nil, adminFailure(403, "forbidden")
 	}
-	f, err := os.Open(filepath.Join(s.api.adminBackupDir(), name))
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, adminFailure(404, "backup_not_found")
+	if !s.api.backupExport.TryLock() {
+		return nil, adminFailure(409, "server_busy")
+	}
+	handedOff := false
+	defer func() {
+		if !handedOff {
+			s.api.backupExport.Unlock()
+		}
+	}()
+	dir, err := os.MkdirTemp(s.api.cfg.ConfigPath, ".backup-export-")
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if !handedOff {
+			removeBackupExport(dir)
+		}
+	}()
+	req, cancel := context.WithTimeout(requestContext(ctx), 5*time.Minute)
+	defer cancel()
+	full := r.Params.Full != nil && *r.Params.Full
+	name, attachment := adminBackupName, "antholume-backup.db"
+	if full {
+		name, attachment = fullBackupName, "antholume-backup.zip"
+		if !s.api.libraryWrite.TryLock() {
+			return nil, adminFailure(409, "server_busy")
+		}
+		func() {
+			defer s.api.libraryWrite.Unlock()
+			err = s.api.createFullBackup(req, dir)
+		}()
+	} else {
+		err = s.api.createAdminBackup(req, dir)
 	}
 	if err != nil {
 		return nil, err
 	}
-	info, err := f.Stat()
-	if err != nil || !info.Mode().IsRegular() || info.Size() > maxSize {
-		f.Close()
-		return nil, errors.New("invalid database backup")
+	f, err := os.Open(filepath.Join(dir, name))
+	if err != nil {
+		return nil, err
 	}
+	info, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	body := &backupExportFile{File: f, cleanup: func() {
+		removeBackupExport(dir)
+		s.api.backupExport.Unlock()
+	}}
 	ginContext(ctx).Header("Content-Disposition", `attachment; filename="`+attachment+`"`)
-	return DownloadAdminBackup200ApplicationoctetStreamResponse{Body: f, ContentLength: info.Size()}, nil
+	handedOff = true
+	return DownloadAdminBackup200ApplicationoctetStreamResponse{Body: body, ContentLength: info.Size()}, nil
+}
+
+type backupExportFile struct {
+	*os.File
+	cleanup func()
+}
+
+func (f *backupExportFile) Close() error {
+	defer f.cleanup()
+	return f.File.Close()
+}
+
+func removeBackupExport(dir string) {
+	if err := os.RemoveAll(dir); err != nil {
+		log.WithError(err).Warn("Could not remove temporary backup export")
+	}
 }

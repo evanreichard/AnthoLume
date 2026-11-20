@@ -32,10 +32,8 @@ type Config struct {
 	LogLevel            string
 
 	// Cookie Settings
-	CookieAuthKey  string
-	CookieEncKey   string
-	CookieSecure   bool
-	CookieHTTPOnly bool
+	CookieAuthKey string
+	CookieEncKey  string
 }
 
 type customFormatter struct {
@@ -69,8 +67,6 @@ func Load() *Config {
 		CookieAuthKey:       trimLowerString(getEnv("COOKIE_AUTH_KEY", "")),
 		CookieEncKey:        trimLowerString(getEnv("COOKIE_ENC_KEY", "")),
 		LogLevel:            trimLowerString(getEnv("LOG_LEVEL", "info")),
-		CookieSecure:        trimLowerString(getEnv("COOKIE_SECURE", "true")) == "true",
-		CookieHTTPOnly:      trimLowerString(getEnv("COOKIE_HTTP_ONLY", "true")) == "true",
 	}
 
 	// Parse log level
@@ -119,11 +115,9 @@ func (c *Config) EnsureDirectories() {
 
 	docDir := filepath.Join(c.DataPath, "documents")
 	coversDir := filepath.Join(c.DataPath, "covers")
-	backupDir := filepath.Join(c.DataPath, "backups")
 
 	os.Mkdir(docDir, 0755)
 	os.Mkdir(coversDir, 0755)
-	os.Mkdir(backupDir, 0755)
 	os.Mkdir(filepath.Join(c.DataPath, "imports"), 0750)
 }
 
@@ -149,12 +143,6 @@ func prettyCaller(f *runtime.Frame) (function string, file string) {
 
 	fileName := fmt.Sprintf("%s/%s@%d", parts[0], splitFilePath[len(splitFilePath)-1], line)
 	functionName := strings.Replace(pathName, parts[0]+".", "", 1)
-
-	// Exclude GIN Logger
-	if functionName == "NewApi.apiLogger.func1" {
-		fileName = ""
-		functionName = ""
-	}
 
 	return functionName, fileName
 }

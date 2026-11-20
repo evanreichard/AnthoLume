@@ -623,7 +623,7 @@ export interface components {
         AdminJob: {
             id: components["schemas"]["ID"];
             /** @enum {string} */
-            kind: "statistics" | "database_check" | "backup" | "full_backup" | "import";
+            kind: "statistics" | "database_check" | "import";
             /** @enum {string} */
             status: "running" | "succeeded" | "failed" | "interrupted";
             started_at: string;
@@ -1835,7 +1835,7 @@ export interface operations {
     listAdminJobs: {
         parameters: {
             query?: {
-                kind?: "statistics" | "database_check" | "backup" | "full_backup" | "import";
+                kind?: "statistics" | "database_check" | "import";
             };
             header?: never;
             path?: never;
@@ -1871,7 +1871,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    kind: "statistics" | "database_check" | "backup" | "full_backup" | "import";
+                    kind: "statistics" | "database_check" | "import";
                     reference?: boolean;
                     relink_missing?: boolean;
                     root_id?: components["schemas"]["StorageRootID"];
@@ -1906,7 +1906,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Latest verified database snapshot or full library archive */
+            /** @description Freshly generated database snapshot or full library archive */
             200: {
                 headers: {
                     [name: string]: unknown;

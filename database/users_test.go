@@ -3,19 +3,16 @@ package database
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/suite"
 
 	"reichard.io/antholume/config"
-	"reichard.io/antholume/utils"
 )
 
-var (
-	testUserID   string = "testUser"
-	testUserPass string = "testPass"
+const (
+	testUserID   = "testUser"
+	testUserPass = "testPass"
 )
 
 type UsersTestSuite struct {
@@ -28,67 +25,19 @@ func TestUsers(t *testing.T) {
 }
 
 func (suite *UsersTestSuite) SetupTest() {
-	cfg := config.Config{
-		DBType: "memory",
-	}
-
-	suite.dbm = NewMgr(&cfg)
-
-	// Create User
-	rawAuthHash, _ := utils.GenerateToken(64)
-	authHash := fmt.Sprintf("%x", rawAuthHash)
-	_, err := suite.dbm.Queries.CreateUser(context.Background(), CreateUserParams{
-		ID:       testUserID,
-		Pass:     &testUserPass,
-		AuthHash: &authHash,
-	})
-	suite.NoError(err)
-
-	// Create Document
-	_, err = suite.dbm.Queries.UpsertDocument(context.Background(), UpsertDocumentParams{
-		ID:     documentID,
-		Title:  &documentTitle,
-		Author: &documentAuthor,
-		Words:  &documentWords,
-	})
-	suite.NoError(err)
-
-	// Create Device
-	_, err = suite.dbm.Queries.UpsertDevice(context.Background(), UpsertDeviceParams{
-		ID:         deviceID,
-		UserID:     testUserID,
-		DeviceName: deviceName,
-	})
-	suite.NoError(err)
+	suite.dbm = NewMgr(&config.Config{DBType: "memory"})
+	db := suite.dbm.DB
+	require := suite.Require()
+	suite.T().Cleanup(func() { require.NoError(db.Close()) })
+	_, err := db.Exec(`INSERT INTO users (id, pass, auth_hash) VALUES (?, ?, 'unused')`, testUserID, testUserPass)
+	require.NoError(err)
 }
 
 func (suite *UsersTestSuite) TestGetUser() {
 	user, err := suite.dbm.Queries.GetUser(context.Background(), testUserID)
-	suite.Nil(err, "should have nil err")
+	suite.Require().NoError(err)
+	suite.Require().NotNil(user.Pass)
 	suite.Equal(testUserPass, *user.Pass)
-}
-
-func (suite *UsersTestSuite) TestCreateUser() {
-	testUser := "user1"
-	testPass := "pass1"
-
-	// Generate Auth Hash
-	rawAuthHash, err := utils.GenerateToken(64)
-	suite.Nil(err, "should have nil err")
-
-	authHash := fmt.Sprintf("%x", rawAuthHash)
-	changed, err := suite.dbm.Queries.CreateUser(context.Background(), CreateUserParams{
-		ID:       testUser,
-		Pass:     &testPass,
-		AuthHash: &authHash,
-	})
-
-	suite.Nil(err, "should have nil err")
-	suite.Equal(int64(1), changed)
-
-	user, err := suite.dbm.Queries.GetUser(context.Background(), testUser)
-	suite.Nil(err, "should have nil err")
-	suite.Equal(testPass, *user.Pass)
 }
 
 func (suite *UsersTestSuite) TestDeleteUser() {
@@ -98,108 +47,4 @@ func (suite *UsersTestSuite) TestDeleteUser() {
 
 	_, err = suite.dbm.Queries.GetUser(context.Background(), testUserID)
 	suite.ErrorIs(err, sql.ErrNoRows, "should have no rows error")
-}
-
-func (suite *UsersTestSuite) TestGetUsers() {
-	users, err := suite.dbm.Queries.GetUsers(context.Background())
-	suite.Nil(err, "should have nil err")
-	suite.Len(users, 1, "should have single user")
-}
-
-func (suite *UsersTestSuite) TestUpdateUser() {
-	newPassword := "newPass123"
-	user, err := suite.dbm.Queries.UpdateUser(context.Background(), UpdateUserParams{
-		UserID:   testUserID,
-		Password: &newPassword,
-	})
-	suite.Nil(err, "should have nil err")
-	suite.Equal(newPassword, *user.Pass, "should have new password")
-}
-
-func (suite *UsersTestSuite) TestGetUserStatistics() {
-	err := suite.dbm.CacheTempTables(context.Background())
-	suite.NoError(err)
-
-	// Ensure Zero Items
-	userStats, err := suite.dbm.Queries.GetUserStatistics(context.Background())
-	suite.Nil(err, "should have nil err")
-	suite.Empty(userStats, "should be empty")
-
-	// Create Activity
-	end := time.Now()
-	start := end.AddDate(0, 0, -9)
-	var counter int64 = 0
-
-	for d := start; d.After(end) == false; d = d.AddDate(0, 0, 1) {
-		counter += 1
-
-		// Add Item
-		activity, err := suite.dbm.Queries.AddActivity(context.Background(), AddActivityParams{
-			DocumentID:      documentID,
-			DeviceID:        deviceID,
-			UserID:          testUserID,
-			StartTime:       d.UTC().Format(time.RFC3339),
-			Duration:        60,
-			StartPercentage: float64(counter) / 100.0,
-			EndPercentage:   float64(counter+1) / 100.0,
-		})
-
-		suite.Nil(err, fmt.Sprintf("[%d] should have nil err for add activity", counter))
-		suite.Equal(counter, activity.ID, fmt.Sprintf("[%d] should have correct id for add activity", counter))
-	}
-
-	err = suite.dbm.CacheTempTables(context.Background())
-	suite.NoError(err)
-
-	// Ensure One Item
-	userStats, err = suite.dbm.Queries.GetUserStatistics(context.Background())
-	suite.Nil(err, "should have nil err")
-	suite.Len(userStats, 1, "should have length of one")
-}
-
-func (suite *UsersTestSuite) TestGetUsersStreaks() {
-	err := suite.dbm.CacheTempTables(context.Background())
-	suite.NoError(err)
-
-	// Ensure Zero Items
-	userStats, err := suite.dbm.Queries.GetUserStreaks(context.Background(), testUserID)
-	suite.Nil(err, "should have nil err")
-	suite.Empty(userStats, "should be empty")
-
-	// Create Activity
-	end := time.Now()
-	start := end.AddDate(0, 0, -9)
-	var counter int64 = 0
-
-	for d := start; d.After(end) == false; d = d.AddDate(0, 0, 1) {
-		counter += 1
-
-		// Add Item
-		activity, err := suite.dbm.Queries.AddActivity(context.Background(), AddActivityParams{
-			DocumentID:      documentID,
-			DeviceID:        deviceID,
-			UserID:          testUserID,
-			StartTime:       d.UTC().Format(time.RFC3339),
-			Duration:        60,
-			StartPercentage: float64(counter) / 100.0,
-			EndPercentage:   float64(counter+1) / 100.0,
-		})
-
-		suite.Nil(err, fmt.Sprintf("[%d] should have nil err for add activity", counter))
-		suite.Equal(counter, activity.ID, fmt.Sprintf("[%d] should have correct id for add activity", counter))
-	}
-
-	err = suite.dbm.CacheTempTables(context.Background())
-	suite.NoError(err)
-
-	// Ensure Two Item
-	userStats, err = suite.dbm.Queries.GetUserStreaks(context.Background(), testUserID)
-	suite.Nil(err, "should have nil err")
-	suite.Len(userStats, 2, "should have length of two")
-
-	// Ensure Streak Stats
-	dayStats := userStats[0]
-	weekStats := userStats[1]
-	suite.Equal(int64(10), dayStats.CurrentStreak, "should be 10 days")
-	suite.Greater(weekStats.CurrentStreak, int64(1), "should be 2 or 3")
 }

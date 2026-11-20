@@ -14,12 +14,12 @@ func TestAdminJobShutdownCancelsAndDrainsBeforeCompletion(t *testing.T) {
 	f.exec(`UPDATE users SET admin=1 WHERE id='owner'`)
 	now := time.Now()
 	deadline := now.Add(adminJobLifetime)
-	f.exec(`INSERT INTO admin_jobs (id,kind,status,started_at,deadline) VALUES ('active','full_backup','running',?,?)`, jobTime(now), jobTime(deadline))
+	f.exec(`INSERT INTO admin_jobs (id,kind,status,started_at,deadline) VALUES ('active','database_check','running',?,?)`, jobTime(now), jobTime(deadline))
 
 	cancelled, cleanup := make(chan struct{}), make(chan struct{})
 	started := make(chan struct{})
 	require.True(t, f.api.adminJobs.reserve())
-	go f.api.finishAdminWork("active", "full_backup", deadline, func(ctx context.Context) error {
+	go f.api.finishAdminWork("active", "database_check", deadline, func(ctx context.Context) error {
 		close(started)
 		<-ctx.Done()
 		close(cancelled)
@@ -47,7 +47,7 @@ func TestAdminJobShutdownCancelsAndDrainsBeforeCompletion(t *testing.T) {
 		t.Fatal("shutdown returned before manual cleanup")
 	default:
 	}
-	assertProblem(t, f.call("POST", "/api/v1/admin/jobs", map[string]string{"kind": "backup"}, nil), 503, "server_busy")
+	assertProblem(t, f.call("POST", "/api/v1/admin/jobs", map[string]string{"kind": "database_check"}, nil), 503, "server_busy")
 	close(cleanup)
 	select {
 	case err := <-shutdown:

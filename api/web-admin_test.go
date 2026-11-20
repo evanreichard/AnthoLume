@@ -25,7 +25,9 @@ func TestAdminUsersRequireCurrentRoleAndVerifiedRecovery(t *testing.T) {
 	other.bootstrap()
 	require.Equal(t, 200, other.call("POST", "/api/v1/session/login", Credentials{Username: "bob", Password: "member password"}, nil).status)
 	other.bootstrap()
-	require.Equal(t, 200, other.call("GET", path, nil, nil).status)
+	listed := other.call("GET", path, nil, nil)
+	require.Equal(t, 200, listed.status, string(listed.body))
+	require.JSONEq(t, `[{"id":"alice","is_admin":true},{"id":"bob","is_admin":true}]`, string(listed.body))
 	assertProblem(t, f.call("DELETE", path+"/alice", nil, nil), 409, "current_admin")
 	admin := false
 	require.Equal(t, 200, f.call("PATCH", path+"/bob", AdminUserUpdate{IsAdmin: &admin}, nil).status)

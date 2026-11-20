@@ -43,7 +43,7 @@ function compareName(a: string | null, b: string | null) {
   return Number(!left) - Number(!right) || compareText(left, right);
 }
 function time(value?: string) { return value ? Date.parse(value) : -Infinity; }
-export function lastRead(book: LibraryBook) {
+function lastRead(book: LibraryBook) {
   return Math.max(time(book.document?.last_read_at), time(book.stored?.lastReadAt));
 }
 export function sortBooks(books: LibraryBook[], sort: LibrarySort) {
@@ -54,8 +54,4 @@ export function sortBooks(books: LibraryBook[], sort: LibrarySort) {
     const primary = sort === 'author' ? compareName(a.author, b.author) : sort === 'added' ? added(b) - added(a) : sort === 'read' ? read(b) - read(a) : 0;
     return primary || compareName(a.title, b.title) || compareText(id(a), id(b));
   });
-}
-export function matchesBook(book: LibraryBook, q: string) {
-  const search = q.toLocaleLowerCase();
-  return !search || [book.title, book.author].some(value => value?.toLocaleLowerCase().includes(search));
 }

@@ -3,6 +3,7 @@ package api
 import (
 	"archive/zip"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,36 +24,17 @@ func TestBackupArchiveLimits(t *testing.T) {
 	require.Error(t, budget.add("covers/extra.png", 0))
 }
 
-func TestFullBackupDoesNotBlockReadingOrSync(t *testing.T) {
+func TestFullBackupRejectsConcurrentLibraryWriteWithoutBlockingReadingOrSync(t *testing.T) {
 	f := newWebFixture(t)
 	f.readingSetup()
 	book := []byte("synthetic book fixture")
 	require.NoError(t, os.WriteFile(filepath.Join(f.cfg.DataPath, "documents", "book.epub"), book, 0600))
 	f.exec(`UPDATE documents SET filepath='book.epub',storage_root_id='library' WHERE id='book-a'`)
-	started, release := make(chan struct{}), make(chan struct{})
-	finished := make(chan error, 1)
-	go func() {
-		finished <- f.api.runAdminWork(context.Background(), "full_backup", func(ctx context.Context) error {
-			close(started)
-			<-release
-			return f.api.createFullBackup(ctx)
-		})
-	}()
-	t.Cleanup(func() {
-		close(release)
-		select {
-		case err := <-finished:
-			require.NoError(t, err)
-		case <-time.After(10 * time.Second):
-			t.Error("backup did not finish")
-		}
-	})
-	select {
-	case <-started:
-	case <-time.After(5 * time.Second):
-		t.Fatal("backup did not start")
-	}
+	f.exec(`UPDATE users SET admin=1 WHERE id='alice'`)
+	f.api.libraryWrite.Lock()
+	defer f.api.libraryWrite.Unlock()
 	f.client.Timeout = 2 * time.Second
+	assertProblem(t, f.call("GET", "/api/v1/admin/backup?full=true", nil, nil), 409, "server_busy")
 	file := f.call("GET", "/api/v1/documents/book-a/file", nil, nil)
 	require.Equal(t, 200, file.status)
 	require.Equal(t, book, file.body)
@@ -68,8 +50,9 @@ func TestStartupRestoreInstallsLibraryOnlyIntoFreshInstance(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(source.cfg.DataPath, "documents", "book.epub"), book, 0600))
 	source.exec(`INSERT INTO documents(id,title,filepath,storage_root_id) VALUES('book','Book','book.epub','library')`)
 	ctx := context.Background()
-	require.NoError(t, source.api.createFullBackup(ctx))
-	backup, err := os.Open(filepath.Join(source.api.adminBackupDir(), fullBackupName))
+	dir := filepath.Join(t.TempDir(), "export")
+	require.NoError(t, source.api.createFullBackup(ctx, dir))
+	backup, err := os.Open(filepath.Join(dir, fullBackupName))
 	require.NoError(t, err)
 	defer backup.Close()
 
@@ -90,12 +73,12 @@ func TestFullBackupRoundTripsNearLimitPaths(t *testing.T) {
 	type asset struct {
 		id, book, cover string
 	}
-	nearLimit := func(prefix, dir, base string) string {
-		return dir + "/" + strings.Repeat("b", maxBackupEntryPath-len(prefix+dir+"//"+base)) + "/" + base
+	nearLimit := func(prefix, dir, base string, delta int) string {
+		return dir + "/" + strings.Repeat("b", maxBackupEntryPath+delta-len(prefix+dir+"//"+base)) + "/" + base
 	}
 	books := []asset{
-		{"first", nearLimit("documents/library/", strings.Repeat("a", 245), "book.epub"), nearLimit("covers/", strings.Repeat("a", 245), "cover.jpg")},
-		{"second", nearLimit("documents/library/", strings.Repeat("z", 245), "book.epub"), nearLimit("covers/", strings.Repeat("z", 245), "cover.jpg")},
+		{"first", nearLimit("documents/library/", strings.Repeat("a", 245), "book.epub", 0), nearLimit("covers/", strings.Repeat("a", 245), "cover.jpg", 0)},
+		{"second", nearLimit("documents/library/", strings.Repeat("z", 245), "book.epub", 1), nearLimit("covers/", strings.Repeat("z", 245), "cover.jpg", 1)},
 	}
 	for _, a := range books {
 		for folder, name := range map[string]string{"documents": a.book, "covers": a.cover} {
@@ -107,8 +90,9 @@ func TestFullBackupRoundTripsNearLimitPaths(t *testing.T) {
 	}
 	var previousNames []string
 	for cycle := range 3 {
-		require.NoError(t, source.api.createFullBackup(ctx))
-		name := filepath.Join(source.api.adminBackupDir(), fullBackupName)
+		dir := filepath.Join(t.TempDir(), "export")
+		require.NoError(t, source.api.createFullBackup(ctx, dir))
+		name := filepath.Join(dir, fullBackupName)
 		archive, err := zip.OpenReader(name)
 		require.NoError(t, err)
 		var names []string
@@ -117,6 +101,20 @@ func TestFullBackupRoundTripsNearLimitPaths(t *testing.T) {
 			if entry.Name != adminBackupName {
 				names = append(names, entry.Name)
 			}
+		}
+		if cycle == 0 {
+			snapshot, err := archive.Open(adminBackupName)
+			require.NoError(t, err)
+			data, err := io.ReadAll(snapshot)
+			require.NoError(t, snapshot.Close())
+			require.NoError(t, err)
+			catalog := openExportedCatalog(t, data)
+			var book, cover string
+			require.NoError(t, catalog.QueryRow(`SELECT filepath,coverfile FROM documents WHERE id='second'`).Scan(&book, &cover))
+			require.NotEqual(t, books[1].book, book)
+			require.NotEqual(t, books[1].cover, cover)
+			require.Contains(t, names, "documents/library/"+book)
+			require.Contains(t, names, "covers/"+cover)
 		}
 		require.NoError(t, archive.Close())
 		require.Len(t, names, 4)
@@ -164,8 +162,9 @@ func TestRestoreUpgradedFullBackupOnFreshInstance(t *testing.T) {
  DELETE FROM goose_db_version WHERE version_id>=20261126000000;
  INSERT INTO documents(id,title,filepath,basepath) VALUES('legacy','Legacy book','book.epub',?)`, library)
 	require.NoError(t, source.db.Reload(context.Background()))
-	require.NoError(t, source.api.createFullBackup(context.Background()))
-	payload, err := os.ReadFile(filepath.Join(source.api.adminBackupDir(), fullBackupName))
+	dir := filepath.Join(t.TempDir(), "export")
+	require.NoError(t, source.api.createFullBackup(context.Background(), dir))
+	payload, err := os.ReadFile(filepath.Join(dir, fullBackupName))
 	require.NoError(t, err)
 
 	dest := newWebFixture(t)

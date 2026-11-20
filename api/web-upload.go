@@ -12,16 +12,16 @@ import (
 	"reichard.io/antholume/reading"
 )
 
-func documentUploadError(err error) (int, string) {
+func documentUploadStatus(err error) int {
 	switch {
 	case errors.Is(err, metadata.ErrUnsupportedFileType):
-		return http.StatusUnsupportedMediaType, "Unsupported file type; upload an EPUB"
+		return http.StatusUnsupportedMediaType
 	case errors.Is(err, metadata.ErrArchiveTooLarge):
-		return http.StatusRequestEntityTooLarge, "EPUB exceeds archive safety limits"
+		return http.StatusRequestEntityTooLarge
 	case errors.Is(err, metadata.ErrInvalidDocument):
-		return http.StatusBadRequest, "Invalid or damaged EPUB"
+		return http.StatusBadRequest
 	default:
-		return http.StatusInternalServerError, "Unable to acquire metadata"
+		return http.StatusInternalServerError
 	}
 }
 
@@ -68,7 +68,7 @@ func (s *webAPI) UploadDocument(ctx context.Context, r UploadDocumentRequestObje
 	}
 	info, err := metadata.GetMetadata(file.Name())
 	if err != nil {
-		status, _ := documentUploadError(err)
+		status := documentUploadStatus(err)
 		if status >= 500 {
 			return nil, err
 		}

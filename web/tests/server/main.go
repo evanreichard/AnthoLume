@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -85,7 +84,7 @@ func main() {
 	if *public != "" {
 		publicOrigin = *public
 	}
-	c := &config.Config{Version: "m3-browser-test", ConfigPath: *data, DataPath: *data, DBType: "sqlite", DBName: "browser", PublicOrigin: publicOrigin, RegistrationEnabled: true, CookieAuthKey: "synthetic-browser-test-cookie-auth-key-not-for-production-123456789", CookieHTTPOnly: true}
+	c := &config.Config{Version: "m3-browser-test", ConfigPath: *data, DataPath: *data, DBType: "sqlite", DBName: "browser", PublicOrigin: publicOrigin, RegistrationEnabled: true, CookieAuthKey: "synthetic-browser-test-cookie-auth-key-not-for-production-123456789"}
 	c.EnsureDirectories()
 	db := database.NewMgr(c)
 	defer db.DB.Close()
@@ -94,7 +93,7 @@ func main() {
 		panic(err)
 	}
 	for i := 1; i <= 30; i++ {
-		_, err = tx.Exec("INSERT OR IGNORE INTO documents (id,title,author,filepath,coverfile,description,words) VALUES(?,?,?,?,?,?,?)", fmt.Sprintf("book-%03d", i), fmt.Sprintf("Public book %02d", i), "Synthetic Author", "public.epub", "public.png", "<script>window.__untrusted = true</script>\nSynthetic public text; rendered inertly.", 10000)
+		_, err = tx.Exec("INSERT OR IGNORE INTO documents (id,title,author,filepath,coverfile,description,words,created_at) VALUES(?,?,?,?,?,?,?,'2020-01-01T00:00:00Z')", fmt.Sprintf("book-%03d", i), fmt.Sprintf("Public book %02d", i), "Synthetic Author", "public.epub", "public.png", "<script>window.__untrusted = true</script>\nSynthetic public text; rendered inertly.", 10000)
 		if err != nil {
 			panic(err)
 		}
@@ -121,33 +120,10 @@ func main() {
 	}()
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/sw.js" {
-			if variant, err := os.ReadFile(filepath.Join(*data, "worker-update")); err == nil {
-				source, err := os.ReadFile(filepath.Join(*root, "assets", "app", "sw.js"))
-				if err != nil {
-					panic(err)
-				}
-				prefix, code, ok := strings.Cut(string(source), "\n")
-				manifest, _, found := strings.Cut(strings.TrimPrefix(prefix, "self.__ANTHOLUME_PRECACHE__="), ";self.__ANTHOLUME_BUILD__=")
-				if !ok || !found {
-					panic("compiled worker injection missing")
-				}
-				code += fmt.Sprintf("\n// Test Update %x\n", sha256.Sum256(variant))
-				build := fmt.Sprintf("%x", sha256.Sum256([]byte(manifest+code)))
-				w.Header().Set("Content-Type", "application/javascript")
-				w.Header().Set("Cache-Control", "no-cache")
-				fmt.Fprintf(w, "self.__ANTHOLUME_PRECACHE__=%s;self.__ANTHOLUME_BUILD__=%q;\n%s", manifest, build, code)
-				return
-			}
 			if source, err := os.ReadFile(filepath.Join(*data, "legacy-worker")); err == nil {
 				w.Header().Set("Cache-Control", "no-cache")
 				w.Header().Set("Content-Type", "application/javascript")
 				w.Write(source)
-				return
-			}
-		}
-		if strings.HasPrefix(r.URL.Path, "/assets/app/assets/ReaderRoute-") {
-			if _, err := os.Stat(filepath.Join(*data, "fail-shell")); err == nil {
-				http.Error(w, "Synthetic install fault", http.StatusServiceUnavailable)
 				return
 			}
 		}

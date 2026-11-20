@@ -1,4 +1,4 @@
-type Name = 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'device' | 'external' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'appearance' | 'user' | 'warning' | 'folder' | 'up' | 'forward' | 'refresh' | 'sign-out' | 'upload';
+type Name = 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'device' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'user' | 'warning' | 'folder' | 'up' | 'forward' | 'refresh' | 'sign-out' | 'upload';
 
 const paths: Record<Name, string> = {
   library: 'M4 5h4v14H4z M8 5h4v14H8z M14 6l3.5-1 4 13-3.5 1z',
@@ -15,7 +15,6 @@ const paths: Record<Name, string> = {
   cloud: 'M7 18a4 4 0 0 1-.5-8A5.5 5.5 0 0 1 17 9a4.5 4.5 0 1 1 1.5 9Z',
   device: 'M6 4h12v16H6z M10 16h4',
   user: 'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM5 20v-1a7 7 0 0 1 14 0v1',
-  external: 'M9 5h10v10 M19 5 6 18',
   folder: 'M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
   'sign-out': 'M10 4H5v16h5m3-8h8m-4-4 4 4-4 4',
   refresh: 'M20 11a8 8 0 1 0-2 6m2-12v6h-6',
@@ -25,7 +24,6 @@ const paths: Record<Name, string> = {
   trash: 'M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13 M10 10v7m4-7v7',
   sort: 'M5 5h14 M5 10h10 M5 15h6 M18 10v9m-3-3 3 3 3-3',
   contents: 'M8 6h12 M8 12h12 M8 18h12 M4 6h.01 M4 12h.01 M4 18h.01',
-  appearance: 'm2 18 5-12 5 12 M4 14h6 M20 18v-5a3 3 0 0 0-6 0m6 1h-3.5a2 2 0 0 0 0 4H17a3 3 0 0 0 3-2',
 };
 
 export function Icon({ name, size = 20 }: { name: Name; size?: number }) {

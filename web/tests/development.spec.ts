@@ -13,14 +13,15 @@ async function stop(child: ChildProcess) {
   await exited;
 }
 
-test('loopback Vite serves development routes while proxying APIs and enforcing the exact public Origin', async ({ page, server }) => {
-  void server;
+test('loopback Vite serves development routes while proxying APIs and enforcing the exact public Origin', async ({ page, serverBinary }) => {
   const data = `${scratch}dev-${Date.now()}`;
   await mkdir(`${data}/documents`, { recursive: true });
   await writeFile(`${data}/documents/public.epub`, await epub());
-  const origin = 'http://127.0.0.1:5333';
-  const backend = spawn(`${scratch}production-router-test`, ['--root', root, '--data', data, '--addr', '127.0.0.1:5334', '--public-origin', origin], { stdio: ['ignore', 'pipe', 'pipe'] });
-  const vite = spawn(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), '--host', '127.0.0.1', '--port', '5333', '--strictPort'], { cwd: `${root}web`, env: { ...process.env, ANTHOLUME_BACKEND: 'http://127.0.0.1:5334' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const port = process.env.ANTHOLUME_TEST_PORT ?? '5333';
+  const origin = `http://127.0.0.1:${port}`;
+  const backendAddr = '127.0.0.1:5334';
+  const backend = spawn(serverBinary, ['--root', root, '--data', data, '--addr', backendAddr, '--public-origin', origin], { stdio: ['ignore', 'pipe', 'pipe'] });
+  const vite = spawn(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), '--host', '127.0.0.1', '--port', port, '--strictPort'], { cwd: `${root}web`, env: { ...process.env, ANTHOLUME_BACKEND: `http://${backendAddr}` }, stdio: ['ignore', 'pipe', 'pipe'] });
   let logs = '';
   for (const child of [backend, vite]) {
     child.stdout!.on('data', (value) => { logs = (logs + value).slice(-16000); });

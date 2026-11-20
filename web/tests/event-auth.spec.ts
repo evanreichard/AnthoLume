@@ -7,12 +7,12 @@ async function prepare(page: Page, origin: string, user: string) {
   await register(page, origin, user);
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
 }
-async function turn(page: Page) {
+async function turn(page: Page, { expectPageTwo = true } = {}) {
   await page.getByRole('link', { name: /^(Read|Resume)$/ }).click();
   await expect(page.locator('footer')).toContainText('1 /');
   await page.keyboard.press('c');
   await page.getByRole('button', { name: 'Next page', exact: true }).click();
-  await expect(page.locator('footer')).toContainText('2 /');
+  if (expectPageTwo) await expect(page.locator('footer')).toContainText('2 /');
 }
 
 for (const fault of ['malformed-401', 'valid-401']) {
@@ -22,8 +22,12 @@ for (const fault of ['malformed-401', 'valid-401']) {
     const before = await storedRows(page, 'access');
     await writeFile(`${server.data}/receipt-fault`, fault);
     try {
-      await turn(page);
-      await expect.poll(() => serverEffects(server.data, user).receipts.length).toBe(1);
+      const denied = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith('/me/reading-progress'));
+      await turn(page, { expectPageTwo: fault !== 'valid-401' });
+      const response = await denied;
+      expect(response.status()).toBe(401);
+      const submitted = response.request().postDataJSON();
+      await expect.poll(() => serverEffects(server.data, user).receipts).toMatchObject([{ event_id: submitted.event_id, kind: 'progress', status: 200 }]);
       if (fault === 'malformed-401') {
         await page.goBack();
         await expect(page.getByRole('link', { name: 'Settings', exact: true })).toBeVisible();
@@ -36,16 +40,20 @@ for (const fault of ['malformed-401', 'valid-401']) {
       } else {
         await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
         expect((await storedRows(page, 'access'))[0].authenticated).toBe(false);
-        expect(await pendingIds(page)).toHaveLength(1);
+        expect(await pendingIds(page)).toEqual([submitted.event_id]);
       }
       const effects = serverEffects(server.data, user);
       await unlink(`${server.data}/receipt-fault`);
+      const replayed = page.waitForResponse((reply) => reply.request().method() === 'POST' && reply.url().endsWith('/me/reading-progress'));
       if (fault === 'valid-401') {
         // The fault expires the client session without invalidating the fixture's cookie.
         await page.getByLabel('Username', { exact: true }).fill(user);
         await page.getByLabel('Password', { exact: true }).fill('synthetic-public-password');
         await page.getByRole('button', { name: 'Sign in', exact: true }).click();
       } else await page.getByRole('button', { name: 'Retry synchronization', exact: true }).click();
+      const replay = await replayed;
+      expect(replay.status()).toBe(200);
+      expect(replay.request().postDataJSON()).toEqual(submitted);
       await expect.poll(() => pendingIds(page)).toEqual([]);
       expect(serverEffects(server.data, user)).toEqual(effects);
       await expect(page.getByRole('link', { name: 'Settings', exact: true })).toBeVisible();

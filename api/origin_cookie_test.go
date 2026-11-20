@@ -14,8 +14,6 @@ func TestHTTPSCookiesAndOriginIndependentOfHost(t *testing.T) {
 	f := newWebFixture(t)
 	cfg := *f.cfg
 	cfg.PublicOrigin = "https://books.example"
-	cfg.CookieSecure = false
-	cfg.CookieHTTPOnly = false
 	api, err := NewAPI(f.db, &cfg, os.DirFS(".."))
 	require.NoError(t, err)
 	recorder := httptest.NewRecorder()

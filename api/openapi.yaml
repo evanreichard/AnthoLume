@@ -441,7 +441,7 @@ paths:
     get:
       operationId: listAdminJobs
       parameters:
-        - {in: query, name: kind, schema: {type: string, enum: [statistics, database_check, backup, full_backup, import]}}
+        - {in: query, name: kind, schema: {type: string, enum: [statistics, database_check, import]}}
       responses:
         '200':
           description: Recent maintenance jobs
@@ -461,7 +461,7 @@ paths:
               additionalProperties: false
               required: [kind]
               properties:
-                kind: {type: string, enum: [statistics, database_check, backup, full_backup, import]}
+                kind: {type: string, enum: [statistics, database_check, import]}
                 reference: {type: boolean}
                 relink_missing: {type: boolean}
                 root_id: {$ref: '#/components/schemas/StorageRootID'}
@@ -481,7 +481,7 @@ paths:
         - {in: query, name: generation, description: Expected browser reading generation, schema: {type: string}}
       responses:
         '200':
-          description: Latest verified database snapshot or full library archive
+          description: Freshly generated database snapshot or full library archive
           content:
             application/octet-stream:
               schema: {type: string, format: binary}
@@ -737,7 +737,7 @@ components:
       required: [id, kind, status, started_at, finished_at]
       properties:
         id: {$ref: '#/components/schemas/ID'}
-        kind: {type: string, enum: [statistics, database_check, backup, full_backup, import]}
+        kind: {type: string, enum: [statistics, database_check, import]}
         status: {type: string, enum: [running, succeeded, failed, interrupted]}
         started_at: {type: string}
         finished_at: {type: string, nullable: true}

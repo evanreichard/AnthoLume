@@ -55,6 +55,6 @@ clean:
 	rm -rf ./build
 
 tests:
-	SET_TEST=set_val go test -coverpkg=./... ./... -coverprofile=./cover.out
+	go test -coverpkg=./... ./... -coverprofile=./cover.out
 	go tool cover -html=./cover.out -o ./cover.html
 	rm ./cover.out

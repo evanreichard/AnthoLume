@@ -158,7 +158,7 @@ CREATE TABLE IF NOT EXISTS document_user_statistics (
     UNIQUE(document_id, user_id) ON CONFLICT REPLACE
 );
 
--- User Streaks Table
+-- Legacy Streaks - Keep the table so account deletion can purge rows from restored backups.
 CREATE TABLE IF NOT EXISTS user_streaks (
     user_id TEXT NOT NULL,
     window TEXT NOT NULL,

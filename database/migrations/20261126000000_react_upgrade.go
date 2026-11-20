@@ -6,23 +6,35 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
-	"github.com/pressly/goose/v3"
 	"os"
 	"path/filepath"
+
+	"github.com/pressly/goose/v3"
 	"reichard.io/antholume/pkg/storagepath"
 )
 
 //go:embed schema/admin_jobs_schema.sql
 var adminJobsSchema string
 
+//go:embed schema/account_identities_schema.sql
+var accountIdentitiesSchema string
+
+//go:embed schema/reading_generation_schema.sql
+var readingGenerationSchema string
+
 func init() { goose.AddMigrationContext(upReactUpgrade, downReactUpgrade) }
 
 func upReactUpgrade(ctx context.Context, tx *sql.Tx) error {
 	for _, step := range []func(context.Context, *sql.Tx) error{
-		upReading, upKOSyncDevices, upDevicePreferences, upAdminJobs, upAdminImportResults,
-		upStorageRoots, upCanonicalStoragePaths, upAutoImportRules,
+		upReading, upKOSyncDevices, upDevicePreferences,
+		upStorageRoots, upCanonicalStoragePaths,
 	} {
 		if err := step(ctx, tx); err != nil {
+			return err
+		}
+	}
+	for _, schema := range []string{adminJobsSchema, AutoImportRulesSchema, accountIdentitiesSchema, readingGenerationSchema} {
+		if _, err := tx.ExecContext(ctx, schema); err != nil {
 			return err
 		}
 	}
@@ -74,29 +86,6 @@ var DevicePreferencesSchema string
 
 func upDevicePreferences(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, DevicePreferencesSchema)
-	return err
-}
-
-func upAdminJobs(ctx context.Context, tx *sql.Tx) error {
-	_, err := tx.ExecContext(ctx, adminJobsSchema)
-	return err
-}
-
-//go:embed schema/admin_job_result_schema.sql
-var adminJobResultSchema string
-
-func upAdminImportResults(ctx context.Context, tx *sql.Tx) error {
-	rows, err := tx.QueryContext(ctx, `SELECT name FROM pragma_table_info('admin_jobs') WHERE name='result'`)
-	if err != nil {
-		return err
-	}
-	exists := rows.Next()
-	err = rows.Err()
-	rows.Close()
-	if err != nil || exists {
-		return err
-	}
-	_, err = tx.ExecContext(ctx, adminJobResultSchema)
 	return err
 }
 
@@ -208,8 +197,3 @@ func upCanonicalStoragePaths(ctx context.Context, tx *sql.Tx) error {
 
 //go:embed schema/auto_import_rules_schema.sql
 var AutoImportRulesSchema string
-
-func upAutoImportRules(ctx context.Context, tx *sql.Tx) error {
-	_, err := tx.ExecContext(ctx, AutoImportRulesSchema)
-	return err
-}

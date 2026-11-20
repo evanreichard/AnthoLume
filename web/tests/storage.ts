@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { DatabaseSync } from 'node:sqlite';
 
-type Row = { server?: unknown; currentRevision?: string; refreshError?: string | null; key?: string; epoch?: number; authenticated?: boolean; eligible?: boolean; owner?: string; fence?: number; until?: number; scope?: string; ids?: string[]; id?: string; kind?: string; payload?: { event_id: string; base_revision?: string; duration?: number }; outcome?: string; receipt?: { event_id: string }; ref?: { kind: string; documentId?: string }; checkpoint?: { position: string | null; fraction: number | null } };
+type Row = { server?: unknown; currentRevision?: string; refreshError?: string | null; key?: string; epoch?: number; authenticated?: boolean; eligible?: boolean; owner?: string; fence?: number; until?: number; scope?: string; ids?: string[]; id?: string; kind?: string; payload?: { event_id: string; base_revision?: string; duration?: number; position?: string }; outcome?: string; receipt?: { event_id: string }; ref?: { kind: string; documentId?: string }; checkpoint?: { position: string | null; fraction: number | null } };
 export async function storedRows(page: Page, store: 'events' | 'decisions' | 'books' | 'access' | 'leases' | 'conflicts'): Promise<Row[]> {
   return page.evaluate((name) => new Promise<Row[]>((resolve, reject) => {
     const request = indexedDB.open('antholume-reading-v1');
@@ -15,40 +15,6 @@ export async function storedRows(page: Page, store: 'events' | 'decisions' | 'bo
       tx.onerror = () => { db.close(); reject(tx.error); };
     };
   }), store);
-}
-export async function sourceInventory(page: Page) {
-  return page.evaluate(() => new Promise<{ available: number; validSources: number; blobSources: number; chunkedSources: number; staged: number; chunkBytes: number; maxChunkBytes: number; sourceIds: string[] }>((resolve, reject) => {
-    const request = indexedDB.open('antholume-reading-v1');
-    request.onupgradeneeded = () => { request.transaction?.abort(); reject(new Error('Production reader DB missing')); };
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const db = request.result, tx = db.transaction(['books', 'sources', 'sourceChunks'], 'readonly');
-      const books = tx.objectStore('books').getAll(), sources = tx.objectStore('sources').getAll();
-      const totals = new Map<string, number>();
-      let chunkBytes = 0, maxChunkBytes = 0;
-      const cursor = tx.objectStore('sourceChunks').openCursor();
-      cursor.onsuccess = () => {
-        const row = cursor.result;
-        if (!row) return;
-        const size = (row.value.data as ArrayBuffer).byteLength;
-        totals.set(row.value.sourceId, (totals.get(row.value.sourceId) || 0) + size);
-        chunkBytes += size; maxChunkBytes = Math.max(maxChunkBytes, size);
-        row.continue();
-      };
-      tx.onerror = () => { db.close(); reject(tx.error); };
-      tx.oncomplete = () => {
-        const available = books.result.filter((book) => book.availability === 'available');
-        const valid = available.filter((book) => {
-          const source = sources.result.find((value) => value.id === book.sourceId);
-          const integrity = source?.manifest?.integrity;
-          return source?.complete === true && source.size === book.size && source.received === book.size && /^[a-f0-9]{64}$/.test(source.manifestHash || '') && integrity?.sha256 === book.checksum && integrity?.protocolHash === book.protocolHash && Array.isArray(integrity.digests) && integrity.digests.length === Math.ceil(book.size / 262144) && (source.blob instanceof Blob ? source.blob.size === book.size : totals.get(source.id) === book.size);
-        });
-        const selected = sources.result.filter((source) => valid.some((book) => book.sourceId === source.id));
-        db.close();
-        resolve({ available: available.length, validSources: valid.length, blobSources: selected.filter((source) => source.blob instanceof Blob).length, chunkedSources: selected.filter((source) => source.blob === null).length, staged: sources.result.filter((source) => !source.complete).length, chunkBytes, maxChunkBytes, sourceIds: selected.map((source) => source.id).sort() });
-      };
-    };
-  }));
 }
 
 export async function pendingIds(page: Page) {

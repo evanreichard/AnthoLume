@@ -85,9 +85,12 @@ func TestNamedStorageRootsImportRemapAndBackup(t *testing.T) {
 	preview = f.call("GET", "/api/v1/admin/backup/preview", nil, nil)
 	require.Equal(t, 200, preview.status, string(preview.body))
 	require.Equal(t, AdminBackupPreview{Files: 1, Bytes: int64(len(book)), Missing: 1}, decodeWeb[AdminBackupPreview](t, preview))
-	require.NoError(t, f.api.createFullBackup(ctx))
 	archive := f.call("GET", "/api/v1/admin/backup?full=true", nil, nil)
 	require.Equal(t, 200, archive.status)
+	require.Zero(t, f.count("admin_jobs"))
+	temporary, err := filepath.Glob(filepath.Join(f.cfg.ConfigPath, ".backup-export-*"))
+	require.NoError(t, err)
+	require.Empty(t, temporary)
 	zipped, err := zip.NewReader(bytes.NewReader(archive.body), int64(len(archive.body)))
 	require.NoError(t, err)
 	var entries []string

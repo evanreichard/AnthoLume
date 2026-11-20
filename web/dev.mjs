@@ -122,7 +122,7 @@ async function run() {
       ...process.env, GIN_MODE: 'release', CONFIG_PATH: root, DATA_PATH: root,
       LISTEN_HOST: '127.0.0.1', LISTEN_PORT: String(goPort), PUBLIC_ORIGIN: target,
       DATABASE_TYPE: 'sqlite', DATABASE_NAME: 'antholume', REGISTRATION_ENABLED: 'false', DEMO_MODE: 'false',
-      COOKIE_AUTH_KEY: cookieKey, COOKIE_ENC_KEY: '', COOKIE_SECURE: 'false', COOKIE_HTTP_ONLY: 'true',
+      COOKIE_AUTH_KEY: cookieKey, COOKIE_ENC_KEY: '',
     }).then(result => `Go backend exited (${result})`);
     const cancelStartup = new AbortController();
     const startup = AbortSignal.any([cancelStartup.signal, AbortSignal.timeout(30_000)]);

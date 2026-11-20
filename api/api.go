@@ -33,6 +33,7 @@ type API struct {
 	identitySlots chan struct{}
 	restoreGate   sync.RWMutex
 	libraryWrite  sync.Mutex
+	backupExport  sync.Mutex
 	restoreStage  sync.Mutex
 	adminJobs     adminJobLifecycle
 }

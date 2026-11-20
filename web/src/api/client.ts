@@ -9,7 +9,7 @@ export const apiOrigin = configuredOrigin.origin;
 if (apiOrigin !== window.location.origin || configuredOrigin.pathname !== '/' || configuredOrigin.search || configuredOrigin.hash || configuredOrigin.username || configuredOrigin.password) throw new Error('VITE_API_ORIGIN must be the browser public origin. Configure the loopback proxy/PUBLIC_ORIGIN, not cross-origin credentials.');
 export const sameAccount = (a: Account, b: Account) => a.origin === b.origin && a.userId === b.userId && a.readingGeneration === b.readingGeneration;
 const accountHeader = (account: Account) => ({ 'X-AnthoLume-Account': account.userId, ...(account.readingGeneration ? { 'X-AnthoLume-Reading-Generation': account.readingGeneration } : {}) });
-export interface SessionGate {
+interface SessionGate {
   token(): string | null;
   epoch(): number;
   assert(account: Account, epoch: number): void;
@@ -161,4 +161,3 @@ export function createAPI(gate: SessionGate) {
   };
   return { ...api, bridge };
 }
-export type API = ReturnType<typeof createAPI>;
