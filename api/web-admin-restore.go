@@ -531,9 +531,6 @@ func (s *webAPI) ApplyAdminRestore(ctx context.Context, r ApplyAdminRestoreReque
 	if err := api.validateRestoreDB(req, filepath.Join(stage, adminBackupName)); err != nil {
 		return nil, adminFailure(400, "incompatible_restore_database")
 	}
-	if err := api.adminRecoverySnapshot(req, "before-restore-"); err != nil {
-		return nil, err
-	}
 	if err := api.applyStagedRestore(req, stage, r.Body.Token); err != nil {
 		return nil, err
 	}

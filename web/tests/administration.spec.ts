@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import JSZip from 'jszip';
 import { expect, register, signIn, test } from './fixtures';
 
@@ -257,7 +257,7 @@ test('administrators manage users while members cannot open Administration', asy
   await dialog.getByRole('button', { name: 'Download', exact: true }).click();
   const database = await receivedDatabase;
   expect(database.suggestedFilename()).toBe('antholume-backup.db');
-  await database.path();
+  const databasePath = await database.path();
   await expect(backupCard.getByRole('link')).toHaveCount(0);
   for (const [width, height, colorScheme] of [[320, 800, 'dark'], [390, 844, 'dark'], [1440, 900, 'light']] as const) {
     await page.emulateMedia({ colorScheme });
@@ -474,20 +474,13 @@ test('administrators manage users while members cannot open Administration', asy
   expect(restored.status()).toBe(200);
   expect(await restored.body()).toEqual(original);
   expect(await (await page.request.get(`${server.origin}/api/v1/documents/book-001/cover`)).body()).toEqual(await archive.file('covers/public.png')!.async('nodebuffer'));
-  const backups = `${server.data}/backups`;
-  const rollback = (await readdir(backups)).find(name => name.startsWith('before-restore-'));
-  expect(rollback).toBeDefined();
-  const rollbackDB = new DatabaseSync(`${backups}/${rollback}/antholume.db`, { readOnly: true });
-  try {
-    expect(rollbackDB.prepare('PRAGMA quick_check').get()).toEqual({ quick_check: 'ok' });
-    expect(rollbackDB.prepare('SELECT filepath FROM documents WHERE id=?').get('book-001')).toEqual({ filepath: 'public.epub' });
-    expect(await readFile(`${server.data}/documents/public.epub`)).toEqual(changed);
-  } finally { rollbackDB.close(); }
+  await expect(stat(`${server.data}/backups`)).rejects.toMatchObject({ code: 'ENOENT' });
+  expect(await readFile(`${server.data}/documents/public.epub`)).toEqual(changed);
 
   expect((await page.request.get(`${server.origin}/admin/backups`)).status()).toBe(404);
   await page.goto(`${server.origin}/admin/library`);
   await restoreBackup.click();
-  await page.getByLabel('Backup file').setInputFiles(`${backups}/${rollback}/antholume.db`);
+  await page.getByLabel('Backup file').setInputFiles(databasePath!);
   await page.getByRole('button', { name: 'Validate', exact: true }).click();
   await expect(dialog.getByText(/No library files are included/)).toBeVisible();
   await dialog.getByLabel('Type RESTORE to confirm').fill('RESTORE');

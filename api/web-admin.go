@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"reichard.io/antholume/database"
@@ -154,14 +153,6 @@ func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestOb
 	if r.Id == principal.UserName {
 		return nil, adminFailure(409, "current_admin")
 	}
-	if _, err := s.api.db.Queries.GetUser(requestContext(ctx), r.Id); errors.Is(err, sql.ErrNoRows) {
-		return nil, adminFailure(404, "user_not_found")
-	} else if err != nil {
-		return nil, err
-	}
-	if err := s.api.adminUserSnapshot(requestContext(ctx)); err != nil {
-		return nil, err
-	}
 	err := s.adminTransaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
 		q := s.api.db.Queries.WithTx(tx)
 		if err := q.DeleteAdminUserStatistics(ctx, r.Id); err != nil {
@@ -182,37 +173,6 @@ func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestOb
 	return DeleteAdminUser204Response{}, err
 }
 
-func (api *API) adminUserSnapshot(ctx context.Context) error {
-	return api.adminRecoverySnapshot(ctx, "before-user-delete-")
-}
-
-func (api *API) adminRecoverySnapshot(ctx context.Context, prefix string) error {
-	root := filepath.Join(api.cfg.ConfigPath, "backups")
-	if err := os.MkdirAll(root, 0700); err != nil {
-		return err
-	}
-	dir, err := os.MkdirTemp(root, prefix)
-	if err != nil {
-		return err
-	}
-	verified := false
-	defer func() {
-		if !verified {
-			_ = os.RemoveAll(dir)
-		}
-	}()
-	if err := api.writeVerifiedSnapshot(ctx, filepath.Join(dir, "antholume.db")); err != nil {
-		return err
-	}
-	for _, path := range []string{dir, root, filepath.Dir(root)} {
-		if err := syncAdminDirectory(path); err != nil {
-			return err
-		}
-	}
-	verified = true
-	return nil
-}
-
 func (api *API) writeVerifiedSnapshot(ctx context.Context, filename string) error {
 	if err := api.db.BackupSnapshot(ctx, filename); err != nil {
 		return err
@@ -228,7 +188,7 @@ func (api *API) writeVerifiedSnapshot(ctx context.Context, filename string) erro
 		return err
 	}
 	if integrity != "ok" {
-		return errors.New("database recovery snapshot failed integrity check")
+		return errors.New("database snapshot failed integrity check")
 	}
 	file, err := os.Open(filename)
 	if err != nil {

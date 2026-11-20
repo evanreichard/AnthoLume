@@ -87,7 +87,7 @@ function RestoreBackup({ account, close }: { account: Account; close: () => void
   </>}>
     <div className={styles.manageForm}>
       {candidate ? <>
-        <p>{candidate.files ? `${candidate.files} library files will be restored.` : 'No library files are included.'} The server saves a recovery snapshot and signs everyone out. Reading changes queued before restore stay on the device and do not sync into the restored library.</p>
+        <p>{candidate.files ? `${candidate.files} library files will be restored.` : 'No library files are included.'} Restore replaces the current database and signs everyone out. No backup is created automatically. Reading changes queued before restore stay on the device and do not sync into the restored library.</p>
         <label>Type RESTORE to confirm<input autoComplete="off" value={confirm} disabled={busy} onChange={event => setConfirm(event.target.value)} /></label>
       </> : <>
         <label>Backup file<input type="file" accept=".zip,.db" disabled={busy} onChange={event => { setFile(event.target.files?.[0] ?? null); setError(null); }} /></label>

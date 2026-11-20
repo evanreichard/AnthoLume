@@ -134,7 +134,7 @@ function UserList({ account, username, readOnly }: AdminContext) {
     </>}>
       <form id={formId} className={styles.manageForm} onSubmit={submit}>
         <fieldset className={styles.settingsFields} disabled={busy}>
-          {action.kind === 'delete' ? <><p>Deletes this account and its reading history, not shared books. A recovery snapshot is saved first.</p><label>Type {action.user.id} to confirm<input name="confirm" autoComplete="off" required /></label></> : <>
+          {action.kind === 'delete' ? <><p>Permanently deletes this account and its reading history. Shared books are not deleted.</p><label>Type {action.user.id} to confirm<input name="confirm" autoComplete="off" required /></label></> : <>
             {action.kind === 'create' && <label>Username<input name="username" autoComplete="off" maxLength={128} required /></label>}
             <label>{action.kind === 'create' ? 'Password' : 'New password (optional)'}<input name="password" type="password" autoComplete="new-password" maxLength={256} required={action.kind === 'create'} /></label>
             {action.kind === 'edit' && <p>A new password signs this user out.</p>}

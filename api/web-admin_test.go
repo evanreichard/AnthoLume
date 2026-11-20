@@ -1,7 +1,6 @@
 package api
 
 import (
-	"database/sql"
 	"net/http"
 	"net/http/cookiejar"
 	"os"
@@ -11,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAdminUsersRequireCurrentRoleAndVerifiedRecovery(t *testing.T) {
+func TestAdminUsersRequireCurrentRoleAndDeleteWithoutAutomaticBackup(t *testing.T) {
 	f := newWebFixture(t)
 	f.register("alice")
 	path := "/api/v1/admin/users"
@@ -37,21 +36,10 @@ func TestAdminUsersRequireCurrentRoleAndVerifiedRecovery(t *testing.T) {
 	require.Equal(t, 200, f.call("PATCH", path+"/bob", AdminUserUpdate{Password: &password}, nil).status)
 	assertProblem(t, other.call("GET", path, nil, nil), 401, "unauthenticated")
 	root := filepath.Join(f.cfg.ConfigPath, "backups")
-	require.NoError(t, os.RemoveAll(root))
-	require.NoError(t, os.WriteFile(root, []byte("not a directory"), 0600))
-	assertProblem(t, f.call("DELETE", path+"/bob", nil, nil), 500, "storage_error")
-	require.Equal(t, 2, f.count("users"))
-	require.NoError(t, os.Remove(root))
 	deleted := f.call("DELETE", path+"/bob", nil, nil)
 	require.Equal(t, 204, deleted.status, string(deleted.body))
 	require.Equal(t, 1, f.count("users"))
-	copies, err := filepath.Glob(filepath.Join(root, "before-user-delete-*", "antholume.db"))
-	require.NoError(t, err)
-	require.Len(t, copies, 1)
-	recovery, err := sql.Open("sqlite", copies[0])
-	require.NoError(t, err)
-	defer recovery.Close()
-	var count int
-	require.NoError(t, recovery.QueryRow(`SELECT count(*) FROM users WHERE id='bob'`).Scan(&count))
-	require.Equal(t, 1, count)
+	assertProblem(t, f.call("DELETE", path+"/bob", nil, nil), 404, "user_not_found")
+	_, err = os.Stat(root)
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
