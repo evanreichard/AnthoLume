@@ -48,7 +48,7 @@ export class Replay {
           const state = await this.bridge.getState(account, event.payload.document_id, AbortSignal.any([controller.signal, AbortSignal.timeout(3000)]));
           await current();
           if (!validState(state, event.payload.document_id) || BigInt(state.revision) < BigInt(delivery.body.current_revision)) throw new Error('Invalid server position');
-          if (await this.repo.acceptServer(access, event, state)) this.notice = 'Resume position changed on another device. The server’s position will be used the next time you open this book.';
+          if (await this.repo.acceptServer(access, event, state)) this.notice = 'Resume position changed on another device. Choose where to resume the next time you open this book.';
           continue;
         }
         if (delivery.status >= 500 || delivery.status === 429) throw new Error('Temporary server failure; immutable event retained');

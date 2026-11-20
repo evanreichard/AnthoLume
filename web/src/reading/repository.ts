@@ -9,7 +9,8 @@ import { validState } from './protocol';
 import type { CapturedActivity } from './activity';
 import { StagingWriter } from './staging-writer';
 
-export type BookRow = StoredBook & { key: string; scope: string; bytes: Blob | null; sourceId?: string; checksum: string | null; protocolHash: string | null; size: number; etag?: string };
+export type ResumeCandidate = Checkpoint & { eventId: string; savedAt: string };
+export type BookRow = StoredBook & { resumeCandidate?: ResumeCandidate; key: string; scope: string; bytes: Blob | null; sourceId?: string; checksum: string | null; protocolHash: string | null; size: number; etag?: string };
 export type SourceRow = { id: string; key: string; size: number; received: number; blob: Blob | null; complete: boolean; until: number; manifest?: BookManifest; manifestHash?: string; cacheUsedAt?: number; cacheReaders?: Record<string, number>; evictOnRelease?: boolean };
 const bookCacheBytes = 768 * 1024 * 1024;
 const bookCacheCount = 6;
@@ -292,7 +293,7 @@ export class Repository {
         await this.db.sources.put({ ...row, complete: true, manifest, manifestHash, until: 0, ...(cache ? { cacheUsedAt: Date.now() } : {}) });
       }
       const reading = cache ? await this.refreshCheckpoint(ref, checkpoint, state) : { checkpoint };
-      await this.db.books.put({ key, scope, ref, title, author, cover, addedAt: old?.addedAt ?? new Date().toISOString(), lastReadAt: old?.lastReadAt ?? state?.updated_at ?? undefined, ...reading, availability: 'available', bytes: null, sourceId: existingSource || stage.id, size: stage.size, checksum: integrity?.sha256 ?? null, protocolHash: integrity?.protocolHash ?? null, etag: cache?.etag });
+      await this.db.books.put({ key, scope, ref, title, author, cover, addedAt: old?.addedAt ?? new Date().toISOString(), lastReadAt: old?.lastReadAt ?? state?.updated_at ?? undefined, ...reading, resumeCandidate: old?.resumeCandidate, availability: 'available', bytes: null, sourceId: existingSource || stage.id, size: stage.size, checksum: integrity?.sha256 ?? null, protocolHash: integrity?.protocolHash ?? null, etag: cache?.etag });
       if (cache) await this.trimServerCache(0, key);
       else if (state) { if (!validState(state, ref.kind === 'server' ? ref.documentId : '')) throw new Error('Invalid server state'); const head = await this.db.heads.get(key); if (!head || BigInt(head.state.revision) < BigInt(state.revision)) await this.db.heads.put({ key, state }); }
       signal?.throwIfAborted();
@@ -419,11 +420,21 @@ export class Repository {
       if (!await this.db.events.get(event.id)) return false;
       const head = (await this.db.heads.get(event.key))?.state;
       if (head && BigInt(head.revision) > BigInt(state.revision)) state = head;
+      if (event.kind !== 'progress') throw new Error('Expected a progress event');
+      const device = await this.db.progressDrafts.get(event.key) ?? { ...event.payload, observedAt: event.payload.observed_at };
+      const resumeCandidate = { eventId: event.id, position: device.position, fraction: device.fraction, savedAt: device.observedAt };
       await this.db.events.where('key').equals(event.key).filter(row => row.kind === 'progress').delete();
       await this.db.progressDrafts.delete(event.key);
       await this.db.heads.put({ key: event.key, state });
-      await this.db.books.update(event.key, { checkpoint: { position: state.position, fraction: state.fraction } });
+      await this.db.books.update(event.key, { resumeCandidate, checkpoint: { position: state.position, fraction: state.fraction }, lastReadAt: state.updated_at ?? undefined });
       return true;
+    });
+  }
+  async clearResumeCandidate(ref: BookRef, candidate: ResumeCandidate) {
+    await this.db.transaction('rw', this.db.books, this.db.access, async () => {
+      if (!await this.permitted(ref)) return;
+      const key = refKey(ref), row = await this.db.books.get(key);
+      if (row?.resumeCandidate?.eventId === candidate.eventId) await this.db.books.update(key, { resumeCandidate: undefined });
     });
   }
 }

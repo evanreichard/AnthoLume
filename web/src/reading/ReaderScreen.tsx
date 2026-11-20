@@ -7,6 +7,8 @@ import { readerFontLabel, readerFontNames } from './reader-fonts';
 import { activityEvent } from './activity';
 import styles from './reader.module.css';
 import { Icon } from '../Icon';
+import { Button } from '../Controls';
+import { Dialog } from '../ui';
 import { GestureLayer, useParentGestures } from './GestureLayer';
 
 const defaults: Appearance = { size: 100, font: 'serif', theme: 'tan' };
@@ -15,6 +17,10 @@ const chromeIdleMs = 4000;
 const themeNames: Record<Appearance['theme'], string> = { light: 'Light', tan: 'Paper', blue: 'Mist', gray: 'Slate', black: 'Night' };
 const minTextSize = 50, maxTextSize = 200;
 const clampSize = (size: number) => Math.max(minTextSize, Math.min(maxTextSize, Math.round(size)));
+
+function resumeLabel(source: string, progress: number | null, savedAt?: string) {
+  return `${source}${progress == null ? '' : ` · ${Math.round(progress * 100)}%`}${savedAt ? ` · ${new Date(savedAt).toLocaleDateString()}` : ''}`;
+}
 
 function Chevron({ right = false }: { right?: boolean }) {
   return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={right ? 'm9 5 7 7-7 7' : 'm15 5-7 7 7 7'} /></svg>;
@@ -66,6 +72,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
   const pendingAppearance = useRef<Appearance | null>(null);
   const applyingAppearance = useRef<ReaderController | null>(null);
   const [attempt, setAttempt] = useState(0), [explicitBeginning, setExplicitBeginning] = useState(false);
+  const [resumeChoice, setResumeChoice] = useState<{ key: string; device: string; server: string; choose: (device: boolean) => void } | null>(null);
   const permitted = book.kind === 'local' || (access.kind === 'authenticated' && sameAccount(access.account, book.account));
   const appearanceRef = useRef(appearance), appliedAppearance = useRef(defaults);
   function refreshChrome() { setChrome(current => ({ ...current, activity: current.activity + 1 })); }
@@ -120,13 +127,14 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
     setHasOpened(false);
     setStatus({ state: 'opening', message: 'Reading your preferences…' });
     const abort = new AbortController(), wake = new ReaderWakeLock();
-    const deadline = setTimeout(() => {
+    const prepareDeadline = () => setTimeout(() => {
       abort.abort();
       if (alive) setStatus({ state: 'error', message: 'The book took too long to prepare. Check your connection and retry.' });
     }, 90_000);
+    let deadline = prepareDeadline(), ready = false;
     const instance = new ReaderController(host.current, next => {
       if (!alive) return;
-      if (next.state === 'ready') setHasOpened(true);
+      if (next.state === 'ready') { ready = true; setHasOpened(true); }
       setStatus(next);
     }, async (location, measured) => {
       let activity: S['ActivityEvent'] | undefined;
@@ -160,14 +168,32 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
       if (book.kind === 'local') reportStage('Opening stored copy…');
       const opened = book.kind === 'server' ? await runtime.openServerBook(book, abort.signal, reportStage) : await runtime.repo.open(book);
       if (!alive) return;
-      await instance.open(opened.source, explicitBeginning ? undefined : opened.row.checkpoint.position || undefined, abort.signal, opened.manifest, chosen);
-      if (!alive) return;
-      if (host.current) observer.observe(host.current);
+      const { checkpoint, resumeCandidate, lastReadAt } = opened.row;
+      let position = explicitBeginning ? null : checkpoint.position;
+      if (!explicitBeginning && resumeCandidate && resumeCandidate.position !== checkpoint.position) {
+        clearTimeout(deadline);
+        const useDevice = await new Promise<boolean>((resolve, reject) => {
+          const cancelled = () => reject(abort.signal.reason);
+          abort.signal.addEventListener('abort', cancelled, { once: true });
+          setResumeChoice({ key, device: resumeLabel('This device', resumeCandidate.fraction, resumeCandidate.savedAt), server: resumeLabel('Server', checkpoint.fraction, lastReadAt), choose: device => {
+            abort.signal.removeEventListener('abort', cancelled);
+            setResumeChoice(null);
+            resolve(device);
+          } });
+        });
+        abort.signal.throwIfAborted();
+        if (useDevice) position = resumeCandidate.position;
+        deadline = prepareDeadline();
+      }
+      await instance.open(opened.source, position ?? undefined, abort.signal, opened.manifest, chosen);
+      if (!alive || !ready || abort.signal.aborted) return;
+      if (!explicitBeginning && resumeCandidate) await runtime.repo.clearResumeCandidate(book, resumeCandidate);
+      if (alive && host.current) observer.observe(host.current);
     })().catch(error => {
       if (alive && !abort.signal.aborted) setStatus({ state: 'error', message: String(error) });
     }).finally(() => clearTimeout(deadline));
     return () => {
-      alive = false; clearTimeout(deadline); abort.abort(); observer.disconnect(); clearTimeout(resizeTimer); wake.dispose();
+      alive = false; clearTimeout(deadline); abort.abort(); setResumeChoice(null); observer.disconnect(); clearTimeout(resizeTimer); wake.dispose();
       clearTimeout(appearanceTimer.current); appearanceTimer.current = undefined;
       clearTimeout(pinchTimer.current); pinchBase.current = null;
       pendingAppearance.current = null; draggingSize.current = false; controller.current = null;
@@ -263,6 +289,10 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
       </div>
     </header>
     <div ref={host} className={styles.viewport} hidden={!permitted || readerState.key !== key} />
+    {permitted && resumeChoice?.key === key && <Dialog title="Conflicting Positions" onClose={onClose} footer={<>
+      <Button size="slim" onClick={() => resumeChoice.choose(true)}>{resumeChoice.device}</Button>
+      <Button size="slim" tone="primary" onClick={() => resumeChoice.choose(false)}>{resumeChoice.server}</Button>
+    </>}><p>Where would you like to resume? Choosing a position won’t overwrite progress on the server.</p></Dialog>}
     {permitted && <><span aria-hidden="true" className={`${styles.edgePaint} ${styles.edgePaintTop}`} /><span aria-hidden="true" className={`${styles.edgePaint} ${styles.edgePaintBottom}`} /></>}
     {canTurn && panel === 'hide' && !parentGestures && <><PageEdge next={false} turn={turn} /><PageEdge next turn={turn} /></>}
     {hasOpened && permitted && status.state !== 'error' && parentGestures && !selecting && <GestureLayer className={styles.gestureLayer}
