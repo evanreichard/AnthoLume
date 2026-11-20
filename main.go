@@ -50,7 +50,7 @@ func cmdServer(ctx *cli.Context) error {
 		assets = os.DirFS("./")
 	}
 
-	if err := c.ValidatePublicOrigin(); err != nil {
+	if err := c.NormalizePublicOrigin(); err != nil {
 		return err
 	}
 	if c.Version != "develop" {

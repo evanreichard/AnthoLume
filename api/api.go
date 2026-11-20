@@ -46,7 +46,7 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 	if err := c.ValidateConfigPath(); err != nil {
 		return nil, err
 	}
-	if err := c.ValidatePublicOrigin(); err != nil {
+	if err := c.NormalizePublicOrigin(); err != nil {
 		return nil, err
 	}
 	api := &API{

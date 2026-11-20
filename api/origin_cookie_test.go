@@ -13,7 +13,7 @@ import (
 func TestHTTPSCookiesAndOriginIndependentOfHost(t *testing.T) {
 	f := newWebFixture(t)
 	cfg := *f.cfg
-	cfg.PublicOrigin = "https://books.example"
+	cfg.PublicOrigin = "https://books.example:443"
 	api, err := NewAPI(f.db, &cfg, os.DirFS(".."))
 	require.NoError(t, err)
 	recorder := httptest.NewRecorder()
@@ -29,12 +29,17 @@ func TestHTTPSCookiesAndOriginIndependentOfHost(t *testing.T) {
 	require.Equal(t, http.SameSiteStrictMode, cookie.SameSite)
 	require.Equal(t, 604800, cookie.MaxAge)
 	anonymous := decodeWeb[Session](t, webResponse{recorder.Code, recorder.Header(), recorder.Body.Bytes()})
-	request := httptest.NewRequest("POST", "https://attacker.example/api/v1/session/register", bytes.NewBufferString(`{"username":"alice","password":"password"}`))
-	request.AddCookie(cookie)
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Origin", "https://attacker.example")
-	request.Header.Set("X-CSRF-Token", anonymous.CsrfToken)
-	recorder = httptest.NewRecorder()
-	api.Handler().ServeHTTP(recorder, request)
-	assertProblem(t, webResponse{recorder.Code, recorder.Header(), recorder.Body.Bytes()}, 403, "csrf_failed")
+	register := func(origin string) webResponse {
+		request := httptest.NewRequest("POST", "http://backend.internal/api/v1/session/register", bytes.NewBufferString(`{"username":"alice","password":"password"}`))
+		request.AddCookie(cookie)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Origin", origin)
+		request.Header.Set("X-CSRF-Token", anonymous.CsrfToken)
+		recorder := httptest.NewRecorder()
+		api.Handler().ServeHTTP(recorder, request)
+		return webResponse{recorder.Code, recorder.Header(), recorder.Body.Bytes()}
+	}
+	assertProblem(t, register("https://other.example"), 403, "csrf_failed")
+	response := register("https://books.example")
+	require.Equal(t, http.StatusCreated, response.status, string(response.body))
 }

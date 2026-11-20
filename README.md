@@ -57,7 +57,7 @@ The OPDS API endpoint is located at: `http(s)://<SERVER>/api/opds`
 
 ### Quick Start
 
-Set `PUBLIC_ORIGIN` to the exact browser origin, with no trailing slash. Use HTTPS for deployed instances. Loopback HTTP is allowed for local development. Cookies are always `HttpOnly` and use `Secure` when `PUBLIC_ORIGIN` is HTTPS.
+Set `PUBLIC_ORIGIN` to the exact browser origin, with no trailing slash. Explicit default ports (`:443` for HTTPS, `:80` for HTTP) are omitted before matching browser requests. Use HTTPS for deployed instances. Loopback HTTP is allowed for local development. Cookies are always `HttpOnly` and use `Secure` when `PUBLIC_ORIGIN` is HTTPS.
 
 ```bash
 # Make Data Directory
