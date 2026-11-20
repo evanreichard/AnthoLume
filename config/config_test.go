@@ -8,7 +8,11 @@ import (
 )
 
 func TestLoadConfig(t *testing.T) {
-	conf := Load()
+	t.Setenv("CONFIG_PATH", t.TempDir())
+	conf, err := Load()
+	if !assert.NoError(t, err) {
+		return
+	}
 	assert.Equal(t, "sqlite", conf.DBType)
 }
 
@@ -33,5 +37,5 @@ func TestPrettyCaller(t *testing.T) {
 	functionName, fileName := prettyCaller(&f)
 
 	assert.Equal(t, "TestPrettyCaller", functionName, "should have current function name")
-	assert.Equal(t, "config/config_test.go@30", fileName, "should have current file path and line number")
+	assert.Equal(t, "config/config_test.go@34", fileName, "should have current file path and line number")
 }

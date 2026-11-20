@@ -53,7 +53,7 @@ func (cf customFormatter) Format(e *log.Entry) ([]byte, error) {
 // Set at runtime
 var version string = "develop"
 
-func Load() *Config {
+func Load() (*Config, error) {
 	c := &Config{
 		Version:             version,
 		PublicOrigin:        strings.TrimSpace(getEnv("PUBLIC_ORIGIN", "")),
@@ -68,6 +68,10 @@ func Load() *Config {
 		CookieAuthKey:       trimLowerString(getEnv("COOKIE_AUTH_KEY", "")),
 		CookieEncKey:        trimLowerString(getEnv("COOKIE_ENC_KEY", "")),
 		LogLevel:            trimLowerString(getEnv("LOG_LEVEL", "info")),
+	}
+
+	if err := c.ValidateConfigPath(); err != nil {
+		return nil, err
 	}
 
 	for _, proxy := range strings.Split(getEnv("TRUSTED_PROXIES", ""), ",") {
@@ -112,7 +116,14 @@ func Load() *Config {
 	// Ensure directories exist
 	c.EnsureDirectories()
 
-	return c
+	return c, nil
+}
+
+func (c *Config) ValidateConfigPath() error {
+	if !filepath.IsAbs(c.ConfigPath) {
+		return fmt.Errorf("CONFIG_PATH must be an absolute path: %q", c.ConfigPath)
+	}
+	return nil
 }
 
 // Ensures needed directories exist

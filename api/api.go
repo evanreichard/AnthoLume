@@ -43,6 +43,9 @@ var htmlPolicy = bluemonday.StrictPolicy()
 
 // NewAPI composes the production router without starting a listener.
 func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error) {
+	if err := c.ValidateConfigPath(); err != nil {
+		return nil, err
+	}
 	if err := c.ValidatePublicOrigin(); err != nil {
 		return nil, err
 	}

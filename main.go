@@ -42,7 +42,10 @@ func cmdServer(ctx *cli.Context) error {
 	var assets fs.FS = embeddedAssets
 
 	// Load config
-	c := config.Load()
+	c, err := config.Load()
+	if err != nil {
+		return err
+	}
 	if c.Version == "develop" {
 		assets = os.DirFS("./")
 	}

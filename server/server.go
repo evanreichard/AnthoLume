@@ -27,6 +27,9 @@ type server struct {
 
 // Create new server
 func New(c *config.Config, assets fs.FS) (*server, error) {
+	if err := c.ValidateConfigPath(); err != nil {
+		return nil, err
+	}
 	db := database.NewMgr(c)
 	app, err := api.NewAPI(db, c, assets)
 	if err != nil {

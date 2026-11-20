@@ -89,7 +89,7 @@ Backups download on demand and the server does not retain a copy. Before restori
 | -------------------- | ------------- | -------------------------------------------------------------------------- |
 | DATABASE_TYPE        | SQLite        | Currently only "SQLite" is supported                                       |
 | DATABASE_NAME        | antholume     | The database name, or in SQLite's case, the filename                       |
-| CONFIG_PATH          | /config       | Directory where to store SQLite's DB                                       |
+| CONFIG_PATH          | /config       | Absolute directory path where SQLite's DB is stored                                       |
 | DATA_PATH            | /data         | Directory where to store the documents and cover metadata                  |
 | PUBLIC_ORIGIN        | Required      | Exact browser origin (HTTPS, or HTTP for loopback development)             |
 | LISTEN_HOST          |               | Interface address to bind; empty listens on all interfaces                |
