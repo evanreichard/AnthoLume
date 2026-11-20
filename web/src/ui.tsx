@@ -143,7 +143,7 @@ export function Cover({ book, sourceId, warningId, thumbnail = false }: {
   </div>;
 }
 type BookHeroProps = { book: LibraryBook; progress: number | null } & (
-  | { variant: 'continue' }
+  | { variant: 'continue'; linkState?: { librarySearch: string } }
   | { variant: 'detail'; headingRef: Ref<HTMLHeadingElement>; series?: string | null; edition?: string; action: 'Read' | 'Resume' | null }
 );
 
@@ -160,7 +160,7 @@ export function BookHero(props: BookHeroProps) {
     <div className={styles.featureCopy}>
       {eyebrow && <p className={styles.eyebrow}>{eyebrow}</p>}
       <div className={styles.heroMetadata}>
-        {detail ? <h1 className={styles.heroTitle} id={id} ref={props.headingRef} tabIndex={-1}>{title}</h1> : <h2 className={styles.heroTitle}><Link to={bookPath(book.ref)}>{title}</Link></h2>}
+        {detail ? <h1 className={styles.heroTitle} id={id} ref={props.headingRef} tabIndex={-1}>{title}</h1> : <h2 className={styles.heroTitle}><Link to={bookPath(book.ref)} state={props.linkState}>{title}</Link></h2>}
         {author && <p>{author}</p>}
         {detail && props.edition && <p className={styles.heroEdition}>{props.edition}</p>}
       </div>
@@ -172,10 +172,10 @@ export function BookHero(props: BookHeroProps) {
   </section>;
 }
 
-export function BookCard({ book, children }: { book: LibraryBook; children?: ReactNode }) {
+export function BookCard({ book, children, linkState }: { book: LibraryBook; children?: ReactNode; linkState?: { librarySearch: string } }) {
   const id = useId();
   return <article className={styles.card}>
-    <Link to={bookPath(book.ref)} className={styles.bookLink} aria-labelledby={`${id}-source ${id}-title ${id}-author`} aria-describedby={book.document?.file_available === false ? `${id}-warning` : undefined}>
+    <Link to={bookPath(book.ref)} state={linkState} className={styles.bookLink} aria-labelledby={`${id}-source ${id}-title ${id}-author`} aria-describedby={book.document?.file_available === false ? `${id}-warning` : undefined}>
       <Cover book={book} thumbnail sourceId={`${id}-source`} warningId={`${id}-warning`} />
       <div>
         <h2 id={`${id}-title`} className={styles.cardTitle}>{book.title || 'Untitled'}</h2>

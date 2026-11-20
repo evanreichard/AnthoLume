@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { useReading } from '../reading';
 import { bookKey, combineBooks } from '../library';
 import { queryClient, session, useSession } from '../session';
@@ -34,6 +34,8 @@ function BookDetailContent() {
   const reading = useReading();
   const { access, capabilities } = useSession();
   const navigate = useNavigate();
+  const librarySearch = useLocation().state?.librarySearch;
+  const library = typeof librarySearch === 'string' && librarySearch ? `/library?${librarySearch}` : '/library';
   const [management, setManagement] = useState<'edit' | 'identify' | 'delete' | 'info' | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<unknown>(null);
@@ -93,7 +95,7 @@ function BookDetailContent() {
   const format = metadata?.media_type === 'application/epub+zip' ? 'EPUB' : null;
   const canManage = ref.kind === 'server' && access.kind === 'authenticated' && !!document.data && !!capabilities && !capabilities.demo_mode;
   return <article className={styles.bookPage}>
-    <PageHeader leading={<BackPill to="/library" onClick={(event) => { if (window.history.state?.idx > 0) { event.preventDefault(); navigate(-1); } }}>Library</BackPill>}
+    <PageHeader leading={<BackPill to={library}>Library</BackPill>}
       actions={<JoinedActions label="Book actions">
         {metadata?.file_available && <JoinedActionLink reloadDocument download aria-label="Download EPUB" title="Download EPUB" to={`/api/v1/documents/${encodeURIComponent(ref.documentId)}/file`}><Icon name="download" size={18} /></JoinedActionLink>}
         <JoinedAction aria-label="Book information" title="Book information" onClick={() => setManagement('info')}><Icon name="info" size={18} /></JoinedAction>

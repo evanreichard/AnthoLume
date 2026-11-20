@@ -1,6 +1,25 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect, register, epub } from './fixtures';
 
+test('Library searches for literal all and Book Detail returns to the filtered Library', async ({ page, server }) => {
+  await register(page, server.origin, 'literal-search-reader');
+  await page.goto(`${server.origin}/library?sort=author`);
+  const search = page.getByRole('searchbox', { name: 'Search title or author', exact: true });
+  await search.fill('all');
+  await search.press('Enter');
+  await expect(page).toHaveURL(/\/library\?sort=author&q=all$/);
+  await expect(page.getByText('No matching books.', { exact: false })).toBeVisible();
+
+  await search.fill('Public book 01');
+  await search.press('Enter');
+  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
+  await expect(page).toHaveURL(/\/books\/server\//);
+  await page.getByRole('main').getByRole('link', { name: 'Library', exact: true }).click();
+  await expect(page).toHaveURL(/\/library\?q=Public\+book\+01&sort=author$/);
+  await expect(search).toHaveValue('Public book 01');
+  await expect(page.getByRole('article')).toHaveCount(1);
+});
+
 test('one named 44px Clear search clears draft and applied q, preserves sort, and returns focus to search', async ({ page, server }) => {
   await register(page, server.origin, `clear-${Date.now()}`);
   await page.goto(`${server.origin}/library?q=Public+book+01&sort=author`);

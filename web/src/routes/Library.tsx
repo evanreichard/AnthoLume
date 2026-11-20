@@ -23,6 +23,10 @@ export function Library() {
   const q = (params.get('q') || '').slice(0, 256);
   const sort = parseSort(params.get('sort'));
   const dialog = params.get('dialog');
+  const libraryParams = new URLSearchParams();
+  if (q) libraryParams.set('q', q);
+  if (sort !== 'read') libraryParams.set('sort', sort);
+  const bookLinkState = { librarySearch: libraryParams.toString() };
   const account = access.kind === 'authenticated' || access.kind === 'expired' ? access.account : null;
   const [input, setInput] = useState(q);
   const [error, setError] = useState<unknown>(null);
@@ -82,7 +86,7 @@ export function Library() {
     : [];
   const update = (key: string, value: string) => {
     const next = new URLSearchParams(params);
-    if (value && value !== 'all') next.set(key, value); else next.delete(key);
+    if (value) next.set(key, value); else next.delete(key);
     setParams(next, { preventScrollReset: true, replace: !!dialog && key !== 'dialog', state: dialog || key === 'dialog' ? { libraryDialog: true } : null });
   };
   const open = (name: string) => update('dialog', name);
@@ -130,7 +134,7 @@ export function Library() {
     <PageHeader title="Library" headingRef={heading}
       actions={reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>} />
     {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}
-    <RecentBooks books={recent} />
+    <RecentBooks books={recent} bookLinkState={bookLinkState} />
     <form className={styles.searchRow} role="search" onSubmit={(event) => { event.preventDefault(); update('q', input.trim()); }}>
       <div className={styles.search}>
         <button type="submit" className={styles.searchSubmit} aria-label="Search"><Icon name="search" size={17} /></button>
@@ -145,7 +149,7 @@ export function Library() {
     {documents.isPending && documents.fetchStatus === 'fetching' && <LoadingStatus>Loading shared books…</LoadingStatus>}
     {!books.length && reading.ready && !documents.isFetching && !(sharedEnabled && hasNextPage) && <p>No matching books. Try another search or add an EPUB.</p>}
     <div className={styles.grid}>
-      {books.map((book) => <BookCard key={bookKey(book.ref)} book={book} />)}
+      {books.map((book) => <BookCard key={bookKey(book.ref)} book={book} linkState={bookLinkState} />)}
       {!books.length && (!reading.ready || documents.isPending && documents.fetchStatus === 'fetching') && Array.from({ length: 6 }, (_, index) => <div key={index} className={styles.card} aria-hidden="true">
         <Skeleton block className={`${styles.cover} ${styles.coverThumbnail}`} />
         <h2 className={styles.cardTitle}><Skeleton width="75%" /></h2>
@@ -164,7 +168,7 @@ export function Library() {
       <p>Upload an EPUB to the shared library (up to 64 MiB).</p>
       <input ref={file} type="file" accept=".epub,application/epub+zip" aria-label="Choose EPUB to upload" disabled={importing || access.kind !== 'authenticated' || !!capabilities?.demo_mode} onChange={importFile} />
       {importing && <p role="status">Uploading to the shared library…</p>}
-      {newBook && <p role="status">Book is in the shared library. <Link to={newBook}>Open book</Link></p>}
+      {newBook && <p role="status">Book is in the shared library. <Link to={newBook} state={bookLinkState}>Open book</Link></p>}
       <ErrorNotice error={error} />
       <Button onClick={close}>{importing ? 'Cancel upload' : 'Done'}</Button>
     </div></Dialog>}

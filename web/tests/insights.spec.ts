@@ -165,6 +165,9 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
   const bookHero = page.getByRole('region', { name: 'Public book 01', exact: true });
   await expect(bookHero.getByRole('heading', { name: 'Public book 01' })).toBeVisible();
   await expect(bookHero.getByText('20%', { exact: true })).toBeVisible();
+  await page.getByRole('main').getByRole('link', { name: 'Library', exact: true }).click();
+  await expect(page).toHaveURL(`${server.origin}/library`);
+  await page.goBack();
   await page.getByRole('group', { name: 'Book actions' }).getByRole('link', { name: 'Activity', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Public book 01' })).toBeVisible();
   const sections = page.getByRole('navigation', { name: 'Insights sections' });

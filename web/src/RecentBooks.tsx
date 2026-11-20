@@ -3,18 +3,20 @@ import { bookKey, type LibraryBook } from './library';
 import { BookHero } from './ui';
 import styles from './App.module.css';
 
-function RecentBook({ book }: { book: LibraryBook }) {
+function RecentBook({ book, bookLinkState }: { book: LibraryBook; bookLinkState: { librarySearch: string } }) {
   const fraction = book.stored?.checkpoint.fraction ?? book.document?.resume_fraction;
-  return <BookHero variant="continue" book={book} progress={fraction == null ? null : Math.round(fraction * 100)} />;
+  return <BookHero variant="continue" book={book} linkState={bookLinkState} progress={fraction == null ? null : Math.round(fraction * 100)} />;
 }
 
-export function RecentBooks({ books }: { books: readonly LibraryBook[] }) {
+type RecentBooksProps = { books: readonly LibraryBook[]; bookLinkState: { librarySearch: string } };
+
+export function RecentBooks({ books, bookLinkState }: RecentBooksProps) {
   if (!books.length) return null;
-  if (books.length === 1) return <RecentBook book={books[0]!} />;
-  return <RecentCarousel key={JSON.stringify(books.map(book => bookKey(book.ref)))} books={books} />;
+  if (books.length === 1) return <RecentBook book={books[0]!} bookLinkState={bookLinkState} />;
+  return <RecentCarousel key={JSON.stringify(books.map(book => bookKey(book.ref)))} books={books} bookLinkState={bookLinkState} />;
 }
 
-function RecentCarousel({ books }: { books: readonly LibraryBook[] }) {
+function RecentCarousel({ books, bookLinkState }: RecentBooksProps) {
   const track = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -63,7 +65,7 @@ function RecentCarousel({ books }: { books: readonly LibraryBook[] }) {
         setActive(Math.max(0, Math.min(books.length - 1, index)));
       }}>
       {books.map((book, index) => <div key={bookKey(book.ref)} className={styles.recentSlide} inert={index !== active} aria-hidden={index !== active || undefined}>
-        <RecentBook book={book} />
+        <RecentBook book={book} bookLinkState={bookLinkState} />
       </div>)}
     </div>
     <div className={styles.recentControls}>
