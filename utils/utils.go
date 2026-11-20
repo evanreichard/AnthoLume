@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"bytes"
 	"crypto/md5"
 	"crypto/rand"
 	"fmt"
@@ -21,33 +20,25 @@ func CalculatePartialMD5(filePath string) (*string, error) {
 }
 
 func CalculatePartialMD5Reader(file io.ReaderAt) (*string, error) {
-	var step int64 = 1024
-	var size int64 = 1024
-	var buf bytes.Buffer
-
+	const sampleSize = 1024
+	var sample [sampleSize]byte
+	hash := md5.New()
 	for i := -1; i <= 10; i++ {
-		byteStep := make([]byte, size)
-
-		var newShift int64 = int64(i * 2)
-		var newOffset int64
-		if i == -1 {
-			newOffset = 0
-		} else {
-			newOffset = step << newShift
+		var offset int64
+		if i >= 0 {
+			offset = int64(sampleSize) << (2 * i)
 		}
-
-		_, err := file.ReadAt(byteStep, newOffset)
+		n, err := file.ReadAt(sample[:], offset)
+		if err != nil && err != io.EOF {
+			return nil, err
+		}
+		// KOReader hashes short final samples, which ReadAt returns alongside EOF.
+		hash.Write(sample[:n])
 		if err == io.EOF {
 			break
 		}
-		if err != nil {
-			return nil, err
-		}
-		buf.Write(byteStep)
 	}
-
-	allBytes := buf.Bytes()
-	fileHash := fmt.Sprintf("%x", md5.Sum(allBytes))
+	fileHash := fmt.Sprintf("%x", hash.Sum(nil))
 	return &fileHash, nil
 }
 
