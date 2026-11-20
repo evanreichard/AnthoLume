@@ -89,8 +89,7 @@ func (api *API) koSetProgress(c *gin.Context) {
 	}
 
 	var rPosition requestPosition
-	if err := c.ShouldBindJSON(&rPosition); err != nil {
-		koSyncError(c, 2003)
+	if !bindKOSyncRequest(c, &rPosition) {
 		return
 	}
 	if rPosition.DocumentID == "" || strings.ContainsRune(rPosition.DocumentID, ':') {
@@ -173,9 +172,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 	}
 
 	var rActivity requestActivity
-	if err := c.ShouldBindJSON(&rActivity); err != nil {
-		log.Error("Invalid JSON Bind")
-		apiErrorPage(c, http.StatusBadRequest, "Invalid Activity")
+	if !bindSyncNinjaRequest(c, &rActivity, koActivityBodyLimit, "Invalid Activity") {
 		return
 	}
 
@@ -206,9 +203,7 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 	}
 
 	var rCheckActivity requestCheckActivitySync
-	if err := c.ShouldBindJSON(&rCheckActivity); err != nil {
-		log.Error("Invalid JSON Bind")
-		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
+	if !bindSyncNinjaRequest(c, &rCheckActivity, koSingleBodyLimit, "Invalid Request") {
 		return
 	}
 
@@ -222,9 +217,7 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 
 func (api *API) koAddDocuments(c *gin.Context) {
 	var rNewDocs requestDocument
-	if err := c.ShouldBindJSON(&rNewDocs); err != nil {
-		log.Error("Invalid JSON Bind")
-		apiErrorPage(c, http.StatusBadRequest, "Invalid Document(s)")
+	if !bindSyncNinjaRequest(c, &rNewDocs, koMetadataBodyLimit, "Invalid Document(s)") {
 		return
 	}
 
@@ -281,9 +274,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	}
 
 	var rCheckDocs requestCheckDocumentSync
-	if err := c.ShouldBindJSON(&rCheckDocs); err != nil {
-		log.Error("Invalid JSON Bind")
-		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
+	if !bindSyncNinjaRequest(c, &rCheckDocs, koInventoryBodyLimit, "Invalid Request") {
 		return
 	}
 

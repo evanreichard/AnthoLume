@@ -110,7 +110,10 @@ func (api *API) koAuthRegister(c *gin.Context) {
 		return
 	}
 	var r requestUser
-	if c.ShouldBindJSON(&r) != nil || strings.Contains(r.Username, ":") {
+	if !bindKOSyncRequest(c, &r) {
+		return
+	}
+	if strings.Contains(r.Username, ":") {
 		koSyncError(c, 2003)
 		return
 	}
