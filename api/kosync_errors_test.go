@@ -94,7 +94,7 @@ func TestKOSyncErrorsRequiredPresenceIsAtomic(t *testing.T) {
 	require.Equal(t, 200, call(map[string]any{"document": "89isjkdaj9j", "percentage": 0.32, "progress": "56", "device": "my kpw", "device_id": "original-reader"}).status)
 	snapshot := func() map[string][]byte {
 		out := map[string][]byte{}
-		for _, table := range []string{"documents", "devices", "kosync_device_aliases", "reading_heads", "reading_head_devices", "document_progress", "reading_receipts"} {
+		for _, table := range []string{"documents", "devices", "reading_heads", "reading_head_devices", "document_progress", "reading_receipts"} {
 			rows, err := f.db.DB.Query("SELECT * FROM " + table + " ORDER BY rowid")
 			require.NoError(t, err)
 			columns, err := rows.Columns()

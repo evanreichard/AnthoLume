@@ -82,9 +82,6 @@ func TestKOSyncDevicesOfficialOptionalIDGolden(t *testing.T) {
 	r = koDeviceHTTP(t, f, "alice", "GET", "/api/ko/syncs/progress/unknown", nil)
 	require.Equal(t, 200, r.status)
 	require.Equal(t, "{}", string(r.body))
-	var unowned int
-	require.NoError(t, f.db.DB.QueryRow(`SELECT count(*) FROM kosync_device_aliases a JOIN devices d ON d.id=a.device_id WHERE a.user_id<>d.user_id`).Scan(&unowned))
-	require.Zero(t, unowned)
 }
 
 func TestKOSyncDevicesSameExternalIDAcrossAccounts(t *testing.T) {
@@ -111,17 +108,35 @@ func TestKOSyncDevicesSameExternalIDAcrossAccounts(t *testing.T) {
 		require.Equal(t, user+" opaque 雪", fields["progress"])
 	}
 	var owner, name string
-	require.NoError(t, f.db.DB.QueryRow(`SELECT user_id,device_name FROM devices WHERE id='physical-reader'`).Scan(&owner, &name))
+	require.NoError(t, f.db.DB.QueryRow(`SELECT user_id,device_name FROM devices WHERE id='physical-reader' AND user_id='original-owner'`).Scan(&owner, &name))
 	require.Equal(t, "original-owner", owner)
 	require.Equal(t, "Original name", name)
 	var distinct int
-	require.NoError(t, f.db.DB.QueryRow(`SELECT count(DISTINCT device_id) FROM kosync_device_aliases WHERE external_id='physical-reader'`).Scan(&distinct))
-	require.Equal(t, 2, distinct)
-	assertProblem(t, f.call("POST", "/api/v1/me/devices", Device{Id: "physical-reader", Name: "No transfer"}, nil), 409, "device_conflict")
-	assertProblem(t, f.call("POST", "/api/v1/me/devices", Device{Id: "web-device", Name: "No transfer"}, nil), 409, "device_conflict")
-	// SyncNinja custom registration is deliberately not official KOSync identity translation.
-	r := f.call("POST", "/api/ko/syncs/activity", map[string]any{"device_id": "physical-reader", "device": "No transfer"}, nil)
-	require.Equal(t, 409, r.status, string(r.body))
+	require.NoError(t, f.db.DB.QueryRow(`SELECT count(*) FROM devices WHERE id='physical-reader'`).Scan(&distinct))
+	require.Equal(t, 3, distinct)
+	const oldSync int64 = 1767225600
+	cursor := func(user string, want int64) {
+		t.Helper()
+		r := koDeviceHTTP(t, f, user, "POST", "/api/ko/syncs/activity", map[string]any{"device_id": "physical-reader", "device": user + " reader"})
+		require.Equal(t, 200, r.status, string(r.body))
+		require.Equal(t, want, decodeWeb[struct {
+			LastSync int64 `json:"last_sync"`
+		}](t, r).LastSync)
+	}
+	cursor("alice", 0)
+	cursor("bob", 0)
+	for i, user := range []string{"alice", "bob"} {
+		r := koDeviceHTTP(t, f, user, "POST", "/api/ko/syncs/documents", map[string]any{"device_id": "physical-reader", "device": user + " reader", "have": []string{"sharedbook"}})
+		require.Equal(t, 200, r.status, string(r.body))
+		start := oldSync + int64(i+1)*60
+		r = koDeviceHTTP(t, f, user, "POST", "/api/ko/activity", map[string]any{"device_id": "physical-reader", "device": user + " reader", "activity": []map[string]any{{"document": "sharedbook", "start_time": start, "duration": 30, "page": 1, "pages": 10}}})
+		require.Equal(t, 200, r.status, string(r.body))
+		cursor(user, start)
+	}
+	cursor("alice", oldSync+60)
+	var matched int
+	require.NoError(t, f.db.DB.QueryRow(`SELECT count(*) FROM activity WHERE device_id='physical-reader'`).Scan(&matched))
+	require.Equal(t, 2, matched)
 }
 
 func TestKOSyncDevicesSnapshotAndAtomicRollback(t *testing.T) {
@@ -137,12 +152,11 @@ func TestKOSyncDevicesSnapshotAndAtomicRollback(t *testing.T) {
 	require.Equal(t, string(old.body), string(koDeviceHTTP(t, f, "alice", "GET", "/api/ko/syncs/progress/book-a", nil).body))
 	assertProblem(t, f.call("POST", "/api/v1/me/reading-progress", progressPayload("0", 0.1), nil), 409, "progress_conflict")
 	f.exec(`CREATE TRIGGER fail_device_snapshot BEFORE INSERT ON reading_head_devices BEGIN SELECT RAISE(ABORT,'snapshot failure'); END`)
-	aliases, devices, documents := f.count("kosync_device_aliases"), f.count("devices"), f.count("documents")
+	devices, documents := f.count("devices"), f.count("documents")
 	payload = koDevicePayload("rollbackplaceholder", "Uncommitted")
 	payload["device_id"] = "newreader"
 	r := koDeviceHTTP(t, f, "alice", "PUT", "/api/ko/syncs/progress", payload)
 	assertKOSyncGolden(t, r, 502, `{"code":2000,"message":"Unknown server error."}`)
-	require.Equal(t, aliases, f.count("kosync_device_aliases"))
 	require.Equal(t, devices, f.count("devices"))
 	require.Equal(t, documents, f.count("documents"))
 	assertProblem(t, f.call("POST", "/api/v1/me/reading-progress", progressPayload("1", 0.2), nil), 500, "storage_error")
@@ -192,23 +206,23 @@ func TestKOSyncDevicesMigrationReopenAndDeletion(t *testing.T) {
 	require.Equal(t, 200, koDeviceHTTP(t, f, "alice", "PUT", "/api/ko/syncs/progress", payload).status)
 	saved := koDeviceHTTP(t, f, "alice", "GET", "/api/ko/syncs/progress/persisted", nil)
 	var internal string
-	require.NoError(t, f.db.DB.QueryRow(`SELECT device_id FROM kosync_device_aliases WHERE user_id='alice' AND external_id=''`).Scan(&internal))
+	require.NoError(t, f.db.DB.QueryRow(`SELECT id FROM devices WHERE user_id='alice' AND id=''`).Scan(&internal))
 	reopen()
 	require.Equal(t, string(saved.body), string(koDeviceHTTP(t, f, "alice", "GET", "/api/ko/syncs/progress/persisted", nil).body))
 	require.Equal(t, 200, koDeviceHTTP(t, f, "alice", "PUT", "/api/ko/syncs/progress", payload).status)
 	var reopenedInternal string
-	require.NoError(t, f.db.DB.QueryRow(`SELECT device_id FROM kosync_device_aliases WHERE user_id='alice' AND external_id=''`).Scan(&reopenedInternal))
+	require.NoError(t, f.db.DB.QueryRow(`SELECT id FROM devices WHERE user_id='alice' AND id=''`).Scan(&reopenedInternal))
 	require.Equal(t, internal, reopenedInternal)
 	f.exec(`UPDATE documents SET deleted=1 WHERE id='persisted'`)
 	require.Equal(t, "{}", string(koDeviceHTTP(t, f, "alice", "GET", "/api/ko/syncs/progress/persisted", nil).body))
 	require.Equal(t, 1, f.count("reading_head_devices"))
 	f.exec(`DELETE FROM document_progress WHERE document_id='persisted'; DELETE FROM documents WHERE id='persisted'`)
 	f.exec(`DELETE FROM users WHERE id='alice'`)
-	require.Zero(t, f.count("kosync_device_aliases"))
+	require.Zero(t, f.count("devices"))
 	require.Zero(t, f.count("reading_head_devices"))
 	reopen()
 	require.Zero(t, f.count("reading_heads"))
 	require.Zero(t, f.count("reading_receipts"))
-	require.Zero(t, f.count("kosync_device_aliases"))
+	require.Zero(t, f.count("devices"))
 	require.Equal(t, 1, f.count("metadata"))
 }

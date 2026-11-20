@@ -12,6 +12,7 @@ import (
 )
 
 const PreReactSchemaVersion int64 = 20240510123707
+const ReactSchemaVersion int64 = 20261126000000
 
 func restoreMigrationProvider(db *sql.DB) (*goose.Provider, error) {
 	files, err := fs.Sub(migrations, "migrations")
@@ -23,13 +24,23 @@ func restoreMigrationProvider(db *sql.DB) (*goose.Provider, error) {
 
 // InitRestoreSchema builds a trusted reference, never from the uploaded SQL.
 func InitPreReactSchema(ctx context.Context, db *sql.DB) error {
-	before, rest, storage := strings.Cut(ddl, "-- Document storage\n")
-	_, books, documents := strings.Cut(rest, "-- Books / Documents\n")
-	const rootColumn = ",\n    storage_root_id TEXT REFERENCES storage_roots (id)"
-	if !storage || !documents || !strings.Contains(books, rootColumn) {
-		return errors.New("cannot build the pre-React schema reference")
+	return InitHistoricalSchema(ctx, db, PreReactSchemaVersion)
+}
+
+func InitHistoricalSchema(ctx context.Context, db *sql.DB, version int64) error {
+	schema := ddl + dbmigrations.ReadingSchema
+	if version == PreReactSchemaVersion {
+		before, rest, storage := strings.Cut(ddl, "-- Document storage\n")
+		_, books, documents := strings.Cut(rest, "-- Books / Documents\n")
+		const rootColumn = ",\n    storage_root_id TEXT REFERENCES storage_roots (id)"
+		if !storage || !documents || !strings.Contains(books, rootColumn) {
+			return errors.New("cannot build the pre-React schema reference")
+		}
+		schema = before + strings.Replace(books, rootColumn, "", 1)
+	} else if version != ReactSchemaVersion {
+		return errors.New("unsupported historical schema")
 	}
-	if _, err := db.ExecContext(ctx, before+strings.Replace(books, rootColumn, "", 1)); err != nil {
+	if _, err := db.ExecContext(ctx, schema); err != nil {
 		return err
 	}
 	provider, err := restoreMigrationProvider(db)
@@ -37,7 +48,7 @@ func InitPreReactSchema(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	ctx = context.WithValue(ctx, "isNew", true) // Existing Goose bootstrap contract.
-	_, err = provider.UpTo(ctx, PreReactSchemaVersion)
+	_, err = provider.UpTo(ctx, version)
 	return err
 }
 

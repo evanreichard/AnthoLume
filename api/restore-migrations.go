@@ -19,19 +19,6 @@ func (api *API) upgradeRestoreSnapshot(ctx context.Context, name string, legacyA
 	if err != nil || !info.Mode().IsRegular() || info.Size() > maxAdminBackupBytes {
 		return errors.New("invalid snapshot file")
 	}
-	reference, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		return err
-	}
-	defer reference.Close()
-	reference.SetMaxOpenConns(1)
-	if err := database.InitPreReactSchema(ctx, reference); err != nil {
-		return err
-	}
-	expected, err := snapshotSchema(ctx, reference)
-	if err != nil {
-		return err
-	}
 	uri := (&url.URL{Scheme: "file", Path: name, RawQuery: "mode=rw&_pragma=trusted_schema(OFF)"}).String()
 	snapshot, err := sql.Open("sqlite", uri)
 	if err != nil {
@@ -39,13 +26,26 @@ func (api *API) upgradeRestoreSnapshot(ctx context.Context, name string, legacyA
 	}
 	defer snapshot.Close()
 	snapshot.SetMaxOpenConns(1)
+	var version int64
+	if err := snapshot.QueryRowContext(ctx, `SELECT MAX(version_id) FROM goose_db_version WHERE is_applied = 1`).Scan(&version); err != nil || legacyArchive && version != database.PreReactSchemaVersion {
+		return errors.New("unsupported historical snapshot version")
+	}
+	reference, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		return err
+	}
+	defer reference.Close()
+	reference.SetMaxOpenConns(1)
+	if err := database.InitHistoricalSchema(ctx, reference, version); err != nil {
+		return err
+	}
+	expected, err := snapshotSchema(ctx, reference)
+	if err != nil {
+		return err
+	}
 	actual, err := snapshotSchema(ctx, snapshot)
 	if err != nil || !reflect.DeepEqual(expected, actual) {
 		return errors.New("unrecognized historical snapshot schema")
-	}
-	var version int64
-	if err := snapshot.QueryRowContext(ctx, `SELECT MAX(version_id) FROM goose_db_version WHERE is_applied = 1`).Scan(&version); err != nil || version != database.PreReactSchemaVersion {
-		return errors.New("unsupported historical snapshot version")
 	}
 	var integrity string
 	if err := snapshot.QueryRowContext(ctx, `PRAGMA quick_check`).Scan(&integrity); err != nil || integrity != "ok" {

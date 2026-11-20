@@ -69,13 +69,23 @@ func upReading(ctx context.Context, tx *sql.Tx) error {
 var KOSyncDeviceSchema string
 
 func upKOSyncDevices(ctx context.Context, tx *sql.Tx) error {
-	if _, err := tx.ExecContext(ctx, KOSyncDeviceSchema); err != nil {
+	scoped, err := scopedDevices(ctx, tx)
+	if err != nil {
 		return err
 	}
+	if !scoped {
+		if _, err := tx.ExecContext(ctx, KOSyncDeviceSchema); err != nil {
+			return err
+		}
+	}
 	// Known Names - Old heads have no write-time name evidence; freeze only the currently known GET value.
-	_, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO reading_head_devices(user_id,document_id,external_id,device_name)
+	join := "d.id=h.device_id"
+	if scoped {
+		join += " AND d.user_id=h.user_id"
+	}
+	_, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO reading_head_devices(user_id,document_id,external_id,device_name)
  SELECT h.user_id,h.document_id,h.device_id,COALESCE(d.device_name,'')
- FROM reading_heads h LEFT JOIN devices d ON d.id=h.device_id`)
+ FROM reading_heads h LEFT JOIN devices d ON `+join)
 	return err
 }
 

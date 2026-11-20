@@ -11,7 +11,7 @@ func TestRealKOHTTPDeterministicHistoricalTie(t *testing.T) {
 	f.readingSetup()
 	f.exec(`INSERT INTO devices(id,user_id,device_name) VALUES('device-b','alice','B'),('device-a','alice','A')`)
 	f.exec(`INSERT INTO document_progress(user_id,document_id,device_id,percentage,progress,created_at) VALUES('alice','book-a','device-b',0.95,'B historical','2026-01-01T00:00:00Z'),('alice','book-a','device-a',0.15,'A historical exact','2026-01-01T00:00:00Z')`)
-	f.exec(`INSERT INTO users(id,pass,auth_hash) VALUES('other-owner','synthetic','hash'); UPDATE devices SET user_id='other-owner' WHERE id='device-a'`)
+	f.exec(`INSERT INTO users(id,pass,auth_hash) VALUES('other-owner','synthetic','hash'); INSERT INTO devices(id,user_id,device_name) VALUES('device-a','other-owner','Different reader')`)
 	f.exec(`DROP TABLE auto_import_rules; DELETE FROM goose_db_version WHERE version_id>=20261126000000`)
 	f.server.Close()
 	require.NoError(t, f.db.DB.Close())
@@ -35,7 +35,7 @@ func TestRealKOHTTPDeterministicHistoricalTie(t *testing.T) {
 	require.Equal(t, 3, f.count("documents"))
 	require.Equal(t, 3, f.count("document_progress"))
 	var owner string
-	require.NoError(t, f.db.DB.QueryRow("SELECT user_id FROM devices WHERE id='device-a'").Scan(&owner))
+	require.NoError(t, f.db.DB.QueryRow("SELECT user_id FROM devices WHERE id='device-a' AND user_id='other-owner'").Scan(&owner))
 	require.Equal(t, "other-owner", owner)
 	require.Zero(t, f.count("reading_receipts"))
 }

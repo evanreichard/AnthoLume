@@ -1,8 +1,8 @@
 package api
 
 import (
-	"database/sql"
 	"encoding/json"
+	"errors"
 	"html"
 	"io"
 	"net/http"
@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"errors"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/database"
@@ -174,7 +173,7 @@ func (api *API) koAddActivities(c *gin.Context) {
 		}
 		// Final Page - SyncNinja can report page == pages; credit that time to the last interval.
 		page := min(item.Page, item.Pages-1)
-		events = append(events, reading.Activity{DocumentID: item.DocumentID, DeviceID: rActivity.DeviceID, StartTime: time.Unix(item.StartTime, 0).UTC(), Duration: int(item.Duration), StartFraction: float64(page) / float64(item.Pages), EndFraction: float64(page+1) / float64(item.Pages)})
+		events = append(events, reading.Activity{DocumentID: item.DocumentID, StartTime: time.Unix(item.StartTime, 0).UTC(), Duration: int(item.Duration), StartFraction: float64(page) / float64(item.Pages), EndFraction: float64(page+1) / float64(item.Pages)})
 	}
 	if err := api.reading.KOActivity(c.Request.Context(), auth.UserName, rActivity.DeviceID, rActivity.Device, events); err != nil {
 		koOperationError(c, err)
@@ -199,36 +198,12 @@ func (api *API) koCheckActivitySync(c *gin.Context) {
 		return
 	}
 
-	// Upsert Device
-	if err := api.reading.RegisterDevice(c.Request.Context(), auth.UserName, rCheckActivity.DeviceID, rCheckActivity.Device); err != nil {
+	lastSync, err := api.reading.KOLastActivity(c.Request.Context(), auth.UserName, rCheckActivity.DeviceID, rCheckActivity.Device)
+	if err != nil {
 		koOperationError(c, err)
 		return
 	}
-
-	// Get Last Device Activity
-	lastActivity, err := api.db.Queries.GetLastActivity(c.Request.Context(), database.GetLastActivityParams{
-		UserID:   auth.UserName,
-		DeviceID: rCheckActivity.DeviceID,
-	})
-	if err == sql.ErrNoRows {
-		lastActivity = time.UnixMilli(0).Format(time.RFC3339)
-	} else if err != nil {
-		log.Error("GetLastActivity DB Error:", err)
-		apiErrorPage(c, http.StatusBadRequest, "Unknown Error")
-		return
-	}
-
-	// Parse Time
-	parsedTime, err := time.Parse(time.RFC3339, lastActivity)
-	if err != nil {
-		log.Error("Time Parse Error:", err)
-		apiErrorPage(c, http.StatusBadRequest, "Unknown Error")
-		return
-	}
-
-	koJSON(c, http.StatusOK, gin.H{
-		"last_sync": parsedTime.Unix(),
-	})
+	koJSON(c, http.StatusOK, gin.H{"last_sync": lastSync})
 }
 
 func (api *API) koAddDocuments(c *gin.Context) {

@@ -14,11 +14,11 @@ func TestReactUpgradeCreatesFinalImportAndJobSchema(t *testing.T) {
 	require.NoError(t, db.Reload(context.Background()))
 
 	var version int64
-	require.NoError(t, db.DB.QueryRow(`SELECT version_id FROM goose_db_version WHERE version_id > 20240510123707 AND is_applied = 1`).Scan(&version))
-	require.EqualValues(t, 20261126000000, version)
+	require.NoError(t, db.DB.QueryRow(`SELECT MAX(version_id) FROM goose_db_version WHERE is_applied = 1`).Scan(&version))
+	require.EqualValues(t, 20261126000001, version)
 	var migrations, generations int
 	require.NoError(t, db.DB.QueryRow(`SELECT count(*) FROM goose_db_version WHERE version_id > 20240510123707 AND is_applied = 1`).Scan(&migrations))
-	require.Equal(t, 1, migrations)
+	require.Equal(t, 2, migrations)
 	require.NoError(t, db.DB.QueryRow(`SELECT count(*) FROM reading_generation WHERE length(generation) = 32`).Scan(&generations))
 	require.Equal(t, 1, generations)
 

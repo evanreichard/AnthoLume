@@ -110,32 +110,25 @@ func live(ctx context.Context, q *database.Queries, document string) error {
 	return nil
 }
 func owned(ctx context.Context, q *database.Queries, user, device string) error {
-	owner, err := q.GetDeviceOwner(ctx, device)
+	_, err := q.GetReadingDeviceName(ctx, database.GetReadingDeviceNameParams{UserID: user, ID: device})
 	if errors.Is(err, sql.ErrNoRows) {
 		return fail(403, "forbidden")
 	}
 	if err != nil {
 		return err
 	}
-	if owner != user {
-		return fail(409, "device_conflict")
-	}
 	return nil
 }
 func register(ctx context.Context, q *database.Queries, user, id, name string) error {
-	if !validID(id) || !utf8.ValidString(name) || utf8.RuneCountInString(name) > 128 {
+	if id != "" && !validID(id) || !utf8.ValidString(name) || utf8.RuneCountInString(name) > 128 {
 		return fail(400, "invalid_request")
-	}
-	owner, err := q.GetDeviceOwner(ctx, id)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return err
-	}
-	if err == nil && owner != user {
-		return fail(409, "device_conflict")
 	}
 	return q.RegisterReadingDevice(ctx, database.RegisterReadingDeviceParams{ID: id, UserID: user, DeviceName: name})
 }
 func (s *Store) RegisterDevice(ctx context.Context, user, id, name string) error {
+	if !validID(id) {
+		return fail(400, "invalid_request")
+	}
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -271,7 +264,7 @@ func advance(ctx context.Context, q *database.Queries, user, document, device, p
 		return Decision{Status: 409, Code: "revision_exhausted", CurrentRevision: &head.Revision}, nil
 	}
 	if snapshot == nil {
-		name, err := q.GetReadingDeviceName(ctx, device)
+		name, err := q.GetReadingDeviceName(ctx, database.GetReadingDeviceNameParams{UserID: user, ID: device})
 		if err != nil {
 			return Decision{}, err
 		}
@@ -343,8 +336,11 @@ func (s *Store) KOProgress(ctx context.Context, user, document string, externalI
 	if err = account(ctx, q, user); err != nil {
 		return "", err
 	}
-	device, err := koDevice(ctx, q, user, externalID, name)
-	if err != nil {
+	device := ""
+	if externalID != nil {
+		device = *externalID
+	}
+	if err := register(ctx, q, user, device, name); err != nil {
 		return "", err
 	}
 	if err = q.EnsureReadingDocument(ctx, document); err != nil {
@@ -366,21 +362,24 @@ func (s *Store) KOProgress(ctx context.Context, user, document string, externalI
 	}
 	return timestamp, tx.Commit()
 }
-func (s *Store) KOActivity(ctx context.Context, user, device, name string, events []Activity) error {
+func (s *Store) KOActivity(ctx context.Context, user, externalID, name string, events []Activity) error {
+	if !validID(externalID) {
+		return fail(400, "invalid_request")
+	}
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 	q := database.New(tx)
-	if err = account(ctx, q, user); err == nil {
-		err = register(ctx, q, user, device, name)
+	if err := account(ctx, q, user); err != nil {
+		return err
 	}
-	if err != nil {
+	if err := register(ctx, q, user, externalID, name); err != nil {
 		return err
 	}
 	for _, e := range events {
-		e.DeviceID = device
+		e.DeviceID = externalID
 		if err = q.EnsureReadingDocument(ctx, e.DocumentID); err != nil {
 			return err
 		}

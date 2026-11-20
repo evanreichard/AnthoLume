@@ -56,33 +56,6 @@ func (q *Queries) EnsureReadingDocument(ctx context.Context, id string) error {
 	return err
 }
 
-const getDeviceOwner = `-- name: GetDeviceOwner :one
-SELECT user_id FROM devices WHERE id = ?
-`
-
-func (q *Queries) GetDeviceOwner(ctx context.Context, id string) (string, error) {
-	row := q.db.QueryRowContext(ctx, getDeviceOwner, id)
-	var user_id string
-	err := row.Scan(&user_id)
-	return user_id, err
-}
-
-const getKOSyncDeviceAlias = `-- name: GetKOSyncDeviceAlias :one
-SELECT device_id FROM kosync_device_aliases WHERE user_id = ? AND external_id = ?
-`
-
-type GetKOSyncDeviceAliasParams struct {
-	UserID     string `json:"user_id"`
-	ExternalID string `json:"external_id"`
-}
-
-func (q *Queries) GetKOSyncDeviceAlias(ctx context.Context, arg GetKOSyncDeviceAliasParams) (string, error) {
-	row := q.db.QueryRowContext(ctx, getKOSyncDeviceAlias, arg.UserID, arg.ExternalID)
-	var device_id string
-	err := row.Scan(&device_id)
-	return device_id, err
-}
-
 const getManagedReadingDevice = `-- name: GetManagedReadingDevice :one
 SELECT
     d.id,
@@ -91,7 +64,7 @@ SELECT
     COALESCE(p.archived, 0) AS archived,
     d.last_synced
 FROM devices d
-LEFT JOIN device_preferences p ON p.device_id = d.id
+LEFT JOIN device_preferences p ON p.user_id = d.user_id AND p.device_id = d.id
 WHERE d.user_id = ? AND d.id = ?
 `
 
@@ -122,11 +95,16 @@ func (q *Queries) GetManagedReadingDevice(ctx context.Context, arg GetManagedRea
 }
 
 const getReadingDeviceName = `-- name: GetReadingDeviceName :one
-SELECT device_name FROM devices WHERE id = ?
+SELECT device_name FROM devices WHERE user_id = ? AND id = ?
 `
 
-func (q *Queries) GetReadingDeviceName(ctx context.Context, id string) (string, error) {
-	row := q.db.QueryRowContext(ctx, getReadingDeviceName, id)
+type GetReadingDeviceNameParams struct {
+	UserID string `json:"user_id"`
+	ID     string `json:"id"`
+}
+
+func (q *Queries) GetReadingDeviceName(ctx context.Context, arg GetReadingDeviceNameParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getReadingDeviceName, arg.UserID, arg.ID)
 	var device_name string
 	err := row.Scan(&device_name)
 	return device_name, err
@@ -155,7 +133,7 @@ SELECT
     COALESCE(s.device_name, d.device_name, '') AS device_name
 FROM reading_heads h
 LEFT JOIN reading_head_devices s ON s.user_id = h.user_id AND s.document_id = h.document_id
-LEFT JOIN devices d ON d.id = h.device_id
+LEFT JOIN devices d ON d.user_id = h.user_id AND d.id = h.device_id
 WHERE h.user_id = ? AND h.document_id = ?
 `
 
@@ -288,42 +266,6 @@ func (q *Queries) InsertIdentityUser(ctx context.Context, arg InsertIdentityUser
 	return err
 }
 
-const insertKOSyncDeviceAlias = `-- name: InsertKOSyncDeviceAlias :exec
-INSERT INTO kosync_device_aliases (user_id, external_id, device_id)
-VALUES (?, ?, ?)
-`
-
-type InsertKOSyncDeviceAliasParams struct {
-	UserID     string `json:"user_id"`
-	ExternalID string `json:"external_id"`
-	DeviceID   string `json:"device_id"`
-}
-
-func (q *Queries) InsertKOSyncDeviceAlias(ctx context.Context, arg InsertKOSyncDeviceAliasParams) error {
-	_, err := q.db.ExecContext(ctx, insertKOSyncDeviceAlias, arg.UserID, arg.ExternalID, arg.DeviceID)
-	return err
-}
-
-const insertKOSyncDeviceIfFree = `-- name: InsertKOSyncDeviceIfFree :execrows
-INSERT INTO devices (id, user_id, device_name)
-VALUES (?, ?, ?)
-ON CONFLICT (id) DO NOTHING
-`
-
-type InsertKOSyncDeviceIfFreeParams struct {
-	ID         string `json:"id"`
-	UserID     string `json:"user_id"`
-	DeviceName string `json:"device_name"`
-}
-
-func (q *Queries) InsertKOSyncDeviceIfFree(ctx context.Context, arg InsertKOSyncDeviceIfFreeParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, insertKOSyncDeviceIfFree, arg.ID, arg.UserID, arg.DeviceName)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const insertReadingActivity = `-- name: InsertReadingActivity :exec
 INSERT INTO activity (user_id, document_id, device_id, start_time, duration, start_percentage, end_percentage)
 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -410,7 +352,7 @@ SELECT
     COALESCE(p.archived, 0) AS archived,
     d.last_synced
 FROM devices d
-LEFT JOIN device_preferences p ON p.device_id = d.id
+LEFT JOIN device_preferences p ON p.user_id = d.user_id AND p.device_id = d.id
 WHERE d.user_id = ?
 ORDER BY d.last_synced DESC, d.id ASC
 LIMIT 501
@@ -456,7 +398,7 @@ func (q *Queries) ListManagedReadingDevices(ctx context.Context, userID string) 
 const registerReadingDevice = `-- name: RegisterReadingDevice :exec
 INSERT INTO devices (id, user_id, device_name)
 VALUES (?, ?, ?)
-ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (user_id, id) DO UPDATE SET
     device_name = excluded.device_name,
     last_synced = STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now')
 `
@@ -517,11 +459,11 @@ func (q *Queries) UpdateSessionTimezone(ctx context.Context, arg UpdateSessionTi
 }
 
 const upsertReadingDevicePreferences = `-- name: UpsertReadingDevicePreferences :exec
-INSERT INTO device_preferences (device_id, label, archived)
-SELECT id, ?1, ?2
-FROM devices
-WHERE user_id = ?3 AND id = ?4
-ON CONFLICT (device_id) DO UPDATE SET
+INSERT INTO device_preferences (user_id, device_id, label, archived)
+SELECT d.user_id, d.id, ?1, ?2
+FROM devices d
+WHERE d.user_id = ?3 AND d.id = ?4
+ON CONFLICT (user_id, device_id) DO UPDATE SET
     label = excluded.label,
     archived = excluded.archived
 `

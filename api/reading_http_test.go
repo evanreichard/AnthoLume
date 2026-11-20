@@ -205,20 +205,21 @@ func TestLostCommittedResponseReopenAndDeviceOwnership(t *testing.T) {
 	require.Equal(t, 200, f.call("POST", "/api/v1/me/activity", activity, nil).status)
 	require.Equal(t, "1", f.state().Revision)
 	require.Equal(t, 1, f.count("activity"))
-	// Web ownership remains global; KOSync translates the same external ID without taking the original device.
+	// Device registration and lookup are both scoped to the account.
 	f.call("POST", "/api/v1/session/logout", map[string]any{}, nil)
 	f.register("bob")
-	assertProblem(t, f.call("POST", "/api/v1/me/devices", Device{Id: "web-device", Name: "Hijack"}, nil), 409, "device_conflict")
+	fresh := progressPayload("0", 0.3)
+	assertProblem(t, f.call("POST", "/api/v1/me/reading-progress", fresh, nil), 403, "forbidden")
+	require.Equal(t, 200, f.call("POST", "/api/v1/me/devices", Device{Id: "web-device", Name: "Bob’s browser"}, nil).status)
 	r := f.call("PUT", "/api/ko/syncs/progress", map[string]any{"document": "collision-placeholder", "device_id": "web-device", "device": "Hijack", "percentage": 0.2, "progress": "x"}, nil)
 	require.Equal(t, 200, r.status, string(r.body))
 	require.Equal(t, 3, f.count("documents"))
 	var owner, name string
-	require.NoError(t, f.db.DB.QueryRow("SELECT user_id,device_name FROM devices WHERE id='web-device'").Scan(&owner, &name))
+	require.NoError(t, f.db.DB.QueryRow("SELECT user_id,device_name FROM devices WHERE id='web-device' AND user_id='alice'").Scan(&owner, &name))
 	require.Equal(t, "alice", owner)
 	require.Equal(t, "Browser", name)
-	fresh := progressPayload("0", 0.3)
-	assertProblem(t, f.call("POST", "/api/v1/me/reading-progress", fresh, nil), 409, "device_conflict")
-	require.Equal(t, 2, f.count("reading_receipts"))
+	require.Equal(t, 200, f.call("POST", "/api/v1/me/reading-progress", fresh, nil).status)
+	require.Equal(t, 3, f.count("reading_receipts"))
 }
 func TestKOActivityCreditAndOwnerRollback(t *testing.T) {
 	f := newWebFixture(t)

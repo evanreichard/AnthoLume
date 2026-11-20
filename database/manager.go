@@ -89,7 +89,7 @@ func (dbm *DBManager) init(ctx context.Context) error {
 	dbm.Queries = New(dbm.DB)
 
 	// Execute schema
-	if _, err := dbm.DB.Exec(ddl + dbmigrations.ReadingSchema + dbmigrations.KOSyncDeviceSchema + dbmigrations.DevicePreferencesSchema); err != nil {
+	if _, err := dbm.DB.Exec(ddl + dbmigrations.ReadingSchema); err != nil {
 		log.Panicf("Error executing schema: %v", err)
 		return err
 	}

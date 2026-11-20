@@ -7,16 +7,13 @@ SELECT count(*) FROM account_identities WHERE user_id = ? AND account_id = ?;
 -- name: CountLiveDocuments :one
 SELECT count(*) FROM documents WHERE id = ? AND deleted = 0;
 
--- name: GetDeviceOwner :one
-SELECT user_id FROM devices WHERE id = ?;
-
 -- name: GetReadingDeviceName :one
-SELECT device_name FROM devices WHERE id = ?;
+SELECT device_name FROM devices WHERE user_id = ? AND id = ?;
 
 -- name: RegisterReadingDevice :exec
 INSERT INTO devices (id, user_id, device_name)
 VALUES (?, ?, ?)
-ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (user_id, id) DO UPDATE SET
     device_name = excluded.device_name,
     last_synced = STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now');
 
@@ -32,7 +29,7 @@ SELECT
     COALESCE(s.device_name, d.device_name, '') AS device_name
 FROM reading_heads h
 LEFT JOIN reading_head_devices s ON s.user_id = h.user_id AND s.document_id = h.document_id
-LEFT JOIN devices d ON d.id = h.device_id
+LEFT JOIN devices d ON d.user_id = h.user_id AND d.id = h.device_id
 WHERE h.user_id = ? AND h.document_id = ?;
 
 -- name: GetReadingReceipt :one
@@ -75,18 +72,6 @@ INSERT OR IGNORE INTO documents (id) VALUES (?);
 SELECT CAST(updated_at AS TEXT) AS updated_at
 FROM reading_heads WHERE user_id = ? AND document_id = ?;
 
--- name: GetKOSyncDeviceAlias :one
-SELECT device_id FROM kosync_device_aliases WHERE user_id = ? AND external_id = ?;
-
--- name: InsertKOSyncDeviceIfFree :execrows
-INSERT INTO devices (id, user_id, device_name)
-VALUES (?, ?, ?)
-ON CONFLICT (id) DO NOTHING;
-
--- name: InsertKOSyncDeviceAlias :exec
-INSERT INTO kosync_device_aliases (user_id, external_id, device_id)
-VALUES (?, ?, ?);
-
 -- name: GetSessionIdentity :one
 SELECT a.account_id, u.admin, u.timezone
 FROM users u
@@ -119,7 +104,7 @@ SELECT
     COALESCE(p.archived, 0) AS archived,
     d.last_synced
 FROM devices d
-LEFT JOIN device_preferences p ON p.device_id = d.id
+LEFT JOIN device_preferences p ON p.user_id = d.user_id AND p.device_id = d.id
 WHERE d.user_id = ?
 ORDER BY d.last_synced DESC, d.id ASC
 LIMIT 501;
@@ -132,14 +117,14 @@ SELECT
     COALESCE(p.archived, 0) AS archived,
     d.last_synced
 FROM devices d
-LEFT JOIN device_preferences p ON p.device_id = d.id
+LEFT JOIN device_preferences p ON p.user_id = d.user_id AND p.device_id = d.id
 WHERE d.user_id = ? AND d.id = ?;
 
 -- name: UpsertReadingDevicePreferences :exec
-INSERT INTO device_preferences (device_id, label, archived)
-SELECT id, sqlc.arg(label), sqlc.arg(archived)
-FROM devices
-WHERE user_id = sqlc.arg(user_id) AND id = sqlc.arg(device_id)
-ON CONFLICT (device_id) DO UPDATE SET
+INSERT INTO device_preferences (user_id, device_id, label, archived)
+SELECT d.user_id, d.id, sqlc.arg(label), sqlc.arg(archived)
+FROM devices d
+WHERE d.user_id = sqlc.arg(user_id) AND d.id = sqlc.arg(device_id)
+ON CONFLICT (user_id, device_id) DO UPDATE SET
     label = excluded.label,
     archived = excluded.archived;

@@ -58,6 +58,7 @@ type Device struct {
 }
 
 type DevicePreference struct {
+	UserID   string `json:"user_id"`
 	DeviceID string `json:"device_id"`
 	Label    string `json:"label"`
 	Archived bool   `json:"archived"`
@@ -115,12 +116,6 @@ type DocumentUserStatistic struct {
 	WeeklyTimeSeconds  int64   `json:"weekly_time_seconds"`
 	WeeklyWordsRead    int64   `json:"weekly_words_read"`
 	WeeklyWpm          float64 `json:"weekly_wpm"`
-}
-
-type KosyncDeviceAlias struct {
-	UserID     string `json:"user_id"`
-	ExternalID string `json:"external_id"`
-	DeviceID   string `json:"device_id"`
 }
 
 type Metadata struct {
