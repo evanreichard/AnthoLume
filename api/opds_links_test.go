@@ -19,11 +19,11 @@ func TestOPDSPublishedOpaqueLinksReachOriginalResources(t *testing.T) {
 	book, err := os.ReadFile("../_test_files/alice.epub")
 	require.NoError(t, err)
 	cover := []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="red"/></svg>`)
-	require.NoError(t, os.WriteFile(filepath.Join(f.cfg.DataPath, "documents", "public.epub"), book, 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(f.cfg.DataPath, "documents", "public.EPUB"), book, 0600))
 	require.NoError(t, os.WriteFile(filepath.Join(f.cfg.DataPath, "covers", "public.svg"), cover, 0600))
 	ids := []string{"ascii-control", "plus+id", "slash/id", "percent%id", "unicode-é-书", "query?id=a&next=b#part"}
 	for _, id := range ids {
-		f.exec("INSERT INTO documents(id,title,filepath,coverfile) VALUES(?,?,?,?)", id, id, "public.epub", "public.svg")
+		f.exec("INSERT INTO documents(id,title,filepath,coverfile) VALUES(?,?,?,?)", id, id, "public.EPUB", "public.svg")
 	}
 	headers := map[string]string{"Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("alice:password"))}
 	baseline := f.call("GET", "/api/opds/documents/ascii-control/file", nil, headers)

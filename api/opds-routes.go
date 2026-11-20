@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -111,8 +112,7 @@ func (api *API) opdsDocuments(c *gin.Context) {
 	for _, doc := range documents {
 		// Fileless Documents - They occupy slots in the paginated results but cannot be acquired.
 		if doc.Filepath != nil {
-			splitFilepath := strings.Split(*doc.Filepath, ".")
-			fileType := splitFilepath[len(splitFilepath)-1]
+			fileType := strings.ToLower(strings.TrimPrefix(path.Ext(*doc.Filepath), "."))
 
 			title := "N/A"
 			if doc.Title != nil {
