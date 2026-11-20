@@ -327,13 +327,6 @@ export class Repository {
     if (!source || !source.complete || source.key !== book.key || !source.blob || source.blob.size !== book.size) throw new Error('Original local EPUB is unavailable');
     return source.blob;
   }
-  async remove(ref: BookRef) {
-    await this.db.transaction('rw', this.db.books, this.db.access, this.db.sources, this.db.sourceChunks, async () => {
-      if (!await this.permitted(ref)) throw new Error('Account hidden'); const key = refKey(ref), old = await this.db.books.get(key);
-      if (old?.sourceId) { await this.db.sourceChunks.where('sourceId').equals(old.sourceId).delete(); await this.db.sources.delete(old.sourceId); }
-      if (ref.kind === 'local') await this.db.books.delete(key); else if (old) await this.db.books.put({ ...old, sourceId: undefined, bytes: null, cover: null, availability: 'unavailable' });
-    });
-  }
   private async addEvent(key: string, scope: string, event: Submission) {
     if (!validSubmission(event)) throw new Error('Invalid immutable reading event');
     await this.db.events.add({ ...event, id: event.payload.event_id, key, scope, created: Date.now() });

@@ -64,13 +64,15 @@ test('staging quota, cancellation and expired crash partials never publish avail
     const fail = () => { if (++writes === 2) throw new DOMException('Staged quota failure', 'QuotaExceededError'); }; repo.db.sourceChunks.hook('creating', fail);
     try { await repo.stageStream(ref, new Blob([new Uint8Array(800000)]).stream()); } catch (error) { quota = (error as Error).name === 'QuotaExceededError'; } repo.db.sourceChunks.hook('creating').unsubscribe(fail);
     const afterQuota = { chunks: await repo.db.sourceChunks.count(), sources: await repo.db.sources.count(), books: await repo.db.books.count() };
-    const controller = new AbortController(); let cancelled = false, count = 0;
-    try { await repo.stageStream(ref, new ReadableStream({ pull(c) { c.enqueue(new Uint8Array(262144)); if (++count === 2) controller.abort(); } }), controller.signal); } catch (error) { cancelled = (error as Error).name === 'AbortError'; }
+    const controller = new AbortController(); let cancelled = false, streamStopped = false, received = 0;
+    const stream = new ReadableStream<Uint8Array>({ pull(c) { c.enqueue(new Uint8Array(262144)); }, cancel() { streamStopped = true; } });
+    try { await repo.stageStream(ref, stream, controller.signal, bytes => { received = bytes; controller.abort(); }); } catch (error) { cancelled = (error as Error).name === 'AbortError'; }
+    const afterAbort = { chunks: await repo.db.sourceChunks.count(), sources: await repo.db.sources.count(), books: await repo.db.books.count() };
     const old = await repo.stageBlob(ref, new Blob(['partial'])); await repo.db.sources.update(old.id, { until: Date.now() - 1 });
     const event = { id: 'retained-event', key: 'server-key', scope: 'retained-account', created: 1, kind: 'activity' as const, payload: { event_id: 'retained-event', document_id: 'original-server', device_id: 'owned-device', start_time: '2026-01-01T00:00:00Z', duration: 30, start_fraction: .1, end_fraction: .2 } };
     await repo.db.events.add(event); await repo.cleanupStages();
     const bytes = await (await fetch('/fixtures/synthetic.epub')).blob(), stage = await repo.stageStream(ref, bytes.stream()), policy = await repo.validateStage(stage); await repo.publish(ref, stage, policy.manifest, null, null, null); policy.dispose();
-    const output = { quota, afterQuota, cancelled, available: (await repo.db.books.toArray())[0]!.availability, partials: (await repo.db.sources.toArray()).filter(s => !s.complete).length, events: (await repo.pending()).map(e => e.id) }; await repo.db.delete(); return output;
+    const output = { quota, afterQuota, cancelled, streamStopped, received, afterAbort, available: (await repo.db.books.toArray())[0]!.availability, partials: (await repo.db.sources.toArray()).filter(s => !s.complete).length, events: (await repo.pending()).map(e => e.id) }; await repo.db.delete(); return output;
   });
-  expect(result).toEqual({ quota: true, afterQuota: { chunks: 0, sources: 0, books: 0 }, cancelled: true, available: 'available', partials: 0, events: ['retained-event'] });
+  expect(result).toEqual({ quota: true, afterQuota: { chunks: 0, sources: 0, books: 0 }, cancelled: true, streamStopped: true, received: 262144, afterAbort: { chunks: 0, sources: 0, books: 0 }, available: 'available', partials: 0, events: ['retained-event'] });
 });

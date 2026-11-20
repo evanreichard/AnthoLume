@@ -8,7 +8,7 @@ import { supportedCSS } from '../../css-policy';
 import { requireSafeHTMLStyle } from '../../body-contract';
 import { receiptFor, validSubmission, type Submission } from '../../wire';
 import { validProblem } from '../../protocol';
-import { rasterPixels } from '../../media-budget';
+import { rasterDimensions } from '../../media-budget';
 
 const event: Submission = { kind: 'progress', payload: { event_id: 'one', document_id: 'original-server-id', device_id: 'installation', observed_at: '2026-01-01T00:00:00Z', position: '/body/DocFragment[1]/body/p[1]', fraction: .2, base_revision: '0' } };
 test('opaque KO grammar retains production suffixes, no selector injection', () => { expect(parseKO('/body/DocFragment[19]/body/h1/img.0').spine).toBe(18); expect(parseKO('/body/DocFragment[1]/body/p[2]/text()[1].23').steps).toEqual([{ tag: 'p', index: 2 }]); for (const value of ['', '/body/DocFragment[0]/body', '/body/DocFragment[1]/body/p,script']) expect(() => parseKO(value)).toThrow(); });
@@ -38,6 +38,6 @@ test('streamed CRC retains state across chunks and matches the standard check ve
 test('raster dimensions are bounded before native decode, including valid tiny PNG and forged oversized header', async () => {
   const zip = await JSZip.loadAsync(readFileSync(new URL('../fixtures/synthetic.epub', import.meta.url)));
   const png = await zip.file('pixel.png')!.async('uint8array');
-  expect(rasterPixels('image/png', png)).toBe(1);
-  const huge = png.slice(); new DataView(huge.buffer).setUint32(16, 16384); expect(() => rasterPixels('image/png', huge)).toThrow('pixel budget');
+  expect(rasterDimensions('image/png', png)).toEqual({ width: 1, height: 1 });
+  const huge = png.slice(); new DataView(huge.buffer).setUint32(16, 16384); expect(() => rasterDimensions('image/png', huge)).toThrow('pixel budget');
 });

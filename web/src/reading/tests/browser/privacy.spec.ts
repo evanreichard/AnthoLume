@@ -3,7 +3,7 @@ import type { ReadingBridge } from '../../types';
 test('provider switches A to B without even one stale metadata/pending-count projection', async ({ page }) => {
   await page.goto('/'); await page.waitForFunction(() => !!window.readingTest);
   await page.evaluate(async () => {
-    const p = window.readingTest; p.WorkerCoordinator.prototype.start = async function () { this.ready = true; };
+    const p = window.readingTest;
     const repo = new p.Repository(), bytes = await (await fetch('/fixtures/synthetic.epub')).arrayBuffer();
     for (const [userId, count] of [['B', 1], ['A', 2]] as const) {
       const account = { origin: location.origin, userId }, ref = { kind: 'server' as const, account, documentId: userId + '-original' };

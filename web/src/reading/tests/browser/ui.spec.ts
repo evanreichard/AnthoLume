@@ -5,7 +5,6 @@ test('React StrictMode owns actual full-viewport renderer, edge/keyboard/swipe n
   await page.evaluate(async () => {
     const p = window.readingTest;
     // Shell Coordination Is Separately Tested - Isolate React's StrictMode lifecycle without pretending this dev server is a qualified SW.
-    p.WorkerCoordinator.prototype.start = async function () { this.ready = true; };
     const repo = new p.Repository(), ref = { kind: 'local' as const, localId: 'ui-local' }, bytes = await (await fetch('/fixtures/synthetic.epub')).arrayBuffer();
     await p.validateEPUB(bytes); await repo.install(ref, bytes, 'Real local book', null, null); repo.db.close();
     const forbidden = async () => { throw new Error('Local reader must not use bridge'); };

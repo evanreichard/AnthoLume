@@ -109,7 +109,7 @@ test('progress conflicts do not block activity; exact receipt replay, durable ex
     revision = '2'; await replay.run(account); const again = (await repo.db.conflicts.toArray())[0]!;
     let staleChoiceRejected = false; try { await repo.resolve(again.eventId, 'server', '1'); } catch { staleChoiceRejected = true; }
     await repo.refreshConflict(again.eventId, state(), access.epoch); await repo.resolve(again.eventId, 'server', '2');
-    await repo.remove(ref);
+    await repo.clearServerCache();
     const output = { firstCalls, registered, activityCredits, progressWrites, pendingAfterCredit, decisionsAfterCredit, freshID, replacementBase: replacement.kind === 'progress' && replacement.payload.base_revision, again: again.server!.revision, staleChoiceRejected, history: await repo.db.history.count(), immutableEvents: await repo.db.events.count(), pending: (await repo.pending()).length, available: (await repo.db.books.toArray())[0]!.availability };
     await repo.db.delete(); return output;
   });
@@ -126,8 +126,9 @@ test('malformed HTTP 200, valid-looking HTTP 500 and late 401/ack cannot discard
     } };
     const replay = new p.Replay(repo, bridge, () => {}, () => { expired++; }); const counts = [];
     for (mode of ['malformed', '500', 'late401', 'lateAck']) { await replay.run(account); counts.push((await repo.pending()).length); }
-    await repo.remove(ref); const survivesRemoval = (await repo.pending()).length;
-    repo.db.close(); await repo.db.open(); const output = { counts, expired, survivesRemoval, survivesReopen: (await repo.pending()).length, authenticated: (await repo.db.access.toArray())[0]!.authenticated }; await repo.db.delete(); return output;
+    await repo.clearServerCache(); const survivesClear = await repo.pending();
+    repo.db.close(); await repo.db.open(); const output = { counts, expired, survivesClear, survivesReopen: await repo.pending(), event, authenticated: (await repo.db.access.toArray())[0]!.authenticated }; await repo.db.delete(); return output;
   });
-  expect(result).toEqual({ counts: [1, 1, 1, 1], expired: 0, survivesRemoval: 1, survivesReopen: 1, authenticated: true });
+  const { event, ...outcomes } = result;
+  expect(outcomes).toEqual({ counts: [1, 1, 1, 1], expired: 0, survivesClear: [event], survivesReopen: [event], authenticated: true });
 });

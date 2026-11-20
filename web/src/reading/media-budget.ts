@@ -44,4 +44,3 @@ export function rasterDimensions(media: string, bytes: Uint8Array): { width: num
   requireImage(width > 0 && height > 0 && width <= mediaLimits.dimension && height <= mediaLimits.dimension && width * height <= mediaLimits.pixels);
   return { width, height };
 }
-export function rasterPixels(media: string, bytes: Uint8Array): number { const dimensions = rasterDimensions(media, bytes); return dimensions ? dimensions.width * dimensions.height : 0; }

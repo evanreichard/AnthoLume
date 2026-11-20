@@ -114,14 +114,11 @@ test('historical child-first reading remains; canonical new writing succeeds and
   });
   expect(result).toEqual({ chosen: 'second', canonical: '/body/DocFragment[1]/body/div[1]/p[1]', publications: 0, failed: 'error', original: '/body/DocFragment[1]/body/div[1]/p[2]' });
 });
-test('worker cancellation and bounded stream abort never return partial original bytes', async ({ page }) => {
-  const result = await page.evaluate(async () => {
+test('archive worker cancellation rejects instead of returning a partial result', async ({ page }) => {
+  const cancelled = await page.evaluate(async () => {
     const p = window.readingTest, bytes = await (await fetch('/fixtures/alice.epub')).arrayBuffer(); const abort = new AbortController();
-    const parse = p.checkArchive(bytes, abort.signal); abort.abort(); let cancelled = false; try { await parse; } catch (error) { cancelled = error instanceof DOMException && error.name === 'AbortError'; }
-    let pulled = 0, stopped = false; const streamAbort = new AbortController();
-    const stream = new ReadableStream<Uint8Array>({ pull(c) { pulled++; c.enqueue(new Uint8Array(1024)); streamAbort.abort(); }, cancel() { stopped = true; } });
-    let streamCancelled = false; try { await p.boundedStream(stream, streamAbort.signal); } catch { streamCancelled = true; }
-    return { cancelled, streamCancelled, stopped, pulled };
+    const parse = p.checkArchive(bytes, abort.signal); abort.abort();
+    try { await parse; return false; } catch (error) { return error instanceof DOMException && error.name === 'AbortError'; }
   });
-  expect(result.cancelled).toBe(true); expect(result.streamCancelled).toBe(true); expect(result.stopped).toBe(true); expect(result.pulled).toBeLessThan(4);
+  expect(cancelled).toBe(true);
 });

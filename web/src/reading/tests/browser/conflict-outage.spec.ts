@@ -81,7 +81,6 @@ test('a full lease of needs-refresh conflicts cannot starve activity beyond the 
 test('public conflict projection survives repository restart without invented state and refreshes through Retry synchronization', async ({ page }) => {
   await page.evaluate(async () => {
     const p = window.readingTest, repo = new p.Repository(), account = { origin: location.origin, userId: 'A' }, ref = { kind: 'server' as const, account, documentId: 'original-id' };
-    p.WorkerCoordinator.prototype.start = async function () { this.ready = true; };
     await repo.setAccess({ kind: 'authenticated', account }); const bytes = await (await fetch('/fixtures/synthetic.epub')).arrayBuffer();
     await repo.install(ref, bytes, null, null, null, { document_id: ref.documentId, revision: '0', position: null, fraction: null, device_id: null, updated_at: null });
     await repo.save(ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 });

@@ -14,7 +14,6 @@ test('when chapter callbacks are blocked, center taps and swipes work without en
   await page.waitForFunction(() => !!window.readingTest);
   await page.evaluate(async () => {
     const api = window.readingTest, ref = { kind: 'local' as const, localId: 'gesture-layer' };
-    api.WorkerCoordinator.prototype.start = async function () { this.ready = true; };
     const repo = new api.Repository();
     await repo.install(ref, await (await fetch('/fixtures/synthetic.epub')).arrayBuffer(), 'Gesture test', null, null);
     repo.db.close();

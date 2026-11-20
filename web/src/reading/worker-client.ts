@@ -1,6 +1,5 @@
 export class WorkerCoordinator {
-  ready = true;
-  update: 'idle' | 'available' | 'blocked' | 'error' = 'idle';
+  update: 'idle' | 'error' = 'idle';
   error: string | null = null;
   private dead = false;
   private checking?: Promise<void>;

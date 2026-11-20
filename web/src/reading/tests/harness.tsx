@@ -12,21 +12,18 @@ import { ArchiveReader, blobSource, hashSource, sourceTask, sourceStats, sourceL
 import { activityEvent } from '../activity';
 import { zipFlags } from './zip-flags';
 import { ReadingHTTPError } from '../types';
-import { boundedStream } from '../archive';
 import type { ZipIndex } from '../source';
-import { requireStableBody, requireSafeHTMLStyle } from '../body-contract';
+import { requireStableBody } from '../body-contract';
 import { elementFromKO, primaryElementFromKO, koFromElement } from '../codec';
-import { receiptFor, validSubmission } from '../wire';
 import { ReaderWakeLock } from '../wake-lock';
 import { ReadingProvider, useReading } from '../provider';
 import { ReaderScreen } from '../ReaderScreen';
-import { WorkerCoordinator } from '../worker-client';
 import type { BookRef, ReadingBridge, ReadingAccess } from '../types';
 const root = createRoot(document.getElementById('root')!);
 async function checkArchive(bytes: ArrayBuffer, signal?: AbortSignal) { const source = blobSource(new Blob([bytes])), index = await sourceTask<ZipIndex>(source, 'index', undefined, signal), reader = new ArchiveReader(source, index, signal); for (const entry of index.entries) await reader.bytes(entry.name); return reader; }
 function SyncProjection() { const reading = useReading(); return <><output id="sync-projection">{JSON.stringify({ ready: reading.ready, sync: reading.sync, pending: reading.pendingCount, conflicts: reading.conflicts, error: reading.error })}</output><button onClick={() => void reading.replay()}>Retry synchronization</button></>; }
 function Projection() { const snapshot = useReading(); return <output id="projection">{JSON.stringify({ titles: snapshot.books.map(b => b.title), pending: snapshot.pendingCount, conflicts: snapshot.conflicts.length, ready: snapshot.ready })}</output>; }
-const testAPI = { ReadingRuntime, stagingWorkers, ArchiveReader, blobSource, hashSource, sourceTask, sourceStats, sourceLimits, sourceScheduler, JSZip, zipFlags, activityEvent, ReadingHTTPError, ReaderController, lifecycle, validateEPUB, Repository, ReadingDB, Replay, checksum, checkArchive, boundedStream, requireStableBody, requireSafeHTMLStyle, elementFromKO, primaryElementFromKO, koFromElement, receiptFor, validSubmission, ReaderWakeLock, WorkerCoordinator,
+const testAPI = { ReadingRuntime, stagingWorkers, ArchiveReader, blobSource, hashSource, sourceTask, sourceStats, sourceLimits, sourceScheduler, JSZip, zipFlags, activityEvent, ReadingHTTPError, ReaderController, lifecycle, validateEPUB, Repository, ReadingDB, Replay, checksum, checkArchive, requireStableBody, elementFromKO, primaryElementFromKO, koFromElement, ReaderWakeLock,
   unmount: () => root.render(null),
   showSync: (account: import('../types').Account, bridge: ReadingBridge) => root.render(<ReadingProvider access={{ kind: 'authenticated', account }} bridge={bridge} onSessionExpired={() => {}}><SyncProjection /></ReadingProvider>),
   project: (access: ReadingAccess, bridge: ReadingBridge) => flushSync(() => root.render(<ReadingProvider access={access} bridge={bridge} onSessionExpired={() => {}}><Projection /></ReadingProvider>)),

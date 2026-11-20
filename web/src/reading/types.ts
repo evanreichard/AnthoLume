@@ -23,7 +23,7 @@ export class ReadingHTTPError extends Error {
 export interface ReadingSnapshot {
   ready: boolean; resumeAccount: Account | null; books: readonly StoredBook[]; sync: SyncStatus; pendingCount: number; conflicts: readonly Conflict[];
   downloads: readonly { ref: BookRef; receivedBytes: number; totalBytes: number | null; preparing?: boolean }[];
-  update: 'idle' | 'available' | 'blocked' | 'error'; error: string | null;
+  update: 'idle' | 'error'; error: string | null;
 }
 export type ReaderCacheSummary = { books: number; epubBytes: number; metadataBytes: number };
 export interface ReadingActions {
