@@ -230,6 +230,9 @@ func (api *API) stageRestore(ctx context.Context, input io.Reader, stage string)
 	if err = api.upgradeRestoreSnapshot(ctx, snapshot, legacyArchive); err != nil {
 		return 0, adminFailure(400, "incompatible_restore_database")
 	}
+	if err = api.normalizeRestorePageSize(ctx, snapshot); err != nil {
+		return 0, adminFailure(400, "incompatible_restore_database")
+	}
 	if err = validateBackupCatalogFile(ctx, snapshot); err != nil {
 		var issue *webFailure
 		if errors.As(err, &issue) {
@@ -574,6 +577,9 @@ func (api *API) RestoreFreshInstance(ctx context.Context, input io.Reader) error
 
 func (api *API) applyStagedRestore(req context.Context, stage, token string) error {
 	original := filepath.Join(stage, adminBackupName)
+	if err := api.checkRestorePageSize(req, original); err != nil {
+		return adminFailure(400, "incompatible_restore_database")
+	}
 	apply, err := os.CreateTemp(stage, "apply-")
 	if err != nil {
 		return err
