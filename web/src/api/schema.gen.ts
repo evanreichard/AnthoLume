@@ -459,6 +459,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/backup/repair-path": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["repairAdminBackupPath"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/restore": {
         parameters: {
             query?: never;
@@ -660,6 +676,19 @@ export interface components {
             path: string;
             parent: string;
             entries: string[];
+        };
+        /** @enum {string} */
+        AdminBackupPathKind: "book" | "cover";
+        AdminBackupPathIssue: {
+            document_id: string;
+            kind: components["schemas"]["AdminBackupPathKind"];
+        };
+        AdminBackupPathRepair: {
+            document_id: string;
+            kind: components["schemas"]["AdminBackupPathKind"];
+            path?: string;
+            root_id?: string;
+            confirm_clear?: boolean;
         };
         AdminBackupPreview: {
             files: number;
@@ -947,6 +976,7 @@ export interface components {
             code: string;
             detail: string;
             current_revision?: components["schemas"]["Revision"];
+            backup_path_issue?: components["schemas"]["AdminBackupPathIssue"];
         };
     };
     responses: {
@@ -1935,6 +1965,34 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AdminBackupPreview"];
                 };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    repairAdminBackupPath: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminBackupPathRepair"];
+            };
+        };
+        responses: {
+            /** @description Invalid catalog reference repaired without removing files or history */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Problem"];
         };

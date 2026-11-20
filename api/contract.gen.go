@@ -42,6 +42,24 @@ func (e AdminAutoImportStatus) Valid() bool {
 	}
 }
 
+// Defines values for AdminBackupPathKind.
+const (
+	Book  AdminBackupPathKind = "book"
+	Cover AdminBackupPathKind = "cover"
+)
+
+// Valid indicates whether the value is a known member of the AdminBackupPathKind enum.
+func (e AdminBackupPathKind) Valid() bool {
+	switch e {
+	case Book:
+		return true
+	case Cover:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminImportResultStatus.
 const (
 	AdminImportResultStatusFailed   AdminImportResultStatus = "failed"
@@ -332,6 +350,24 @@ type AdminAutoImportSettings struct {
 	Reference       bool          `json:"reference"`
 	RootId          StorageRootID `json:"root_id"`
 	Watch           bool          `json:"watch"`
+}
+
+// AdminBackupPathIssue defines model for AdminBackupPathIssue.
+type AdminBackupPathIssue struct {
+	DocumentId string              `json:"document_id"`
+	Kind       AdminBackupPathKind `json:"kind"`
+}
+
+// AdminBackupPathKind defines model for AdminBackupPathKind.
+type AdminBackupPathKind string
+
+// AdminBackupPathRepair defines model for AdminBackupPathRepair.
+type AdminBackupPathRepair struct {
+	ConfirmClear *bool               `json:"confirm_clear,omitempty"`
+	DocumentId   string              `json:"document_id"`
+	Kind         AdminBackupPathKind `json:"kind"`
+	Path         *string             `json:"path,omitempty"`
+	RootId       *string             `json:"root_id,omitempty"`
 }
 
 // AdminBackupPreview defines model for AdminBackupPreview.
@@ -657,12 +693,13 @@ type PreferencesUpdate struct {
 
 // Problem defines model for Problem.
 type Problem struct {
-	Code            string    `json:"code"`
-	CurrentRevision *Revision `json:"current_revision,omitempty"`
-	Detail          string    `json:"detail"`
-	Status          int       `json:"status"`
-	Title           string    `json:"title"`
-	Type            string    `json:"type"`
+	BackupPathIssue *AdminBackupPathIssue `json:"backup_path_issue,omitempty"`
+	Code            string                `json:"code"`
+	CurrentRevision *Revision             `json:"current_revision,omitempty"`
+	Detail          string                `json:"detail"`
+	Status          int                   `json:"status"`
+	Title           string                `json:"title"`
+	Type            string                `json:"type"`
 }
 
 // ProgressEvent defines model for ProgressEvent.
@@ -772,6 +809,15 @@ type DownloadAdminBackupParams struct {
 
 	// Generation Expected browser reading generation
 	Generation *string `form:"generation,omitempty" json:"generation,omitempty"`
+}
+
+// RepairAdminBackupPathParams defines parameters for RepairAdminBackupPath.
+type RepairAdminBackupPathParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
 }
 
 // PreviewAdminImportParams defines parameters for PreviewAdminImport.
@@ -1066,6 +1112,9 @@ type QueueAdminAutoImportJSONRequestBody = QueueAdminAutoImportJSONBody
 // SaveAdminAutoImportJSONRequestBody defines body for SaveAdminAutoImport for application/json ContentType.
 type SaveAdminAutoImportJSONRequestBody = AdminAutoImportSettings
 
+// RepairAdminBackupPathJSONRequestBody defines body for RepairAdminBackupPath for application/json ContentType.
+type RepairAdminBackupPathJSONRequestBody = AdminBackupPathRepair
+
 // StartAdminJobJSONRequestBody defines body for StartAdminJob for application/json ContentType.
 type StartAdminJobJSONRequestBody StartAdminJobJSONBody
 
@@ -1134,6 +1183,9 @@ type ServerInterface interface {
 
 	// (GET /api/v1/admin/backup/preview)
 	PreviewAdminBackup(c *gin.Context)
+
+	// (POST /api/v1/admin/backup/repair-path)
+	RepairAdminBackupPath(c *gin.Context, params RepairAdminBackupPathParams)
 
 	// (GET /api/v1/admin/import)
 	PreviewAdminImport(c *gin.Context, params PreviewAdminImportParams)
@@ -1545,6 +1597,65 @@ func (siw *ServerInterfaceWrapper) PreviewAdminBackup(c *gin.Context) {
 	}
 
 	siw.Handler.PreviewAdminBackup(c)
+}
+
+// RepairAdminBackupPath operation middleware
+func (siw *ServerInterfaceWrapper) RepairAdminBackupPath(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RepairAdminBackupPathParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RepairAdminBackupPath(c, params)
 }
 
 // PreviewAdminImport operation middleware
@@ -3500,6 +3611,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/api/v1/admin/jobs", wrapper.StartAdminJob)
 	router.GET(options.BaseURL+"/api/v1/admin/backup", wrapper.DownloadAdminBackup)
 	router.GET(options.BaseURL+"/api/v1/admin/backup/preview", wrapper.PreviewAdminBackup)
+	router.POST(options.BaseURL+"/api/v1/admin/backup/repair-path", wrapper.RepairAdminBackupPath)
 	router.PATCH(options.BaseURL+"/api/v1/admin/restore", wrapper.ApplyAdminRestore)
 	router.POST(options.BaseURL+"/api/v1/admin/restore", wrapper.StageAdminRestore)
 	router.GET(options.BaseURL+"/api/v1/admin/logs", wrapper.ListAdminLogs)
@@ -3758,6 +3870,44 @@ type PreviewAdminBackupdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PreviewAdminBackupdefaultApplicationProblemPlusJSONResponse) VisitPreviewAdminBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RepairAdminBackupPathRequestObject struct {
+	Params RepairAdminBackupPathParams
+	Body   *RepairAdminBackupPathJSONRequestBody
+}
+
+type RepairAdminBackupPathResponseObject interface {
+	VisitRepairAdminBackupPathResponse(w http.ResponseWriter) error
+}
+
+type RepairAdminBackupPath204Response struct {
+}
+
+func (response RepairAdminBackupPath204Response) VisitRepairAdminBackupPathResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RepairAdminBackupPathdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response RepairAdminBackupPathdefaultApplicationProblemPlusJSONResponse) VisitRepairAdminBackupPathResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -5758,6 +5908,9 @@ type StrictServerInterface interface {
 	// (GET /api/v1/admin/backup/preview)
 	PreviewAdminBackup(ctx context.Context, request PreviewAdminBackupRequestObject) (PreviewAdminBackupResponseObject, error)
 
+	// (POST /api/v1/admin/backup/repair-path)
+	RepairAdminBackupPath(ctx context.Context, request RepairAdminBackupPathRequestObject) (RepairAdminBackupPathResponseObject, error)
+
 	// (GET /api/v1/admin/import)
 	PreviewAdminImport(ctx context.Context, request PreviewAdminImportRequestObject) (PreviewAdminImportResponseObject, error)
 
@@ -6129,6 +6282,50 @@ func (sh *strictHandler) PreviewAdminBackup(ctx *gin.Context) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(PreviewAdminBackupResponseObject); ok {
 		if err := validResponse.VisitPreviewAdminBackupResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RepairAdminBackupPath operation middleware
+func (sh *strictHandler) RepairAdminBackupPath(ctx *gin.Context, params RepairAdminBackupPathParams) {
+	var request RepairAdminBackupPathRequestObject
+
+	request.Params = params
+
+	var body RepairAdminBackupPathJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.RepairAdminBackupPath(ctx, request.(RepairAdminBackupPathRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RepairAdminBackupPath")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RepairAdminBackupPathResponseObject); ok {
+		if err := validResponse.VisitRepairAdminBackupPathResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {

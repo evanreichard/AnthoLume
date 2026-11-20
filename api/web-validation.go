@@ -40,9 +40,10 @@ func decodePathParameters(c *gin.Context) {
 
 type webPrincipalKey struct{}
 type webFailure struct {
-	status   int
-	code     string
-	revision *string
+	status          int
+	code            string
+	revision        *string
+	backupPathIssue *AdminBackupPathIssue
 }
 
 func (e *webFailure) Error() string { return e.code }
@@ -50,10 +51,13 @@ func problem(status int, code string) Problem {
 	return Problem{Type: "urn:antholume:problem:" + code, Title: http.StatusText(status), Status: status, Code: code, Detail: "The request could not be completed."}
 }
 func abortProblem(c *gin.Context, status int, code string) {
+	abortWithProblem(c, problem(status, code))
+}
+func abortWithProblem(c *gin.Context, p Problem) {
 	c.Header("Cache-Control", "private, no-store")
 	c.Header("Content-Type", "application/problem+json")
-	setRetryAfter(c.Writer, status)
-	c.AbortWithStatusJSON(status, problem(status, code))
+	setRetryAfter(c.Writer, p.Status)
+	c.AbortWithStatusJSON(p.Status, p)
 }
 func handleWebError(c *gin.Context, err error) {
 	status, code := 500, "storage_error"
@@ -70,7 +74,12 @@ func handleWebError(c *gin.Context, err error) {
 	if errors.As(err, &sq) && (sq.Code()&255 == 5 || sq.Code()&255 == 6) {
 		status, code = 503, "storage_error"
 	}
-	abortProblem(c, status, code)
+	p := problem(status, code)
+	if wf != nil && wf.backupPathIssue != nil {
+		p.BackupPathIssue = wf.backupPathIssue
+		p.Detail = "A catalog file reference must be repaired before this backup can be restored."
+	}
+	abortWithProblem(c, p)
 }
 func requestContext(ctx context.Context) context.Context {
 	if c, ok := ctx.(*gin.Context); ok {

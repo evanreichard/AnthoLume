@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"reichard.io/antholume/database"
+	"reichard.io/antholume/pkg/storagepath"
 )
 
 const packedPath = "_backup"
@@ -98,12 +99,14 @@ func rewriteBackupPaths(ctx context.Context, db *sql.DB, docs []database.ListDoc
 	for _, doc := range docs {
 		file, cover := doc.Filepath, doc.Coverfile
 		if file != nil && isBackupLibraryPath(doc.StorageRootID) {
-			if name, ok := books.mapped[*file]; ok {
+			canonical, _ := storagepath.NormalizeLegacy(*file)
+			if name, ok := books.mapped[canonical]; ok {
 				file = &name
 			}
 		}
 		if cover != nil {
-			if name, ok := covers.mapped[*cover]; ok {
+			canonical, _ := storagepath.NormalizeLegacy(*cover)
+			if name, ok := covers.mapped[canonical]; ok {
 				cover = &name
 			}
 		}

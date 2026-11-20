@@ -496,6 +496,18 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AdminBackupPreview'}
         default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/backup/repair-path:
+    post:
+      operationId: repairAdminBackupPath
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminBackupPathRepair'}
+      responses:
+        '204': {description: Invalid catalog reference repaired without removing files or history}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/admin/restore:
     post:
       operationId: stageAdminRestore
@@ -783,6 +795,26 @@ components:
         path: {type: string}
         parent: {type: string}
         entries: {type: array, items: {type: string}}
+    AdminBackupPathKind:
+      type: string
+      enum: [book, cover]
+    AdminBackupPathIssue:
+      type: object
+      additionalProperties: false
+      required: [document_id, kind]
+      properties:
+        document_id: {type: string}
+        kind: {$ref: '#/components/schemas/AdminBackupPathKind'}
+    AdminBackupPathRepair:
+      type: object
+      additionalProperties: false
+      required: [document_id, kind]
+      properties:
+        document_id: {type: string}
+        kind: {$ref: '#/components/schemas/AdminBackupPathKind'}
+        path: {type: string, minLength: 1, maxLength: 4096}
+        root_id: {type: string, maxLength: 64}
+        confirm_clear: {type: boolean}
     AdminBackupPreview:
       type: object
       additionalProperties: false
@@ -1148,3 +1180,4 @@ components:
         code: {type: string}
         detail: {type: string}
         current_revision: {$ref: '#/components/schemas/Revision'}
+        backup_path_issue: {$ref: '#/components/schemas/AdminBackupPathIssue'}

@@ -17,7 +17,7 @@ func TestStoragePathStartupRepairAndBackup(t *testing.T) {
 	book, err := os.ReadFile("../_test_files/alice.epub")
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(f.cfg.DataPath, "documents", "book.epub"), book, 0600))
-	f.exec(`INSERT INTO documents(id,filepath,storage_root_id) VALUES ('legacy','./book.epub','library'),('unsafe','./../book.epub','library'); DROP TABLE auto_import_rules; DELETE FROM goose_db_version WHERE version_id>=20261126000000`)
+	f.exec(`UPDATE users SET admin=1 WHERE id='owner'; INSERT INTO documents(id,filepath,storage_root_id,deleted) VALUES ('legacy','./book.epub','library',FALSE),('unsafe','./../book.epub','library',TRUE); DROP TABLE auto_import_rules; DELETE FROM goose_db_version WHERE version_id>=20261126000000`)
 	require.NoError(t, f.db.Reload(context.Background()))
 	var name string
 	require.NoError(t, f.db.DB.QueryRow(`SELECT filepath FROM documents WHERE id='legacy'`).Scan(&name))
@@ -28,14 +28,58 @@ func TestStoragePathStartupRepairAndBackup(t *testing.T) {
 	require.Equal(t, 200, response.status)
 	require.Equal(t, book, response.body)
 	assertProblem(t, f.call("GET", "/api/v1/documents/unsafe/file", nil, nil), 404, "not_found")
-	backupDir := filepath.Join(t.TempDir(), "export")
-	require.NoError(t, f.api.createFullBackup(context.Background(), backupDir))
-	archive, err := zip.OpenReader(filepath.Join(backupDir, fullBackupName))
+	for _, endpoint := range []string{adminBackupEndpoint + "/preview", adminBackupEndpoint, adminBackupEndpoint + "?full=true"} {
+		response := f.call("GET", endpoint, nil, nil)
+		assertProblem(t, response, 409, "invalid_backup_catalog")
+		require.Equal(t, &AdminBackupPathIssue{DocumentId: "unsafe", Kind: Book}, decodeWeb[Problem](t, response).BackupPathIssue)
+		require.Empty(t, response.header.Get("Content-Disposition"))
+	}
+	confirm := true
+	repair := "/api/v1/admin/backup/repair-path"
+	assertProblem(t, f.call("POST", repair, AdminBackupPathRepair{DocumentId: "unsafe", Kind: Book}, nil), 400, "invalid_request")
+	require.Equal(t, 204, f.call("POST", repair, AdminBackupPathRepair{DocumentId: "unsafe", Kind: Book, ConfirmClear: &confirm}, nil).status)
+	for _, format := range []string{"database", "archive"} {
+		t.Run(format, func(t *testing.T) {
+			endpoint := adminBackupEndpoint
+			if format == "archive" {
+				endpoint += "?full=true"
+			}
+			response := f.call("GET", endpoint, nil, nil)
+			require.Equal(t, 200, response.status, string(response.body))
+			dest := newWebFixture(t)
+			require.NoError(t, dest.api.RestoreFreshInstance(context.Background(), bytes.NewReader(response.body)))
+			var preserved bool
+			require.NoError(t, dest.db.DB.QueryRow(`SELECT deleted AND filepath IS NULL AND storage_root_id IS NULL FROM documents WHERE id='unsafe'`).Scan(&preserved))
+			require.True(t, preserved)
+			var restored string
+			require.NoError(t, dest.db.DB.QueryRow(`SELECT filepath FROM documents WHERE id='legacy'`).Scan(&restored))
+			if format == "archive" {
+				actual, err := os.ReadFile(filepath.Join(dest.cfg.DataPath, "documents", filepath.FromSlash(restored)))
+				require.NoError(t, err)
+				require.Equal(t, book, actual)
+			} else {
+				require.Equal(t, "book.epub", restored)
+			}
+		})
+	}
+}
+
+func TestReferenceImportRejectsNonportableCatalogPath(t *testing.T) {
+	f := newWebFixture(t)
+	source := t.TempDir()
+	name := `old\name.epub`
+	book, err := os.ReadFile("../_test_files/alice.epub")
 	require.NoError(t, err)
-	defer archive.Close()
-	entry, err := archive.Open("documents/library/book.epub")
+	require.NoError(t, os.WriteFile(filepath.Join(source, name), book, 0600))
+	root, err := os.OpenRoot(source)
 	require.NoError(t, err)
-	entry.Close()
+	defer root.Close()
+	status, err := f.api.importBook(context.Background(), root, AdminStorageRoot{Id: libraryRoot, Path: source}, name, true, false)
+	require.ErrorContains(t, err, "invalid reference path")
+	require.Equal(t, AdminImportResultStatus("failed"), status)
+	var count int
+	require.NoError(t, f.db.DB.QueryRow(`SELECT COUNT(*) FROM documents`).Scan(&count))
+	require.Zero(t, count)
 }
 
 func TestStoragePathRestoreLegacyBackups(t *testing.T) {

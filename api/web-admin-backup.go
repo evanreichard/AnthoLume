@@ -11,6 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"reichard.io/antholume/database"
+	"reichard.io/antholume/pkg/storagepath"
 )
 
 const maxAdminBackupBytes = 1 << 30
@@ -49,6 +50,9 @@ func (api *API) createAdminBackup(ctx context.Context, dir string) error {
 	if err := api.writeVerifiedSnapshot(ctx, name); err != nil {
 		return err
 	}
+	if err := validateBackupCatalogFile(ctx, name); err != nil {
+		return err
+	}
 	info, err = os.Stat(name)
 	if err != nil {
 		return err
@@ -65,7 +69,7 @@ func (api *API) createAdminBackup(ctx context.Context, dir string) error {
 	return syncAdminDirectory(dir)
 }
 
-func (api *API) walkBackupBooks(ctx context.Context, db *sql.DB, add func(string, *os.File) error) (AdminBackupPreview, error) {
+func (api *API) walkBackupBooks(ctx context.Context, db database.DBTX, add func(string, *os.File) error) (AdminBackupPreview, error) {
 	var out AdminBackupPreview
 	root, err := api.queryStorageRoot(ctx, db, libraryRoot)
 	if err != nil {
@@ -75,11 +79,16 @@ func (api *API) walkBackupBooks(ctx context.Context, db *sql.DB, add func(string
 	if err != nil {
 		return out, err
 	}
+	seen := make(map[string]bool, len(paths))
 	for _, path := range paths {
 		if err := ctx.Err(); err != nil {
 			return out, err
 		}
-		name := *path // The query excludes NULL filepaths.
+		name, ok := storagepath.NormalizeLegacy(*path)
+		if !ok || seen[name] {
+			continue
+		}
+		seen[name] = true
 		f, err := openStoredFile(root.Path, name)
 		if err != nil {
 			out.Missing++
@@ -104,7 +113,15 @@ func (s *webAPI) PreviewAdminBackup(ctx context.Context, _ PreviewAdminBackupReq
 		return nil, adminFailure(403, "forbidden")
 	}
 	ctx = requestContext(ctx)
-	preview, err := s.api.walkBackupBooks(ctx, s.api.db.DB, nil)
+	tx, err := s.api.db.DB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if _, _, err := validateBackupCatalog(ctx, tx); err != nil {
+		return nil, err
+	}
+	preview, err := s.api.walkBackupBooks(ctx, tx, nil)
 	if err != nil {
 		return nil, err
 	}

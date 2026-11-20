@@ -210,8 +210,16 @@ func (api *API) stageRestore(ctx context.Context, input io.Reader, stage string)
 	if err != nil {
 		return 0, adminFailure(400, "invalid_restore_archive")
 	}
-	if err = api.validateRestoreDB(ctx, filepath.Join(stage, adminBackupName)); err != nil {
+	snapshot := filepath.Join(stage, adminBackupName)
+	if err = api.validateRestoreDB(ctx, snapshot); err != nil {
 		return 0, adminFailure(400, "incompatible_restore_database")
+	}
+	if err = validateBackupCatalogFile(ctx, snapshot); err != nil {
+		var issue *webFailure
+		if errors.As(err, &issue) {
+			return 0, issue
+		}
+		return 0, adminFailure(400, "invalid_restore_data")
 	}
 	return files, nil
 }
@@ -282,20 +290,13 @@ func archivedRootIDs(stage string) ([]string, error) {
 }
 
 func (api *API) prepareRestoreLocations(ctx context.Context, db *sql.DB, stage, prefix string) (map[string]string, error) {
-	queries := database.New(db)
-	roots, err := queries.ListStorageRootsForRestore(ctx)
+	roots, documents, err := validateBackupCatalog(ctx, db)
 	if err != nil {
 		return nil, err
 	}
 	archived := make(map[string]database.ListStorageRootsForRestoreRow, len(roots))
 	for _, root := range roots {
-		if !storageRootID.MatchString(root.ID) || root.Managed != (root.ID == libraryRoot) {
-			return nil, errors.New("invalid snapshot storage root")
-		}
 		archived[root.ID] = root
-	}
-	if _, ok := archived[libraryRoot]; !ok {
-		return nil, errors.New("missing snapshot library root")
 	}
 
 	mapped := map[string]AdminStorageRoot{}
@@ -319,7 +320,7 @@ func (api *API) prepareRestoreLocations(ctx context.Context, db *sql.DB, stage, 
 		return nil, err
 	}
 	defer tx.Rollback()
-	staged := queries.WithTx(tx)
+	staged := database.New(tx)
 	// Keep only mappings the local administrator configured; a snapshot cannot grant filesystem access.
 	if err := staged.ClearSnapshotStorageRootPaths(ctx); err != nil {
 		return nil, err
@@ -344,10 +345,6 @@ func (api *API) prepareRestoreLocations(ctx context.Context, db *sql.DB, stage, 
 		}
 	}
 
-	documents, err := staged.ListDocumentsForRestore(ctx)
-	if err != nil {
-		return nil, err
-	}
 	consumed := map[string]bool{}
 	defaultRoot := libraryRoot
 	for i := range documents {
@@ -359,18 +356,10 @@ func (api *API) prepareRestoreLocations(ctx context.Context, db *sql.DB, stage, 
 		if root == nil {
 			root = &defaultRoot
 		}
-		if _, ok := archived[*root]; !ok {
-			return nil, errors.New("document has unknown root")
-		}
 		for _, field := range []*string{doc.Filepath, doc.Coverfile} {
-			if field == nil {
-				continue
+			if field != nil {
+				*field, _ = storagepath.NormalizeLegacy(*field)
 			}
-			canonical, ok := storagepath.NormalizeLegacy(*field)
-			if !ok {
-				return nil, errors.New("invalid document or cover path")
-			}
-			*field = canonical
 		}
 		if local, ok := mapped[*root]; ok && !doc.Deleted && doc.Filepath != nil {
 			archivedName := *root + "/" + *doc.Filepath

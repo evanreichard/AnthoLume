@@ -8,15 +8,18 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"syscall"
 
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
+	"reichard.io/antholume/pkg/storagepath"
 )
 
 const fullBackupName = "antholume.zip"
@@ -84,50 +87,44 @@ func (api *API) createFullBackup(ctx context.Context, dir string) error {
 		return err
 	}
 	defer catalog.Close()
-	docs, err := database.New(catalog).ListDocumentsForRestore(ctx)
+	_, docs, err := validateBackupCatalog(ctx, catalog)
 	if err != nil {
 		return err
 	}
 	books, covers := newBackupPaths("documents/library/"), newBackupPaths("covers/")
 	for _, doc := range docs {
 		if doc.Filepath != nil && isBackupLibraryPath(doc.StorageRootID) {
-			books.reserved[*doc.Filepath] = true
+			name, _ := storagepath.NormalizeLegacy(*doc.Filepath)
+			books.reserved[name] = true
 		}
 		if doc.Coverfile != nil {
-			covers.reserved[*doc.Coverfile] = true
+			name, _ := storagepath.NormalizeLegacy(*doc.Coverfile)
+			if name != "UNKNOWN" {
+				covers.reserved[name] = true
+			}
 		}
 	}
 	_, err = api.walkBackupBooks(ctx, catalog, func(name string, f *os.File) error { return books.add(ctx, name, f, add) })
 	if err != nil {
 		return err
 	}
-	{
-		folder := "covers"
-		root, err := os.OpenRoot(filepath.Join(api.cfg.DataPath, folder))
+	coverDir := filepath.Join(api.cfg.DataPath, "covers")
+	if _, err := os.Stat(coverDir); err != nil {
+		return err
+	}
+	for _, name := range slices.Sorted(maps.Keys(covers.reserved)) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		file, err := openStoredFile(coverDir, name)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
 		if err != nil {
 			return err
 		}
-		err = fs.WalkDir(root.FS(), ".", func(path string, entry fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			if entry.IsDir() {
-				return nil
-			}
-			if !entry.Type().IsRegular() {
-				return errors.New("managed backup directory contains a nonregular file")
-			}
-			f, err := root.Open(path)
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-			return covers.add(ctx, path, f, add)
-		})
-		root.Close()
+		err = covers.add(ctx, name, file, add)
+		file.Close()
 		if err != nil {
 			return err
 		}
@@ -136,6 +133,9 @@ func (api *API) createFullBackup(ctx context.Context, dir string) error {
 		return err
 	}
 	if err := catalog.Close(); err != nil {
+		return err
+	}
+	if err := validateBackupCatalogFile(ctx, snapshot); err != nil {
 		return err
 	}
 	db, err := os.Open(snapshot)
@@ -264,6 +264,9 @@ func (s *webAPI) PreviewAdminImport(ctx context.Context, r PreviewAdminImportReq
 }
 
 func (api *API) importBook(ctx context.Context, root *os.Root, destination AdminStorageRoot, name string, reference, relink bool) (AdminImportResultStatus, error) {
+	if reference && !bookRelativePath(name) {
+		return "failed", errors.New("invalid reference path")
+	}
 	source, err := root.OpenFile(filepath.FromSlash(name), os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return "failed", err
