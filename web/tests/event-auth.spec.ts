@@ -3,6 +3,24 @@ import type { Page } from '@playwright/test';
 import { test, expect, register } from './fixtures';
 import { pendingIds, serverEffects, storedRows } from './storage';
 
+test('a failed session check in a second tab leaves the signed-in reader able to sync', async ({ page, context, server }) => {
+  const user = `offline-tab-${Date.now()}`;
+  await prepare(page, server.origin, user);
+  const before = await storedRows(page, 'access');
+  const other = await context.newPage();
+  try {
+    await other.route('**/api/v1/session', route => route.abort());
+    const failed = other.waitForEvent('requestfailed', req => req.url().endsWith('/api/v1/session'));
+    await other.goto(`${server.origin}/library`);
+    await failed;
+    await expect(other.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
+    expect(await storedRows(page, 'access')).toEqual(before);
+    await turn(page);
+    await expect.poll(() => serverEffects(server.data, user).receipts).toHaveLength(1);
+    await expect.poll(() => pendingIds(page)).toEqual([]);
+  } finally { await other.close(); }
+});
+
 async function prepare(page: Page, origin: string, user: string) {
   await register(page, origin, user);
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
@@ -16,7 +34,7 @@ async function turn(page: Page, { expectPageTwo = true } = {}) {
 }
 
 for (const fault of ['malformed-401', 'valid-401']) {
-  test(`actual client/reader ${fault}: only a validated current-lease Problem pauses authentication`, async ({ page, server }) => {
+  test(`actual client/reader ${fault}: only a validated Problem for the current replay pauses authentication`, async ({ page, server }) => {
     const user = `event-${fault}-${Date.now()}`;
     await prepare(page, server.origin, user);
     const before = await storedRows(page, 'access');
@@ -61,8 +79,8 @@ for (const fault of ['malformed-401', 'valid-401']) {
   });
 }
 
-test('late valid event 401 after real two-tab lease takeover cannot expire unchanged current authentication', async ({ page, context, server }) => {
-  const user = `lease-401-${Date.now()}`;
+test('a delayed duplicate response cannot expire authentication after another tab delivers the event', async ({ page, context, server }) => {
+  const user = `duplicate-401-${Date.now()}`;
   await prepare(page, server.origin, user);
   const other = await context.newPage();
   try {
@@ -79,28 +97,12 @@ test('late valid event 401 after real two-tab lease takeover cannot expire uncha
     await writeFile(`${server.data}/receipt-fault`, 'held-valid-401');
     await turn(page);
     await expect.poll(async () => readFile(`${server.data}/event-held`, 'utf8').catch(() => '')).not.toBe('');
-    const lease = (await storedRows(page, 'leases'))[0];
-    expect(lease.until).toBeGreaterThan(Date.now());
     expect(await storedRows(page, 'access')).toEqual(accessBefore);
-    await page.evaluate(() => new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open('antholume-reading-v1');
-      request.onsuccess = () => {
-        const db = request.result, tx = db.transaction('leases', 'readwrite'), store = tx.objectStore('leases');
-        const all = store.getAll();
-        all.onsuccess = () => { for (const row of all.result) store.put({ ...row, until: 0 }); };
-        tx.oncomplete = () => { db.close(); resolve(); }; tx.onerror = () => reject(tx.error);
-      };
-      request.onerror = () => reject(request.error);
-    }));
     await other.getByRole('button', { name: 'Retry synchronization', exact: true }).click();
-    await expect.poll(async () => (await storedRows(other, 'leases'))[0]?.fence).toBeGreaterThan(lease.fence!);
     await expect.poll(() => pendingIds(other)).toEqual([]);
-    const replacement = (await storedRows(other, 'leases'))[0];
-    expect(replacement.owner).not.toBe(lease.owner);
-    expect(replacement.epoch).toBe(lease.epoch);
     expect(await storedRows(page, 'access')).toEqual(accessBefore);
     const delivered = page.waitForResponse((response) => response.url().endsWith('/api/v1/me/reading-progress') && response.status() === 401);
-    await writeFile(`${server.data}/release-event`, 'release the old lease response');
+    await writeFile(`${server.data}/release-event`, 'release the delayed response');
     await delivered;
     await expect(page.getByRole('region', { name: 'Book reader', exact: true })).toHaveAttribute('data-reader-state', 'ready');
     await expect.poll(() => storedRows(page, 'access')).toEqual(accessBefore);

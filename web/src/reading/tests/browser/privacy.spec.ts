@@ -15,11 +15,11 @@ test('provider switches A to B without even one stale metadata/pending-count pro
     const offline = async () => { throw new Error('offline'); }; const bridge: ReadingBridge = { registerDevice: offline, getState: offline, fetchFile: offline, fetchCover: offline, submitProgress: offline, submitActivity: offline };
     Object.assign(window, { privacyBridge: bridge }); p.project({ kind: 'authenticated', account: { origin: location.origin, userId: 'A' } }, bridge);
   });
-  await expect.poll(async () => JSON.parse(await page.locator('#projection').innerText())).toEqual({ titles: ['Private A'], pending: 2, conflicts: 0, ready: true });
+  await expect.poll(async () => JSON.parse(await page.locator('#projection').innerText())).toEqual({ titles: ['Private A'], pending: 2, ready: true });
   const immediate = await page.evaluate(() => {
     window.readingTest.project({ kind: 'authenticated', account: { origin: location.origin, userId: 'B' } }, (window as unknown as { privacyBridge: ReadingBridge }).privacyBridge);
     return JSON.parse(document.getElementById('projection')!.textContent!);
   });
   expect(immediate.titles).not.toContain('Private A'); expect(immediate.pending).toBe(0);
-  await expect.poll(async () => JSON.parse(await page.locator('#projection').innerText())).toEqual({ titles: ['Private B'], pending: 1, conflicts: 0, ready: true });
+  await expect.poll(async () => JSON.parse(await page.locator('#projection').innerText())).toEqual({ titles: ['Private B'], pending: 1, ready: true });
 });

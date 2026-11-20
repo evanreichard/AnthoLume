@@ -48,5 +48,4 @@ test('rapid turns wait for the previous receipt without changing its payload or 
   expect(submitted.map(event => event.base_revision)).toEqual(['0', '1']);
   expect(submitted[1].event_id).not.toBe(submitted[0].event_id);
   expect(serverEffects(server.data, user).receipts.filter(row => row.kind === 'progress').map(row => row.status)).toEqual([200, 200]);
-  expect(await storedRows(page, 'conflicts')).toEqual([]);
 });

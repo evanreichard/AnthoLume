@@ -6,8 +6,7 @@ export type BookRef = { kind: 'local'; localId: string } | { kind: 'server'; acc
 export type ReadingAccess = { kind: 'loading' } | { kind: 'anonymous' } | { kind: 'authenticated'; account: Account } | { kind: 'expired'; account: Account } | { kind: 'logout'; account: Account };
 export type Checkpoint = { position: string | null; fraction: number | null };
 export type StoredBook = { ref: BookRef; title: string | null; author: string | null; cover: Blob | null; availability: 'available' | 'unavailable'; addedAt?: string; lastReadAt?: string; checkpoint: Checkpoint };
-export type Conflict = { eventId: string; ref: BookRef; local: Checkpoint; server: S['ReadingState'] };
-export type SyncStatus = 'idle' | 'pending' | 'syncing' | 'auth-required' | 'retryable-error' | 'conflict' | 'quota-error' | 'blocked';
+export type SyncStatus = 'idle' | 'pending' | 'syncing' | 'auth-required' | 'retryable-error' | 'quota-error' | 'blocked';
 export interface ReadingBridge {
   registerDevice(account: Account, device: S['Device'], signal: AbortSignal): Promise<S['Device']>;
   getState(account: Account, documentId: string, signal: AbortSignal): Promise<S['ReadingState']>;
@@ -21,7 +20,7 @@ export class ReadingHTTPError extends Error {
   constructor(readonly status: number, readonly problem: S['Problem']) { super(problem.detail); this.name = 'ReadingHTTPError'; }
 }
 export interface ReadingSnapshot {
-  ready: boolean; resumeAccount: Account | null; books: readonly StoredBook[]; sync: SyncStatus; pendingCount: number; conflicts: readonly Conflict[];
+  ready: boolean; resumeAccount: Account | null; books: readonly StoredBook[]; sync: SyncStatus; pendingCount: number; notice: string | null;
   downloads: readonly { ref: BookRef; receivedBytes: number; totalBytes: number | null; preparing?: boolean }[];
   update: 'idle' | 'error'; error: string | null;
 }
@@ -32,8 +31,6 @@ export interface ReadingActions {
   exportLocal(ref: Extract<BookRef, { kind: 'local' }>): Promise<Blob>;
   replay(): Promise<void>;
   applyUpdate(): Promise<void>;
-  refreshConflict(eventId: string): Promise<Conflict>;
-  resolveConflict(eventId: string, choice: 'local' | 'server', observedRevision: string, reviewedLocal: Checkpoint): Promise<void>;
 }
 export type ProviderProps = { access: ReadingAccess; bridge: ReadingBridge; onSessionExpired: (account: Account) => void; children: ReactNode };
 // Separate UUID scopes from the older username scopes, even for usernames that look like UUIDs.

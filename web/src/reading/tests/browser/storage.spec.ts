@@ -27,24 +27,40 @@ test('atomic complete-book and checkpoint/event transactions reject injected sto
   });
   expect(result).toEqual({ importRejected: true, countAfterFailure: 0, saveRejected: true, checkpoint: { position: null, fraction: null }, events: 0, exact: true, originalID: 'opaque-server-id', integrityRejected: true });
 });
-test('account expiry retains cached data; loading/logout/B hide A and fence old acknowledgements', async ({ page }) => {
+test('passive access states leave shared replay and resume intact; logout fences old acknowledgements', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(`accounts-${crypto.randomUUID()}`));
     const account = { origin: location.origin, userId: 'A' }, other = { origin: location.origin, userId: 'B' }, ref = { kind: 'server' as const, account, documentId: 'unchanged-id' }, local = { kind: 'local' as const, localId: 'independent-id' };
     const bytes = await (await fetch('/fixtures/synthetic.epub')).arrayBuffer(), state = { document_id: ref.documentId, revision: '0', position: null, fraction: null, device_id: null, updated_at: null };
     await repo.setAccess({ kind: 'authenticated', account }); await repo.install(ref, bytes, 'Private A', null, null, state); await repo.install(local, bytes, 'Public local', null, null);
     await repo.save(ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 });
-    const lease = (await repo.claim(account, 'old-tab'))!, event = (await repo.pending())[0]!;
-    await repo.setAccess({ kind: 'expired', account }); const expiredBooks = (await repo.projection({ kind: 'expired', account })).length, paused = await repo.claim(account, 'expiry');
-    const retained = (await repo.projection({ kind: 'expired', account })).find(book => book.key === event.key)?.checkpoint;
-    await repo.setAccess({ kind: 'loading' }); const loadingBooks = (await repo.projection({ kind: 'loading' })).length, resumeAfterLoading = await repo.resume();
-    await repo.setAccess({ kind: 'logout', account }); const logoutBooks = (await repo.projection({ kind: 'logout', account })).length, resumeAfterLogout = await repo.resume();
-    await repo.setAccess({ kind: 'authenticated', account }); let staleAck = false; try { await repo.acknowledge(lease, event, { event_id: event.id, kind: 'progress', revision: '1' }); } catch { staleAck = true; }
+    const batch = (await repo.replayBatch(account))!, event = (await repo.pending())[0]!;
+    const observer = new p.Repository(new p.ReadingDB(repo.db.name));
+    const passive = [];
+    for (const access of [{ kind: 'expired', account }, { kind: 'loading' }, { kind: 'anonymous' }] as const) {
+      await observer.setAccess(access);
+      passive.push({
+        books: (await observer.projection(access)).map(book => book.title).sort(),
+        batch: await repo.replayBatch(account), resume: await repo.resume(),
+      });
+    }
+    await observer.setAccess({ kind: 'logout', account });
+    const logout = { books: (await observer.projection({ kind: 'logout', account })).map(book => book.title), resume: await repo.resume(), batch: await repo.replayBatch(account) };
+    observer.db.close();
+    await repo.setAccess({ kind: 'authenticated', account });
+    let staleAck = false; try { await repo.acknowledge(batch.access, event, { event_id: event.id, kind: 'progress', revision: '1' }); } catch { staleAck = true; }
     await repo.setAccess({ kind: 'authenticated', account: other }); let denied = false; try { await repo.open(ref); } catch { denied = true; }
-    const bBooks = (await repo.projection({ kind: 'authenticated', account: other })).map(b => b.title), pending = (await repo.pending()).length;
-    await repo.db.delete(); return { expiredBooks, paused, retained, loadingBooks, resumeAfterLoading, logoutBooks, resumeAfterLogout, staleAck, denied, bBooks, pending };
+    const bBooks = (await repo.projection({ kind: 'authenticated', account: other })).map(b => b.title), pending = (await repo.pending()).map(e => e.id);
+    await repo.db.delete(); return { account, batch, eventId: event.id, passive, logout, staleAck, denied, bBooks, pending };
   });
-  expect(result).toMatchObject({ expiredBooks: 2, paused: null, retained: { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 }, loadingBooks: 1, resumeAfterLoading: { userId: 'A' }, logoutBooks: 1, resumeAfterLogout: null, staleAck: true, denied: true, bBooks: ['Public local'], pending: 1 });
+  expect(result.batch.ids).toEqual([result.eventId]);
+  expect(result.passive).toEqual([
+    { books: ['Private A', 'Public local'], batch: result.batch, resume: result.account },
+    { books: ['Public local'], batch: result.batch, resume: result.account },
+    { books: ['Public local'], batch: result.batch, resume: result.account },
+  ]);
+  expect(result.logout).toEqual({ books: ['Public local'], resume: null, batch: null });
+  expect(result).toMatchObject({ staleAck: true, denied: true, bBooks: ['Public local'], pending: [result.eventId] });
 });
 test('legacy username rows stay quarantined even when the username equals the active UUID', async ({ page }) => {
   const result = await page.evaluate(async () => {
@@ -62,58 +78,109 @@ test('legacy username rows stay quarantined even when the username equals the ac
     const legacyResume = await repo.resume();
     await repo.setAccess({ kind: 'authenticated', account });
     const books = (await repo.projection({ kind: 'authenticated', account })).map(book => book.title);
-    const lease = await repo.claim(account, 'current-reader');
+    const batch = await repo.replayBatch(account);
     const original = await repo.exportLocal(local);
     const retained = (await repo.pending()).map(event => event.id);
     await repo.db.delete();
-    return { legacyResume, books, lease, localPreserved: original.size === bytes.size, retained };
+    return { legacyResume, books, batch, localPreserved: original.size === bytes.size, retained };
   });
-  expect(result).toEqual({ legacyResume: null, books: ['Local original'], lease: null, localPreserved: true, retained: ['legacy-event'] });
+  expect(result).toEqual({ legacyResume: null, books: ['Local original'], batch: null, localPreserved: true, retained: ['legacy-event'] });
 });
-test('real two-tab lease competition and fenced takeover reject stale holder without losing pending events', async ({ page, context }) => {
-  const name = `two-tabs-${Date.now()}`;
-  await page.evaluate(async name => { const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(name)), account = { origin: location.origin, userId: 'A' }, ref = { kind: 'server' as const, account, documentId: 'server-doc' }; await repo.setAccess({ kind: 'authenticated', account }); const bytes = await (await fetch('/fixtures/synthetic.epub')).arrayBuffer(); await repo.install(ref, bytes, null, null, null, { document_id: 'server-doc', revision: '0', position: null, fraction: null, device_id: null, updated_at: null }); await repo.save(ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .1 }); repo.db.close(); }, name);
+test('two tabs can read the same batch and apply duplicate receipts without dequeuing or promoting twice', async ({ page, context }) => {
+  const name = 'duplicate-replay';
+  const seeded = await page.evaluate(async name => {
+    const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(name));
+    const account = { origin: location.origin, userId: 'A' }, ref = { kind: 'server' as const, account, documentId: 'server-doc' };
+    const latest = { position: '/body/DocFragment[1]/body/p[3]', fraction: .3 };
+    await repo.setAccess({ kind: 'authenticated', account });
+    const bytes = await (await fetch('/fixtures/synthetic.epub')).blob();
+    const state = { document_id: ref.documentId, revision: '6', position: null, fraction: null, device_id: null, updated_at: null };
+    await repo.install(ref, bytes, null, null, null, state);
+    await repo.save(ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .1 });
+    await repo.save(ref, { position: '/body/DocFragment[1]/body/p[2]', fraction: .2 });
+    await repo.save(ref, latest);
+    await repo.install(ref, bytes, null, null, null, { ...state, revision: '8' });
+    const activityId = crypto.randomUUID(), device = await repo.device(account);
+    await repo.credit(ref, { event_id: activityId, document_id: ref.documentId, device_id: device.id, start_time: '2026-01-01T00:00:00Z', duration: 30, start_fraction: .1, end_fraction: .3 });
+    const progressId = (await repo.pending()).find(e => e.kind === 'progress')!.id;
+    const key = (await repo.db.books.toArray())[0]!.key;
+    repo.db.close();
+    return { account, activityId, progressId, key, latest };
+  }, name);
   const second = await context.newPage(); await second.goto('/'); await second.waitForFunction(() => !!window.readingTest);
-  const claim = async (tab: import('@playwright/test').Page, owner: string) => tab.evaluate(async ({ name, owner }) => { const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(name)); const lease = await repo.claim({ origin: location.origin, userId: 'A' }, owner); repo.db.close(); return lease; }, { name, owner });
-  const claims = await Promise.all([claim(page, 'one'), claim(second, 'two')]); expect(claims.filter(Boolean)).toHaveLength(1);
-  const old = claims.find(Boolean)!;
-  await page.evaluate(async name => { const db = new window.readingTest.ReadingDB(name), leases = await db.leases.toArray(); await db.leases.put({ ...leases[0]!, until: Date.now() - 1 }); db.close(); }, name);
-  const takeover = await claim(second, 'takeover'); expect(takeover!.fence).toBeGreaterThan(old.fence);
-  const rejected = await page.evaluate(async ({ name, old }) => { const repo = new window.readingTest.Repository(new window.readingTest.ReadingDB(name)); const event = (await repo.pending())[0]!; let rejected = false; try { await repo.acknowledge(old, event, { event_id: event.id, kind: 'progress', revision: '1' }); } catch { rejected = true; } const pending = (await repo.pending()).length; await repo.db.delete(); return { rejected, pending }; }, { name, old });
-  expect(rejected).toEqual({ rejected: true, pending: 1 }); await second.close();
+  const read = (tab: import('@playwright/test').Page) => tab.evaluate(async ({ name, account }) => {
+    const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(name));
+    try {
+      const batch = (await repo.replayBatch(account))!;
+      return { batch, events: await repo.db.events.bulkGet(batch.ids) };
+    } finally { repo.db.close(); }
+  }, { name, account: seeded.account });
+  const [firstRead, secondRead] = await Promise.all([read(page), read(second)]);
+  expect([...firstRead.batch.ids].sort()).toEqual([seeded.progressId, seeded.activityId].sort());
+  expect(secondRead).toEqual(firstRead);
+  const acknowledge = (tab: import('@playwright/test').Page, snapshot: typeof firstRead) => tab.evaluate(async ({ name, snapshot }) => {
+    const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(name));
+    try {
+      for (const event of snapshot.events) {
+        if (!event) throw new Error('Batch references a missing event');
+        await repo.acknowledge(snapshot.batch.access, event, { event_id: event.id, kind: event.kind, revision: event.kind === 'progress' ? '7' : null });
+      }
+    } finally { repo.db.close(); }
+  }, { name, snapshot });
+  await Promise.all([acknowledge(page, firstRead), acknowledge(second, secondRead)]);
+  const result = await second.evaluate(async ({ name, seeded }) => {
+    const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(name));
+    try {
+      const pending = await repo.pending(), next = await repo.replayBatch(seeded.account);
+      return {
+        pending, next, activityQueued: !!await repo.db.events.get(seeded.activityId), drafts: await repo.db.progressDrafts.count(),
+        originalQueued: !!await repo.db.events.get(seeded.progressId),
+        checkpoint: (await repo.db.books.get(seeded.key))?.checkpoint,
+        headRevision: (await repo.db.heads.get(seeded.key))?.state.revision,
+      };
+    } finally { await repo.db.delete(); }
+  }, { name, seeded });
+  const [promoted] = result.pending;
+  expect(result.pending).toHaveLength(1);
+  expect(promoted!.id).not.toBe(seeded.progressId);
+  expect(promoted).toMatchObject({ kind: 'progress', payload: { event_id: promoted!.id, base_revision: '7', ...seeded.latest } });
+  expect(result.next).toEqual({ access: firstRead.batch.access, ids: [promoted!.id] });
+  expect(result).toMatchObject({ activityQueued: false, drafts: 0, checkpoint: seeded.latest, headRevision: '8' });
+  expect(result.originalQueued).toBe(false);
+  await second.close();
 });
-test('progress conflicts do not block activity; exact receipt replay, durable explicit choices/history, late changes conflict again', async ({ page }) => {
+
+test('explicit expiry invalidates the captured epoch without deleting cached progress', async ({ page }) => {
   const result = await page.evaluate(async () => {
-    const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(`conflicts-${crypto.randomUUID()}`)), account = { origin: location.origin, userId: 'A' }, ref = { kind: 'server' as const, account, documentId: 'server-original' };
-    await repo.setAccess({ kind: 'authenticated', account }); const bytes = await (await fetch('/fixtures/synthetic.epub')).arrayBuffer();
-    await repo.install(ref, bytes, 'A book', null, null, { document_id: ref.documentId, revision: '0', position: null, fraction: null, device_id: null, updated_at: null });
-    const device = await repo.device(account);
-    const realNow = Date.now; let eventClock = realNow(); Date.now = () => ++eventClock;
-    try { await repo.save(ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 }, { event_id: crypto.randomUUID(), document_id: ref.documentId, device_id: device.id, start_time: '2026-01-01T00:00:00Z', duration: 30, start_fraction: .1, end_fraction: .2 }); } finally { Date.now = realNow; }
-    const calls: string[] = [];
-    let revision = '1', registered = false, activityCredits = 0, progressWrites = 0, dropActivity = true;
-    const ledger = new Map<string, unknown>();
-    const state = () => ({ document_id: ref.documentId, revision, position: '/body/DocFragment[1]/body/p[2]', fraction: .8, device_id: 'KO-device', updated_at: '2026-01-01T00:00:00Z' });
-    const bridge: ReadingBridge = {
-      registerDevice: async (_, d) => { registered = true; return d; }, getState: async () => { calls.push('state'); return state(); }, fetchFile: async () => { throw new Error('not used'); }, fetchCover: async () => { throw new Error('not used'); },
-      submitProgress: async (_, event) => { calls.push('progress'); if (!registered) throw new Error('device must register before writes'); progressWrites++; return { status: 409, body: { type: 'about:blank', title: 'Conflict', status: 409, code: 'progress_conflict', detail: 'KO changed', current_revision: revision } }; },
-      submitActivity: async (_, event) => { calls.push('activity'); if (!registered) throw new Error('device must register before writes'); if (!ledger.has(event.event_id)) { activityCredits += event.duration; ledger.set(event.event_id, { event_id: event.event_id, kind: 'activity', revision: null }); } if (dropActivity) { dropActivity = false; throw new Error('lost after commit'); } return { status: 200, body: ledger.get(event.event_id) }; },
-    };
-    const replay = new p.Replay(repo, bridge, () => {}, () => {}); await replay.run(account); const firstCalls = [...calls]; await replay.run(account);
-    const conflict = (await repo.db.conflicts.toArray())[0]!;
-    const pendingAfterCredit = (await repo.pending()).length, decisionsAfterCredit = await repo.db.decisions.count();
-    repo.db.close(); await repo.db.open();
-    const access = (await repo.db.access.get(JSON.stringify(['account', location.origin, 'A'])))!;
-    await repo.refreshConflict(conflict.eventId, state(), access.epoch); await repo.resolve(conflict.eventId, 'local', revision);
-    const replacement = (await repo.pending())[0]!, freshID = replacement.id !== conflict.eventId;
-    revision = '2'; await replay.run(account); const again = (await repo.db.conflicts.toArray())[0]!;
-    let staleChoiceRejected = false; try { await repo.resolve(again.eventId, 'server', '1'); } catch { staleChoiceRejected = true; }
-    await repo.refreshConflict(again.eventId, state(), access.epoch); await repo.resolve(again.eventId, 'server', '2');
-    await repo.clearServerCache();
-    const output = { firstCalls, registered, activityCredits, progressWrites, pendingAfterCredit, decisionsAfterCredit, freshID, replacementBase: replacement.kind === 'progress' && replacement.payload.base_revision, again: again.server!.revision, staleChoiceRejected, history: await repo.db.history.count(), immutableEvents: await repo.db.events.count(), pending: (await repo.pending()).length, available: (await repo.db.books.toArray())[0]!.availability };
-    await repo.db.delete(); return output;
+    const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(`expiry-${crypto.randomUUID()}`));
+    const account = { origin: location.origin, userId: 'A' }, ref = { kind: 'server' as const, account, documentId: 'server-doc' };
+    const checkpoint = { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 };
+    await repo.setAccess({ kind: 'authenticated', account });
+    const bytes = await (await fetch('/fixtures/synthetic.epub')).blob();
+    await repo.install(ref, bytes, 'Cached book', null, null, { document_id: ref.documentId, revision: '0', position: null, fraction: null, device_id: null, updated_at: null });
+    await repo.save(ref, checkpoint);
+    const old = (await repo.replayBatch(account))!, event = (await repo.pending())[0]!;
+    const expired = await repo.expire(old.access);
+    const expiredEpoch = (await repo.db.access.get(old.access.scope))!.epoch;
+    const paused = await repo.replayBatch(account), resume = await repo.resume();
+    const retained = (await repo.open(ref)).row.checkpoint;
+    await repo.setAccess({ kind: 'authenticated', account });
+    const lateExpiry = await repo.expire(old.access);
+    const receipt = { event_id: event.id, kind: 'progress', revision: '1' };
+    let staleAck = false; try { await repo.acknowledge(old.access, event, receipt); } catch { staleAck = true; }
+    const state = { document_id: ref.documentId, revision: '1', position: null, fraction: null, device_id: null, updated_at: null };
+    let staleConflict = false; try { await repo.acceptServer(old.access, event, state); } catch { staleConflict = true; }
+    const fresh = (await repo.replayBatch(account))!;
+    await repo.acknowledge(fresh.access, event, receipt);
+    const drained = await repo.replayBatch(account);
+    await repo.db.delete();
+    return { account, old, expired, expiredEpoch, paused, resume, retained, lateExpiry, staleAck, staleConflict, fresh, drained };
   });
-  expect(result).toEqual({ firstCalls: ['progress', 'state', 'activity'], registered: true, activityCredits: 30, progressWrites: 2, pendingAfterCredit: 1, decisionsAfterCredit: 1, freshID: true, replacementBase: '1', again: '2', staleChoiceRejected: true, history: 2, immutableEvents: 3, pending: 0, available: 'unavailable' });
+  expect(result).toMatchObject({ expired: true, paused: null, resume: result.account, retained: { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 }, lateExpiry: false, staleAck: true, staleConflict: true, drained: null });
+  expect(result.fresh.ids).toEqual(result.old.ids);
+  expect(result.fresh.access.scope).toBe(result.old.access.scope);
+  expect(result.expiredEpoch).toBeGreaterThan(result.old.access.epoch);
+  expect(result.fresh.access.epoch).toBeGreaterThanOrEqual(result.expiredEpoch);
 });
 test('malformed HTTP 200, valid-looking HTTP 500 and late 401/ack cannot discard or expire fresh-account data', async ({ page }) => {
   const result = await page.evaluate(async () => {

@@ -97,6 +97,7 @@ function Shell() {
       <main ref={main} id="content" className={styles.main}>
         <div ref={recovery} className={reader ? styles.readerRecovery : undefined}>
           {reading.error && !reader && <ErrorNotice error={reading.error} />}
+          {reading.notice && !reader && <p role="status" className={styles.notice}>{reading.notice}</p>}
           <WorkerRecovery duringReading={reader} />
         </div>
         <Outlet />

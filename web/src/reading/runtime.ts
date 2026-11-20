@@ -3,13 +3,13 @@ import { sourceLimits } from './source';
 import { Repository } from './repository';
 import { Replay } from './sync';
 import { WorkerCoordinator } from './worker-client';
-import { accountKey, refKey, sameAccount, type Account, type BookRef, type Checkpoint, type Conflict, type ReadingAccess, type ReadingActions, type ReadingBridge, type ReadingSnapshot, type S } from './types';
+import { accountKey, refKey, sameAccount, type Account, type BookRef, type Checkpoint, type ReadingAccess, type ReadingActions, type ReadingBridge, type ReadingSnapshot, type S } from './types';
 import { validState } from './protocol';
 import type { CapturedActivity } from './activity';
 
 const cacheETag = (value: string | null | undefined): string | undefined => value && /^(?:W\/)?"[\x21\x23-\x7e]{1,128}"$/.test(value) ? value : undefined;
 
-export const emptySnapshot: ReadingSnapshot = { ready: false, resumeAccount: null, books: [], sync: 'idle', pendingCount: 0, conflicts: [], downloads: [], update: 'idle', error: null };
+export const emptySnapshot: ReadingSnapshot = { ready: false, resumeAccount: null, books: [], sync: 'idle', pendingCount: 0, notice: null, downloads: [], update: 'idle', error: null };
 export class ReadingRuntime implements ReadingActions {
   readonly repo = new Repository();
   readonly worker: WorkerCoordinator;
@@ -35,7 +35,7 @@ export class ReadingRuntime implements ReadingActions {
     });
   }
   async start(access: ReadingAccess) {
-    this.subscription = liveQuery(() => Promise.all([this.repo.db.books.toArray(), this.repo.db.events.toArray(), this.repo.db.decisions.toArray(), this.repo.db.conflicts.toArray(), this.repo.db.access.toArray(), this.repo.db.meta.toArray()])).subscribe({ next: () => { void this.refresh(); }, error: error => { this.error = String(error); void this.refresh(); } });
+    this.subscription = liveQuery(() => Promise.all([this.repo.db.books.toArray(), this.repo.db.events.toArray(), this.repo.db.access.toArray(), this.repo.db.meta.toArray()])).subscribe({ next: () => { void this.refresh(); }, error: error => { this.error = String(error); void this.refresh(); } });
     window.addEventListener('online', this.foreground); document.addEventListener('visibilitychange', this.foreground);
     if (this.generation === 0) void this.setAccess(access);
     await this.repo.cleanupStages();
@@ -66,12 +66,12 @@ export class ReadingRuntime implements ReadingActions {
     if (this.disposed) return;
     const serial = ++this.refreshSerial, access = this.access;
     try {
-      const [books, resumeAccount, pending, conflicts] = await Promise.all([this.repo.projection(access), this.repo.resume(), this.repo.pending(), this.repo.db.conflicts.toArray()]);
+      const [books, resumeAccount, pending] = await Promise.all([this.repo.projection(access), this.repo.resume(), this.repo.pending()]);
       if (serial !== this.refreshSerial || this.disposed) return;
       const scope = 'account' in access && access.kind !== 'logout' ? accountKey(access.account) : null;
-      const visible = pending.filter(e => e.scope === scope), visibleConflicts = conflicts.filter(c => c.scope === scope);
+      const visible = pending.filter(e => e.scope === scope);
       this.projectionAccess = access;
-      this.snapshot = { ready: this.appliedGeneration === this.generation, resumeAccount, books: books.map(({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt }) => ({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt })), sync: this.quotaError ? 'quota-error' : !visible.length ? 'idle' : this.sync.status === 'idle' ? visibleConflicts.length ? 'conflict' : access.kind === 'authenticated' ? 'pending' : 'auth-required' : this.sync.status, pendingCount: visible.length, conflicts: visibleConflicts.filter(c => c.server !== null).map(({ eventId, ref, local, server }) => ({ eventId, ref, local, server: server! })), downloads: this.snapshot.downloads, update: this.worker.update, error: this.error || this.worker.error || visibleConflicts.find(c => c.server === null)?.refreshError || null };
+      this.snapshot = { ready: this.appliedGeneration === this.generation, resumeAccount, books: books.map(({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt }) => ({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt })), sync: this.quotaError ? 'quota-error' : !visible.length ? 'idle' : this.sync.status === 'idle' ? access.kind === 'authenticated' ? 'pending' : 'auth-required' : this.sync.status, pendingCount: visible.length, notice: access.kind === 'authenticated' ? this.sync.notice : null, downloads: this.snapshot.downloads, update: this.worker.update, error: this.error || this.worker.error || null };
       this.changed(this.snapshot);
     } catch (error) { if (!this.disposed) { this.snapshot = { ...this.snapshot, ready: false, error: String(error) }; this.changed(this.snapshot); } }
   }
@@ -187,19 +187,5 @@ export class ReadingRuntime implements ReadingActions {
     if (pending.length) { this.failures = this.sync.status === 'retryable-error' ? this.failures + 1 : 0; this.schedule(Math.min(60000, 1000 * 2 ** Math.min(this.failures, 6)) + Math.random() * 500); }
   }
   applyUpdate = async () => { await this.worker.apply(); await this.refresh(); };
-  async refreshConflict(eventId: string): Promise<Conflict> {
-    const account = this.selectedAccount(), generation = this.generation, scope = accountKey(account);
-    const conflict = await this.repo.db.conflicts.get(eventId), access = await this.repo.db.access.get(scope);
-    if (!conflict || conflict.scope !== scope || conflict.ref.kind !== 'server' || !access) throw new Error('Conflict not accessible');
-    const state = await this.job(undefined, signal => this.bridge.getState(account, conflict.ref.kind === 'server' ? conflict.ref.documentId : '', signal), true, 3000);
-    if (generation !== this.generation) throw new Error('Account changed');
-    const result = await this.repo.refreshConflict(eventId, state, access.epoch); await this.refresh(); return result;
-  }
-  resolveConflict = async (eventId: string, choice: 'local' | 'server', observedRevision: string, reviewedLocal: Checkpoint) => {
-    this.selectedAccount();
-    const fresh = await this.refreshConflict(eventId);
-    if (fresh.server.revision !== observedRevision) throw new Error('Server changed again; review the refreshed conflict before choosing');
-    await this.write(() => this.repo.resolve(eventId, choice, observedRevision, reviewedLocal)); this.schedule(0);
-  };
   dispose() { this.disposed = true; this.sync.stop(); for (const [job] of this.jobs) job.abort(); clearTimeout(this.timer); this.subscription?.unsubscribe(); this.worker.dispose(); window.removeEventListener('online', this.foreground); document.removeEventListener('visibilitychange', this.foreground); void this.accessTail.finally(() => this.repo.db.close()); }
 }
