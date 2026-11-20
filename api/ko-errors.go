@@ -21,6 +21,8 @@ func koSyncError(c *gin.Context, code int) {
 		status, message = http.StatusForbidden, "Field 'document' not provided."
 	case 2005:
 		status, message = http.StatusPaymentRequired, "User registration is disabled."
+	case 2007:
+		status, message = http.StatusForbidden, "Field 'document' contains characters the read route cannot serve."
 	default:
 		code = 2000
 	}

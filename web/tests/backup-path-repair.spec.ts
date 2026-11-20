@@ -16,8 +16,8 @@ test('backup requires catalog repair and restore directs invalid paths back to t
   try {
     db.prepare('UPDATE users SET admin=1 WHERE id=?').run(username);
     db.prepare("INSERT INTO storage_roots(id,label,path,managed) VALUES('archive','Archive',?,0)").run(archive);
-    db.prepare("UPDATE documents SET filepath=?,md5=? WHERE id='book-001'").run('../book.epub', createHash('md5').update(original).digest('hex'));
-    db.prepare("INSERT INTO reading_heads(user_id,document_id,revision,position,fraction) VALUES(?,'book-002',1,'synthetic-progress',0.5)").run(username);
+    db.prepare("UPDATE documents SET filepath=?,md5=? WHERE id='book_001'").run('../book.epub', createHash('md5').update(original).digest('hex'));
+    db.prepare("INSERT INTO reading_heads(user_id,document_id,revision,position,fraction) VALUES(?,'book_002',1,'synthetic-progress',0.5)").run(username);
   } finally { db.close(); }
 
   await page.setViewportSize({ width: 320, height: 800 });
@@ -26,7 +26,7 @@ test('backup requires catalog repair and restore directs invalid paths back to t
   await create.click();
   const dialog = page.getByRole('dialog');
   const download = dialog.getByRole('button', { name: 'Download' });
-  await expect(dialog.getByRole('alert')).toContainText('Document book-001 has an invalid book path.');
+  await expect(dialog.getByRole('alert')).toContainText('Document book_001 has an invalid book path.');
   await expect(download).toBeDisabled();
   await dialog.getByRole('radio', { name: 'Database', exact: true }).check();
   await expect(download).toBeDisabled();
@@ -41,10 +41,10 @@ test('backup requires catalog repair and restore directs invalid paths back to t
   await dialog.getByRole('button', { name: 'Cancel' }).click();
 
   const live = new DatabaseSync(`${server.data}/browser.db`);
-  try { live.prepare("UPDATE documents SET coverfile=? WHERE id='book-002'").run('/invalid/cover.png'); }
+  try { live.prepare("UPDATE documents SET coverfile=? WHERE id='book_002'").run('/invalid/cover.png'); }
   finally { live.close(); }
   await create.click();
-  await expect(dialog.getByRole('alert')).toContainText('Document book-002 has an invalid cover path.');
+  await expect(dialog.getByRole('alert')).toContainText('Document book_002 has an invalid cover path.');
   await expect(dialog.getByLabel('Storage root')).toHaveCount(0);
   await expect(download).toBeDisabled();
   await dialog.getByRole('radio', { name: 'Clear the reference' }).check();
@@ -66,16 +66,16 @@ test('backup requires catalog repair and restore directs invalid paths back to t
   await file.saveAs(brokenBackup);
   const snapshot = new DatabaseSync(brokenBackup);
   try {
-    expect(snapshot.prepare("SELECT filepath,storage_root_id FROM documents WHERE id='book-001'").get()).toMatchObject({ filepath: 'shelf/book.epub', storage_root_id: 'archive' });
-    expect(snapshot.prepare("SELECT coverfile FROM documents WHERE id='book-002'").get()).toMatchObject({ coverfile: null });
-    expect(snapshot.prepare("SELECT position FROM reading_heads WHERE document_id='book-002' AND user_id=?").get(username)).toMatchObject({ position: 'synthetic-progress' });
-    snapshot.prepare("UPDATE documents SET coverfile=? WHERE id='book-002'").run('/invalid/cover.png');
+    expect(snapshot.prepare("SELECT filepath,storage_root_id FROM documents WHERE id='book_001'").get()).toMatchObject({ filepath: 'shelf/book.epub', storage_root_id: 'archive' });
+    expect(snapshot.prepare("SELECT coverfile FROM documents WHERE id='book_002'").get()).toMatchObject({ coverfile: null });
+    expect(snapshot.prepare("SELECT position FROM reading_heads WHERE document_id='book_002' AND user_id=?").get(username)).toMatchObject({ position: 'synthetic-progress' });
+    snapshot.prepare("UPDATE documents SET coverfile=? WHERE id='book_002'").run('/invalid/cover.png');
   } finally { snapshot.close(); }
 
   await page.getByRole('button', { name: 'Restore Backup', exact: true }).click();
   await dialog.getByLabel('Backup file').setInputFiles(brokenBackup);
   await dialog.getByRole('button', { name: 'Validate' }).click();
-  await expect(dialog.getByRole('alert')).toContainText('Document book-002 has an invalid cover path. Repair the catalog on the source server');
+  await expect(dialog.getByRole('alert')).toContainText('Document book_002 has an invalid cover path. Repair the catalog on the source server');
   await expect(dialog).toHaveAccessibleName('Restore Backup');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
 

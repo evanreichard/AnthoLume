@@ -93,7 +93,7 @@ func main() {
 		panic(err)
 	}
 	for i := 1; i <= 30; i++ {
-		_, err = tx.Exec("INSERT OR IGNORE INTO documents (id,title,author,filepath,coverfile,description,words,created_at) VALUES(?,?,?,?,?,?,?,'2020-01-01T00:00:00Z')", fmt.Sprintf("book-%03d", i), fmt.Sprintf("Public book %02d", i), "Synthetic Author", "public.epub", "public.png", "<script>window.__untrusted = true</script>\nSynthetic public text; rendered inertly.", 10000)
+		_, err = tx.Exec("INSERT OR IGNORE INTO documents (id,title,author,filepath,coverfile,description,words,created_at) VALUES(?,?,?,?,?,?,?,'2020-01-01T00:00:00Z')", fmt.Sprintf("book_%03d", i), fmt.Sprintf("Public book %02d", i), "Synthetic Author", "public.epub", "public.png", "<script>window.__untrusted = true</script>\nSynthetic public text; rendered inertly.", 10000)
 		if err != nil {
 			panic(err)
 		}
@@ -127,7 +127,7 @@ func main() {
 				return
 			}
 		}
-		if r.URL.Path == "/api/v1/documents/book-002/file" {
+		if r.URL.Path == "/api/v1/documents/book_002/file" {
 			if _, err := os.Stat(filepath.Join(*data, "slow-download")); err == nil {
 				app.Handler().ServeHTTP(&slowOriginalWriter{ResponseWriter: w, ctx: r.Context()}, r)
 				return

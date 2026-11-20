@@ -54,7 +54,7 @@ func TestInsightsReadAcknowledgedData(t *testing.T) {
 	empty := decodeWeb[Insights](t, other.call("GET", urls[0], nil, nil))
 	require.Zero(t, empty.SecondsRead)
 	require.Zero(t, empty.CurrentStreak)
-	r = f.call("GET", urls[1]+"?day="+yesterday.Format(time.DateOnly)+"&document=book-a", nil, nil)
+	r = f.call("GET", urls[1]+"?day="+yesterday.Format(time.DateOnly)+"&document=book_a", nil, nil)
 	require.Equal(t, 200, r.status, string(r.body))
 	activity := decodeWeb[InsightActivityPage](t, r)
 	require.Len(t, activity.Items, 1)
@@ -85,7 +85,7 @@ func TestInsightsExactDayAndWeekStreaks(t *testing.T) {
 	for _, offset := range []int{0, -1, -7, -42, -49, -53, -54, -55, -56} {
 		startedAt := today.AddDate(0, 0, offset).Format(time.RFC3339)
 		f.exec(`INSERT INTO activity (user_id,document_id,device_id,start_time,duration,start_percentage,end_percentage)
-			VALUES ('alice','book-a','web-device',?,30,0,.1)`, startedAt)
+			VALUES ('alice','book_a','web-device',?,30,0,.1)`, startedAt)
 	}
 	r := f.call("GET", "/api/v1/me/insights", nil, nil)
 	require.Equal(t, 200, r.status, string(r.body))
@@ -115,7 +115,7 @@ func TestInsightRankingsRollingPeriods(t *testing.T) {
 		"2026-06-10T11:59:59Z", "2026-06-10T12:00:00Z",
 		"2026-06-17T12:00:00Z", "2026-06-17T12:00:01Z",
 	} {
-		f.exec("INSERT INTO activity (user_id,document_id,device_id,start_time,duration,start_percentage,end_percentage) VALUES ('alice','book-a','web-device',?,1,0,.1)", instant)
+		f.exec("INSERT INTO activity (user_id,document_id,device_id,start_time,duration,start_percentage,end_percentage) VALUES ('alice','book_a','web-device',?,1,0,.1)", instant)
 	}
 	s := &webAPI{f.api}
 	for _, tc := range []struct {
@@ -147,7 +147,7 @@ func TestLibraryLastReadSortsBeforePagination(t *testing.T) {
 	require.NotNil(t, first.Items[0].LastReadAt)
 	second := decodeWeb[DocumentPage](t, f.call("GET", path+"&page=2", nil, nil))
 	require.Len(t, second.Items, 1)
-	require.Equal(t, "book-a", second.Items[0].Id)
+	require.Equal(t, "book_a", second.Items[0].Id)
 	require.Nil(t, second.Items[0].LastReadAt)
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
@@ -156,7 +156,7 @@ func TestLibraryLastReadSortsBeforePagination(t *testing.T) {
 	other.register("bob")
 	private := decodeWeb[DocumentPage](t, other.call("GET", path, nil, nil))
 	require.Len(t, private.Items, 1)
-	require.Equal(t, "book-a", private.Items[0].Id)
+	require.Equal(t, "book_a", private.Items[0].Id)
 	require.Nil(t, private.Items[0].LastReadAt)
 }
 
@@ -170,7 +170,7 @@ func TestInsightActivityPagesPastLegacyFinalPage(t *testing.T) {
 			start, end = 1, 1.1
 		}
 		f.exec(`INSERT INTO activity (user_id,document_id,device_id,start_time,duration,start_percentage,end_percentage)
-			VALUES ('alice','book-a','web-device',?,30,?,?)`, base.Add(time.Duration(i)*time.Minute).Format(time.RFC3339), start, end)
+			VALUES ('alice','book_a','web-device',?,30,?,?)`, base.Add(time.Duration(i)*time.Minute).Format(time.RFC3339), start, end)
 	}
 	const path = "/api/v1/me/insights/activity"
 	r := f.call("GET", path, nil, nil)

@@ -11,7 +11,7 @@ test('Library rotates through the three newest books with dots, pause and native
   expect((await page.request.post(`${endpoint}/me/devices`, { headers, data: { id: 'carousel-device', name: 'Reader' } })).status()).toBe(200);
   for (let book = 1; book <= 4; book++) {
     if (book > 1) await new Promise(resolve => setTimeout(resolve, 1050));
-    const data = { event_id: randomUUID(), document_id: `book-00${book}`, device_id: 'carousel-device', base_revision: '0', observed_at: new Date(Date.now() - (5 - book) * 60_000).toISOString(), position: '/body/DocFragment[1]/body/p[2]', fraction: book / 10 };
+    const data = { event_id: randomUUID(), document_id: `book_00${book}`, device_id: 'carousel-device', base_revision: '0', observed_at: new Date(Date.now() - (5 - book) * 60_000).toISOString(), position: '/body/DocFragment[1]/body/p[2]', fraction: book / 10 };
     expect((await page.request.post(`${endpoint}/me/reading-progress`, { headers, data })).status()).toBe(200);
   }
   await page.clock.install();

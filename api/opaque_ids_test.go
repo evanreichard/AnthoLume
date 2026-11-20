@@ -24,7 +24,6 @@ func TestOpaqueDocumentIDsSurvivePathEscaping(t *testing.T) {
 		require.Equal(t, 200, r.status, string(r.body))
 		require.Equal(t, id, decodeWeb[ReadingState](t, r).DocumentId)
 		r = f.call("GET", "/api/ko/syncs/progress/"+encoded, nil, nil)
-		require.Equal(t, 200, r.status, string(r.body))
-		require.Equal(t, id, decodeWeb[map[string]any](t, r)["document"])
+		require.Equal(t, 404, r.status, string(r.body))
 	}
 }

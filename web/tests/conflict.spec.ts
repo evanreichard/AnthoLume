@@ -15,7 +15,7 @@ test(`resume conflict: ${choice} opens without publishing progress`, async ({ pa
   await page.keyboard.press('c');
   await page.getByRole('button', { name: 'Next page', exact: true }).click();
   await expect.poll(() => serverEffects(server.data, user).receipts).toMatchObject([{ kind: 'progress', status: 409 }]);
-  await expect.poll(async () => (await storedRows(page, 'books')).find(book => book.ref?.documentId === 'book-001')?.checkpoint).toEqual({ position: shared.progress, fraction: .95 });
+  await expect.poll(async () => (await storedRows(page, 'books')).find(book => book.ref?.documentId === 'book_001')?.checkpoint).toEqual({ position: shared.progress, fraction: .95 });
   expect(await pendingIds(page)).toEqual([]);
   await expect(page.locator('footer')).toContainText('2 /');
   await page.keyboard.press('c');

@@ -46,7 +46,7 @@ test('a recreated username cannot reopen the previous account URL, reuse its cac
     await page.getByRole('link', { name: /^(Read|Resume)$/ }).click();
     await expect(page.locator('footer')).toContainText('1 /');
     const originalScope = JSON.stringify(['account', server.origin, original.account_id, original.reading_generation]);
-    await expect.poll(async () => (await storedRows(page, 'books')).some(row => row.ref?.documentId === 'book-001' && row.scope === originalScope)).toBe(true);
+    await expect.poll(async () => (await storedRows(page, 'books')).some(row => row.ref?.documentId === 'book_001' && row.scope === originalScope)).toBe(true);
     const originalReader = page.url();
     expect(new URL(originalReader).searchParams.get('account')).toBe(original.account_id);
     await page.keyboard.press('c');
@@ -74,14 +74,14 @@ test('a recreated username cannot reopen the previous account URL, reuse its cac
     const replacement = (await (await page.request.get(`${endpoint}/session`)).json()).user;
     expect(replacement.id).toBe(original.id);
     expect(replacement.account_id).not.toBe(original.account_id);
-    const stale = await page.request.get(`${endpoint}/documents/book-001/file`, { headers: { 'X-AnthoLume-Account': original.account_id } });
+    const stale = await page.request.get(`${endpoint}/documents/book_001/file`, { headers: { 'X-AnthoLume-Account': original.account_id } });
     expect(stale.status()).toBe(401);
     await page.goto(originalReader);
     await expect(page.getByRole('heading', { name: 'Book not available for this account' })).toBeVisible();
     await expect(page.getByRole('banner').getByRole('link', { name: /pending/ })).toHaveCount(0);
     await page.getByRole('link', { name: 'Return to Library' }).click();
     await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
-    const file = page.waitForRequest(request => request.url().endsWith('/api/v1/documents/book-001/file'));
+    const file = page.waitForRequest(request => request.url().endsWith('/api/v1/documents/book_001/file'));
     await page.getByRole('link', { name: /^(Read|Resume)$/ }).click();
     const fileHeaders = await (await file).allHeaders();
     expect(fileHeaders['if-none-match']).toBeUndefined();

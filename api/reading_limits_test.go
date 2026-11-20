@@ -14,14 +14,14 @@ import (
 func TestZeroDurationActivityPreservesCreditAndStatistics(t *testing.T) {
 	f := newWebFixture(t)
 	f.readingSetup()
-	f.exec("UPDATE documents SET words=10000 WHERE id='book-a'")
+	f.exec("UPDATE documents SET words=10000 WHERE id='book_a'")
 	payload := activityPayload()
 	payload["duration"] = 0
 	require.Equal(t, 200, f.call("POST", "/api/v1/me/activity", payload, nil).status)
 	require.NoError(t, f.db.CacheTempTables(context.Background()))
 	var seconds, words int
 	var wpm float64
-	require.NoError(t, f.db.DB.QueryRow("SELECT total_time_seconds,total_words_read,total_wpm FROM document_user_statistics WHERE document_id='book-a' AND user_id='alice'").Scan(&seconds, &words, &wpm))
+	require.NoError(t, f.db.DB.QueryRow("SELECT total_time_seconds,total_words_read,total_wpm FROM document_user_statistics WHERE document_id='book_a' AND user_id='alice'").Scan(&seconds, &words, &wpm))
 	require.Zero(t, seconds)
 	require.Equal(t, 1000, words)
 	require.Zero(t, wpm)
@@ -40,8 +40,8 @@ func TestReadingExhaustionAndNewEffectResourceChecks(t *testing.T) {
 	event["document_id"] = "not-registered"
 	assertProblem(t, f.call("POST", "/api/v1/me/reading-progress", event, nil), 404, "not_found")
 	require.Equal(t, 2, f.count("documents"))
-	f.exec(`INSERT INTO reading_heads(user_id,document_id,revision,position,fraction,device_id,updated_at) VALUES('alice','book-a',999999999999999999,'last position',0.7,'web-device','2026-01-01T00:00:00Z')`)
-	event["document_id"] = "book-a"
+	f.exec(`INSERT INTO reading_heads(user_id,document_id,revision,position,fraction,device_id,updated_at) VALUES('alice','book_a',999999999999999999,'last position',0.7,'web-device','2026-01-01T00:00:00Z')`)
+	event["document_id"] = "book_a"
 	event["base_revision"] = "999999999999999999"
 	r := f.call("POST", "/api/v1/me/reading-progress", event, nil)
 	assertProblem(t, r, 409, "revision_exhausted")

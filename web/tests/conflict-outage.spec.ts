@@ -23,7 +23,7 @@ for (const fault of ['503', 'malformed-200']) {
     const events = await storedRows(page, 'events');
     const progress = events.find(event => event.kind === 'progress')!;
     const activity = events.find(event => event.kind === 'activity')!;
-    const checkpoint = async () => (await storedRows(page, 'books')).find(book => book.ref?.documentId === 'book-001')?.checkpoint;
+    const checkpoint = async () => (await storedRows(page, 'books')).find(book => book.ref?.documentId === 'book_001')?.checkpoint;
     const local = await checkpoint();
     expect(local?.position).not.toBe(progress.payload?.position);
     await ko(server.origin, user, .8);

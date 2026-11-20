@@ -18,7 +18,7 @@ func (f *webFixture) koWrite(document, device string, fraction float64, position
 	return f.call("PUT", "/api/ko/syncs/progress", map[string]any{"document": document, "device_id": device, "device": "KOReader", "percentage": fraction, "progress": position}, koHeaders())
 }
 func (f *webFixture) state() ReadingState {
-	r := f.call("GET", "/api/v1/me/reading-state/book-a", nil, nil)
+	r := f.call("GET", "/api/v1/me/reading-state/book_a", nil, nil)
 	require.Equal(f.t, 200, r.status, string(r.body))
 	return decodeWeb[ReadingState](f.t, r)
 }
@@ -34,17 +34,17 @@ func TestRealKOAndWebSharedHead(t *testing.T) {
 	// Force the real MD5 header path instead of borrowing the browser's signed session.
 	jar := f.client.Jar
 	f.client.Jar = nil
-	r := f.call("GET", "/api/ko/syncs/progress/book-a", nil, koHeaders())
+	r := f.call("GET", "/api/ko/syncs/progress/book_a", nil, koHeaders())
 	require.Equal(t, 200, r.status)
 	require.JSONEq(t, `{}`, string(r.body))
 	require.Equal(t, "application/json", r.header.Get("Content-Type"))
-	r = f.koWrite("book-a", "ko-device", 0.8, "exact KO /body/p[9].0")
+	r = f.koWrite("book_a", "ko-device", 0.8, "exact KO /body/p[9].0")
 	require.Equal(t, 200, r.status, string(r.body))
 	timestamp := decodeKOTimestamp(t, r)
-	require.Equal(t, "book-a", decodeWeb[map[string]any](t, r)["document"])
-	r = f.call("GET", "/api/ko/syncs/progress/book-a", nil, koHeaders())
+	require.Equal(t, "book_a", decodeWeb[map[string]any](t, r)["document"])
+	r = f.call("GET", "/api/ko/syncs/progress/book_a", nil, koHeaders())
 	require.Equal(t, 200, r.status)
-	require.JSONEq(t, fmt.Sprintf(`{"document":"book-a","percentage":0.8,"progress":"exact KO /body/p[9].0","device":"KOReader","device_id":"ko-device","timestamp":%d}`, timestamp), string(r.body))
+	require.JSONEq(t, fmt.Sprintf(`{"document":"book_a","percentage":0.8,"progress":"exact KO /body/p[9].0","device":"KOReader","device_id":"ko-device","timestamp":%d}`, timestamp), string(r.body))
 	f.client.Jar = jar
 	head := f.state()
 	require.Equal(t, "1", head.Revision)
@@ -61,8 +61,8 @@ func TestRealKOAndWebSharedHead(t *testing.T) {
 	require.Equal(t, accepted["event_id"], receipt.EventId)
 	require.Equal(t, Progress, receipt.Kind)
 	require.Equal(t, "2", *receipt.Revision)
-	r = f.call("GET", "/api/ko/syncs/progress/book-a", nil, nil)
-	require.JSONEq(t, fmt.Sprintf(`{"document":"book-a","percentage":0.1,"progress":"backwards exactly","device":"Browser","device_id":"web-device","timestamp":%d}`, f.state().UpdatedAt.Unix()), string(r.body))
+	r = f.call("GET", "/api/ko/syncs/progress/book_a", nil, nil)
+	require.JSONEq(t, fmt.Sprintf(`{"document":"book_a","percentage":0.1,"progress":"backwards exactly","device":"Browser","device_id":"web-device","timestamp":%d}`, f.state().UpdatedAt.Unix()), string(r.body))
 	require.Equal(t, 200, f.koWrite("placeholder", "ko-device", 0.4, "placeholder position").status)
 	require.Equal(t, 3, f.count("documents"))
 	require.Equal(t, 2, f.count("reading_heads"))
@@ -83,12 +83,12 @@ func TestDurableReceiptsNormalizationAndConflicts(t *testing.T) {
 	r = f.call("POST", "/api/v1/me/reading-progress", string(encoded), nil)
 	require.Equal(t, 200, r.status, string(r.body))
 	require.JSONEq(t, original, string(r.body))
-	require.Equal(t, 200, f.koWrite("book-a", "ko", 0.9, "KO forward").status)
+	require.Equal(t, 200, f.koWrite("book_a", "ko", 0.9, "KO forward").status)
 	conflict := progressPayload("1", 0.3)
 	r = f.call("POST", "/api/v1/me/reading-progress", conflict, nil)
 	assertProblem(t, r, 409, "progress_conflict")
 	require.Equal(t, "2", *decodeWeb[Problem](t, r).CurrentRevision)
-	require.Equal(t, 200, f.koWrite("book-a", "ko", 0.7, "KO again").status)
+	require.Equal(t, 200, f.koWrite("book_a", "ko", 0.7, "KO again").status)
 	r = f.call("POST", "/api/v1/me/reading-progress", conflict, nil)
 	require.Equal(t, "2", *decodeWeb[Problem](t, r).CurrentRevision)
 	event["fraction"] = 0.2
@@ -133,7 +133,7 @@ func TestReadingAtomicRollbackAndConcurrentCAS(t *testing.T) {
 	require.Zero(t, f.count("activity"))
 	f.exec("DROP TRIGGER fail_receipt")
 	f.exec(`CREATE TRIGGER fail_progress BEFORE INSERT ON document_progress BEGIN SELECT RAISE(ABORT,'private path'); END`)
-	r := f.koWrite("new-placeholder", "new-device", 0.4, "position")
+	r := f.koWrite("new_placeholder", "new-device", 0.4, "position")
 	assertKOSyncGolden(t, r, 502, `{"code":2000,"message":"Unknown server error."}`)
 	require.Equal(t, 2, f.count("documents"))
 	require.Equal(t, 1, f.count("devices"))
@@ -211,7 +211,7 @@ func TestLostCommittedResponseReopenAndDeviceOwnership(t *testing.T) {
 	fresh := progressPayload("0", 0.3)
 	assertProblem(t, f.call("POST", "/api/v1/me/reading-progress", fresh, nil), 403, "forbidden")
 	require.Equal(t, 200, f.call("POST", "/api/v1/me/devices", Device{Id: "web-device", Name: "Bob’s browser"}, nil).status)
-	r := f.call("PUT", "/api/ko/syncs/progress", map[string]any{"document": "collision-placeholder", "device_id": "web-device", "device": "Hijack", "percentage": 0.2, "progress": "x"}, nil)
+	r := f.call("PUT", "/api/ko/syncs/progress", map[string]any{"document": "collision_placeholder", "device_id": "web-device", "device": "Hijack", "percentage": 0.2, "progress": "x"}, nil)
 	require.Equal(t, 200, r.status, string(r.body))
 	require.Equal(t, 3, f.count("documents"))
 	var owner, name string

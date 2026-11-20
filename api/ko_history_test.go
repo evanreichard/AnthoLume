@@ -10,7 +10,7 @@ func TestRealKOHTTPDeterministicHistoricalTie(t *testing.T) {
 	f := newWebFixture(t)
 	f.readingSetup()
 	f.exec(`INSERT INTO devices(id,user_id,device_name) VALUES('device-b','alice','B'),('device-a','alice','A')`)
-	f.exec(`INSERT INTO document_progress(user_id,document_id,device_id,percentage,progress,created_at) VALUES('alice','book-a','device-b',0.95,'B historical','2026-01-01T00:00:00Z'),('alice','book-a','device-a',0.15,'A historical exact','2026-01-01T00:00:00Z')`)
+	f.exec(`INSERT INTO document_progress(user_id,document_id,device_id,percentage,progress,created_at) VALUES('alice','book_a','device-b',0.95,'B historical','2026-01-01T00:00:00Z'),('alice','book_a','device-a',0.15,'A historical exact','2026-01-01T00:00:00Z')`)
 	f.exec(`INSERT INTO users(id,pass,auth_hash) VALUES('other-owner','synthetic','hash'); INSERT INTO devices(id,user_id,device_name) VALUES('device-a','other-owner','Different reader')`)
 	f.exec(`DROP TABLE auto_import_rules; DELETE FROM goose_db_version WHERE version_id>=20261126000000`)
 	f.server.Close()
@@ -19,10 +19,10 @@ func TestRealKOHTTPDeterministicHistoricalTie(t *testing.T) {
 	f.start()
 	jar := f.client.Jar
 	f.client.Jar = nil
-	r := f.call("GET", "/api/ko/syncs/progress/book-a", nil, koHeaders())
+	r := f.call("GET", "/api/ko/syncs/progress/book_a", nil, koHeaders())
 	require.Equal(t, 200, r.status, string(r.body))
 	require.Equal(t, "application/json", r.header.Get("Content-Type"))
-	require.JSONEq(t, `{"document":"book-a","percentage":0.15,"progress":"A historical exact","device":"A","device_id":"device-a","timestamp":1767225600}`, string(r.body))
+	require.JSONEq(t, `{"document":"book_a","percentage":0.15,"progress":"A historical exact","device":"A","device_id":"device-a","timestamp":1767225600}`, string(r.body))
 	require.Equal(t, int64(1767225600), decodeKOTimestamp(t, r))
 	f.client.Jar = jar
 	head := f.state()
@@ -30,7 +30,7 @@ func TestRealKOHTTPDeterministicHistoricalTie(t *testing.T) {
 	require.Equal(t, "device-a", *head.DeviceId)
 	require.Equal(t, "A historical exact", *head.Position)
 	require.Equal(t, 0.15, *head.Fraction)
-	r = f.koWrite("collision-placeholder", "device-a", 0.4, "new write must not take ownership")
+	r = f.koWrite("collision_placeholder", "device-a", 0.4, "new write must not take ownership")
 	require.Equal(t, 200, r.status, string(r.body))
 	require.Equal(t, 3, f.count("documents"))
 	require.Equal(t, 3, f.count("document_progress"))

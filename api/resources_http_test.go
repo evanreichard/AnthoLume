@@ -208,7 +208,7 @@ func TestWebResponseSchemasAreClosed(t *testing.T) {
 	require.NoError(t, spec.Validate(context.Background()))
 	f := newWebFixture(t)
 	f.readingSetup()
-	for path, name := range map[string]string{"/api/v1/session": "Session", "/api/v1/capabilities": "Capabilities", "/api/v1/documents": "DocumentPage", "/api/v1/documents/book-a": "Document", "/api/v1/me/reading-state/book-a": "ReadingState"} {
+	for path, name := range map[string]string{"/api/v1/session": "Session", "/api/v1/capabilities": "Capabilities", "/api/v1/documents": "DocumentPage", "/api/v1/documents/book_a": "Document", "/api/v1/me/reading-state/book_a": "ReadingState"} {
 		r := f.call("GET", path, nil, nil)
 		require.Equal(t, 200, r.status)
 		var value any

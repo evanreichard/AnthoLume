@@ -113,8 +113,8 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
   };
   const timestamp = new Date(Date.now() - 60_000).toISOString();
   await submit('devices', { id: 'journal-device', name: 'Test reader' });
-  await submit('activity', { event_id: randomUUID(), document_id: 'book-001', device_id: 'journal-device', start_time: timestamp, duration: 120, start_fraction: .1, end_fraction: .2 });
-  await submit('reading-progress', { event_id: randomUUID(), document_id: 'book-001', device_id: 'journal-device', observed_at: timestamp, base_revision: '0', position: '/body/DocFragment[1]/body/p[2]', fraction: .2 });
+  await submit('activity', { event_id: randomUUID(), document_id: 'book_001', device_id: 'journal-device', start_time: timestamp, duration: 120, start_fraction: .1, end_fraction: .2 });
+  await submit('reading-progress', { event_id: randomUUID(), document_id: 'book_001', device_id: 'journal-device', observed_at: timestamp, base_revision: '0', position: '/body/DocFragment[1]/body/p[2]', fraction: .2 });
   await page.reload();
   await expect(chart.getByText('2 min read', { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 844 });
@@ -197,14 +197,14 @@ test('Insights appends older activity and more progress without losing filters, 
   const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': user.reading_generation };
   expect((await page.request.post(`${endpoint}/me/devices`, { headers, data: { id: 'history-device', name: 'Reader' } })).status()).toBe(200);
   const noon = new Date(); noon.setUTCHours(12, 0, 0, 0); noon.setUTCDate(noon.getUTCDate() - 1);
-  const activityAt = (start_time: string) => ({ event_id: randomUUID(), document_id: 'book-001', device_id: 'history-device', start_time, duration: 30, start_fraction: 0, end_fraction: .1 });
+  const activityAt = (start_time: string) => ({ event_id: randomUUID(), document_id: 'book_001', device_id: 'history-device', start_time, duration: 30, start_fraction: 0, end_fraction: .1 });
   for (let i = 0; i < 21; i++) {
     const timestamp = new Date(noon.getTime() - i * 60_000).toISOString();
     expect((await page.request.post(`${endpoint}/me/activity`, { headers, data: activityAt(timestamp) })).status()).toBe(200);
-    const data = { event_id: randomUUID(), document_id: `book-${String(i + 1).padStart(3, '0')}`, device_id: 'history-device', observed_at: timestamp, base_revision: '0', position: '/body/DocFragment[1]/body/p[1]', fraction: .2 };
+    const data = { event_id: randomUUID(), document_id: `book_${String(i + 1).padStart(3, '0')}`, device_id: 'history-device', observed_at: timestamp, base_revision: '0', position: '/body/DocFragment[1]/body/p[1]', fraction: .2 };
     expect((await page.request.post(`${endpoint}/me/reading-progress`, { headers, data })).status()).toBe(200);
   }
-  const url = `${server.origin}/insights/activity?document=book-001`;
+  const url = `${server.origin}/insights/activity?document=book_001`;
   await page.goto(url);
   const activity = page.getByRole('region', { name: 'Reading activity' });
   const next = activity.getByRole('button', { name: 'Load older activity' });

@@ -29,18 +29,18 @@ func TestFullBackupRejectsConcurrentLibraryWriteWithoutBlockingReadingOrSync(t *
 	f.readingSetup()
 	book := []byte("synthetic book fixture")
 	require.NoError(t, os.WriteFile(filepath.Join(f.cfg.DataPath, "documents", "book.epub"), book, 0600))
-	f.exec(`UPDATE documents SET filepath='book.epub',storage_root_id='library' WHERE id='book-a'`)
+	f.exec(`UPDATE documents SET filepath='book.epub',storage_root_id='library' WHERE id='book_a'`)
 	f.exec(`UPDATE users SET admin=1 WHERE id='alice'`)
 	f.api.libraryWrite.Lock()
 	defer f.api.libraryWrite.Unlock()
 	f.client.Timeout = 2 * time.Second
 	assertProblem(t, f.call("GET", "/api/v1/admin/backup?full=true", nil, nil), 409, "server_busy")
-	file := f.call("GET", "/api/v1/documents/book-a/file", nil, nil)
+	file := f.call("GET", "/api/v1/documents/book_a/file", nil, nil)
 	require.Equal(t, 200, file.status)
 	require.Equal(t, book, file.body)
 	response := f.call("POST", "/api/v1/me/reading-progress", progressPayload("0", .25), nil)
 	require.Equal(t, 200, response.status, string(response.body))
-	assertProblem(t, f.call("PATCH", "/api/v1/documents/book-a", DocumentEdit{Title: "changed"}, nil), 409, "server_busy")
+	assertProblem(t, f.call("PATCH", "/api/v1/documents/book_a", DocumentEdit{Title: "changed"}, nil), 409, "server_busy")
 }
 
 func TestStartupRestoreInstallsLibraryOnlyIntoFreshInstance(t *testing.T) {

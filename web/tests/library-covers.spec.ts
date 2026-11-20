@@ -6,7 +6,7 @@ import { expect, register, test } from './fixtures';
 test.use({ serviceWorkers: 'block' });
 
 test('a stored SVG displays as a cover but is inert when opened directly', async ({ page, server }) => {
-  const path = '/api/v1/documents/book-001/cover';
+  const path = '/api/v1/documents/book_001/cover';
   const url = `${server.origin}${path}`;
   const probe = `${server.origin}/api/v1/capabilities?svg-cover-probe=1`;
   await writeFile(`${server.data}/covers/isolation.svg`, `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40">
@@ -15,7 +15,7 @@ test('a stored SVG displays as a cover but is inert when opened directly', async
     <script>document.documentElement.setAttribute('data-script-ran', 'yes')</script>
   </svg>`);
   const db = new DatabaseSync(`${server.data}/browser.db`);
-  try { db.prepare('UPDATE documents SET coverfile=? WHERE id=?').run('isolation.svg', 'book-001'); }
+  try { db.prepare('UPDATE documents SET coverfile=? WHERE id=?').run('isolation.svg', 'book_001'); }
   finally { db.close(); }
   let probeRequests = 0;
   await page.route(probe, route => {
@@ -47,7 +47,7 @@ test('missing server files are flagged on the cover and book detail', async ({ p
   const device_id = 'missing-file-device';
   expect((await page.request.post(`${endpoint}/me/devices`, { headers, data: { id: device_id, name: 'Reader' } })).status()).toBe(200);
   expect((await page.request.post(`${endpoint}/me/reading-progress`, { headers, data: {
-    event_id: randomUUID(), document_id: 'book-001', device_id, base_revision: '0', observed_at: new Date().toISOString(), position: '/body/DocFragment[1]/body/p[2]', fraction: .54,
+    event_id: randomUUID(), document_id: 'book_001', device_id, base_revision: '0', observed_at: new Date().toISOString(), position: '/body/DocFragment[1]/body/p[2]', fraction: .54,
   } })).status()).toBe(200);
   const card = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Public book 01', exact: true }) });
   const link = card.getByRole('link');
@@ -87,12 +87,12 @@ test('missing server files are flagged on the cover and book detail', async ({ p
 
 test('library thumbnails fill a responsive 2:3 frame across artwork sizes', async ({ page, server }) => {
   const sizes = { '001': [120, 180], '002': [160, 160], '003': [80, 180], '004': [180, 100] } as const;
-  await page.route(/\/api\/v1\/documents\/book-00[1-4]\/cover$/, route => {
-    const id = route.request().url().match(/book-(00[1-4])\/cover$/)![1] as keyof typeof sizes;
+  await page.route(/\/api\/v1\/documents\/book_00[1-4]\/cover$/, route => {
+    const id = route.request().url().match(/book_(00[1-4])\/cover$/)![1] as keyof typeof sizes;
     const [width, height] = sizes[id];
     return route.fulfill({ contentType: 'image/svg+xml', body: `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="navy"/></svg>` });
   });
-  await page.route('**/api/v1/documents/book-005/cover', route => route.fulfill({ status: 404 }));
+  await page.route('**/api/v1/documents/book_005/cover', route => route.fulfill({ status: 404 }));
   await register(page, server.origin, 'cover-reader');
   const fallback = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Public book 05', exact: true }) }).locator('[class*="coverPlaceholder"]');
   await expect(fallback).toContainText('Public book 05');

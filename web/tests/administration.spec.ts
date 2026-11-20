@@ -462,7 +462,7 @@ test('administrators manage users while members cannot open Administration', asy
   await page.getByLabel('Backup file').setInputFiles({name: 'invalid.zip', mimeType: 'application/zip', buffer: Buffer.from('not an archive')});
   await page.getByRole('button', { name: 'Validate', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('Choose a valid AnthoLume backup.');
-  expect(await (await page.request.get(`${server.origin}/api/v1/documents/book-001/file`)).body()).toEqual(changed);
+  expect(await (await page.request.get(`${server.origin}/api/v1/documents/book_001/file`)).body()).toEqual(changed);
   await page.getByLabel('Backup file').setInputFiles((await backup.path())!);
   await page.getByRole('button', { name: 'Validate', exact: true }).click();
   await expect(dialog.getByText(/library files will be restored/)).toBeVisible();
@@ -470,10 +470,10 @@ test('administrators manage users while members cannot open Administration', asy
   await dialog.getByLabel('Type RESTORE to confirm').fill('RESTORE');
   await applyRestore();
   await signIn(page, server.origin, 'admin-owner');
-  const restored = await page.request.get(`${server.origin}/api/v1/documents/book-001/file`);
+  const restored = await page.request.get(`${server.origin}/api/v1/documents/book_001/file`);
   expect(restored.status()).toBe(200);
   expect(await restored.body()).toEqual(original);
-  expect(await (await page.request.get(`${server.origin}/api/v1/documents/book-001/cover`)).body()).toEqual(await archive.file('covers/public.png')!.async('nodebuffer'));
+  expect(await (await page.request.get(`${server.origin}/api/v1/documents/book_001/cover`)).body()).toEqual(await archive.file('covers/public.png')!.async('nodebuffer'));
   await expect(stat(`${server.data}/backups`)).rejects.toMatchObject({ code: 'ENOENT' });
   expect(await readFile(`${server.data}/documents/public.epub`)).toEqual(changed);
 
@@ -486,7 +486,7 @@ test('administrators manage users while members cannot open Administration', asy
   await dialog.getByLabel('Type RESTORE to confirm').fill('RESTORE');
   await applyRestore();
   await signIn(page, server.origin, 'admin-owner');
-  expect(await (await page.request.get(`${server.origin}/api/v1/documents/book-001/file`)).body()).toEqual(changed);
+  expect(await (await page.request.get(`${server.origin}/api/v1/documents/book_001/file`)).body()).toEqual(changed);
 });
 
 test('Make Library previews the change and only applies after confirmation', async ({ page, server }, testInfo) => {

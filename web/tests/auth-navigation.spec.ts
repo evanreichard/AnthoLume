@@ -32,7 +32,7 @@ test('standalone sign-in gates app routes and Settings signs out immediately', a
     const path = new URL(request.url()).pathname;
     if (path.startsWith('/api/v1/documents')) documents.push(path);
   });
-  for (const route of ['library', 'settings', 'books/server/book-001', 'read/server/book-001']) {
+  for (const route of ['library', 'settings', 'books/server/book_001', 'read/server/book_001']) {
     expect((await page.goto(`${root}/${route}`))?.ok()).toBe(true);
     await expect(signIn).toBeVisible();
     await expect(page).toHaveURL(`${root}/login`);

@@ -27,7 +27,7 @@ export function serverEffects(data: string, user: string) {
       receipts: db.prepare('SELECT event_id,kind,status,revision FROM reading_receipts WHERE user_id=? ORDER BY event_id').all(user),
       activity: db.prepare('SELECT count(*) AS count FROM activity WHERE user_id=?').get(user)!.count as number,
       activitySeconds: db.prepare('SELECT coalesce(sum(duration),0) AS seconds FROM activity WHERE user_id=?').get(user)!.seconds as number,
-      head: db.prepare('SELECT revision,position,fraction FROM reading_heads WHERE user_id=? AND document_id=?').get(user, 'book-001'),
+      head: db.prepare('SELECT revision,position,fraction FROM reading_heads WHERE user_id=? AND document_id=?').get(user, 'book_001'),
     };
   } finally { db.close(); }
 }

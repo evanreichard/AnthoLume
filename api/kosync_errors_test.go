@@ -143,6 +143,21 @@ func TestKOSyncErrorsRequiredPresenceIsAtomic(t *testing.T) {
 	require.Equal(t, before, snapshot())
 }
 
+func TestKOSyncDocumentIDMatchesOfficialServer(t *testing.T) {
+	f := newWebFixture(t)
+	f.register("alice")
+	for _, id := range []string{"a-b", "a/b", "a%2Fb", "a b", "雪"} {
+		assertKOSyncGolden(t, f.koWrite(id, "reader", 0.32, "position"), 403, `{"code":2007,"message":"Field 'document' contains characters the read route cannot serve."}`)
+	}
+	assertKOSyncGolden(t, f.koWrite("a:b", "reader", 0.32, "position"), 403, `{"code":2004,"message":"Field 'document' not provided."}`)
+	require.Zero(t, f.count("documents"))
+	require.Zero(t, f.count("devices"))
+	require.Equal(t, 200, f.koWrite("Book_123", "reader", 0.32, "position").status)
+	r := f.call("GET", "/api/ko/syncs/progress/Book_123", nil, koHeaders())
+	require.Equal(t, 200, r.status, string(r.body))
+	require.Equal(t, "Book_123", decodeWeb[map[string]any](t, r)["document"])
+}
+
 func TestKOSyncErrorsBlanksZeroAndExtrasGolden(t *testing.T) {
 	f := newWebFixture(t)
 	f.register("alice")

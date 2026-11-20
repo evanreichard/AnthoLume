@@ -46,7 +46,7 @@ func TestKOSyncTimestampUsesPersistedAcceptedHead(t *testing.T) {
 		return webResponse{response.StatusCode, response.Header, data}
 	}
 
-	for _, document := range []string{"unknown", "book-a"} {
+	for _, document := range []string{"unknown", "book_a"} {
 		r := call("GET", "/api/ko/syncs/progress/"+document, "")
 		require.Equal(t, 200, r.status, string(r.body))
 		require.Equal(t, "{}", string(r.body))
@@ -109,7 +109,7 @@ func TestKOSyncTimestampUsesPersistedAcceptedHead(t *testing.T) {
 func TestKOSyncTimestampTracksWebOriginHead(t *testing.T) {
 	f := newWebFixture(t)
 	f.readingSetup()
-	r := f.koWrite("book-a", "reader", 0.8, "KO position")
+	r := f.koWrite("book_a", "reader", 0.8, "KO position")
 	require.Equal(t, 200, r.status, string(r.body))
 	koTimestamp := decodeKOTimestamp(t, r)
 	// Distinct Instants - Make head acceptance distinguishable from the prior KO write and the client's observed_at.
@@ -125,7 +125,7 @@ func TestKOSyncTimestampTracksWebOriginHead(t *testing.T) {
 	require.Equal(t, "2", head.Revision)
 	require.NotEqual(t, koTimestamp, head.UpdatedAt.Unix())
 	f.client.Jar = nil
-	r = f.call("GET", "/api/ko/syncs/progress/book-a", nil, koHeaders())
+	r = f.call("GET", "/api/ko/syncs/progress/book_a", nil, koHeaders())
 	require.Equal(t, 200, r.status, string(r.body))
 	require.Equal(t, head.UpdatedAt.Unix(), decodeKOTimestamp(t, r))
 	fields := decodeWeb[map[string]any](t, r)

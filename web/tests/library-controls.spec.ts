@@ -45,7 +45,7 @@ test('the Library defaults to Last read and features the last shared checkpoint 
   const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': user.reading_generation };
   for (const [path, data] of [
     ['devices', { id: 'other-device', name: 'Other device' }],
-    ['reading-progress', { event_id: randomUUID(), document_id: 'book-030', device_id: 'other-device', observed_at: new Date().toISOString(), base_revision: '0', position: '/body/DocFragment[1]/body/p[2]', fraction: .24 }],
+    ['reading-progress', { event_id: randomUUID(), document_id: 'book_030', device_id: 'other-device', observed_at: new Date().toISOString(), base_revision: '0', position: '/body/DocFragment[1]/body/p[2]', fraction: .24 }],
   ] as const) {
     const response = await page.request.post(`${server.origin}/api/v1/me/${path}`, { headers, data });
     expect(response.status(), await response.text()).toBe(200);
@@ -54,7 +54,7 @@ test('the Library defaults to Last read and features the last shared checkpoint 
   const feature = page.getByRole('region', { name: 'Continue reading' });
   await expect(feature.getByRole('heading')).toHaveText('Public book 30');
   await expect(feature.getByText('24% read', { exact: true })).toBeVisible();
-  await expect(feature.getByRole('link', { name: 'Resume' })).toHaveAttribute('href', /\/read\/server\/book-030\?/);
+  await expect(feature.getByRole('link', { name: 'Resume' })).toHaveAttribute('href', /\/read\/server\/book_030\?/);
   await expect(page.getByRole('article').first().getByRole('heading')).toHaveText('Public book 30');
   await page.getByRole('button', { name: 'Sort Books' }).click();
   await expect(page.getByRole('button', { name: 'Last read', exact: true })).toHaveAttribute('aria-pressed', 'true');

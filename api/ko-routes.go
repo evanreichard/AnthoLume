@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -76,6 +78,10 @@ func (api *API) koAuthorizeUser(c *gin.Context) {
 	})
 }
 
+// KOSync Document IDs - Mirror is_servable_document in the official KOReader sync server so writes can be read back.
+// https://github.com/koreader/koreader-sync-server/blob/46ef6b84a3930b3f0265efac74899f2256c158f1/app/controllers/1/syncs_controller.lua#L85-L91
+var koDocumentID = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
+
 func (api *API) koSetProgress(c *gin.Context) {
 	var auth authData
 	if data, _ := c.Get("Authorization"); data != nil {
@@ -87,8 +93,12 @@ func (api *API) koSetProgress(c *gin.Context) {
 		koSyncError(c, 2003)
 		return
 	}
-	if rPosition.DocumentID == "" {
+	if rPosition.DocumentID == "" || strings.ContainsRune(rPosition.DocumentID, ':') {
 		koSyncError(c, 2004)
+		return
+	}
+	if !koDocumentID.MatchString(rPosition.DocumentID) {
+		koSyncError(c, 2007)
 		return
 	}
 	if rPosition.Percentage == nil || rPosition.Progress == nil || rPosition.Device == nil {
@@ -125,6 +135,10 @@ func (api *API) koGetProgress(c *gin.Context) {
 		return
 	}
 
+	if !koDocumentID.MatchString(rDocID.DocumentID) {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
 	progress, err := api.reading.State(c.Request.Context(), auth.UserName, rDocID.DocumentID)
 	var failure *reading.Failure
 	if errors.As(err, &failure) && failure.Status == 404 || err == nil && progress.Position == nil {

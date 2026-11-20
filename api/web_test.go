@@ -153,15 +153,15 @@ func (f *webFixture) count(table string) int {
 }
 func (f *webFixture) readingSetup() {
 	f.register("alice")
-	f.exec("INSERT INTO documents(id,title) VALUES('book-a','A literal %_ book'),('book-b','Other')")
+	f.exec("INSERT INTO documents(id,title) VALUES('book_a','A literal %_ book'),('book-b','Other')")
 	r := f.call("POST", "/api/v1/me/devices", Device{Id: "web-device", Name: "Browser"}, nil)
 	require.Equal(f.t, 200, r.status, string(r.body))
 }
 func progressPayload(base string, fraction float64) map[string]any {
-	return map[string]any{"event_id": uuid.NewString(), "document_id": "book-a", "device_id": "web-device", "observed_at": "2026-01-01T12:00:00Z", "base_revision": base, "position": "/body/DocFragment[1]/body/p[2]/text().0", "fraction": fraction}
+	return map[string]any{"event_id": uuid.NewString(), "document_id": "book_a", "device_id": "web-device", "observed_at": "2026-01-01T12:00:00Z", "base_revision": base, "position": "/body/DocFragment[1]/body/p[2]/text().0", "fraction": fraction}
 }
 func activityPayload() map[string]any {
-	return map[string]any{"event_id": uuid.NewString(), "document_id": "book-a", "device_id": "web-device", "start_time": "2026-01-01T12:00:00Z", "duration": 30, "start_fraction": 0.1, "end_fraction": 0.2}
+	return map[string]any{"event_id": uuid.NewString(), "document_id": "book_a", "device_id": "web-device", "start_time": "2026-01-01T12:00:00Z", "duration": 30, "start_fraction": 0.1, "end_fraction": 0.2}
 }
 func assertProblem(t *testing.T, r webResponse, status int, code string) {
 	t.Helper()
@@ -177,12 +177,12 @@ func assertProblem(t *testing.T, r webResponse, status int, code string) {
 func TestBookDetailStatsAreAccountScoped(t *testing.T) {
 	f := newWebFixture(t)
 	f.readingSetup()
-	f.exec("UPDATE documents SET words=10000 WHERE id='book-a'")
+	f.exec("UPDATE documents SET words=10000 WHERE id='book_a'")
 	r := f.call("POST", "/api/v1/me/activity", activityPayload(), nil)
 	require.Equal(t, 200, r.status, string(r.body))
 	require.NoError(t, f.db.CacheTempTables(context.Background()))
 
-	path := "/api/v1/documents/book-a"
+	path := "/api/v1/documents/book_a"
 	r = f.call("GET", path, nil, nil)
 	require.Equal(t, 200, r.status, string(r.body))
 	stats := decodeWeb[Document](t, r).ReadingStats
@@ -316,7 +316,7 @@ func TestWebJSONClosedValidationAndCancellation(t *testing.T) {
 	require.Zero(t, f.count("activity"))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = f.api.reading.State(ctx, "alice", "book-a")
+	_, err = f.api.reading.State(ctx, "alice", "book_a")
 	require.ErrorIs(t, err, context.Canceled)
 }
 func TestWebExpiryAndSignedCookies(t *testing.T) {

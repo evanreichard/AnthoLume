@@ -15,7 +15,7 @@ func TestKOBlankLegacyPositionIsDistinctFromMissingState(t *testing.T) {
 	r = f.call("GET", "/api/ko/syncs/progress/blank", nil, nil)
 	require.Equal(t, 200, r.status, string(r.body))
 	require.JSONEq(t, fmt.Sprintf(`{"document":"blank","percentage":0,"progress":"","device":"","device_id":"legacy","timestamp":%d}`, timestamp), string(r.body))
-	r = f.call("GET", "/api/ko/syncs/progress/no-state", nil, nil)
+	r = f.call("GET", "/api/ko/syncs/progress/no_state", nil, nil)
 	require.JSONEq(t, `{}`, string(r.body))
 	assertProblem(t, f.call("POST", "/api/v1/me/devices", Device{Id: "new-web", Name: ""}, nil), 400, "invalid_request")
 }
