@@ -64,9 +64,6 @@ UPDATE storage_roots SET path = NULL;
 -- name: SetRestoredStorageRootPath :exec
 UPDATE storage_roots SET path = ?, legacy_path = NULL WHERE id = ?;
 
--- name: InsertRestoredStorageRoot :exec
-INSERT OR IGNORE INTO storage_roots (id, label, path, managed) VALUES (?, ?, ?, 1);
-
 -- name: ListDocumentsForRestore :many
 SELECT id, filepath, storage_root_id, coverfile, deleted FROM documents;
 

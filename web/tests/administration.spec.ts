@@ -465,7 +465,8 @@ test('administrators manage users while members cannot open Administration', asy
   expect(await (await page.request.get(`${server.origin}/api/v1/documents/book_001/file`)).body()).toEqual(changed);
   await page.getByLabel('Backup file').setInputFiles((await backup.path())!);
   await page.getByRole('button', { name: 'Validate', exact: true }).click();
-  await expect(dialog.getByText(/library files will be restored/)).toBeVisible();
+  await expect(dialog.getByText(`Book files will be restored to ${server.data}/documents.`)).toBeVisible();
+  await expect(dialog.getByText(/A file at the same path may be overwritten/)).toBeVisible();
   await expect(dialog.getByLabel('Restore library to')).toHaveCount(0);
   await dialog.getByLabel('Type RESTORE to confirm').fill('RESTORE');
   await applyRestore();
@@ -475,14 +476,15 @@ test('administrators manage users while members cannot open Administration', asy
   expect(await restored.body()).toEqual(original);
   expect(await (await page.request.get(`${server.origin}/api/v1/documents/book_001/cover`)).body()).toEqual(await archive.file('covers/public.png')!.async('nodebuffer'));
   await expect(stat(`${server.data}/backups`)).rejects.toMatchObject({ code: 'ENOENT' });
-  expect(await readFile(`${server.data}/documents/public.epub`)).toEqual(changed);
+  expect(await readFile(`${server.data}/documents/public.epub`)).toEqual(original);
+  await writeFile(`${server.data}/documents/public.epub`, changed);
 
   expect((await page.request.get(`${server.origin}/admin/backups`)).status()).toBe(404);
   await page.goto(`${server.origin}/admin/library`);
   await restoreBackup.click();
   await page.getByLabel('Backup file').setInputFiles(databasePath!);
   await page.getByRole('button', { name: 'Validate', exact: true }).click();
-  await expect(dialog.getByText(/No library files are included/)).toBeVisible();
+  await expect(dialog.getByText('No book or cover files are included.')).toBeVisible();
   await dialog.getByLabel('Type RESTORE to confirm').fill('RESTORE');
   await applyRestore();
   await signIn(page, server.origin, 'admin-owner');

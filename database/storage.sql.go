@@ -172,21 +172,6 @@ func (q *Queries) InsertFormerLibraryRoot(ctx context.Context, arg InsertFormerL
 	return err
 }
 
-const insertRestoredStorageRoot = `-- name: InsertRestoredStorageRoot :exec
-INSERT OR IGNORE INTO storage_roots (id, label, path, managed) VALUES (?, ?, ?, 1)
-`
-
-type InsertRestoredStorageRootParams struct {
-	ID    string  `json:"id"`
-	Label string  `json:"label"`
-	Path  *string `json:"path"`
-}
-
-func (q *Queries) InsertRestoredStorageRoot(ctx context.Context, arg InsertRestoredStorageRootParams) error {
-	_, err := q.db.ExecContext(ctx, insertRestoredStorageRoot, arg.ID, arg.Label, arg.Path)
-	return err
-}
-
 const interruptRunningAdminJobs = `-- name: InterruptRunningAdminJobs :exec
 UPDATE admin_jobs SET status = 'interrupted', finished_at = ? WHERE status = 'running'
 `

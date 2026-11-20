@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -23,6 +24,7 @@ import (
 	"reichard.io/antholume/database"
 	dbmigrations "reichard.io/antholume/database/migrations"
 	"reichard.io/antholume/pkg/storagepath"
+	"reichard.io/antholume/utils"
 )
 
 func (api *API) restoreBoundary(c *gin.Context) {
@@ -268,6 +270,17 @@ func (s *webAPI) StageAdminRestore(ctx context.Context, r StageAdminRestoreReque
 	if err != nil {
 		return nil, err
 	}
+	library, err := api.restoreLibraryPath(ctx, stage)
+	if err != nil {
+		return nil, err
+	}
+	var libraryPath *string
+	if library != "" {
+		libraryPath = &library
+	}
+	if err := os.WriteFile(filepath.Join(stage, "library-path"), []byte(library), 0600); err != nil {
+		return nil, err
+	}
 	token, err := randomCSRF()
 	if err != nil {
 		return nil, err
@@ -284,170 +297,88 @@ func (s *webAPI) StageAdminRestore(ctx context.Context, r StageAdminRestoreReque
 	if err = os.Rename(stage, filepath.Join(api.adminBackupDir(), "restore-ready")); err != nil {
 		return nil, err
 	}
-	return StageAdminRestore200JSONResponse{Token: token, Files: files}, nil
+	return StageAdminRestore200JSONResponse{Token: token, Files: files, LibraryPath: libraryPath}, nil
 }
 
-func archivedRootIDs(stage string) ([]string, error) {
-	entries, err := os.ReadDir(filepath.Join(stage, "documents"))
-	ids := []string{}
-	if errors.Is(err, os.ErrNotExist) {
-		return ids, nil
+func (api *API) restoreLibraryPath(ctx context.Context, stage string) (string, error) {
+	if !isDirectory(filepath.Join(stage, "documents", libraryRoot)) {
+		return "", nil
 	}
-	if err != nil {
-		return nil, err
+	library, err := api.storageRoot(ctx, libraryRoot)
+	if err != nil || !isDirectory(library.Path) {
+		return "", adminFailure(409, "restore_library_unavailable")
 	}
-	if len(entries) > 32 {
-		return nil, errors.New("too many archived roots")
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() || !storageRootID.MatchString(entry.Name()) {
-			return nil, errors.New("invalid archive root")
-		}
-		ids = append(ids, entry.Name())
-	}
-	return ids, nil
+	return library.Path, nil
 }
 
-func (api *API) prepareRestoreLocations(ctx context.Context, db *sql.DB, stage, prefix string) (map[string]string, error) {
+func (api *API) prepareRestoreCatalog(ctx context.Context, db *sql.DB) error {
 	roots, documents, err := validateBackupCatalog(ctx, db)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	archived := make(map[string]database.ListStorageRootsForRestoreRow, len(roots))
-	for _, root := range roots {
-		archived[root.ID] = root
-	}
-
-	mapped := map[string]AdminStorageRoot{}
-	ids, err := archivedRootIDs(stage)
-	if err != nil {
-		return nil, err
-	}
-	for _, id := range ids {
-		if id != libraryRoot {
-			return nil, errors.New("external files are not restorable")
-		}
-		local, err := api.storageRoot(ctx, libraryRoot)
-		if err != nil || !isDirectory(local.Path) {
-			return nil, errors.New("library destination unavailable")
-		}
-		mapped[id] = local
-	}
-
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer tx.Rollback()
 	staged := database.New(tx)
 	// Keep only mappings the local administrator configured; a snapshot cannot grant filesystem access.
 	if err := staged.ClearSnapshotStorageRootPaths(ctx); err != nil {
-		return nil, err
+		return err
 	}
-	for id, root := range archived {
-		local, err := api.db.Queries.GetStorageRoot(ctx, id)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, err
+	for _, root := range roots {
+		local, err := api.db.Queries.GetStorageRoot(ctx, root.ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
 		}
-		if err == nil && local.Managed == root.Managed && local.Path != nil {
-			if err := staged.SetRestoredStorageRootPath(ctx, database.SetRestoredStorageRootPathParams{Path: local.Path, ID: id}); err != nil {
-				return nil, err
+		if err != nil {
+			return err
+		}
+		if local.Managed == root.Managed && local.Path != nil {
+			if err := staged.SetRestoredStorageRootPath(ctx, database.SetRestoredStorageRootPathParams{Path: local.Path, ID: root.ID}); err != nil {
+				return err
 			}
 		}
 	}
-	for _, target := range mapped {
-		if _, ok := archived[target.Id]; ok {
-			continue
-		}
-		if err := staged.InsertRestoredStorageRoot(ctx, database.InsertRestoredStorageRootParams{ID: target.Id, Label: target.Label, Path: &target.Path}); err != nil {
-			return nil, err
-		}
-	}
-
-	consumed := map[string]bool{}
-	defaultRoot := libraryRoot
-	for i := range documents {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		doc := &documents[i]
-		root := doc.StorageRootID
-		if root == nil {
-			root = &defaultRoot
-		}
+	for _, doc := range documents {
 		for _, field := range []*string{doc.Filepath, doc.Coverfile} {
 			if field != nil {
 				*field, _ = storagepath.NormalizeLegacy(*field)
 			}
 		}
-		if local, ok := mapped[*root]; ok && !doc.Deleted && doc.Filepath != nil {
-			archivedName := *root + "/" + *doc.Filepath
-			if info, err := os.Stat(filepath.Join(stage, "documents", filepath.FromSlash(archivedName))); err == nil && info.Mode().IsRegular() {
-				consumed[archivedName] = true
-				relative := prefix + "/" + archivedName
-				doc.Filepath, root = &relative, &local.Id
-			}
-		}
-		if doc.Coverfile != nil && *doc.Coverfile != "UNKNOWN" {
-			if info, err := os.Stat(filepath.Join(stage, "covers", filepath.FromSlash(*doc.Coverfile))); err == nil && info.Mode().IsRegular() {
-				relative := prefix + "/" + *doc.Coverfile
-				doc.Coverfile = &relative
-			}
-		}
 		if doc.Filepath == nil {
-			root = nil
+			doc.StorageRootID = nil
+		} else if doc.StorageRootID == nil {
+			id := libraryRoot
+			doc.StorageRootID = &id
 		}
-		doc.StorageRootID = root
-	}
-	for _, id := range ids {
-		err := fs.WalkDir(os.DirFS(filepath.Join(stage, "documents")), id, func(name string, entry fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if !entry.IsDir() && !consumed[name] {
-				return errors.New("archived file does not belong to a managed book")
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-	for _, doc := range documents {
 		if err := staged.SetRestoredDocumentPaths(ctx, database.SetRestoredDocumentPathsParams{
 			ID: doc.ID, Filepath: doc.Filepath, StorageRootID: doc.StorageRootID, Coverfile: doc.Coverfile,
 		}); err != nil {
-			return nil, err
+			return err
 		}
 	}
 	if _, err := tx.ExecContext(ctx, dbmigrations.AutoImportRulesSchema); err != nil {
-		return nil, err
+		return err
 	}
 	// Restored Schedules - Confirm the new mounts before resuming automatic imports.
 	if err := staged.PauseRestoredImportRules(ctx); err != nil {
-		return nil, err
+		return err
 	}
 	// Interrupted Jobs - A snapshot may include the job that wrote it; no worker resumes after restore.
-	finishedAt := jobTime(time.Now())
-	if err := staged.InterruptRunningAdminJobs(ctx, &finishedAt); err != nil {
-		return nil, err
+	if err := staged.InterruptRunningAdminJobs(ctx, new(jobTime(time.Now()))); err != nil {
+		return err
 	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	out := map[string]string{}
-	for id, root := range mapped {
-		out[id] = root.Path
-	}
-	return out, nil
+	return tx.Commit()
 }
 
 func installRestoreFiles(ctx context.Context, source, dest string) error {
-	if err := os.Mkdir(dest, 0700); err != nil {
+	root, err := os.OpenRoot(dest)
+	if err != nil {
 		return err
 	}
-	var dirs []string
-	err := filepath.WalkDir(source, func(name string, d fs.DirEntry, err error) error {
+	defer root.Close()
+	return filepath.WalkDir(source, func(name string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -458,41 +389,93 @@ func installRestoreFiles(ctx context.Context, source, dest string) error {
 		if err != nil {
 			return err
 		}
-		to := filepath.Join(dest, rel)
 		if d.IsDir() {
-			dirs = append(dirs, to)
 			if rel == "." {
 				return nil
 			}
-			return os.Mkdir(to, 0700)
+			if err := root.MkdirAll(rel, 0700); err != nil {
+				return err
+			}
+			return syncRestoreDirectory(root, filepath.Dir(rel))
 		}
-		from, err := os.Open(name)
+		parent, err := root.OpenRoot(filepath.Dir(rel))
 		if err != nil {
 			return err
 		}
-		defer from.Close()
-		out, err := os.OpenFile(to, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-		if err != nil {
-			return err
-		}
-		_, err = io.Copy(out, contextReader{ctx, from})
-		if err == nil {
-			err = out.Sync()
-		}
-		if closeErr := out.Close(); err == nil {
-			err = closeErr
-		}
-		return err
+		defer parent.Close()
+		return installRestoreFile(ctx, name, parent, filepath.Base(rel))
 	})
+}
+
+func installRestoreFile(ctx context.Context, source string, dest *os.Root, name string) error {
+	from, err := os.Open(source)
 	if err != nil {
 		return err
 	}
-	for i := len(dirs) - 1; i >= 0; i-- {
-		if err := syncAdminDirectory(dirs[i]); err != nil {
+	defer from.Close()
+	if existing, err := dest.Lstat(name); err == nil {
+		if !existing.Mode().IsRegular() {
+			return errors.New("restore would replace a non-regular file")
+		}
+		info, err := from.Stat()
+		if err != nil {
 			return err
 		}
+		// KOReader Fingerprint - Reuse a same-size match without reading the entire book twice.
+		if existing.Size() == info.Size() {
+			current, err := dest.OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+			if err != nil {
+				return err
+			}
+			liveHash, err := utils.CalculatePartialMD5Reader(current)
+			current.Close()
+			if err != nil {
+				return err
+			}
+			backupHash, err := utils.CalculatePartialMD5Reader(from)
+			if err != nil || *liveHash == *backupHash {
+				return err
+			}
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
 	}
-	return syncAdminDirectory(filepath.Dir(dest))
+	token, err := randomCSRF()
+	if err != nil {
+		return err
+	}
+	tmp := ".restore-" + token
+	out, err := dest.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer dest.Remove(tmp)
+	_, err = io.Copy(out, contextReader{ctx, from})
+	if err == nil {
+		err = out.Sync()
+	}
+	if closeErr := out.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := dest.Rename(tmp, name); err != nil {
+		return err
+	}
+	return syncRestoreDirectory(dest, ".")
+}
+
+func syncRestoreDirectory(root *os.Root, name string) error {
+	dir, err := root.Open(name)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return dir.Sync()
 }
 
 func (s *webAPI) ApplyAdminRestore(ctx context.Context, r ApplyAdminRestoreRequestObject) (ApplyAdminRestoreResponseObject, error) {
@@ -539,7 +522,18 @@ func (s *webAPI) ApplyAdminRestore(ctx context.Context, r ApplyAdminRestoreReque
 	if err := api.validateRestoreDB(req, filepath.Join(stage, adminBackupName)); err != nil {
 		return nil, adminFailure(400, "incompatible_restore_database")
 	}
-	if err := api.applyStagedRestore(req, stage, r.Body.Token); err != nil {
+	confirmed, err := os.ReadFile(filepath.Join(stage, "library-path"))
+	if err != nil {
+		return nil, adminFailure(404, "restore_not_found")
+	}
+	library, err := api.restoreLibraryPath(req, stage)
+	if err != nil {
+		return nil, err
+	}
+	if library != string(confirmed) {
+		return nil, adminFailure(409, "restore_library_changed")
+	}
+	if err := api.applyStagedRestore(req, stage, library); err != nil {
 		return nil, err
 	}
 	_ = os.RemoveAll(stage)
@@ -568,14 +562,14 @@ func (api *API) RestoreFreshInstance(ctx context.Context, input io.Reader) error
 	if _, err := api.stageRestore(ctx, input, stage); err != nil {
 		return err
 	}
-	token, err := randomCSRF()
+	library, err := api.restoreLibraryPath(ctx, stage)
 	if err != nil {
 		return err
 	}
-	return api.applyStagedRestore(ctx, stage, token)
+	return api.applyStagedRestore(ctx, stage, library)
 }
 
-func (api *API) applyStagedRestore(req context.Context, stage, token string) error {
+func (api *API) applyStagedRestore(req context.Context, stage, library string) error {
 	original := filepath.Join(stage, adminBackupName)
 	if err := api.checkRestorePageSize(req, original); err != nil {
 		return adminFailure(400, "incompatible_restore_database")
@@ -600,12 +594,11 @@ func (api *API) applyStagedRestore(req context.Context, stage, token string) err
 	if closeErr != nil {
 		return closeErr
 	}
-	prefix := "restore-" + token
 	db, err := sql.Open("sqlite", name+"?_pragma=trusted_schema(OFF)")
 	if err != nil {
 		return err
 	}
-	roots, err := api.prepareRestoreLocations(req, db, stage, prefix)
+	err = api.prepareRestoreCatalog(req, db)
 	if err == nil {
 		// Rotate in the staged database so no restored data is visible under the old generation.
 		err = database.New(db).RotateRestoredReadingGeneration(req)
@@ -615,42 +608,13 @@ func (api *API) applyStagedRestore(req context.Context, stage, token string) err
 		return adminFailure(400, "invalid_restore_data")
 	}
 
-	var destinations []string
-	committed := false
-	defer func() {
-		if !committed {
-			for _, dir := range destinations {
-				_ = os.RemoveAll(dir)
-			}
-		}
-	}()
-	install := func(from, base, source string) error {
-		to := filepath.Join(base, prefix)
-		if source != "" {
-			sub := filepath.Join(to, source)
-			if err := os.Mkdir(to, 0700); err == nil {
-				destinations = append(destinations, to)
-				if err := syncAdminDirectory(base); err != nil {
-					return err
-				}
-			} else if !slices.Contains(destinations, to) {
-				return err
-			}
-			return installRestoreFiles(req, from, sub)
-		}
-		if _, err := os.Lstat(to); !errors.Is(err, os.ErrNotExist) {
-			return errors.New("restore destination already exists")
-		}
-		destinations = append(destinations, to)
-		return installRestoreFiles(req, from, to)
-	}
-	for source, base := range roots {
-		if err := install(filepath.Join(stage, "documents", source), base, source); err != nil {
+	if library != "" {
+		if err := installRestoreFiles(req, filepath.Join(stage, "documents", libraryRoot), library); err != nil {
 			return err
 		}
 	}
-	if isDirectory(filepath.Join(stage, "covers")) {
-		if err := install(filepath.Join(stage, "covers"), filepath.Join(api.cfg.DataPath, "covers"), ""); err != nil {
+	if covers := filepath.Join(stage, "covers"); isDirectory(covers) {
+		if err := installRestoreFiles(req, covers, filepath.Join(api.cfg.DataPath, "covers")); err != nil {
 			return err
 		}
 	}
@@ -681,7 +645,6 @@ func (api *API) applyStagedRestore(req context.Context, stage, token string) err
 				return err
 			}
 			if !more {
-				committed = true
 				return backup.Finish()
 			}
 		}

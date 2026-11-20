@@ -20,7 +20,8 @@ func TestRestoreMigratesPreReactBackup(t *testing.T) {
 	legacy.SetMaxOpenConns(1)
 	require.NoError(t, database.InitPreReactSchema(ctx, legacy))
 	_, err = legacy.Exec(`INSERT INTO users(id,pass,auth_hash,admin) VALUES('old-owner','synthetic','synthetic',1);
-INSERT INTO documents(id,title,filepath,basepath) VALUES('old-book','Old title','old.epub','/data/documents');
+INSERT INTO documents(id,title,filepath,basepath) VALUES('old-book','Old title','old.epub','/different-server/documents');
+INSERT INTO documents(id,title,filepath,basepath,deleted) VALUES('deleted-book','Deleted title','deleted.epub','/different-server/documents',1);
 INSERT INTO devices(id,user_id,device_name) VALUES('old-device','old-owner','Reader');
 INSERT INTO document_progress(user_id,document_id,device_id,percentage,progress) VALUES('old-owner','old-book','old-device',.5,'old position');`)
 	require.NoError(t, err)
@@ -38,7 +39,7 @@ INSERT INTO document_progress(user_id,document_id,device_id,percentage,progress)
 			book := []byte("original book bytes")
 			payload := original
 			if full {
-				payload = zipStoragePaths(t, original, []string{"documents/old.epub"}, book)
+				payload = zipStoragePaths(t, original, []string{"documents/old.epub", "documents/deleted.epub"}, book)
 			}
 			staged := f.call("POST", "/api/v1/admin/restore", string(payload), map[string]string{"Content-Type": "application/octet-stream"})
 			require.Equal(t, 200, staged.status, string(staged.body))
@@ -46,13 +47,20 @@ INSERT INTO document_progress(user_id,document_id,device_id,percentage,progress)
 			candidate := decodeWeb[AdminRestore](t, staged)
 			applied := f.call("PATCH", "/api/v1/admin/restore", AdminRestoreApply{Token: candidate.Token}, nil)
 			require.Equal(t, 204, applied.status, string(applied.body))
-			var position, path string
-			require.NoError(t, f.db.DB.QueryRow(`SELECT h.position,d.filepath FROM reading_heads h JOIN documents d ON d.id=h.document_id WHERE h.user_id='old-owner'`).Scan(&position, &path))
+			var position, path, root string
+			require.NoError(t, f.db.DB.QueryRow(`SELECT h.position,d.filepath,d.storage_root_id FROM reading_heads h JOIN documents d ON d.id=h.document_id WHERE h.user_id='old-owner'`).Scan(&position, &path, &root))
 			require.Equal(t, "old position", position)
 			if full {
-				data, err := os.ReadFile(filepath.Join(f.cfg.DataPath, "documents", filepath.FromSlash(path)))
-				require.NoError(t, err)
-				require.Equal(t, book, data)
+				require.Equal(t, libraryRoot, root)
+				require.Equal(t, "old.epub", path)
+				for _, file := range []string{path, "deleted.epub"} {
+					data, err := os.ReadFile(filepath.Join(f.cfg.DataPath, "documents", file))
+					require.NoError(t, err)
+					require.Equal(t, book, data)
+				}
+			} else {
+				require.NotEqual(t, libraryRoot, root)
+				require.Nil(t, candidate.LibraryPath)
 			}
 			again, err := os.ReadFile(name)
 			require.NoError(t, err)

@@ -729,6 +729,8 @@ export interface components {
         AdminRestore: {
             token: string;
             files: number;
+            /** @description Local destination when the backup contains book files */
+            library_path?: string;
         };
         /** @enum {string} */
         AdminLogLevel: "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "panic";

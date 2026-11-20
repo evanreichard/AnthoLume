@@ -170,7 +170,7 @@ function RestoreBackup({ account, close }: { account: Account; close: () => void
         setError(new Error(`${message} Repair the catalog on the source server, then create a new backup.`));
       } else {
         const code = failure instanceof ReadingHTTPError ? failure.problem.code : '';
-        setError(code === 'incompatible_restore_database' ? new Error('The database is damaged, has no administrator, or does not match this server’s schema.') : code === 'server_busy' ? new Error('The server is busy. Wait for other requests and jobs to finish, then retry.') : code === 'invalid_restore_archive' ? new Error('Choose a valid AnthoLume backup.') : failure);
+        setError(code === 'incompatible_restore_database' ? new Error('The database is damaged, has no administrator, or does not match this server’s schema.') : code === 'server_busy' ? new Error('The server is busy. Wait for other requests and jobs to finish, then retry.') : code === 'invalid_restore_archive' ? new Error('Choose a valid AnthoLume backup.') : code === 'restore_library_changed' ? new Error('The Library destination changed. Close this dialog and validate the backup again.') : code === 'restore_library_unavailable' ? new Error('The managed Library folder is unavailable.') : failure);
       }
     } finally { setBusy(false); }
   }
@@ -182,7 +182,9 @@ function RestoreBackup({ account, close }: { account: Account; close: () => void
   </>}>
     <div className={styles.manageForm}>
       {candidate ? <>
-        <p>{candidate.files ? `${candidate.files} library files will be restored.` : 'No library files are included.'} Restore replaces the current database and signs everyone out. No backup is created automatically. Reading changes queued before restore stay on the device and do not sync into the restored library.</p>
+        {candidate.library_path && <p>Book files will be restored to <code>{candidate.library_path}</code>.</p>}
+        <p>{candidate.files ? `${candidate.files} files are included. A file at the same path may be overwritten. Files absent from the backup are left alone.` : 'No book or cover files are included.'}</p>
+        <p>Restore replaces the current database and signs everyone out. No backup is created automatically. Reading changes queued before restore stay on the device and do not sync into the restored library.</p>
         <label>Type RESTORE to confirm<input autoComplete="off" value={confirm} disabled={busy} onChange={event => setConfirm(event.target.value)} /></label>
       </> : <>
         <label>Backup file<input type="file" accept=".zip,.db" disabled={busy} onChange={event => { setFile(event.target.files?.[0] ?? null); setError(null); }} /></label>

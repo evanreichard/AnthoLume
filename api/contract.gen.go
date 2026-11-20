@@ -421,8 +421,11 @@ type AdminLogPage struct {
 
 // AdminRestore defines model for AdminRestore.
 type AdminRestore struct {
-	Files int    `json:"files"`
-	Token string `json:"token"`
+	Files int `json:"files"`
+
+	// LibraryPath Local destination when the backup contains book files
+	LibraryPath *string `json:"library_path,omitempty"`
+	Token       string  `json:"token"`
 }
 
 // AdminRestoreApply defines model for AdminRestoreApply.

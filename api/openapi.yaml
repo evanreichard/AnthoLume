@@ -870,6 +870,7 @@ components:
       properties:
         token: {type: string, pattern: '^[a-f0-9]{64}$'}
         files: {type: integer, minimum: 0, maximum: 50000}
+        library_path: {type: string, description: Local destination when the backup contains book files}
     AdminLogLevel:
       type: string
       enum: [trace, debug, info, warn, error, fatal, panic]

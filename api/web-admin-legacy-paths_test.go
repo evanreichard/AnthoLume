@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -96,7 +97,10 @@ func TestStoragePathRestoreLegacyBackups(t *testing.T) {
 			book, err := os.ReadFile("../_test_files/alice.epub")
 			require.NoError(t, err)
 			root := filepath.Join(f.cfg.DataPath, "documents")
-			require.NoError(t, os.WriteFile(filepath.Join(root, "book.epub"), book, 0600))
+			bookPath := filepath.Join(root, "book.epub")
+			require.NoError(t, os.WriteFile(bookPath, book, 0600))
+			mtime := time.Unix(123456789, 0)
+			require.NoError(t, os.Chtimes(bookPath, mtime, mtime))
 			payload := db
 			if format == "archive" {
 				payload = zipStoragePaths(t, db, []string{"documents/library/./book.epub", "covers/./cover.png"}, book)
@@ -108,16 +112,14 @@ func TestStoragePathRestoreLegacyBackups(t *testing.T) {
 			require.Equal(t, 204, response.status, string(response.body))
 			var path, cover string
 			require.NoError(t, f.db.DB.QueryRow(`SELECT filepath,coverfile FROM documents WHERE id='legacy'`).Scan(&path, &cover))
-			if format == "archive" {
-				require.Equal(t, "restore-"+candidate.Token+"/library/book.epub", path)
-				require.Equal(t, "restore-"+candidate.Token+"/cover.png", cover)
-			} else {
-				require.Equal(t, "book.epub", path)
-				require.Equal(t, "cover.png", cover)
-			}
-			saved, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+			require.Equal(t, "book.epub", path)
+			require.Equal(t, "cover.png", cover)
+			saved, err := os.ReadFile(bookPath)
 			require.NoError(t, err)
 			require.Equal(t, book, saved)
+			info, err := os.Stat(bookPath)
+			require.NoError(t, err)
+			require.True(t, info.ModTime().Equal(mtime), "an existing matching book must not be rewritten")
 		})
 	}
 }
