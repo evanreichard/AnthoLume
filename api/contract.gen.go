@@ -544,10 +544,16 @@ type Document struct {
 	MediaType      *string `json:"media_type"`
 
 	// ReadingStats Account-scoped statistics returned on the book detail endpoint.
-	ReadingStats   *BookReadingStats `json:"reading_stats,omitempty"`
-	ResumeFraction *float64          `json:"resume_fraction,omitempty"`
-	Series         *string           `json:"series"`
-	Title          *string           `json:"title"`
+	ReadingStats *BookReadingStats `json:"reading_stats,omitempty"`
+
+	// RelativeFilePath Path within the storage root shown only to administrators on single-book details
+	RelativeFilePath *string  `json:"relative_file_path,omitempty"`
+	ResumeFraction   *float64 `json:"resume_fraction,omitempty"`
+	Series           *string  `json:"series"`
+
+	// StorageRootId Storage root ID shown only to administrators on single-book details
+	StorageRootId *string `json:"storage_root_id,omitempty"`
+	Title         *string `json:"title"`
 }
 
 // DocumentEdit defines model for DocumentEdit.

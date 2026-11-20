@@ -34,7 +34,7 @@ function BookDetailContent() {
   const reading = useReading();
   const { access, capabilities } = useSession();
   const navigate = useNavigate();
-  const [management, setManagement] = useState<'edit' | 'identify' | 'delete' | null>(null);
+  const [management, setManagement] = useState<'edit' | 'identify' | 'delete' | 'info' | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<unknown>(null);
   const deleteController = useRef<AbortController | null>(null);
@@ -95,6 +95,8 @@ function BookDetailContent() {
   return <article className={styles.bookPage}>
     <PageHeader leading={<BackPill to="/library" onClick={(event) => { if (window.history.state?.idx > 0) { event.preventDefault(); navigate(-1); } }}>Library</BackPill>}
       actions={<JoinedActions label="Book actions">
+        {metadata?.file_available && <JoinedActionLink reloadDocument download aria-label="Download EPUB" title="Download EPUB" to={`/api/v1/documents/${encodeURIComponent(ref.documentId)}/file`}><Icon name="download" size={18} /></JoinedActionLink>}
+        <JoinedAction aria-label="Book information" title="Book information" onClick={() => setManagement('info')}><Icon name="info" size={18} /></JoinedAction>
         <JoinedActionLink aria-label="Activity" title="Activity" to={`/insights/activity?${new URLSearchParams({ document: ref.documentId })}`}><Icon name="insights" size={18} /></JoinedActionLink>
         {canManage && <>
           <JoinedAction aria-label="Identify book" title="Identify book" onClick={() => setManagement('identify')}><Icon name="search" size={18} /></JoinedAction>
@@ -132,6 +134,18 @@ function BookDetailContent() {
       <h2 className={styles.synopsisHeading}>Synopsis</h2>
       <p className={styles.description}>{metadata?.description?.trim() || 'No synopsis available for this edition.'}</p>
     </section>
+    {metadata && management === 'info' && <Dialog title="Book information" onClose={() => setManagement(null)} footer={<Button size="slim" onClick={() => setManagement(null)}>Close</Button>}>
+      <dl className={styles.bookFileDetails}>
+        <div><dt>Title</dt><dd>{book.title || 'Untitled'}</dd></div>
+        <div><dt>Author</dt><dd>{book.author || 'Unknown'}</dd></div>
+        <div><dt>Catalog ID</dt><dd><code>{metadata.id}</code></dd></div>
+        <div><dt>Format</dt><dd>{format ?? metadata.media_type ?? 'Unknown'}</dd></div>
+        <div><dt>File size</dt><dd>{metadata.file_size_bytes == null ? 'Unavailable' : `${metadata.file_size_bytes.toLocaleString()} bytes`}</dd></div>
+        {metadata.storage_root_id != null && <div><dt>Storage root</dt><dd><code>{metadata.storage_root_id}</code></dd></div>}
+        {metadata.relative_file_path != null && <div><dt>Path within storage root</dt><dd><code>{metadata.relative_file_path}</code></dd></div>}
+      </dl>
+      <p>The catalog ID is used for KOReader sync. For newly imported books, it is the KOReader partial MD5.</p>
+    </Dialog>}
     {canManage && document.data && management === 'edit' &&
       <BookEditor book={book} refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={() => { refreshManagement(); setManagement(null); }} />}
     {canManage && document.data && management === 'identify' &&

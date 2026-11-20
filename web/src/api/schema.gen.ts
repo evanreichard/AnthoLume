@@ -796,6 +796,10 @@ export interface components {
             media_type: string | null;
             /** Format: int64 */
             file_size_bytes: number | null;
+            /** @description Storage root ID shown only to administrators on single-book details */
+            storage_root_id?: string;
+            /** @description Path within the storage root shown only to administrators on single-book details */
+            relative_file_path?: string;
             reading_stats?: components["schemas"]["BookReadingStats"];
             added_at?: string;
             last_read_at?: string;

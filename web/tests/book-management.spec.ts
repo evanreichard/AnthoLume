@@ -1,6 +1,30 @@
+import { readFile } from 'node:fs/promises';
 import { epub, expect, register, test } from './fixtures';
 
 test.use({ serviceWorkers: 'block' });
+
+test('book details show file information and download the original EPUB', async ({ page, server }) => {
+  await register(page, server.origin, 'book-info');
+  const original = await epub('Downloadable edition');
+  await page.getByRole('button', { name: 'Add Book', exact: true }).click();
+  await page.getByLabel('Choose EPUB to upload').setInputFiles({ name: 'original.epub', mimeType: 'application/epub+zip', buffer: original });
+  await page.getByRole('link', { name: 'Open book', exact: true }).click();
+  await page.setViewportSize({ width: 320, height: 844 });
+  const info = page.getByRole('button', { name: 'Book information', exact: true });
+  await info.click();
+  const dialog = page.getByRole('dialog', { name: 'Book information' });
+  await expect(dialog.getByText('Downloadable edition', { exact: true })).toBeVisible();
+  await expect(dialog.getByText(`${original.length.toLocaleString('en-US')} bytes`, { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Catalog ID', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(info).toBeFocused();
+  const pending = page.waitForEvent('download');
+  await page.getByRole('link', { name: 'Download EPUB', exact: true }).click();
+  const download = await pending;
+  expect(download.suggestedFilename()).toMatch(/\.epub$/i);
+  expect(await readFile((await download.path())!)).toEqual(original);
+});
 
 test('book editor previews metadata without saving, saves cover and fields, and confirms shared deletion', async ({ page, server }, testInfo) => {
   await register(page, server.origin, 'book-editor');

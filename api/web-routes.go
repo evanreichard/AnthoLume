@@ -246,6 +246,14 @@ func (s *webAPI) GetDocument(ctx context.Context, r GetDocumentRequestObject) (G
 	}
 	result := s.api.documentDTO(d)
 	result.ReadingStats = &stats
+	if webUser(ctx).IsAdmin && d.Filepath != nil {
+		rootID := libraryRoot
+		if d.StorageRootID != nil {
+			rootID = *d.StorageRootID
+		}
+		result.StorageRootId = &rootID
+		result.RelativeFilePath = d.Filepath
+	}
 	return GetDocument200JSONResponse(result), nil
 }
 func (s *webAPI) DownloadDocument(ctx context.Context, r DownloadDocumentRequestObject) (DownloadDocumentResponseObject, error) {

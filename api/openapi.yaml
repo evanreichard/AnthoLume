@@ -968,6 +968,8 @@ components:
         cover_available: {type: boolean}
         media_type: {type: string, nullable: true}
         file_size_bytes: {type: integer, format: int64, minimum: 0, nullable: true}
+        storage_root_id: {type: string, description: Storage root ID shown only to administrators on single-book details}
+        relative_file_path: {type: string, description: Path within the storage root shown only to administrators on single-book details}
         reading_stats: {$ref: '#/components/schemas/BookReadingStats'}
         added_at: {type: string}
         last_read_at: {type: string}
