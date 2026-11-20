@@ -67,7 +67,10 @@ func cmdServer(ctx *cli.Context) error {
 		return err
 	}
 	defer listener.Close()
-	s := server.New(c, assets)
+	s, err := server.New(c, assets)
+	if err != nil {
+		return err
+	}
 	s.Start(listener)
 
 	// Wait & close

@@ -26,18 +26,22 @@ type server struct {
 }
 
 // Create new server
-func New(c *config.Config, assets fs.FS) *server {
+func New(c *config.Config, assets fs.FS) (*server, error) {
 	db := database.NewMgr(c)
-	api := api.NewApi(db, c, assets)
+	app, err := api.NewAPI(db, c, assets)
+	if err != nil {
+		_ = db.DB.Close()
+		return nil, err
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	return &server{
 		db:        db,
-		api:       api,
+		api:       app,
 		done:      make(chan int),
 		workerCtx: ctx,
 		cancel:    cancel,
-	}
+	}, nil
 }
 
 // Start server

@@ -13,10 +13,11 @@ import (
 
 type Config struct {
 	// Server Config
-	Version      string
-	ListenHost   string
-	ListenPort   string
-	PublicOrigin string
+	Version        string
+	ListenHost     string
+	ListenPort     string
+	PublicOrigin   string
+	TrustedProxies []string
 
 	// DB Configuration
 	DBType string
@@ -67,6 +68,12 @@ func Load() *Config {
 		CookieAuthKey:       trimLowerString(getEnv("COOKIE_AUTH_KEY", "")),
 		CookieEncKey:        trimLowerString(getEnv("COOKIE_ENC_KEY", "")),
 		LogLevel:            trimLowerString(getEnv("LOG_LEVEL", "info")),
+	}
+
+	for _, proxy := range strings.Split(getEnv("TRUSTED_PROXIES", ""), ",") {
+		if proxy = strings.TrimSpace(proxy); proxy != "" {
+			c.TrustedProxies = append(c.TrustedProxies, proxy)
+		}
 	}
 
 	// Parse log level

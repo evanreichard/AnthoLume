@@ -40,14 +40,6 @@ type API struct {
 
 var htmlPolicy = bluemonday.StrictPolicy()
 
-func NewApi(db *database.DBManager, c *config.Config, assets fs.FS) *API {
-	api, err := NewAPI(db, c, assets)
-	if err != nil {
-		panic(err)
-	}
-	return api
-}
-
 // NewAPI composes the production router without starting a listener.
 func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error) {
 	if err := c.ValidatePublicOrigin(); err != nil {
@@ -87,7 +79,9 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 		c.AbortWithStatus(500)
 	}))
 	router.Use(api.appAssetPolicy)
-	router.SetTrustedProxies(nil)
+	if err := router.SetTrustedProxies(c.TrustedProxies); err != nil {
+		return nil, fmt.Errorf("invalid TRUSTED_PROXIES: %w", err)
+	}
 
 	assetsDir, _ := fs.Sub(assets, "assets")
 	router.StaticFS("/assets", http.FS(assetsDir))

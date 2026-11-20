@@ -13,9 +13,10 @@ import (
 func TestTaskContextStartsAtEachTickAndShutdownDrains(t *testing.T) {
 	root := t.TempDir()
 	c := &config.Config{Version: "test", DBType: "sqlite", DBName: "scheduler", ConfigPath: root, DataPath: root, PublicOrigin: "http://127.0.0.1:8585", CookieAuthKey: "synthetic-scheduler-test-secret-key"}
-	s := New(c, os.DirFS(".."))
+	s, err := New(c, os.DirFS(".."))
+	require.NoError(t, err)
 	t.Cleanup(s.Stop)
-	_, err := s.db.DB.Exec(`INSERT INTO users(id,pass,auth_hash) VALUES('a','p','h'); INSERT INTO documents(id,words) VALUES('d',10000); INSERT INTO devices(id,user_id,device_name) VALUES('v','a','V'); INSERT INTO activity(user_id,document_id,device_id,start_time,start_percentage,end_percentage,duration) VALUES('a','d','v','2026-01-01T00:00:00Z',0,0.1,30)`)
+	_, err = s.db.DB.Exec(`INSERT INTO users(id,pass,auth_hash) VALUES('a','p','h'); INSERT INTO documents(id,words) VALUES('d',10000); INSERT INTO devices(id,user_id,device_name) VALUES('v','a','V'); INSERT INTO activity(user_id,document_id,device_id,start_time,start_percentage,end_percentage,duration) VALUES('a','d','v','2026-01-01T00:00:00Z',0,0.1,30)`)
 	require.NoError(t, err)
 	s.wg.Add(1)
 	go func() { defer s.wg.Done(); s.runTaskRunner(500*time.Millisecond, 300*time.Millisecond) }()
