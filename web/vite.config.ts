@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { readerBoundary } from './build/reader-boundary.ts';
 import { readingWorker } from './build/worker.ts';
 
 const target = process.env.ANTHOLUME_BACKEND ?? 'http://127.0.0.1:5324';
@@ -9,7 +10,7 @@ const backendRoutes = ['^/api(?:/|$)', '/sw.js', '/manifest.json', '/favicon.ico
 export default defineConfig({
   base: '/assets/app/',
   appType: 'mpa',
-  plugins: [react(), readingWorker(), {
+  plugins: [react(), readerBoundary(), readingWorker(), {
     name: 'antholume-development-navigation',
     configureServer(server) {
       server.middlewares.use((req, _res, next) => {

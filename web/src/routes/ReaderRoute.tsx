@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router';
-import { ReaderScreen } from '../reading';
+import { ReaderScreen } from '../reading/ReaderScreen';
 import { bookPath } from '../library';
 import { useBookRef } from './bookRef';
 import styles from '../App.module.css';
