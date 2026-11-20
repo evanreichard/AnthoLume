@@ -24,18 +24,19 @@ import (
 )
 
 type API struct {
-	db            *database.DBManager
-	cfg           *config.Config
-	assets        fs.FS
-	httpServer    *http.Server
-	reading       *reading.Store
-	attempts      credentialLimiter
-	identitySlots chan struct{}
-	restoreGate   sync.RWMutex
-	libraryWrite  sync.Mutex
-	backupExport  sync.Mutex
-	restoreStage  sync.Mutex
-	adminJobs     adminJobLifecycle
+	db             *database.DBManager
+	cfg            *config.Config
+	assets         fs.FS
+	httpServer     *http.Server
+	reading        *reading.Store
+	attempts       credentialLimiter
+	identitySlots  chan struct{}
+	restoreGate    sync.RWMutex
+	libraryWrite   sync.Mutex
+	webUploadSlots chan struct{}
+	backupExport   sync.Mutex
+	restoreStage   sync.Mutex
+	adminJobs      adminJobLifecycle
 }
 
 var htmlPolicy = bluemonday.StrictPolicy()
@@ -46,11 +47,12 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 		return nil, err
 	}
 	api := &API{
-		db:            db,
-		cfg:           c,
-		assets:        assets,
-		reading:       &reading.Store{DB: db.DB},
-		identitySlots: make(chan struct{}, 4),
+		db:             db,
+		cfg:            c,
+		assets:         assets,
+		reading:        &reading.Store{DB: db.DB},
+		identitySlots:  make(chan struct{}, 4),
+		webUploadSlots: make(chan struct{}, 2),
 	}
 
 	// Create router
@@ -61,7 +63,7 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 
 	// Add server
 	api.httpServer = &http.Server{
-		Handler:           router,
+		Handler:           boundRequestBody(router, requestBodyIdleTimeout),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    1 << 20,

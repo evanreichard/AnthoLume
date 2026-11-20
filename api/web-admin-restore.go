@@ -200,6 +200,9 @@ func (api *API) stageRestore(ctx context.Context, input io.Reader, stage string)
 	defer os.Remove(file.Name())
 	bytes, err := io.Copy(file, io.LimitReader(contextReader{ctx, input}, maxBackupArchiveBytes+1))
 	closeErr := file.Close()
+	if requestReadTimedOut(err) {
+		return 0, adminFailure(http.StatusRequestTimeout, "request_timeout")
+	}
 	if err != nil || closeErr != nil {
 		return 0, errors.New("restore upload failed")
 	}

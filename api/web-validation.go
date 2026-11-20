@@ -261,6 +261,8 @@ func (api *API) webBoundary(c *gin.Context) {
 		var max *http.MaxBytesError
 		if errors.As(err, &max) {
 			abortProblem(c, 413, "invalid_request")
+		} else if requestReadTimedOut(err) {
+			abortProblem(c, 408, "request_timeout")
 		} else {
 			abortProblem(c, 400, "invalid_request")
 		}
