@@ -6,10 +6,9 @@ import { requireStableBody } from './body-contract';
 import { rasterDimensions } from './media-budget';
 
 const XHTML = 'http://www.w3.org/1999/xhtml', SVG = 'http://www.w3.org/2000/svg';
-const passiveTags = new Set('html head title meta link style body section article nav aside header footer main div p h1 h2 h3 h4 h5 h6 a span samp em strong b i u s small sub sup br hr img figure figcaption blockquote pre code ol ul li dl dt dd table caption thead tbody tfoot tr td th colgroup col abbr cite q time address ruby rt rp wbr ins del'.split(' '));
 const svgTags = new Set('svg g defs symbol use image title desc style path rect circle ellipse line polyline polygon text tspan linearGradient radialGradient stop clipPath'.split(' '));
 const svgAttributes = new Set('xmlns xmlns:xlink xml:lang id class style version viewBox preserveAspectRatio width height x y x1 y1 x2 y2 cx cy r rx ry d points transform fill fill-rule fill-opacity stroke stroke-width stroke-opacity stroke-linecap stroke-linejoin opacity clip-path clip-rule offset stop-color stop-opacity gradientUnits gradientTransform spreadMethod href xlink:href font-family font-size text-anchor role aria-label'.split(' '));
-const activeTags = new Set('script base iframe frame frameset object embed form input button textarea select foreignobject animate animatetransform animatemotion set'.split(' '));
+const activeTags = new Set('script base iframe frame frameset object embed area form input button textarea select foreignobject animate animatetransform animatemotion set'.split(' '));
 const paintAttributes = new Set('fill stroke clip-path mask filter marker-start marker-mid marker-end'.split(' '));
 const mediaByExtension: Record<string, string> = {
   xhtml: 'application/xhtml+xml', html: 'application/xhtml+xml', css: 'text/css', ncx: 'application/x-dtbncx+xml', svg: 'image/svg+xml',
@@ -104,7 +103,7 @@ function validateDocument(doc: Document, entry: string, policy: ChapterPolicy) {
       }
       throw new Error(`Active content element: ${tag}`);
     }
-    if (content && (element.prefix || !(svg ? svgTags.has(tag) : element.namespaceURI === XHTML && passiveTags.has(tag)))) throw new Error(`Unsupported content element: ${tag}`);
+    if (content && (element.prefix || !(svg ? svgTags.has(tag) : element.namespaceURI === XHTML))) throw new Error(`Unsupported content element: ${tag}`);
     if (lower === 'style') {
       if (element.namespaceURI === XHTML) policy.htmlStyle(element.textContent || '', entry);
       else policy.css(element.textContent || '', entry);

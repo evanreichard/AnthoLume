@@ -105,6 +105,8 @@ export class ReaderController {
       // Pinned Serialization Seam - Own canonical asset URLs, not EPUB.js's regex substitution of serialized body text.
       book.spine.hooks.serialize.clear();
       book.spine.hooks.serialize.register((_output: string, section: { document: Document; output: string }) => { section.output = serializeChapter(section.document); });
+      // Chapter Head Ownership - EPUB.js inserts its own base and canonical URL, which are outside the validated archive resource policy.
+      book.spine.hooks.content.clear();
       book.spine.hooks.content.register((doc: Document, section: { index: number }) => this.policy!.prepareChapter(doc, section.index));
       const options: RenditionOptions & { method: 'blobUrl' } = { width: '100%', height: '100%', flow: 'paginated', method: 'blobUrl', spread: 'none', manager: ScopedViewManager, allowScriptedContent: false };
       const rendition = this.rendition = book.renderTo(this.host, options);

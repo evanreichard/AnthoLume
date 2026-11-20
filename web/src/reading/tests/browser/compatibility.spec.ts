@@ -1,4 +1,36 @@
 import { expect, test } from '@playwright/test';
+import type { ReaderStatus } from '../../controller';
+
+test('ordinary XHTML renders without changing the saved reading position', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => !!window.readingTest);
+  const result = await page.evaluate(async () => {
+    const p = window.readingTest;
+    const zip = await p.JSZip.loadAsync(await (await fetch('/fixtures/synthetic.epub')).arrayBuffer());
+    const chapter = await zip.file('one.xhtml')!.async('string');
+    zip.file('one.xhtml', chapter.replace(/<body>[\s\S]*<\/body>/, '<body><p>Press <kbd>Enter</kbd>.</p><p id="resume">A <dfn>term</dfn> with <mark>highlighting</mark> and <var>x</var>.</p></body>'));
+    const host = document.createElement('div');
+    host.style.cssText = 'width:390px;height:650px';
+    document.body.append(host);
+    let status: ReaderStatus | undefined;
+    let publications = 0;
+    const reader = new p.ReaderController(host, next => { status = next; }, async () => { publications++; });
+    const saved = '/body/DocFragment[1]/body/p[2]';
+    try {
+      await reader.open(await zip.generateAsync({ type: 'blob' }), saved);
+      if (status?.state !== 'ready') throw new Error(status?.message ?? 'Reader did not open');
+      const doc = host.querySelector('iframe')?.contentDocument;
+      return {
+        state: status?.state,
+        restored: status?.location?.ko,
+        anchor: doc && p.primaryElementFromKO(doc, saved)?.textContent,
+        markup: [...(doc?.querySelectorAll('kbd, dfn, mark, var') ?? [])].map(node => node.textContent),
+        publications,
+      };
+    } finally { await reader.dispose(); host.remove(); }
+  });
+  expect(result).toEqual({ state: 'ready', restored: '/body/DocFragment[1]/body/p[2]', anchor: 'A term with highlighting and x.', markup: ['Enter', 'term', 'highlighting', 'x'], publications: 0 });
+});
 test('packaged font/SVG/media styles and original rendered body survive; sandbox lifetime blocks scripts after privileged same-origin navigation', async ({ page }) => {
   await page.goto('/'); await page.waitForFunction(() => !!window.readingTest);
   const result = await page.evaluate(async () => {
