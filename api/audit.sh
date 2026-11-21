@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 mkdir -p _scratch/m3/backend
 output=_scratch/m3/backend/govulncheck.json
 go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 -json ./... > "$output"
-python3 - "$output" <<'PY'
+python3 - "$output" "$(go env GOVERSION)" <<'PY'
 import json, sys
 text = open(sys.argv[1]).read()
 decoder = json.JSONDecoder()
@@ -20,7 +20,7 @@ while text.strip():
         sboms.append(obj['SBOM'])
     if 'finding' in obj:
         findings.append(obj['finding'])
-expected_go = 'go' + next(line.split()[1] for line in open('go.mod') if line.startswith('go '))
+expected_go = sys.argv[2]
 if len(configs) != 1 or configs[0].get('go_version') != expected_go:
     raise SystemExit('missing scan configuration or wrong Go toolchain')
 if not any(module.get('path') == 'reichard.io/antholume' for sbom in sboms for module in sbom.get('modules', [])):
