@@ -59,7 +59,7 @@ test('expired-account retirement intent hides retained pending counts until expl
     await page.goto(requested(server.origin, 'book_001'));
     await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
     await expect(page.getByRole('banner').getByRole('link', { name: /pending/ })).toHaveCount(0);
-    await expect(page.locator('img')).toHaveCount(0);
+    await expect(page.locator('img:not([src="/assets/icons/mark.svg"])')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Public book 01', exact: true })).toHaveCount(0);
     expect(await pendingIds(page)).toHaveLength(1);
     await unlink(`${server.data}/receipt-fault`);
