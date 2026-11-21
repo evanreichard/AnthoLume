@@ -61,7 +61,7 @@ test('opening a stored EPUB logs one local summary of discarded CSS', async ({ p
   await page.goto('/'); await page.waitForFunction(() => !!window.readingTest);
   const collected: Promise<unknown[]>[] = [];
   page.on('console', message => {
-    if (message.type() === 'warning' && message.text().startsWith('[AnthoLume reader] Skipped unsupported EPUB styling')) {
+    if (message.type() === 'warning' && message.text().startsWith('[AnthoLume reader]')) {
       collected.push(Promise.all(message.args().map(arg => arg.jsonValue())));
     }
   });
@@ -84,7 +84,7 @@ test('opening a stored EPUB logs one local summary of discarded CSS', async ({ p
   });
   const warnings = await Promise.all(collected);
   expect(result).toEqual({ state: 'ready', style: 'color:rgb(12,34,56)' });
-  expect(warnings).toEqual([['[AnthoLume reader] Skipped unsupported EPUB styling', { unsupportedFunction: 1, unsupportedDeclaration: 1 }]]);
+  expect(warnings).toEqual([['[AnthoLume reader] Skipped optional EPUB resources or styling', { unsupportedFunction: 1, unsupportedDeclaration: 1 }]]);
 });
 
 test('native XHTML preserves XML-only body trees and passive compatibility without admitting live external navigation', async ({ page }) => {
