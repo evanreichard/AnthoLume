@@ -33,7 +33,7 @@ test('saved theme is already active while the EPUB is downloading', async ({ pag
     } finally { db.close(); }
   });
   const cdp = await context.newCDPSession(page);
-  await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: 1024, uploadThroughput: -1 });
+  await cdp.send('Network.emulateNetworkConditionsByRule', { offline: false, matchedNetworkConditions: [{ urlPattern: `${server.origin}/api/v1/documents/*/file`, latency: 0, downloadThroughput: 1024, uploadThroughput: -1 }] });
   try {
     await page.getByRole('link', { name: 'Read', exact: true }).click();
     const progress = page.getByRole('progressbar', { name: 'EPUB download progress' });
