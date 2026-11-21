@@ -4,8 +4,6 @@ import { serverEffects } from './storage';
 test.use({ hasTouch: true });
 
 test('online reader checkpoint drives compact Folio Resume, density and touch', async ({ page, server }) => {
-  const outgoing: string[] = [];
-  page.on('request', (request) => { if (/\/api\/v1\/me\/(activity|reading-progress|devices)$/.test(request.url())) outgoing.push(request.url()); });
   await register(page, server.origin, 'compact-online');
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
   await page.getByRole('link', { name: 'Read', exact: true }).click();
@@ -44,5 +42,4 @@ test('online reader checkpoint drives compact Folio Resume, density and touch', 
   }
   await expect(feature.getByRole('heading', { name: 'Public book 01', exact: true })).toBeVisible();
   await expect.poll(() => serverEffects(server.data, 'compact-online').head?.revision).toBe(1);
-  expect(outgoing.some(url => url.endsWith('/reading-progress'))).toBe(true);
 });

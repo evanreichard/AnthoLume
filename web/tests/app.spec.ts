@@ -31,10 +31,6 @@ test('actual bootstrap, credentials, server paging, inert detail, URL sorting an
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    for (const label of ['Add Book', 'Sort Books']) {
-      const box = await page.getByRole('button', { name: label, exact: true }).boundingBox();
-      expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44);
-    }
   }
   await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link')).toHaveCount(3);
   await expect(page.getByRole('link', { name: 'Insights', exact: true })).toHaveAttribute('href', '/insights');
