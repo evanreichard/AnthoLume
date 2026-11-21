@@ -27,12 +27,7 @@ const (
 	maxEPUBTextSize            = 8 << 20
 )
 
-func detectDocumentType(path string) (DocumentType, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
+func detectOpenedDocument(f *os.File) (DocumentType, error) {
 	stat, err := f.Stat()
 	if err != nil {
 		return "", err
@@ -40,7 +35,7 @@ func detectDocumentType(path string) (DocumentType, error) {
 	if stat.Size() > MaxDocumentSize {
 		return "", ErrArchiveTooLarge
 	}
-	mime, err := mimetype.DetectReader(f)
+	mime, err := mimetype.DetectReader(io.NewSectionReader(f, 0, stat.Size()))
 	if err != nil {
 		return "", err
 	}
@@ -146,15 +141,14 @@ func checkArchiveLimits(z *zip.Reader) error {
 	return nil
 }
 
-func validateEPUBArchive(path string) error {
-	if _, err := detectDocumentType(path); err != nil {
+func validateEPUBArchive(f *os.File, size int64) error {
+	if _, err := detectOpenedDocument(f); err != nil {
 		return err
 	}
-	z, err := zip.OpenReader(path)
+	z, err := zip.NewReader(f, size)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidDocument, err)
 	}
-	defer z.Close()
 	container, err := z.Open("META-INF/container.xml")
 	if err != nil {
 		return fmt.Errorf("%w: missing container.xml", ErrInvalidDocument)

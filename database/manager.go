@@ -7,6 +7,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	sqlite "modernc.org/sqlite"
 	"reichard.io/antholume/config"
-	_ "reichard.io/antholume/database/migrations"
+	dbmigrations "reichard.io/antholume/database/migrations"
 )
 
 type DBManager struct {
@@ -26,9 +27,6 @@ type DBManager struct {
 //go:embed schema.sql
 var ddl string
 
-//go:embed user_streaks.sql
-var user_streaks string
-
 //go:embed document_user_statistics.sql
 var document_user_statistics string
 
@@ -37,11 +35,7 @@ var migrations embed.FS
 
 // Register scalar sqlite function on init
 func init() {
-	sqlite.MustRegisterFunction("LOCAL_TIME", &sqlite.FunctionImpl{
-		NArgs:         2,
-		Deterministic: true,
-		Scalar:        localTime,
-	})
+	sqlite.MustRegisterFunction("READING_WRITER", &sqlite.FunctionImpl{NArgs: 0, Deterministic: true, Scalar: func(*sqlite.FunctionContext, []driver.Value) (driver.Value, error) { return int64(1), nil }})
 	sqlite.MustRegisterFunction("LOCAL_DATE", &sqlite.FunctionImpl{
 		NArgs:         2,
 		Deterministic: true,
@@ -95,7 +89,7 @@ func (dbm *DBManager) init(ctx context.Context) error {
 	dbm.Queries = New(dbm.DB)
 
 	// Execute schema
-	if _, err := dbm.DB.Exec(ddl, nil); err != nil {
+	if _, err := dbm.DB.Exec(ddl + dbmigrations.ReadingSchema); err != nil {
 		log.Panicf("Error executing schema: %v", err)
 		return err
 	}
@@ -114,12 +108,31 @@ func (dbm *DBManager) init(ctx context.Context) error {
 		return err
 	}
 
-	// Cache tables
 	if err := dbm.CacheTempTables(ctx); err != nil {
-		log.Warn("Refreshing temp table cache failed: ", err)
+		log.Warn("Refreshing document user statistics failed: ", err)
 	}
 
 	return nil
+}
+
+// BackupSnapshot uses a separate WAL reader so copying database pages does not occupy the request connection.
+func (dbm *DBManager) BackupSnapshot(ctx context.Context, dest string) error {
+	if dbm.cfg.DBType == "memory" {
+		_, err := dbm.DB.ExecContext(ctx, `VACUUM INTO ?`, dest)
+		return err
+	}
+	path, err := filepath.Abs(filepath.Join(dbm.cfg.ConfigPath, dbm.cfg.DBName+".db"))
+	if err != nil {
+		return err
+	}
+	uri := (&url.URL{Scheme: "file", Path: path, RawQuery: "mode=ro&_pragma=busy_timeout(5000)"}).String()
+	source, err := sql.Open("sqlite", uri)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+	_, err = source.ExecContext(ctx, `VACUUM INTO ?`, dest)
+	return err
 }
 
 // Reload closes the DB & reinits
@@ -138,21 +151,10 @@ func (dbm *DBManager) Reload(ctx context.Context) error {
 	return nil
 }
 
-// CacheTempTables clears existing statistics and recalculates
+// CacheTempTables refreshes the document user statistics projection.
 func (dbm *DBManager) CacheTempTables(ctx context.Context) error {
-	start := time.Now()
-	if _, err := dbm.DB.ExecContext(ctx, user_streaks); err != nil {
-		return err
-	}
-	log.Debug("Cached 'user_streaks' in: ", time.Since(start))
-
-	start = time.Now()
-	if _, err := dbm.DB.ExecContext(ctx, document_user_statistics); err != nil {
-		return err
-	}
-	log.Debug("Cached 'document_user_statistics' in: ", time.Since(start))
-
-	return nil
+	_, err := dbm.DB.ExecContext(ctx, document_user_statistics)
+	return err
 }
 
 // updateSettings ensures that we're enforcing foreign keys and enable journal
@@ -162,6 +164,8 @@ func (dbm *DBManager) updateSettings(ctx context.Context) error {
 	pragmaQuery := `
 		  PRAGMA foreign_keys = ON;
 		  PRAGMA journal_mode = WAL;
+          PRAGMA synchronous = FULL;
+          PRAGMA busy_timeout = 5000;
 		`
 	if _, err := dbm.DB.Exec(pragmaQuery, nil); err != nil {
 		log.Errorf("Error executing pragma: %v", err)
@@ -184,6 +188,7 @@ func (dbm *DBManager) updateSettings(ctx context.Context) error {
 func (dbm *DBManager) performMigrations(isNew bool) error {
 	// Create context
 	ctx := context.WithValue(context.Background(), "isNew", isNew) // nolint
+	ctx = dbmigrations.WithStorageDataPath(ctx, dbm.cfg.DataPath)
 
 	// Set DB migration
 	goose.SetBaseFS(migrations)
@@ -205,31 +210,6 @@ func isEmpty(db *sql.DB) (bool, error) {
 		return false, err
 	}
 	return tableCount == 0, nil
-}
-
-// localTime is a custom SQL function that is registered as LOCAL_TIME in the init function
-func localTime(ctx *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
-	timeStr, ok := args[0].(string)
-	if !ok {
-		return nil, errors.New("both arguments to TZTime must be strings")
-	}
-
-	timeZoneStr, ok := args[1].(string)
-	if !ok {
-		return nil, errors.New("both arguments to TZTime must be strings")
-	}
-
-	timeZone, err := time.LoadLocation(timeZoneStr)
-	if err != nil {
-		return nil, errors.New("unable to parse timezone")
-	}
-
-	formattedTime, err := time.ParseInLocation(time.RFC3339, timeStr, time.UTC)
-	if err != nil {
-		return nil, errors.New("unable to parse time")
-	}
-
-	return formattedTime.In(timeZone).Format(time.RFC3339), nil
 }
 
 // localDate is a custom SQL function that is registered as LOCAL_DATE in the init function

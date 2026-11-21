@@ -1,8 +1,19 @@
 version: 2
 sql:
   - engine: "sqlite"
-    schema: "./database/schema.sql"
-    queries: "./database/query.sql"
+    schema:
+      - database/schema.sql
+      - database/migrations/schema/account_identities_schema.sql
+      - database/migrations/schema/admin_jobs_schema.sql
+      - database/migrations/schema/auto_import_rules_schema.sql
+      - database/migrations/schema/device_preferences_schema.sql
+      - database/migrations/schema/kosync_device_schema.sql
+      - database/migrations/schema/reading_generation_schema.sql
+      - database/migrations/schema/reading_schema.sql
+      - database/migrations/schema/scoped_device_schema.sql
+    queries:
+      - database/query.sql
+      - database/queries
     gen:
       go:
         package: "database"

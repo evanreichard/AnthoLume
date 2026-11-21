@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"io/fs"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -15,33 +16,44 @@ import (
 )
 
 type server struct {
-	db   *database.DBManager
-	api  *api.API
-	done chan int
-	wg   sync.WaitGroup
+	db        *database.DBManager
+	api       *api.API
+	wg        sync.WaitGroup
+	workerCtx context.Context
+	cancel    context.CancelFunc
+	stop      sync.Once
 }
 
 // Create new server
-func New(c *config.Config, assets fs.FS) *server {
-	db := database.NewMgr(c)
-	api := api.NewApi(db, c, assets)
-
-	return &server{
-		db:   db,
-		api:  api,
-		done: make(chan int),
+func New(c *config.Config, assets fs.FS) (*server, error) {
+	if err := c.ValidateConfigPath(); err != nil {
+		return nil, err
 	}
+	db := database.NewMgr(c)
+	app, err := api.NewAPI(db, c, assets)
+	if err != nil {
+		_ = db.DB.Close()
+		return nil, err
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	return &server{
+		db:        db,
+		api:       app,
+		workerCtx: ctx,
+		cancel:    cancel,
+	}, nil
 }
 
 // Start server
-func (s *server) Start() {
+func (s *server) Start(listener net.Listener) {
 	log.Info("Starting server...")
-	s.wg.Add(2)
+	s.wg.Add(3)
 
 	go func() {
 		defer s.wg.Done()
 
-		err := s.api.Start()
+		err := s.api.Serve(listener)
 		if err != nil && err != http.ErrServerClosed {
 			log.Error("Starting server failed: ", err)
 		}
@@ -50,20 +62,12 @@ func (s *server) Start() {
 	go func() {
 		defer s.wg.Done()
 
-		ticker := time.NewTicker(15 * time.Minute)
-		defer ticker.Stop()
+		runTaskRunner(s.workerCtx, 15*time.Minute, 5*time.Minute, s.runScheduledTasks)
+	}()
 
-		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(5*time.Minute))
-		for {
-			select {
-			case <-ticker.C:
-				s.runScheduledTasks(ctx)
-			case <-s.done:
-				log.Info("Stopping task runner...")
-				cancel()
-				return
-			}
-		}
+	go func() {
+		defer s.wg.Done()
+		s.api.RunAutoImports(s.workerCtx)
 	}()
 
 	log.Info("Server started")
@@ -73,14 +77,33 @@ func (s *server) Start() {
 func (s *server) Stop() {
 	log.Info("Stopping server...")
 
-	if err := s.api.Stop(); err != nil {
-		log.Error("HTTP server stop failed: ", err)
-	}
-
-	close(s.done)
-	s.wg.Wait()
+	s.stop.Do(func() {
+		s.cancel()
+		if err := s.api.Stop(); err != nil {
+			log.Error("HTTP server stop failed: ", err)
+		}
+		s.wg.Wait()
+		if err := s.db.DB.Close(); err != nil {
+			log.Error("Database close failed: ", err)
+		}
+	})
 
 	log.Info("Server stopped")
+}
+
+func runTaskRunner(parent context.Context, interval, timeout time.Duration, run func(context.Context)) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			ctx, cancel := context.WithTimeout(parent, timeout)
+			run(ctx)
+			cancel()
+		case <-parent.Done():
+			return
+		}
+	}
 }
 
 // Run normal scheduled tasks

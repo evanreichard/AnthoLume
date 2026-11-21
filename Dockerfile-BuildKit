@@ -1,25 +1,28 @@
-# Certificates & Timezones
-FROM alpine AS alpine
-RUN apk update && apk add --no-cache ca-certificates tzdata
-
-# Build Image
-FROM --platform=$BUILDPLATFORM golang:1.26.8 AS build
-
-# Create Package Directory
+FROM --platform=$BUILDPLATFORM node:22.23.4 AS frontend
 WORKDIR /src
-RUN mkdir -p /opt/antholume
+COPY web/package.json web/package-lock.json ./web/
+RUN --mount=type=cache,target=/root/.npm npm --prefix web ci
+COPY web ./web
+COPY assets/manifest.json ./assets/manifest.json
+RUN npm --prefix web run build && test -s assets/app/index.html && test -s assets/app/sw.js && test -s assets/app/manifest.json
 
-# Cache Dependencies & Compile
+FROM alpine AS alpine
+RUN apk add --no-cache ca-certificates tzdata
+
+FROM --platform=$BUILDPLATFORM golang:1.26.11 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg go mod download
+COPY . .
+COPY --from=frontend /src/assets/app ./assets/app
 ARG TARGETOS
 ARG TARGETARCH
-RUN --mount=target=. \
-    --mount=type=cache,target=/root/.cache/go-build \
+ARG VERSION=release
+RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg \
-    GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
-      -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" \
-      -o /opt/antholume/server
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -mod=readonly \
+      -ldflags "-X reichard.io/antholume/config.version=$VERSION" -o /opt/antholume/server
 
-# Create Image
 FROM busybox:1.36
 COPY --from=alpine /etc/ssl/certs /etc/ssl/certs
 COPY --from=alpine /usr/share/zoneinfo /usr/share/zoneinfo

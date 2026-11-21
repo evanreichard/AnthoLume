@@ -86,6 +86,10 @@ current_progress AS (
         user_id,
         document_id,
         COALESCE((
+            SELECT head.fraction
+            FROM reading_heads AS head
+            WHERE head.user_id = iga.user_id AND head.document_id = iga.document_id
+        ), (
             SELECT dp.percentage
             FROM document_progress AS dp
             WHERE
@@ -110,8 +114,9 @@ SELECT
     SUM(ga.total_time_seconds) AS total_time_seconds,
     (CAST(COALESCE(d.words, 0.0) AS REAL) * SUM(ga.total_read_percentage))
         AS total_words_read,
-    (CAST(COALESCE(d.words, 0.0) AS REAL) * SUM(ga.total_read_percentage))
-    / (SUM(ga.total_time_seconds) / 60.0) AS total_wpm,
+    COALESCE(
+        (CAST(COALESCE(d.words, 0.0) AS REAL) * SUM(ga.total_read_percentage))
+        / (SUM(ga.total_time_seconds) / 60.0), 0.0) AS total_wpm,
 
     -- Yearly WPM
     ga.yearly_time_seconds,

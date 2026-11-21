@@ -24,8 +24,8 @@
             gopls
             golangci-lint
             nodejs
-            tailwindcss
             python3Packages.grip
+            util-linux
           ];
           shellHook = ''
             export PATH=$PATH:~/go/bin

@@ -14,6 +14,17 @@ CREATE TABLE IF NOT EXISTS users (
     created_at DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
+-- Document storage
+CREATE TABLE IF NOT EXISTS storage_roots (
+    id TEXT NOT NULL PRIMARY KEY,
+    label TEXT NOT NULL,
+    path TEXT,
+    managed BOOLEAN NOT NULL CHECK (managed IN (0, 1)),
+    legacy_path TEXT
+);
+INSERT OR IGNORE INTO storage_roots (id, label, managed) VALUES
+    ('library', 'Library', 1);
+
 -- Books / Documents
 CREATE TABLE IF NOT EXISTS documents (
     id TEXT NOT NULL PRIMARY KEY,
@@ -39,7 +50,8 @@ CREATE TABLE IF NOT EXISTS documents (
     deleted BOOLEAN NOT NULL DEFAULT 0 CHECK (deleted IN (0, 1)),
 
     updated_at DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    created_at DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    created_at DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    storage_root_id TEXT REFERENCES storage_roots (id)
 );
 
 -- Metadata
@@ -146,7 +158,7 @@ CREATE TABLE IF NOT EXISTS document_user_statistics (
     UNIQUE(document_id, user_id) ON CONFLICT REPLACE
 );
 
--- User Streaks Table
+-- Legacy Streaks - Keep the table so account deletion can purge rows from restored backups.
 CREATE TABLE IF NOT EXISTS user_streaks (
     user_id TEXT NOT NULL,
     window TEXT NOT NULL,

@@ -1,0 +1,1195 @@
+openapi: 3.0.3
+info:
+  title: AnthoLume web API
+  version: 1.0.0
+servers:
+  - url: /
+security:
+  - cookieAuth: []
+paths:
+  /api/v1/session:
+    get:
+      operationId: getSession
+      security: []
+      responses:
+        '200':
+          description: Current or anonymous session
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Session'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/capabilities:
+    get:
+      operationId: getCapabilities
+      security: []
+      responses:
+        '200':
+          description: Public deployment capabilities
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Capabilities'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/session/login:
+    post:
+      operationId: login
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      security: []
+      requestBody: {$ref: '#/components/requestBodies/Credentials'}
+      responses:
+        '200':
+          description: Authenticated session
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Session'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/session/register:
+    post:
+      operationId: register
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      security: []
+      requestBody: {$ref: '#/components/requestBodies/Credentials'}
+      responses:
+        '201':
+          description: Registered session
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Session'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/session/logout:
+    post:
+      operationId: logout
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: false}
+      responses:
+        '200':
+          description: Rotated anonymous session
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Session'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/documents:
+    get:
+      operationId: listDocuments
+      parameters:
+        - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 2147483647, default: 1}}
+        - {name: page_size, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 24}}
+        - {name: q, in: query, schema: {type: string, maxLength: 256}}
+        - {name: sort, in: query, schema: {type: string, enum: [title, author, added, read]}}
+        - {name: resumable, in: query, schema: {type: boolean}}
+      responses:
+        '200':
+          description: Shared library
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DocumentPage'}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: uploadDocument
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/epub+zip:
+            schema: {type: string, format: binary}
+      responses:
+        '200':
+          description: The existing or newly uploaded shared book
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Document'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/documents/{id}:
+    parameters:
+      - {$ref: '#/components/parameters/ID'}
+    get:
+      operationId: getDocument
+      responses:
+        '200':
+          description: Live document
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Document'}
+        default: {$ref: '#/components/responses/Problem'}
+    patch:
+      operationId: editDocument
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DocumentEdit'}
+      responses:
+        '200':
+          description: Saved book
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Document'}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteDocument
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      responses:
+        '204': {description: Book removed from the shared library}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/metadata/search:
+    get:
+      operationId: lookupMetadata
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string, minLength: 2, maxLength: 240}}
+      responses:
+        '200':
+          description: Suggested metadata, not saved
+          content:
+            application/json:
+              schema: {type: array, maxItems: 8, items: {$ref: '#/components/schemas/MetadataMatch'}}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/metadata/match:
+    get:
+      operationId: previewMetadataMatch
+      parameters:
+        - {name: work_id, in: query, required: true, schema: {type: string, pattern: '^OL[0-9]{1,15}W$'}}
+        - {name: edition_id, in: query, schema: {type: string, pattern: '^OL[0-9]{1,15}M$'}}
+        - {name: isbn, in: query, schema: {type: string, pattern: '^([0-9]{13}|[0-9]{9}[0-9X])$'}}
+      responses:
+        '200':
+          description: Verified Work and optional Edition preview, not saved
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MetadataMatch'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/metadata/covers/{cover_id}:
+    get:
+      operationId: getMetadataCover
+      parameters:
+        - {name: cover_id, in: path, required: true, schema: {type: integer, format: int64, minimum: 1, maximum: 9999999999}}
+      responses:
+        '200':
+          description: Open Library cover preview
+          content:
+            image/jpeg:
+              schema: {type: string, format: binary}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/documents/{id}/cover:
+    parameters:
+      - {$ref: '#/components/parameters/ID'}
+    get:
+      operationId: getDocumentCover
+      responses:
+        '200':
+          description: Existing cover bytes; no metadata lookup
+          content:
+            image/*:
+              schema: {type: string, format: binary}
+        '206':
+          description: Requested range of existing cover bytes
+          content:
+            image/*:
+              schema: {type: string, format: binary}
+        '304': {description: Not modified}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/documents/{id}/file:
+    parameters:
+      - {$ref: '#/components/parameters/ID'}
+    get:
+      operationId: downloadDocument
+      responses:
+        '200':
+          description: Original file; private no-store with safe attachment filename
+          content:
+            '*/*':
+              schema: {type: string, format: binary}
+        '206':
+          description: Requested range of original file
+          content:
+            '*/*':
+              schema: {type: string, format: binary}
+        '304': {description: Not modified}
+        '416': {description: Unsatisfiable range}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/preferences:
+    patch:
+      operationId: updatePreferences
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PreferencesUpdate'}
+      responses:
+        '200':
+          description: Saved account settings
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Session'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/password:
+    post:
+      operationId: changePassword
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PasswordChange'}
+      responses:
+        '200':
+          description: Saved account settings
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Session'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/devices/{id}:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    patch:
+      operationId: updateDevicePreferences
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DevicePreferences'}
+      responses:
+        '200':
+          description: Saved account settings
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ManagedDevice'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/devices:
+    get:
+      operationId: listManagedDevices
+      responses:
+        '200':
+          description: Owned reading devices
+          content:
+            application/json:
+              schema: {type: array, maxItems: 500, items: {$ref: '#/components/schemas/ManagedDevice'}}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: registerDevice
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Device'}
+      responses:
+        '200':
+          description: Owned device
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Device'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/reading-state/{document_id}:
+    get:
+      operationId: getReadingState
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema: {$ref: '#/components/schemas/ID'}
+      responses:
+        '200':
+          description: Authoritative reading head
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReadingState'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/reading-progress:
+    post:
+      operationId: submitProgress
+      description: Requires X-AnthoLume-Reading-Generation matching the generation captured when the event was queued. A missing or stale generation returns 409.
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ProgressEvent'}
+      responses:
+        '200':
+          description: Immutable original receipt
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Receipt'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/activity:
+    post:
+      operationId: submitActivity
+      description: Requires X-AnthoLume-Reading-Generation matching the generation captured when the event was queued. A missing or stale generation returns 409.
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ActivityEvent'}
+      responses:
+        '200':
+          description: Immutable original receipt
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Receipt'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/insights:
+    get:
+      operationId: getInsights
+      responses:
+        '200':
+          description: Current reading records
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Insights'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/insights/activity:
+    get:
+      operationId: listInsightActivity
+      parameters:
+        - {name: cursor, in: query, schema: {type: string, minLength: 1, maxLength: 1024}}
+        - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 100000}}
+        - {name: document, in: query, schema: {type: string, minLength: 1, maxLength: 128}}
+        - {name: day, in: query, schema: {type: string, format: date}}
+      responses:
+        '200':
+          description: Current reading records
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InsightActivityPage'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/insights/progress:
+    get:
+      operationId: listInsightProgress
+      parameters:
+        - {name: cursor, in: query, schema: {type: string, minLength: 1, maxLength: 1024}}
+        - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 100000}}
+      responses:
+        '200':
+          description: Current reading records
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InsightProgressPage'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/insights/rankings:
+    get:
+      operationId: listInsightRankings
+      parameters:
+        - name: period
+          in: query
+          description: 'Rolling window through now: week is 7 days, month is 30 days, year is 365 days.'
+          schema: {type: string, enum: [week, month, year, all], default: all}
+        - {name: metric, in: query, schema: {type: string, enum: [time, words, pace]}}
+      responses:
+        '200':
+          description: Current reading records
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InsightRankings'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/users:
+    get:
+      operationId: listAdminUsers
+      parameters:
+        - {in: query, name: after, schema: {type: string, maxLength: 128}}
+      responses:
+        '200':
+          description: Users in ID order
+          content:
+            application/json:
+              schema: {type: array, maxItems: 51, items: {$ref: '#/components/schemas/AdminUser'}}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createAdminUser
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminUserCreate'}
+      responses:
+        '201':
+          description: Created account
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminUser'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/users/{id}:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    patch:
+      operationId: updateAdminUser
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminUserUpdate'}
+      responses:
+        '200':
+          description: Updated account
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminUser'}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteAdminUser
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      responses:
+        '204': {description: Account deleted after a verified database snapshot}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/jobs:
+    get:
+      operationId: listAdminJobs
+      parameters:
+        - {in: query, name: kind, schema: {type: string, enum: [statistics, database_check, import]}}
+      responses:
+        '200':
+          description: Recent maintenance jobs
+          content:
+            application/json:
+              schema: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/AdminJob'}}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: startAdminJob
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [kind]
+              properties:
+                kind: {type: string, enum: [statistics, database_check, import]}
+                reference: {type: boolean}
+                relink_missing: {type: boolean}
+                root_id: {$ref: '#/components/schemas/StorageRootID'}
+      responses:
+        '202':
+          description: Started or currently running job
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminJob'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/backup:
+    get:
+      operationId: downloadAdminBackup
+      parameters:
+        - {in: query, name: full, schema: {type: boolean, default: false}}
+        - {in: query, name: account, description: Expected browser account, schema: {type: string}}
+        - {in: query, name: generation, description: Expected browser reading generation, schema: {type: string}}
+      responses:
+        '200':
+          description: Freshly generated database snapshot or full library archive
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/backup/preview:
+    get:
+      operationId: previewAdminBackup
+      responses:
+        '200':
+          description: Estimated files and bytes in the managed library
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminBackupPreview'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/backup/repair-path:
+    post:
+      operationId: repairAdminBackupPath
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminBackupPathRepair'}
+      responses:
+        '204': {description: Invalid catalog reference repaired without removing files or history}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/restore:
+    post:
+      operationId: stageAdminRestore
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: {type: string, format: binary}
+      responses:
+        '200':
+          description: Validated restore candidate
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminRestore'}
+        default: {$ref: '#/components/responses/Problem'}
+    patch:
+      operationId: applyAdminRestore
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminRestoreApply'}
+      responses:
+        '204': {description: Database replaced and sessions invalidated}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/logs:
+    get:
+      operationId: listAdminLogs
+      parameters:
+        - {in: query, name: cursor, schema: {type: string, maxLength: 128}}
+        - {in: query, name: q, schema: {type: string, maxLength: 200}}
+        - {in: query, name: level, schema: {$ref: '#/components/schemas/AdminLogLevel'}}
+      responses:
+        '200':
+          description: Page of retained server logs, newest first
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminLogPage'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/storage-roots:
+    get:
+      operationId: listAdminStorageRoots
+      responses:
+        '200':
+          description: Configured storage roots
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/AdminStorageRoot'}}
+        default: {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: saveAdminStorageRoot
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminStorageRootInput'}
+      responses:
+        '204': {description: Storage root saved}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/storage-roots/make-library:
+    get:
+      operationId: previewMakeLibrary
+      parameters:
+        - {in: query, name: id, required: true, schema: {$ref: '#/components/schemas/StorageRootID'}}
+        - {in: query, name: path, schema: {type: string, minLength: 1, maxLength: 4096}}
+      responses:
+        '200':
+          description: Proposed Library change
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MakeLibraryPlan'}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: makeLibrary
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MakeLibraryPlan'}
+      responses:
+        '204': {description: Library changed}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/storage-directories:
+    get:
+      operationId: browseAdminStorageDirectories
+      parameters:
+        - {in: query, name: path, schema: {type: string, maxLength: 4096}}
+      responses:
+        '200':
+          description: Directories visible to the server process
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminStorageDirectories'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/auto-import:
+    get:
+      operationId: listAdminAutoImports
+      responses:
+        '200':
+          description: Configured automatic import rules
+          content:
+            application/json:
+              schema: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/AdminAutoImport'}}
+        default: {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: saveAdminAutoImport
+      parameters:
+        - {$ref: '#/components/parameters/Origin'}
+        - {$ref: '#/components/parameters/CSRF'}
+        - {in: query, name: id, schema: {$ref: '#/components/schemas/AutoImportID'}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminAutoImportSettings'}
+      responses:
+        '204': {description: Automatic import rule saved}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: queueAdminAutoImport
+      parameters:
+        - {$ref: '#/components/parameters/Origin'}
+        - {$ref: '#/components/parameters/CSRF'}
+        - {in: query, name: id, required: true, schema: {$ref: '#/components/schemas/AutoImportID'}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: false}
+      responses:
+        '204': {description: Scan queued}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteAdminAutoImport
+      parameters:
+        - {$ref: '#/components/parameters/Origin'}
+        - {$ref: '#/components/parameters/CSRF'}
+        - {in: query, name: id, required: true, schema: {$ref: '#/components/schemas/AutoImportID'}}
+      responses:
+        '204': {description: Rule deleted}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/import:
+    get:
+      operationId: previewAdminImport
+      parameters:
+        - {in: query, name: root_id, schema: {$ref: '#/components/schemas/StorageRootID'}}
+      responses:
+        '200':
+          description: EPUB files in an import folder
+          content:
+            application/json:
+              schema: {type: array, maxItems: 1000, items: {type: string}}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/import/results:
+    get:
+      operationId: listAdminImportResults
+      parameters:
+        - {in: query, name: job, required: true, schema: {type: string, pattern: '^[a-f0-9]{64}$'}}
+      responses:
+        '200':
+          description: Per-file import results
+          content:
+            application/json:
+              schema: {type: array, maxItems: 1000, items: {$ref: '#/components/schemas/AdminImportResult'}}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/system:
+    get:
+      operationId: getAdminSystem
+      responses:
+        '200':
+          description: Server version
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminSystem'}
+        default: {$ref: '#/components/responses/Problem'}
+components:
+  securitySchemes:
+    cookieAuth: {type: apiKey, in: cookie, name: token}
+  parameters:
+    Origin:
+      name: Origin
+      in: header
+      description: Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+      schema: {type: string, minLength: 1, maxLength: 2048}
+    CSRF:
+      name: X-CSRF-Token
+      in: header
+      description: Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+      schema: {type: string, minLength: 32, maxLength: 128}
+    ID:
+      name: id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/ID'}
+  requestBodies:
+    Credentials:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Credentials'}
+  responses:
+    Problem:
+      description: Safe machine-readable error
+      headers:
+        Retry-After: {schema: {type: string}, description: Present for temporary unavailability}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+  schemas:
+    AdminUser:
+      type: object
+      additionalProperties: false
+      required: [id, is_admin]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        is_admin: {type: boolean}
+    AdminUserCreate:
+      type: object
+      additionalProperties: false
+      required: [username, password, is_admin]
+      properties:
+        username: {$ref: '#/components/schemas/ID'}
+        password: {type: string, minLength: 1, maxLength: 256}
+        is_admin: {type: boolean}
+    AdminUserUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        password: {type: string, minLength: 1, maxLength: 256}
+        is_admin: {type: boolean}
+    AdminJob:
+      type: object
+      additionalProperties: false
+      required: [id, kind, status, started_at, finished_at]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        kind: {type: string, enum: [statistics, database_check, import]}
+        status: {type: string, enum: [running, succeeded, failed, interrupted]}
+        started_at: {type: string, format: date-time, x-go-type: string}
+        finished_at: {type: string, format: date-time, x-go-type: string, nullable: true}
+    StorageRootID: {type: string, minLength: 1, maxLength: 64, pattern: '^[a-z0-9][a-z0-9-]*$'}
+    AdminStorageRoot:
+      type: object
+      additionalProperties: false
+      required: [id, label, path, managed, directory_available, book_count]
+      properties:
+        id: {$ref: '#/components/schemas/StorageRootID'}
+        label: {type: string, minLength: 1, maxLength: 128}
+        path: {type: string, maxLength: 4096}
+        managed: {type: boolean}
+        directory_available: {type: boolean, description: Whether the displayed path exists as a directory on the server}
+        legacy_path: {type: string}
+        book_count: {type: integer, minimum: 0, description: Number of catalog books assigned to this root}
+    AdminStorageRootInput:
+      type: object
+      additionalProperties: false
+      required: [id, label, path]
+      properties:
+        id: {$ref: '#/components/schemas/StorageRootID'}
+        label: {type: string, minLength: 1, maxLength: 128}
+        path: {type: string, maxLength: 4096}
+    MakeLibraryPlan:
+      type: object
+      additionalProperties: false
+      required: [id, source_path, configured_source_path, library_path, incoming, outgoing, paused_rules, same_folder]
+      properties:
+        id: {$ref: '#/components/schemas/StorageRootID'}
+        source_path: {type: string, maxLength: 4096}
+        configured_source_path: {type: string}
+        library_path: {type: string}
+        incoming: {type: integer, minimum: 0}
+        outgoing: {type: integer, minimum: 0}
+        paused_rules: {type: integer, minimum: 0}
+        same_folder: {type: boolean}
+    AdminStorageDirectories:
+      type: object
+      additionalProperties: false
+      required: [path, parent, entries]
+      properties:
+        path: {type: string}
+        parent: {type: string}
+        entries: {type: array, items: {type: string}}
+    AdminBackupPathKind:
+      type: string
+      enum: [book, cover]
+    AdminBackupPathIssue:
+      type: object
+      additionalProperties: false
+      required: [document_id, kind]
+      properties:
+        document_id: {type: string}
+        kind: {$ref: '#/components/schemas/AdminBackupPathKind'}
+    AdminBackupPathRepair:
+      type: object
+      additionalProperties: false
+      required: [document_id, kind]
+      properties:
+        document_id: {type: string}
+        kind: {$ref: '#/components/schemas/AdminBackupPathKind'}
+        path: {type: string, minLength: 1, maxLength: 4096}
+        root_id: {type: string, maxLength: 64}
+        confirm_clear: {type: boolean}
+    AdminBackupPreview:
+      type: object
+      additionalProperties: false
+      required: [files, bytes, missing]
+      properties:
+        files: {type: integer, minimum: 0}
+        bytes: {type: integer, format: int64, minimum: 0}
+        missing: {type: integer, minimum: 0}
+    AutoImportID: {type: string, pattern: '^[a-f0-9]{32}$'}
+    AdminAutoImportSettings:
+      type: object
+      additionalProperties: false
+      required: [name, root_id, enabled, watch, interval_minutes, reference]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        root_id: {$ref: '#/components/schemas/StorageRootID'}
+        enabled: {type: boolean}
+        watch: {type: boolean}
+        interval_minutes: {type: integer, minimum: 1, maximum: 1440, description: Ignored for on-change rules.}
+        reference: {type: boolean}
+    AdminAutoImport:
+      type: object
+      additionalProperties: false
+      required: [id, settings, status]
+      properties:
+        id: {$ref: '#/components/schemas/AutoImportID'}
+        settings: {$ref: '#/components/schemas/AdminAutoImportSettings'}
+        status: {type: string, enum: [idle, complete, errors, unavailable]}
+        last_scan: {type: string, format: date-time, x-go-type: string}
+        last_scan_trigger: {$ref: '#/components/schemas/AutoImportScanTrigger'}
+        next_scan: {type: string, format: date-time, x-go-type: string}
+        scan_summary: {$ref: '#/components/schemas/AutoImportScanSummary'}
+    AutoImportScanTrigger:
+      type: string
+      enum: [on_change, scheduled, manual, initial]
+    AutoImportScanSummary:
+      type: object
+      additionalProperties: false
+      required: [books_added, source_total]
+      properties:
+        books_added: {type: integer, minimum: 0}
+        source_total: {type: integer, minimum: 0, description: EPUBs found in the rule's source during the scan.}
+    AdminRestoreApply:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: {type: string, pattern: '^[a-f0-9]{64}$'}
+    AdminRestore:
+      type: object
+      additionalProperties: false
+      required: [token, files]
+      properties:
+        token: {type: string, pattern: '^[a-f0-9]{64}$'}
+        files: {type: integer, minimum: 0, maximum: 50000}
+        library_path: {type: string, description: Local destination when the backup contains book files}
+    AdminLogLevel:
+      type: string
+      enum: [trace, debug, info, warn, error, fatal, panic]
+    AdminLogPage:
+      type: object
+      additionalProperties: false
+      required: [entries]
+      properties:
+        entries: {type: array, maxItems: 15, items: {$ref: '#/components/schemas/AdminLog'}}
+        next_cursor: {type: string, maxLength: 128}
+    AdminLog:
+      type: object
+      additionalProperties: false
+      required: [time, level, message, details]
+      properties:
+        time: {type: string, format: date-time, x-go-type: string}
+        level: {$ref: '#/components/schemas/AdminLogLevel'}
+        message: {type: string}
+        details: {type: string, description: JSON event with credentials redacted}
+    AdminImportResult:
+      type: object
+      additionalProperties: false
+      required: [file, status]
+      properties:
+        file: {type: string}
+        status: {type: string, enum: [imported, relinked, skipped, failed]}
+    AdminSystem:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: {type: string}
+    ID: {type: string, minLength: 1, maxLength: 128}
+    EventID: {type: string, format: uuid, minLength: 36, maxLength: 36, pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$', x-go-type: string}
+    Revision: {type: string, pattern: '^(0|[1-9][0-9]{0,17})$'}
+    Credentials:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: {type: string, minLength: 1, maxLength: 256}
+        password: {type: string, minLength: 1, maxLength: 256}
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, is_admin, timezone]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        is_admin: {type: boolean}
+        timezone: {type: string}
+    Capabilities:
+      type: object
+      additionalProperties: false
+      required: [registration_enabled, search_enabled, demo_mode]
+      properties:
+        registration_enabled: {type: boolean}
+        search_enabled: {type: boolean}
+        demo_mode: {type: boolean}
+    SessionUser:
+      type: object
+      nullable: true
+      additionalProperties: false
+      required: [id, account_id, reading_generation, is_admin, timezone]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        account_id:
+          type: string
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+          description: Immutable account identity for local storage scoping. When supplied as X-AnthoLume-Account, it must match the authenticated session.
+        reading_generation:
+          type: string
+          pattern: '^[0-9a-f]{32}$'
+          description: Ledger generation captured when queuing a reading event and required in X-AnthoLume-Reading-Generation on submission.
+        is_admin: {type: boolean}
+        timezone: {type: string}
+    Session:
+      type: object
+      additionalProperties: false
+      required: [user, csrf_token, expires_at]
+      properties:
+        user: {$ref: '#/components/schemas/SessionUser'}
+        csrf_token: {type: string, minLength: 32, maxLength: 128}
+        expires_at: {type: string, format: date-time, nullable: true}
+    Document:
+      type: object
+      additionalProperties: false
+      required: [id, title, author, series, description, lang, file_available, cover_available, media_type, file_size_bytes]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        title: {type: string, nullable: true}
+        author: {type: string, nullable: true}
+        series: {type: string, nullable: true}
+        description: {type: string, nullable: true}
+        lang: {type: string, nullable: true}
+        file_available: {type: boolean}
+        cover_available: {type: boolean}
+        media_type: {type: string, nullable: true}
+        file_size_bytes: {type: integer, format: int64, minimum: 0, nullable: true}
+        storage_root_id: {type: string, description: Storage root ID shown only to administrators on single-book details}
+        relative_file_path: {type: string, description: Path within the storage root shown only to administrators on single-book details}
+        reading_stats: {$ref: '#/components/schemas/BookReadingStats'}
+        added_at: {type: string, format: date-time, x-go-type: string}
+        last_read_at: {type: string, format: date-time, x-go-type: string}
+        resume_fraction: {type: number, format: double, minimum: 0, maximum: 1}
+        isbn10: {type: string}
+        isbn13: {type: string}
+    Insights:
+      type: object
+      additionalProperties: false
+      required: [timezone, as_of, days, seconds_read, active_days, current_streak, longest_streak, current_week_streak, longest_week_streak]
+      properties:
+        timezone: {type: string, minLength: 1, maxLength: 128}
+        as_of: {type: string, format: date-time}
+        days: {type: array, minItems: 30, maxItems: 30, items: {$ref: '#/components/schemas/InsightDay'}}
+        seconds_read: {type: integer, format: int64, minimum: 0}
+        active_days: {type: integer, minimum: 0}
+        current_streak: {type: integer, minimum: 0}
+        longest_streak: {type: integer, minimum: 0}
+        current_week_streak: {type: integer, minimum: 0}
+        longest_week_streak: {type: integer, minimum: 0}
+    InsightDay:
+      type: object
+      additionalProperties: false
+      required: [date, seconds_read]
+      properties:
+        date: {type: string, format: date}
+        seconds_read: {type: integer, format: int64, minimum: 0}
+    InsightActivity:
+      type: object
+      additionalProperties: false
+      required: [id, document_id, title, available, started_at, duration, start_fraction, end_fraction]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        document_id: {$ref: '#/components/schemas/ID'}
+        title: {type: string}
+        available: {type: boolean}
+        started_at: {type: string, format: date-time}
+        duration: {type: integer, format: int64, minimum: 0}
+        start_fraction: {type: number, format: double, minimum: 0, maximum: 1}
+        end_fraction: {type: number, format: double, minimum: 0, maximum: 1}
+    InsightProgress:
+      type: object
+      additionalProperties: false
+      required: [document_id, title, available, updated_at, fraction]
+      properties:
+        document_id: {$ref: '#/components/schemas/ID'}
+        title: {type: string}
+        available: {type: boolean}
+        updated_at: {type: string, format: date-time}
+        fraction: {type: number, format: double, minimum: 0, maximum: 1, nullable: true}
+    InsightCursor: {type: string, maxLength: 1024, pattern: '^[A-Za-z0-9_-]+$'}
+    InsightActivityPage:
+      type: object
+      additionalProperties: false
+      required: [items, has_more, timezone]
+      properties:
+        items: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/InsightActivity'}}
+        has_more: {type: boolean}
+        next_cursor: {$ref: '#/components/schemas/InsightCursor'}
+        timezone: {type: string, minLength: 1, maxLength: 128}
+    InsightProgressPage:
+      type: object
+      additionalProperties: false
+      required: [items, has_more, timezone]
+      properties:
+        items: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/InsightProgress'}}
+        has_more: {type: boolean}
+        next_cursor: {$ref: '#/components/schemas/InsightCursor'}
+        timezone: {type: string, minLength: 1, maxLength: 128}
+    InsightRankings:
+      type: object
+      additionalProperties: false
+      required: [items, as_of]
+      properties:
+        as_of: {type: string, format: date-time}
+        items: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/InsightRank'}}
+    InsightRank:
+      type: object
+      additionalProperties: false
+      required: [user, value]
+      properties:
+        user: {$ref: '#/components/schemas/ID'}
+        value: {type: integer, format: int64, minimum: 0}
+    DocumentEdit:
+      type: object
+      additionalProperties: false
+      required: [title, author, description, isbn10, isbn13]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 512}
+        author: {type: string, maxLength: 512}
+        description: {type: string, maxLength: 16000}
+        isbn10: {type: string, pattern: '^([0-9]{9}[0-9X])?$'}
+        isbn13: {type: string, pattern: '^([0-9]{13})?$'}
+        cover_base64: {type: string, maxLength: 2796204, minLength: 4}
+        remove_cover: {type: boolean}
+    MetadataMatch:
+      type: object
+      additionalProperties: false
+      required: [id, title, author]
+      properties:
+        id: {type: string}
+        title: {type: string}
+        author: {type: string}
+        year: {type: integer}
+        edition_id: {type: string, pattern: '^OL[0-9]{1,15}M$'}
+        publisher: {type: string}
+        published: {type: string}
+        cover_id: {type: integer, format: int64, minimum: 1, maximum: 9999999999}
+        description: {type: string}
+        isbn10: {type: string}
+        isbn13: {type: string}
+    BookReadingStats:
+      type: object
+      additionalProperties: false
+      description: Account-scoped statistics returned on the book detail endpoint.
+      required: [reading_seconds, words_per_minute, word_count]
+      properties:
+        reading_seconds: {type: integer, format: int64, minimum: 0}
+        words_per_minute: {type: integer, format: int64, minimum: 0}
+        word_count: {type: integer, format: int64, minimum: 0, nullable: true}
+    DocumentPage:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, page_size, next_page]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Document'}}
+        total: {type: integer, minimum: 0}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1, maximum: 100}
+        next_page: {type: integer, minimum: 1, nullable: true}
+    ReadingState:
+      type: object
+      additionalProperties: false
+      required: [document_id, revision, position, fraction, device_id, updated_at]
+      properties:
+        document_id: {$ref: '#/components/schemas/ID'}
+        revision: {$ref: '#/components/schemas/Revision'}
+        position: {type: string, maxLength: 4096, nullable: true}
+        fraction: {type: number, format: double, minimum: 0, maximum: 1, nullable: true}
+        device_id: {type: string, minLength: 1, maxLength: 128, nullable: true}
+        updated_at: {type: string, format: date-time, nullable: true}
+    PreferencesUpdate:
+      type: object
+      additionalProperties: false
+      required: [timezone]
+      properties:
+        timezone: {type: string, minLength: 1, maxLength: 128}
+    PasswordChange:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password]
+      properties:
+        current_password: {type: string, minLength: 1, maxLength: 256}
+        new_password: {type: string, minLength: 1, maxLength: 256}
+    DevicePreferences:
+      type: object
+      additionalProperties: false
+      required: [label, archived]
+      properties:
+        label: {type: string, maxLength: 128}
+        archived: {type: boolean}
+    ManagedDevice:
+      type: object
+      additionalProperties: false
+      required: [id, name, label, archived, last_synced]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        name: {type: string}
+        label: {type: string}
+        archived: {type: boolean}
+        last_synced: {type: string, format: date-time}
+    Device:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        name: {type: string, minLength: 1, maxLength: 128}
+    ProgressEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, document_id, device_id, observed_at, base_revision, position, fraction]
+      properties:
+        event_id: {$ref: '#/components/schemas/EventID'}
+        document_id: {$ref: '#/components/schemas/ID'}
+        device_id: {$ref: '#/components/schemas/ID'}
+        observed_at: {type: string, format: date-time}
+        base_revision: {$ref: '#/components/schemas/Revision'}
+        position: {type: string, minLength: 1, maxLength: 4096}
+        fraction: {type: number, format: double, minimum: 0, maximum: 1}
+    ActivityEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, document_id, device_id, start_time, duration, start_fraction, end_fraction]
+      properties:
+        event_id: {$ref: '#/components/schemas/EventID'}
+        document_id: {$ref: '#/components/schemas/ID'}
+        device_id: {$ref: '#/components/schemas/ID'}
+        start_time: {type: string, format: date-time}
+        duration: {type: integer, minimum: 0, maximum: 86400}
+        start_fraction: {type: number, format: double, minimum: 0, maximum: 1}
+        end_fraction: {type: number, format: double, minimum: 0, maximum: 1}
+    Receipt:
+      type: object
+      additionalProperties: false
+      required: [event_id, kind, revision]
+      properties:
+        event_id: {$ref: '#/components/schemas/EventID'}
+        kind: {type: string, enum: [progress, activity]}
+        revision: {type: string, pattern: '^(0|[1-9][0-9]{0,17})$', nullable: true}
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, code, detail]
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer, minimum: 400, maximum: 599}
+        code: {type: string}
+        detail: {type: string}
+        current_revision: {$ref: '#/components/schemas/Revision'}
+        backup_path_issue: {$ref: '#/components/schemas/AdminBackupPathIssue'}

@@ -13,8 +13,11 @@ import (
 
 type Config struct {
 	// Server Config
-	Version    string
-	ListenPort string
+	Version        string
+	ListenHost     string
+	ListenPort     string
+	PublicOrigin   string
+	TrustedProxies []string
 
 	// DB Configuration
 	DBType string
@@ -26,15 +29,12 @@ type Config struct {
 
 	// Miscellaneous Settings
 	RegistrationEnabled bool
-	SearchEnabled       bool
 	DemoMode            bool
 	LogLevel            string
 
 	// Cookie Settings
-	CookieAuthKey  string
-	CookieEncKey   string
-	CookieSecure   bool
-	CookieHTTPOnly bool
+	CookieAuthKey string
+	CookieEncKey  string
 }
 
 type customFormatter struct {
@@ -53,22 +53,31 @@ func (cf customFormatter) Format(e *log.Entry) ([]byte, error) {
 // Set at runtime
 var version string = "develop"
 
-func Load() *Config {
+func Load() (*Config, error) {
 	c := &Config{
 		Version:             version,
+		PublicOrigin:        strings.TrimSpace(getEnv("PUBLIC_ORIGIN", "")),
 		ConfigPath:          getEnv("CONFIG_PATH", "/config"),
 		DataPath:            getEnv("DATA_PATH", "/data"),
+		ListenHost:          strings.TrimSpace(getEnv("LISTEN_HOST", "")),
 		ListenPort:          getEnv("LISTEN_PORT", "8585"),
 		DBType:              trimLowerString(getEnv("DATABASE_TYPE", "SQLite")),
 		DBName:              trimLowerString(getEnv("DATABASE_NAME", "antholume")),
 		RegistrationEnabled: trimLowerString(getEnv("REGISTRATION_ENABLED", "false")) == "true",
 		DemoMode:            trimLowerString(getEnv("DEMO_MODE", "false")) == "true",
-		SearchEnabled:       trimLowerString(getEnv("SEARCH_ENABLED", "false")) == "true",
 		CookieAuthKey:       trimLowerString(getEnv("COOKIE_AUTH_KEY", "")),
 		CookieEncKey:        trimLowerString(getEnv("COOKIE_ENC_KEY", "")),
 		LogLevel:            trimLowerString(getEnv("LOG_LEVEL", "info")),
-		CookieSecure:        trimLowerString(getEnv("COOKIE_SECURE", "true")) == "true",
-		CookieHTTPOnly:      trimLowerString(getEnv("COOKIE_HTTP_ONLY", "true")) == "true",
+	}
+
+	if err := c.ValidateConfigPath(); err != nil {
+		return nil, err
+	}
+
+	for _, proxy := range strings.Split(getEnv("TRUSTED_PROXIES", ""), ",") {
+		if proxy = strings.TrimSpace(proxy); proxy != "" {
+			c.TrustedProxies = append(c.TrustedProxies, proxy)
+		}
 	}
 
 	// Parse log level
@@ -107,7 +116,14 @@ func Load() *Config {
 	// Ensure directories exist
 	c.EnsureDirectories()
 
-	return c
+	return c, nil
+}
+
+func (c *Config) ValidateConfigPath() error {
+	if !filepath.IsAbs(c.ConfigPath) {
+		return fmt.Errorf("CONFIG_PATH must be an absolute path: %q", c.ConfigPath)
+	}
+	return nil
 }
 
 // Ensures needed directories exist
@@ -117,11 +133,10 @@ func (c *Config) EnsureDirectories() {
 
 	docDir := filepath.Join(c.DataPath, "documents")
 	coversDir := filepath.Join(c.DataPath, "covers")
-	backupDir := filepath.Join(c.DataPath, "backups")
 
 	os.Mkdir(docDir, 0755)
 	os.Mkdir(coversDir, 0755)
-	os.Mkdir(backupDir, 0755)
+	os.Mkdir(filepath.Join(c.DataPath, "imports"), 0750)
 }
 
 func getEnv(key, fallback string) string {
@@ -146,12 +161,6 @@ func prettyCaller(f *runtime.Frame) (function string, file string) {
 
 	fileName := fmt.Sprintf("%s/%s@%d", parts[0], splitFilePath[len(splitFilePath)-1], line)
 	functionName := strings.Replace(pathName, parts[0]+".", "", 1)
-
-	// Exclude GIN Logger
-	if functionName == "NewApi.apiLogger.func1" {
-		fileName = ""
-		functionName = ""
-	}
 
 	return functionName, fileName
 }

@@ -49,20 +49,10 @@ func TestEPUBMimetypeAnywhere(t *testing.T) {
 	path := writeTestArchive(t, testEPUBEntries())
 	info, err := GetMetadata(path)
 	require.NoError(t, err)
+	require.Equal(t, TYPE_EPUB, info.Type)
 	require.Equal(t, "Test book", *info.Title)
 	require.EqualValues(t, 3, *info.WordCount)
-	docType, err := GetDocumentType(path)
-	require.NoError(t, err)
-	require.Equal(t, TYPE_EPUB, *docType)
-	f, err := os.Open(path)
-	require.NoError(t, err)
-	defer f.Close()
-	docType, err = GetDocumentTypeReader(f)
-	require.NoError(t, err)
-	require.Equal(t, TYPE_EPUB, *docType)
-	count, err := GetWordCount(path)
-	require.NoError(t, err)
-	require.EqualValues(t, 3, *count)
+
 }
 
 func TestUnsupportedArchive(t *testing.T) {
@@ -73,8 +63,7 @@ func TestUnsupportedArchive(t *testing.T) {
 		_, err := GetMetadata(writeTestArchive(t, entries))
 		require.ErrorIs(t, err, ErrUnsupportedFileType)
 	}
-	_, err := GetDocumentTypeReader(strings.NewReader("plain text"))
-	require.ErrorIs(t, err, ErrUnsupportedFileType)
+
 }
 
 func TestMalformedEPUB(t *testing.T) {
@@ -145,8 +134,7 @@ func TestDocumentSizeLimit(t *testing.T) {
 	require.NoError(t, f.Truncate(MaxDocumentSize+1))
 	_, err = GetMetadata(f.Name())
 	require.ErrorIs(t, err, ErrArchiveTooLarge)
-	_, err = GetDocumentTypeReader(f)
-	require.ErrorIs(t, err, ErrArchiveTooLarge)
+
 }
 
 func TestForgedZIPSize(t *testing.T) {

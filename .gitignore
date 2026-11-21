@@ -2,6 +2,8 @@ TODO.md
 .DS_Store
 data/
 build/
+web/src/reading/tests/fixtures/large-media.epub
+assets/app/
 .direnv/
 cover.html
 node_modules

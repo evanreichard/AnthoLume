@@ -10,6 +10,14 @@ import (
 	"reichard.io/antholume/config"
 )
 
+var (
+	documentID       = "testDocument"
+	documentTitle    = "testTitle"
+	documentAuthor   = "testAuthor"
+	documentFilepath = "./testPath.epub"
+	documentWords    = int64(5000)
+)
+
 type DocumentsTestSuite struct {
 	suite.Suite
 	dbm *DBManager
@@ -37,10 +45,6 @@ func (suite *DocumentsTestSuite) SetupTest() {
 }
 
 // DOCUMENT - TODO:
-//   - 󰊕  (q *Queries) GetDocumentProgress
-//   - 󰊕  (q *Queries) GetDocumentWithStats
-//   - 󰊕  (q *Queries) GetDocumentsSize
-//   - 󰊕  (q *Queries) GetDocumentsWithStats
 //   - 󰊕  (q *Queries) GetMissingDocuments
 func (suite *DocumentsTestSuite) TestGetDocument() {
 	doc, err := suite.dbm.Queries.GetDocument(context.Background(), documentID)

@@ -1,0 +1,6 @@
+package: api
+generate:
+  models: true
+  gin-server: true
+  strict-server: true
+allow-remote-refs-from: []

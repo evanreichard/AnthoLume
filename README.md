@@ -35,24 +35,17 @@
 AnthoLume is a Progressive Web App (PWA) that manages your EPUB documents, provides an EPUB reader, and tracks your reading activity! It also has a [KOReader KOSync](https://github.com/koreader/koreader-sync-server) compatible API, and a [KOReader](https://github.com/koreader/koreader) Plugin used to sync activity from your Kindle. Some additional features include:
 
 - OPDS API Endpoint
-- Local / Offline Reader (via ServiceWorker)
-- Metadata Scraping (Thanks [OpenLibrary](https://openlibrary.org/) & [Google Books API](https://developers.google.com/books/docs/v1/getting_started))
+- Browser EPUB reader with on-device caching
+- Book identification with [Open Library](https://openlibrary.org/)
 - Words / Minute (WPM) Tracking & Leaderboard (Amongst Server Users)
-
-While some features require JavaScript (Service Worker & EPUB Reader), we make an effort to limit JavaScript usage. Outside of the two aforementioned features, no JavaScript is used.
 
 ## Server
 
 Docker Image: `docker pull gitea.va.reichard.io/evan/antholume:latest`
 
-### Local / Offline Reader
+### EPUB Reader
 
-The Local / Offline reader allows you to use any AnthoLume server as a standalone offline accessible reading app! Some features:
-
-- Add local EPUB documents
-- Read both local and any cached server documents
-- Maintains progress for all types of documents (server / local)
-- Uploads any progress or activity for cached server documents once the internet is accessible
+Opening or reopening a book requires a connection to the server, even if the EPUB is cached on your device. The reader can continue displaying already loaded content during a connection drop, but the app does not support offline launch or reopening.
 
 ### KOSync API
 
@@ -64,7 +57,7 @@ The OPDS API endpoint is located at: `http(s)://<SERVER>/api/opds`
 
 ### Quick Start
 
-**NOTE**: If you're accessing your instance over HTTP (not HTTPS), you must set `COOKIE_SECURE=false`, otherwise you will not be able to login.
+Set `PUBLIC_ORIGIN` to the exact browser origin, with no trailing slash. Explicit default ports (`:443` for HTTPS, `:80` for HTTP) are omitted before matching browser requests. Use HTTPS for deployed instances. Loopback HTTP is allowed for local development. Cookies are always `HttpOnly` and use `Secure` when `PUBLIC_ORIGIN` is HTTPS.
 
 ```bash
 # Make Data Directory
@@ -72,15 +65,23 @@ mkdir -p antholume_data
 
 # Run Server
 docker run \
-    -p 8585:8585 \
-    -e COOKIE_SECURE=false \
+    -p 127.0.0.1:8585:8585 \
+    -e PUBLIC_ORIGIN=http://localhost:8585 \
     -e REGISTRATION_ENABLED=true \
     -v ./antholume_data:/config \
     -v ./antholume_data:/data \
     gitea.va.reichard.io/evan/antholume:latest
 ```
 
-The service is now accessible at: `http://localhost:8585`. I recommend registering an account and then disabling registration unless you expect more users.
+The service is now accessible at `http://localhost:8585`. Register an account, then disable registration unless you expect more users.
+
+### Book Storage and Upgrades
+
+When the new app first loads on a browser, it deletes the previous release’s local IndexedDB data, including local-only EPUBs and unsynced reading history. Save local originals and sync reading history on the previous release before upgrading. Server data and the current reader’s IndexedDB data are not deleted.
+
+Configure storage roots in **Settings → Administration → Library**. Library is the only managed root and defaults to `$DATA_PATH/documents`. Imported books can be copied into Library or referenced in place from a source root. In Docker, mount source directories into the container before adding them. To relocate a source without changing book IDs or reading history, edit the existing root and keep paths relative to that root unchanged. If you change `DATA_PATH` during an upgrade, books with a recorded path outside the new Library stay on an unmanaged source. If you moved those books into the new Library folder, point the source at that folder and confirm **Merge into Library**.
+
+Backups download on demand and the server does not retain a copy. Before restoring, download a backup if you want to keep the current data. Backups always include the database; **Database + Library files** also includes cataloged Library EPUBs and covers. Source files are not included. If **Create Backup** reports an invalid catalog path, place the original file under a safe name and relink it, or explicitly clear the reference. Clearing does not delete files or reading history. A full restore copies bundled books into the current Library without overwriting existing files. A matching KOReader book can be reused; otherwise, a path collision gets a new filename in the restored catalog. A database-only restore leaves all files untouched. After restore, review the source mappings before re-enabling auto-import schedules. Restore upgrades backups from the supported pre-React release before asking for confirmation. Newer and unrecognized schemas are rejected. Legacy source folders still need to be mapped locally.
 
 ### Configuration
 
@@ -88,17 +89,20 @@ The service is now accessible at: `http://localhost:8585`. I recommend registeri
 | -------------------- | ------------- | -------------------------------------------------------------------------- |
 | DATABASE_TYPE        | SQLite        | Currently only "SQLite" is supported                                       |
 | DATABASE_NAME        | antholume     | The database name, or in SQLite's case, the filename                       |
-| CONFIG_PATH          | /config       | Directory where to store SQLite's DB                                       |
+| CONFIG_PATH          | /config       | Absolute directory path where SQLite's DB is stored                                       |
 | DATA_PATH            | /data         | Directory where to store the documents and cover metadata                  |
+| PUBLIC_ORIGIN        | Required      | Exact browser origin (HTTPS, or HTTP for loopback development)             |
+| LISTEN_HOST          |               | Interface address to bind; empty listens on all interfaces                |
 | LISTEN_PORT          | 8585          | Port the server listens at                                                 |
+| TRUSTED_PROXIES      |               | Comma-separated proxy IPs or CIDRs; empty ignores forwarded client IP headers |
 | LOG_LEVEL            | info          | Set server log level                                                       |
 | REGISTRATION_ENABLED | false         | Whether to allow registration (applies to both WebApp & KOSync API)        |
 | COOKIE_AUTH_KEY      | <EMPTY>       | Optional secret cookie authentication key (auto generated if not provided) |
 | COOKIE_ENC_KEY       | <EMPTY>       | Optional secret cookie encryption key (16 or 32 bytes)                     |
-| COOKIE_SECURE        | true          | Set Cookie `Secure` attribute (i.e. only works over HTTPS)                 |
-| COOKIE_HTTP_ONLY     | true          | Set Cookie `HttpOnly` attribute (i.e. inacessible via JavaScript)          |
 
 ## Security
+
+Behind a reverse proxy, set `TRUSTED_PROXIES` to the proxy addresses as seen by AnthoLume (for example, `127.0.0.1,172.20.0.10`). List only proxies you control. Configure them to sanitize `X-Forwarded-For` and `X-Real-IP` from untrusted clients so credential rate limits use the actual client IP.
 
 ### Authentication
 
@@ -131,11 +135,9 @@ Goose Migrations:
 go install github.com/pressly/goose/v3/cmd/goose@latest
 ```
 
-Run Development:
+Run `make dev` for an empty, persistent library at `http://127.0.0.1:5323`. For backup seeding, account reset, or optional Tailscale access, see [web development](web/README.md).
 
-```bash
-CONFIG_PATH=./data DATA_PATH=./data REGISTRATION_ENABLED=true go run main.go serve
-```
+Pull requests run Go tests, the frontend build, unit tests, and a browser smoke suite. The full race, app-browser, and reader suites run monthly, on dispatch, and on tags: comment `/publish` on a same-repository pull request to build and receive a `pr-<number>-<commit>` image reference.
 
 ## Building
 
@@ -152,15 +154,15 @@ make docker_build_local
 make docker_build_release_latest
 make docker_build_release_dev
 
-# Generate Tailwind CSS
-make build_tailwind
+# Build React assets
+make build_web
 
 # Clean Local Build
 make clean
 
-# Tests (Unit & Integration - Google Books API)
-make tests_unit
-make tests_integration
+# Tests (after building React assets)
+make tests
+npm --prefix web test
 ```
 
 ## Notes

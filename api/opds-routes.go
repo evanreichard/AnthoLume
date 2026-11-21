@@ -3,6 +3,8 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -10,7 +12,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/opds"
-	"reichard.io/antholume/pkg/ptr"
 )
 
 var mimeMapping map[string]string = map[string]string{
@@ -75,26 +76,33 @@ func (api *API) opdsDocuments(c *gin.Context) {
 		auth = data.(authData)
 	}
 
-	// Potential URL Parameters (Default Pagination - 100)
-	qParams := bindQueryParams(c, 100)
+	qParams := struct {
+		Page   int64  `form:"page"`
+		Limit  int64  `form:"limit"`
+		Search string `form:"search"`
+	}{Page: 1, Limit: 100}
+	if err := c.ShouldBindQuery(&qParams); err != nil {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	qParams.Page = max(1, qParams.Page)
+	qParams.Limit = max(0, qParams.Limit)
 
 	// Possible Query
 	var query *string
-	if qParams.Search != nil && *qParams.Search != "" {
-		search := "%" + *qParams.Search + "%"
+	if qParams.Search != "" {
+		search := "%" + qParams.Search + "%"
 		query = &search
 	}
 
-	// Get Documents
-	documents, err := api.db.Queries.GetDocumentsWithStats(c, database.GetDocumentsWithStatsParams{
-		UserID:  auth.UserName,
-		Query:   query,
-		Deleted: ptr.Of(false),
-		Offset:  (*qParams.Page - 1) * *qParams.Limit,
-		Limit:   *qParams.Limit,
+	documents, err := api.db.Queries.ListOPDSDocuments(c, database.ListOPDSDocumentsParams{
+		UserID: auth.UserName,
+		Query:  query,
+		Offset: (qParams.Page - 1) * qParams.Limit,
+		Limit:  qParams.Limit,
 	})
 	if err != nil {
-		log.Error("GetDocumentsWithStats DB Error:", err)
+		log.Error("ListOPDSDocuments DB Error:", err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
@@ -102,10 +110,9 @@ func (api *API) opdsDocuments(c *gin.Context) {
 	// Build OPDS Entries
 	var allEntries []opds.Entry
 	for _, doc := range documents {
-		// Require File
+		// Fileless Documents - They occupy slots in the paginated results but cannot be acquired.
 		if doc.Filepath != nil {
-			splitFilepath := strings.Split(*doc.Filepath, ".")
-			fileType := splitFilepath[len(splitFilepath)-1]
+			fileType := strings.ToLower(strings.TrimPrefix(path.Ext(*doc.Filepath), "."))
 
 			title := "N/A"
 			if doc.Title != nil {
@@ -136,12 +143,12 @@ func (api *API) opdsDocuments(c *gin.Context) {
 				Links: []opds.Link{
 					{
 						Rel:      "http://opds-spec.org/acquisition",
-						Href:     fmt.Sprintf("/api/opds/documents/%s/file", doc.ID),
+						Href:     fmt.Sprintf("/api/opds/documents/%s/file", url.PathEscape(doc.ID)),
 						TypeLink: mimeMapping[fileType],
 					},
 					{
 						Rel:      "http://opds-spec.org/image",
-						Href:     fmt.Sprintf("/api/opds/documents/%s/cover", doc.ID),
+						Href:     fmt.Sprintf("/api/opds/documents/%s/cover", url.PathEscape(doc.ID)),
 						TypeLink: "image/jpeg",
 					},
 				},

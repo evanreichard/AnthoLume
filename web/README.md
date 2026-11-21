@@ -1,0 +1,32 @@
+# AnthoLume web
+
+Use Node 22.23.4. From `web/`:
+
+```sh
+npm ci
+npm run build
+npm test
+npm run test:browser
+npm run test:reader
+```
+
+The build writes `../assets/app/` for Go packaging. Generate API bindings from the repository root with `make generate`.
+
+## Development server
+
+From the repository root, after `npm --prefix web ci`:
+
+```sh
+make dev                          # Create or reopen the loopback library
+make dev-tailnet                  # Also listen on the Tailscale IPv4 address
+make clean-dev                    # Delete only the local dev library
+make dev RESTORE=/path/to/backup.zip
+```
+
+`RESTORE` accepts a compatible AnthoLume ZIP backup (including packaged books and covers) or a database-only SQLite backup. It uses the same format and schema checks as Administration → Restore; pre-migration backups may need upgrading first. It seeds `data/dev/` and never replaces existing state. Without `RESTORE`, `make dev` creates or reuses the local database. Register a test account on loopback before sharing it. `RESET_USER` is optional and sets only that dev account's password to `antholume`, invalidating its existing sessions. Stop the server with Ctrl-C before running `make clean-dev`; cleanup removes only `data/dev/`, not the source backup.
+
+The launcher uses `flock` to guard dev state through setup and shutdown. Vite serves hot reload at `http://127.0.0.1:5323` only. `make dev-tailnet` adds the printed Tailscale IPv4 URL and disables registration. The normal `antholume serve` backend runs with `LISTEN_HOST=127.0.0.1` on port 5324. Override occupied ports with `DEV_PORT` and `DEV_GO_PORT`. Use this plain-HTTP setup only on a trusted tailnet. Both modes share the same dev library.
+
+Browser tests share port 5323 by default; stop dev before running them. Set `CHROMIUM_PATH` for a system Chromium or `GO_BINARY` to override `go` on `PATH`. Fixture binaries and databases use the OS temporary directory and are removed at teardown.
+
+From the repository root, browser reports, logs, and screenshots are under `build/test-results/{app,reader}/`. The generated 300 MB EPUB and its reference hashes are cached in `build/test-cache/reader/`; delete that directory to regenerate them on the next reader test run.

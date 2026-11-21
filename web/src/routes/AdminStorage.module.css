@@ -1,0 +1,9 @@
+.rootCard { grid-column: 1 / -1; }
+.rootList { display: grid; min-width: 0; }
+.rootValue { display: grid; min-width: 0; }
+.rootStatus { display: flex; justify-content: flex-end; align-items: center; gap: 5px; color: color-mix(in srgb, var(--ink) 55%, var(--muted)); }
+.rootWarning { display: inline-flex; color: var(--danger); }
+.rootPath { min-width: 0; overflow: hidden; white-space: nowrap; direction: rtl; text-align: right; mask-image: linear-gradient(to right, transparent, #000 12px); }
+.directoryField { display: grid; gap: 4px; }
+.directoryRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.hint { color: var(--muted); font-size: .875rem; margin: 0; }
