@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, epub, register, root, scratch } from './fixtures';
+import { test, expect, epub, register, root } from './fixtures';
 
 async function stop(child: ChildProcess) {
   if (child.exitCode !== null) return;
@@ -13,8 +13,7 @@ async function stop(child: ChildProcess) {
   await exited;
 }
 
-test('loopback Vite serves development routes while proxying APIs and enforcing the exact public Origin', async ({ page, serverBinary }) => {
-  const data = `${scratch}dev-${Date.now()}`;
+test('loopback Vite serves development routes while proxying APIs and enforcing the exact public Origin', async ({ page, serverBinary, dataDir: data }, testInfo) => {
   await mkdir(`${data}/documents`, { recursive: true });
   await writeFile(`${data}/documents/public.epub`, await epub());
   const port = process.env.ANTHOLUME_TEST_PORT ?? '5333';
@@ -45,5 +44,8 @@ test('loopback Vite serves development routes while proxying APIs and enforcing 
     expect((await page.request.get(`${origin}/app/library`, { maxRedirects: 0 })).status()).toBe(404);
     await page.goto(`${origin}/?antholume-retirement=legacy-v1`);
     await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
-  } finally { await stop(vite); await stop(backend); await writeFile(`${scratch}development.log`, logs); }
+  } finally {
+    try { await Promise.all([stop(vite), stop(backend)]); }
+    finally { await writeFile(testInfo.outputPath('development.log'), logs); }
+  }
 });

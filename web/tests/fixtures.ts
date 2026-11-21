@@ -1,12 +1,12 @@
 import { test as base, expect } from '@playwright/test';
 import { spawn, execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import JSZip from 'jszip';
 
 export const root = fileURLToPath(new URL('../../', import.meta.url));
-export const scratch = `${root}_scratch/m3/frontend/`;
 export async function epub(title = 'Local public book'): Promise<Buffer> {
   const zip = new JSZip();
   zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
@@ -18,21 +18,23 @@ export async function epub(title = 'Local public book'): Promise<Buffer> {
 }
 
 type Server = { origin: string; data: string; stop: () => Promise<void>; start: () => Promise<void> };
-export const test = base.extend<{ server: Server }, { serverBinary: string }>({
+export const test = base.extend<{ server: Server; dataDir: string }, { serverBinary: string }>({
+  dataDir: async ({}, use) => {
+    const dir = await mkdtemp(join(tmpdir(), 'antholume-browser-'));
+    try { await use(dir); } finally { await rm(dir, { recursive: true, force: true }); }
+  },
   serverBinary: [async ({}, use) => {
-    await mkdir(scratch, { recursive: true });
-    const sdk = `${root}_scratch/m2/api-contract/toolchains/go/bin/go`;
-    const go = process.env.GO_BINARY || (existsSync(sdk) ? sdk : 'go');
-    const binary = `${scratch}production-router-test-${process.pid}`;
+    const go = process.env.GO_BINARY || 'go';
+    const dir = await mkdtemp(join(tmpdir(), 'antholume-router-'));
+    const binary = join(dir, 'server');
     try {
       execFileSync(go, ['build', '-mod=readonly', '-o', binary, './web/tests/server'], { cwd: root, env: { ...process.env, GOTOOLCHAIN: 'local' }, timeout: 180_000, stdio: 'pipe' });
       await use(binary);
     } finally {
-      await rm(binary, { force: true });
+      await rm(dir, { recursive: true, force: true });
     }
   }, { scope: 'worker', timeout: 240_000 }],
-  server: async ({ serverBinary }, use, testInfo) => {
-    const data = await mkdtemp(`${scratch}browser-`);
+  server: async ({ serverBinary, dataDir: data }, use, testInfo) => {
     await mkdir(`${data}/documents`);
     await mkdir(`${data}/covers`);
     await writeFile(`${data}/documents/public.epub`, await epub('Server public book'));

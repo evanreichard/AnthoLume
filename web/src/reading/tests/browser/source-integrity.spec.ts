@@ -10,7 +10,7 @@ test('real source worker matches original Alice KO vector while legacy full-MD5 
   });
   expect(result).toEqual({ serverID: '0f36c66155de34b281c4791654d0b1ce', eventID: '0f36c66155de34b281c4791654d0b1ce', protocolHash: '386d1cb51fe4a72e5c9fdad5e059bad9', checksum: sha256, checkpoint: { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 } });
 });
-// Upstream Oracle - Pinned util.partialMD5 with a byte-collecting digest sink; provenance in _scratch/m3/fix-partial-md5/.
+// Upstream Oracle - Byte samples from https://github.com/koreader/koreader/blob/6e40ca6b1443996ab9b04fbb19173b563b2921dd/frontend/util.lua#L1094-L1111 with a byte-collecting digest sink.
 const partialVectors = [
   [1, '93b885adfe0da089cdf634904fd59f71'],
   [1023, 'a4251fab5005302261eac84375ef8442'],

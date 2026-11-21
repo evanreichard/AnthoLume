@@ -6,8 +6,8 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   fullyParallel: false,
   workers: 1,
-  outputDir: '../_scratch/m3/frontend/browser-results',
-  reporter: [['list'], ['json', { outputFile: '../_scratch/m3/frontend/browser-results.json' }]],
+  outputDir: '../build/test-results/app',
+  reporter: [['list'], ['json', { outputFile: '../build/test-results/app/results.json' }]],
   use: {
     headless: true,
     viewport: { width: 390, height: 844 },

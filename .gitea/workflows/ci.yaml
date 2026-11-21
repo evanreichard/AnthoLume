@@ -30,7 +30,7 @@ jobs:
           go test -mod=readonly -count=1 -timeout=180s ./...
           go test -mod=readonly -race -count=1 -timeout=10m ./...
           go vet -mod=readonly ./...
-          go build -mod=readonly -o _scratch/m3/backend/antholume .
+          go build -mod=readonly -o /dev/null .
           go mod verify
           bash api/audit.sh
 
@@ -50,9 +50,9 @@ jobs:
           retention-days: 3
           if-no-files-found: ignore
           path: |
-            _scratch/m3/frontend/browser-results/**/server.log
-            _scratch/m3/*/browser-results/**/error-context.md
-            _scratch/m3/*/browser-results/**/trace.zip
+            build/test-results/app/**/*.log
+            build/test-results/*/**/error-context.md
+            build/test-results/*/**/trace.zip
 
   publish:
     needs: tests

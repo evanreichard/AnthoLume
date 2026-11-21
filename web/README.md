@@ -27,4 +27,6 @@ make clean-dev
 
 The launcher uses `flock` to guard dev state through setup and shutdown. Vite serves hot reload at `http://127.0.0.1:5323` and, when available, the printed Tailscale IPv4 URL. The normal `antholume serve` backend runs with `LISTEN_HOST=127.0.0.1` on port 5324. Override occupied ports with `DEV_PORT` and `DEV_GO_PORT`. Use this plain-HTTP setup only on a trusted tailnet. `make dev-tailnet` and `make clean-dev-tailnet` are aliases.
 
-Browser tests share port 5323 by default; stop dev before running them. Set `CHROMIUM_PATH` if using a system Chromium.
+Browser tests share port 5323 by default; stop dev before running them. Set `CHROMIUM_PATH` for a system Chromium or `GO_BINARY` to override `go` on `PATH`. Fixture binaries and databases use the OS temporary directory and are removed at teardown.
+
+From the repository root, browser reports, logs, and screenshots are under `build/test-results/{app,reader}/`. The generated 300 MB EPUB and its reference hashes are cached in `build/test-cache/reader/`; delete that directory to regenerate them on the next reader test run.

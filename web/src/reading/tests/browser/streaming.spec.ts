@@ -1,11 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { referenceFile } from '../large-fixture';
 import { WorkerMemoryProbe } from '../worker-memory';
 test.use({ trace: 'off' });
 
 test('300 MB streamed download publishes complete originals, bounded caches and on-demand integrity without full-file buffers', async ({ page }) => {
   test.setTimeout(240000);
-  const reference = JSON.parse(readFileSync(new URL('../../../../../_scratch/m3/reader/public-300m.json', import.meta.url), 'utf8'));
+  const reference = JSON.parse(readFileSync(referenceFile, 'utf8'));
   await page.goto('/'); await page.waitForFunction(() => !!window.readingTest);
   const workers = new WorkerMemoryProbe(page.context(), page); await workers.start();
   const cdp = await page.context().newCDPSession(page), measured = { peakHeap: 0, peakBacking: 0, samples: 0, phases: {} as Record<string, number> }; let phase = 'stage';

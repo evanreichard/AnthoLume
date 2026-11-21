@@ -4,9 +4,7 @@ import subprocess
 import tempfile
 
 root = Path(__file__).resolve().parents[1]
-scratch = root / '_scratch/m3/backend'
-scratch.mkdir(parents=True, exist_ok=True)
-with tempfile.TemporaryDirectory(prefix='generation.', dir=scratch) as directory:
+with tempfile.TemporaryDirectory(prefix='antholume-generation-') as directory:
     work = Path(directory)
     for iteration in (1, 2):
         config = (root / 'api/oapi-codegen.yaml').read_text().replace('output: contract.gen.go', f'output: {work / f"go{iteration}"}')

@@ -1,9 +1,9 @@
-import { test, expect, register, scratch } from './fixtures';
+import { test, expect, register } from './fixtures';
 import { serverEffects } from './storage';
 
 test.use({ hasTouch: true });
 
-test('online reader checkpoint drives compact Folio Resume, density and touch', async ({ page, server }) => {
+test('online reader checkpoint drives compact Folio Resume, density and touch', async ({ page, server }, testInfo) => {
   await register(page, server.origin, 'compact-online');
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
   await page.getByRole('link', { name: 'Read', exact: true }).click();
@@ -38,7 +38,7 @@ test('online reader checkpoint drives compact Folio Resume, density and touch', 
       await dialog.getByRole('button', { name: 'Done' }).tap();
       await expect(dialog).toHaveCount(0);
     }
-    await page.screenshot({ path: `${scratch}folio-${width}.png`, fullPage: true });
+    await page.screenshot({ path: testInfo.outputPath(`folio-${width}.png`), fullPage: true });
   }
   await expect(feature.getByRole('heading', { name: 'Public book 01', exact: true })).toBeVisible();
   await expect.poll(() => serverEffects(server.data, 'compact-online').head?.revision).toBe(1);

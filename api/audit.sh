@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-mkdir -p _scratch/m3/backend
-output=_scratch/m3/backend/govulncheck.json
+output=$(mktemp)
+trap 'rm -f "$output"' EXIT
 go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 -json ./... > "$output"
 python3 - "$output" "$(go env GOVERSION)" <<'PY'
 import json, sys
