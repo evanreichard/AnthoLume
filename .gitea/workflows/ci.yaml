@@ -4,10 +4,17 @@ on:
     branches: [master]
     tags: ["**"]
   pull_request:
+  schedule:
+    - cron: '17 4 1 * *'
+  workflow_dispatch:
+
+env:
+  FULL_CHECKS: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')) && 'true' || 'false' }}
 
 jobs:
   go:
     name: Go qualification
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 10 || 30 }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,6 +30,7 @@ jobs:
         run: go test -mod=readonly -count=1 -timeout=180s ./...
 
       - name: Go race tests
+        if: env.FULL_CHECKS == 'true'
         run: go test -mod=readonly -race -count=1 -timeout=10m ./...
 
       - name: Go vet
@@ -36,6 +44,7 @@ jobs:
 
   tests:
     name: Frontend and browser tests
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 10 || 60 }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,13 +70,21 @@ jobs:
       - name: Build server with frontend assets
         run: go build -mod=readonly -o /dev/null .
 
-      - name: App browser tests
+      - name: Frontend unit tests
+        run: npm --prefix web test
+
+      - name: Install headless Chromium
+        run: web/node_modules/.bin/playwright install --with-deps --only-shell chromium
+
+      - name: Browser tests
         id: browser
         run: |
-          web/node_modules/.bin/playwright install --with-deps chromium
-          npm --prefix web test
-          npm --prefix web run test:browser
-          npm --prefix web run test:reader
+          if [ "$FULL_CHECKS" = true ]; then
+            npm --prefix web run test:browser
+            npm --prefix web run test:reader
+          else
+            npm --prefix web run test:smoke
+          fi
 
       - name: Save browser failure diagnostics
         if: failure() && steps.browser.outcome == 'failure'
@@ -83,7 +100,7 @@ jobs:
 
   publish:
     needs: [go, tests]
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -93,13 +110,9 @@ jobs:
       - name: Compute image tag
         id: image
         env:
-          EVENT_NAME: ${{ github.event_name }}
           REF: ${{ github.ref }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            tag="pr-$PR_NUMBER"
-          elif [ "${REF#refs/tags/}" != "$REF" ]; then
+          if [ "${REF#refs/tags/}" != "$REF" ]; then
             tag="${REF#refs/tags/}"
           else
             tag="dev"
