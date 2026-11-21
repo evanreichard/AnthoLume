@@ -1,4 +1,5 @@
 import { Button } from '../Controls';
+import { Brand } from '../Brand';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { session, useSession } from '../session';
@@ -36,7 +37,8 @@ export function Auth({ mode }: { mode: 'login' | 'register' }) {
     return <main className={styles.auth}><p role="status">Opening requested book…</p><WorkerRecovery /></main>;
   }
   return <main className={styles.auth}>
-    <p className={styles.eyebrow}><img src="/assets/icons/mark.svg" alt="" width="24" height="24" />AnthoLume</p><h1>{title}</h1>
+    <div className={styles.authBrand}><Brand /></div>
+    <h1>{title}</h1>
     {intent && <p>Sign in to open the requested shared book.</p>}
     <WorkerRecovery />
     {mode === 'register' && capabilities?.registration_enabled === false ? <p>Registration is disabled on this server.</p> : <form className={styles.form} onSubmit={submit}>

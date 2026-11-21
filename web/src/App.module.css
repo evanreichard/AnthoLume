@@ -7,11 +7,12 @@
 .recoveryDock button { font-size: 12px; padding-inline: 8px; }
 .readerRecovery:empty { display: none; }
 .rail { position: fixed; inset: 0 auto 0 0; width: 184px; border-right: 1px solid var(--line); padding: 28px 16px; display: flex; flex-direction: column; gap: 28px; background: var(--surface); }
-.brand { align-self: center; text-align: center; font-family: var(--display); font-size: 24px; text-decoration: none; white-space: nowrap; }
-.brand span { font-style: italic; }
-.brand img { display: block; margin: 0 auto 4px; }
+.brand { align-self: center; font-size: 24px; text-decoration: none; }
+.brandLockup { display: block; text-align: center; font-family: var(--display); white-space: nowrap; }
+.brandLockup img { display: block; margin: 0 auto 4px; }
 .mobileBrand { display: none; }
-.auth .eyebrow img { margin-inline-end: 6px; vertical-align: middle; }
+.authBrand { font-size: clamp(36px, 8vw, 48px); line-height: 1.1; margin-bottom: clamp(20px, 4vh, 36px); }
+.authBrand img { width: clamp(72px, 14vh, 96px); height: auto; }
 .tabs { display: grid; gap: 6px; }
 .tabs a { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; text-decoration: none; border-radius: var(--radius); }
 .tabs a:is([aria-current], [data-section-active]) { background: var(--hero); font-weight: 650; }
