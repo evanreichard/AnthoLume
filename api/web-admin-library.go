@@ -336,7 +336,7 @@ func (api *API) relinkImportedBook(ctx context.Context, id, hash, root, target s
 	if err != nil {
 		return false, err
 	}
-	if d.Deleted || d.Md5 == nil || *d.Md5 != hash {
+	if d.Deleted {
 		return false, nil
 	}
 	current, err := api.openDocument(ctx, d)

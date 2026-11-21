@@ -18,7 +18,6 @@ ON CONFLICT(id) DO UPDATE SET
     description = COALESCE(documents.description, excluded.description), words = COALESCE(documents.words, excluded.words),
     isbn10 = COALESCE(documents.isbn10, excluded.isbn10), isbn13 = COALESCE(documents.isbn13, excluded.isbn13)
 WHERE NOT documents.deleted AND documents.filepath IS NULL
-  AND (documents.md5 IS NULL OR documents.md5 = excluded.md5)
 `
 
 type AttachCatalogFileParams struct {
@@ -372,16 +371,16 @@ func (q *Queries) PauseRestoredImportRules(ctx context.Context) error {
 }
 
 const relinkImportedDocument = `-- name: RelinkImportedDocument :execrows
-UPDATE documents SET storage_root_id = ?, filepath = ?
-WHERE id = ? AND md5 = ? AND NOT deleted
+UPDATE documents SET storage_root_id = ?, filepath = ?, md5 = ?
+WHERE id = ? AND NOT deleted
   AND filepath IS ?5 AND storage_root_id IS ?6
 `
 
 type RelinkImportedDocumentParams struct {
 	StorageRootID    *string `json:"storage_root_id"`
 	Filepath         *string `json:"filepath"`
-	ID               string  `json:"id"`
 	Md5              *string `json:"md5"`
+	ID               string  `json:"id"`
 	OldFilepath      *string `json:"old_filepath"`
 	OldStorageRootID *string `json:"old_storage_root_id"`
 }
@@ -390,8 +389,8 @@ func (q *Queries) RelinkImportedDocument(ctx context.Context, arg RelinkImported
 	result, err := q.db.ExecContext(ctx, relinkImportedDocument,
 		arg.StorageRootID,
 		arg.Filepath,
-		arg.ID,
 		arg.Md5,
+		arg.ID,
 		arg.OldFilepath,
 		arg.OldStorageRootID,
 	)

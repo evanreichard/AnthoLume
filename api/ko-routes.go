@@ -412,16 +412,13 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 		apiErrorPage(c, http.StatusBadRequest, "Unable to acquire metadata")
 		return
 	}
-	if *info.PartialMD5 != document.ID || document.Md5 != nil && *document.Md5 != *info.MD5 {
+	if *info.PartialMD5 != document.ID {
 		apiErrorPage(c, http.StatusBadRequest, "Document Error")
 		return
 	}
 	if document.Filepath != nil {
 		existing, err := api.openDocument(ctx, document)
-		if err != nil || document.Md5 == nil {
-			if existing != nil {
-				existing.Close()
-			}
+		if err != nil {
 			apiErrorPage(c, http.StatusBadRequest, "Document Error")
 			return
 		}

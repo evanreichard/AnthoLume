@@ -133,21 +133,32 @@ func TestUploadDoesNotReviveOrOverwriteCatalogBook(t *testing.T) {
 			}
 			f.exec(`INSERT INTO documents(id,md5,filepath,deleted,storage_root_id) VALUES(?,?,?,?,'library')`, *meta.PartialMD5, existingHash, state.path, state.deleted)
 			response := f.call("POST", "/api/v1/documents", string(book), map[string]string{"Content-Type": "application/epub+zip"})
-			assertProblem(t, response, 409, "conflict")
-			response = f.koUpload(*meta.PartialMD5, book)
-			require.Equal(t, 400, response.status, string(response.body))
-			require.Contains(t, string(response.body), `"error"`)
+			ko := f.koUpload(*meta.PartialMD5, book)
+			if state.deleted {
+				assertProblem(t, response, 409, "conflict")
+				require.Equal(t, 400, ko.status)
+			} else {
+				require.Equal(t, 200, response.status, string(response.body))
+				require.Equal(t, 200, ko.status, string(ko.body))
+			}
 			var hash string
 			var path *string
 			var deleted bool
 			require.NoError(t, f.db.DB.QueryRow(`SELECT md5,filepath,deleted FROM documents WHERE id=?`, *meta.PartialMD5).Scan(&hash, &path, &deleted))
-			require.Equal(t, existingHash, hash)
-			require.Equal(t, state.path, path)
+			if state.path == nil && !state.deleted {
+				require.NotNil(t, path)
+				require.Equal(t, *meta.MD5, hash)
+			} else {
+				require.Equal(t, existingHash, hash)
+				require.Equal(t, state.path, path)
+			}
 			require.Equal(t, state.deleted, deleted)
 			entries, err := os.ReadDir(library)
 			require.NoError(t, err)
-			if state.path == nil {
+			if state.deleted {
 				require.Empty(t, entries)
+			} else if state.path == nil {
+				require.Len(t, entries, 1)
 			} else {
 				require.Len(t, entries, 1)
 				original, err := os.ReadFile(filepath.Join(library, *state.path))

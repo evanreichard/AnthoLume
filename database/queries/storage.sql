@@ -84,8 +84,8 @@ INSERT INTO reading_generation (singleton, generation) VALUES (1, lower(hex(rand
 ON CONFLICT(singleton) DO UPDATE SET generation = excluded.generation;
 
 -- name: RelinkImportedDocument :execrows
-UPDATE documents SET storage_root_id = ?, filepath = ?
-WHERE id = ? AND md5 = ? AND NOT deleted
+UPDATE documents SET storage_root_id = ?, filepath = ?, md5 = ?
+WHERE id = ? AND NOT deleted
   AND filepath IS sqlc.narg(old_filepath) AND storage_root_id IS sqlc.narg(old_storage_root_id);
 
 -- name: SetLibraryImportResult :exec
@@ -102,5 +102,4 @@ ON CONFLICT(id) DO UPDATE SET
     title = COALESCE(documents.title, excluded.title), author = COALESCE(documents.author, excluded.author),
     description = COALESCE(documents.description, excluded.description), words = COALESCE(documents.words, excluded.words),
     isbn10 = COALESCE(documents.isbn10, excluded.isbn10), isbn13 = COALESCE(documents.isbn13, excluded.isbn13)
-WHERE NOT documents.deleted AND documents.filepath IS NULL
-  AND (documents.md5 IS NULL OR documents.md5 = excluded.md5);
+WHERE NOT documents.deleted AND documents.filepath IS NULL;

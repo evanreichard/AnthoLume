@@ -114,11 +114,7 @@ func (api *API) verifyBackupBookReplacement(ctx context.Context, tx *sql.Tx, doc
 	if err != nil {
 		return adminFailure(400, "invalid_replacement_file")
 	}
-	if doc.Md5 != nil && *doc.Md5 != "" {
-		if *doc.Md5 != *info.MD5 {
-			return adminFailure(409, "book_identity_mismatch")
-		}
-	} else if doc.ID != *info.PartialMD5 {
+	if doc.ID != *info.PartialMD5 {
 		return adminFailure(409, "book_identity_mismatch")
 	}
 	return nil

@@ -103,7 +103,7 @@ func (s *webAPI) UploadDocument(ctx context.Context, r UploadDocumentRequestObje
 	if err != nil {
 		return nil, err
 	}
-	if doc.Deleted || !committed && (doc.Md5 == nil || *doc.Md5 != *info.MD5) {
+	if doc.Deleted {
 		return nil, &reading.Failure{Status: http.StatusConflict, Code: "conflict"}
 	}
 	out := api.documentDTOWith(ctx, api.db.DB, doc)
