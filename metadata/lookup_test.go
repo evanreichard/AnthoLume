@@ -22,6 +22,7 @@ func TestOpenLibraryISBNLookup(t *testing.T) {
 	require.Equal(t, "isbn:9780765391193", <-query)
 	require.Len(t, matches, 1)
 	require.Equal(t, "Book", matches[0].Title)
+	require.Equal(t, "Author", matches[0].Author)
 	require.NotNil(t, matches[0].CoverID)
 	require.EqualValues(t, 42, *matches[0].CoverID)
 	require.NotNil(t, matches[0].ISBN13)

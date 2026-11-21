@@ -18,8 +18,17 @@ it('merges only composite server identities across real pages, never local recor
   expect(combineBooks([local, sharedA, sharedB], [], b).map((book) => book.ref)).toEqual([local.ref, sharedB.ref]);
   expect(combineBooks([local, sharedA], [], null).map((book) => book.ref)).toEqual([local.ref]);
 });
+it('never joins a restored book with the previous generation’s cached copy', () => {
+  const current = { ...a, readingGeneration: 'current' };
+  const previous = stored({ kind: 'server', account: { ...a, readingGeneration: 'previous' }, documentId: doc.id });
+  const [book] = combineBooks([previous], [doc], current);
+  expect(book?.document).toEqual(doc);
+  expect(book?.stored).toBeUndefined();
+  expect(combineBooks([previous], [], current)).toEqual([]);
+});
 it('sorts Last read by newest shared checkpoint, then puts unread books last', () => {
-  const books = combineBooks([], [
+  const cached = { ...stored({ kind: 'server', account: a, documentId: 'older' }), lastReadAt: '2026-01-03T00:00:00Z' };
+  const books = combineBooks([cached], [
     { ...doc, id: 'unread', title: 'A unread' },
     { ...doc, id: 'older', title: 'B older', last_read_at: '2026-01-01T00:00:00Z' },
     { ...doc, id: 'newer', title: 'C newer', last_read_at: '2026-01-02T00:00:00Z' },

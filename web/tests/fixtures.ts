@@ -31,7 +31,7 @@ export const test = base.extend<{ server: Server }, { serverBinary: string }>({
       await rm(binary, { force: true });
     }
   }, { scope: 'worker', timeout: 240_000 }],
-  server: async ({ serverBinary }, use) => {
+  server: async ({ serverBinary }, use, testInfo) => {
     const data = await mkdtemp(`${scratch}browser-`);
     await mkdir(`${data}/documents`);
     await mkdir(`${data}/covers`);
@@ -60,9 +60,9 @@ export const test = base.extend<{ server: Server }, { serverBinary: string }>({
       if (!current) return;
       child = null;
       const exited = new Promise<void>((resolve, reject) => {
-        if (current.exitCode !== null) return resolve();
-        const timer = setTimeout(() => { current.kill('SIGKILL'); reject(new Error('Test server shutdown timeout')); }, 8000);
-        current.once('exit', (code) => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error(`Test server exit ${code}`)); });
+        if (current.exitCode !== null || current.signalCode !== null) return reject(new Error(`Test server already exited: ${current.exitCode ?? current.signalCode}\n${logs}`));
+        const timer = setTimeout(() => { current.kill('SIGKILL'); reject(new Error(`Test server shutdown timeout\n${logs}`)); }, 8000);
+        current.once('close', (code, signal) => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error(`Test server exit ${code ?? signal}\n${logs}`)); });
       });
       current.kill('SIGTERM');
       await exited;
@@ -71,8 +71,7 @@ export const test = base.extend<{ server: Server }, { serverBinary: string }>({
       await start();
       await use({ origin, data, stop, start });
     } finally {
-      await stop();
-      await writeFile(`${scratch}server-last.log`, logs);
+      try { await stop(); } finally { await writeFile(testInfo.outputPath('server.log'), logs); }
     }
   },
 });

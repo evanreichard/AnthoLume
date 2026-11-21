@@ -36,19 +36,21 @@ test('Library rotates through the three newest books with dots, pause and native
   await page.clock.fastForward(10_000);
   await expect(story()).toHaveText('Public book 03');
 
-  const { x, y, width } = (await story().boundingBox())!;
+  await settled();
+  const box = (await carousel.boundingBox())!;
+  const left = box.x + box.width * .15, right = box.x + box.width * .85, y = box.y + box.height * .45;
   const cdp = await page.context().newCDPSession(page);
   async function swipe(from: number, to: number) {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from, y: y + 8 }] });
-    for (let i = 1; i <= 8; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: from + (to - from) * i / 8, y: y + 8 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from, y }] });
+    for (let i = 1; i <= 8; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: from + (to - from) * i / 8, y }] });
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   }
   try {
-    await swipe(x + width + 65, x + 12);
+    await swipe(right, left);
     await expect(story()).toHaveText('Public book 02');
     await settled();
     await expect(dotGroup).toHaveCSS('opacity', '1');
-    await swipe(x + 12, x + width + 65);
+    await swipe(left, right);
     await expect(story()).toHaveText('Public book 03');
     await settled();
   } finally { await cdp.detach(); }

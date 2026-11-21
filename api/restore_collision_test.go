@@ -27,6 +27,13 @@ func TestRestoreCollisionPublishesOnlyWithCatalog(t *testing.T) {
 	require.NoError(t, os.WriteFile(obstruction, nil, 0600))
 	require.NoError(t, os.Mkdir(filepath.Join(books, "z"), 0700))
 	require.Error(t, f.api.applyStagedRestore(ctx, stage, library))
+	entries, err := os.ReadDir(library)
+	require.NoError(t, err)
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	require.ElementsMatch(t, []string{"first.epub", "z"}, names, "failed restore left files in the live library")
 	require.NoError(t, os.Remove(obstruction))
 	var path string
 	readPath := func() {

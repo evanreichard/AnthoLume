@@ -252,7 +252,8 @@ func main() {
 		w.WriteHeader(status)
 		w.Write(body)
 	})
-	server := &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	// Browser Preconnects - Idle speculative connections must finish before the fixture's five-second graceful shutdown deadline.
+	server := &http.Server{Handler: handler, ReadHeaderTimeout: 2 * time.Second}
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGTERM)
 	failure := make(chan error, 1)

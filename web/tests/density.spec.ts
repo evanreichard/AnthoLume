@@ -1,6 +1,8 @@
 import { test, expect, register, scratch } from './fixtures';
 import { serverEffects } from './storage';
 
+test.use({ hasTouch: true });
+
 test('online reader checkpoint drives compact Folio Resume, density and touch', async ({ page, server }) => {
   const outgoing: string[] = [];
   page.on('request', (request) => { if (/\/api\/v1\/me\/(activity|reading-progress|devices)$/.test(request.url())) outgoing.push(request.url()); });
@@ -30,6 +32,13 @@ test('online reader checkpoint drives compact Folio Resume, density and touch', 
       const box = await page.getByRole('button', { name: label, exact: true }).boundingBox();
       expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44);
       if (label !== 'Search') expect(box!.y).toBe(search!.y);
+    }
+    if (width === 320) {
+      await page.getByRole('button', { name: 'Add Book', exact: true }).tap();
+      const dialog = page.getByRole('dialog', { name: 'Add Book' });
+      await expect(dialog.getByLabel('Choose EPUB to upload')).toBeVisible();
+      await dialog.getByRole('button', { name: 'Done' }).tap();
+      await expect(dialog).toHaveCount(0);
     }
     await page.screenshot({ path: `${scratch}folio-${width}.png`, fullPage: true });
   }

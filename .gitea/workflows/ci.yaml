@@ -35,11 +35,24 @@ jobs:
           bash api/audit.sh
 
       - name: App browser tests
+        id: browser
         run: |
           web/node_modules/.bin/playwright install --with-deps chromium
           npm --prefix web test
           npm --prefix web run test:browser
           npm --prefix web run test:reader
+
+      - name: Save browser failure diagnostics
+        if: failure() && steps.browser.outcome == 'failure'
+        uses: christopherhx/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7 # v4, compatible with act_runner 0.2
+        with:
+          name: browser-failures
+          retention-days: 3
+          if-no-files-found: ignore
+          path: |
+            _scratch/m3/frontend/browser-results/**/server.log
+            _scratch/m3/*/browser-results/**/error-context.md
+            _scratch/m3/*/browser-results/**/trace.zip
 
   publish:
     needs: tests
