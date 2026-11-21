@@ -18,7 +18,6 @@ import (
 type server struct {
 	db        *database.DBManager
 	api       *api.API
-	done      chan int
 	wg        sync.WaitGroup
 	workerCtx context.Context
 	cancel    context.CancelFunc
@@ -41,7 +40,6 @@ func New(c *config.Config, assets fs.FS) (*server, error) {
 	return &server{
 		db:        db,
 		api:       app,
-		done:      make(chan int),
 		workerCtx: ctx,
 		cancel:    cancel,
 	}, nil
@@ -64,7 +62,7 @@ func (s *server) Start(listener net.Listener) {
 	go func() {
 		defer s.wg.Done()
 
-		s.runTaskRunner(15*time.Minute, 5*time.Minute)
+		runTaskRunner(s.workerCtx, 15*time.Minute, 5*time.Minute, s.runScheduledTasks)
 	}()
 
 	go func() {
@@ -81,7 +79,6 @@ func (s *server) Stop() {
 
 	s.stop.Do(func() {
 		s.cancel()
-		close(s.done)
 		if err := s.api.Stop(); err != nil {
 			log.Error("HTTP server stop failed: ", err)
 		}
@@ -94,16 +91,16 @@ func (s *server) Stop() {
 	log.Info("Server stopped")
 }
 
-func (s *server) runTaskRunner(interval, timeout time.Duration) {
+func runTaskRunner(parent context.Context, interval, timeout time.Duration, run func(context.Context)) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			ctx, cancel := context.WithTimeout(s.workerCtx, timeout)
-			s.runScheduledTasks(ctx)
+			ctx, cancel := context.WithTimeout(parent, timeout)
+			run(ctx)
 			cancel()
-		case <-s.done:
+		case <-parent.Done():
 			return
 		}
 	}

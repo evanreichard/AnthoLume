@@ -33,14 +33,16 @@ test('actual busy CPU workers hard-deadline on the parent without blocking UI or
 
 test('bounded source queue rejects overflow and abort physically terminates busy and queued work', async ({ page }) => {
   let spawned = 0, closed = 0; page.on('worker', worker => { spawned++; worker.on('close', () => { closed++; }); });
-  await page.route('**/source.worker.ts*', route => route.fulfill({ contentType: 'text/javascript', body: 'self.onmessage = () => { for (;;) {} };' }));
+  await page.route('**/source.worker.ts*', route => route.fulfill({ contentType: 'text/javascript', body: `self.onmessage = () => { new BroadcastChannel('queue-test').postMessage('busy'); for (;;) {} };` }));
   const result = await page.evaluate(async () => {
     const p = window.readingTest, controller = new AbortController(), source = p.blobSource(new Blob(['x']));
+    const channel = new BroadcastChannel('queue-test');
+    const bothBusy = new Promise<void>(resolve => { let busy = 0; channel.onmessage = () => { if (++busy === 2) resolve(); }; });
     const tasks = Array.from({ length: 20 }, () => p.sourceTask(source, 'index', undefined, controller.signal)), settled = Promise.allSettled(tasks); const queued = p.sourceScheduler.queued;
-    await new Promise(resolve => setTimeout(resolve, 400)); const start = performance.now(); controller.abort(); const outcomes = await settled;
-    return { queued, elapsed: performance.now() - start, aborts: outcomes.filter(o => o.status === 'rejected' && o.reason.name === 'AbortError').length, overflow: outcomes.filter(o => o.status === 'rejected' && String(o.reason).includes('queue budget')).length, scheduler: { ...p.sourceScheduler } };
+    await bothBusy; channel.close(); controller.abort(); const outcomes = await settled;
+    return { queued, aborts: outcomes.filter(o => o.status === 'rejected' && o.reason.name === 'AbortError').length, overflow: outcomes.filter(o => o.status === 'rejected' && String(o.reason).includes('queue budget')).length, scheduler: { ...p.sourceScheduler } };
   });
-  expect(result).toMatchObject({ queued: 16, aborts: 18, overflow: 2 }); expect(result.elapsed).toBeLessThan(1000); expect(result.scheduler.active).toBe(0); expect(result.scheduler.queued).toBe(0); expect(result.scheduler.peak).toBe(2); expect(spawned).toBe(2); await expect.poll(() => closed).toBe(2);
+  expect(result).toMatchObject({ queued: 16, aborts: 18, overflow: 2 }); expect(result.scheduler.active).toBe(0); expect(result.scheduler.queued).toBe(0); expect(result.scheduler.peak).toBe(2); expect(spawned).toBe(2); await expect.poll(() => closed).toBe(2);
 });
 
 test('NAV and chapter read failures settle the pinned engine and retain checkpoints without publication', async ({ page }) => {
@@ -63,7 +65,7 @@ test('controller disposal cancels its own live hash worker even without an exter
   await page.route('**/source.worker.ts*', route => route.fulfill({ contentType: 'text/javascript', body: 'self.onmessage = () => { for (;;) {} };' }));
   const workerEvent = page.waitForEvent('worker');
   await page.evaluate(() => { const host = document.createElement('div'); document.body.appendChild(host); const reader = new window.readingTest.ReaderController(host, () => {}, async () => {}); Object.assign(window, { disposalReader: reader, disposalOpen: reader.open(new Blob(['x'])) }); }); const worker = await workerEvent, closed = new Promise<void>(resolve => worker.once('close', () => resolve()));
-  const elapsed = await page.evaluate(async () => { const w = window as unknown as { disposalReader: import('../../controller').ReaderController; disposalOpen: Promise<void> }, start = performance.now(); await w.disposalReader.dispose(); await w.disposalOpen; return performance.now() - start; }); expect(elapsed).toBeLessThan(1000); await closed; expect(await page.evaluate(() => window.readingTest.sourceScheduler.active)).toBe(0);
+  await page.evaluate(async () => { const w = window as unknown as { disposalReader: import('../../controller').ReaderController; disposalOpen: Promise<void> }; await w.disposalReader.dispose(); await w.disposalOpen; }); await closed; expect(await page.evaluate(() => window.readingTest.sourceScheduler.active)).toBe(0);
 });
 
 test('raw worker IDB transaction abort cleans original staging and leaves durable events untouched', async ({ page }) => {

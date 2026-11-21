@@ -46,7 +46,11 @@ func TestAutoImportWatchAndManualScan(t *testing.T) {
 	book, err := os.ReadFile("../_test_files/alice.epub")
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "new.epub"), book, 0600))
-	require.Eventually(t, func() bool { return *read().LastScan != *current.LastScan }, 12*time.Second, 200*time.Millisecond)
+	completed := func(trigger AutoImportScanTrigger) bool {
+		rule := read()
+		return rule.Status == "complete" && rule.LastScanTrigger != nil && *rule.LastScanTrigger == trigger
+	}
+	require.Eventually(t, func() bool { return completed(OnChange) }, 12*time.Second, 200*time.Millisecond)
 	current = read()
 	require.Nil(t, current.NextScan)
 	require.Equal(t, new(OnChange), current.LastScanTrigger)
@@ -59,10 +63,7 @@ func TestAutoImportWatchAndManualScan(t *testing.T) {
 	f.exec(`INSERT INTO documents (id, title) VALUES ('another-book', 'Not in source')`)
 	queued := f.call("POST", query, map[string]any{}, nil)
 	require.Equal(t, 204, queued.status, string(queued.body))
-	require.Eventually(t, func() bool {
-		rule := read()
-		return *rule.LastScan != *current.LastScan
-	}, 8*time.Second, 150*time.Millisecond)
+	require.Eventually(t, func() bool { return completed(Manual) }, 8*time.Second, 150*time.Millisecond)
 	current = read()
 	require.Equal(t, new(Manual), current.LastScanTrigger)
 	require.Equal(t, &AutoImportScanSummary{SourceTotal: 1}, current.ScanSummary)

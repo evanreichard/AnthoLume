@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import { test, expect, register } from './fixtures';
 
 test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
@@ -10,10 +11,16 @@ test('Library rotates through the three newest books with dots, pause and native
   const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': user.reading_generation };
   expect((await page.request.post(`${endpoint}/me/devices`, { headers, data: { id: 'carousel-device', name: 'Reader' } })).status()).toBe(200);
   for (let book = 1; book <= 4; book++) {
-    if (book > 1) await new Promise(resolve => setTimeout(resolve, 1050));
     const data = { event_id: randomUUID(), document_id: `book_00${book}`, device_id: 'carousel-device', base_revision: '0', observed_at: new Date(Date.now() - (5 - book) * 60_000).toISOString(), position: '/body/DocFragment[1]/body/p[2]', fraction: book / 10 };
     expect((await page.request.post(`${endpoint}/me/reading-progress`, { headers, data })).status()).toBe(200);
   }
+  const db = new DatabaseSync(`${server.data}/browser.db`);
+  try {
+    const dateHead = db.prepare('UPDATE reading_heads SET updated_at = ? WHERE user_id = ? AND document_id = ?');
+    for (let book = 1; book <= 4; book++) {
+      expect(dateHead.run(`2026-01-0${book}T12:00:00Z`, user.id, `book_00${book}`).changes).toBe(1);
+    }
+  } finally { db.close(); }
   await page.clock.install();
   await page.reload();
   const carousel = page.getByRole('region', { name: 'Continue reading carousel' });
