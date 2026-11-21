@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"database/sql"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -11,6 +12,21 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestStorageRootSaveRechecksDemotedAdmin(t *testing.T) {
+	f := newWebFixture(t)
+	f.register("owner")
+	user, err := f.db.Queries.GetUser(context.Background(), "owner")
+	require.NoError(t, err)
+	ctx := context.WithValue(context.Background(), webPrincipalKey{}, authData{UserName: user.ID, AuthHash: *user.AuthHash, IsAdmin: true})
+	f.exec(`UPDATE users SET admin=0 WHERE id='owner'`)
+	_, err = (&webAPI{api: f.api}).SaveAdminStorageRoot(ctx, SaveAdminStorageRootRequestObject{Body: &AdminStorageRootInput{Id: "new-source", Label: "New", Path: t.TempDir()}})
+	var failure *webFailure
+	require.ErrorAs(t, err, &failure)
+	require.Equal(t, 403, failure.status)
+	_, err = f.api.storageRoot(context.Background(), "new-source")
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
 
 func TestNamedStorageRootsImportRemapAndBackup(t *testing.T) {
 	f := newWebFixture(t)

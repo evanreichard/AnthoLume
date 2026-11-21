@@ -128,15 +128,12 @@ func (s *webAPI) SaveAdminStorageRoot(ctx context.Context, r SaveAdminStorageRoo
 		return nil, adminFailure(409, "server_busy")
 	}
 	defer api.libraryWrite.Unlock()
-	principal := webUser(ctx)
-	ctx = requestContext(ctx)
-	admin, err := api.db.Queries.GetStorageAdminByAuthHash(ctx, database.GetStorageAdminByAuthHashParams{ID: principal.UserName, AuthHash: &principal.AuthHash})
-	if err != nil || !admin {
-		return nil, adminFailure(403, "forbidden")
-	}
-	if err := api.db.Queries.UpsertStorageRoot(ctx, database.UpsertStorageRootParams{
-		ID: root.Id, Label: root.Label, Path: path, Managed: root.Id == libraryRoot,
-	}); err != nil {
+	err := s.adminTransaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
+		return api.db.Queries.WithTx(tx).UpsertStorageRoot(ctx, database.UpsertStorageRootParams{
+			ID: root.Id, Label: root.Label, Path: path, Managed: root.Id == libraryRoot,
+		})
+	})
+	if err != nil {
 		return nil, err
 	}
 	return SaveAdminStorageRoot204Response{}, nil
