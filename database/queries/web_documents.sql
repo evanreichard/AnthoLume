@@ -50,17 +50,19 @@ WITH selection AS (
                     AND NULLIF(h.position, '') IS NOT NULL
             )))
 )
-SELECT id,
+SELECT sqlc.embed(d), r.path AS root_path,
     CAST(COALESCE(added_at, '') AS TEXT) AS added_at,
     CAST(COALESCE(last_read_at, '') AS TEXT) AS last_read_at,
     resume_fraction
 FROM selection
+JOIN documents d ON d.id = selection.id
+LEFT JOIN storage_roots r ON r.id = COALESCE(d.storage_root_id, 'library')
 ORDER BY
-    CASE WHEN sort_by = 'author' THEN NULLIF(trim(author), '') END COLLATE NOCASE ASC NULLS LAST,
+    CASE WHEN sort_by = 'author' THEN NULLIF(trim(d.author), '') END COLLATE NOCASE ASC NULLS LAST,
     CASE WHEN sort_by = 'added' THEN selection.added_at END DESC NULLS LAST,
     CASE WHEN sort_by = 'read' THEN selection.last_read_at END DESC NULLS LAST,
-    CASE WHEN sort_by IN ('title', 'author', 'added', 'read') THEN NULLIF(trim(title), '') END COLLATE NOCASE ASC NULLS LAST,
-    id ASC
+    CASE WHEN sort_by IN ('title', 'author', 'added', 'read') THEN NULLIF(trim(d.title), '') END COLLATE NOCASE ASC NULLS LAST,
+    d.id ASC
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: GetWebDocumentReadingStats :one

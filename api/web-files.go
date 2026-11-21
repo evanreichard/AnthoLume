@@ -98,15 +98,29 @@ func (api *API) documentDTO(d database.Document) Document {
 	return api.documentDTOWith(context.Background(), api.db.DB, d)
 }
 func (api *API) documentDTOWith(ctx context.Context, q database.DBTX, d database.Document) Document {
+	var root AdminStorageRoot
+	if d.Filepath != nil {
+		id := libraryRoot
+		if d.StorageRootID != nil {
+			id = *d.StorageRootID
+		}
+		root, _ = api.queryStorageRoot(ctx, q, id)
+	}
+	return api.documentDTOAtRoot(d, root.Path)
+}
+
+func (api *API) documentDTOAtRoot(d database.Document, root string) Document {
 	out := Document{Id: d.ID, Title: d.Title, Author: d.Author, Series: d.Series, Description: d.Description, Lang: d.Lang, Isbn10: d.Isbn10, Isbn13: d.Isbn13}
-	if file, err := api.openDocumentWith(ctx, q, d); err == nil {
-		defer file.Close()
-		if info, err := file.Stat(); err == nil && info.Mode().IsRegular() {
-			out.FileAvailable = true
-			size := info.Size()
-			out.FileSizeBytes = &size
-			media := fileMedia(*d.Filepath)
-			out.MediaType = &media
+	if d.Filepath != nil {
+		if file, err := openStoredFile(root, *d.Filepath); err == nil {
+			defer file.Close()
+			if info, err := file.Stat(); err == nil {
+				out.FileAvailable = true
+				size := info.Size()
+				out.FileSizeBytes = &size
+				media := fileMedia(*d.Filepath)
+				out.MediaType = &media
+			}
 		}
 	}
 	if path, err := api.coverPath(d); err == nil {

@@ -98,17 +98,19 @@ WITH selection AS (
                     AND NULLIF(h.position, '') IS NOT NULL
             )))
 )
-SELECT id,
+SELECT d.id, d.md5, d.basepath, d.filepath, d.coverfile, d.title, d.author, d.series, d.series_index, d.lang, d.description, d.words, d.gbid, d.olid, d.isbn10, d.isbn13, d.synced, d.deleted, d.updated_at, d.created_at, d.storage_root_id, r.path AS root_path,
     CAST(COALESCE(added_at, '') AS TEXT) AS added_at,
     CAST(COALESCE(last_read_at, '') AS TEXT) AS last_read_at,
     resume_fraction
 FROM selection
+JOIN documents d ON d.id = selection.id
+LEFT JOIN storage_roots r ON r.id = COALESCE(d.storage_root_id, 'library')
 ORDER BY
-    CASE WHEN sort_by = 'author' THEN NULLIF(trim(author), '') END COLLATE NOCASE ASC NULLS LAST,
+    CASE WHEN sort_by = 'author' THEN NULLIF(trim(d.author), '') END COLLATE NOCASE ASC NULLS LAST,
     CASE WHEN sort_by = 'added' THEN selection.added_at END DESC NULLS LAST,
     CASE WHEN sort_by = 'read' THEN selection.last_read_at END DESC NULLS LAST,
-    CASE WHEN sort_by IN ('title', 'author', 'added', 'read') THEN NULLIF(trim(title), '') END COLLATE NOCASE ASC NULLS LAST,
-    id ASC
+    CASE WHEN sort_by IN ('title', 'author', 'added', 'read') THEN NULLIF(trim(d.title), '') END COLLATE NOCASE ASC NULLS LAST,
+    d.id ASC
 LIMIT ?2 OFFSET ?1
 `
 
@@ -122,7 +124,8 @@ type ListWebDocumentsParams struct {
 }
 
 type ListWebDocumentsRow struct {
-	ID             string   `json:"id"`
+	Document       Document `json:"document"`
+	RootPath       *string  `json:"root_path"`
 	AddedAt        string   `json:"added_at"`
 	LastReadAt     string   `json:"last_read_at"`
 	ResumeFraction *float64 `json:"resume_fraction"`
@@ -145,7 +148,28 @@ func (q *Queries) ListWebDocuments(ctx context.Context, arg ListWebDocumentsPara
 	for rows.Next() {
 		var i ListWebDocumentsRow
 		if err := rows.Scan(
-			&i.ID,
+			&i.Document.ID,
+			&i.Document.Md5,
+			&i.Document.Basepath,
+			&i.Document.Filepath,
+			&i.Document.Coverfile,
+			&i.Document.Title,
+			&i.Document.Author,
+			&i.Document.Series,
+			&i.Document.SeriesIndex,
+			&i.Document.Lang,
+			&i.Document.Description,
+			&i.Document.Words,
+			&i.Document.Gbid,
+			&i.Document.Olid,
+			&i.Document.Isbn10,
+			&i.Document.Isbn13,
+			&i.Document.Synced,
+			&i.Document.Deleted,
+			&i.Document.UpdatedAt,
+			&i.Document.CreatedAt,
+			&i.Document.StorageRootID,
+			&i.RootPath,
 			&i.AddedAt,
 			&i.LastReadAt,
 			&i.ResumeFraction,

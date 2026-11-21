@@ -202,12 +202,18 @@ func (s *webAPI) ListDocuments(ctx context.Context, r ListDocumentsRequestObject
 	if err != nil {
 		return nil, err
 	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
 	for _, row := range selected {
-		d, err := queries.GetDocument(ctx, row.ID)
-		if err != nil {
-			return nil, err
+		root := AdminStorageRoot{Id: libraryRoot}
+		if row.Document.StorageRootID != nil {
+			root.Id = *row.Document.StorageRootID
 		}
-		item := s.api.documentDTOWith(ctx, tx, d)
+		if row.RootPath != nil {
+			root.Path = *row.RootPath
+		}
+		item := s.api.documentDTOAtRoot(row.Document, s.api.effectiveRoot(root).Path)
 		// The query returns an empty string for a missing formatted timestamp.
 		if row.AddedAt != "" {
 			item.AddedAt = &row.AddedAt
@@ -222,7 +228,7 @@ func (s *webAPI) ListDocuments(ctx context.Context, r ListDocumentsRequestObject
 		next := page + 1
 		result.NextPage = &next
 	}
-	return ListDocuments200JSONResponse(result), tx.Commit()
+	return ListDocuments200JSONResponse(result), nil
 }
 func (s *webAPI) GetDocument(ctx context.Context, r GetDocumentRequestObject) (GetDocumentResponseObject, error) {
 	d, err := s.api.db.Queries.GetDocument(requestContext(ctx), r.Id)
