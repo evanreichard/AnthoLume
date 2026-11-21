@@ -1,9 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { aliceFixture } from '../alice-fixture';
 test.beforeEach(async ({ page }) => { await page.goto('/'); await page.waitForFunction(() => !!window.readingTest); });
 test('real source worker matches original Alice KO vector while legacy full-MD5 server identity remains opaque in stored events', async ({ page }) => {
-  const sha256 = createHash('sha256').update(readFileSync(new URL('../fixtures/alice.epub', import.meta.url))).digest('hex');
+  const sha256 = createHash('sha256').update(readFileSync(aliceFixture)).digest('hex');
   const result = await page.evaluate(async () => {
     const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(`alice-identity-${crypto.randomUUID()}`)), account = { origin: location.origin, userId: 'old-reader' }, ref = { kind: 'server' as const, account, documentId: '0f36c66155de34b281c4791654d0b1ce' }, file = await (await fetch('/fixtures/alice.epub')).blob(); await repo.setAccess({ kind: 'authenticated', account }); await repo.install(ref, file, null, null, null, { document_id: ref.documentId, revision: '0', position: null, fraction: null, device_id: null, updated_at: null });
     const opened = await repo.open(ref), checkpoint = { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 }; await repo.save(ref, checkpoint); const event = (await repo.pending())[0]!; const out = { serverID: opened.row.ref.kind === 'server' && opened.row.ref.documentId, eventID: event.payload.document_id, protocolHash: opened.row.protocolHash, checksum: opened.row.checksum, checkpoint: (await repo.open(ref)).row.checkpoint }; await repo.db.delete(); return out;
