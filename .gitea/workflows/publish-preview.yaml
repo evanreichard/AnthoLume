@@ -8,13 +8,14 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: write
 
 env:
   IMAGE: gitea.va.reichard.io/evan/antholume
 
 jobs:
   preview:
-    if: github.event.comment.body == '/publish' && github.event.issue.pull_request != null && (github.event.repository.permissions.push == true || github.event.sender.login == github.repository_owner)
+    if: github.event.comment.body == '/publish' && github.event.issue.pull_request != null && github.event.repository.permissions.push == true
     runs-on: ubuntu-latest
     steps:
       - name: Read the pull request head
@@ -26,10 +27,11 @@ jobs:
           TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          curl -fsS -H "Authorization: token $TOKEN" "$API/repos/$REPO/pulls/$NUMBER" -o pr.json
+          jq -e '.comment.body == "/publish"' "$GITHUB_EVENT_PATH" >/dev/null
+          curl -fsS -H "Authorization: token $TOKEN" "$API/repos/$REPO/pulls/$NUMBER" -o "$RUNNER_TEMP/preview-pr.json"
           python3 - >> "$GITHUB_OUTPUT" <<'PY'
           import json, os
-          pull = json.load(open('pr.json'))
+          pull = json.load(open(os.path.join(os.environ['RUNNER_TEMP'], 'preview-pr.json')))
           assert pull['state'] == 'open', 'previews build only open pull requests'
           assert pull['head']['repo']['full_name'] == os.environ['REPO'], 'previews build only same-repository branches'
           sha = pull['head']['sha']
@@ -39,13 +41,8 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          ref: refs/pull/${{ github.event.issue.number }}/head
-          fetch-depth: 1
-
-      - name: Verify the checked-out head
-        env:
-          EXPECTED: ${{ steps.pr.outputs.sha }}
-        run: test "$(git rev-parse HEAD)" = "$EXPECTED"
+          ref: ${{ steps.pr.outputs.sha }}
+          persist-credentials: false
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
@@ -61,7 +58,23 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.PACKAGE_TOKEN }}
 
+      - name: Check for an existing preview
+        id: existing
+        env:
+          TAG: ${{ steps.pr.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if result=$(docker buildx imagetools inspect "$IMAGE:$TAG" 2>&1); then
+            digest=$(awk '$1 == "Digest:" { print $2; exit }' <<< "$result")
+            [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]]
+            echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          elif ! grep -Eqi 'manifest unknown|not found' <<< "$result"; then
+            echo "$result" >&2
+            exit 1
+          fi
+
       - name: Build and push
+        if: steps.existing.outputs.digest == ''
         id: build
         uses: docker/build-push-action@v6
         with:
@@ -82,7 +95,7 @@ jobs:
           OUTCOME: ${{ steps.build.outcome }}
           TAG: ${{ steps.pr.outputs.tag }}
           SHA: ${{ steps.pr.outputs.sha }}
-          DIGEST: ${{ steps.build.outputs.digest }}
+          DIGEST: ${{ steps.existing.outputs.digest || steps.build.outputs.digest }}
           API: ${{ github.api_url }}
           SERVER: ${{ github.server_url }}
           REPO: ${{ github.repository }}
@@ -93,7 +106,7 @@ jobs:
           import json, os, urllib.request
           env = os.environ
           run = f"{env['SERVER'].rstrip('/')}/{env['REPO']}/actions/runs/{env['RUN_ID']}"
-          if env['OUTCOME'] == 'success' and env.get('SHA'):
+          if env['OUTCOME'] in ('success', 'skipped') and env.get('SHA') and env.get('DIGEST'):
               body = (f"Preview for `{env['SHA']}` is ready.\n\n"
                       f"```\ndocker pull {env['IMAGE']}:{env['TAG']}\n```\n\n"
                       f"Digest: `{env.get('DIGEST', '')}`\nRun: {run}\n")
