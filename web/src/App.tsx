@@ -118,8 +118,8 @@ const router = createBrowserRouter([{
       { Component: ProtectedApp, ErrorBoundary: RouteError, children: [
       { index: true, element: <Navigate to="/library" replace /> },
       { path: 'library', Component: Library },
-      { path: 'books/:kind/:id', Component: BookDetail },
-      { path: 'read/:kind/:id', lazy: () => import('./routes/ReaderRoute') },
+      { path: 'books/:kind', Component: BookDetail },
+      { path: 'read/:kind', lazy: () => import('./routes/ReaderRoute') },
       { path: 'insights', Component: Insights },
       { path: 'insights/activity', element: <Insights view="activity" /> },
       { path: 'insights/progress', element: <Insights view="progress" /> },

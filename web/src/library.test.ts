@@ -28,6 +28,6 @@ it('sorts Last read by newest shared checkpoint, then puts unread books last', (
 });
 it('routes preserve opaque IDs and account/origin intent', () => {
   const ref = { kind: 'server' as const, account: a, documentId: 'opaque/id' };
-  expect(bookPath(ref, 'read')).toBe('/read/server/opaque%2Fid?account=a&origin=https%3A%2F%2Fbooks.example');
+  expect(bookPath(ref, 'read')).toBe('/read/server?id=opaque%2Fid&account=a&origin=https%3A%2F%2Fbooks.example');
   expect(bookKey(ref)).not.toBe(bookKey({ ...ref, account: b }));
 });

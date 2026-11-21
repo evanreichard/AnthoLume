@@ -21,7 +21,7 @@ test('Go serves the compiled application, retirement worker and real errors inst
     expect(response.headers()['cache-control']).toContain('immutable');
     expect(response.headers()['content-type']).toMatch(asset.endsWith('.js') ? /javascript/ : /text\/css/);
   }
-  const shell = await request.get(`${server.origin}/books/server/book_001?account=missing`);
+  const shell = await request.get(`${server.origin}/books/server?id=book_001&account=missing`);
   expect(shell.status()).toBe(200);
   expect(shell.headers()['content-security-policy']).toContain("script-src 'self'");
   const html = await shell.text();

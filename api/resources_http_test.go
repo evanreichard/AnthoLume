@@ -170,7 +170,7 @@ func TestAppShellBoundaryAndRetirementBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	f.server.Config.Handler = api.Handler()
 	f.server.Start()
-	for _, path := range []string{"/", "/library", "/admin/library", "/admin/logs", "/insights", "/insights/activity", "/insights/progress", "/insights/rankings", "/books/server/opaque-book", "/read/local/local-id", "/?antholume-retirement=legacy-v1"} {
+	for _, path := range []string{"/", "/library", "/admin/library", "/admin/logs", "/insights", "/insights/activity", "/insights/progress", "/insights/rankings", "/books/server?id=opaque-book", "/read/local?id=local-id", "/?antholume-retirement=legacy-v1"} {
 		r := f.call("GET", path, nil, nil)
 		require.Equal(t, 200, r.status, path)
 		require.Equal(t, shell, string(r.body))

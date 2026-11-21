@@ -30,7 +30,8 @@ test('root retirement keeps only document intent through logout/login/register/r
   await expect(page.getByRole('region', { name: 'Book reader', exact: true })).toBeVisible();
   await expect(page.frameLocator('iframe').first().getByRole('heading', { name: 'Public chapter', exact: true })).toBeVisible();
   const destination = new URL(page.url());
-  expect(destination.pathname).toBe('/read/server/book_001');
+  expect(destination.pathname).toBe('/read/server');
+  expect(destination.searchParams.get('id')).toBe('book_001');
   expect(destination.searchParams.get('origin')).toBe(server.origin);
   const { user: signedIn } = await (await page.request.get(`${server.origin}/api/v1/session`)).json();
   expect(signedIn.id).toBe(user);
@@ -79,7 +80,8 @@ test('already authenticated root retirement opens the original uncached document
   await page.goto(requested(server.origin, 'book_002'));
   await expect(page.frameLocator('iframe').first().getByRole('heading', { name: 'Public chapter', exact: true })).toBeVisible();
   const destination = new URL(page.url());
-  expect(destination.pathname).toBe('/read/server/book_002');
+  expect(destination.pathname).toBe('/read/server');
+  expect(destination.searchParams.get('id')).toBe('book_002');
   expect(destination.searchParams.get('origin')).toBe(server.origin);
   const { user: signedIn } = await (await page.request.get(`${server.origin}/api/v1/session`)).json();
   expect(signedIn.id).toBe(user);

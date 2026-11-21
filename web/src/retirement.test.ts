@@ -18,5 +18,5 @@ it('selects no account before authentication and never accepts a foreign origin/
   expect(retirementDestination('book', { kind: 'expired', account })).toBeNull();
   expect(retirementDestination('book', { kind: 'logout', account })).toBeNull();
   expect(retirementDestination('book', { kind: 'authenticated', account: { ...account, origin: 'https://other.example' } })).toBeNull();
-  expect(retirementDestination('a/b', { kind: 'authenticated', account })).toBe('/read/server/a%2Fb?account=authorized-account&origin=https%3A%2F%2Fbooks.example');
+  expect(retirementDestination('a/b', { kind: 'authenticated', account })).toBe('/read/server?id=a%2Fb&account=authorized-account&origin=https%3A%2F%2Fbooks.example');
 });

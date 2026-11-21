@@ -4,7 +4,7 @@ import { readerBoundary } from './build/reader-boundary.ts';
 import { readingWorker } from './build/worker.ts';
 
 const target = process.env.ANTHOLUME_BACKEND ?? 'http://127.0.0.1:5324';
-const appNavigation = /^\/(?:|library\/?|login\/?|register\/?|settings\/?|admin(?:\/(?:library|users|system|logs))?\/?|insights(?:\/(?:activity|progress|rankings))?\/?|(?:books|read)\/(?:local|server)\/[^/]+\/?)$/;
+const appNavigation = /^\/(?:|library\/?|login\/?|register\/?|settings\/?|admin(?:\/(?:library|users|system|logs))?\/?|insights(?:\/(?:activity|progress|rankings))?\/?|(?:books|read)\/(?:local|server)\/?)$/;
 const backendRoutes = ['^/api(?:/|$)', '/sw.js', '/manifest.json', '/favicon.ico', '/assets/icons', '/assets/app/assets'];
 
 export default defineConfig({

@@ -7,7 +7,10 @@ export function bookKey(ref: BookRef): string {
   return refKey(ref);
 }
 export function bookPath(ref: BookRef, action: 'books' | 'read' = 'books'): string {
-  return `/${action}/${ref.kind}/${encodeURIComponent(ref.kind === 'local' ? ref.localId : ref.documentId)}${ref.kind === 'server' ? `?account=${encodeURIComponent(ref.account.userId)}&origin=${encodeURIComponent(ref.account.origin)}` : ''}`;
+  const params = ref.kind === 'server'
+    ? new URLSearchParams({ id: ref.documentId, account: ref.account.userId, origin: ref.account.origin })
+    : new URLSearchParams({ id: ref.localId });
+  return `/${action}/${ref.kind}?${params}`;
 }
 export function combineBooks(stored: readonly StoredBook[], documents: readonly Document[], account: Account | null): LibraryBook[] {
   const books = new Map<string, LibraryBook>();

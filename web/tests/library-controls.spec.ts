@@ -13,7 +13,7 @@ test('Library searches for literal all and Book Detail returns to the filtered L
   await search.fill('Public book 01');
   await search.press('Enter');
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
-  await expect(page).toHaveURL(/\/books\/server\//);
+  await expect(page).toHaveURL(/\/books\/server\?/);
   await page.getByRole('main').getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page).toHaveURL(/\/library\?q=Public\+book\+01&sort=author$/);
   await expect(search).toHaveValue('Public book 01');
@@ -73,7 +73,7 @@ test('the Library defaults to Last read and features the last shared checkpoint 
   const feature = page.getByRole('region', { name: 'Continue reading' });
   await expect(feature.getByRole('heading')).toHaveText('Public book 30');
   await expect(feature.getByText('24% read', { exact: true })).toBeVisible();
-  await expect(feature.getByRole('link', { name: 'Resume' })).toHaveAttribute('href', /\/read\/server\/book_030\?/);
+  await expect(feature.getByRole('link', { name: 'Resume' })).toHaveAttribute('href', /\/read\/server\?id=book_030&/);
   await expect(page.getByRole('article').first().getByRole('heading')).toHaveText('Public book 30');
   await page.getByRole('button', { name: 'Sort Books' }).click();
   await expect(page.getByRole('button', { name: 'Last read', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -90,7 +90,7 @@ test('Add book uploads to the shared library and Recently added includes it on p
   });
   await expect(page.getByText('Book is in the shared library.', { exact: false })).toBeVisible();
   const detail = page.getByRole('link', { name: 'Open book', exact: true });
-  await expect(detail).toHaveAttribute('href', /\/books\/server\//);
+  await expect(detail).toHaveAttribute('href', /\/books\/server\?/);
   await detail.click();
   await expect(page.getByRole('heading', { name: 'ZZ Shared Upload', exact: true })).toBeVisible();
   const read = page.getByRole('link', { name: 'Read', exact: true });
