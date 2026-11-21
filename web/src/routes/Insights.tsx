@@ -192,7 +192,7 @@ function Rankings({ account, preview = false }: { account: Account; preview?: bo
 export function Insights({ view = '' }: { view?: View }) {
   const { access } = useSession();
   return <>
-    <PageHeader title="Insights" />
+    <PageHeader title="Insights" mobileBrand />
     <SectionTabs label="Insights sections" items={tabs.map(([route, label]) => ({ to: route ? `/insights/${route}` : '/insights', label }))} />
     {access.kind !== 'authenticated' ? <p>Connect and sign in to see your synced reading records.</p> : view === '' ? <Overview account={access.account} /> : view === 'rankings' ? <Rankings account={access.account} /> : <History account={access.account} view={view} />}
   </>;

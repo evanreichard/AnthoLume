@@ -8,14 +8,15 @@ import { session, useSession } from './session';
 import styles from './App.module.css';
 import { Icon } from './Icon';
 
-type PageHeaderProps = { actions?: ReactNode } & (
+type PageHeaderProps = { actions?: ReactNode; mobileBrand?: boolean } & (
   | { title: string; headingRef?: Ref<HTMLHeadingElement>; leading?: ReactNode }
   | { title?: never; headingRef?: never; leading: ReactNode }
 );
 
-export function PageHeader({ title, headingRef, leading, actions }: PageHeaderProps) {
+export function PageHeader({ title, headingRef, leading, actions, mobileBrand }: PageHeaderProps) {
   return <header className={styles.pageTitle}>
     <div className={styles.pageTitleStart}>
+      {mobileBrand && <img className={styles.mobileBrand} src="/assets/icons/mark.svg" width="30" height="30" alt="" />}
       {leading}
       {title && <h1 ref={headingRef} tabIndex={headingRef ? -1 : undefined}>{title}</h1>}
     </div>

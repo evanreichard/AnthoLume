@@ -131,8 +131,7 @@ export function Library() {
     }
   }
   return <>
-    <PageHeader title="Library" headingRef={heading}
-      leading={<img className={styles.libraryMark} src="/assets/icons/mark.svg" width="30" height="30" alt="" />}
+    <PageHeader title="Library" headingRef={heading} mobileBrand
       actions={reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>} />
     {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}
     <RecentBooks books={recent} bookLinkState={bookLinkState} />

@@ -14,7 +14,7 @@ export function Settings() {
   const navigate = useNavigate();
   const canAdminister = access.kind === 'authenticated' && current?.user?.is_admin;
   return <>
-    <PageHeader title="Settings" actions={canAdminister && <ButtonLink to="/admin">Administration</ButtonLink>} />
+    <PageHeader title="Settings" mobileBrand actions={canAdminister && <ButtonLink to="/admin">Administration</ButtonLink>} />
     <div className={styles.settingsLayout}>
     {access.kind === 'authenticated' && current?.user && <AccountSettings key={access.account.userId} account={access.account} username={current.user.id} timezone={current.user.timezone} readOnly={!capabilities || capabilities.demo_mode}
       syncStatus={sync === 'idle' && pendingCount ? `${pendingCount} pending` : syncLabels[sync]} syncDetails={<SyncDetails />}
