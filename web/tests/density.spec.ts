@@ -1,5 +1,5 @@
 import { test, expect, register, scratch } from './fixtures';
-import { storedRows } from './storage';
+import { serverEffects } from './storage';
 
 test('online reader checkpoint drives compact Folio Resume, density and touch', async ({ page, server }) => {
   const outgoing: string[] = [];
@@ -34,6 +34,6 @@ test('online reader checkpoint drives compact Folio Resume, density and touch', 
     await page.screenshot({ path: `${scratch}folio-${width}.png`, fullPage: true });
   }
   await expect(feature.getByRole('heading', { name: 'Public book 01', exact: true })).toBeVisible();
-  await expect.poll(async () => (await storedRows(page, 'events')).length).toBe(1);
+  await expect.poll(() => serverEffects(server.data, 'compact-online').head?.revision).toBe(1);
   expect(outgoing.some(url => url.endsWith('/reading-progress'))).toBe(true);
 });
