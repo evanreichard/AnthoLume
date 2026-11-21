@@ -80,7 +80,7 @@ test('when chapter callbacks are blocked, center taps and swipes work without en
   };
   await pinch(60, 90, 150);
   await pinch(90, 20, 50);
-  if (!await progress.isVisible()) await page.touchscreen.tap(x, y);
+  await reader.getByRole('button', { name: 'Show reader controls' }).press('Enter');
   await progress.tap();
   await expect(reader.getByRole('slider', { name: 'Text size' })).toHaveValue('50');
   await expect(reader.getByRole('button', { name: 'Decrease text size' })).toBeDisabled();
