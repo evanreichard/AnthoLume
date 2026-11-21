@@ -185,7 +185,7 @@ export class ReaderController {
     if (!loc?.start?.cfi) throw new Error('Engine location unavailable');
     const ko = await fromCFI(this.book!, visual || loc.start.cfi);
     if (this.dead) return;
-    const { currentWord, totalWords } = await this.wordPosition();
+    const { currentWord, totalWords } = await this.wordPosition(visual);
     this.location = { ko, cfi: visual || loc.start.cfi, chapter: loc.start.href, page: loc.start.displayed.page, pages: loc.start.displayed.total, fraction: Math.round(currentWord / totalWords * 100000) / 100000 };
     this.releaseInactive();
   }
@@ -416,12 +416,11 @@ export class ReaderController {
     return { source: { ...sourceStats }, cache: this.policy ? { ...this.policy.stats } : null, loadedSections, contentDocuments: this.contentCleanup.size };
   }
   private words(text: string) { return text.trim().split(/\s+/).length; }
-  private async wordPosition() {
-    const location = this.rendition!.location as Location;
-    const range = await this.book!.getRange(location.start.cfi);
+  private async wordPosition(cfi: string) {
+    const range = await this.book!.getRange(cfi);
     const body = range.startContainer.ownerDocument!.querySelector('body')!;
     const before = body.ownerDocument.createRange(); before.selectNodeContents(body); before.setEnd(range.startContainer, range.startOffset);
-    const index = new EpubCFI(location.start.cfi).spinePos;
+    const index = new EpubCFI(cfi).spinePos;
     const textBefore = before.toString();
     const wordsBefore = this.policy!.manifest.lazy && !textBefore.trim() ? 0 : this.words(textBefore);
     // Stable Chapter Weights - Visiting another chapter must not change the percentage of a previously visited anchor.
@@ -436,7 +435,7 @@ export class ReaderController {
     if (!visible) throw new Error('Visible text range unavailable; no activity or progress was saved');
     const text = visible.toString().trim();
     if (!text) return;
-    const position = await this.wordPosition();
+    const position = await this.wordPosition(this.location?.cfi ?? location.start.cfi);
     const endMs = Date.now();
     const measured = measureActivity({ ...position, forward: true, localOnly: !!this.options.localOnly, pageWords: this.words(text), pageStartMs: this.pageStart, nowMs: endMs });
     if (measured) this.pendingActivity = { ...measured, intervalId: crypto.randomUUID(), startMs: this.pageStart, endMs };
