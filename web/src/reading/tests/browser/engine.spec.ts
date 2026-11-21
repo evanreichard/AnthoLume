@@ -1,10 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 async function watch(page: Page) {
-  const forbidden: string[] = [];
+  const forbidden: string[] = [], origin = new URL(page.url()).origin;
   const allowed = (request: import('@playwright/test').Request) => {
     const url = new URL(request.url());
     if (['blob:', 'data:', 'about:'].includes(url.protocol)) return true;
-    return request.method() === 'GET' && url.origin === 'http://127.0.0.1:5346' && (request.frame() === page.mainFrame() || request.resourceType() === 'script') && ['/', '/harness.tsx', '/fixtures/', '/@vite/', '/@id/', '/@fs/', '/node_modules/'].some(p => url.pathname === p || url.pathname.startsWith(p));
+    return request.method() === 'GET' && url.origin === origin && (request.frame() === page.mainFrame() || request.resourceType() === 'script') && ['/', '/harness.tsx', '/fixtures/', '/@vite/', '/@id/', '/@fs/', '/node_modules/'].some(p => url.pathname === p || url.pathname.startsWith(p));
   };
   page.on('request', request => { if (!allowed(request)) forbidden.push(request.url()); });
   await page.route('**/*', route => allowed(route.request()) ? route.continue() : route.abort()); return forbidden;
@@ -66,14 +66,14 @@ test('real engine paginates, reflows logical KO anchor, routes relocated NAV/NCX
   }
   expect(result.lifecycle.listeners).toBe(0); expect(result.lifecycle.contentListeners).toBe(0); expect(result.lifecycle.engines).toBe(result.lifecycle.destroyed); expect(forbidden).toEqual([]);
 });
-test('reviewed rawtext, whole-document, structural, CSS/font/SVG and navigation hostile fixtures reject before engines', async ({ page }) => {
+for (const set of ['closure-rawtext', 'closure-invalid-navigation', 'attacks', 'structures', 'compat-hostile', 'aliases']) test(`${set}: rejected inputs never reach the renderer`, async ({ page }) => {
   test.setTimeout(240000);
   const forbidden = await watch(page);
-  const result = await page.evaluate(async () => {
+  const result = await page.evaluate(async set => {
     const p = window.readingTest;
-    const sets = ['closure-rawtext', 'closure-invalid-navigation', 'attacks', 'structures', 'compat-hostile', 'aliases'];
-    const fixtures: string[] = [];
-    for (const set of sets) { const list = await (await fetch(`/fixtures/${set}.json`)).json(); const prefix = set === 'attacks' ? 'adversarial-' : set === 'structures' || set === 'aliases' ? 'review-' : set === 'compat-hostile' ? 'compat-hostile-' : ''; fixtures.push(...(Array.isArray(list) ? list : Object.keys(list)).map((name: string) => prefix + name)); }
+    const list = await (await fetch(`/fixtures/${set}.json`)).json();
+    const prefix = set === 'attacks' ? 'adversarial-' : set === 'structures' || set === 'aliases' ? 'review-' : set === 'compat-hostile' ? 'compat-hostile-' : '';
+    const fixtures = (Array.isArray(list) ? list : Object.keys(list)).map((name: string) => prefix + name);
     const failures: { name: string; phase: string }[] = [];
     for (const name of fixtures) {
       const bytes = await (await fetch(`/fixtures/${name.replace(/\.epub$/, '')}.epub`)).arrayBuffer();
@@ -85,8 +85,8 @@ test('reviewed rawtext, whole-document, structural, CSS/font/SVG and navigation 
     const doc = new DOMParser().parseFromString('<html xmlns="http://www.w3.org/1999/xhtml"><head><style><![CDATA[/* </style><img src="https://not-allowed.invalid/probe"/> */]]></style></head><body><p>source</p></body></html>', 'application/xhtml+xml');
     let wholeDoc = false; try { p.requireStableBody(doc); } catch { wholeDoc = true; }
     return { count: fixtures.length, failures, engines: p.lifecycle.engines, wholeDoc };
-  });
-  expect(result.count).toBeGreaterThan(65); expect(result.failures).toEqual([]); expect(result.engines).toBe(0); expect(result.wholeDoc).toBe(true); expect(forbidden).toEqual([]);
+  }, set);
+  expect(result.count).toBeGreaterThan(0); expect(result.failures).toEqual([]); expect(result.engines).toBe(0); expect(result.wholeDoc).toBe(true); expect(forbidden).toEqual([]);
 });
 test('chapter head text boundaries do not affect EPUB validation or saved body anchors', async ({ page }) => {
   const result = await page.evaluate(() => {
