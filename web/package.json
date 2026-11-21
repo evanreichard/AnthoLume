@@ -10,6 +10,7 @@
     "build": "npm run typecheck && vite build",
     "test": "vitest run",
     "test:browser": "playwright test",
+    "test:reader": "node src/reading/tests/generate-fixtures.mjs && playwright test -c src/reading/tests/playwright.config.ts",
     "audit": "npm audit"
   },
   "dependencies": {

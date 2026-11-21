@@ -7,6 +7,7 @@ npm ci
 npm run build
 npm test
 npm run test:browser
+npm run test:reader
 ```
 
 The build writes `../assets/app/` for Go packaging. Generate API bindings from the repository root with `make generate`.
