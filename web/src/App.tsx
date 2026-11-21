@@ -85,7 +85,7 @@ function Shell() {
   return <div className={`${styles.shell} ${reader ? styles.readerShell : ''}`}>
       <a className={styles.skip} href="#content">Skip to content</a>
       <aside className={styles.rail}>
-        <Link to="/library" className={styles.brand}><img src="/assets/icons/mark.svg" alt="" width="26" height="26" />Antho<span>Lume</span></Link>
+        <Link to="/library" className={styles.brand}><img src="/assets/icons/mark.svg" alt="" width="50" height="50" />Antho<span>Lume</span></Link>
         <nav aria-label="Main navigation" className={styles.tabs}>
           <NavLink to="/library"><i className={styles.tabIcon}><Icon name="library" /></i><span>Library</span></NavLink>
           <NavLink to="/insights"><i className={styles.tabIcon}><Icon name="insights" /></i><span>Insights</span></NavLink>

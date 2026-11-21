@@ -6,16 +6,19 @@ test('Library, Insights, Settings and Book Detail share mobile and desktop gutte
   const nav = page.getByRole('navigation', { name: 'Main navigation' });
   for (const width of [320, 390, 1440]) {
     await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({ colorScheme: width === 320 ? 'dark' : 'light' });
     const position = async (title: string) => {
       await nav.getByRole('link', { name: title, exact: true }).click();
       const heading = page.getByRole('heading', { name: title, level: 1, exact: true });
       await expect(heading).toBeVisible();
-      const { x, y, height } = (await heading.boundingBox())!;
+      const { x, y, height } = (await heading.locator('..').boundingBox())!;
       return { x, y, height };
     };
     const library = await position('Library');
     const header = (name: string) => page.locator('main header').filter({ has: page.getByRole(name === 'Book' ? 'link' : 'heading', { name: name === 'Book' ? 'Library' : name, exact: true }) });
     const libraryHeader = await header('Library').boundingBox();
+    await expect(header('Library').locator('img')).toBeVisible({ visible: width <= 760 });
+    await expect(page.getByRole('complementary').locator('img')).toBeVisible({ visible: width > 760 });
     const libraryGrid = (await page.getByRole('article').first().locator('..').boundingBox())!;
     const expectLibraryGutters = async (region: import('@playwright/test').Locator) => {
       await expect(region).toBeVisible();
