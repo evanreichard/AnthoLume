@@ -69,18 +69,24 @@ func (api *API) createAdminBackup(ctx context.Context, dir string) error {
 	return syncAdminDirectory(dir)
 }
 
-func (api *API) walkBackupBooks(ctx context.Context, db database.DBTX, add func(string, *os.File) error) (AdminBackupPreview, error) {
-	var out AdminBackupPreview
+type backupBookList struct {
+	root  string
+	paths []*string
+}
+
+func (api *API) listBackupBooks(ctx context.Context, db database.DBTX) (backupBookList, error) {
 	root, err := api.queryStorageRoot(ctx, db, libraryRoot)
 	if err != nil {
-		return out, err
+		return backupBookList{}, err
 	}
 	paths, err := database.New(db).ListBackupLibraryFilepaths(ctx)
-	if err != nil {
-		return out, err
-	}
-	seen := make(map[string]bool, len(paths))
-	for _, path := range paths {
+	return backupBookList{root.Path, paths}, err
+}
+
+func (books backupBookList) walk(ctx context.Context, add func(string, *os.File) error) (AdminBackupPreview, error) {
+	var out AdminBackupPreview
+	seen := make(map[string]bool, len(books.paths))
+	for _, path := range books.paths {
 		if err := ctx.Err(); err != nil {
 			return out, err
 		}
@@ -89,7 +95,7 @@ func (api *API) walkBackupBooks(ctx context.Context, db database.DBTX, add func(
 			continue
 		}
 		seen[name] = true
-		f, err := openStoredFile(root.Path, name)
+		f, err := openStoredFile(books.root, name)
 		if err != nil {
 			out.Missing++
 			continue
@@ -108,20 +114,28 @@ func (api *API) walkBackupBooks(ctx context.Context, db database.DBTX, add func(
 	return out, ctx.Err()
 }
 
+func (api *API) previewBookList(ctx context.Context) (backupBookList, error) {
+	tx, err := api.db.DB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return backupBookList{}, err
+	}
+	defer tx.Rollback()
+	if _, _, err := validateBackupCatalog(ctx, tx); err != nil {
+		return backupBookList{}, err
+	}
+	return api.listBackupBooks(ctx, tx)
+}
+
 func (s *webAPI) PreviewAdminBackup(ctx context.Context, _ PreviewAdminBackupRequestObject) (PreviewAdminBackupResponseObject, error) {
 	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
 	ctx = requestContext(ctx)
-	tx, err := s.api.db.DB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	books, err := s.api.previewBookList(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
-	if _, _, err := validateBackupCatalog(ctx, tx); err != nil {
-		return nil, err
-	}
-	preview, err := s.api.walkBackupBooks(ctx, tx, nil)
+	preview, err := books.walk(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

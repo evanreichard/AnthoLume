@@ -24,6 +24,25 @@ func TestBackupArchiveLimits(t *testing.T) {
 	require.Error(t, budget.add("covers/extra.png", 0))
 }
 
+func TestBackupPreviewFileScanAllowsProgressWrite(t *testing.T) {
+	f := newWebFixture(t)
+	f.readingSetup()
+	require.NoError(t, os.WriteFile(filepath.Join(f.cfg.DataPath, "documents", "book.epub"), []byte("book"), 0600))
+	f.exec(`UPDATE documents SET filepath='book.epub',storage_root_id='library' WHERE id='book_a'`)
+	ctx := context.Background()
+	books, err := f.api.previewBookList(ctx)
+	require.NoError(t, err)
+	f.client.Timeout = 2 * time.Second
+	preview, err := books.walk(ctx, func(name string, _ *os.File) error {
+		require.Equal(t, "book.epub", name)
+		response := f.call("POST", "/api/v1/me/reading-progress", progressPayload("0", .25), nil)
+		require.Equal(t, 200, response.status, string(response.body))
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, AdminBackupPreview{Files: 1, Bytes: 4}, preview)
+}
+
 func TestFullBackupRejectsConcurrentLibraryWriteWithoutBlockingReadingOrSync(t *testing.T) {
 	f := newWebFixture(t)
 	f.readingSetup()

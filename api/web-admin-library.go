@@ -104,7 +104,11 @@ func (api *API) createFullBackup(ctx context.Context, dir string) error {
 			}
 		}
 	}
-	_, err = api.walkBackupBooks(ctx, catalog, func(name string, f *os.File) error { return books.add(ctx, name, f, add) })
+	files, err := api.listBackupBooks(ctx, catalog)
+	if err != nil {
+		return err
+	}
+	_, err = files.walk(ctx, func(name string, f *os.File) error { return books.add(ctx, name, f, add) })
 	if err != nil {
 		return err
 	}
