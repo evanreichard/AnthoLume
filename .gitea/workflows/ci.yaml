@@ -6,7 +6,36 @@ on:
   pull_request:
 
 jobs:
+  go:
+    name: Go qualification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.11"
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            api/audit.sh
+
+      - name: Go tests
+        run: go test -mod=readonly -count=1 -timeout=180s ./...
+
+      - name: Go race tests
+        run: go test -mod=readonly -race -count=1 -timeout=10m ./...
+
+      - name: Go vet
+        run: go vet -mod=readonly ./...
+
+      - name: Verify modules
+        run: go mod verify
+
+      - name: Vulnerability audit
+        run: bash api/audit.sh
+
   tests:
+    name: Frontend and browser tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,6 +44,10 @@ jobs:
         with:
           go-version: "1.26.11"
           cache: true
+          # The browser server and generator do not build the race dependencies; keep their cache separate.
+          cache-dependency-path: |
+            go.sum
+            api/generate.sh
 
       - uses: actions/setup-node@v4
         with:
@@ -25,14 +58,8 @@ jobs:
       - name: Frontend and generation
         run: make check_web check_generation
 
-      - name: Root qualification
-        run: |
-          go test -mod=readonly -count=1 -timeout=180s ./...
-          go test -mod=readonly -race -count=1 -timeout=10m ./...
-          go vet -mod=readonly ./...
-          go build -mod=readonly -o /dev/null .
-          go mod verify
-          bash api/audit.sh
+      - name: Build server with frontend assets
+        run: go build -mod=readonly -o /dev/null .
 
       - name: App browser tests
         id: browser
@@ -55,7 +82,7 @@ jobs:
             build/test-results/*/**/trace.zip
 
   publish:
-    needs: tests
+    needs: [go, tests]
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
