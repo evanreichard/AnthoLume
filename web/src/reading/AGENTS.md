@@ -11,4 +11,5 @@
 
 - `repository.ts` owns the durable outbox; `sync.ts` delivers through the session bridge. Save the checkpoint and its pending event or latest draft atomically. Keep the event ID and payload stable across retries. On acknowledgement, promote a waiting draft using the receipt’s revision.
 - Replay activity before progress. On revision conflict, fetch valid server state before removing pending progress; retain the device position as a resume choice. Distinguish terminal rejection from a retryable failure. Ignore stale responses after account or access changes.
+- In browser tests, wait for the operation under test: settle prior appearance changes before observing resize, and have a worker signal that it is busy before advancing the parent clock to test its deadline.
 - From the repo root, `npm --prefix web run test:reader` prepares fixtures and runs the reader browser suite. Use the app browser suite under `web/tests/` for behavior crossing the real Go API, including restore, sync and worker retirement.

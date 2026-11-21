@@ -61,9 +61,20 @@ test('React StrictMode owns actual full-viewport renderer, edge/keyboard/swipe n
   await readerReady(undefined, first.position);
   await page.keyboard.press('ArrowRight'); await expect.poll(checkpoint).not.toEqual(first); const second = await checkpoint();
   await readerReady(undefined, second.position);
-  await appearance.click(); await page.getByRole('button', { name: /Night/ }).click(); await expect(page.getByRole('button', { name: /Night/ })).toHaveAttribute('aria-pressed', 'true'); await readerReady(); await page.getByRole('combobox', { name: 'Font', exact: true }).selectOption('Lato'); await readerReady('Lato', second.position); await page.getByRole('slider').fill('120'); await readerReady('Lato', second.position); await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await appearance.click(); await page.getByRole('button', { name: /Night/ }).click(); await expect(page.getByRole('button', { name: /Night/ })).toHaveAttribute('aria-pressed', 'true'); await readerReady(); await page.getByRole('combobox', { name: 'Font', exact: true }).selectOption('Lato'); await readerReady('Lato', second.position); await page.getByRole('slider').fill('120');
+  await expect.poll(() => page.frameLocator('iframe').locator('body').evaluate(body => parseFloat(getComputedStyle(body).fontSize) / parseFloat(getComputedStyle(body.ownerDocument.documentElement).fontSize))).toBeCloseTo(1.2);
+  await readerReady('Lato', second.position); await page.getByRole('button', { name: 'Done', exact: true }).click();
   expect(await checkpoint()).toEqual(second);
-  await page.setViewportSize({ width: 720, height: 1000 }); await page.waitForTimeout(400); await readerReady('Lato', second.position); expect(await checkpoint()).toEqual(second);
+  const resized = await region.evaluateHandle(reader => ({ done: new Promise<void>(resolve => {
+    const observer = new MutationObserver(changes => {
+      if (innerWidth === 720 && innerHeight === 1000 && reader.getAttribute('data-reader-state') === 'ready' && changes.some(change => change.oldValue === 'opening')) {
+        observer.disconnect(); resolve();
+      }
+    });
+    observer.observe(reader, { attributes: true, attributeOldValue: true, attributeFilter: ['data-reader-state'] });
+  }) }));
+  await page.setViewportSize({ width: 720, height: 1000 }); await resized.evaluate(wait => wait.done);
+  await readerReady('Lato', second.position); expect(await checkpoint()).toEqual(second);
   const metrics = await page.evaluate(() => { const reader = document.querySelector('section[aria-label="Book reader"]')!, frame = reader.querySelector('iframe')!; return { rootHeight: reader.getBoundingClientRect().height, height: innerHeight, scroll: frame.contentDocument!.documentElement.scrollHeight, viewport: frame.clientHeight }; });
   expect(metrics.rootHeight).toBe(metrics.height);
   await readerReady('Lato', second.position);
@@ -105,8 +116,9 @@ test('native wake lock cleanup releases a late acquisition and removes its visib
   const result = await page.evaluate(async () => {
     let complete!: (value: WakeLockSentinel) => void, releases = 0, requests = 0;
     Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: { request: () => { requests++; return new Promise<WakeLockSentinel>(resolve => { complete = resolve; }); } } });
-    const lock = new window.readingTest.ReaderWakeLock(); lock.interact(); lock.dispose(); complete({ release: async () => { releases++; }, addEventListener: () => {} } as unknown as WakeLockSentinel);
-    await new Promise(resolve => setTimeout(resolve, 0)); document.dispatchEvent(new Event('visibilitychange'));
+    const lock = new window.readingTest.ReaderWakeLock(); lock.interact(); lock.dispose();
+    await new Promise<void>(released => complete({ release: async () => { releases++; released(); }, addEventListener: () => {} } as unknown as WakeLockSentinel));
+    document.dispatchEvent(new Event('visibilitychange'));
     return { requests, releases };
   });
   expect(result).toEqual({ requests: 1, releases: 1 });

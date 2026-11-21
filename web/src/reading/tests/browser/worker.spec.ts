@@ -18,17 +18,24 @@ test('source constructor and transfer failures release slots; subsequent actual 
   const count = await page.evaluate(async () => { const p = window.readingTest, blob = await (await fetch('/fixtures/synthetic.epub')).blob(); return (await p.sourceTask<import('../../source').ZipIndex>(p.blobSource(blob), 'index')).entries.length; }); expect(count).toBeGreaterThan(3);
 });
 
-test('actual busy CPU workers hard-deadline on the parent without blocking UI or leaking slots', async ({ page }) => {
-  test.setTimeout(25000); let spawned = 0, closed = 0;
-  page.on('worker', worker => { spawned++; worker.on('close', () => { closed++; }); });
-  await page.route('**/source.worker.ts*', route => route.fulfill({ contentType: 'text/javascript', body: 'self.onmessage = () => { for (;;) {} };' }));
-  const result = await page.evaluate(async () => {
-    const p = window.readingTest, controller = new AbortController(); let ticks = 0, error = '';
-    const heartbeat = setInterval(() => { ticks++; }, 20), rescue = setTimeout(() => controller.abort(), 14000), start = performance.now();
-    try { await p.sourceTask(p.blobSource(new Blob(['x'])), 'index', undefined, controller.signal); } catch (e) { error = String(e); }
-    clearInterval(heartbeat); clearTimeout(rescue); return { error, ticks, elapsed: performance.now() - start, scheduler: { ...p.sourceScheduler } };
+test('the parent terminates a busy worker at its no-progress deadline and releases the slot', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z'));
+  await page.route('**/source.worker.ts*', route => route.fulfill({ contentType: 'text/javascript', body: `self.onmessage = () => { new BroadcastChannel('deadline-test').postMessage('busy'); for (;;) {} };` }));
+  const closed = page.waitForEvent('worker').then(worker => worker.waitForEvent('close'));
+  const task = await page.evaluateHandle(() => {
+    const p = window.readingTest, channel = new BroadcastChannel('deadline-test');
+    const busy = new Promise<void>(resolve => { channel.onmessage = () => { channel.close(); resolve(); }; });
+    const outcome = p.sourceTask(p.blobSource(new Blob(['x'])), 'index').then(() => 'completed', String);
+    return { busy, outcome };
   });
-  expect(result.error).toContain('No progress while indexing the EPUB'); expect(result.elapsed).toBeGreaterThan(9000); expect(result.elapsed).toBeLessThan(13000); expect(result.ticks).toBeGreaterThan(100); expect(result.scheduler.active).toBe(0); expect(result.scheduler.queued).toBe(0); expect(spawned).toBe(1); await expect.poll(() => closed).toBe(1);
+  await task.evaluate(t => t.busy);
+  await page.clock.fastForward(9999);
+  expect(await page.evaluate(() => window.readingTest.sourceScheduler.active)).toBe(1);
+  await page.clock.fastForward(1);
+  expect(await task.evaluate(t => t.outcome)).toContain('No progress while indexing the EPUB');
+  await closed;
+  expect(await page.evaluate(() => ({ ...window.readingTest.sourceScheduler }))).toMatchObject({ active: 0, queued: 0 });
 });
 
 test('bounded source queue rejects overflow and abort physically terminates busy and queued work', async ({ page }) => {
