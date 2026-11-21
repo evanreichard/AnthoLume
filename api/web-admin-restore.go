@@ -372,7 +372,7 @@ func (api *API) prepareRestoreCatalog(ctx context.Context, db *sql.DB) error {
 	return tx.Commit()
 }
 
-func installRestoreFiles(ctx context.Context, source, dest string) error {
+func installRestoreFiles(ctx context.Context, source, dest string, paths *backupPaths, cleanup *[]func()) error {
 	root, err := os.OpenRoot(dest)
 	if err != nil {
 		return err
@@ -403,51 +403,64 @@ func installRestoreFiles(ctx context.Context, source, dest string) error {
 			return err
 		}
 		defer parent.Close()
-		return installRestoreFile(ctx, name, parent, filepath.Base(rel))
-	})
-}
-
-func installRestoreFile(ctx context.Context, source string, dest *os.Root, name string) error {
-	from, err := os.Open(source)
-	if err != nil {
-		return err
-	}
-	defer from.Close()
-	if existing, err := dest.Lstat(name); err == nil {
-		if !existing.Mode().IsRegular() {
-			return errors.New("restore would replace a non-regular file")
-		}
-		info, err := from.Stat()
+		installed, created, err := installRestoreFile(ctx, name, parent, filepath.Base(rel), paths.prefix == "documents/library/")
 		if err != nil {
 			return err
 		}
-		// KOReader Fingerprint - Reuse a same-size match without reading the entire book twice.
-		if existing.Size() == info.Size() {
-			current, err := dest.OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)
-			if err != nil {
-				return err
-			}
-			liveHash, err := utils.CalculatePartialMD5Reader(current)
-			current.Close()
-			if err != nil {
-				return err
-			}
-			backupHash, err := utils.CalculatePartialMD5Reader(from)
-			if err != nil || *liveHash == *backupHash {
-				return err
-			}
+		newRel := filepath.Join(filepath.Dir(rel), installed)
+		if created {
+			*cleanup = append(*cleanup, func() {
+				if root, err := os.OpenRoot(dest); err == nil {
+					defer root.Close()
+					_ = root.Remove(newRel)
+				}
+			})
 		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
+		if rel != newRel {
+			paths.mapped[filepath.ToSlash(rel)] = filepath.ToSlash(newRel)
+		}
+		return nil
+	})
+}
+
+func installRestoreFile(ctx context.Context, source string, dest *os.Root, name string, book bool) (string, bool, error) {
+	from, err := os.Open(source)
+	if err != nil {
+		return "", false, err
+	}
+	defer from.Close()
+	existing, err := dest.Lstat(name)
+	if err == nil && book && existing.Mode().IsRegular() {
+		current, err := dest.OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+		if err != nil {
+			return "", false, err
+		}
+		liveHash, err := utils.CalculatePartialMD5Reader(current)
+		current.Close()
+		if err != nil {
+			return "", false, err
+		}
+		backupHash, err := utils.CalculatePartialMD5Reader(from)
+		if err != nil {
+			return "", false, err
+		}
+		if *liveHash == *backupHash {
+			return name, false, nil
+		}
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", false, err
 	}
 	token, err := randomCSRF()
 	if err != nil {
-		return err
+		return "", false, err
+	}
+	if existing != nil {
+		name = "restore-" + token + filepath.Ext(name)
 	}
 	tmp := ".restore-" + token
 	out, err := dest.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
-		return err
+		return "", false, err
 	}
 	defer dest.Remove(tmp)
 	_, err = io.Copy(out, contextReader{ctx, from})
@@ -458,15 +471,20 @@ func installRestoreFile(ctx context.Context, source string, dest *os.Root, name 
 		err = closeErr
 	}
 	if err != nil {
-		return err
+		return "", false, err
 	}
 	if err := ctx.Err(); err != nil {
-		return err
+		return "", false, err
 	}
-	if err := dest.Rename(tmp, name); err != nil {
-		return err
+	// No Clobber - Even if another writer creates the target during the copy, never replace a live file.
+	if err := dest.Link(tmp, name); err != nil {
+		return "", false, err
 	}
-	return syncRestoreDirectory(dest, ".")
+	if err := syncRestoreDirectory(dest, "."); err != nil {
+		_ = dest.Remove(name)
+		return "", false, err
+	}
+	return name, true, nil
 }
 
 func syncRestoreDirectory(root *os.Root, name string) error {
@@ -603,20 +621,36 @@ func (api *API) applyStagedRestore(req context.Context, stage, library string) e
 		// Rotate in the staged database so no restored data is visible under the old generation.
 		err = database.New(db).RotateRestoredReadingGeneration(req)
 	}
-	closeErr = db.Close()
-	if err != nil || closeErr != nil {
+	defer db.Close()
+	if err != nil {
 		return adminFailure(400, "invalid_restore_data")
 	}
-
+	books, covers := newBackupPaths("documents/library/"), newBackupPaths("covers/")
+	var cleanup []func()
+	defer func() {
+		for _, remove := range cleanup {
+			remove()
+		}
+	}()
 	if library != "" {
-		if err := installRestoreFiles(req, filepath.Join(stage, "documents", libraryRoot), library); err != nil {
+		if err := installRestoreFiles(req, filepath.Join(stage, "documents", libraryRoot), library, books, &cleanup); err != nil {
 			return err
 		}
 	}
-	if covers := filepath.Join(stage, "covers"); isDirectory(covers) {
-		if err := installRestoreFiles(req, covers, filepath.Join(api.cfg.DataPath, "covers")); err != nil {
+	if dir := filepath.Join(stage, "covers"); isDirectory(dir) {
+		if err := installRestoreFiles(req, dir, filepath.Join(api.cfg.DataPath, "covers"), covers, &cleanup); err != nil {
 			return err
 		}
+	}
+	docs, err := database.New(db).ListDocumentsForRestore(req)
+	if err != nil {
+		return err
+	}
+	if err := rewriteBackupPaths(req, db, docs, books, covers); err != nil {
+		return err
+	}
+	if err := db.Close(); err != nil {
+		return err
 	}
 	conn, err := api.db.DB.Conn(req)
 	if err != nil {
@@ -649,5 +683,8 @@ func (api *API) applyStagedRestore(req context.Context, stage, library string) e
 			}
 		}
 	})
+	if err == nil {
+		cleanup = nil
+	}
 	return err
 }

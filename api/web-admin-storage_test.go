@@ -108,7 +108,10 @@ func TestNamedStorageRootsImportRemapAndBackup(t *testing.T) {
 	require.Equal(t, 204, response.status, string(response.body))
 	var stored string
 	require.NoError(t, f.db.DB.QueryRow(`SELECT filepath FROM documents WHERE id='copy' AND storage_root_id='library'`).Scan(&stored))
-	require.Equal(t, "catalog.epub", stored)
+	require.NotEqual(t, "catalog.epub", stored)
+	before, err := os.ReadFile(filepath.Join(managed, "catalog.epub"))
+	require.NoError(t, err)
+	require.Equal(t, bytes.Repeat([]byte{'x'}, len(book)), before)
 	untracked, err := os.ReadFile(filepath.Join(managed, "untracked.epub"))
 	require.NoError(t, err)
 	require.Equal(t, book, untracked)
