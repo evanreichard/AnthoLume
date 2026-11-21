@@ -32,7 +32,7 @@ export class Replay {
       for (const id of ids) {
         await current();
         const event = await this.repo.db.events.get(id);
-        if (!event) continue;
+        if (!event || event.rejected) continue;
         if (event.scope !== accountKey(account)) throw new Error('Immutable event account mismatch');
         const delivery = event.kind === 'progress'
           ? await this.bridge.submitProgress(account, structuredClone(event.payload), controller.signal)
@@ -51,8 +51,13 @@ export class Replay {
           if (await this.repo.acceptServer(access, event, state)) this.notice = 'Resume position changed on another device. Choose where to resume the next time you open this book.';
           continue;
         }
-        if (delivery.status >= 500 || delivery.status === 429) throw new Error('Temporary server failure; immutable event retained');
-        this.status = 'blocked';
+        const { code } = delivery.body;
+        if ((delivery.status === 404 && code === 'not_found') || (delivery.status === 400 && code === 'invalid_request') ||
+            (delivery.status === 409 && (code === 'idempotency_conflict' || code === 'revision_exhausted'))) {
+          await this.repo.reject(access, event, delivery.status, code);
+          continue;
+        }
+        throw new Error('Temporary or unknown server failure; immutable event retained');
       }
       if (this.status === 'syncing') this.status = 'idle';
     } catch (error) {

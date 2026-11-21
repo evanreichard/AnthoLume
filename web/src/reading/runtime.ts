@@ -71,7 +71,7 @@ export class ReadingRuntime implements ReadingActions {
       const scope = 'account' in access && access.kind !== 'logout' ? accountKey(access.account) : null;
       const visible = pending.filter(e => e.scope === scope);
       this.projectionAccess = access;
-      this.snapshot = { ready: this.appliedGeneration === this.generation, resumeAccount, books: books.map(({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt }) => ({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt })), sync: this.quotaError ? 'quota-error' : !visible.length ? 'idle' : this.sync.status === 'idle' ? access.kind === 'authenticated' ? 'pending' : 'auth-required' : this.sync.status, pendingCount: visible.length, notice: access.kind === 'authenticated' ? this.sync.notice : null, downloads: this.snapshot.downloads, update: this.worker.update, error: this.error || this.worker.error || null };
+      this.snapshot = { ready: this.appliedGeneration === this.generation, resumeAccount, books: books.map(({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt }) => ({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt })), sync: this.quotaError ? 'quota-error' : !visible.length ? 'idle' : visible.every(e => e.rejected) ? 'blocked' : this.sync.status === 'idle' ? access.kind === 'authenticated' ? 'pending' : 'auth-required' : this.sync.status, pendingCount: visible.length, notice: access.kind === 'authenticated' ? this.sync.notice : null, downloads: this.snapshot.downloads, update: this.worker.update, error: this.error || this.worker.error || null };
       this.changed(this.snapshot);
     } catch (error) { if (!this.disposed) { this.snapshot = { ...this.snapshot, ready: false, error: String(error) }; this.changed(this.snapshot); } }
   }
@@ -183,7 +183,7 @@ export class ReadingRuntime implements ReadingActions {
     await this.sync.run(this.access.account);
     const pending = await this.repo.pending(accountKey(this.access.kind === 'authenticated' ? this.access.account : { origin: location.origin, userId: '' }));
     await this.refresh();
-    if (pending.length) { this.failures = this.sync.status === 'retryable-error' ? this.failures + 1 : 0; this.schedule(Math.min(60000, 1000 * 2 ** Math.min(this.failures, 6)) + Math.random() * 500); }
+    if (pending.some(event => !event.rejected)) { this.failures = this.sync.status === 'retryable-error' ? this.failures + 1 : 0; this.schedule(Math.min(60000, 1000 * 2 ** Math.min(this.failures, 6)) + Math.random() * 500); }
   }
   applyUpdate = async () => { await this.worker.apply(); await this.refresh(); };
   dispose() { this.disposed = true; this.sync.stop(); for (const [job] of this.jobs) job.abort(); clearTimeout(this.timer); this.subscription?.unsubscribe(); this.worker.dispose(); window.removeEventListener('online', this.foreground); document.removeEventListener('visibilitychange', this.foreground); void this.accessTail.finally(() => this.repo.db.close()); }

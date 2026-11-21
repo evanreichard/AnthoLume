@@ -18,7 +18,7 @@ const cacheLeaseMs = 15 * 60_000;
 const resumeKey = 'resume:account';
 const cacheLive = (row: SourceRow, now: number) => Object.values(row.cacheReaders ?? {}).some(until => until > now);
 export type SourceChunk = { key: string; sourceId: string; data: ArrayBuffer };
-export type EventRow = { id: string; key: string; scope: string; created: number; interval?: { id: string; startMs: number; endMs: number } } & Submission;
+export type EventRow = { id: string; key: string; scope: string; created: number; rejected?: { status: number; code: string }; interval?: { id: string; startMs: number; endMs: number } } & Submission;
 type AccessRow = { key: string; account: Account; epoch: number; eligible: boolean; authenticated: boolean };
 export type ReplayAccess = { scope: string; epoch: number };
 type Head = { key: string; state: S['ReadingState'] };
@@ -326,7 +326,7 @@ export class Repository {
     await this.db.events.add({ ...event, id: event.payload.event_id, key, scope, created: Date.now() });
   }
   private async hasPendingProgress(key: string) {
-    return !!await this.db.events.where('key').equals(key).filter(event => event.kind === 'progress').first();
+    return !!await this.db.events.where('key').equals(key).filter(event => event.kind === 'progress' && !event.rejected).first();
   }
   private async enqueueProgress(draft: ProgressDraft, scope: string, document: string, device: string, revision: string) {
     await this.addEvent(draft.key, scope, { kind: 'progress', payload: { event_id: crypto.randomUUID(), document_id: document, device_id: device, observed_at: draft.observedAt, base_revision: revision, position: draft.position, fraction: draft.fraction } });
@@ -374,9 +374,24 @@ export class Repository {
     return this.db.transaction('r', this.db.access, this.db.events, async () => {
       const row = await this.db.access.get(scope);
       if (!row?.authenticated || !row.eligible) return null;
-      const pending = await this.pending(scope);
+      const pending = (await this.pending(scope)).filter(event => !event.rejected);
       const ids = [...pending.filter(e => e.kind === 'activity'), ...pending.filter(e => e.kind === 'progress')].slice(0, 32).map(e => e.id);
       return ids.length ? { access: { scope, epoch: row.epoch }, ids } : null;
+    });
+  }
+  async reject(access: ReplayAccess, event: EventRow, status: number, code: string) {
+    await this.db.transaction('rw', this.db.access, this.db.events, this.db.progressDrafts, async () => {
+      if (!await this.replayCurrent(access) || event.scope !== access.scope) return;
+      const stored = await this.db.events.get(event.id);
+      if (!stored || stored.rejected) return;
+      await this.db.events.update(event.id, { rejected: { status, code } });
+      if (event.kind === 'progress') {
+        const draft = await this.db.progressDrafts.get(event.key);
+        if (draft) {
+          await this.enqueueProgress(draft, event.scope, event.payload.document_id, event.payload.device_id, event.payload.base_revision);
+          await this.db.progressDrafts.delete(event.key);
+        }
+      }
     });
   }
   async expire(access: ReplayAccess, eventId?: string) {
@@ -415,7 +430,7 @@ export class Repository {
       if (event.kind !== 'progress') throw new Error('Expected a progress event');
       const device = await this.db.progressDrafts.get(event.key) ?? { ...event.payload, observedAt: event.payload.observed_at };
       const resumeCandidate = { eventId: event.id, position: device.position, fraction: device.fraction, savedAt: device.observedAt };
-      await this.db.events.where('key').equals(event.key).filter(row => row.kind === 'progress').delete();
+      await this.db.events.where('key').equals(event.key).filter(row => row.kind === 'progress' && !row.rejected).delete();
       await this.db.progressDrafts.delete(event.key);
       await this.db.heads.put({ key: event.key, state });
       await this.db.books.update(event.key, { resumeCandidate, checkpoint: { position: state.position, fraction: state.fraction }, lastReadAt: state.updated_at ?? undefined });
