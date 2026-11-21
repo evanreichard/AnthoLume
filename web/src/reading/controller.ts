@@ -318,6 +318,30 @@ export class ReaderController {
     }
     return false;
   }
+  private visiblePageCFI() {
+    const viewport = this.host.getBoundingClientRect();
+    for (const contents of (this.rendition!.getContents() || []) as unknown as Contents[]) {
+      const doc = contents.document, frame = doc.defaultView?.frameElement;
+      if (!frame) continue;
+      const origin = frame.getBoundingClientRect();
+      // Paginated Columns - EPUB.js can report the next chapter heading while a preceding paragraph still fills the viewport.
+      const nodes = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT);
+      for (let node = nodes.nextNode(); node; node = nodes.nextNode()) {
+        for (const rect of (node as Element).getClientRects()) {
+          const left = Math.max(rect.left, viewport.left - origin.left), right = Math.min(rect.right, viewport.right - origin.left);
+          const top = Math.max(rect.top, viewport.top - origin.top), bottom = Math.min(rect.bottom, viewport.bottom - origin.top);
+          if (right <= left || bottom <= top) continue;
+          const x = (left + right) / 2, y = (top + bottom) / 2;
+          const hit = doc.elementFromPoint(x, y);
+          if (!hit || hit === doc.body || !doc.body.contains(hit)) continue;
+          const caret = doc.caretPositionFromPoint?.(x, y);
+          if (!caret || !hit.contains(caret.offsetNode)) return contents.cfiFromNode(hit);
+          const range = doc.createRange(); range.setStart(caret.offsetNode, caret.offset); range.collapse(true);
+          return contents.cfiFromRange(range);
+        }
+      }
+    }
+  }
   private async settleLayout(target?: string, firstContent = false): Promise<string> {
     const rendition = this.rendition!;
     // Native Resize - EPUB.js restores rendition.location on resize, but reportLocation resolves before publishing it.
@@ -353,7 +377,13 @@ export class ReaderController {
       rendition.location = loc;
       const visual = target && !firstContent ? target : loc?.start?.cfi;
       const signature = JSON.stringify([loc?.start?.cfi, loc?.start?.displayed, this.host.clientWidth, this.host.clientHeight, signatures]);
-      if (!pending && visual && this.anchorVisible(visual) && signatures.length && signature === last) return visual;
+      if (!pending && visual && signatures.length && signature === last) {
+        if (this.anchorVisible(visual)) return visual;
+        if (!target || firstContent) {
+          const visible = this.visiblePageCFI();
+          if (visible && this.anchorVisible(visible)) return visible;
+        }
+      }
       last = !pending ? signature : '';
     }
     throw new Error('Book layout/visible assets or requested anchor did not stabilize');
