@@ -1,7 +1,6 @@
-# Reading ownership
+# Shared reading transactions
 
-- This package owns shared progress, activity, device ownership and event decisions. No Gin, HTTP adapter or generated web DTO dependencies.
-- Check the account before receipt access; look up normalized immutable receipts before CAS and new-effect resource checks. UTC instants and signed zero normalize; opaque positions and identity strings do not.
-- Head, legacy effect and receipt commit together. A conflict is retained, not rebased; exact retry returns the original decision after later writes/reopen. Receipts have no TTL.
-- Web events never create placeholder documents/devices. KO placeholder/device registration is transactional and cannot transfer another account's device. KOSync and SyncNinja use the same account-scoped device key as browser sync. Preserve each account’s activity cursor across key migrations, and accept historical activity for tombstoned books without restoring catalog access.
-- Heads order accepted writes by revision, not fraction/client clock/legacy timestamp. Historical seeding runs once in the additive migration, with device-ID ascending for timestamp ties.
+- `Store` owns progress, activity and device decisions for both web and KO clients. Keep Gin and generated HTTP types in `api/`.
+- For web submissions, verify the account, then check the immutable receipt **before** checking the current revision or whether the document still exists. An exact retry returns its original decision; the same event ID with a different normalized payload conflicts. Normalize instants to UTC and signed zero to zero; keep opaque positions and IDs unchanged.
+- Commit accepted progress, per-device history and its receipt together. Revisions order writes, not the reported fraction or client clock. Retain revision-conflict decisions; do not silently rebase an event.
+- Web events require an existing live book and registered device. KO may create placeholders; SyncNinja may submit historical activity for a deleted book without reviving it. Exercise cross-client behavior and rollback in `api/reading_http_test.go` and `api/kosync_devices_test.go`.
