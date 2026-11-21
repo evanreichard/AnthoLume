@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1600 300" width="1600" height="300">
+  <title>AnthoLume</title>
+  <rect width="1600" height="300" fill="#f7f4ed"/>
+  <image x="412" y="50" width="200" height="200" xlink:href="assets/icons/mark.svg"/>
+  <text x="642" y="190" fill="#292f2b" font-family="Liberation Serif, Georgia, serif" font-size="116">Antho<tspan font-style="italic">Lume</tspan></text>
+</svg>

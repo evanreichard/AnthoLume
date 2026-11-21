@@ -2,15 +2,28 @@
   "name": "AnthoLume",
   "short_name": "AnthoLume",
   "lang": "en-US",
-  "theme_color": "#1F2937",
+  "theme_color": "#f7f4ed",
+  "background_color": "#f7f4ed",
   "display": "standalone",
   "scope": "/",
   "start_url": "/",
   "icons": [
     {
       "purpose": "any",
+      "sizes": "192x192",
+      "src": "/assets/icons/icon192.png",
+      "type": "image/png"
+    },
+    {
+      "purpose": "any",
       "sizes": "512x512",
       "src": "/assets/icons/icon512.png",
+      "type": "image/png"
+    },
+    {
+      "purpose": "maskable",
+      "sizes": "512x512",
+      "src": "/assets/icons/maskable512.png",
       "type": "image/png"
     }
   ]

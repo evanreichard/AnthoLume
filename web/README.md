@@ -31,6 +31,10 @@ Browser tests share port 5323 by default; stop dev before running them. Set `CHR
 
 From the repository root, browser reports, logs, and screenshots are under `build/test-results/{app,reader}/`. The generated 300 MB EPUB and its reference hashes are cached in `build/test-cache/reader/`; delete that directory to regenerate them on the next reader test run.
 
+## Brand assets
+
+The app mark is `assets/icons/mark.svg`; `banner.svg` pairs the same mark with the wordmark. From the repository root, run `tools/render-brand.sh` with librsvg (`rsvg-convert`), ImageMagick 7, and Liberation Serif installed to rebuild the README banner, favicon, and home-screen icons. The maskable icon has extra padding for launcher crops.
+
 ## README screenshots
 
 From the repository root, run `make screenshots` with Go, Node/npm, and curl installed. It builds the app and uses Playwright Chromium; set `CHROMIUM_PATH` to use a system Chromium instead. If Linux browser dependencies are missing, run `web/node_modules/.bin/playwright install --with-deps --only-shell chromium`.

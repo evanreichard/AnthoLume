@@ -32,7 +32,7 @@ test('loopback Vite serves development routes while proxying APIs and enforcing 
       try { return (await fetch(`${origin}/api/v1/session`, { signal: AbortSignal.timeout(1000) })).status; } catch { return 0; }
     }).toBe(200);
     await register(page, origin, `dev-${Date.now()}`);
-    for (const [rel, path] of [['manifest', '/manifest.json'], ['apple-touch-icon', '/assets/icons/icon512.png']]) {
+    for (const [rel, path] of [['manifest', '/manifest.json'], ['apple-touch-icon', '/assets/icons/apple-touch-icon.png'], ['icon', '/assets/icons/mark.svg']]) {
       await expect(page.locator(`link[rel="${rel}"]`)).toHaveAttribute('href', path);
       expect((await page.request.get(`${origin}${path}`)).status()).toBe(200);
     }

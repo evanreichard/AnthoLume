@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>AnthoLume</title>
+  <style>
+    @media (prefers-color-scheme: dark) {
+      .sun { fill: #e6af9a; }
+      .pages { fill: #edece2; }
+    }
+  </style>
+  <path class="sun" fill="#7c3c32" d="M68 98a60 60 0 0 1 120 0c-33 12-44 31-60 31S101 110 68 98Z"/>
+  <path class="pages" fill="#292f2b" d="M18 103c50-1 103 31 110 85 7-54 60-87 110-87-6 15-6 39-5 79-37-15-77-3-99 27-3 5-9 5-12 0-22-30-62-42-99-27 1-41 1-61-5-77Z"/>
+</svg>

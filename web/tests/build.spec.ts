@@ -26,15 +26,24 @@ test('Go serves the compiled application, retirement worker and real errors inst
   expect(shell.headers()['content-security-policy']).toContain("script-src 'self'");
   const html = await shell.text();
   expect(html).toContain('<link rel="manifest" href="/manifest.json"');
-  expect(html).toContain('<link rel="apple-touch-icon" href="/assets/icons/icon512.png"');
+  expect(html).toContain('<link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png"');
   expect(html).toContain('<meta name="apple-mobile-web-app-capable" content="yes"');
   const manifest = await request.get(`${server.origin}/manifest.json`);
   expect(manifest.status()).toBe(200);
   const identity = await manifest.json();
   expect(identity.display).toBe('standalone');
-  const icon = await request.get(`${server.origin}/assets/icons/icon512.png`);
-  expect(icon.status()).toBe(200);
-  expect(icon.headers()['content-type']).toMatch(/image\/png/);
+  expect(identity.icons).toEqual(expect.arrayContaining([
+    expect.objectContaining({ sizes: '192x192', purpose: 'any' }),
+    expect.objectContaining({ sizes: '512x512', purpose: 'any' }),
+    expect.objectContaining({ sizes: '512x512', purpose: 'maskable' }),
+  ]));
+  for (const { src, sizes } of identity.icons) {
+    const icon = await request.get(new URL(src, server.origin).href);
+    expect(icon.status()).toBe(200);
+    expect(icon.headers()['content-type']).toMatch(/image\/png/);
+    const png = await icon.body();
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)].join('x')).toBe(sizes);
+  }
   expect(identity.start_url).toBe('/'); expect(identity.scope).toBe('/'); expect(identity).not.toHaveProperty('id');
   for (const path of ['/assets/app/assets/missing.js', '/not-a-route', '/api/v1/missing']) {
     const response = await request.get(`${server.origin}${path}`);
