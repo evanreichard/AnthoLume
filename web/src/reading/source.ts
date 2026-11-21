@@ -50,6 +50,7 @@ export async function sourceTask<T>(source: Source, operation: 'hash' | 'index' 
           const bytes = event.data.release.byteLength;
           if (bytes > 8 * 1024 * 1024) throw new Error('Source buffer release window exceeded');
           if (releaseBytes + bytes > 8 * 1024 * 1024) { releaseWorker?.terminate(); releaseWorker = undefined; releaseBytes = 0; }
+          // Buffer Lifetime - Transfer ownership before terminating the batch worker so archive reads don't depend on garbage collection.
           releaseWorker ||= new Worker(new URL('./buffer-release.worker.ts', import.meta.url), { type: 'module' });
           releaseWorker.postMessage(event.data.release, [event.data.release]); releaseBytes += bytes;
           if (releaseBytes >= 8 * 1024 * 1024) { releaseWorker.terminate(); releaseWorker = undefined; releaseBytes = 0; }

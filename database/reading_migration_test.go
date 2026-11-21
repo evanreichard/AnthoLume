@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/pressly/goose/v3"
@@ -15,25 +14,13 @@ import (
 
 func openPreReactDatabase(t *testing.T, cfg *config.Config) *DBManager {
 	t.Helper()
-	// Remove only the storage additions to the base DDL; master has none of the embedded extensions.
-	before, after, ok := strings.Cut(ddl, "-- Document storage\n")
-	require.True(t, ok)
-	_, after, ok = strings.Cut(after, "-- Books / Documents\n")
-	require.True(t, ok)
-	legacyDDL := before + "-- Books / Documents\n" + strings.Replace(after, ",\n    storage_root_id TEXT REFERENCES storage_roots (id)", "", 1)
 	db, err := sql.Open("sqlite", filepath.Join(cfg.ConfigPath, cfg.DBName+".db"))
 	require.NoError(t, err)
 	db.SetMaxOpenConns(1)
 	require.NoError(t, db.Ping())
 	mgr := &DBManager{DB: db, cfg: cfg}
 	t.Cleanup(func() { require.NoError(t, mgr.DB.Close()) })
-	_, err = db.Exec(legacyDDL)
-	require.NoError(t, err)
-	// The legacy base DDL already includes the effects of the three migration versions.
-	goose.SetBaseFS(migrations)
-	require.NoError(t, goose.SetDialect("sqlite"))
-	ctx := context.WithValue(context.Background(), "isNew", true) // nolint
-	require.NoError(t, goose.UpToContext(ctx, db, "migrations", 20240510123707))
+	require.NoError(t, InitHistoricalSchema(context.Background(), db, PreReactSchemaVersion))
 	return mgr
 }
 

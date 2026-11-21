@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { InvalidResponse, isCapabilities, isDocument, isPage, isProblem, isSession, isState, revision, validated } from './validate';
+import { InvalidResponse, isAdminAutoImport, isAdminRestore, isInsightActivity, isCapabilities, isDocument, isPage, isProblem, isSession, isState, revision, validated } from './validate';
 
 const document = { id: 'opaque/id', title: '<script>untrusted</script>', author: null, series: null, description: '<b>text only</b>', lang: null, file_available: true, cover_available: false, media_type: 'application/epub+zip', file_size_bytes: 10 };
 describe('consumed HTTP DTO validation', () => {
@@ -39,6 +39,23 @@ describe('consumed HTTP DTO validation', () => {
     for (const value of ['01', '-1', '1e1', '1000000000000000000', 1]) expect(revision(value)).toBe(false);
     for (const value of [NaN, Infinity, 10, -.1, '0.2']) expect(isState({ ...state, fraction: value })).toBe(false);
     expect(isState({ ...state, position: 'x'.repeat(4097) })).toBe(false);
+  });
+  it('enforces restore and nested auto-import wire constraints without coercion', () => {
+    const restore = { token: 'a'.repeat(64), files: 50000 };
+    expect(isAdminRestore(restore)).toBe(true);
+    for (const files of [-1, 50001, '1', 0.5]) expect(isAdminRestore({ ...restore, files })).toBe(false);
+    const settings = { name: 'Books', root_id: 'incoming', enabled: true, watch: false, interval_minutes: 15, reference: true };
+    const rule = { id: '0'.repeat(32), status: 'idle', settings };
+    expect(isAdminAutoImport([rule])).toBe(true);
+    expect(isAdminAutoImport([{ ...rule, settings: { ...settings, interval_minutes: 1441 } }])).toBe(false);
+    expect(isAdminAutoImport([{ ...rule, settings: { ...settings, future: true } }])).toBe(false);
+    expect(isAdminAutoImport([{ ...rule, last_scan: 'not a timestamp' }])).toBe(false);
+  });
+  it('requires the insights cursor exactly when another page is available', () => {
+    const page = { timezone: 'UTC', items: [], has_more: true };
+    expect(isInsightActivity(page)).toBe(false);
+    expect(isInsightActivity({ ...page, next_cursor: 'abc' })).toBe(true);
+    expect(isInsightActivity({ ...page, has_more: false, next_cursor: 'abc' })).toBe(false);
   });
   it('validates Problem before exposing server errors and never fabricates success', () => {
     const problem = { type: 'about:blank', title: 'Conflict', status: 409, code: 'progress_conflict', detail: 'Refresh state', current_revision: '2' };

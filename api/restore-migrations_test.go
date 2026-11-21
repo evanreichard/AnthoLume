@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"os"
@@ -13,20 +12,7 @@ import (
 )
 
 func TestRestoreMigratesPreReactBackup(t *testing.T) {
-	ctx := context.Background()
-	name := filepath.Join(t.TempDir(), adminBackupName)
-	legacy, err := sql.Open("sqlite", name)
-	require.NoError(t, err)
-	legacy.SetMaxOpenConns(1)
-	require.NoError(t, database.InitPreReactSchema(ctx, legacy))
-	_, err = legacy.Exec(`INSERT INTO users(id,pass,auth_hash,admin) VALUES('old-owner','synthetic','synthetic',1);
-INSERT INTO documents(id,title,filepath,basepath) VALUES('old-book','Old title','old.epub','/different-server/documents');
-INSERT INTO documents(id,title,filepath,basepath,deleted) VALUES('deleted-book','Deleted title','deleted.epub','/different-server/documents',1);
-INSERT INTO devices(id,user_id,device_name) VALUES('old-device','old-owner','Reader');
-INSERT INTO document_progress(user_id,document_id,device_id,percentage,progress) VALUES('old-owner','old-book','old-device',.5,'old position');`)
-	require.NoError(t, err)
-	require.NoError(t, legacy.Close())
-	original, err := os.ReadFile(name)
+	original, err := os.ReadFile(filepath.Join("testdata", "pre-react.db"))
 	require.NoError(t, err)
 	for _, tc := range []struct {
 		name, dbMember string
@@ -70,9 +56,6 @@ INSERT INTO document_progress(user_id,document_id,device_id,percentage,progress)
 				require.NotEqual(t, libraryRoot, root)
 				require.Nil(t, candidate.LibraryPath)
 			}
-			again, err := os.ReadFile(name)
-			require.NoError(t, err)
-			require.True(t, bytes.Equal(original, again))
 		})
 	}
 }
@@ -103,7 +86,7 @@ func TestRestoreRejectsUnknownHistoricalSchemaAndNewerVersion(t *testing.T) {
 			require.NoError(t, err)
 			snapshot.SetMaxOpenConns(1)
 			if kind == "unknown historical schema" {
-				require.NoError(t, database.InitPreReactSchema(ctx, snapshot))
+				require.NoError(t, database.InitHistoricalSchema(ctx, snapshot, database.PreReactSchemaVersion))
 				_, err = snapshot.Exec(`CREATE TABLE unexpected_table (key TEXT)`)
 			} else {
 				_, err = snapshot.Exec(`INSERT INTO goose_db_version(version_id,is_applied) VALUES (99999999999999,1)`)

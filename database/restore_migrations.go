@@ -3,9 +3,9 @@ package database
 import (
 	"context"
 	"database/sql"
+	_ "embed"
 	"errors"
 	"io/fs"
-	"strings"
 
 	"github.com/pressly/goose/v3"
 	dbmigrations "reichard.io/antholume/database/migrations"
@@ -13,6 +13,12 @@ import (
 
 const PreReactSchemaVersion int64 = 20240510123707
 const ReactSchemaVersion int64 = 20261126000000
+
+//go:embed historical/20240510123707.sql
+var preReactSchema string
+
+//go:embed historical/20261126000000.sql
+var firstReactSchema string
 
 func restoreMigrationProvider(db *sql.DB) (*goose.Provider, error) {
 	files, err := fs.Sub(migrations, "migrations")
@@ -22,33 +28,17 @@ func restoreMigrationProvider(db *sql.DB) (*goose.Provider, error) {
 	return goose.NewProvider(goose.DialectSQLite3, db, files)
 }
 
-// InitRestoreSchema builds a trusted reference, never from the uploaded SQL.
-func InitPreReactSchema(ctx context.Context, db *sql.DB) error {
-	return InitHistoricalSchema(ctx, db, PreReactSchemaVersion)
-}
-
 func InitHistoricalSchema(ctx context.Context, db *sql.DB, version int64) error {
-	schema := ddl + dbmigrations.ReadingSchema
-	if version == PreReactSchemaVersion {
-		before, rest, storage := strings.Cut(ddl, "-- Document storage\n")
-		_, books, documents := strings.Cut(rest, "-- Books / Documents\n")
-		const rootColumn = ",\n    storage_root_id TEXT REFERENCES storage_roots (id)"
-		if !storage || !documents || !strings.Contains(books, rootColumn) {
-			return errors.New("cannot build the pre-React schema reference")
-		}
-		schema = before + strings.Replace(books, rootColumn, "", 1)
-	} else if version != ReactSchemaVersion {
+	var schema string
+	switch version {
+	case PreReactSchemaVersion:
+		schema = preReactSchema
+	case ReactSchemaVersion:
+		schema = firstReactSchema
+	default:
 		return errors.New("unsupported historical schema")
 	}
-	if _, err := db.ExecContext(ctx, schema); err != nil {
-		return err
-	}
-	provider, err := restoreMigrationProvider(db)
-	if err != nil {
-		return err
-	}
-	ctx = context.WithValue(ctx, "isNew", true) // Existing Goose bootstrap contract.
-	_, err = provider.UpTo(ctx, version)
+	_, err := db.ExecContext(ctx, schema)
 	return err
 }
 

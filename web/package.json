@@ -3,7 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "engines": { "node": "22.23.4" },
+  "engines": {
+    "node": "22.23.4"
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
@@ -26,6 +28,7 @@
     "spark-md5": "3.0.2"
   },
   "devDependencies": {
+    "@exodus/schemasafe": "1.3.0",
     "@playwright/test": "1.65.1",
     "@types/css-tree": "3.2.0",
     "@types/node": "22.19.1",
@@ -33,11 +36,14 @@
     "@types/react-dom": "19.2.3",
     "@types/spark-md5": "3.0.5",
     "@vitejs/plugin-react": "6.3.0",
+    "js-yaml": "4.3.2",
     "jszip": "3.10.1",
     "openapi-typescript": "7.13.0",
     "typescript": "5.9.3",
     "vite": "8.3.8",
     "vitest": "5.1.0"
   },
-  "overrides": { "@xmldom/xmldom": "0.9.12" }
+  "overrides": {
+    "@xmldom/xmldom": "0.9.12"
+  }
 }

@@ -3,5 +3,4 @@ generate:
   models: true
   gin-server: true
   strict-server: true
-output: contract.gen.go
 allow-remote-refs-from: []

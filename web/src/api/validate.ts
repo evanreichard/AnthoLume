@@ -1,64 +1,55 @@
 import type { components } from './schema.gen';
+import { checkDocumentPage, checkInsightActivityPage, checkInsightProgressPage, checkSession } from './guards.gen.js';
+
+export {
+  checkRevision as revision,
+  checkCapabilities as isCapabilities,
+  checkDocument as isDocument,
+  checkDevice as isDevice,
+  checkReadingState as isState,
+  checkProblem as isProblem,
+  checkMetadataMatch as isMetadataMatch,
+  checkLookupMetadata200 as isMetadataMatches,
+  checkManagedDevice as isManagedDevice,
+  checkListManagedDevices200 as isManagedDevices,
+  checkInsights as isInsights,
+  checkInsightRankings as isInsightRankings,
+  checkAdminJob as isAdminJob,
+  checkListAdminJobs200 as isAdminJobs,
+  checkAdminUser as isAdminUser,
+  checkListAdminUsers200 as isAdminUsers,
+  checkAdminSystem as isAdminSystem,
+  checkAdminRestore as isAdminRestore,
+  checkAdminBackupPreview as isBackupPreview,
+  checkListAdminAutoImports200 as isAdminAutoImport,
+  checkMakeLibraryPlan as isMakeLibraryPlan,
+  checkListAdminStorageRoots200 as isStorageRoots,
+  checkAdminStorageDirectories as isStorageDirectories,
+  checkAdminLogPage as isAdminLogs,
+  checkPreviewAdminImport200 as isImportPreview,
+  checkListAdminImportResults200 as isImportResults,
+} from './guards.gen.js';
 
 type S = components['schemas'];
-type Guard<T> = (value: unknown) => value is T;
 export class InvalidResponse extends Error {
   constructor() { super('The server returned an invalid response. Nothing was acknowledged.'); }
 }
-const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
-const exact = (value: unknown, keys: string[], optional: string[] = []): value is Record<string, unknown> => object(value) && keys.every((key) => Object.hasOwn(value, key)) && Object.keys(value).every((key) => keys.includes(key) || optional.includes(key));
-const string = (value: unknown): value is string => typeof value === 'string';
-const id = (value: unknown): value is string => string(value) && value.length > 0 && value.length <= 128;
-const nullableString = (value: unknown) => value === null || string(value);
-const integer = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
-const timestamp = (value: unknown) => string(value) && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 19) === value.slice(0, 19);
-const nullableTime = (value: unknown) => value === null || timestamp(value);
-export const revision = (value: unknown): value is string => string(value) && /^(0|[1-9][0-9]{0,17})$/.test(value);
-const fraction = (value: unknown) => value === null || typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
-
-export const isSession: Guard<S['Session']> = (value): value is S['Session'] => {
-  if (!exact(value, ['user', 'csrf_token', 'expires_at']) || !string(value.csrf_token) || value.csrf_token.length < 32 || value.csrf_token.length > 128 || !nullableTime(value.expires_at)) return false;
-  if (value.user === null) return value.expires_at === null;
-  return exact(value.user, ['id', 'account_id', 'reading_generation', 'is_admin', 'timezone']) && id(value.user.id) && string(value.user.account_id) && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value.user.account_id) && string(value.user.reading_generation) && /^[0-9a-f]{32}$/.test(value.user.reading_generation) && typeof value.user.is_admin === 'boolean' && string(value.user.timezone) && timestamp(value.expires_at);
-};
-export const isCapabilities: Guard<S['Capabilities']> = (value): value is S['Capabilities'] => exact(value, ['registration_enabled', 'search_enabled', 'demo_mode']) && Object.values(value).every((entry) => typeof entry === 'boolean');
-const isReadingStats = (value: unknown) => exact(value, ['reading_seconds', 'words_per_minute', 'word_count']) && integer(value.reading_seconds) && integer(value.words_per_minute) && (value.word_count === null || integer(value.word_count));
-export const isDocument: Guard<S['Document']> = (value): value is S['Document'] => exact(value, ['id', 'title', 'author', 'series', 'description', 'lang', 'file_available', 'cover_available', 'media_type', 'file_size_bytes'], ['reading_stats', 'added_at', 'last_read_at', 'resume_fraction', 'isbn10', 'isbn13', 'storage_root_id', 'relative_file_path']) && ['isbn10', 'isbn13', 'storage_root_id', 'relative_file_path'].every(key => !Object.hasOwn(value, key) || string(value[key])) && (!Object.hasOwn(value, 'resume_fraction') || typeof value.resume_fraction === 'number' && fraction(value.resume_fraction)) && ['added_at', 'last_read_at'].every(key => !Object.hasOwn(value, key) || timestamp(value[key])) && (!Object.hasOwn(value, 'reading_stats') || isReadingStats(value.reading_stats)) && id(value.id) && ['title', 'author', 'series', 'description', 'lang', 'media_type'].every((key) => nullableString(value[key])) && typeof value.file_available === 'boolean' && typeof value.cover_available === 'boolean' && (value.file_size_bytes === null || integer(value.file_size_bytes));
-export const isPage: Guard<S['DocumentPage']> = (value): value is S['DocumentPage'] => exact(value, ['items', 'total', 'page', 'page_size', 'next_page']) && Array.isArray(value.items) && value.items.every(isDocument) && integer(value.total) && integer(value.page) && value.page >= 1 && integer(value.page_size) && value.page_size >= 1 && value.page_size <= 100 && value.items.length <= value.page_size && new Set(value.items.map((item) => item.id)).size === value.items.length && value.items.length <= value.total && (value.next_page === null || integer(value.next_page) && value.next_page === value.page + 1);
-const timezone = (value: unknown) => string(value) && value.length > 0 && value.length <= 128;
-const date = (value: unknown) => string(value) && timestamp(value + 'T00:00:00Z');
-export const isMetadataMatch: Guard<S['MetadataMatch']> = (item): item is S['MetadataMatch'] => exact(item, ['id', 'title', 'author'], ['year', 'description', 'isbn10', 'isbn13', 'cover_id', 'edition_id', 'publisher', 'published']) && (!Object.hasOwn(item, 'cover_id') || integer(item.cover_id) && item.cover_id > 0 && item.cover_id <= 9999999999) && ['id', 'title', 'author'].every(key => string(item[key])) && (!Object.hasOwn(item, 'year') || Number.isSafeInteger(item.year)) && ['description', 'isbn10', 'isbn13', 'edition_id', 'publisher', 'published'].every(key => !Object.hasOwn(item, key) || string(item[key]));
-export const isMetadataMatches: Guard<S['MetadataMatch'][]> = (v): v is S['MetadataMatch'][] => Array.isArray(v) && v.length <= 8 && v.every(isMetadataMatch);
-export const isManagedDevice: Guard<S['ManagedDevice']> = (v): v is S['ManagedDevice'] => exact(v, ['id', 'name', 'label', 'archived', 'last_synced']) && id(v.id) && string(v.name) && string(v.label) && typeof v.archived === 'boolean' && timestamp(v.last_synced);
-export const isAdminJob: Guard<S['AdminJob']> = (v): v is S['AdminJob'] => exact(v, ['id', 'kind', 'status', 'started_at', 'finished_at']) && id(v.id) && typeof v.kind === 'string' && ['statistics', 'database_check', 'import'].includes(v.kind) && typeof v.status === 'string' && ['running', 'succeeded', 'failed', 'interrupted'].includes(v.status) && timestamp(v.started_at) && (v.finished_at === null || timestamp(v.finished_at));
-const rootID = (v: unknown): v is string => string(v) && /^[a-z0-9][a-z0-9-]{0,63}$/.test(v);
-export const isAdminRestore: Guard<S['AdminRestore']> = (v): v is S['AdminRestore'] => exact(v, ['token', 'files'], ['library_path']) && string(v.token) && /^[a-f0-9]{64}$/.test(v.token) && integer(v.files) && v.files <= 50000 && (!Object.hasOwn(v, 'library_path') || string(v.library_path));
-export const isBackupPreview: Guard<S['AdminBackupPreview']> = (v): v is S['AdminBackupPreview'] => exact(v, ['files', 'bytes', 'missing']) && integer(v.files) && integer(v.bytes) && integer(v.missing);
-const isAutoImportSummary: Guard<S['AutoImportScanSummary']> = (v): v is S['AutoImportScanSummary'] => exact(v, ['books_added', 'source_total']) && integer(v.books_added) && v.books_added >= 0 && integer(v.source_total) && v.source_total >= 0;
-const isAutoImportRule: Guard<S['AdminAutoImport']> = (v): v is S['AdminAutoImport'] => exact(v, ['id', 'settings', 'status'], ['last_scan', 'last_scan_trigger', 'next_scan', 'scan_summary']) && (!Object.hasOwn(v, 'last_scan_trigger') || ['on_change', 'scheduled', 'manual', 'initial'].some(trigger => trigger === v.last_scan_trigger)) && (!Object.hasOwn(v, 'scan_summary') || isAutoImportSummary(v.scan_summary)) && string(v.id) && /^[a-f0-9]{32}$/.test(v.id) && ['idle', 'complete', 'errors', 'unavailable'].includes(String(v.status)) && ['last_scan', 'next_scan'].every(key => !Object.hasOwn(v, key) || timestamp(v[key])) && exact(v.settings, ['name', 'root_id', 'enabled', 'watch', 'interval_minutes', 'reference']) && string(v.settings.name) && rootID(v.settings.root_id) && typeof v.settings.enabled === 'boolean' && typeof v.settings.watch === 'boolean' && integer(v.settings.interval_minutes) && v.settings.interval_minutes >= 1 && v.settings.interval_minutes <= 1440 && typeof v.settings.reference === 'boolean';
-export const isAdminAutoImport: Guard<S['AdminAutoImport'][]> = (v): v is S['AdminAutoImport'][] => Array.isArray(v) && v.length <= 100 && v.every(isAutoImportRule);
-export const isMakeLibraryPlan: Guard<S['MakeLibraryPlan']> = (v): v is S['MakeLibraryPlan'] => exact(v, ['id', 'source_path', 'configured_source_path', 'library_path', 'incoming', 'outgoing', 'paused_rules', 'same_folder']) && rootID(v.id) && string(v.source_path) && string(v.configured_source_path) && string(v.library_path) && integer(v.incoming) && integer(v.outgoing) && integer(v.paused_rules) && typeof v.same_folder === 'boolean';
-export const isStorageRoots: Guard<S['AdminStorageRoot'][]> = (v): v is S['AdminStorageRoot'][] => Array.isArray(v) && v.every(r => exact(r, ['id', 'label', 'path', 'managed', 'directory_available', 'book_count'], ['legacy_path']) && rootID(r.id) && string(r.label) && string(r.path) && typeof r.managed === 'boolean' && typeof r.directory_available === 'boolean' && integer(r.book_count) && r.book_count >= 0 && (!Object.hasOwn(r, 'legacy_path') || string(r.legacy_path)));
-export const isStorageDirectories: Guard<S['AdminStorageDirectories']> = (v): v is S['AdminStorageDirectories'] => exact(v, ['path', 'parent', 'entries']) && string(v.path) && string(v.parent) && Array.isArray(v.entries) && v.entries.every(string);
-export const isAdminLogs: Guard<S['AdminLogPage']> = (v): v is S['AdminLogPage'] => exact(v, ['entries'], ['next_cursor']) && (!Object.hasOwn(v, 'next_cursor') || string(v.next_cursor)) && Array.isArray(v.entries) && v.entries.length <= 15 && v.entries.every(row => exact(row, ['time', 'level', 'message', 'details']) && timestamp(row.time) && string(row.message) && string(row.details) && typeof row.level === 'string' && ['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].includes(row.level));
-export const isImportPreview: Guard<string[]> = (v): v is string[] => Array.isArray(v) && v.length <= 1000 && v.every(string);
-export const isImportResults: Guard<S['AdminImportResult'][]> = (v): v is S['AdminImportResult'][] => Array.isArray(v) && v.length <= 1000 && v.every(row => exact(row, ['file', 'status']) && string(row.file) && ['imported', 'relinked', 'skipped', 'failed'].includes(String(row.status)));
-export const isAdminJobs: Guard<S['AdminJob'][]> = (v): v is S['AdminJob'][] => Array.isArray(v) && v.length <= 20 && v.every(isAdminJob);
-export const isAdminUser: Guard<S['AdminUser']> = (v): v is S['AdminUser'] => exact(v, ['id', 'is_admin']) && id(v.id) && typeof v.is_admin === 'boolean';
-export const isAdminUsers: Guard<S['AdminUser'][]> = (v): v is S['AdminUser'][] => Array.isArray(v) && v.length <= 51 && v.every(isAdminUser);
-export const isAdminSystem: Guard<S['AdminSystem']> = (v): v is S['AdminSystem'] => exact(v, ['version']) && string(v.version);
-export const isManagedDevices: Guard<S['ManagedDevice'][]> = (v): v is S['ManagedDevice'][] => Array.isArray(v) && v.length <= 500 && v.every(isManagedDevice);
-export const isInsights: Guard<S['Insights']> = (v): v is S['Insights'] => exact(v, ['timezone','as_of','days','seconds_read','active_days','current_streak','longest_streak','current_week_streak','longest_week_streak']) && timezone(v.timezone) && timestamp(v.as_of) && ['seconds_read','active_days','current_streak','longest_streak','current_week_streak','longest_week_streak'].every(key => integer(v[key])) && Array.isArray(v.days) && v.days.length === 30 && v.days.every(d => exact(d, ['date','seconds_read']) && date(d.date) && integer(d.seconds_read));
-const insightCursor = (v: unknown) => string(v) && v.length <= 1024 && /^[A-Za-z0-9_-]+$/.test(v);
-const insightBook = (v: Record<string, unknown>) => id(v.document_id) && string(v.title) && typeof v.available === 'boolean';
-export const isInsightActivity: Guard<S['InsightActivityPage']> = (v): v is S['InsightActivityPage'] => exact(v, ['items','has_more','timezone'], ['next_cursor']) && timezone(v.timezone) && v.has_more === insightCursor(v.next_cursor) && (v.next_cursor === undefined || insightCursor(v.next_cursor)) && Array.isArray(v.items) && v.items.length <= 20 && v.items.every(r => exact(r, ['id','document_id','title','available','started_at','duration','start_fraction','end_fraction']) && insightBook(r) && id(r.id) && timestamp(r.started_at) && integer(r.duration) && typeof r.start_fraction === 'number' && fraction(r.start_fraction) && typeof r.end_fraction === 'number' && fraction(r.end_fraction));
-export const isInsightProgress: Guard<S['InsightProgressPage']> = (v): v is S['InsightProgressPage'] => exact(v, ['items','has_more','timezone'], ['next_cursor']) && timezone(v.timezone) && v.has_more === insightCursor(v.next_cursor) && (v.next_cursor === undefined || insightCursor(v.next_cursor)) && Array.isArray(v.items) && v.items.length <= 20 && v.items.every(r => exact(r, ['document_id','title','available','updated_at','fraction']) && insightBook(r) && timestamp(r.updated_at) && fraction(r.fraction));
-export const isInsightRankings: Guard<S['InsightRankings']> = (v): v is S['InsightRankings'] => exact(v, ['items','as_of']) && timestamp(v.as_of) && Array.isArray(v.items) && v.items.length <= 20 && v.items.every(r => exact(r, ['user','value']) && id(r.user) && integer(r.value));
-export const isState: Guard<S['ReadingState']> = (value): value is S['ReadingState'] => exact(value, ['document_id', 'revision', 'position', 'fraction', 'device_id', 'updated_at']) && id(value.document_id) && revision(value.revision) && nullableString(value.position) && (value.position === null || (value.position as string).length <= 4096) && fraction(value.fraction) && (value.device_id === null || id(value.device_id)) && nullableTime(value.updated_at);
-export const isDevice: Guard<S['Device']> = (value): value is S['Device'] => exact(value, ['id', 'name']) && id(value.id) && string(value.name) && value.name.length > 0 && value.name.length <= 128;
-const isBackupPathIssue: Guard<S['AdminBackupPathIssue']> = (value): value is S['AdminBackupPathIssue'] => exact(value, ['document_id', 'kind']) && string(value.document_id) && (value.kind === 'book' || value.kind === 'cover');
-export const isProblem: Guard<S['Problem']> = (value): value is S['Problem'] => exact(value, ['type', 'title', 'status', 'code', 'detail'], ['current_revision', 'backup_path_issue']) && ['type', 'title', 'code', 'detail'].every((key) => string(value[key])) && integer(value.status) && value.status >= 400 && value.status <= 599 && (!Object.hasOwn(value, 'current_revision') || revision(value.current_revision)) && (!Object.hasOwn(value, 'backup_path_issue') || isBackupPathIssue(value.backup_path_issue));
-export function validated<T>(value: unknown, guard: Guard<T>): T {
+export function isSession(value: unknown): value is S['Session'] {
+  return checkSession(value) && (value.user === null) === (value.expires_at === null);
+}
+export function isPage(value: unknown): value is S['DocumentPage'] {
+  return checkDocumentPage(value)
+    && value.items.length <= Math.min(value.page_size, value.total)
+    && new Set(value.items.map(item => item.id)).size === value.items.length
+    && (value.next_page === null || value.next_page === value.page + 1);
+}
+export function isInsightActivity(value: unknown): value is S['InsightActivityPage'] {
+  return checkInsightActivityPage(value) && value.has_more === (value.next_cursor !== undefined);
+}
+export function isInsightProgress(value: unknown): value is S['InsightProgressPage'] {
+  return checkInsightProgressPage(value) && value.has_more === (value.next_cursor !== undefined);
+}
+export function validated<T>(value: unknown, guard: (value: unknown) => value is T): T {
   if (!guard(value)) throw new InvalidResponse();
   return value;
 }

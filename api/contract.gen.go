@@ -588,10 +588,10 @@ type ID = string
 // InsightActivity defines model for InsightActivity.
 type InsightActivity struct {
 	Available     bool      `json:"available"`
-	DocumentId    string    `json:"document_id"`
+	DocumentId    ID        `json:"document_id"`
 	Duration      int64     `json:"duration"`
 	EndFraction   float64   `json:"end_fraction"`
-	Id            string    `json:"id"`
+	Id            ID        `json:"id"`
 	StartFraction float64   `json:"start_fraction"`
 	StartedAt     time.Time `json:"started_at"`
 	Title         string    `json:"title"`
@@ -601,9 +601,12 @@ type InsightActivity struct {
 type InsightActivityPage struct {
 	HasMore    bool              `json:"has_more"`
 	Items      []InsightActivity `json:"items"`
-	NextCursor *string           `json:"next_cursor,omitempty"`
+	NextCursor *InsightCursor    `json:"next_cursor,omitempty"`
 	Timezone   string            `json:"timezone"`
 }
+
+// InsightCursor defines model for InsightCursor.
+type InsightCursor = string
 
 // InsightDay defines model for InsightDay.
 type InsightDay struct {
@@ -614,7 +617,7 @@ type InsightDay struct {
 // InsightProgress defines model for InsightProgress.
 type InsightProgress struct {
 	Available  bool      `json:"available"`
-	DocumentId string    `json:"document_id"`
+	DocumentId ID        `json:"document_id"`
 	Fraction   *float64  `json:"fraction"`
 	Title      string    `json:"title"`
 	UpdatedAt  time.Time `json:"updated_at"`
@@ -624,14 +627,14 @@ type InsightProgress struct {
 type InsightProgressPage struct {
 	HasMore    bool              `json:"has_more"`
 	Items      []InsightProgress `json:"items"`
-	NextCursor *string           `json:"next_cursor,omitempty"`
+	NextCursor *InsightCursor    `json:"next_cursor,omitempty"`
 	Timezone   string            `json:"timezone"`
 }
 
 // InsightRank defines model for InsightRank.
 type InsightRank struct {
-	User  string `json:"user"`
-	Value int64  `json:"value"`
+	User  ID    `json:"user"`
+	Value int64 `json:"value"`
 }
 
 // InsightRankings defines model for InsightRankings.

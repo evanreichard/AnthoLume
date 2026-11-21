@@ -267,7 +267,7 @@ paths:
           description: Owned reading devices
           content:
             application/json:
-              schema: {type: array, items: {$ref: '#/components/schemas/ManagedDevice'}}
+              schema: {type: array, maxItems: 500, items: {$ref: '#/components/schemas/ManagedDevice'}}
         default: {$ref: '#/components/responses/Problem'}
     post:
       operationId: registerDevice
@@ -751,8 +751,8 @@ components:
         id: {$ref: '#/components/schemas/ID'}
         kind: {type: string, enum: [statistics, database_check, import]}
         status: {type: string, enum: [running, succeeded, failed, interrupted]}
-        started_at: {type: string}
-        finished_at: {type: string, nullable: true}
+        started_at: {type: string, format: date-time, x-go-type: string}
+        finished_at: {type: string, format: date-time, x-go-type: string, nullable: true}
     StorageRootID: {type: string, minLength: 1, maxLength: 64, pattern: '^[a-z0-9][a-z0-9-]*$'}
     AdminStorageRoot:
       type: object
@@ -843,9 +843,9 @@ components:
         id: {$ref: '#/components/schemas/AutoImportID'}
         settings: {$ref: '#/components/schemas/AdminAutoImportSettings'}
         status: {type: string, enum: [idle, complete, errors, unavailable]}
-        last_scan: {type: string}
+        last_scan: {type: string, format: date-time, x-go-type: string}
         last_scan_trigger: {$ref: '#/components/schemas/AutoImportScanTrigger'}
-        next_scan: {type: string}
+        next_scan: {type: string, format: date-time, x-go-type: string}
         scan_summary: {$ref: '#/components/schemas/AutoImportScanSummary'}
     AutoImportScanTrigger:
       type: string
@@ -886,7 +886,7 @@ components:
       additionalProperties: false
       required: [time, level, message, details]
       properties:
-        time: {type: string}
+        time: {type: string, format: date-time, x-go-type: string}
         level: {$ref: '#/components/schemas/AdminLogLevel'}
         message: {type: string}
         details: {type: string, description: JSON event with credentials redacted}
@@ -972,79 +972,88 @@ components:
         storage_root_id: {type: string, description: Storage root ID shown only to administrators on single-book details}
         relative_file_path: {type: string, description: Path within the storage root shown only to administrators on single-book details}
         reading_stats: {$ref: '#/components/schemas/BookReadingStats'}
-        added_at: {type: string}
-        last_read_at: {type: string}
+        added_at: {type: string, format: date-time, x-go-type: string}
+        last_read_at: {type: string, format: date-time, x-go-type: string}
         resume_fraction: {type: number, format: double, minimum: 0, maximum: 1}
         isbn10: {type: string}
         isbn13: {type: string}
     Insights:
       type: object
+      additionalProperties: false
       required: [timezone, as_of, days, seconds_read, active_days, current_streak, longest_streak, current_week_streak, longest_week_streak]
       properties:
-        timezone: {type: string}
+        timezone: {type: string, minLength: 1, maxLength: 128}
         as_of: {type: string, format: date-time}
-        days: {type: array, items: {$ref: '#/components/schemas/InsightDay'}}
-        seconds_read: {type: integer, format: int64}
-        active_days: {type: integer}
-        current_streak: {type: integer}
-        longest_streak: {type: integer}
-        current_week_streak: {type: integer}
-        longest_week_streak: {type: integer}
+        days: {type: array, minItems: 30, maxItems: 30, items: {$ref: '#/components/schemas/InsightDay'}}
+        seconds_read: {type: integer, format: int64, minimum: 0}
+        active_days: {type: integer, minimum: 0}
+        current_streak: {type: integer, minimum: 0}
+        longest_streak: {type: integer, minimum: 0}
+        current_week_streak: {type: integer, minimum: 0}
+        longest_week_streak: {type: integer, minimum: 0}
     InsightDay:
       type: object
+      additionalProperties: false
       required: [date, seconds_read]
       properties:
         date: {type: string, format: date}
-        seconds_read: {type: integer, format: int64}
+        seconds_read: {type: integer, format: int64, minimum: 0}
     InsightActivity:
       type: object
+      additionalProperties: false
       required: [id, document_id, title, available, started_at, duration, start_fraction, end_fraction]
       properties:
-        id: {type: string}
-        document_id: {type: string}
+        id: {$ref: '#/components/schemas/ID'}
+        document_id: {$ref: '#/components/schemas/ID'}
         title: {type: string}
         available: {type: boolean}
         started_at: {type: string, format: date-time}
-        duration: {type: integer, format: int64}
+        duration: {type: integer, format: int64, minimum: 0}
         start_fraction: {type: number, format: double, minimum: 0, maximum: 1}
         end_fraction: {type: number, format: double, minimum: 0, maximum: 1}
     InsightProgress:
       type: object
+      additionalProperties: false
       required: [document_id, title, available, updated_at, fraction]
       properties:
-        document_id: {type: string}
+        document_id: {$ref: '#/components/schemas/ID'}
         title: {type: string}
         available: {type: boolean}
         updated_at: {type: string, format: date-time}
-        fraction: {type: number, format: double, nullable: true}
+        fraction: {type: number, format: double, minimum: 0, maximum: 1, nullable: true}
+    InsightCursor: {type: string, maxLength: 1024, pattern: '^[A-Za-z0-9_-]+$'}
     InsightActivityPage:
       type: object
+      additionalProperties: false
       required: [items, has_more, timezone]
       properties:
-        items: {type: array, items: {$ref: '#/components/schemas/InsightActivity'}}
+        items: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/InsightActivity'}}
         has_more: {type: boolean}
-        next_cursor: {type: string}
-        timezone: {type: string}
+        next_cursor: {$ref: '#/components/schemas/InsightCursor'}
+        timezone: {type: string, minLength: 1, maxLength: 128}
     InsightProgressPage:
       type: object
+      additionalProperties: false
       required: [items, has_more, timezone]
       properties:
-        items: {type: array, items: {$ref: '#/components/schemas/InsightProgress'}}
+        items: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/InsightProgress'}}
         has_more: {type: boolean}
-        next_cursor: {type: string}
-        timezone: {type: string}
+        next_cursor: {$ref: '#/components/schemas/InsightCursor'}
+        timezone: {type: string, minLength: 1, maxLength: 128}
     InsightRankings:
       type: object
+      additionalProperties: false
       required: [items, as_of]
       properties:
         as_of: {type: string, format: date-time}
-        items: {type: array, items: {$ref: '#/components/schemas/InsightRank'}}
+        items: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/InsightRank'}}
     InsightRank:
       type: object
+      additionalProperties: false
       required: [user, value]
       properties:
-        user: {type: string}
-        value: {type: integer, format: int64}
+        user: {$ref: '#/components/schemas/ID'}
+        value: {type: integer, format: int64, minimum: 0}
     DocumentEdit:
       type: object
       additionalProperties: false
@@ -1099,9 +1108,9 @@ components:
       properties:
         document_id: {$ref: '#/components/schemas/ID'}
         revision: {$ref: '#/components/schemas/Revision'}
-        position: {type: string, nullable: true}
+        position: {type: string, maxLength: 4096, nullable: true}
         fraction: {type: number, format: double, minimum: 0, maximum: 1, nullable: true}
-        device_id: {type: string, nullable: true}
+        device_id: {type: string, minLength: 1, maxLength: 128, nullable: true}
         updated_at: {type: string, format: date-time, nullable: true}
     PreferencesUpdate:
       type: object

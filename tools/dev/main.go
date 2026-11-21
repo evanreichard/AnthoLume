@@ -74,16 +74,19 @@ func run(ctx context.Context, data, action, restore, resetUser string) error {
 		if info, err := input.Stat(); err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 			return fmt.Errorf("expected a nonempty backup file at %s", restore)
 		}
-	} else if info, err := os.Lstat(dbPath); err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
-		return errors.New("no existing database at data/dev/antholume.db; run make dev RESTORE=/path/to/backup.zip (use make clean-dev first if the dev directory already exists)")
+	} else if rootInfo != nil {
+		if info, err := os.Lstat(dbPath); err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+			return errors.New("incomplete dev state; inspect data/dev before running make clean-dev")
+		}
 	}
 
-	if input != nil {
+	fresh := rootInfo == nil
+	if fresh {
 		if err := os.Mkdir(root, 0700); err != nil {
 			return err
 		}
 	}
-	initialized := input == nil
+	initialized := !fresh
 	defer func() {
 		if !initialized {
 			_ = os.RemoveAll(root)
@@ -94,7 +97,7 @@ func run(ctx context.Context, data, action, restore, resetUser string) error {
 	if err != nil {
 		return err
 	}
-	if input != nil || resetUser != "" {
+	if fresh || resetUser != "" {
 		cfg := &config.Config{
 			Version: "develop", ConfigPath: root, DataPath: root, DBType: "sqlite", DBName: "antholume",
 			PublicOrigin: "http://127.0.0.1", CookieAuthKey: key,

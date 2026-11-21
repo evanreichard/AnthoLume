@@ -1,12 +1,12 @@
+build_local: export CGO_ENABLED=0
 build_local: check_web
 	go mod download
-	rm -r ./build || true
-	mkdir -p ./build
+	mkdir -p ./build/bin
 
-	env GOOS=linux GOARCH=amd64  go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/server_linux_amd64
-	env GOOS=linux GOARCH=arm64  go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/server_linux_arm64
-	env GOOS=darwin GOARCH=arm64 go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/server_darwin_arm64
-	env GOOS=darwin GOARCH=amd64 go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/server_darwin_amd64
+	env GOOS=linux GOARCH=amd64  go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/bin/server_linux_amd64
+	env GOOS=linux GOARCH=arm64  go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/bin/server_linux_arm64
+	env GOOS=darwin GOARCH=arm64 go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/bin/server_darwin_arm64
+	env GOOS=darwin GOARCH=amd64 go build -ldflags "-X reichard.io/antholume/config.version=`git describe --tags`" -o ./build/bin/server_darwin_amd64
 
 docker_build_local:
 	docker build -t antholume:latest .
@@ -44,7 +44,8 @@ check_generation:
 dev:
 	bash web/dev.sh start
 
-dev-tailnet: dev
+dev-tailnet:
+	bash web/dev.sh tailnet
 
 clean-dev:
 	bash web/dev.sh clean

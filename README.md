@@ -135,7 +135,7 @@ Goose Migrations:
 go install github.com/pressly/goose/v3/cmd/goose@latest
 ```
 
-Run `make dev RESTORE=/path/to/backup.zip` to seed a local development library, then `make dev` to reuse it. Open `http://127.0.0.1:5323` or the printed Tailscale URL. See [web development](web/README.md) for setup and reset commands.
+Run `make dev` for an empty, persistent library at `http://127.0.0.1:5323`. For backup seeding, account reset, or optional Tailscale access, see [web development](web/README.md).
 
 ## Building
 

@@ -1,23 +1,23 @@
 from pathlib import Path
-import os
 import subprocess
 import tempfile
 
 root = Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix='antholume-generation-') as directory:
-    work = Path(directory)
-    for iteration in (1, 2):
-        config = (root / 'api/oapi-codegen.yaml').read_text().replace('output: contract.gen.go', f'output: {work / f"go{iteration}"}')
-        (work / 'config.yaml').write_text(config)
-        subprocess.run(['go', 'run', 'github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.2', '--config', str(work / 'config.yaml'), 'openapi.yaml'], cwd=root / 'api', env={**os.environ, 'GOWORK': 'off'}, check=True, timeout=180)
-        subprocess.run(['node', 'api/generate-ts.mjs', str(work / f'ts{iteration}')], cwd=root, check=True, timeout=60)
-    drift = []
-    for source, prefix in [('api/contract.gen.go', 'go'), ('web/src/api/schema.gen.ts', 'ts')]:
-        expected = (work / f'{prefix}1').read_bytes()
-        if expected != (work / f'{prefix}2').read_bytes():
+    first, second = (Path(directory) / name for name in ('first', 'second'))
+    for target in (first, second):
+        subprocess.run(['bash', 'api/generate.sh', target], cwd=root, check=True, timeout=240)
+    def artifacts(tree):
+        return {p.relative_to(tree) for folder in ('api', 'web/src/api')
+                for p in (tree / folder).glob('*.gen.*')}
+
+    expected_files = artifacts(root)
+    if not expected_files or artifacts(first) != expected_files or artifacts(second) != expected_files:
+        raise SystemExit('generated file list differs from the checked-in artifacts')
+    for source in sorted(expected_files):
+        expected = (first / source).read_bytes()
+        if expected != (second / source).read_bytes():
             raise SystemExit(f'nondeterministic generation: {source}')
         if expected != (root / source).read_bytes():
-            drift.append(f'generated artifact drift: {source}')
-    if drift:
-        raise SystemExit('\n'.join(drift))
-print('Go and TypeScript: two passes identical; checked-in outputs match')
+            raise SystemExit(f'generated artifact drift: {source}')
+print('Go, TypeScript and response guards: two passes identical; checked-in outputs match')

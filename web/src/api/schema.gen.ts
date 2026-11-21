@@ -642,7 +642,9 @@ export interface components {
             kind: "statistics" | "database_check" | "import";
             /** @enum {string} */
             status: "running" | "succeeded" | "failed" | "interrupted";
+            /** Format: date-time */
             started_at: string;
+            /** Format: date-time */
             finished_at: string | null;
         };
         StorageRootID: string;
@@ -711,8 +713,10 @@ export interface components {
             settings: components["schemas"]["AdminAutoImportSettings"];
             /** @enum {string} */
             status: "idle" | "complete" | "errors" | "unavailable";
+            /** Format: date-time */
             last_scan?: string;
             last_scan_trigger?: components["schemas"]["AutoImportScanTrigger"];
+            /** Format: date-time */
             next_scan?: string;
             scan_summary?: components["schemas"]["AutoImportScanSummary"];
         };
@@ -739,6 +743,7 @@ export interface components {
             next_cursor?: string;
         };
         AdminLog: {
+            /** Format: date-time */
             time: string;
             level: components["schemas"]["AdminLogLevel"];
             message: string;
@@ -803,7 +808,9 @@ export interface components {
             /** @description Path within the storage root shown only to administrators on single-book details */
             relative_file_path?: string;
             reading_stats?: components["schemas"]["BookReadingStats"];
+            /** Format: date-time */
             added_at?: string;
+            /** Format: date-time */
             last_read_at?: string;
             /** Format: double */
             resume_fraction?: number;
@@ -830,8 +837,8 @@ export interface components {
             seconds_read: number;
         };
         InsightActivity: {
-            id: string;
-            document_id: string;
+            id: components["schemas"]["ID"];
+            document_id: components["schemas"]["ID"];
             title: string;
             available: boolean;
             /** Format: date-time */
@@ -844,7 +851,7 @@ export interface components {
             end_fraction: number;
         };
         InsightProgress: {
-            document_id: string;
+            document_id: components["schemas"]["ID"];
             title: string;
             available: boolean;
             /** Format: date-time */
@@ -852,16 +859,17 @@ export interface components {
             /** Format: double */
             fraction: number | null;
         };
+        InsightCursor: string;
         InsightActivityPage: {
             items: components["schemas"]["InsightActivity"][];
             has_more: boolean;
-            next_cursor?: string;
+            next_cursor?: components["schemas"]["InsightCursor"];
             timezone: string;
         };
         InsightProgressPage: {
             items: components["schemas"]["InsightProgress"][];
             has_more: boolean;
-            next_cursor?: string;
+            next_cursor?: components["schemas"]["InsightCursor"];
             timezone: string;
         };
         InsightRankings: {
@@ -870,7 +878,7 @@ export interface components {
             items: components["schemas"]["InsightRank"][];
         };
         InsightRank: {
-            user: string;
+            user: components["schemas"]["ID"];
             /** Format: int64 */
             value: number;
         };

@@ -33,7 +33,9 @@ const uuidFallback = `if (!crypto.randomUUID) crypto.randomUUID = () => {
 
 async function run() {
   const root = join(repo, 'data/dev');
-  const ip = tailnetIP();
+  const share = process.argv.includes('--tailnet');
+  const ip = share ? tailnetIP() : null;
+  if (share && !ip) throw new Error('make dev-tailnet requires a Tailscale IPv4 address.');
   const vitePort = port('DEV_PORT', 5323);
   const goPort = port('DEV_GO_PORT', 5324);
   if (vitePort === goPort) throw new Error('DEV_PORT and DEV_GO_PORT must differ.');
@@ -121,7 +123,7 @@ async function run() {
     const exited = launch(binary, ['serve'], {
       ...process.env, GIN_MODE: 'release', CONFIG_PATH: root, DATA_PATH: root,
       LISTEN_HOST: '127.0.0.1', LISTEN_PORT: String(goPort), PUBLIC_ORIGIN: target,
-      DATABASE_TYPE: 'sqlite', DATABASE_NAME: 'antholume', REGISTRATION_ENABLED: 'false', DEMO_MODE: 'false',
+      DATABASE_TYPE: 'sqlite', DATABASE_NAME: 'antholume', REGISTRATION_ENABLED: share ? 'false' : 'true', DEMO_MODE: 'false',
       COOKIE_AUTH_KEY: cookieKey, COOKIE_ENC_KEY: '',
     }).then(result => `Go backend exited (${result})`);
     const cancelStartup = new AbortController();
@@ -147,7 +149,7 @@ async function run() {
       if (!res.ok) throw new Error(`Session endpoint at ${address} returned HTTP ${res.status}.`);
       console.log(`Dev: http://${address}/login`);
     }
-    if (!tailnet) console.log('No Tailscale IPv4 address; listening on loopback only.');
+    if (!tailnet) console.log('Listening on loopback only.');
     console.log('Database: data/dev/antholume.db\nSession endpoint ready. Ctrl-C stops both servers.');
     const failure = await Promise.race([stopped, exited]);
     if (failure) throw new Error(failure);
