@@ -7,6 +7,9 @@ test('backup requires catalog repair and restore directs invalid paths back to t
   const username = 'backup-repair-admin';
   await register(page, server.origin, username);
   const original = await readFile(`${server.data}/documents/public.epub`);
+  const samples = createHash('md5');
+  for (const offset of [0, ...Array.from({ length: 11 }, (_, i) => 1024 * 4 ** i)]) samples.update(original.subarray(offset, offset + 1024));
+  const bookID = samples.digest('hex');
   const cover = await readFile(`${server.data}/covers/public.png`);
   const archive = `${server.data}/archive`;
   await mkdir(`${archive}/shelf`, { recursive: true });
@@ -16,7 +19,7 @@ test('backup requires catalog repair and restore directs invalid paths back to t
   try {
     db.prepare('UPDATE users SET admin=1 WHERE id=?').run(username);
     db.prepare("INSERT INTO storage_roots(id,label,path,managed) VALUES('archive','Archive',?,0)").run(archive);
-    db.prepare("UPDATE documents SET filepath=?,md5=? WHERE id='book_001'").run('../book.epub', createHash('md5').update(original).digest('hex'));
+    db.prepare('INSERT INTO documents(id, filepath) VALUES(?, ?)').run(bookID, '../book.epub');
     db.prepare("INSERT INTO reading_heads(user_id,document_id,revision,position,fraction) VALUES(?,'book_002',1,'synthetic-progress',0.5)").run(username);
   } finally { db.close(); }
 
@@ -26,7 +29,7 @@ test('backup requires catalog repair and restore directs invalid paths back to t
   await create.click();
   const dialog = page.getByRole('dialog');
   const download = dialog.getByRole('button', { name: 'Download' });
-  await expect(dialog.getByRole('alert')).toContainText('Document book_001 has an invalid book path.');
+  await expect(dialog.getByRole('alert')).toContainText(`Document ${bookID} has an invalid book path.`);
   await expect(download).toBeDisabled();
   await dialog.getByRole('radio', { name: 'Database', exact: true }).check();
   await expect(download).toBeDisabled();
@@ -66,7 +69,7 @@ test('backup requires catalog repair and restore directs invalid paths back to t
   await file.saveAs(brokenBackup);
   const snapshot = new DatabaseSync(brokenBackup);
   try {
-    expect(snapshot.prepare("SELECT filepath,storage_root_id FROM documents WHERE id='book_001'").get()).toMatchObject({ filepath: 'shelf/book.epub', storage_root_id: 'archive' });
+    expect(snapshot.prepare('SELECT filepath,storage_root_id FROM documents WHERE id=?').get(bookID)).toMatchObject({ filepath: 'shelf/book.epub', storage_root_id: 'archive' });
     expect(snapshot.prepare("SELECT coverfile FROM documents WHERE id='book_002'").get()).toMatchObject({ coverfile: null });
     expect(snapshot.prepare("SELECT position FROM reading_heads WHERE document_id='book_002' AND user_id=?").get(username)).toMatchObject({ position: 'synthetic-progress' });
     snapshot.prepare("UPDATE documents SET coverfile=? WHERE id='book_002'").run('/invalid/cover.png');
