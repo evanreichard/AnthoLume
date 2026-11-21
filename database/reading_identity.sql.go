@@ -353,7 +353,7 @@ SELECT
     d.last_synced
 FROM devices d
 LEFT JOIN device_preferences p ON p.user_id = d.user_id AND p.device_id = d.id
-WHERE d.user_id = ?
+WHERE d.user_id = ? AND d.id <> ''
 ORDER BY d.last_synced DESC, d.id ASC
 LIMIT 501
 `

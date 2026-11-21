@@ -109,6 +109,9 @@ func (s *webAPI) GetReadingState(ctx context.Context, r GetReadingStateRequestOb
 		return nil, err
 	}
 	result := ReadingState{DocumentId: out.DocumentID, Revision: out.Revision, Position: out.Position, Fraction: out.Fraction, DeviceId: out.DeviceID}
+	if result.DeviceId != nil && *result.DeviceId == "" {
+		result.DeviceId = nil
+	}
 	if out.UpdatedAt != nil {
 		t, err := time.Parse(time.RFC3339Nano, *out.UpdatedAt)
 		if err != nil {

@@ -1,6 +1,6 @@
 # API boundary
 
-- `openapi.yaml` defines `/api/v1`. Keep KOSync wire compatibility in the separate adapter: opaque positions, numeric accepted timestamps, and the shared account-scoped device key. From the repo root, run `make generate` and `make check_generation` with locked web dependencies. Generate Go/TS rather than editing them; TypeScript binary types require the Blob transform.
+- `openapi.yaml` defines `/api/v1`. Keep KOSync wire compatibility in the separate adapter: opaque positions, numeric accepted timestamps, and the shared account-scoped device key. KO's empty device key is anonymous: expose it as null in web reading state and omit it from manageable devices. From the repo root, run `make generate` and `make check_generation` with locked web dependencies. Generate Go/TS rather than editing them; TypeScript binary types require the Blob transform.
 - Strict Gin supplies a pooled `*gin.Context`: unwrap `Request.Context()` before database/reading operations. Keep fallback disabled. Apply byte/media/UTF-8/duplicate-key checks before the validator and retain its validated body for strict binding.
 - Route on escaped paths, decode opaque IDs once with `PathUnescape` (not query decoding), and decode validator path parameters before character-length checks. Preserve slash/plus/percent and 128-character Unicode IDs.
 - `format: uuid` alone is not runtime validation in the selected validator. Keep the explicit event-ID pattern and string Go type so validation does not rewrite identity text.

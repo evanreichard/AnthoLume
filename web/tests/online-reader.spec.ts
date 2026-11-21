@@ -1,4 +1,23 @@
+import { createHash } from 'node:crypto';
 import { expect, register, test } from './fixtures';
+
+test('KO progress without a device ID can be resumed and does not create a manageable device', async ({ page, server }) => {
+  const user = 'optional-device';
+  await register(page, server.origin, user);
+  const position = '/body/DocFragment[1]/body/p[20]';
+  const write = await page.request.put(`${server.origin}/api/ko/syncs/progress`, {
+    headers: { 'x-auth-user': user, 'x-auth-key': createHash('md5').update('synthetic-public-password').digest('hex') },
+    data: { document: 'book_001', percentage: 0.3, progress: position, device: 'KO reader' },
+  });
+  expect(write.status()).toBe(200);
+  const state = await page.request.get(`${server.origin}/api/v1/me/reading-state/book_001`);
+  expect(await state.json()).toMatchObject({ device_id: null, position });
+  await page.goto(`${server.origin}/settings`);
+  await expect(page.getByRole('region', { name: 'Devices' })).toContainText('No devices yet.');
+  await page.goto(`${server.origin}/library`);
+  await page.getByRole('region', { name: 'Continue reading' }).getByRole('link', { name: 'Resume' }).click();
+  await expect(page.getByRole('region', { name: 'Book reader' })).toHaveAttribute('data-reader-state', 'ready');
+});
 
 test('Read opens online and revalidates the browser EPUB cache without transferring it again', async ({ page, server }) => {
   await register(page, server.origin, 'online-reader');
