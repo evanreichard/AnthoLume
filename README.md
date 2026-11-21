@@ -1,28 +1,11 @@
-<p><img align="center" src="https://gitea.va.reichard.io/evan/AnthoLume/raw/branch/master/banner.png"></p>
+<p align="center"><img src="banner.png" alt="AnthoLume"></p>
 
 <p align="center">
-    <a href="https://gitea.va.reichard.io/evan/AnthoLume/raw/branch/master/screenshots/pwa/login.png">
-        <img src="https://gitea.va.reichard.io/evan/AnthoLume/raw/branch/master/screenshots/pwa/login.png" width="19%">
-    </a>
-    <a href="https://gitea.va.reichard.io/evan/AnthoLume/raw/branch/master/screenshots/pwa/home.png">
-        <img src="https://gitea.va.reichard.io/evan/AnthoLume/raw/branch/master/screenshots/pwa/home.png" width="19%">
-    </a>
-    <a href="https://gitea.va.reichard.io/evan/AnthoLume/raw/branch/master/screenshots/pwa/documents.png">
-        <img src="https://gitea.va.reichard.io/evan/AnthoLume/raw/branch/master/screenshots/pwa/documents.png" width="19%">
-    </a>
-    <a href="https://gitea.va.reichard.io/evan/AnthoLume/raw/branch/master/screenshots/pwa/document.png">
-        <img src="https://gitea.va.reichard.io/evan/AnthoLume/raw/branch/master/screenshots/pwa/document.png" width="19%">
-    </a>
-    <a href="https://gitea.va.reichard.io/evan/AnthoLume/raw/branch/master/screenshots/pwa/metadata.png">
-        <img src="https://gitea.va.reichard.io/evan/AnthoLume/raw/branch/master/screenshots/pwa/metadata.png" width="19%">
-    </a>
+    <a href="screenshots/mobile/home.png"><img src="screenshots/mobile/home.png" width="24%" alt="Resume Alice’s Adventures in Wonderland from the Library"></a>
+    <a href="screenshots/mobile/library.png"><img src="screenshots/mobile/library.png" width="24%" alt="Browse the library by book cover"></a>
+    <a href="screenshots/mobile/reader.png"><img src="screenshots/mobile/reader.png" width="24%" alt="Read a chapter on a phone"></a>
+    <a href="screenshots/mobile/statistics.png"><img src="screenshots/mobile/statistics.png" width="24%" alt="Reading times and progress in Insights"></a>
 </p>
-
-<p align="center">
-    <strong><a href="https://gitea.va.reichard.io/evan/AnthoLume/src/branch/master/screenshots">Screenshots</a></strong> • 
-    <strong><a href="https://antholume-demo.cloud.reichard.io/">Demo Server</a></strong>
-</p>
-<p align="center"><strong>user:</strong> demo • <strong>pass:</strong> demo</p>
 
 <p align="center">
     <a href="https://gitea.va.reichard.io/evan/AnthoLume/actions" target="_blank">

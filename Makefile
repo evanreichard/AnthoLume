@@ -34,6 +34,11 @@ build_web:
 check_web: build_web
 	test -s assets/app/index.html && test -s assets/app/sw.js && test -s assets/app/manifest.json
 
+.PHONY: screenshots
+screenshots: check_web
+	@if [ -z "$$CHROMIUM_PATH" ]; then web/node_modules/.bin/playwright install --only-shell chromium; fi
+	go run -mod=readonly ./tools/screenshots
+
 generate:
 	bash api/generate.sh
 

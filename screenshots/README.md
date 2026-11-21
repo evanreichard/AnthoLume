@@ -1,13 +1,5 @@
 # Screenshots
 
-You can find PWA and Web screenshots in their respective folders.
+The [mobile gallery](mobile/) shows the current app: [continue reading](mobile/home.png), [library](mobile/library.png), [reader](mobile/reader.png), and [reading activity](mobile/statistics.png). See [regenerating the gallery](../web/README.md#readme-screenshots).
 
-## Process Images
-
-```bash
-# Resize
-sips -Z 1500 *.png
-
-# Crop Top & Bottom
-sips --cropOffset 85 1 -c 1385 688 *.png
-```
+The `pwa/` and `web/` directories show the pre-React UI.

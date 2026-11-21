@@ -30,3 +30,13 @@ The launcher uses `flock` to guard dev state through setup and shutdown. Vite se
 Browser tests share port 5323 by default; stop dev before running them. Set `CHROMIUM_PATH` for a system Chromium or `GO_BINARY` to override `go` on `PATH`. Fixture binaries and databases use the OS temporary directory and are removed at teardown.
 
 From the repository root, browser reports, logs, and screenshots are under `build/test-results/{app,reader}/`. The generated 300 MB EPUB and its reference hashes are cached in `build/test-cache/reader/`; delete that directory to regenerate them on the next reader test run.
+
+## README screenshots
+
+From the repository root, run `make screenshots` with Go, Node/npm, and curl installed. It builds the app and uses Playwright Chromium; set `CHROMIUM_PATH` to use a system Chromium instead. If Linux browser dependencies are missing, run `web/node_modules/.bin/playwright install --with-deps --only-shell chromium`.
+
+The command starts a private server on a free loopback port with temporary SQLite and library directories. It imports six [Project Gutenberg](https://www.gutenberg.org/) EPUBs and their embedded covers, creates a fictional account and reading history, and writes four PNGs to `screenshots/mobile/` after all views pass their readiness checks. It never needs a running instance or access to your library.
+
+The gallery uses a 390 × 844 viewport at 2×, light mode, UTC, and a fixed March 2025 reading journal. The home view is the Library with **Continue reading**; the cover grid is the Library before activity. The Insights image uses the historical Activity tab rather than the rolling 30-day overview.
+
+[books.mjs](screenshots/books.mjs) lists the Gutenberg IDs and SHA-256 pins. Downloads are cached under `build/screenshot-books/` and verified on every run. If Gutenberg rebuilds an EPUB, review its text, cover, and (for Alice) the chapter anchor before updating its pin. Keep the cache for repeat captures without contacting Gutenberg.
