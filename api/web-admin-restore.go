@@ -165,9 +165,8 @@ func extractRestore(ctx context.Context, input, stage string, legacyArchive *boo
 	var budget backupArchiveBudget
 	count := 0
 	for _, file := range archive.File {
-		name, err := backupEntryName(file.Name)
-		if flat, ok := strings.CutPrefix(file.Name, "documents/"); err != nil && legacyArchive != nil && ok && !strings.Contains(flat, "/") {
-			name, err = backupEntryName("documents/library/" + flat)
+		name, legacy, err := restoreEntryName(file.Name)
+		if legacy {
 			*legacyArchive = true
 		}
 		if err != nil || !file.Mode().IsRegular() || seen[name] {

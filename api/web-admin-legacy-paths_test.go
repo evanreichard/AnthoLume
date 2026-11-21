@@ -103,7 +103,7 @@ func TestStoragePathRestoreLegacyBackups(t *testing.T) {
 			require.NoError(t, os.Chtimes(bookPath, mtime, mtime))
 			payload := db
 			if format == "archive" {
-				payload = zipStoragePaths(t, db, []string{"documents/library/./book.epub", "covers/./cover.png"}, book)
+				payload = zipStoragePaths(t, adminBackupName, db, []string{"documents/library/./book.epub", "covers/./cover.png"}, book)
 			}
 			response := f.call("POST", "/api/v1/admin/restore", string(payload), map[string]string{"Content-Type": "application/octet-stream"})
 			require.Equal(t, 200, response.status, string(response.body))
@@ -126,6 +126,8 @@ func TestStoragePathRestoreLegacyBackups(t *testing.T) {
 
 func TestStoragePathRestoreRejectsUnsafeEntries(t *testing.T) {
 	for name, entries := range map[string][]string{
+		"second database": {"another.db"},
+		"nested database": {"nested/other.db"},
 		"duplicate book":  {"documents/library/./book.epub", "documents/library/book.epub"},
 		"duplicate cover": {"covers/./cover.png", "covers/cover.png"},
 		"traversal":       {"documents/library/./a/../book.epub"},
@@ -134,22 +136,23 @@ func TestStoragePathRestoreRejectsUnsafeEntries(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			stage := t.TempDir()
 			input := filepath.Join(t.TempDir(), "backup.zip")
-			require.NoError(t, os.WriteFile(input, zipStoragePaths(t, []byte("snapshot"), entries, []byte("payload")), 0600))
-			_, err := extractRestore(context.Background(), input, stage, nil)
+			require.NoError(t, os.WriteFile(input, zipStoragePaths(t, adminBackupName, []byte("snapshot"), entries, []byte("payload")), 0600))
+			var legacy bool
+			_, err := extractRestore(context.Background(), input, stage, &legacy)
 			require.Error(t, err)
 		})
 	}
 }
 
-func zipStoragePaths(t *testing.T, db []byte, entries []string, book []byte) []byte {
+func zipStoragePaths(t *testing.T, dbName string, db []byte, entries []string, book []byte) []byte {
 	t.Helper()
 	var b bytes.Buffer
 	archive := zip.NewWriter(&b)
-	for _, name := range append([]string{adminBackupName}, entries...) {
+	for _, name := range append([]string{dbName}, entries...) {
 		entry, err := archive.Create(name)
 		require.NoError(t, err)
 		data := book
-		if name == adminBackupName {
+		if name == dbName {
 			data = db
 		}
 		_, err = entry.Write(data)

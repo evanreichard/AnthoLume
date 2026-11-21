@@ -27,6 +27,19 @@ func (b *backupArchiveBudget) add(name string, size uint64) error {
 	return nil
 }
 
+func restoreEntryName(name string) (canonical string, legacy bool, err error) {
+	// Pre-React Archives - Master used DATABASE_NAME for the top-level database and stored Library files under documents/.
+	if !strings.Contains(name, "/") && strings.HasSuffix(name, ".db") && len(name) <= maxBackupEntryPath && storagepath.Valid(name) {
+		return adminBackupName, name != adminBackupName, nil
+	}
+	if flat, ok := strings.CutPrefix(name, "documents/"); ok && !strings.Contains(flat, "/") {
+		canonical, err = backupEntryName("documents/library/" + flat)
+		return canonical, true, err
+	}
+	canonical, err = backupEntryName(name)
+	return canonical, false, err
+}
+
 func backupEntryName(name string) (string, error) {
 	if len(name) > maxBackupEntryPath {
 		return "", errors.New("backup entry path too long")
