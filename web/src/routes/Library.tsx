@@ -9,7 +9,7 @@ import styles from '../App.module.css';
 import { Icon } from '../Icon';
 import { LoadingStatus, Skeleton } from '../Skeleton';
 import { RecentBooks } from '../RecentBooks';
-import offlineStyles from '../OfflineReading.module.css';
+import { OfflineStatusBar } from '../OfflineStatusBar';
 import { profiles } from '../offlineProfiles';
 import { OfflinePin } from '../OfflinePin';
 import { Button } from '../Controls';
@@ -138,8 +138,8 @@ export function Library() {
   }
   return <>
     <PageHeader title="Library" headingRef={heading} mobileBrand
-      actions={offline ? <button className={styles.icon} title="Switch profile" aria-label="Switch profile" onClick={() => session.chooseOffline()}><Icon name="user" /></button> : reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>} />
-    {offline && <div className={offlineStyles.shelfStatus}><span role="status"><i />Offline · {profiles().find(p => p.account.userId === access.account.userId && p.account.readingGeneration === access.account.readingGeneration)?.name ?? 'On this device'}</span><button className={offlineStyles.quiet} onClick={() => void session.checkSession()}><Icon name="refresh" size={14} />Reconnect</button></div>}
+      actions={!offline && reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>} />
+    {offline && <OfflineStatusBar profile={profiles().find(p => p.account.userId === access.account.userId && p.account.readingGeneration === access.account.readingGeneration)?.name ?? 'Reader'} />}
     {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}
     <RecentBooks books={recent} bookLinkState={bookLinkState} />
     <form className={styles.searchRow} role="search" onSubmit={(event) => { event.preventDefault(); update('q', input.trim()); }}>

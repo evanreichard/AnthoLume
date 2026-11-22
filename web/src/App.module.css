@@ -23,6 +23,7 @@
 }
 .workspace { margin-left: 184px; }
 .offlineWorkspace { margin: 0 auto; }
+.offlineWorkspace:has([aria-label='Offline controls']) { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
 .offlineWorkspace .mobileBrand { display: block; }
 .main { padding: 22px 28px 36px; max-width: 1260px; margin: auto; }
 .readerShell .rail, .readerShell .skip { display: none; }

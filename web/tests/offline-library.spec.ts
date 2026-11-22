@@ -6,7 +6,7 @@ test('cold start, pick a profile, review offline reading and upload the selected
   await register(page, server.origin, user);
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
   await page.getByRole('button', { name: 'Keep on this device' }).click();
-  await expect(page.getByRole('button', { name: 'Unpin offline copy' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stop keeping on this device' })).toBeVisible();
   const started = new Date(); started.setUTCHours(12,0,0,0); started.setUTCDate(started.getUTCDate()-1);
   const { csrf_token, user: identity } = await (await page.request.get(`${server.origin}/api/v1/session`)).json();
   const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': identity.reading_generation };
@@ -21,7 +21,9 @@ test('cold start, pick a profile, review offline reading and upload the selected
   const cold = await context.newPage();
   await cold.goto(`${server.origin}/`);
   await cold.getByRole('button', {name: user, exact:true}).click();
-  await expect(cold.getByRole('status').filter({hasText:'Offline · ' + user})).toBeVisible();
+  const bar = cold.getByRole('region', {name:'Offline controls'});
+  await expect(bar.getByRole('button', {name:`Switch profile: ${user}`})).toBeVisible();
+  expect(Math.round((await bar.boundingBox())!.y + (await bar.boundingBox())!.height)).toBe(cold.viewportSize()!.height);
   await expect(cold.getByRole('navigation',{name:'Main navigation'})).toHaveCount(0);
   await expect(cold.getByRole('button',{name:'Switch profile'})).toBeVisible();
   await expect(cold.getByRole('article')).toHaveCount(1);
@@ -88,7 +90,7 @@ test('a signed-out profile can read a shared copy; only that account sees its re
   await register(page,server.origin,alice);
   await page.getByRole('heading',{name:'Public book 01',exact:true}).click();
   await page.getByRole('button',{name:'Keep on this device'}).click();
-  await expect(page.getByRole('button',{name:'Unpin offline copy'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Stop keeping on this device'})).toBeVisible();
   await page.goto(`${server.origin}/library`);
   await context.setOffline(true);
   await page.getByRole('button',{name:bob,exact:true}).click();
@@ -118,7 +120,7 @@ test('seven pins and an automatically cached book coexist on the offline shelf',
     await page.getByRole('heading', { name: `Public book ${String(i).padStart(2, '0')}`, exact: true }).click();
     if (i <= 7) {
       await page.getByRole('button', { name: 'Keep on this device' }).click();
-      await expect(page.getByRole('button', { name: 'Unpin offline copy' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Stop keeping on this device' })).toBeVisible();
     } else {
       await page.getByRole('link', { name: 'Read', exact: true }).click();
       await expect(page.getByRole('region', { name: 'Book reader' })).toHaveAttribute('data-reader-state', 'ready');
@@ -128,9 +130,18 @@ test('seven pins and an automatically cached book coexist on the offline shelf',
   await context.setOffline(true);
   await page.getByRole('button',{name:'offline-capacity',exact:true}).click();
   await expect(page.getByRole('article')).toHaveCount(8);
-  const pins = page.getByRole('button', { name: /^Unpin offline copy:/, pressed: true });
-  await expect(pins).toHaveCount(7);
-  await pins.first().click();
-  await expect(pins).toHaveCount(6);
+  const kept = page.getByRole('img', { name: 'Kept on this device' });
+  await expect(kept).toHaveCount(7);
+  const card = page.getByRole('article').filter({hasText:'Public book 01'});
+  for (const action of ['Cancel', 'Stop keeping']) {
+    await card.locator('summary').click();
+    await card.getByRole('button',{name:'Stop keeping on this device'}).click();
+    await expect(kept).toHaveCount(7);
+    await page.getByRole('dialog',{name:'Stop keeping this book?'}).getByRole('button',{name:action,exact:true}).click();
+  }
+  await expect(kept).toHaveCount(6);
+  await card.locator('summary').click();
+  await card.getByRole('button',{name:'Keep on this device'}).click();
+  await expect(kept).toHaveCount(7);
   await expect(page.getByRole('article')).toHaveCount(8);
 });

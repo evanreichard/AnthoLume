@@ -11,16 +11,27 @@
 .profile > svg { flex: none; color: var(--muted); }
 .avatar { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: var(--ink); background: var(--hero); font: 22px var(--display); }
 .profiles li:nth-child(2n) .avatar { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
-.picker footer, .shelfStatus { display: flex; align-items: center; justify-content: space-between; }
-.picker footer { margin-top: 12px; }
+.picker { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+.manage { display: block; margin: 10px auto; border: 0; background: transparent; color: var(--muted); }
 .quiet { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; min-height: 44px; padding: 4px 8px; background: none; border: 0; color: var(--muted); font-size: .875rem; }
 .quiet:hover:not(:disabled), .profile:hover { background: var(--hero); color: var(--ink); }
-.shelfStatus { color: var(--muted); font-size: .875rem; margin-bottom: 6px; }
-.shelfStatus span { display: flex; align-items: center; gap: 6px; }
-.shelfStatus i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-.bookmark { position: absolute; top: 0; right: 0; width: 44px; height: 44px; padding: 0; border: 0; display: grid; place-items: center; background: transparent; color: var(--ink); }
-.bookmark svg { box-sizing: content-box; padding: 7px; background: var(--surface); border-radius: 50%; box-shadow: 0 1px 4px #0003; }
-.bookmark[aria-pressed='true'] svg { fill: var(--accent); color: var(--accent); }
+.statusBar { position: fixed; z-index: 10; inset: auto 0 0; padding: 4px max(12px, env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); border-top: 1px solid var(--line); background: var(--surface); }
+.statusBar > div { max-width: 1200px; margin: auto; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.statusBar span { display: flex; align-items: center; gap: 8px; padding-inline: 8px; color: var(--muted); font-size: .875rem; }
+.statusBar i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.statusBar strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ink); }
+.statusBar button { min-width: 0; }
+.statusBar button:last-child { flex: none; }
+.keptBadge, .bookOptions { position: absolute; top: 4px; }
+.keptBadge { left: 7px; top: 10px; width: 25px; height: 25px; display: grid; place-items: center; color: var(--ink); background: var(--surface); border-radius: 6px; pointer-events: none; box-shadow: 0 1px 4px #0003; }
+.bookOptions { right: 2px; }
+.bookOptions[open] { z-index: 2; }
+.bookOptions summary { width: 44px; height: 44px; display: grid; place-items: center; list-style: none; cursor: pointer; }
+.bookOptions summary::-webkit-details-marker { display: none; }
+.bookOptions summary svg { box-sizing: content-box; padding: 5px; stroke-width: 3.5; color: var(--ink); background: var(--surface); border-radius: 50%; box-shadow: 0 1px 4px #0003; }
+.bookOptions > div { position: absolute; right: 5px; top: 40px; width: min(156px, 39vw); padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 4px 16px #0003; }
+.bookOptions button { width: 100%; text-align: start; border: 0; border-radius: 6px; font-size: .875rem; }
+.bookOptions button:hover { background: var(--hero); }
 .reviewBook { padding: 12px 0; border-top: 1px solid var(--line); }
 .reviewBook header, .reviewBook label { display: grid; grid-template-columns: minmax(0, 1fr) repeat(2, minmax(52px, 18%)); gap: 6px; align-items: center; text-align: end; }
 .reviewBook header { padding: 0 8px 6px; }

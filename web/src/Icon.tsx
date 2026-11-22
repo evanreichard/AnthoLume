@@ -1,7 +1,9 @@
-type Name = 'bookmark' | 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'device' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'user' | 'warning' | 'folder' | 'up' | 'forward' | 'refresh' | 'sign-out' | 'upload' | 'info';
+type Name = 'more' | 'kept' | 'down' | 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'device' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'user' | 'warning' | 'folder' | 'up' | 'forward' | 'refresh' | 'sign-out' | 'upload' | 'info';
 
 const paths: Record<Name, string> = {
-  bookmark: 'M6 4h12v17l-6-4-6 4z',
+  more: 'M4 12h.1m7.9 0h.1m7.9 0h.1',
+  kept: 'M15 20H5V3h13v8 M8 6h7 M10 17h1 m3-1 2.5 2.5L22 13',
+  down: 'm6 9 6 6 6-6',
   library: 'M4 5h4v14H4z M8 5h4v14H8z M14 6l3.5-1 4 13-3.5 1z',
   insights: 'M4 19h16 M7 15v-4 M12 15V6 M17 15V9',
   settings: 'M4 6h7m4 0h5 M4 12h3m4 0h9 M4 18h10m4 0h2 M11 4v4 M7 10v4 M14 16v4',

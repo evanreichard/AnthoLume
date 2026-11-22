@@ -6,6 +6,7 @@ import { profiles, type OfflineProfile } from './offlineProfiles';
 import { useReading, type Account, type OfflineChoice, type OfflineRecord } from './reading';
 import { Dialog, ErrorNotice } from './ui';
 import { Button } from './Controls';
+import { OfflineStatusBar } from './OfflineStatusBar';
 import { Brand } from './Brand';
 import { Icon } from './Icon';
 import styles from './OfflineReading.module.css';
@@ -25,8 +26,8 @@ export function OfflinePicker() {
         <strong>{p.name}</strong><Icon name="forward" size={18} />
       </button>{manage && <button className={styles.quiet} aria-label={`Forget ${p.name}`} onClick={() => { setError(null); setForget(p); }}><Icon name="trash" size={17} /></button>}
     </li>)}</ul>
-    <footer><button className={styles.quiet} onClick={() => void session.checkSession()}><Icon name="refresh" size={16} /> Reconnect</button>
-      {!!remembered.length && <button className={styles.quiet} aria-pressed={manage} onClick={() => setManage(!manage)}>{manage ? 'Done' : 'Manage profiles'}</button>}</footer>
+    {!!remembered.length && <button className={styles.manage} aria-pressed={manage} onClick={() => setManage(!manage)}>{manage ? 'Done' : 'Manage profiles'}</button>}
+    <OfflineStatusBar />
     {forget && <Dialog title={`Forget ${forget.name}?`} onClose={() => setForget(undefined)}>
       <p>This removes the offline profile and its unsubmitted reading.</p><ErrorNotice error={error} />
       <Button onClick={async () => { try { await reading.forgetDrafts(forget.account); session.forgetOffline(forget.account); setForget(undefined); } catch (e) { setError(e); } }}>Forget on this device</Button>
