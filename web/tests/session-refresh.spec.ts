@@ -44,6 +44,64 @@ test('a failed session refresh keeps the same rendition while the backend is rea
   await expect(page.locator('iframe')).toHaveCount(0);
 });
 
+test('opening a saved EPUB probes a gateway failure and only falls back when the session is unreachable', async ({ page, server }) => {
+  await register(page, server.origin, 'warm-gateway-reader');
+  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
+  const toolbar = page.getByRole('group', { name: 'Book actions' });
+  await toolbar.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(toolbar.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
+
+  const gateway = { status: 503, contentType: 'text/html', body: 'Upstream unavailable' };
+  await page.route('**/api/v1/documents/*/file', route => route.fulfill(gateway));
+  const reader = page.getByRole('region', { name: 'Book reader' });
+  const healthyProbe = page.waitForResponse(response => response.url().endsWith('/api/v1/session') && response.ok());
+  await page.getByRole('link', { name: 'Read', exact: true }).click();
+  await healthyProbe;
+  await expect(reader).toHaveAttribute('data-reader-state', 'error');
+  await expect(reader.getByRole('alert')).toContainText('Could not load EPUB');
+  await reader.getByRole('button', { name: 'Library', exact: true }).click();
+
+  let probes = 0;
+  await page.route('**/api/v1/session', route => { probes++; return route.fulfill(gateway); });
+  await page.getByRole('link', { name: 'Read', exact: true }).click();
+  await expect(reader).toHaveAttribute('data-reader-state', 'ready');
+  await expect(reader.locator('iframe').first()).toBeVisible();
+  expect(probes).toBe(1);
+});
+
+test('concurrent API failures share a probe; a cold offline profile regains account settings on reconnect', async ({ page, server }) => {
+  const user = 'gateway-library-reader';
+  await register(page, server.origin, user);
+  await page.goto(server.origin + '/settings');
+  await expect(page.getByRole('button', { name: /Locale/ })).toBeEnabled();
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
+
+  const gateway = { status: 502, body: 'Gateway unavailable' };
+  let probes = 0, release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/v1/session', async route => { probes++; await held; await route.fulfill(gateway); });
+  await page.route('**/api/v1/documents?*', route => route.fulfill(gateway));
+  try {
+    const requests = [false, true].map(resumable => page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return url.pathname === '/api/v1/documents' && url.searchParams.has('resumable') === resumable && response.status() === 502;
+    }));
+    await page.getByRole('link', { name: 'Library', exact: true }).last().click();
+    await Promise.all(requests);
+    await expect.poll(() => probes).toBe(1);
+  } finally { release(); }
+  await expect(page.getByRole('heading', { name: 'Offline Profiles' })).toBeVisible();
+  expect(probes).toBe(1);
+
+  await page.reload();
+  await page.getByRole('button', { name: user, exact: true }).click();
+  await page.unroute('**/api/v1/session');
+  await page.unroute('**/api/v1/documents?*');
+  await page.getByRole('button', { name: 'Reconnect', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Locale/ })).toBeEnabled();
+});
+
 test('a pending sign-out retries without interrupting an offline reader', async ({ page, server }) => {
   const user = 'offline-after-signout';
   await register(page, server.origin, user);

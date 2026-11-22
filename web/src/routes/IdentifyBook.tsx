@@ -99,7 +99,7 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
       for (const field of selected) if (field !== 'cover') next[field] = match[field] ?? '';
       let cover_base64: string | undefined;
       if (selected.includes('cover') && match.cover_id && cover === 'ready') {
-        const response = await fetch(coverURL(match.cover_id), { signal, cache: 'no-store' });
+        const response = await session.api.metadataCover(refId.account, match.cover_id, signal);
         if (!response.ok || response.headers.get('Content-Type') !== 'image/jpeg') throw new Error('This cover is unavailable. Try again or deselect “Edition Cover”.');
         const image = await response.blob();
         if (image.size > 2 * 1024 * 1024) throw new Error('This cover is larger than 2 MiB. Deselect “Edition Cover” to apply the other fields.');

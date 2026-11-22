@@ -1,13 +1,13 @@
 import { QueryClient } from '@tanstack/react-query';
 import { useSyncExternalStore } from 'react';
 import type { components } from './api/schema.gen';
-import { apiOrigin, createAPI, sameAccount, SessionUnavailable } from './api/client';
+import { apiOrigin, createAPI, sameAccount } from './api/client';
+import { APIUnavailable } from './api/transport';
+import { profiles, rememberProfile, selectProfile, selectedProfile, forgetProfile, isProfileKey } from './offlineProfiles';
 import type { Account, ReadingAccess } from './reading';
 
 type S = components['schemas'];
 const sessionAccount = (user: NonNullable<S['Session']['user']>): Account => ({ origin: apiOrigin, userId: user.account_id, readingGeneration: user.reading_generation });
-import { profiles, rememberProfile, selectProfile, selectedProfile, forgetProfile, isProfileKey } from './offlineProfiles';
-const unreachable = (error: unknown) => error instanceof SessionUnavailable || error instanceof TypeError || error instanceof DOMException && error.name === 'TimeoutError';
 const logoutKey = 'antholume:logout-pending';
 export const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000, gcTime: 300_000 } } });
 type Snapshot = { session: S['Session'] | null; capabilities: S['Capabilities'] | null; access: ReadingAccess; error: string | null; busy: boolean };
@@ -26,7 +26,7 @@ class SessionCoordinator {
   private channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('antholume:session');
   readonly api = createAPI({
     token: () => this.snapshot.session?.csrf_token ?? null,
-    disconnected: () => { if (!this.refresh && this.snapshot.access.kind === 'authenticated') void this.checkSession(); },
+    suspectOutage: () => { if (!this.refresh && this.snapshot.access.kind === 'authenticated') void this.checkSession(); },
     epoch: () => this.generation,
     assert: (account, epoch) => {
       const access = this.snapshot.access;
@@ -125,6 +125,15 @@ class SessionCoordinator {
     this.remember(null);
     this.publish({ session: null, access: { kind: 'expired', account }, error: 'Your session expired. Sign in to continue reading and synchronizing.' }, true);
   }
+  private async discoverCapabilities() {
+    const epoch = this.generation;
+    try {
+      const capabilities = await this.api.capabilities(AbortSignal.timeout(10_000));
+      if (epoch === this.generation) this.publish({ capabilities });
+    } catch {
+      if (epoch === this.generation) this.publish({ capabilities: null, error: 'Server feature discovery is unavailable. Existing books remain usable.' });
+    }
+  }
   async checkSession() {
     if (this.snapshot.busy) return;
     const access = this.snapshot.access;
@@ -145,17 +154,10 @@ class SessionCoordinator {
       this.remember(account, session.user?.id);
       const same = access.kind === 'authenticated' && sameAccount(account, access.account);
       this.publish({ session, access: same ? access : { kind: 'authenticated', account }, error: null }, !same);
-      if (same && !this.snapshot.capabilities) {
-        try {
-          const capabilities = await this.api.capabilities(signal);
-          if (!refresh.signal.aborted) this.publish({ capabilities });
-        } catch {
-          if (!refresh.signal.aborted) this.publish({ capabilities: null, error: 'Server feature discovery is unavailable.' });
-        }
-      }
+      if (!this.snapshot.capabilities) await this.discoverCapabilities();
     } catch (error) {
       if (refresh.signal.aborted) return;
-      if (unreachable(error)) {
+      if (error instanceof APIUnavailable) {
         if (access.kind === 'offline') return;
         if (this.readerAccount && sameAccount(access.account, this.readerAccount)) {
           // Live Reader - A failed probe pauses server access without changing the open book or selecting a profile for future tabs.
@@ -192,19 +194,11 @@ class SessionCoordinator {
       const account = session.user && !this.storageBlocked && !this.pendingLogout ? sessionAccount(session.user) : null;
       this.remember(account, session.user?.id);
       this.publish({ session, busy: false, access: account ? { kind: 'authenticated', account } : this.retainedAccess(previous), error: this.storageBlocked ? 'Browser storage is unavailable. Automatic account access is disabled; sign in explicitly.' : null });
-      try {
-        const capabilities = await this.api.capabilities();
-        if (epoch === this.generation) this.publish({ capabilities });
-      } catch (error) {
-        if (epoch === this.generation) {
-          this.publish({ capabilities: null, error: 'Server feature discovery is unavailable. Existing books remain usable.' });
-          if (account && unreachable(error)) void this.checkSession();
-        }
-      }
+      await this.discoverCapabilities();
     } catch (error) {
       if (epoch !== this.generation) return;
-      if (offline) this.publish({ busy: false, session: null, error: unreachable(error) ? null : message(error) });
-      else if (unreachable(error) && profiles().length) this.chooseOffline(selectedProfile());
+      if (offline) this.publish({ busy: false, session: null, error: error instanceof APIUnavailable ? null : message(error) });
+      else if (error instanceof APIUnavailable && profiles().length) this.chooseOffline(selectedProfile());
       else this.publish({ busy: false, session: null, error: message(error), access: this.retainedAccess(previous) });
     }
   }

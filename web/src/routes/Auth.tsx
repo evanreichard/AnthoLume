@@ -1,5 +1,6 @@
 import { Button } from '../Controls';
 import { Brand } from '../Brand';
+import { APIUnavailable } from '../api/transport';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { session, useSession } from '../session';
@@ -22,7 +23,7 @@ function authError(error: unknown, mode: 'login' | 'register') {
       case 'forbidden': if (mode === 'register') return 'Registration is disabled on this server.';
     }
   }
-  if (error instanceof TypeError || error instanceof DOMException && error.name === 'TimeoutError') return 'Could not reach the server. Check your connection and try again.';
+  if (error instanceof APIUnavailable) return 'Could not reach the server. Check your connection and try again.';
   return mode === 'login' ? 'Could not sign in. Try again in a moment.' : 'Could not create an account. Try again in a moment.';
 }
 
