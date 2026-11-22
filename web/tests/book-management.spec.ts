@@ -28,7 +28,15 @@ test('book details show file information and download the original EPUB', async 
   await page.getByRole('heading', { name: 'Downloadable edition', exact: true }).click({ position: { x: 5, y: 5 } });
   await expect(info).toBeHidden();
   await more.click();
-  await info.click();
+  await expect(info).toBeFocused();
+  // Safari Tap - A button tap can blur the focused item without focusing a new element before click.
+  await info.evaluate(button => button.addEventListener('mousedown', event => {
+    event.preventDefault();
+    button.blur();
+  }, { once: true }));
+  const panel = page.getByRole('group', { name: 'More actions' });
+  const panelBox = (await panel.boundingBox())!, infoBox = (await info.boundingBox())!;
+  await page.mouse.click(panelBox.x + panelBox.width - 12, infoBox.y + infoBox.height / 2);
   const dialog = page.getByRole('dialog', { name: 'Book information' });
   await expect(dialog.getByText('Downloadable edition', { exact: true })).toBeVisible();
   await expect(dialog.getByText(`${original.length.toLocaleString('en-US')} bytes`, { exact: true })).toBeVisible();

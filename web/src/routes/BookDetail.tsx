@@ -125,9 +125,9 @@ function BookDetailContent() {
   return <article className={styles.bookPage}>
     <PageHeader leading={<BackPill to={library}>Library</BackPill>}
       actions={<div className={styles.bookActions}
-        onBlur={event => { if (menuOpen && event.relatedTarget !== more.current && !menu.current?.contains(event.relatedTarget)) setMenuOpen(false); }}
+        onBlur={event => { if (menuOpen && event.relatedTarget && event.relatedTarget !== more.current && !menu.current?.contains(event.relatedTarget)) setMenuOpen(false); }}
         onKeyDown={event => { if (menuOpen && event.key === 'Escape') { event.preventDefault(); closeMenu(); } }}>
-        <JoinedActions label="Book actions">
+        <JoinedActions label="Book actions" className={styles.bookToolbar}>
           {(metadata?.file_available || download.copy) && <JoinedAction aria-label={deviceLabel} title={deviceLabel} aria-description={removeCopy ? 'Remove the offline copy from this device' : 'Save for offline reading'} aria-haspopup={removeCopy ? 'dialog' : undefined} aria-disabled={download.disabled || undefined} aria-busy={download.busy || undefined}
             onClick={event => {
               if (download.disabled) return;
