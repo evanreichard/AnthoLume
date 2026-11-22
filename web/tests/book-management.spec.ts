@@ -32,11 +32,13 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await page.getByLabel('Choose EPUB to upload').setInputFiles({ name: 'editor.epub', mimeType: 'application/epub+zip', buffer: await epub('Disposable editor book') });
   await page.getByRole('link', { name: 'Open book', exact: true }).click();
   const edit = page.getByRole('button', { name: 'Edit book', exact: true });
-  const cover = await page.evaluate(() => {
+  const jpeg = (width: number) => page.evaluate(width => {
     const canvas = document.createElement('canvas');
-    canvas.width = 16; canvas.height = 24;
+    canvas.width = width; canvas.height = width * 1.5;
     return canvas.toDataURL('image/jpeg').split(',')[1]!;
-  });
+  }, width);
+  const cover = await jpeg(16);
+  const largeCover = await jpeg(160);
   const longTitle = 'A collection of novels with a very long title that does not fit on one line on a mobile screen';
   let releaseSearch: () => void;
   const firstSearch = new Promise<void>(resolve => { releaseSearch = resolve; });
@@ -51,6 +53,7 @@ test('book editor previews metadata without saving, saves cover and fields, and 
     await route.fulfill({ json: { id: 'OL1W', edition_id: 'OL2M', title: 'Looked-up title', author: '', description: 'Work synopsis from Open Library.', isbn10: '0765391198', isbn13: '9780765391193', cover_id: 42 } });
   });
   await page.route('**/api/v1/metadata/covers/42', route => route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(cover, 'base64') }));
+  await page.route('**/api/v1/metadata/covers/42?prefer_large=true', route => route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(largeCover, 'base64') }));
   await expect(edit).toHaveText('');
   const remove = page.getByRole('button', { name: 'Delete from shared library', exact: true });
   await expect(remove).toHaveText('');
@@ -167,7 +170,9 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await expect(dialog.getByRole('button', { name: 'Apply 4 changes', exact: true })).toBeEnabled();
   await isbnChoice.click();
   await expect(coverChoice).toHaveAttribute('aria-pressed', 'true');
+  const saved = page.waitForRequest(req => req.method() === 'PATCH' && req.url().includes('/api/v1/documents/'));
   await dialog.getByRole('button', { name: 'Apply 5 changes', exact: true }).click();
+  expect((await saved).postDataJSON().cover_base64).toBe(largeCover);
   await expect(dialog).toHaveCount(0);
   const appliedTitle = page.getByRole('heading', { name: 'Looked-up title', exact: true });
   await expect(appliedTitle).toBeVisible();

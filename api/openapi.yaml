@@ -166,9 +166,10 @@ paths:
       operationId: getMetadataCover
       parameters:
         - {name: cover_id, in: path, required: true, schema: {type: integer, format: int64, minimum: 1, maximum: 9999999999}}
+        - {name: prefer_large, in: query, description: Try the large cover before falling back to medium., schema: {type: boolean, default: false}}
       responses:
         '200':
-          description: Open Library cover preview
+          description: Open Library edition cover
           content:
             image/jpeg:
               schema: {type: string, format: binary}
