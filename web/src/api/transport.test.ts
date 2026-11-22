@@ -43,6 +43,21 @@ test('network errors and deadlines report an outage, not caller cancellation or 
   expect(observer.suspectOutage).not.toHaveBeenCalled();
 });
 
+test('body failures preserve deadline and cancellation semantics after headers', async () => {
+  const { observer, fetch, send } = setup();
+  for (const reason of [new DOMException('Cancelled', 'AbortError'), new DOMException('Expired', 'TimeoutError')]) {
+    const controller = new AbortController();
+    fetch.mockResolvedValueOnce(new Response(new ReadableStream({ pull(stream) {
+      controller.abort(reason);
+      stream.error(new TypeError('Connection reset'));
+    } }), { headers: { 'Content-Type': 'application/problem+json' }, status: 400 }));
+    const result = send(request(controller.signal), 'operation', 'json');
+    if (reason.name === 'AbortError') await expect(result).rejects.toBe(reason);
+    else await expect(result).rejects.toBeInstanceOf(APIUnavailable);
+  }
+  expect(observer.suspectOutage).toHaveBeenCalledTimes(1);
+});
+
 test('a failing session probe reports unavailability without starting another probe', async () => {
   const { observer, fetch, send } = setup();
   fetch.mockResolvedValueOnce(new Response(null, { status: 503 })).mockRejectedValueOnce(new TypeError('Failed to fetch'));

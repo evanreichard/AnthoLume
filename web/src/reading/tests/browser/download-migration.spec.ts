@@ -46,6 +46,32 @@ for (const version of [5, 6] as const) test(`v${version} migrates offline withou
     a: version === 6 ? .3 : .1, b: .2, sameShelf: true, otherGeneration: 'missing', local: 'Personal book', removed: 0, privateRows: 2 });
 });
 
+test('explicit cache clearing includes quarantined v5 originals, not private records or local books', async ({ page }) => {
+  await page.goto('/'); await page.waitForFunction(() => !!window.readingTest);
+  const result = await page.evaluate(async () => {
+    const p = window.readingTest, name = 'clear-quarantine';
+    await p.seedLegacyLibrary(name, 5);
+    const old = p.legacyLibrary(name, 5);
+    const books = await old.table('books').toArray();
+    const local = books.find(row => row.ref.kind === 'local'), book = books.find(row => row.sourceId === 'source-bob');
+    const key = 'legacy-username-key', sourceId = 'legacy-source';
+    await old.table('books').put({ ...book, key, scope: 'username-scope', bytes: local.bytes, sourceId });
+    await old.table('sources').put({ ...await old.table('sources').get('source-bob'), id: sourceId, key });
+    await old.table('sourceChunks').put({ ...await old.table('sourceChunks').get('source-bob:0'), key: sourceId + ':0', sourceId });
+    old.close();
+    const db = new p.ReadingDB(name), repo = new p.Repository(db);
+    const before = await repo.readerCacheSummary();
+    await repo.clearServerCache();
+    const legacy = await db.books.get(key);
+    const output = { copies: before.books, countedBytes: before.epubBytes / local.size, after: await repo.readerCacheSummary(),
+      quarantinedBlob: legacy?.bytes, retired: !await db.sources.get(sourceId) && !await db.sourceChunks.get(sourceId + ':0'),
+      checkpoint: legacy?.checkpoint, positions: await db.positions.count(), drafts: await db.offline.count(), local: (await repo.open(local.ref)).row.title };
+    await db.delete(); return output;
+  });
+  expect(result).toEqual({ copies: 2, countedBytes: 3, after: { books: 0, epubBytes: 0, metadataBytes: 0 }, quarantinedBlob: null,
+    retired: true, checkpoint: { position: '/body/DocFragment[1]/body/p[2]', fraction: .2 }, positions: 2, drafts: 2, local: 'Personal book' });
+});
+
 test('a pin follows an atomic replacement while a leased reader keeps its original bytes', async ({ page }) => {
   await page.goto('/'); await page.waitForFunction(() => !!window.readingTest);
   const result = await page.evaluate(async () => {

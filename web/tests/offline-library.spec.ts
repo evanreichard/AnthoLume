@@ -13,8 +13,8 @@ test('offline startup failure is reported once above the library, not under the 
   await expect(card.getByRole('img', { name: 'Saved to device' })).toHaveCount(0);
 });
 
-for (const status of [502, 503, 504]) {
-  test(`a cold start behind a gateway returning ${status} can read a saved book`, async ({ page, context, server }) => {
+for (const status of [502, 503, 504, 'dropped body'] as const) {
+  test(`a cold start with a session failure (${status}) can read a saved book`, async ({ page, context, server }) => {
     const user = 'gateway-reader';
     await register(page, server.origin, user);
     const card = page.getByRole('article').filter({ hasText: 'Public book 01' });
@@ -24,7 +24,16 @@ for (const status of [502, 503, 504]) {
     await page.close();
 
     const cold = await context.newPage();
-    await cold.route('**/api/v1/session', route => route.fulfill({ status, contentType: 'text/html', body: 'Upstream unavailable' }));
+    if (status === 'dropped body') await cold.addInitScript(() => {
+      const fetch = window.fetch;
+      window.fetch = (input, init) => {
+        if (input instanceof Request && new URL(input.url).pathname === '/api/v1/session') {
+          return Promise.resolve(new Response(new ReadableStream({ pull(controller) { controller.error(new TypeError('Connection reset')); } }), { headers: { 'Content-Type': 'application/json' } }));
+        }
+        return fetch(input, init);
+      };
+    });
+    else await cold.route('**/api/v1/session', route => route.fulfill({ status, contentType: 'text/html', body: 'Upstream unavailable' }));
     await cold.goto(server.origin);
     await cold.getByRole('button', { name: user, exact: true }).click();
     await cold.getByRole('article').getByRole('link').click();
@@ -435,6 +444,40 @@ test('removing a shared download clears both shelves but preserves the offline r
   await expect.poll(() => serverEffects(server.data,bob).activity).toBe(1);
   expect(serverEffects(server.data,alice).head).toBeUndefined();
   expect(serverEffects(server.data,alice).activity).toBe(0);
+});
+
+test('reconnect supplies a first-time profile’s revision without reopening the shared book', async ({ page, context, server }) => {
+  await register(page, server.origin, 'downloader');
+  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
+  const toolbar = page.getByRole('group', { name: 'Book actions' });
+  await toolbar.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(toolbar.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
+  await page.goto(server.origin + '/settings');
+  await page.getByRole('button', { name: 'Sign Out', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Sign Out', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  const reader = 'first-time-reader';
+  await register(page, server.origin, reader);
+  await context.setOffline(true);
+  await page.getByRole('button', { name: reader, exact: true }).click();
+  await page.getByRole('article').getByRole('link').click();
+  await expect(bookReader(page)).toHaveAttribute('data-reader-state', 'ready');
+  const frame = await bookReader(page).locator('iframe').first().elementHandle();
+  const endpoint = '**/me/reading-state/book_001';
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route(endpoint, async route => { await held; await route.continue(); }, { times: 1 });
+  try {
+    await Promise.all([page.waitForRequest(endpoint), context.setOffline(false)]);
+    await expect(page.locator('footer')).toContainText('1 /');
+    expect(await frame!.evaluate(node => node.isConnected)).toBe(true);
+    await turnPage(page, 2);
+    await expect.poll(async () => (await storedRows(page, 'offline')).some(row => row.kind === 'progress')).toBe(true);
+    expect(serverEffects(server.data, reader).head).toBeUndefined();
+  } finally { release(); }
+  await expect.poll(() => serverEffects(server.data, reader).head?.revision).toBe(1);
+  expect(await storedRows(page, 'offline')).toEqual([]);
+  expect(serverEffects(server.data, 'downloader').head).toBeUndefined();
 });
 
 test('the detail toolbar only checks pinned copies and confirms before removing one', async ({ page, server }) => {

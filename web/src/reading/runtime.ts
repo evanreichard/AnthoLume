@@ -25,6 +25,8 @@ export class ReadingRuntime implements ReadingActions {
   private timer?: ReturnType<typeof setTimeout>;
   private failures = 0;
   private jobs = new Map<AbortController, boolean>();
+  private offlineReader?: { ref: Extract<BookRef, { kind: 'server' }>; signal: AbortSignal };
+  private reconnectHead?: { key: string; revision: Promise<string | undefined> };
   private accountAccess = new AbortController();
   private coverJobs = new Set<string>();
   private quotaError = false;
@@ -52,15 +54,28 @@ export class ReadingRuntime implements ReadingActions {
     if (this.generation && this.access === access && this.appliedGeneration === this.generation) return this.accessTail;
     this.access = access; const version = ++this.generation; this.sync.stop(); this.error = null; this.quotaError = false;
     for (const [job, accountBound] of this.jobs) if (accountBound) job.abort();
-    this.accountAccess.abort(); this.accountAccess = new AbortController();
+    this.accountAccess.abort(); this.accountAccess = new AbortController(); this.reconnectHead = undefined;
     this.snapshot = { ...this.snapshot, downloads: [] };
     void this.refresh();
     this.accessTail = this.accessTail.catch(() => undefined).then(async () => {
       if (this.disposed || version !== this.generation) return;
       await this.repo.setAccess(access);
+      const reader = this.offlineReader;
+      if (version === this.generation && access.kind === 'authenticated' && reader && !reader.signal.aborted && sameAccount(access.account, reader.ref.account)) {
+        const signal = AbortSignal.any([reader.signal, this.accountAccess.signal, AbortSignal.timeout(autoSyncBudgetMs)]);
+        this.reconnectHead = { key: refKey(reader.ref), revision: this.recoverRevision(reader.ref, signal).catch(() => undefined) };
+      }
       if (!this.disposed && version === this.generation) { this.appliedGeneration = version; await this.refresh(); this.schedule(0); }
     }).catch(error => { if (!this.disposed && version === this.generation) { this.error = String(error); void this.refresh(); } });
     return this.accessTail;
+  }
+  private async recoverRevision(ref: Extract<BookRef, { kind: 'server' }>, signal: AbortSignal) {
+    const head = await this.repo.db.heads.get(refKey(ref));
+    if (head) return head.state.revision;
+    signal.throwIfAborted();
+    const state = await this.bridge.getState(ref.account, ref.documentId, signal);
+    await this.repo.rememberMissingHead(ref, state, signal);
+    return state.revision;
   }
   private foreground = () => { if (document.visibilityState === 'visible' || navigator.onLine) { this.failures = 0; this.schedule(0); void this.worker.connect().catch(error => { this.error = String(error); void this.refresh(); }); } };
   private schedule(delay: number) { clearTimeout(this.timer); if (!this.disposed) this.timer = setTimeout(() => { void this.replay(); }, delay); }
@@ -111,6 +126,7 @@ export class ReadingRuntime implements ReadingActions {
       const opened = await this.repo.openOffline(ref);
       external.throwIfAborted();
       if (generation !== this.generation || !opened.row.sourceId) throw new Error('Book account or source changed');
+      this.offlineReader = { ref, signal: external };
       await this.repo.keepSource(opened.row.sourceId, external);
       return opened;
     }
@@ -189,9 +205,9 @@ export class ReadingRuntime implements ReadingActions {
     if (!row.cover && generation === this.generation) void this.fillCover(ref, row.sourceId);
     return { ...opened, row };
   }
-  cacheCover = async (ref: Extract<BookRef, { kind: 'server' }>, cover: Blob) => {
+  cacheCover = async (ref: Extract<BookRef, { kind: 'server' }>, cover: Blob | null, mode: 'backfill' | 'replace' = 'backfill') => {
     if (this.disposed || this.appliedGeneration !== this.generation || this.access.kind !== 'authenticated' || !sameAccount(ref.account, this.access.account)) return;
-    await this.repo.cacheCover(ref, cover, this.accountAccess.signal).catch(() => undefined);
+    await this.repo.cacheCover(ref, cover, this.accountAccess.signal, { replace: mode === 'replace' }).catch(() => undefined);
   };
   private async fillCover(ref: Extract<BookRef, { kind: 'server' }>, sourceId: string) {
     if (this.disposed || this.access.kind !== 'authenticated' || !sameAccount(ref.account, this.access.account) || this.coverJobs.has(sourceId) || this.coverJobs.size >= 4) return;
@@ -199,7 +215,7 @@ export class ReadingRuntime implements ReadingActions {
     const signal = AbortSignal.any([this.accountAccess.signal, AbortSignal.timeout(8_000)]);
     try {
       const cover = this.lookupCover?.(ref) ?? await readCover(await this.bridge.fetchCover(ref.account, ref.documentId, signal), signal);
-      await this.repo.cacheCover(ref, cover, signal, sourceId);
+      await this.repo.cacheCover(ref, cover, signal, { expectedSource: sourceId });
     } catch { /* Artwork is optional; the source is already usable. */ }
     finally { this.coverJobs.delete(sourceId); }
   }
@@ -239,9 +255,10 @@ export class ReadingRuntime implements ReadingActions {
     const autoSync = access.kind === 'authenticated' && navigator.onLine;
     const generation = this.accountAccess.signal;
     const key = refKey(ref);
+    const reconnect = this.reconnectHead?.key === key ? this.reconnectHead.revision : undefined;
     const capture = await this.write(() => this.repo.recordCapture(ref, checkpoint, activity, {
       title: this.snapshot.books.find(book => refKey(book.ref) === key)?.title,
-      online: autoSync,
+      online: autoSync, awaitingRevision: !!reconnect,
       current,
     }));
     if (!capture) return;
@@ -250,6 +267,10 @@ export class ReadingRuntime implements ReadingActions {
     const eligible = () => !signal.aborted && navigator.onLine;
     void (async () => {
       try {
+        if (capture.revision === undefined && !capture.predecessor) {
+          capture.revision = await reconnect;
+          if (capture.revision === undefined) return;
+        }
         if (!eligible()) return;
         const device = await this.repo.device(ref.account);
         signal.throwIfAborted();

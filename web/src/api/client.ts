@@ -33,7 +33,7 @@ export function createAPI(gate: SessionGate) {
         request.headers.set('X-CSRF-Token', token);
       }
       request.headers.set('Accept', 'application/json, application/problem+json');
-      return transport(request, role);
+      return transport(request, role, 'json');
     },
   });
   const client = scopedClient();

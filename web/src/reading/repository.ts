@@ -218,14 +218,14 @@ export class Repository {
     }
     if (!clear && (bytes > bookCacheBytes || count > bookCacheCount)) throw new Error('Close another open book before caching this EPUB');
   }
-  async cacheCover(ref: ServerRef, cover: Blob, signal: AbortSignal, expectedSource?: string) {
-    if (!validCover(cover)) return;
+  async cacheCover(ref: ServerRef, cover: Blob | null, signal: AbortSignal, { replace = false, expectedSource }: { replace?: boolean; expectedSource?: string } = {}) {
+    if (cover ? !validCover(cover) : !replace) return;
     await this.db.transaction('rw', this.db.downloads, this.db.sources, this.db.access, async () => {
       signal.throwIfAborted();
       const copy = await this.db.downloads.get(downloadKey(ref));
-      if (!copy || copy.cover || expectedSource && copy.sourceId !== expectedSource) return;
+      if (!copy || !replace && (copy.cover || copy.coverRemoved) || expectedSource && copy.sourceId !== expectedSource) return;
       if (!(await this.db.access.get(scopeOf(ref)))?.authenticated || !(await this.db.sources.get(copy.sourceId))?.complete) return;
-      await this.db.downloads.update(copy.key, { cover });
+      await this.db.downloads.update(copy.key, { cover, coverRemoved: cover === null });
       signal.throwIfAborted();
     });
   }
@@ -250,8 +250,11 @@ export class Repository {
   async freeServerCache(ref: ServerRef) {
     await this.db.transaction('rw', this.db.downloads, this.db.sources, this.db.sourceChunks, () => this.trimServerCache(downloadKey(ref), true));
   }
+  private legacyServerBooks() {
+    return this.db.books.where('scope').notEqual('local').filter(book => book.ref.kind === 'server');
+  }
   async readerCacheSummary(): Promise<ReaderCacheSummary> {
-    return this.db.transaction('r', this.db.downloads, this.db.sources, async () => {
+    return this.db.transaction('r', this.db.books, this.db.downloads, this.db.sources, async () => {
       const copies = await this.db.downloads.toArray();
       const sources = await this.db.sources.bulkGet(copies.map(d => d.sourceId));
       const summary = { books: 0, epubBytes: 0, metadataBytes: 0 };
@@ -260,11 +263,25 @@ export class Repository {
         summary.books++; summary.epubBytes += s.size;
         summary.metadataBytes += (copies[i].cover?.size ?? 0) + (s.manifest ? new Blob([JSON.stringify(s.manifest)]).size : 0);
       });
+      for (const book of await this.legacyServerBooks().toArray()) {
+        const legacySources = await this.db.sources.where('key').equals(book.key).filter(s => !s.evictOnRelease).toArray();
+        if (book.bytes || book.cover || legacySources.length) summary.books++;
+        summary.epubBytes += book.bytes?.size ?? 0;
+        summary.metadataBytes += book.cover?.size ?? 0;
+        for (const source of legacySources) {
+          summary.epubBytes += source.received;
+          if (source.manifest) summary.metadataBytes += new Blob([JSON.stringify(source.manifest)]).size;
+        }
+      }
       return summary;
     });
   }
   async clearServerCache() {
-    await this.db.transaction('rw', this.db.downloads, this.db.sources, this.db.sourceChunks, async () => {
+    await this.db.transaction('rw', [this.db.books, this.db.downloads, this.db.sources, this.db.sourceChunks], async () => {
+      for (const book of await this.legacyServerBooks().toArray()) {
+        for (const id of await this.db.sources.where('key').equals(book.key).primaryKeys()) await this.retireSource(id);
+        await this.db.books.update(book.key, { bytes: null, cover: null, sourceId: undefined, size: 0, availability: 'unavailable' });
+      }
       for (const copy of await this.db.downloads.toArray()) await this.retireSource(copy.sourceId);
       await this.db.downloads.clear();
     });
@@ -365,7 +382,7 @@ export class Repository {
         const reading = cache ? await this.refreshCheckpoint(ref, position.checkpoint, state) : {};
         await this.db.positions.put({ ...position, lastReadAt: position.lastReadAt ?? state?.updated_at ?? undefined, ...reading });
         await this.db.downloads.put({ key: ownerKey, library: libraryKey(ref.account), document: ref.documentId, sourceId, addedAt,
-          title, author, cover: old?.cover ?? cover, pinned: !!old?.pinned, ...(cache?.pin && { title: cache.pin.title, author: cache.pin.author, pinned: true }) });
+          title, author, cover: old?.cover ?? cover, coverRemoved: old && 'coverRemoved' in old && old.coverRemoved, pinned: !!old?.pinned, ...(cache?.pin && { title: cache.pin.title, author: cache.pin.author, pinned: true }) });
         if (cache) await this.trimServerCache(ownerKey);
         else if (state) {
           if (!validState(state, ref.documentId)) throw new Error('Invalid server state');
@@ -447,8 +464,16 @@ export class Repository {
       await this.db.books.put({ ...book, checkpoint, lastReadAt: new Date().toISOString() });
     });
   }
+  async rememberMissingHead(ref: ServerRef, state: S['ReadingState'], signal: AbortSignal) {
+    if (!validState(state, ref.documentId)) throw new Error('Invalid server reading state');
+    const key = refKey(ref);
+    await this.db.transaction('rw', this.db.heads, this.db.access, async () => {
+      if ((await this.db.access.get(scopeOf(ref)))?.authenticated && !await this.db.heads.get(key)) await this.db.heads.put({ key, state });
+      signal.throwIfAborted();
+    });
+  }
   async recordCapture(ref: ServerRef, checkpoint: Checkpoint | undefined, activity: S['ActivityEvent'] | undefined, options: {
-    title?: string | null; online?: boolean; current(): boolean;
+    title?: string | null; online?: boolean; awaitingRevision?: boolean; current(): boolean;
   }): Promise<Capture | undefined> {
     const scope = scopeOf(ref), document = ref.documentId, key = refKey(ref), created = new Date().toISOString();
     return this.db.transaction('rw', this.tables(), async () => {
@@ -480,7 +505,7 @@ export class Repository {
         }
       }
       if (!options.current()) throw new DOMException('Reading access changed', 'AbortError');
-      if (automatic && ids.length && (!checkpoint || head || pending)) {
+      if (automatic && ids.length && (!checkpoint || head || pending || options.awaitingRevision)) {
         const capture = { access: { scope, epoch: access.epoch }, ref, ids, revision: head?.state.revision, predecessor: pending?.id };
         Dexie.currentTransaction!.on('complete', () => ids.forEach(id => this.verifying.add(id)));
         return capture;

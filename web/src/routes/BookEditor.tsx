@@ -9,7 +9,7 @@ import styles from '../App.module.css';
 import { bookMetadataDraft, encodeBookCover } from './bookMetadataDraft';
 
 export function BookEditor({ book, refId, document, onClose, onSaved }: {
-  book: LibraryBook; refId: Extract<BookRef, { kind: 'server' }>; document: components['schemas']['Document']; onClose(): void; onSaved(): void;
+  book: LibraryBook; refId: Extract<BookRef, { kind: 'server' }>; document: components['schemas']['Document']; onClose(): void; onSaved(cover?: Blob | null): void;
 }) {
   const formId = useId();
   const [draft, setDraft] = useState(() => bookMetadataDraft(document));
@@ -34,7 +34,7 @@ export function BookEditor({ book, refId, document, onClose, onSaved }: {
       await session.api.editDocument(refId.account, refId.documentId, {
         ...draft, title: draft.title.trim(), ...(cover_base64 ? { cover_base64 } : remove ? { remove_cover: true } : {}),
       }, signal);
-      if (!signal.aborted) onSaved();
+      if (!signal.aborted) onSaved(cover ?? (remove ? null : undefined));
     } catch (err) { if (!signal.aborted) setError(err); }
     finally { request.current = null; if (!signal.aborted) setBusy(false); }
   }

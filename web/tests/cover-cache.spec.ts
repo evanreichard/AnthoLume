@@ -72,6 +72,32 @@ test('Save to Device keeps the server artwork on a cold offline start and remove
   expect(await storedCovers(cold)).toEqual([]);
 });
 
+test('confirmed cover edits replace or remove saved artwork without fetching the EPUB', async ({ page, server }) => {
+  await register(page, server.origin, 'edit-cached-cover');
+  await saveBook(page);
+  await expect.poll(async () => (await storedCovers(page)).length).toBe(1);
+  let fileRequests = 0;
+  await page.route(fileRoute, route => { fileRequests++; return route.abort(); });
+  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Edit book' });
+  async function editCover() {
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  }
+  await editCover();
+  await dialog.getByLabel('Cover image').setInputFiles({ name: 'new.png', mimeType: 'image/png', buffer: artwork });
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(() => storedCovers(page)).toEqual([{ pinned: true, bytes: [...artwork] }]);
+  await editCover();
+  await dialog.getByRole('button', { name: 'Remove Cover' }).click();
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(() => storedCovers(page)).toEqual([]);
+  await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
+  expect(fileRequests).toBe(0);
+});
+
 test('opening a book directly caches artwork without pinning the book', async ({ page, context, server }) => {
   const user = 'read-cover-reader';
   await writeFile(`${server.data}/covers/public.png`, artwork);

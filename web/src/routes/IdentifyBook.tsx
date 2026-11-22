@@ -33,7 +33,7 @@ function ResultCover({ id }: { id?: number }) {
 }
 
 export function IdentifyBook({ document, refId, onClose, onSaved }: {
-  document: components['schemas']['Document']; refId: Extract<BookRef, { kind: 'server' }>; onClose(): void; onSaved(): void;
+  document: components['schemas']['Document']; refId: Extract<BookRef, { kind: 'server' }>; onClose(): void; onSaved(cover?: Blob): void;
 }) {
   const formId = useId();
   const original = bookMetadataDraft(document);
@@ -97,17 +97,17 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
     void run('apply', async signal => {
       const next = bookMetadataDraft(document);
       for (const field of selected) if (field !== 'cover') next[field] = match[field] ?? '';
-      let cover_base64: string | undefined;
+      let image: Blob | undefined;
       if (selected.includes('cover') && match.cover_id && cover === 'ready') {
         const response = await session.api.metadataCover(refId.account, match.cover_id, signal);
         if (!response.ok || response.headers.get('Content-Type') !== 'image/jpeg') throw new Error('This cover is unavailable. Try again or deselect “Edition Cover”.');
-        const image = await response.blob();
+        image = await response.blob();
         if (image.size > 2 * 1024 * 1024) throw new Error('This cover is larger than 2 MiB. Deselect “Edition Cover” to apply the other fields.');
-        cover_base64 = await encodeBookCover(image);
       }
+      const cover_base64 = image && await encodeBookCover(image);
       if (signal.aborted) return;
       await session.api.editDocument(refId.account, refId.documentId, { ...next, title: next.title.trim(), ...(cover_base64 ? { cover_base64 } : {}) }, signal);
-      if (!signal.aborted) onSaved();
+      if (!signal.aborted) onSaved(image);
     });
   }
 

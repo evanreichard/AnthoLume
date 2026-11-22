@@ -11,7 +11,7 @@ export type SourceRow = { etag?: string; checksum?: string | null; protocolHash?
 
 export type ServerRef = Extract<BookRef, { kind: 'server' }>;
 export type Download = Pick<BookRow, 'title' | 'author' | 'cover' | 'addedAt'> & {
-  key: string; library: string; document: string; sourceId: string; pinned: boolean;
+  key: string; library: string; document: string; sourceId: string; pinned: boolean; coverRemoved?: boolean;
 };
 export type Position = Pick<BookRow, 'key' | 'scope' | 'checkpoint' | 'lastReadAt' | 'resumeCandidate'> & { ref: ServerRef };
 export const libraryKey = (account: Account) => JSON.stringify([account.origin, account.readingGeneration ?? null]);

@@ -86,6 +86,11 @@ function BookDetailContent() {
     void queryClient.invalidateQueries({ queryKey: ['insight-activity'] });
     void queryClient.invalidateQueries({ queryKey: ['insight-progress'] });
   }
+  function metadataSaved(cover?: Blob | null) {
+    if (cover !== undefined && ref?.kind === 'server') void reading.cacheCover(ref, cover, 'replace');
+    refreshManagement();
+    setManagement(null);
+  }
   async function deleteSharedBook() {
     if (ref?.kind !== 'server' || deleting) return;
     const controller = deleteController.current = new AbortController();
@@ -193,9 +198,9 @@ function BookDetailContent() {
       <p>The catalog ID is used for KOReader sync. For newly imported books, it is the KOReader partial MD5.</p>
     </Dialog>}
     {canManage && document.data && management === 'edit' &&
-      <BookEditor book={book} refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={() => { refreshManagement(); setManagement(null); }} />}
+      <BookEditor book={book} refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={metadataSaved} />}
     {canManage && document.data && management === 'identify' &&
-      <IdentifyBook refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={() => { refreshManagement(); setManagement(null); }} />}
+      <IdentifyBook refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={metadataSaved} />}
     <DownloadRemovalDialog download={download} />
     {canManage && management === 'delete' && <Dialog title="Delete from shared library?" onClose={() => { if (!deleting) setManagement(null); }}>
       <p>“{title}” will be removed from the shared library for everyone. The server keeps the original file and reading history. This does not remove downloads from other devices.</p>
