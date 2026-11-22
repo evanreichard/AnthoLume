@@ -27,7 +27,7 @@ A fresh dev library includes six books, recent sample reading activity and a res
 
 `RESTORE` accepts a compatible AnthoLume ZIP backup (including packaged books and covers) or a database-only SQLite backup. It uses the same checks as Administration → Restore and requires a fresh `data/dev/`. `RESET_USER` optionally sets a dev account's password to `antholume`, invalidating its sessions. Stop the server with Ctrl-C before `make clean-dev`; cleanup removes only `data/dev/`, not the source backup.
 
-The launcher uses `flock` to guard dev state. Vite serves hot reload at `http://127.0.0.1:5323` and automatically listens on the tailnet IPv4 address when available. Registration is open on both addresses, so use this plain-HTTP setup only on a trusted tailnet. The Go backend stays on `127.0.0.1:5324`. Override occupied ports with `DEV_PORT` and `DEV_GO_PORT`.
+The launcher uses `flock` to guard dev state. Vite serves hot reload at `http://127.0.0.1:5323` (also `http://localhost:5323`) and automatically listens on the tailnet IPv4 address when available. Registration is open on both addresses, so use this plain-HTTP setup only on a trusted tailnet. The Go backend stays on `127.0.0.1:5324`. Override occupied ports with `DEV_PORT` and `DEV_GO_PORT`.
 
 Browser tests share port 5323 by default; stop dev before running them. Set `CHROMIUM_PATH` for a system Chromium or `GO_BINARY` to override `go` on `PATH`. Fixture binaries and databases use the OS temporary directory and are removed at teardown.
 

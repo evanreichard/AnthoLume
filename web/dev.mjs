@@ -42,6 +42,7 @@ async function run() {
   if (vitePort === goPort) throw new Error('DEV_PORT and DEV_GO_PORT must differ.');
   const local = `127.0.0.1:${vitePort}`;
   const tailnet = ip ? `${ip}:${vitePort}` : null;
+  const frontendHosts = new Set([local, `localhost:${vitePort}`, ...(tailnet ? [tailnet] : [])]);
   const target = `http://127.0.0.1:${goPort}`;
   process.env.ANTHOLUME_BACKEND = target;
 
@@ -90,7 +91,7 @@ async function run() {
           for (const options of Object.values(server.config.server.proxy)) {
             options.configure = proxy => proxy.on('proxyReq', (out, req) => {
               const host = req.headers.host;
-              if ((host === local || host === tailnet) && req.headers.origin === `http://${host}`) out.setHeader('Origin', target);
+              if (frontendHosts.has(host) && req.headers.origin === `http://${host}`) out.setHeader('Origin', target);
               else if (req.headers.origin) out.removeHeader('Origin');
             });
           }

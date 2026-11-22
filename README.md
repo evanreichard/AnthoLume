@@ -118,7 +118,7 @@ Goose Migrations:
 go install github.com/pressly/goose/v3/cmd/goose@latest
 ```
 
-Run `make dev` for an empty, persistent library at `http://127.0.0.1:5323`. For backup seeding, account reset, or optional Tailscale access, see [web development](web/README.md).
+Run `make dev` for a persistent library seeded with demo books on first launch at `http://127.0.0.1:5323`. For backup seeding, account reset, or optional Tailscale access, see [web development](web/README.md).
 
 Pull requests run Go tests, the frontend build, unit tests, and a browser smoke suite. The full race, app-browser, and reader suites run monthly, on dispatch, and on tags: comment `/publish` on a same-repository pull request to build and receive a `pr-<number>-<commit>` image reference.
 
