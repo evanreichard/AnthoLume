@@ -6,18 +6,27 @@ import { profiles, type OfflineProfile } from './offlineProfiles';
 import { useReading, type Account, type OfflineChoice, type OfflineRecord } from './reading';
 import { Dialog, ErrorNotice } from './ui';
 import { Button } from './Controls';
-import styles from './App.module.css';
+import { Brand } from './Brand';
+import { Icon } from './Icon';
+import styles from './OfflineReading.module.css';
 
 export function OfflinePicker() {
   const [forget, setForget] = useState<OfflineProfile>();
   const [error, setError] = useState<unknown>();
-  const reading = useReading(), navigate = useNavigate();
-  return <main className={styles.auth}><h1>Offline profiles</h1>
-    {profiles().map(p => <div key={JSON.stringify(p.account)} className={styles.profileRow}>
-      <Button onClick={() => { session.chooseOffline(p.account); navigate('/library', {replace:true}); }}>{p.name}</Button>
-      <button aria-label={`Forget ${p.name}`} onClick={() => setForget(p)}>Forget</button>
-    </div>)}
-    <Button onClick={() => void session.checkSession()}>Reconnect</Button>
+  const [manage, setManage] = useState(false);
+  const reading = useReading(), navigate = useNavigate(), remembered = profiles();
+  return <main className={styles.picker}>
+    <header><div className={styles.wordmark}><Brand /></div>
+      <h1>Offline Profiles</h1><p>{remembered.length ? 'Choose a reader on this device.' : 'Reconnect to sign in and add a profile.'}</p>
+    </header>
+    <ul className={styles.profiles}>{remembered.map(p => <li key={JSON.stringify(p.account)}>
+      <button className={styles.profile} onClick={() => { session.chooseOffline(p.account); navigate('/library', {replace:true}); }}>
+        <span className={styles.avatar} aria-hidden="true">{Array.from(p.name)[0]?.toLocaleUpperCase()}</span>
+        <strong>{p.name}</strong><Icon name="forward" size={18} />
+      </button>{manage && <button className={styles.quiet} aria-label={`Forget ${p.name}`} onClick={() => { setError(null); setForget(p); }}><Icon name="trash" size={17} /></button>}
+    </li>)}</ul>
+    <footer><button className={styles.quiet} onClick={() => void session.checkSession()}><Icon name="refresh" size={16} /> Reconnect</button>
+      {!!remembered.length && <button className={styles.quiet} aria-pressed={manage} onClick={() => setManage(!manage)}>{manage ? 'Done' : 'Manage profiles'}</button>}</footer>
     {forget && <Dialog title={`Forget ${forget.name}?`} onClose={() => setForget(undefined)}>
       <p>This removes the offline profile and its unsubmitted reading.</p><ErrorNotice error={error} />
       <Button onClick={async () => { try { await reading.forgetDrafts(forget.account); session.forgetOffline(forget.account); setForget(undefined); } catch (e) { setError(e); } }}>Forget on this device</Button>
@@ -58,12 +67,12 @@ function BookComparison({ account, book, timezone, selected, select }: { account
     queryFn: ({signal}) => comparison(account, book, timezone, signal) });
   const progress = book.rows.find(r => r.kind === 'progress');
   const activities = book.rows.filter(r => r.kind === 'activity');
-  return <fieldset className={styles.reviewBook}><legend>{book.title}</legend>
-    <div className={styles.reviewGrid}><span /><small>Offline</small><small>Server</small>
-      {progress && <><label><input type="checkbox" disabled={!query.data?.progress} checked={selected.has(progress.id)} onChange={e => select([{id: progress.id, revision: query.data?.progress?.revision}], e.target.checked)} /> Progress</label><span>{percent(progress.checkpoint.fraction)}</span><span>{query.data ? percent(query.data.progress?.fraction ?? null) : '…'}</span></>}
-      {!!activities.length && <><label><input type="checkbox" disabled={!query.data} checked={activities.every(r => selected.has(r.id))} onChange={e => select(activities.map(r => ({id:r.id})), e.target.checked)} /> Activity</label><span>{duration(activities.reduce((n,r) => n + r.event.duration,0))}</span><span>{query.data ? duration(query.data.seconds) : '…'}</span></>}
-    </div>{query.isError && <button onClick={() => void query.refetch()}>Retry comparison</button>}
-  </fieldset>;
+  return <section className={styles.reviewBook} role="group" aria-label={book.title}>
+    <header><h3>{book.title}</h3><small>Offline</small><small>Server</small></header>
+    {progress && <label><span><input aria-label="Progress" type="checkbox" disabled={!query.data?.progress} checked={selected.has(progress.id)} onChange={e => select([{id: progress.id, revision: query.data?.progress?.revision}], e.target.checked)} />Progress</span><b>{percent(progress.checkpoint.fraction)}</b><span>{query.data ? percent(query.data.progress?.fraction ?? null) : '…'}</span></label>}
+    {!!activities.length && <label><span><input aria-label="Activity" type="checkbox" disabled={!query.data} checked={activities.every(r => selected.has(r.id))} onChange={e => select(activities.map(r => ({id:r.id})), e.target.checked)} />Activity</span><b>{duration(activities.reduce((n,r) => n + r.event.duration,0))}</b><span>{query.data ? duration(query.data.seconds) : '…'}</span></label>}
+    {query.isError && <button onClick={() => void query.refetch()}>Retry comparison</button>}
+  </section>;
 }
 export function OfflineReview({account}: {account: Account}) {
   const reading = useReading(), {session: current} = useSession();
@@ -92,11 +101,11 @@ export function OfflineReview({account}: {account: Account}) {
     finally { setSelected(new Map()); setBusy(false); setDiscard(false); }
   }
   if (later) return <button onClick={() => setLater(false)}>Review offline reading</button>;
-  return <Dialog title="Offline reading" onClose={close} layout="scroll-body" footer={<>
-    <Button disabled={busy} onClick={close}>Not now</Button>
-    <Button disabled={busy || !choices.length} onClick={() => setDiscard(!discard)}>{discard ? 'Cancel discard' : 'Discard…'}</Button>
-    <Button tone="primary" disabled={busy || !choices.length} onClick={() => void submit(discard)}>{discard ? 'Discard selected' : 'Upload selected'}</Button>
-  </>}><ErrorNotice error={error} />{group(records).map(book => <BookComparison key={book.document} book={book} account={account} timezone={current?.user?.timezone ?? 'UTC'} selected={selected} select={(items, checked) => {
+  return <Dialog title="Offline Reading" onClose={close} layout="scroll-body" placement="mobile-sheet" footer={<div className={styles.reviewActions}>
+    <button className={styles.quiet} disabled={busy} onClick={() => discard ? setDiscard(false) : close()}>{discard ? 'Cancel' : 'Not now'}</button>
+    {!discard && <button className={styles.quiet} title="Discard selected records" aria-label="Discard selected records" disabled={busy || !choices.length} onClick={() => setDiscard(true)}><Icon name="trash" size={17} /></button>}
+    <Button tone={discard ? 'danger' : 'primary'} disabled={busy || !choices.length} onClick={() => void submit(discard)}>{discard ? 'Discard selected' : 'Upload selected'}</Button>
+  </div>}><ErrorNotice error={error} />{group(records).map(book => <BookComparison key={book.document} book={book} account={account} timezone={current?.user?.timezone ?? 'UTC'} selected={selected} select={(items, checked) => {
     if (busy) return;
     setDiscard(false); setSelected(previous => { const next = new Map(previous); for (const item of items) { if (checked) next.set(item.id,item); else next.delete(item.id); } return next; });
   }} />)}</Dialog>;

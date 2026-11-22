@@ -91,15 +91,15 @@ function Shell() {
   if (!showShell) return <Outlet />;
   return <div className={`${styles.shell} ${reader ? styles.readerShell : ''}`}>
       <a className={styles.skip} href="#content">Skip to content</a>
-      <aside className={styles.rail}>
+      {access.kind !== 'offline' && <aside className={styles.rail}>
         <Link to="/library" className={styles.brand}><Brand /></Link>
         <nav aria-label="Main navigation" className={styles.tabs}>
           <NavLink to="/library"><i className={styles.tabIcon}><Icon name="library" /></i><span>Library</span></NavLink>
-          {access.kind !== 'offline' && <><NavLink to="/insights"><i className={styles.tabIcon}><Icon name="insights" /></i><span>Insights</span></NavLink>
-          <NavLink to="/settings" data-section-active={location.pathname.startsWith('/admin') || undefined}><i className={styles.tabIcon}><Icon name="settings" /></i><span>Settings</span></NavLink></>}
+          <NavLink to="/insights"><i className={styles.tabIcon}><Icon name="insights" /></i><span>Insights</span></NavLink>
+          <NavLink to="/settings" data-section-active={location.pathname.startsWith('/admin') || undefined}><i className={styles.tabIcon}><Icon name="settings" /></i><span>Settings</span></NavLink>
         </nav>
-      </aside>
-    <div className={styles.workspace}>
+      </aside>}
+    <div className={access.kind === 'offline' ? styles.offlineWorkspace : styles.workspace}>
       <main ref={main} id="content" className={styles.main}>
         <div ref={recovery} className={reader ? styles.readerRecovery : undefined}>
           {reading.error && !reader && <ErrorNotice error={reading.error} />}

@@ -21,7 +21,9 @@ test('cold start, pick a profile, review offline reading and upload the selected
   const cold = await context.newPage();
   await cold.goto(`${server.origin}/`);
   await cold.getByRole('button', {name: user, exact:true}).click();
-  await expect(cold.getByText(/Offline · Books on this device/)).toBeVisible();
+  await expect(cold.getByRole('status').filter({hasText:'Offline · ' + user})).toBeVisible();
+  await expect(cold.getByRole('navigation',{name:'Main navigation'})).toHaveCount(0);
+  await expect(cold.getByRole('button',{name:'Switch profile'})).toBeVisible();
   await expect(cold.getByRole('article')).toHaveCount(1);
   await expect(cold.getByRole('article')).toContainText('Public book 01');
   await cold.clock.setFixedTime(started);
@@ -42,6 +44,13 @@ test('cold start, pick a profile, review offline reading and upload the selected
   await context.setOffline(false);
   const review = cold.getByRole('dialog', {name:'Offline reading'});
   await expect(review).toBeVisible();
+  for (const width of [320, 1280, 390]) {
+    await cold.setViewportSize({width, height:844});
+    const box = await review.boundingBox();
+    if (width < 760) expect(Math.round(box!.y + box!.height)).toBe(844);
+    else expect(box!.width).toBeLessThan(width / 2);
+    expect(await review.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  }
   await expect(review.getByText('2m', {exact:true})).toBeVisible();
   await expect(review.getByText('30s', {exact:true})).toBeVisible();
   expect(serverEffects(server.data,user)).toMatchObject({activity:2});
@@ -59,6 +68,7 @@ test('cold start, pick a profile, review offline reading and upload the selected
   expect(serverEffects(server.data, user)).toMatchObject({ activity: 3, activitySeconds: 450 });
   await cold.goto(`${server.origin}/library`);
   await context.setOffline(true);
+  await cold.getByRole('button', { name: 'Manage profiles' }).click();
   await cold.getByRole('button', { name: `Forget ${user}` }).click();
   await cold.getByRole('button', { name: 'Forget on this device' }).click();
   await expect(cold.getByRole('button',{ name:user, exact:true })).toHaveCount(0);
@@ -118,7 +128,9 @@ test('seven pins and an automatically cached book coexist on the offline shelf',
   await context.setOffline(true);
   await page.getByRole('button',{name:'offline-capacity',exact:true}).click();
   await expect(page.getByRole('article')).toHaveCount(8);
-  await expect(page.getByRole('button', { name: 'Unpin offline copy' })).toHaveCount(7);
-  await page.getByRole('button', { name: 'Unpin offline copy' }).first().click();
-  await expect(page.getByRole('button', { name: 'Unpin offline copy' })).toHaveCount(6);
+  const pins = page.getByRole('button', { name: /^Unpin offline copy:/, pressed: true });
+  await expect(pins).toHaveCount(7);
+  await pins.first().click();
+  await expect(pins).toHaveCount(6);
+  await expect(page.getByRole('article')).toHaveCount(8);
 });

@@ -9,6 +9,8 @@ import styles from '../App.module.css';
 import { Icon } from '../Icon';
 import { LoadingStatus, Skeleton } from '../Skeleton';
 import { RecentBooks } from '../RecentBooks';
+import offlineStyles from '../OfflineReading.module.css';
+import { profiles } from '../offlineProfiles';
 import { OfflinePin } from '../OfflinePin';
 import { Button } from '../Controls';
 
@@ -136,8 +138,8 @@ export function Library() {
   }
   return <>
     <PageHeader title="Library" headingRef={heading} mobileBrand
-      actions={reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>} />
-    {offline && <p role="status">Offline · Books on this device. <button onClick={() => void session.checkSession()}>Reconnect</button> <button onClick={() => session.chooseOffline()}>Switch profile</button></p>}
+      actions={offline ? <button className={styles.icon} title="Switch profile" aria-label="Switch profile" onClick={() => session.chooseOffline()}><Icon name="user" /></button> : reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>} />
+    {offline && <div className={offlineStyles.shelfStatus}><span role="status"><i />Offline · {profiles().find(p => p.account.userId === access.account.userId && p.account.readingGeneration === access.account.readingGeneration)?.name ?? 'On this device'}</span><button className={offlineStyles.quiet} onClick={() => void session.checkSession()}><Icon name="refresh" size={14} />Reconnect</button></div>}
     {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}
     <RecentBooks books={recent} bookLinkState={bookLinkState} />
     <form className={styles.searchRow} role="search" onSubmit={(event) => { event.preventDefault(); update('q', input.trim()); }}>
@@ -146,7 +148,7 @@ export function Library() {
         <label><span className={styles.srOnly}>Search title or author</span><input ref={searchInput} type="search" value={input} maxLength={256} placeholder="Title or author" onChange={(event) => setInput(event.target.value)} /></label>
         {(input || q) && <button type="button" className={styles.searchClear} aria-label="Clear search" onClick={clearSearch}>×</button>}
       </div>
-      <button type="button" className={styles.icon} aria-label="Add Book" disabled={access.kind !== 'authenticated' || !!capabilities?.demo_mode} onClick={() => { setNewBook(null); setError(null); open('add'); }}><Icon name="add" /></button>
+      {!offline && <button type="button" className={styles.icon} aria-label="Add Book" disabled={access.kind !== 'authenticated' || !!capabilities?.demo_mode} onClick={() => { setNewBook(null); setError(null); open('add'); }}><Icon name="add" /></button>}
       <button type="button" className={styles.icon} aria-label="Sort Books" aria-haspopup="dialog" aria-expanded={dialog === 'sort'} onClick={() => open('sort')}><Icon name="sort" /></button>
     </form>
     <div className={styles.divider} />
@@ -154,7 +156,7 @@ export function Library() {
     {documents.isPending && documents.fetchStatus === 'fetching' && <LoadingStatus>Loading shared books…</LoadingStatus>}
     {!books.length && reading.ready && !documents.isFetching && !(sharedEnabled && hasNextPage) && <p>{offline ? 'No matching books on this device.' : 'No matching books. Try another search or add an EPUB.'}</p>}
     <div className={styles.grid}>
-      {books.map((book) => <BookCard key={bookKey(book.ref)} book={book} linkState={bookLinkState} action={offline ? 'read' : 'books'}>{offline && book.ref.kind === 'server' && <OfflinePin book={book.ref} metadata={book} pinned={!!book.stored?.pinned} />}</BookCard>)}
+      {books.map((book) => <BookCard key={bookKey(book.ref)} book={book} linkState={bookLinkState} action={offline ? 'read' : 'books'}>{offline && book.ref.kind === 'server' && <OfflinePin overlay book={book.ref} metadata={book} pinned={!!book.stored?.pinned} />}</BookCard>)}
       {!books.length && (!reading.ready || documents.isPending && documents.fetchStatus === 'fetching') && Array.from({ length: 6 }, (_, index) => <div key={index} className={styles.card} aria-hidden="true">
         <Skeleton block className={`${styles.cover} ${styles.coverThumbnail}`} />
         <h2 className={styles.cardTitle}><Skeleton width="75%" /></h2>

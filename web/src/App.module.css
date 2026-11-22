@@ -12,11 +12,6 @@
 .brandLockup img { display: block; margin: 0 auto 4px; }
 .mobileBrand { display: none; }
 .authBrand { font-size: clamp(36px, 8vw, 48px); line-height: 1.1; margin-bottom: clamp(20px, 4vh, 36px); }
-.profileRow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-block: .75rem; }
-.reviewBook { min-width: 0; border: 0; border-bottom: 1px solid var(--line); margin: .5rem 0 1rem; padding: .5rem 0 1rem; }
-.reviewBook legend { font-weight: 650; overflow-wrap: anywhere; }
-.reviewGrid { display: grid; grid-template-columns: minmax(7rem, 1fr) repeat(2, minmax(3rem, auto)); align-items: center; gap: .4rem .75rem; font-variant-numeric: tabular-nums; }
-.reviewGrid label { display: flex; align-items: center; gap: .4rem; min-height: 2.5rem; }
 .authBrand img { width: clamp(72px, 14vh, 96px); height: auto; }
 .tabs { display: grid; gap: 6px; }
 .tabs a { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; text-decoration: none; border-radius: var(--radius); }
@@ -27,6 +22,8 @@
   .brand:hover { color: var(--accent); }
 }
 .workspace { margin-left: 184px; }
+.offlineWorkspace { margin: 0 auto; }
+.offlineWorkspace .mobileBrand { display: block; }
 .main { padding: 22px 28px 36px; max-width: 1260px; margin: auto; }
 .readerShell .rail, .readerShell .skip { display: none; }
 .readerShell .workspace { margin: 0; padding: 0; }
@@ -84,7 +81,7 @@
 .icon { composes: iconButton from './Controls.module.css'; }
 .divider { height: 1px; background: var(--line); margin: 16px 0 10px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(142px, 1fr)); gap: 22px 18px; }
-.card { min-width: 0; }
+.card { min-width: 0; position: relative; }
 .bookLink { text-decoration: none; display: block; }
 .cover { position: relative; height: 198px; width: 100%; background: var(--subtle); box-shadow: 0 2px 5px #0002; border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
 .cover img { height: 100%; width: 100%; object-fit: cover; }
