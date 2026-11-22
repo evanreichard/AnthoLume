@@ -214,7 +214,7 @@ class SessionCoordinator {
       this.publish({ session, busy: false, access: { kind: 'authenticated', account: sessionAccount(session.user) } });
       this.channel?.postMessage('changed');
     } catch (error) {
-      if (epoch === this.generation) this.publish({ busy: false, access: oldAccess.kind === 'authenticated' ? { kind: 'expired', account: oldAccess.account } : oldAccess, error: message(error) });
+      if (epoch === this.generation) this.publish({ busy: false, access: oldAccess.kind === 'authenticated' ? { kind: 'expired', account: oldAccess.account } : oldAccess });
       throw error;
     }
   }

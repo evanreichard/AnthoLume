@@ -11,8 +11,8 @@
 .brandLockup { display: block; text-align: center; font-family: var(--display); white-space: nowrap; }
 .brandLockup img { display: block; margin: 0 auto 4px; }
 .mobileBrand { display: none; }
-.authBrand { font-size: clamp(36px, 8vw, 48px); line-height: 1.1; margin-bottom: clamp(20px, 4vh, 36px); }
-.authBrand img { width: clamp(72px, 14vh, 96px); height: auto; }
+.authBrand { font-size: clamp(32px, 7vw, 42px); line-height: 1.1; margin-bottom: clamp(16px, 4dvh, 28px); }
+.authBrand img { width: clamp(44px, 9dvh, 64px); height: auto; }
 .tabs { display: grid; gap: 6px; }
 .tabs a { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; text-decoration: none; border-radius: var(--radius); }
 .tabs a:is([aria-current], [data-section-active]) { background: var(--hero); font-weight: 650; }
@@ -234,10 +234,11 @@
 .form label { display: grid; gap: 5px; }
 .form p { margin: 0; }
 .form a { min-height: 44px; display: flex; align-items: center; }
-.auth { width: min(430px, calc(100% - 32px)); margin: clamp(32px, 12vh, 120px) auto; }
+.auth { width: min(400px, calc(100% - 32px)); margin-inline: auto; padding-block: max(env(safe-area-inset-top), clamp(16px, 6dvh, 56px)) max(env(safe-area-inset-bottom), 16px); }
 .auth > a { display: inline-flex; align-items: center; min-height: 44px; }
-.auth .form { margin: 20px 0 12px; }
+.auth .form { margin: 16px 0 8px; }
 .auth > p { margin: 12px 0; }
+.authError { margin: 0; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--danger) 25%, var(--line)); border-radius: var(--radius); background: color-mix(in srgb, var(--danger) 6%, var(--surface)); color: var(--danger); font-size: .875rem; }
 .bookOverview:has(> .bookFileWarning) > .bookHeroDetail { margin-bottom: 8px; }
 .bookFileWarning { display: flex; align-items: center; gap: 8px; padding: 9px 12px; margin-bottom: 16px; border: 1px solid color-mix(in srgb, var(--danger) 22%, var(--line)); border-radius: var(--radius); background: color-mix(in srgb, var(--danger) 6%, var(--surface)); font-size: .8125rem; line-height: 1.4; }
 .bookFileWarning svg { flex: none; color: var(--danger); }
