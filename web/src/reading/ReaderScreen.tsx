@@ -143,14 +143,9 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
         const device = await runtime.repo.device(book.account);
         activity = activityEvent(book.documentId, device.id, measured);
       }
-      await runtime.save(book, { position: location.ko, fraction: location.fraction }, activity);
+      await runtime.save(book, { position: location.ko, fraction: location.fraction }, activity, abort.signal);
     }, { localOnly: book.kind === 'local', parentGestures, interact: wake.interact, chrome: reveal, resizeText: resizeFromPinch,
       cycleTheme: () => { const themes = Object.keys(palette) as Appearance['theme'][]; void changeAppearance({ ...appearanceRef.current, theme: themes[(themes.indexOf(appearanceRef.current.theme) + 1) % themes.length]! }); },
-      credit: async measured => {
-        if (book.kind !== 'server') return;
-        const device = await runtime.repo.device(book.account);
-        await runtime.credit(book, activityEvent(book.documentId, device.id, measured), measured);
-      },
     });
     controller.current = instance;
     let dimensions: { width: number; height: number } | undefined;

@@ -13,9 +13,9 @@ test('atomic complete-book and checkpoint/event transactions reject injected sto
     try { await repo.install(ref, bytes, 'Book', null, null, state); } catch (error) { importRejected = (error as Error).name === 'QuotaExceededError'; }
     repo.db.heads.hook('creating').unsubscribe(fail); const countAfterFailure = await repo.db.books.count();
     await repo.install(ref, bytes, 'Book', null, null, state);
-    repo.db.events.hook('creating', fail); let saveRejected = false;
-    try { await repo.save(ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 }); } catch (error) { saveRejected = (error as Error).name === 'QuotaExceededError'; }
-    repo.db.events.hook('creating').unsubscribe(fail);
+    repo.db.offline.hook('creating', fail); let saveRejected = false;
+    try { await repo.recordCapture(ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 }, undefined, { current: () => true }); } catch (error) { saveRejected = (error as Error).name === 'QuotaExceededError'; }
+    repo.db.offline.hook('creating').unsubscribe(fail);
     const saved = await repo.open(ref), checkpoint = saved.row.checkpoint;
     repo.db.close(); await repo.db.open(); const reopened = await repo.open(ref);
     const exact = await p.checksum(reopened.source) === await p.checksum(bytes);
@@ -27,13 +27,52 @@ test('atomic complete-book and checkpoint/event transactions reject injected sto
   });
   expect(result).toEqual({ importRejected: true, countAfterFailure: 0, saveRejected: true, checkpoint: { position: null, fraction: null }, events: 0, exact: true, originalID: 'opaque-server-id', integrityRejected: true });
 });
+test('reachability cannot authorize a superseded capture or rebase one onto newly observed progress', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(`promote-${crypto.randomUUID()}`));
+    const account = { origin: location.origin, userId: 'A' }, ref = { kind: 'server' as const, account, documentId: 'doc' };
+    await repo.setAccess({ kind: 'authenticated', account });
+    const bytes = await (await fetch('/fixtures/synthetic.epub')).arrayBuffer();
+    const state = { document_id: ref.documentId, revision: '1', position: null, fraction: null, device_id: null, updated_at: null };
+    await repo.install(ref, bytes, 'Book', null, null, state);
+    const device = await repo.device(account), capture = (n: number) => repo.recordCapture(ref, { position: `/body/DocFragment[1]/body/p[${n}]`, fraction: n / 10 }, undefined, { online: true, current: () => true });
+    const older = (await capture(1))!, newer = (await capture(2))!;
+    const replayBefore = await repo.replayBatch(account);
+    await repo.promoteCapture(older, device.id, () => true);
+    const replayAfterStalePromotion = await repo.replayBatch(account);
+    await repo.install(ref, bytes, 'Book', null, null, { ...state, revision: '2' });
+    await repo.promoteCapture(newer, device.id, () => true);
+    repo.releaseCapture(newer);
+    const replayAfterNewRevision = await repo.replayBatch(account), rows = await repo.db.offline.toArray();
+    await repo.db.delete();
+    return { replayBefore, replayAfterStalePromotion, replayAfterNewRevision, rows };
+  });
+  expect(result).toMatchObject({ replayBefore: null, replayAfterStalePromotion: null, replayAfterNewRevision: null,
+    rows: [{ kind: 'progress', checkpoint: { position: '/body/DocFragment[1]/body/p[2]', fraction: .2 } }] });
+  expect(result.rows).toHaveLength(1);
+});
+test('Keep Reading in another tab wins over an outstanding reachability check', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const { Repository, ReadingDB } = window.readingTest, name = `defer-${crypto.randomUUID()}`;
+    const reader = new Repository(new ReadingDB(name)), reviewer = new Repository(new ReadingDB(name));
+    const account = { origin: location.origin, userId: 'A' }, ref = { kind: 'server' as const, account, documentId: 'doc' };
+    await reader.setAccess({kind: 'authenticated', account});
+    const device = await reader.device(account), id = crypto.randomUUID();
+    const capture = await reader.recordCapture(ref, undefined, { document_id: 'doc', device_id: device.id, event_id: id, start_time: new Date().toISOString(), duration: 30, start_fraction: 0, end_fraction: .1 }, { online: true, current: () => true });
+    await reviewer.decideOffline(account, [{id}], 'keep');
+    await reader.promoteCapture(capture!, device.id, () => true);
+    const saved = await reader.db.offline.count(), sent = await reader.db.events.count();
+    reviewer.db.close(); await reader.db.delete(); return { saved, sent };
+  });
+  expect(result).toEqual({ saved: 1, sent: 0 });
+});
 test('passive access states leave shared replay and resume intact; logout fences old acknowledgements', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(`accounts-${crypto.randomUUID()}`));
     const account = { origin: location.origin, userId: 'A' }, other = { origin: location.origin, userId: 'B' }, ref = { kind: 'server' as const, account, documentId: 'unchanged-id' }, local = { kind: 'local' as const, localId: 'independent-id' };
     const bytes = await (await fetch('/fixtures/synthetic.epub')).arrayBuffer(), state = { document_id: ref.documentId, revision: '0', position: null, fraction: null, device_id: null, updated_at: null };
     await repo.setAccess({ kind: 'authenticated', account }); await repo.install(ref, bytes, 'Private A', null, null, state); await repo.install(local, bytes, 'Public local', null, null);
-    await repo.save(ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 });
+    await p.verifiedCapture(repo, ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 });
     const batch = (await repo.replayBatch(account))!, event = (await repo.pending())[0]!;
     const observer = new p.Repository(new p.ReadingDB(repo.db.name));
     const passive = [];
@@ -96,12 +135,12 @@ test('two tabs can read the same batch and apply duplicate receipts without dequ
     const bytes = await (await fetch('/fixtures/synthetic.epub')).blob();
     const state = { document_id: ref.documentId, revision: '6', position: null, fraction: null, device_id: null, updated_at: null };
     await repo.install(ref, bytes, null, null, null, state);
-    await repo.save(ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .1 });
-    await repo.save(ref, { position: '/body/DocFragment[1]/body/p[2]', fraction: .2 });
-    await repo.save(ref, latest);
+    await p.verifiedCapture(repo, ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .1 });
+    await p.verifiedCapture(repo, ref, { position: '/body/DocFragment[1]/body/p[2]', fraction: .2 });
+    await p.verifiedCapture(repo, ref, latest);
     await repo.install(ref, bytes, null, null, null, { ...state, revision: '8' });
     const activityId = crypto.randomUUID(), device = await repo.device(account);
-    await repo.credit(ref, { event_id: activityId, document_id: ref.documentId, device_id: device.id, start_time: '2026-01-01T00:00:00Z', duration: 30, start_fraction: .1, end_fraction: .3 });
+    await p.verifiedCapture(repo, ref, undefined, { event_id: activityId, document_id: ref.documentId, device_id: device.id, start_time: '2026-01-01T00:00:00Z', duration: 30, start_fraction: .1, end_fraction: .3 });
     const progressId = (await repo.pending()).find(e => e.kind === 'progress')!.id;
     const key = (await repo.db.books.toArray())[0]!.key;
     repo.db.close();
@@ -158,7 +197,7 @@ test('explicit expiry invalidates the captured epoch without deleting cached pro
     await repo.setAccess({ kind: 'authenticated', account });
     const bytes = await (await fetch('/fixtures/synthetic.epub')).blob();
     await repo.install(ref, bytes, 'Cached book', null, null, { document_id: ref.documentId, revision: '0', position: null, fraction: null, device_id: null, updated_at: null });
-    await repo.save(ref, checkpoint);
+    await p.verifiedCapture(repo, ref, checkpoint);
     const old = (await repo.replayBatch(account))!, event = (await repo.pending())[0]!;
     const expired = await repo.expire(old.access);
     const expiredEpoch = (await repo.db.access.get(old.access.scope))!.epoch;
@@ -185,7 +224,7 @@ test('explicit expiry invalidates the captured epoch without deleting cached pro
 test('malformed HTTP 200, valid-looking HTTP 500 and late 401/ack cannot discard or expire fresh-account data', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(`receipts-${crypto.randomUUID()}`)), account = { origin: location.origin, userId: 'A' }, ref = { kind: 'server' as const, account, documentId: 'doc' };
-    await repo.setAccess({ kind: 'authenticated', account }); const bytes = await (await fetch('/fixtures/synthetic.epub')).arrayBuffer(); await repo.install(ref, bytes, null, null, null, { document_id: 'doc', revision: '0', position: null, fraction: null, device_id: null, updated_at: null }); await repo.save(ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 });
+    await repo.setAccess({ kind: 'authenticated', account }); const bytes = await (await fetch('/fixtures/synthetic.epub')).arrayBuffer(); await repo.install(ref, bytes, null, null, null, { document_id: 'doc', revision: '0', position: null, fraction: null, device_id: null, updated_at: null }); await p.verifiedCapture(repo, ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 });
     const event = (await repo.pending())[0]!; let mode = 'malformed', expired = 0;
     const bridge: ReadingBridge = { registerDevice: async (_, d) => d, getState: async () => { throw new Error('not used'); }, fetchFile: async () => { throw new Error('not used'); }, fetchCover: async () => { throw new Error('not used'); }, submitActivity: async () => { throw new Error('not used'); }, submitProgress: async () => {
       if (mode === 'late401' || mode === 'lateAck') { await repo.setAccess({ kind: 'logout', account }); await repo.setAccess({ kind: 'authenticated', account }); }

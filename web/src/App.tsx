@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, ScrollRestoration, useLocation, useNavigate, useRouteError } from 'react-router';
 import { ReadingProvider, useReading } from './reading';
@@ -62,8 +62,9 @@ function ProtectedApp() {
   }, [access, navigate]);
   if (access.kind === 'loading') return <p role="status">Connecting…</p>;
   if (access.kind === 'offline') {
-    if (location.pathname === '/books/server') return <Navigate to={'/read/server' + location.search} replace />;
-    return ['/library', '/read/server'].includes(location.pathname) ? <Outlet /> : <Navigate to="/library" replace />;
+    const path = location.pathname.replace(/\/+$/, '');
+    if (path === '/books/server') return <Navigate to={'/read/server' + location.search} replace />;
+    return ['/library', '/read/server'].includes(path) ? <Outlet /> : <Navigate to="/library" replace />;
   }
   return access.kind === 'authenticated' ? <Outlet /> : null;
 }
@@ -74,17 +75,6 @@ function Shell() {
   const reader = location.pathname.startsWith('/read/');
   const { access } = useSession();
   const showShell = access.kind === 'authenticated' || access.kind === 'offline';
-  const recovery = useRef<HTMLDivElement>(null);
-  const main = useRef<HTMLElement>(null);
-  useLayoutEffect(() => {
-    const target = recovery.current, container = main.current;
-    if (!target || !container) return;
-    if (!reader) { container.style.setProperty('--app-recovery-height', '0px'); return; }
-    const measure = () => container.style.setProperty('--app-recovery-height', `${target.getBoundingClientRect().height}px`);
-    const observer = new ResizeObserver(measure);
-    observer.observe(target); measure();
-    return () => observer.disconnect();
-  }, [reader, showShell]);
   useEffect(() => {
     if (!reader && showShell) document.title = `AnthoLume · ${location.pathname.startsWith('/settings') ? 'Settings' : location.pathname.startsWith('/insights') ? 'Insights' : 'Library'}`;
   }, [location.pathname, reader, showShell]);
@@ -100,11 +90,11 @@ function Shell() {
         </nav>
       </aside>}
     <div className={access.kind === 'offline' ? styles.offlineWorkspace : styles.workspace}>
-      <main ref={main} id="content" className={styles.main}>
-        <div ref={recovery} className={reader ? styles.readerRecovery : undefined}>
+      <main id="content" className={styles.main}>
+        <div className={reader ? styles.readerRecovery : undefined}>
           {reading.error && !reader && <ErrorNotice error={reading.error} />}
           {reading.notice && !reader && <p role="status" className={styles.notice}>{reading.notice}</p>}
-          {access.kind === 'authenticated' && <OfflineReview key={JSON.stringify(access.account)} account={access.account} />}
+          {access.kind === 'authenticated' && reading.ready && <OfflineReview key={JSON.stringify(access.account)} account={access.account} />}
           <WorkerRecovery duringReading={reader} />
         </div>
         <Outlet />

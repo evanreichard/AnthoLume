@@ -6,7 +6,7 @@ test('manifest corruption cannot self-attest; explicit identical-original repair
   const result = await page.evaluate(async () => {
     const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(`source-repair-${crypto.randomUUID()}`)), account = { origin: location.origin, userId: 'same-account' }, ref = { kind: 'server' as const, account, documentId: 'same-original-server' }, file = await (await fetch('/fixtures/synthetic.epub')).blob();
     await repo.setAccess({ kind: 'authenticated', account }); const state = (revision: string) => ({ document_id: ref.documentId, revision, position: 'opaque-server-position', fraction: .7, device_id: 'server-device', updated_at: null });
-    await repo.install(ref, file, null, null, null, state('0')); const first = await repo.open(ref), source = await repo.db.sources.get(first.row.sourceId!), saved = { position: '/body/DocFragment[1]/body/h1', fraction: .12345 }; await repo.save(ref, saved); const event = (await repo.pending())[0]!;
+    await repo.install(ref, file, null, null, null, state('0')); const first = await repo.open(ref), source = await repo.db.sources.get(first.row.sourceId!), saved = { position: '/body/DocFragment[1]/body/h1', fraction: .12345 }; await p.verifiedCapture(repo, ref, saved); const event = (await repo.pending())[0]!;
     await repo.db.sources.update(source!.id, { manifest: { ...source!.manifest!, title: 'corrupt metadata' } }); let corruptRejected = false, missingRejected = false;
     try { await repo.open(ref); } catch (error) { corruptRejected = String(error).includes('integrity'); }
     await repo.db.sources.update(source!.id, { manifestHash: undefined }); try { await repo.open(ref); } catch (error) { missingRejected = String(error).includes('integrity'); }

@@ -3,11 +3,11 @@ import { sourceLimits } from './source';
 import { Repository } from './repository';
 import { Replay } from './sync';
 import { WorkerCoordinator } from './worker-client';
-import { accountKey, refKey, sameAccount, type Account, type BookRef, type Checkpoint, type CoverLookup, type ReadingAccess, type OfflineChoice, type ReadingActions, type ReadingBridge, type ReadingSnapshot, type StoredBook, type S } from './types';
-import { validState } from './protocol';
-import type { CapturedActivity } from './activity';
+import { accountKey, refKey, sameAccount, type Account, type BookRef, type Checkpoint, type CoverLookup, type ReadingAccess, type OfflineChoice, type ReviewDecision, type ReadingActions, type ReadingBridge, type ReadingSnapshot, type StoredBook, type S } from './types';
+import { validDevice, validState } from './protocol';
 import { readCover } from './cover';
 
+const autoSyncBudgetMs = 4_000;
 const cacheETag = (value: string | null | undefined): string | undefined => value && /^(?:W\/)?"[\x21\x23-\x7e]{1,128}"$/.test(value) ? value : undefined;
 
 export const emptySnapshot: ReadingSnapshot = { ready: false, resumeAccount: null, books: [], sync: 'idle', pendingCount: 0, notice: null, downloads: [], workerError: null, error: null };
@@ -25,7 +25,7 @@ export class ReadingRuntime implements ReadingActions {
   private timer?: ReturnType<typeof setTimeout>;
   private failures = 0;
   private jobs = new Map<AbortController, boolean>();
-  private coverAccess = new AbortController();
+  private accountAccess = new AbortController();
   private coverJobs = new Set<string>();
   private quotaError = false;
   private snapshot: ReadingSnapshot = emptySnapshot;
@@ -52,7 +52,7 @@ export class ReadingRuntime implements ReadingActions {
     if (this.generation && this.access === access && this.appliedGeneration === this.generation) return this.accessTail;
     this.access = access; const version = ++this.generation; this.sync.stop(); this.error = null; this.quotaError = false;
     for (const [job, accountBound] of this.jobs) if (accountBound) job.abort();
-    this.coverAccess.abort(); this.coverAccess = new AbortController();
+    this.accountAccess.abort(); this.accountAccess = new AbortController();
     this.snapshot = { ...this.snapshot, downloads: [] };
     void this.refresh();
     this.accessTail = this.accessTail.catch(() => undefined).then(async () => {
@@ -70,8 +70,9 @@ export class ReadingRuntime implements ReadingActions {
     if (this.disposed) return;
     const serial = ++this.refreshSerial, access = this.access;
     try {
-      const [{ deviceCopies, books }, resumeAccount, pending, offlineRecords] = await Promise.all([this.repo.projection(access), this.repo.resume(), this.repo.pending(), access.kind === 'authenticated' ? this.repo.db.offline.where('scope').equals(accountKey(access.account)).toArray() : []]);
+      const [{ deviceCopies, books }, resumeAccount, pending, captures] = await Promise.all([this.repo.projection(access), this.repo.resume(), this.repo.pending(), access.kind === 'authenticated' ? this.repo.db.offline.where('scope').equals(accountKey(access.account)).toArray() : []]);
       if (serial !== this.refreshSerial || this.disposed) return;
+      const offlineRecords = captures.filter(row => this.repo.awaitingReview(row));
       const scope = 'account' in access && access.kind !== 'logout' ? accountKey(access.account) : null;
       const visible = pending.filter(e => e.scope === scope);
       this.projectionAccess = access;
@@ -190,12 +191,12 @@ export class ReadingRuntime implements ReadingActions {
   }
   cacheCover = async (ref: Extract<BookRef, { kind: 'server' }>, cover: Blob) => {
     if (this.disposed || this.appliedGeneration !== this.generation || this.access.kind !== 'authenticated' || !sameAccount(ref.account, this.access.account)) return;
-    await this.repo.cacheCover(ref, cover, this.coverAccess.signal).catch(() => undefined);
+    await this.repo.cacheCover(ref, cover, this.accountAccess.signal).catch(() => undefined);
   };
   private async fillCover(ref: Extract<BookRef, { kind: 'server' }>, sourceId: string) {
     if (this.disposed || this.access.kind !== 'authenticated' || !sameAccount(ref.account, this.access.account) || this.coverJobs.has(sourceId) || this.coverJobs.size >= 4) return;
     this.coverJobs.add(sourceId);
-    const signal = AbortSignal.any([this.coverAccess.signal, AbortSignal.timeout(8_000)]);
+    const signal = AbortSignal.any([this.accountAccess.signal, AbortSignal.timeout(8_000)]);
     try {
       const cover = this.lookupCover?.(ref) ?? await readCover(await this.bridge.fetchCover(ref.account, ref.documentId, signal), signal);
       await this.repo.cacheCover(ref, cover, signal, sourceId);
@@ -218,46 +219,59 @@ export class ReadingRuntime implements ReadingActions {
   }
   readerCacheSummary = () => { this.requireReady(); return this.repo.readerCacheSummary(); };
   clearReaderCache = () => { this.requireReady(); return this.repo.clearServerCache(); };
-  async decideOffline(account: Account, choices: OfflineChoice[], discard: boolean) {
+  async decideOffline(account: Account, choices: OfflineChoice[], decision: ReviewDecision) {
     if (this.access.kind !== 'authenticated' || !sameAccount(this.access.account, account)) throw new Error('Account changed');
-    await this.write(() => this.repo.decideOffline(account, choices, discard));
-    if (!discard) this.schedule(0);
+    await this.write(() => this.repo.decideOffline(account, choices, decision));
+    if (decision === 'upload') this.schedule(0);
   }
   async forgetDrafts(account: Account) { await this.repo.db.offline.where('scope').equals(accountKey(account)).delete(); }
-  private capture(ref: BookRef) {
-    if (ref.kind === 'local') return undefined;
-    const key = refKey(ref), generation = this.generation;
-    return {
-      title: this.snapshot.books.find(b => refKey(b.ref) === key)?.title,
-      offline: () => {
-        const access = this.access;
-        if (this.disposed || generation !== this.generation || (access.kind !== 'authenticated' && access.kind !== 'offline') || !sameAccount(access.account, ref.account)) {
-          throw new DOMException('Reading access changed', 'AbortError');
-        }
-        return access.kind === 'offline' || !navigator.onLine;
-      },
+  async save(ref: BookRef, checkpoint: Checkpoint, activity?: S['ActivityEvent'], lifetime?: AbortSignal) {
+    if (this.appliedGeneration !== this.generation) await this.accessTail;
+    lifetime?.throwIfAborted();
+    if (ref.kind === 'local') return this.write(() => this.repo.saveLocal(ref, checkpoint));
+    const access = this.access;
+    const current = () => {
+      const now = this.access;
+      return !this.disposed && !lifetime?.aborted && (now.kind === 'authenticated' || now.kind === 'offline') && sameAccount(now.account, ref.account);
     };
+    if (!current()) throw new DOMException('Reading access changed', 'AbortError');
+    const autoSync = access.kind === 'authenticated' && navigator.onLine;
+    const generation = this.accountAccess.signal;
+    const key = refKey(ref);
+    const capture = await this.write(() => this.repo.recordCapture(ref, checkpoint, activity, {
+      title: this.snapshot.books.find(book => refKey(book.ref) === key)?.title,
+      online: autoSync,
+      current,
+    }));
+    if (!capture) return;
+    // The originating interaction alone holds this promotion token. Leaving the reader does not authorize another capture.
+    const signal = AbortSignal.any([generation, AbortSignal.timeout(autoSyncBudgetMs)]);
+    const eligible = () => !signal.aborted && navigator.onLine;
+    void (async () => {
+      try {
+        if (!eligible()) return;
+        const device = await this.repo.device(ref.account);
+        signal.throwIfAborted();
+        const registered = await this.bridge.registerDevice(ref.account, device, signal);
+        if (!validDevice(registered, device.id)) return;
+        if (await this.repo.promoteCapture(capture, device.id, eligible)) void this.replay(device.id);
+      } catch { /* The capture is already durable and remains local. */ }
+      finally {
+        this.repo.releaseCapture(capture);
+        if (!this.disposed) await this.refresh();
+      }
+    })();
   }
-  async save(ref: BookRef, checkpoint: Checkpoint, activity?: S['ActivityEvent']) {
-    if (this.appliedGeneration !== this.generation) await this.accessTail;
-    await this.write(() => this.repo.save(ref, checkpoint, activity, this.capture(ref)));
-    if (this.access.kind === 'authenticated' && navigator.onLine) this.schedule(0);
-  }
-  async credit(ref: BookRef, event: S['ActivityEvent'], measured?: CapturedActivity) {
-    if (this.appliedGeneration !== this.generation) await this.accessTail;
-    await this.write(() => this.repo.credit(ref, event, measured, this.capture(ref)));
-    if (this.access.kind === 'authenticated' && navigator.onLine) this.schedule(0);
-  }
-  async replay() {
+  async replay(registeredDevice?: string) {
     const access = this.access;
     if (this.disposed || access.kind !== 'authenticated' || !navigator.onLine) return;
     await this.accessTail;
     if (this.disposed || this.access !== access || !navigator.onLine) return;
-    await this.sync.run(access.account);
+    await this.sync.run(access.account, registeredDevice);
     const pending = await this.repo.pending(accountKey(access.account));
     await this.refresh();
     if (this.access === access && navigator.onLine && pending.some(event => !event.rejected)) { this.failures = this.sync.status === 'retryable-error' ? this.failures + 1 : 0; this.schedule(Math.min(60000, 1000 * 2 ** Math.min(this.failures, 6)) + Math.random() * 500); }
   }
   applyUpdate = async () => { await this.worker.apply(); await this.refresh(); };
-  dispose() { this.disposed = true; this.coverAccess.abort(); this.sync.stop(); for (const [job] of this.jobs) job.abort(); clearTimeout(this.timer); this.subscription?.unsubscribe(); this.worker.dispose(); window.removeEventListener('online', this.foreground); document.removeEventListener('visibilitychange', this.foreground); void this.accessTail.finally(() => this.repo.db.close()); }
+  dispose() { this.disposed = true; this.accountAccess.abort(); this.sync.stop(); for (const [job] of this.jobs) job.abort(); clearTimeout(this.timer); this.subscription?.unsubscribe(); this.worker.dispose(); window.removeEventListener('online', this.foreground); document.removeEventListener('visibilitychange', this.foreground); void this.accessTail.finally(() => this.repo.db.close()); }
 }

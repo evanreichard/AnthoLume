@@ -118,7 +118,9 @@ const offlinePosition = async (page: Page) => (await offlineProgress(page))?.che
 
 async function turnPage(page: Page, next: number) {
   await page.keyboard.press('c');
-  await page.getByRole('button', { name: 'Next Page', exact: true }).click();
+  const nextButton = page.getByRole('button', { name: 'Next Page', exact: true });
+  await expect(nextButton).toBeVisible();
+  await nextButton.click();
   await expect(bookReader(page).locator('footer')).toContainText(`${next} /`);
 }
 
@@ -136,6 +138,99 @@ async function readOffline(page: Page, context: BrowserContext, origin: string, 
   await turnPage(page, 3);
   await expect.poll(() => offlinePosition(page)).toBeTruthy();
 }
+
+test('the first turn during a backend-only outage stays local through restart and reload until approved', async ({ page, server }) => {
+  const user = 'backend-outage-reader';
+  await register(page, server.origin, user);
+  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
+  const started = Date.now();
+  await page.clock.setFixedTime(started);
+  await page.getByRole('link', { name: 'Read', exact: true }).click();
+  const reader = bookReader(page), frame = reader.locator('iframe').first();
+  await expect(reader).toHaveAttribute('data-reader-state', 'ready');
+  const openedFrame = await frame.elementHandle();
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
+
+  const submissions: string[] = [];
+  page.on('request', request => {
+    const path = new URL(request.url()).pathname;
+    if (request.method() === 'POST' && /\/me\/(activity|reading-progress)$/.test(path)) submissions.push(path);
+  });
+  await server.stop();
+  expect(await page.evaluate(() => navigator.onLine)).toBe(true);
+  await page.clock.setFixedTime(started + 30_000);
+  await turnPage(page, 2);
+  await expect.poll(async () => (await storedRows(page, 'offline')).map(row => row.kind).sort()).toEqual(['activity', 'progress']);
+  const firstPosition = await offlinePosition(page);
+  expect(firstPosition).toBeTruthy();
+  await turnPage(page, 3);
+  await expect.poll(async () => (await offlinePosition(page)) ?? firstPosition).not.toBe(firstPosition);
+  const checkpoint = await offlinePosition(page);
+  expect(await frame.evaluate((current, original) => current === original, openedFrame)).toBe(true);
+  expect(await storedRows(page, 'events')).toEqual([]);
+  expect(submissions).toEqual([]);
+
+  await server.start();
+  await page.reload();
+  const review = offlineReview(page);
+  await expect(review.getByLabel('Progress')).toBeEnabled();
+  await expect(review.getByLabel('Activity')).toBeEnabled();
+  expect(submissions).toEqual([]);
+  expect(serverEffects(server.data, user)).toMatchObject({ head: undefined, activity: 0, receipts: [] });
+  await review.getByLabel('Progress').check();
+  await review.getByLabel('Activity').check();
+  await review.getByRole('button', { name: 'Upload Selected', exact: true }).click();
+  await expect.poll(() => serverEffects(server.data, user)).toMatchObject({ head: { revision: 1, position: checkpoint }, activity: 1, activitySeconds: 30 });
+});
+
+test('closing the tab during preflight preserves the turn for review without another tab submitting it', async ({ page, context, server }) => {
+  const user = 'abandoned-preflight-reader';
+  await register(page, server.origin, user);
+  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
+  const started = Date.now();
+  await page.clock.setFixedTime(started);
+  await page.getByRole('link', { name: 'Read', exact: true }).click();
+  await expect(bookReader(page)).toHaveAttribute('data-reader-state', 'ready');
+
+  const originalSubmissions: string[] = [];
+  context.on('request', request => {
+    const path = new URL(request.url()).pathname;
+    if (request.method() === 'POST' && /\/me\/(activity|reading-progress)$/.test(path) &&
+      request.postDataJSON().document_id === 'book_001') originalSubmissions.push(path);
+  });
+  const preflightURL = '**/api/v1/me/devices';
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route(preflightURL, async route => { await held; await route.abort().catch(() => undefined); });
+  const preflight = page.waitForRequest(request => request.method() === 'POST' && request.url().endsWith('/me/devices'));
+  try {
+    await page.clock.setFixedTime(started + 30_000);
+    await turnPage(page, 2);
+    await preflight;
+    // Inspect immediately: settling the request could also move a premature outbox row back to a draft.
+    expect((await storedRows(page, 'offline')).map(row => row.kind).sort()).toEqual(['activity', 'progress']);
+    const draft = await offlineProgress(page);
+    expect(draft?.checkpoint?.position).toBeTruthy();
+    expect(await storedRows(page, 'events')).toEqual([]);
+    expect(originalSubmissions).toEqual([]);
+
+    const survivor = await context.newPage();
+    await survivor.goto(`${server.origin}/library`);
+    await expect(survivor.getByRole('heading', { name: 'Library', exact: true, includeHidden: true })).toBeAttached();
+    expect(await storedRows(survivor, 'events')).toEqual([]);
+    expect(await offlineProgress(survivor)).toEqual(draft);
+
+    await page.close();
+    await survivor.reload();
+    const review = offlineReview(survivor);
+    await expect(review.getByLabel('Progress')).toBeEnabled();
+    await expect(review.getByLabel('Activity')).toBeEnabled();
+    expect(await offlineProgress(survivor)).toEqual(draft);
+    expect(await storedRows(survivor, 'events')).toEqual([]);
+    expect(originalSubmissions).toEqual([]);
+    expect(serverEffects(server.data, user)).toMatchObject({ head: undefined, activity: 0 });
+  } finally { release(); }
+});
 
 test('reconnect keeps the open page and frame through review, then syncs the first turn after upload', async ({ page, context, server }) => {
   const user = 'offline-upload-open-book';

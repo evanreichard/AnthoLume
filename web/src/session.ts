@@ -19,6 +19,7 @@ class SessionCoordinator {
   private generation = 0;
   private refresh: AbortController | null = null;
   private resume: Account | null = null;
+  private readerAccount: Account | null = null;
   private reconnect?: ReturnType<typeof setTimeout>;
   private pendingLogout = false;
   private storageBlocked = false;
@@ -59,6 +60,10 @@ class SessionCoordinator {
   }
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   getSnapshot = () => this.snapshot;
+  retainReader(account: Account) {
+    this.readerAccount = account;
+    return () => { if (this.readerAccount === account) this.readerAccount = null; };
+  }
   private publish(value: Partial<Snapshot>, fence = false) {
     if (fence) {
       this.refresh?.abort();
@@ -150,9 +155,16 @@ class SessionCoordinator {
       }
     } catch (error) {
       if (refresh.signal.aborted) return;
-      if (unreachable(error) && profiles().length) {
-        if (access.kind !== 'offline') this.chooseOffline();
-      } else this.publish({ error: message(error) });
+      if (unreachable(error)) {
+        if (access.kind === 'offline') return;
+        if (this.readerAccount && sameAccount(access.account, this.readerAccount)) {
+          // Live Reader - A failed probe pauses server access without changing the open book or selecting a profile for future tabs.
+          this.publish({ session: null, access: { kind: 'offline', account: access.account }, error: 'Could not verify your session. You can keep reading on this device.' }, true);
+          return;
+        }
+        if (profiles().length) { this.chooseOffline(); return; }
+      }
+      this.publish({ error: message(error) });
     } finally {
       if (this.refresh === refresh) this.refresh = null;
     }

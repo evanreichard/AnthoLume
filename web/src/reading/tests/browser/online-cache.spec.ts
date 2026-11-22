@@ -85,6 +85,10 @@ test('authenticated EPUB cache revalidates, repairs and evicts without changing 
       const cached = await open();
       const local = { position: '/body/DocFragment[1]/body/p[2]', fraction: .25 };
       await runtime.save(ref, local);
+      const promotionDeadline = performance.now() + 2000;
+      while (!(await runtime.repo.pending()).length && performance.now() < promotionDeadline) {
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
       revision = '2'; version = 2;
       const fresh = await open();
       const heldDuringReplacement = !!await runtime.repo.db.sources.get(first.row.sourceId!);

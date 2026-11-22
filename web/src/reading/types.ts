@@ -6,9 +6,10 @@ export type BookRef = { kind: 'local'; localId: string } | { kind: 'server'; acc
 export type ReadingAccess = { kind: 'loading' } | { kind: 'picker' } | { kind: 'anonymous' } | { kind: 'authenticated'; account: Account } | { kind: 'offline'; account: Account } | { kind: 'expired'; account: Account } | { kind: 'logout'; account: Account };
 export type Checkpoint = { position: string | null; fraction: number | null };
 export type StoredBook = { ref: BookRef; title: string | null; author: string | null; cover: Blob | null; pinned?: boolean; availability: 'available' | 'unavailable'; addedAt?: string; lastReadAt?: string; checkpoint: Checkpoint };
-export type OfflineRecord = { id: string; scope: string; document: string; title: string; created: string } & (
+export type OfflineRecord = { id: string; scope: string; document: string; title: string; created: string; held?: true } & (
   { kind: 'progress'; checkpoint: { position: string; fraction: number } } | { kind: 'activity'; event: S['ActivityEvent'] }
 );
+export type ReviewDecision = 'upload' | 'keep' | 'discard';
 export type OfflineChoice = { id: string; revision?: string };
 export type SyncStatus = 'idle' | 'pending' | 'syncing' | 'auth-required' | 'retryable-error' | 'quota-error' | 'blocked';
 export interface ReadingBridge {
@@ -32,7 +33,7 @@ export interface ReadingSnapshot {
 }
 export type ReaderCacheSummary = { books: number; epubBytes: number; metadataBytes: number };
 export interface ReadingActions {
-  decideOffline(account: Account, choices: OfflineChoice[], discard: boolean): Promise<void>;
+  decideOffline(account: Account, choices: OfflineChoice[], decision: ReviewDecision): Promise<void>;
   forgetDrafts(account: Account): Promise<void>;
   cacheCover(ref: Extract<BookRef, { kind: 'server' }>, cover: Blob): Promise<void>;
   removeFromDevice(ref: Extract<BookRef, { kind: 'server' }>, signal: AbortSignal): Promise<void>;

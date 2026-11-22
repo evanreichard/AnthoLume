@@ -9,13 +9,13 @@ export class Replay {
   notice: string | null = null;
   constructor(private repo: Repository, private bridge: ReadingBridge, private changed: () => void, private expired: (account: Account) => void) {}
   stop() { this.abort?.abort(); this.notice = null; this.status = 'idle'; }
-  run(account: Account): Promise<void> {
+  run(account: Account, registeredDevice?: string): Promise<void> {
     if (this.running) return this.running;
     const controller = this.abort = new AbortController();
-    this.running = this.perform(account, controller).finally(() => { this.abort = undefined; this.running = null; this.changed(); });
+    this.running = this.perform(account, controller, registeredDevice).finally(() => { this.abort = undefined; this.running = null; this.changed(); });
     return this.running;
   }
-  private async perform(account: Account, controller: AbortController) {
+  private async perform(account: Account, controller: AbortController, registeredDevice?: string) {
     const batch = await this.repo.replayBatch(account);
     if (!batch || controller.signal.aborted) return;
     const { access, ids } = batch;
@@ -26,9 +26,11 @@ export class Replay {
     try {
       const device = await this.repo.device(account);
       await current();
-      const registered = await this.bridge.registerDevice(account, device, controller.signal);
-      await current();
-      if (!validDevice(registered, device.id)) throw new Error('Device registration was not exact');
+      if (registeredDevice !== device.id) {
+        const registered = await this.bridge.registerDevice(account, device, controller.signal);
+        await current();
+        if (!validDevice(registered, device.id)) throw new Error('Device registration was not exact');
+      }
       for (const id of ids) {
         await current();
         const event = await this.repo.db.events.get(id);

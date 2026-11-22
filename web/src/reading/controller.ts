@@ -53,7 +53,7 @@ export class ReaderController {
     if (event.key.toLowerCase() === 'c' && !event.altKey && !event.ctrlKey && !event.metaKey) this.options.chrome?.('focus');
     if (event.key === 'Escape') this.options.chrome?.('hide');
   };
-  constructor(host: HTMLElement, private status: (value: ReaderStatus) => void, private publish: (location: ReaderSnapshot, activity?: CapturedActivity) => Promise<void>, private options: { localOnly?: boolean; parentGestures?: boolean; resizeText?: (scale: number, finished: boolean) => void; credit?: (activity: CapturedActivity) => Promise<void>; cycleTheme?: () => void; interact?: () => void; chrome?: (action: 'show' | 'toggle' | 'focus' | 'hide') => void } = {}) {
+  constructor(host: HTMLElement, private status: (value: ReaderStatus) => void, private publish: (location: ReaderSnapshot, activity?: CapturedActivity) => Promise<void>, private options: { localOnly?: boolean; parentGestures?: boolean; resizeText?: (scale: number, finished: boolean) => void; cycleTheme?: () => void; interact?: () => void; chrome?: (action: 'show' | 'toggle' | 'focus' | 'hide') => void } = {}) {
     this.lifetime.signal.addEventListener('abort', () => this.readerFonts.dispose(), { once: true });
     this.host = document.createElement('div');
     this.host.style.height = '100%';
@@ -194,12 +194,6 @@ export class ReaderController {
       if (mode === 'back' && !this.jumpHistory.length) return;
       if (!this.rendition || !this.location) throw new Error('Reader not ready; fallback requires explicit reopen');
       const activity = mode === 'forward' ? await this.captureActivity() : undefined;
-      if (activity && this.options.credit) {
-        await this.options.credit(activity);
-        // Interval Consumption - A committed credit survives engine/checkpoint failure; it is not available for another event.
-        this.pageStart = activity.endMs;
-        this.pendingActivity = undefined;
-      }
       this.options.interact?.();
       this.readyToInteract = false;
       this.send({ state: 'opening', message: 'Updating book layout', location: this.location, toc: this.tocItems() });
@@ -220,7 +214,7 @@ export class ReaderController {
       }
       if (this.dead) return;
       if (logical?.ko && this.location) this.location = { ...this.location, ko: logical.ko, cfi: logical.cfi };
-      await this.publish(this.location!, this.options.credit ? undefined : activity);
+      await this.publish(this.location!, activity);
       if (mode === 'back') this.jumpHistory.pop();
       else if (mode === 'jump' && previous.ko !== this.location!.ko) {
         this.jumpHistory.push({ ko: previous.ko, cfi: previous.cfi });

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { queryClient, session, useSession } from './session';
 import { profiles, type OfflineProfile } from './offlineProfiles';
-import { useReading, type Account, type OfflineChoice, type OfflineRecord } from './reading';
+import { useReading, type Account, type ReviewDecision, type OfflineChoice, type OfflineRecord } from './reading';
 import { Dialog, ErrorNotice } from './ui';
 import { Button } from './Controls';
 import { OfflineStatusBar } from './OfflineStatusBar';
@@ -77,16 +77,16 @@ function BookComparison({ account, book, timezone, selected, select }: { account
 }
 export function OfflineReview({account}: {account: Account}) {
   const reading = useReading(), {session: current} = useSession();
-  const [later, setLater] = useState(false), [discard, setDiscard] = useState(false);
+  const [later, setLater] = useState(!reading.offlineRecords?.length), [discard, setDiscard] = useState(false);
   const [selected, setSelected] = useState(new Map<string, OfflineChoice>()), [busy,setBusy] = useState(false), [error,setError] = useState<unknown>();
   const records = reading.offlineRecords ?? [];
   if (!records.length) return null;
   const choices = records.flatMap(r => selected.get(r.id) ?? []);
-  function close() { if (!busy) { setLater(true); setSelected(new Map()); setDiscard(false); setError(null); } }
-  async function submit(remove: boolean) {
+  function close() { if (!busy) void submit('keep'); }
+  async function submit(decision: ReviewDecision) {
     setBusy(true); setError(null);
     try {
-      if (!remove) for (const choice of choices) {
+      if (decision === 'upload') for (const choice of choices) {
         const record = records.find(r => r.id === choice.id)!;
         if (choice.revision !== undefined) {
           const state = await session.api.bridge.getState(account, record.document, AbortSignal.timeout(10000));
@@ -96,7 +96,7 @@ export function OfflineReview({account}: {account: Account}) {
           }
         }
       }
-      await reading.decideOffline(account, choices, remove);
+      await reading.decideOffline(account, decision === 'keep' ? records.map(({id}) => ({id})) : choices, decision);
       setLater(true);
     } catch (e) { setError(e); }
     finally { setSelected(new Map()); setBusy(false); setDiscard(false); }
@@ -105,7 +105,7 @@ export function OfflineReview({account}: {account: Account}) {
   return <Dialog title="Offline Reading" onClose={close} layout="scroll-body" placement="mobile-sheet" footer={<div className={styles.reviewActions}>
     <button className={styles.quiet} disabled={busy} onClick={() => discard ? setDiscard(false) : close()}>{discard ? 'Cancel' : 'Keep Reading'}</button>
     {!discard && <button className={styles.quiet} title="Discard Selected Records" aria-label="Discard Selected Records" disabled={busy || !choices.length} onClick={() => setDiscard(true)}><Icon name="trash" size={17} /></button>}
-    <Button tone={discard ? 'danger' : 'primary'} disabled={busy || !choices.length} onClick={() => void submit(discard)}>{discard ? 'Discard Selected' : 'Upload Selected'}</Button>
+    <Button tone={discard ? 'danger' : 'primary'} disabled={busy || !choices.length} onClick={() => void submit(discard ? 'discard' : 'upload')}>{discard ? 'Discard Selected' : 'Upload Selected'}</Button>
   </div>}><ErrorNotice error={error} />{records.some(record => record.kind === 'progress') && <p>While a book’s progress is waiting for review, new reading for that book stays on this device.</p>}{group(records).map(book => <BookComparison key={book.document} book={book} account={account} timezone={current?.user?.timezone ?? 'UTC'} selected={selected} select={(items, checked) => {
     if (busy) return;
     setDiscard(false); setSelected(previous => { const next = new Map(previous); for (const item of items) { if (checked) next.set(item.id,item); else next.delete(item.id); } return next; });
