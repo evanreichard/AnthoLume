@@ -1337,7 +1337,10 @@ export interface operations {
     };
     getMetadataCover: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Try the large cover before falling back to medium. */
+                prefer_large?: boolean;
+            };
             header?: never;
             path: {
                 cover_id: number;
@@ -1346,7 +1349,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Open Library cover preview */
+            /** @description Open Library edition cover */
             200: {
                 headers: {
                     [name: string]: unknown;

@@ -121,7 +121,7 @@ func (s *webAPI) DeleteDocument(ctx context.Context, r DeleteDocumentRequestObje
 }
 
 func (s *webAPI) GetMetadataCover(ctx context.Context, r GetMetadataCoverRequestObject) (GetMetadataCoverResponseObject, error) {
-	raw, err := metadata.LookupOpenLibraryCover(requestContext(ctx), r.CoverId)
+	raw, err := metadata.LookupOpenLibraryCover(requestContext(ctx), r.CoverId, r.Params.PreferLarge != nil && *r.Params.PreferLarge)
 	if errors.Is(err, metadata.ErrLookupCoverMissing) {
 		return nil, &reading.Failure{Status: 404, Code: "not_found"}
 	}

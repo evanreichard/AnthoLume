@@ -113,7 +113,7 @@ export function createAPI(gate: SessionGate) {
     }), isDocument, 200, account),
     editDocument: (account: Account, id: string, body: S['DocumentEdit'], signal: AbortSignal) => consume(client => client.PATCH('/api/v1/documents/{id}', { params: path(id), body, signal, parseAs: 'stream' }), isDocument, 200, account),
     deleteDocument: (account: Account, id: string, signal: AbortSignal) => consume(client => client.DELETE('/api/v1/documents/{id}', { params: path(id), signal, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
-    metadataCover: (account: Account, id: number, signal: AbortSignal) => binary(account, `/api/v1/metadata/covers/${id}`, signal),
+    metadataCover: (account: Account, id: number, signal: AbortSignal) => binary(account, `/api/v1/metadata/covers/${id}?prefer_large=true`, signal),
     previewMetadataMatch: (account: Account, query: { work_id: string; edition_id?: string; isbn?: string }, signal: AbortSignal) => consume(client => client.GET('/api/v1/metadata/match', { params: { query }, signal, parseAs: 'stream' }), isMetadataMatch, 200, account),
     lookupMetadata: (account: Account, q: string, signal: AbortSignal) => consume(client => client.GET('/api/v1/metadata/search', { params: { query: { q } }, signal, parseAs: 'stream' }), isMetadataMatches, 200, account),
     document: (account: Account, id: string, signal: AbortSignal) => consume(client => client.GET('/api/v1/documents/{id}', { params: path(id), signal, parseAs: 'stream' }), isDocument, 200, account),

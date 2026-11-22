@@ -1076,6 +1076,12 @@ type SubmitProgressParams struct {
 	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
 }
 
+// GetMetadataCoverParams defines parameters for GetMetadataCover.
+type GetMetadataCoverParams struct {
+	// PreferLarge Try the large cover before falling back to medium.
+	PreferLarge *bool `form:"prefer_large,omitempty" json:"prefer_large,omitempty"`
+}
+
 // PreviewMetadataMatchParams defines parameters for PreviewMetadataMatch.
 type PreviewMetadataMatchParams struct {
 	WorkId    string  `form:"work_id" json:"work_id"`
@@ -1311,7 +1317,7 @@ type ServerInterface interface {
 	GetReadingState(c *gin.Context, documentId ID)
 
 	// (GET /api/v1/metadata/covers/{cover_id})
-	GetMetadataCover(c *gin.Context, coverId int64)
+	GetMetadataCover(c *gin.Context, coverId int64, params GetMetadataCoverParams)
 
 	// (GET /api/v1/metadata/match)
 	PreviewMetadataMatch(c *gin.Context, params PreviewMetadataMatchParams)
@@ -3291,6 +3297,17 @@ func (siw *ServerInterfaceWrapper) GetMetadataCover(c *gin.Context) {
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMetadataCoverParams
+
+	// ------------- Optional query parameter "prefer_large" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "prefer_large", c.Request.URL.Query(), &params.PreferLarge, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter prefer_large: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -3298,7 +3315,7 @@ func (siw *ServerInterfaceWrapper) GetMetadataCover(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetMetadataCover(c, coverId)
+	siw.Handler.GetMetadataCover(c, coverId, params)
 }
 
 // PreviewMetadataMatch operation middleware
@@ -5592,6 +5609,7 @@ func (response GetReadingStatedefaultApplicationProblemPlusJSONResponse) VisitGe
 
 type GetMetadataCoverRequestObject struct {
 	CoverId int64 `json:"cover_id"`
+	Params  GetMetadataCoverParams
 }
 
 type GetMetadataCoverResponseObject interface {
@@ -7541,10 +7559,11 @@ func (sh *strictHandler) GetReadingState(ctx *gin.Context, documentId ID) {
 }
 
 // GetMetadataCover operation middleware
-func (sh *strictHandler) GetMetadataCover(ctx *gin.Context, coverId int64) {
+func (sh *strictHandler) GetMetadataCover(ctx *gin.Context, coverId int64, params GetMetadataCoverParams) {
 	var request GetMetadataCoverRequestObject
 
 	request.CoverId = coverId
+	request.Params = params
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.GetMetadataCover(ctx, request.(GetMetadataCoverRequestObject))
