@@ -1,16 +1,17 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { readerBoundary } from './build/reader-boundary.ts';
 import { readingWorker } from './build/worker.ts';
 
 const target = process.env.ANTHOLUME_BACKEND ?? 'http://127.0.0.1:5324';
-const appNavigation = /^\/(?:|library\/?|login\/?|register\/?|settings\/?|admin(?:\/(?:library|users|system|logs))?\/?|insights(?:\/(?:activity|progress|rankings))?\/?|(?:books|read)\/(?:local|server)\/?)$/;
+const appNavigation = new RegExp(readFileSync(new URL('../api/app-navigation.regexp', import.meta.url), 'utf8').trim());
 const backendRoutes = ['^/api(?:/|$)', '/sw.js', '/manifest.json', '/favicon.ico', '/assets/icons', '/assets/app/assets'];
 
 export default defineConfig({
   base: '/assets/app/',
   appType: 'mpa',
-  plugins: [react(), readerBoundary(), readingWorker(), {
+  plugins: [react(), readerBoundary(), readingWorker(appNavigation), {
     name: 'antholume-development-navigation',
     configureServer(server) {
       server.middlewares.use((req, _res, next) => {

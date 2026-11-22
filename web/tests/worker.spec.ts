@@ -16,6 +16,26 @@ test('fresh visits install a public shell containing the lazy reader but no API 
   expect(paths.every(path => path === '/' || path.startsWith('/assets/'))).toBe(true);
 });
 
+test('offline reloads enter the app on known routes but never serve the shell for API or unknown paths', async ({ page, context, server }) => {
+  const user = 'offline-deep-link';
+  await register(page, server.origin, user);
+  await page.goto(server.origin + '/settings');
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
+  await context.setOffline(true);
+  await page.reload();
+  await page.getByRole('button', { name: user, exact: true }).click();
+  await expect(page).toHaveURL(server.origin + '/library');
+  for (const path of ['/admin/logs/', '/insights/activity?day=2026-03-01']) {
+    await page.goto(server.origin + path);
+    await expect(page).toHaveURL(server.origin + '/library');
+    await expect(page.getByRole('region', { name: 'Offline controls' })).toBeVisible();
+  }
+  for (const path of ['/api/v1/session', '/admin/unknown']) {
+    await expect(page.goto(server.origin + path)).rejects.toThrow(/ERR_INTERNET_DISCONNECTED/);
+  }
+});
+
 test('Save to Device refuses an incomplete shell and repairs an evicted cache before reporting success', async ({ page, context, server }) => {
   const user = 'cache-repair-reader';
   await register(page, server.origin, user);

@@ -12,7 +12,8 @@ declare const __HTML_INTEGRITY__: string;
 declare const __SHELL_FILES__: string[];
 const name = 'antholume-shell-' + __SHELL_VERSION__;
 const files = new Set(__SHELL_FILES__);
-const navigation = /^\/(?:|library\/?|login\/?|register\/?|(?:books|read)\/server\/?)$/;
+declare const __APP_NAVIGATION__: string;
+const navigation = new RegExp(__APP_NAVIGATION__);
 
 async function ensureShell() {
   const cache = await caches.open(name);

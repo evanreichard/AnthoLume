@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { build, type Plugin, type ResolvedConfig } from 'vite';
 
-export function readingWorker(): Plugin {
+export function readingWorker(appNavigation: RegExp): Plugin {
   let config: ResolvedConfig;
   return {
     name: 'antholume-offline-shell',
@@ -18,7 +18,7 @@ export function readingWorker(): Plugin {
       const result = await build({
         configFile: false,
         root: config.root,
-        define: { __SHELL_FILES__: JSON.stringify(files), __SHELL_VERSION__: JSON.stringify(version), __HTML_INTEGRITY__: JSON.stringify('sha256-' + createHash('sha256').update(html.source).digest('base64')) },
+        define: { __APP_NAVIGATION__: JSON.stringify(appNavigation.source), __SHELL_FILES__: JSON.stringify(files), __SHELL_VERSION__: JSON.stringify(version), __HTML_INTEGRITY__: JSON.stringify('sha256-' + createHash('sha256').update(html.source).digest('base64')) },
         logLevel: 'warn',
         build: {
           write: false,

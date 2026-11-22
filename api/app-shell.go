@@ -1,6 +1,7 @@
 package api
 
 import (
+	_ "embed"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -10,7 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var appNavigation = regexp.MustCompile(`^/(?:|library/?|login/?|register/?|settings/?|admin(?:/(?:library|users|system|logs))?/?|insights(?:/(?:activity|progress|rankings))?/?|(?:books|read)/(?:local|server)/?)$`)
+//go:embed app-navigation.regexp
+var appNavigationPattern string
+
+var appNavigation = regexp.MustCompile(strings.TrimSpace(appNavigationPattern))
 var hashedAsset = regexp.MustCompile(`-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$`)
 
 func CheckAppAssets(assets fs.FS) error {
