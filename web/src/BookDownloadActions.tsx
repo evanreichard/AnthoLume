@@ -5,12 +5,49 @@ import { Dialog, ErrorNotice } from './ui';
 import { Icon } from './Icon';
 import styles from './OfflineReading.module.css';
 
-export function BookDownloadActions({ book, metadata, overlay = false, canSave = true }: { overlay?: boolean; book: Extract<BookRef, { kind: 'server' }>; canSave?: boolean; metadata: { title: string | null; author: string | null } }) {
+type ServerBook = Extract<BookRef, { kind: 'server' }>;
+type Metadata = { title: string | null; author: string | null };
+
+export function useBookDownload(book: ServerBook | null) {
   const reading = useReading();
   const controller = useRef<AbortController | null>(null);
-  const menu = useRef<HTMLDetailsElement>(null);
   const [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState<unknown>(null);
   useEffect(() => () => controller.current?.abort(), []);
+  async function run(action: (book: ServerBook, signal: AbortSignal) => Promise<void>) {
+    if (!book || controller.current || !reading.ready) return;
+    const operation = controller.current = new AbortController();
+    setBusy(true); setError(null);
+    try { await action(book, operation.signal); setConfirm(false); }
+    catch (failure) { if (!operation.signal.aborted) setError(failure); }
+    finally {
+      if (!operation.signal.aborted) setBusy(false);
+      operation.abort(); controller.current = null;
+    }
+  }
+  return {
+    copy: book ? reading.deviceCopies?.get(book.documentId) : undefined,
+    busy,
+    disabled: busy || !reading.ready,
+    error,
+    confirm,
+    save: (metadata: Metadata) => void run((ref, signal) => reading.saveToDevice(ref, signal, metadata)),
+    askToRemove: () => { setError(null); setConfirm(true); },
+    cancel: () => { if (!busy) { setConfirm(false); setError(null); } },
+    remove: () => void run((ref, signal) => reading.removeFromDevice(ref, signal)),
+  };
+}
+
+export function DownloadRemovalDialog({ download }: { download: ReturnType<typeof useBookDownload> }) {
+  if (!download.confirm) return null;
+  return <Dialog title="Remove this download?" onClose={download.cancel} footer={<>
+    <Button disabled={download.busy} onClick={download.cancel}>Cancel</Button>
+    <Button tone="primary" disabled={download.busy} onClick={download.remove}>Remove from Device</Button>
+  </>}><p>This removes the offline copy for all profiles on this device. Your reading progress and activity are kept.</p><ErrorNotice error={download.error} /></Dialog>;
+}
+
+export function BookDownloadActions({ book, metadata, canSave = true }: { book: ServerBook; metadata: Metadata; canSave?: boolean }) {
+  const download = useBookDownload(book);
+  const menu = useRef<HTMLDetailsElement>(null);
   const [open, setOpen] = useState(false);
   useEffect(() => {
     const details = menu.current;
@@ -30,32 +67,15 @@ export function BookDownloadActions({ book, metadata, overlay = false, canSave =
     menu.current.open = false;
     menu.current.querySelector('summary')?.focus();
   }
-  async function run(action: (signal: AbortSignal) => Promise<void>) {
-    if (controller.current) return;
-    const operation = controller.current = new AbortController();
-    setBusy(true); setError(null);
-    try { await action(operation.signal); setConfirm(false); }
-    catch (failure) { if (!operation.signal.aborted) setError(failure); }
-    finally {
-      if (!operation.signal.aborted) setBusy(false);
-      operation.abort(); controller.current = null;
-    }
-  }
-  const copy = reading.deviceCopies?.get(book.documentId);
-  const Action = overlay ? 'button' : Button;
-  const actions = <>
-    {canSave && copy !== 'saved' && <Action type="button" disabled={busy || !reading.ready} onClick={() => { closeMenu(); void run(signal => reading.saveToDevice(book, signal, metadata)); }}>{overlay && <Icon name="download" size={17} />}{busy ? 'Saving…' : 'Save to Device'}</Action>}
-    {copy && <Action type="button" disabled={busy || !reading.ready} onClick={() => { closeMenu(); setError(null); setConfirm(true); }}>{overlay && <Icon name="minus" size={17} />}Remove from Device</Action>}
-  </>;
-  return <>{overlay ? <>
+  return <>
     <details ref={menu} onToggle={e => setOpen(e.currentTarget.open)} className={styles.bookOptions} name="offline-book-options" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); closeMenu(); } }}>
       <summary aria-label={`Options for ${metadata.title ?? 'Untitled'}`} title="Book options"><Icon name="more" size={20} /></summary>
-      <div data-options>{actions}</div>
-    </details></> : actions}
-    {!confirm && <ErrorNotice error={error} />}
-    {confirm && <Dialog title="Remove this download?" onClose={() => { if (!busy) setConfirm(false); }} footer={<>
-      <Button disabled={busy} onClick={() => setConfirm(false)}>Cancel</Button>
-      <Button tone="primary" disabled={busy} onClick={() => void run(signal => reading.removeFromDevice(book, signal))}>Remove from Device</Button>
-    </>}><p>This removes the offline copy for all profiles on this device. Your reading progress and activity are kept.</p><ErrorNotice error={error} /></Dialog>}
+      <div data-options>
+        {canSave && download.copy !== 'saved' && <button type="button" disabled={download.disabled} onClick={() => { closeMenu(); download.save(metadata); }}><Icon name="download" size={17} />{download.busy ? 'Saving…' : 'Save to Device'}</button>}
+        {download.copy && <button type="button" disabled={download.disabled} onClick={() => { closeMenu(); download.askToRemove(); }}><Icon name="minus" size={17} />Remove from Device</button>}
+      </div>
+    </details>
+    {!download.confirm && <ErrorNotice error={download.error} />}
+    <DownloadRemovalDialog download={download} />
   </>;
 }

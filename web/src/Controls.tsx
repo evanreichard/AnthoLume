@@ -59,7 +59,7 @@ export function JoinedActions({ label, children, size = 'full' }: { label: strin
   return <div className={styles.joinedActions} data-size={size} role="group" aria-label={label}>{children}</div>;
 }
 
-export function JoinedAction({ children, tone, ...props }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> & { tone?: 'danger' }) {
+export function JoinedAction({ children, tone, ...props }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> & { tone?: 'danger'; ref?: Ref<HTMLButtonElement> }) {
   return <button {...props} type="button" data-tone={tone}><span>{children}</span></button>;
 }
 

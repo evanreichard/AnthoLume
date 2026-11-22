@@ -75,11 +75,11 @@ export class ReadingRuntime implements ReadingActions {
       this.changed(this.snapshot);
     } catch (error) { if (!this.disposed) { this.snapshot = { ...this.snapshot, ready: false, error: String(error) }; this.changed(this.snapshot); } }
   }
-  private async write<T>(action: () => Promise<T>, readerOpen?: AbortSignal) {
+  private async write<T>(action: () => Promise<T>, { signal, localError = false }: { signal?: AbortSignal; localError?: boolean } = {}) {
     this.requireReady();
     try { const result = await action(); this.quotaError = false; this.error = null; return result; }
     catch (error) {
-      if (!readerOpen?.aborted && (!readerOpen || error instanceof Error && error.name === 'QuotaExceededError')) {
+      if (!localError && !signal?.aborted && (!signal || error instanceof Error && error.name === 'QuotaExceededError')) {
         this.quotaError = error instanceof Error && error.name === 'QuotaExceededError';
         this.error = this.quotaError ? 'Storage quota exceeded. No partial book/save was published.' : String(error);
       }
@@ -176,7 +176,7 @@ export class ReadingRuntime implements ReadingActions {
       } finally {
         this.snapshot = { ...this.snapshot, downloads: this.snapshot.downloads.filter(item => item.ref !== ref) };
       }
-    }), external);
+    }), { signal: external, localError: !!pin });
     external.throwIfAborted();
     if (generation !== this.generation || !opened.row.sourceId) throw new Error('Book account or source changed');
     await this.repo.keepSource(opened.row.sourceId, external);
@@ -189,12 +189,12 @@ export class ReadingRuntime implements ReadingActions {
       await this.openServerBook(ref, signal, undefined, metadata);
       return;
     }
-    await this.write(() => this.repo.retainCachedCopy(ref, signal));
+    await this.write(() => this.repo.retainCachedCopy(ref, signal), { signal, localError: true });
   }
   async removeFromDevice(ref: Extract<BookRef, { kind: 'server' }>, signal: AbortSignal) {
     const access = this.access;
     if ((access.kind !== 'authenticated' && access.kind !== 'offline') || !sameAccount(ref.account, access.account)) throw new Error('Account changed');
-    await this.write(() => this.repo.removeFromDevice(ref, signal, access.kind));
+    await this.write(() => this.repo.removeFromDevice(ref, signal, access.kind), { signal, localError: true });
   }
   readerCacheSummary = () => { this.requireReady(); return this.repo.readerCacheSummary(); };
   clearReaderCache = () => { this.requireReady(); return this.repo.clearServerCache(); };

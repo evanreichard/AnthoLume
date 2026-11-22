@@ -1,4 +1,6 @@
-type Name = 'minus' | 'more' | 'kept' | 'down' | 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'device' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'user' | 'warning' | 'folder' | 'up' | 'forward' | 'refresh' | 'sign-out' | 'upload' | 'info';
+type Name = 'minus' | 'more' | 'kept' | 'down' | 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'device' | 'device-saved' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'user' | 'warning' | 'folder' | 'up' | 'forward' | 'refresh' | 'sign-out' | 'upload' | 'info';
+
+const device = 'M6 2.5h12A1.5 1.5 0 0 1 19.5 4v16a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 20V4A1.5 1.5 0 0 1 6 2.5z M10.5 18.5h3';
 
 const paths: Record<Name, string> = {
   more: 'M4 12h.1m7.9 0h.1m7.9 0h.1',
@@ -18,7 +20,8 @@ const paths: Record<Name, string> = {
   check: 'm5 12 4 4L19 6',
   warning: 'M10.3 4.4a2 2 0 0 1 3.4 0l7.9 13.2a2 2 0 0 1-1.7 3H4.1a2 2 0 0 1-1.7-3z M12 9v4m0 3.5h.01',
   cloud: 'M7 18a4 4 0 0 1-.5-8A5.5 5.5 0 0 1 17 9a4.5 4.5 0 1 1 1.5 9Z',
-  device: 'M6 4h12v16H6z M10 16h4',
+  device,
+  'device-saved': `${device} M8.5 10.5 11 13l4.8-5`,
   user: 'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM5 20v-1a7 7 0 0 1 14 0v1',
   folder: 'M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
   'sign-out': 'M10 4H5v16h5m3-8h8m-4-4 4 4-4 4',

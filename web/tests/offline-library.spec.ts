@@ -91,8 +91,9 @@ test('removing a shared download clears both shelves but preserves the offline r
   await signOut();
   await register(page,server.origin,alice);
   await page.getByRole('heading',{name:'Public book 01',exact:true}).click();
-  await page.getByRole('button',{name:'Save to Device'}).click();
-  await expect(page.getByRole('button',{name:'Remove from Device'})).toBeVisible();
+  const toolbar = page.getByRole('group', { name: 'Book actions' });
+  await toolbar.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(toolbar.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
   await page.goto(`${server.origin}/library`);
   await context.setOffline(true);
   await page.getByRole('button',{name:bob,exact:true}).click();
@@ -137,13 +138,40 @@ test('removing a shared download clears both shelves but preserves the offline r
   expect(serverEffects(server.data,alice).activity).toBe(0);
 });
 
+test('the detail toolbar only checks pinned copies and confirms before removing one', async ({ page, server }) => {
+  await register(page, server.origin, 'detail-device-toolbar');
+  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
+  const detailURL = page.url();
+  await page.getByRole('link', { name: 'Read', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Book reader' })).toHaveAttribute('data-reader-state', 'ready');
+  await page.goto(detailURL);
+  const toolbar = page.getByRole('group', { name: 'Book actions' });
+  const save = toolbar.getByRole('button', { name: 'Save', exact: true });
+  const saved = toolbar.getByRole('button', { name: 'Saved', exact: true });
+  await expect(save).toBeEnabled();
+  await expect(saved).toHaveCount(0);
+  await save.click();
+  await expect(saved).toBeEnabled();
+  await saved.click();
+  const confirmation = page.getByRole('dialog', { name: 'Remove this download?' });
+  await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(saved).toBeEnabled();
+  await saved.click();
+  await confirmation.getByRole('button', { name: 'Remove from Device', exact: true }).click();
+  await expect(confirmation).toHaveCount(0);
+  await expect(save).toBeEnabled();
+  await expect(saved).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /^(Read|Resume)$/ })).toBeVisible();
+});
+
 test('seven pins and an automatically cached book coexist on the offline shelf', async ({ page, context, server }) => {
   await register(page, server.origin, 'offline-capacity');
   for (let i = 1; i <= 8; i++) {
     await page.getByRole('heading', { name: `Public book ${String(i).padStart(2, '0')}`, exact: true }).click();
     if (i <= 7) {
-      await page.getByRole('button', { name: 'Save to Device' }).click();
-      await expect(page.getByRole('button', { name: 'Remove from Device' })).toBeVisible();
+      const toolbar = page.getByRole('group', { name: 'Book actions' });
+      await toolbar.getByRole('button', { name: 'Save', exact: true }).click();
+      await expect(toolbar.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
     } else {
       await page.getByRole('link', { name: 'Read', exact: true }).click();
       await expect(page.getByRole('region', { name: 'Book reader' })).toHaveAttribute('data-reader-state', 'ready');
