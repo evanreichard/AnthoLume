@@ -36,11 +36,11 @@ async function storedCovers(page: Page): Promise<{ pinned: boolean; bytes: numbe
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       const db = request.result;
-      const tx = db.transaction('books', 'readonly');
-      const rows = tx.objectStore('books').getAll();
+      const tx = db.transaction('downloads', 'readonly');
+      const rows = tx.objectStore('downloads').getAll();
       tx.oncomplete = () => {
         db.close();
-        resolve(Promise.all(rows.result.filter(row => row.ref.documentId === id && row.cover instanceof Blob).map(async row => ({
+        resolve(Promise.all(rows.result.filter(row => row.document === id && row.cover instanceof Blob).map(async row => ({
           pinned: !!row.pinned,
           bytes: Array.from(new Uint8Array(await row.cover.arrayBuffer())),
         }))));

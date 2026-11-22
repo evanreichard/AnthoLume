@@ -30,7 +30,7 @@ for (const fault of ['503', 'malformed-200']) {
       await page.keyboard.press('c');
       await page.getByRole('button', { name: 'Next Page', exact: true }).click();
       await expect(page.locator('footer')).toContainText('3 /');
-      const checkpoint = async () => (await storedRows(page, 'books')).find(book => book.ref?.documentId === 'book_001')?.checkpoint;
+      const checkpoint = async () => (await storedRows(page, 'positions')).find(book => book.ref?.documentId === 'book_001')?.checkpoint;
       const local = await checkpoint();
       expect(local?.position).toBeTruthy();
       expect(local?.position).not.toBe(submitted.position);

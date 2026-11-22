@@ -38,7 +38,7 @@ export class ReadingRuntime implements ReadingActions {
     });
   }
   async start(access: ReadingAccess) {
-    this.subscription = liveQuery(() => Promise.all([this.repo.db.books.toArray(), this.repo.db.events.toArray(), this.repo.db.offline.count(), this.repo.db.access.toArray(), this.repo.db.meta.toArray()])).subscribe({ next: () => { void this.refresh(); }, error: error => { this.error = String(error); void this.refresh(); } });
+    this.subscription = liveQuery(() => Promise.all([this.repo.db.books.toArray(), this.repo.db.downloads.toArray(), this.repo.db.positions.toArray(), this.repo.db.events.toArray(), this.repo.db.offline.count(), this.repo.db.access.toArray(), this.repo.db.meta.toArray()])).subscribe({ next: () => { void this.refresh(); }, error: error => { this.error = String(error); void this.refresh(); } });
     window.addEventListener('online', this.foreground); document.addEventListener('visibilitychange', this.foreground);
     if (this.generation === 0) void this.setAccess(access);
     await this.repo.cleanupStages();
@@ -100,7 +100,7 @@ export class ReadingRuntime implements ReadingActions {
   }
   async openServerBook(ref: Extract<BookRef, { kind: 'server' }>, external: AbortSignal, onStage?: (message: string) => void, pin?: Pick<StoredBook, 'title' | 'author'>) {
     const stageMessage = (message: string) => { if (!external.aborted) onStage?.(message); };
-    const account = this.selectedAccount(), generation = this.generation, key = refKey(ref);
+    const account = this.selectedAccount(), generation = this.generation;
     if (!sameAccount(account, ref.account)) throw new Error('Book belongs to another account');
     if (this.appliedGeneration !== generation) await this.accessTail;
     external.throwIfAborted();
@@ -119,8 +119,8 @@ export class ReadingRuntime implements ReadingActions {
         signal.throwIfAborted();
         if (generation !== this.generation || this.access.kind !== 'authenticated' || !sameAccount(account, this.access.account)) throw new Error('Book account changed');
       };
-      const previous = await this.repo.db.books.get(key);
-      const etag = previous?.sourceId && previous.availability === 'available' ? cacheETag(previous.etag) : undefined;
+      const previous = await this.repo.cachedOriginal(ref);
+      const etag = cacheETag(previous?.etag);
       const fetchFile = async (validator?: string) => {
         current();
         stageMessage(validator ? 'Checking cached copy…' : 'Connecting to the server…');
@@ -167,14 +167,14 @@ export class ReadingRuntime implements ReadingActions {
               try {
                 const state = await getState();
                 stageMessage('Saving a copy on this device…');
-                await this.repo.publish(ref, stage, policy.manifest, previous?.title ?? policy.manifest.title, previous?.author ?? policy.manifest.author, null, state, signal, { etag: cacheETag(response.headers.get('ETag')), pin });
+                await this.repo.publish(ref, stage, policy.manifest, previous?.title ?? policy.manifest.title, previous?.author ?? policy.manifest.author, null, state, signal, { etag: cacheETag(response.headers.get('ETag')), previousSource: previous?.sourceId, pin });
               } finally { policy.dispose(); }
             } finally { await this.repo.discardSource(stage.id); }
             return await this.repo.open(ref);
           } catch (error) {
             current();
             if (attempt || !(error instanceof Error) || error.name !== 'QuotaExceededError') throw error;
-            await this.repo.freeServerCache();
+            await this.repo.freeServerCache(ref);
             response = await fetchFile();
           }
         }

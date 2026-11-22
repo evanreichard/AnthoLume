@@ -11,6 +11,7 @@ import { stagingWorkers } from '../staging-writer';
 import { ArchiveReader, blobSource, hashSource, sourceTask, sourceStats, sourceLimits, sourceScheduler } from '../source';
 import { activityEvent } from '../activity';
 import { zipFlags } from './zip-flags';
+import { seedLegacyLibrary, legacyLibrary } from './legacy-library';
 import { ReadingHTTPError } from '../types';
 import type { ZipIndex } from '../source';
 import { requireStableBody } from '../body-contract';
@@ -26,7 +27,7 @@ async function verifiedCapture(repo: Repository, ref: Extract<BookRef, {kind: 's
   const capture = await repo.recordCapture(ref, checkpoint, activity, { online: true, current: () => true });
   if (capture) await repo.promoteCapture(capture, (await repo.device(ref.account)).id, () => true);
 }
-const testAPI = { verifiedCapture, ReadingRuntime, stagingWorkers, ArchiveReader, blobSource, hashSource, sourceTask, sourceStats, sourceLimits, sourceScheduler, JSZip, zipFlags, activityEvent, ReadingHTTPError, ReaderController, lifecycle, validateEPUB, Repository, ReadingDB, Replay, checksum, checkArchive, requireStableBody, elementFromKO, primaryElementFromKO, koFromElement, ReaderWakeLock,
+const testAPI = { seedLegacyLibrary, legacyLibrary, verifiedCapture, ReadingRuntime, stagingWorkers, ArchiveReader, blobSource, hashSource, sourceTask, sourceStats, sourceLimits, sourceScheduler, JSZip, zipFlags, activityEvent, ReadingHTTPError, ReaderController, lifecycle, validateEPUB, Repository, ReadingDB, Replay, checksum, checkArchive, requireStableBody, elementFromKO, primaryElementFromKO, koFromElement, ReaderWakeLock,
   unmount: () => root.render(null),
   project: (access: ReadingAccess, bridge: ReadingBridge) => flushSync(() => root.render(<ReadingProvider access={access} bridge={bridge} onSessionExpired={() => {}}><Projection /></ReadingProvider>)),
   mount: (bridge: ReadingBridge, book: BookRef, access: ReadingAccess = { kind: 'anonymous' }) => root.render(<StrictMode><ReadingProvider access={access} bridge={bridge} onSessionExpired={() => {}}><ReaderScreen book={book} onClose={() => root.render(null)} /></ReadingProvider></StrictMode>),

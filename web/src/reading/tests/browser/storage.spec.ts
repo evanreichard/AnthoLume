@@ -11,7 +11,7 @@ test('atomic complete-book and checkpoint/event transactions reject injected sto
     const fail = () => { throw new DOMException('Injected quota', 'QuotaExceededError'); };
     repo.db.heads.hook('creating', fail); let importRejected = false;
     try { await repo.install(ref, bytes, 'Book', null, null, state); } catch (error) { importRejected = (error as Error).name === 'QuotaExceededError'; }
-    repo.db.heads.hook('creating').unsubscribe(fail); const countAfterFailure = await repo.db.books.count();
+    repo.db.heads.hook('creating').unsubscribe(fail); const countAfterFailure = await repo.db.downloads.count();
     await repo.install(ref, bytes, 'Book', null, null, state);
     repo.db.offline.hook('creating', fail); let saveRejected = false;
     try { await repo.recordCapture(ref, { position: '/body/DocFragment[1]/body/p[1]', fraction: .2 }, undefined, { current: () => true }); } catch (error) { saveRejected = (error as Error).name === 'QuotaExceededError'; }
@@ -142,7 +142,7 @@ test('two tabs can read the same batch and apply duplicate receipts without dequ
     const activityId = crypto.randomUUID(), device = await repo.device(account);
     await p.verifiedCapture(repo, ref, undefined, { event_id: activityId, document_id: ref.documentId, device_id: device.id, start_time: '2026-01-01T00:00:00Z', duration: 30, start_fraction: .1, end_fraction: .3 });
     const progressId = (await repo.pending()).find(e => e.kind === 'progress')!.id;
-    const key = (await repo.db.books.toArray())[0]!.key;
+    const key = (await repo.db.positions.toArray())[0]!.key;
     repo.db.close();
     return { account, activityId, progressId, key, latest };
   }, name);
@@ -174,7 +174,7 @@ test('two tabs can read the same batch and apply duplicate receipts without dequ
       return {
         pending, next, activityQueued: !!await repo.db.events.get(seeded.activityId), drafts: await repo.db.progressDrafts.count(),
         originalQueued: !!await repo.db.events.get(seeded.progressId),
-        checkpoint: (await repo.db.books.get(seeded.key))?.checkpoint,
+        checkpoint: (await repo.db.positions.get(seeded.key))?.checkpoint,
         headRevision: (await repo.db.heads.get(seeded.key))?.state.revision,
       };
     } finally { await repo.db.delete(); }

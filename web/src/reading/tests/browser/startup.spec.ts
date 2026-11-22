@@ -10,7 +10,7 @@ test('account replacement masks the old native frame and progress immediately wi
   const region = page.getByRole('region', { name: 'Book reader', exact: true }); await expect(region).toHaveAttribute('data-reader-state', 'ready');
   await page.evaluate(() => { const w = window as unknown as { privacyBridge: ReadingBridge; privacyRef: import('../../types').BookRef }; window.readingTest.mount(w.privacyBridge, w.privacyRef, { kind: 'authenticated', account: { origin: location.origin, userId: 'new-B' } }); });
   await expect(region.locator(':scope > div').first()).toHaveAttribute('hidden', ''); await expect(region.locator('header')).not.toContainText('Private reader A'); await expect(region.locator('footer')).toBeHidden();
-  const retained = await page.evaluate(async () => { const repo = new window.readingTest.Repository(), row = (await repo.db.books.toArray())[0]!; const result = { checkpoint: row.checkpoint, events: await repo.db.events.count(), source: !!row.sourceId }; window.readingTest.unmount(); repo.db.close(); return result; }); expect(retained).toEqual({ checkpoint: { position: '/body/DocFragment[1]/body/h1', fraction: .12345 }, events: 0, source: true });
+  const retained = await page.evaluate(async () => { const repo = new window.readingTest.Repository(), row = (await repo.db.positions.toArray())[0]!; const result = { checkpoint: row.checkpoint, events: await repo.db.events.count(), source: !!await repo.cachedOriginal(row.ref) }; window.readingTest.unmount(); repo.db.close(); return result; }); expect(retained).toEqual({ checkpoint: { position: '/body/DocFragment[1]/body/h1', fraction: .12345 }, events: 0, source: true });
 });
 
 test('startup stays unready until the newer authenticated selection is persisted', async ({ page }) => {
