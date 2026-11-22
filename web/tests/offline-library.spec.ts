@@ -13,6 +13,25 @@ test('offline startup failure is reported once above the library, not under the 
   await expect(card.getByRole('img', { name: 'Saved to device' })).toHaveCount(0);
 });
 
+for (const status of [502, 503, 504]) {
+  test(`a cold start behind a gateway returning ${status} can read a saved book`, async ({ page, context, server }) => {
+    const user = 'gateway-reader';
+    await register(page, server.origin, user);
+    const card = page.getByRole('article').filter({ hasText: 'Public book 01' });
+    await card.locator('summary').click();
+    await card.getByRole('button', { name: 'Save to Device' }).click();
+    await expect(card.getByRole('img', { name: 'Saved to device' })).toBeVisible();
+    await page.close();
+
+    const cold = await context.newPage();
+    await cold.route('**/api/v1/session', route => route.fulfill({ status, contentType: 'text/html', body: 'Upstream unavailable' }));
+    await cold.goto(server.origin);
+    await cold.getByRole('button', { name: user, exact: true }).click();
+    await cold.getByRole('article').getByRole('link').click();
+    await expect(bookReader(cold)).toHaveAttribute('data-reader-state', 'ready');
+  });
+}
+
 test('a saved book opens without a recovery prompt when the browser is online but the server is stopped', async ({ page, context, server }) => {
   await register(page, server.origin, 'offline-update-reader');
   const card = page.getByRole('article').filter({ hasText: 'Public book 01' });

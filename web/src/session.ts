@@ -1,13 +1,13 @@
 import { QueryClient } from '@tanstack/react-query';
 import { useSyncExternalStore } from 'react';
 import type { components } from './api/schema.gen';
-import { apiOrigin, createAPI, sameAccount } from './api/client';
+import { apiOrigin, createAPI, sameAccount, SessionUnavailable } from './api/client';
 import type { Account, ReadingAccess } from './reading';
 
 type S = components['schemas'];
 const sessionAccount = (user: NonNullable<S['Session']['user']>): Account => ({ origin: apiOrigin, userId: user.account_id, readingGeneration: user.reading_generation });
 import { profiles, rememberProfile, selectProfile, selectedProfile, forgetProfile, isProfileKey } from './offlineProfiles';
-const unreachable = (error: unknown) => error instanceof TypeError || error instanceof DOMException && error.name === 'TimeoutError';
+const unreachable = (error: unknown) => error instanceof SessionUnavailable || error instanceof TypeError || error instanceof DOMException && error.name === 'TimeoutError';
 const logoutKey = 'antholume:logout-pending';
 export const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000, gcTime: 300_000 } } });
 type Snapshot = { session: S['Session'] | null; capabilities: S['Capabilities'] | null; access: ReadingAccess; error: string | null; busy: boolean };

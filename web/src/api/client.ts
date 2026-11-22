@@ -18,9 +18,18 @@ interface SessionGate {
   changed(account: Account): void;
 }
 
+export class SessionUnavailable extends Error {}
+
 export function createAPI(gate: SessionGate) {
   async function transport(request: Request, scoped: boolean) {
-    try { return await fetch(request); }
+    try {
+      const response = await fetch(request);
+      if (request.method === 'GET' && new URL(request.url).pathname === '/api/v1/session' && [502, 503, 504].includes(response.status) && !response.redirected) {
+        void response.body?.cancel();
+        throw new SessionUnavailable(`Session service unavailable (HTTP ${response.status}).`);
+      }
+      return response;
+    }
     catch (error) {
       if (scoped && error instanceof TypeError && !request.signal.aborted) gate.disconnected?.();
       throw error;
