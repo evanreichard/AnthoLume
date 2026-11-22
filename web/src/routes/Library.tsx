@@ -11,7 +11,7 @@ import { LoadingStatus, Skeleton } from '../Skeleton';
 import { RecentBooks } from '../RecentBooks';
 import { OfflineStatusBar } from '../OfflineStatusBar';
 import { profiles } from '../offlineProfiles';
-import { OfflinePin } from '../OfflinePin';
+import { BookDownloadActions } from '../BookDownloadActions';
 import { Button } from '../Controls';
 
 export function Library() {
@@ -156,7 +156,7 @@ export function Library() {
     {documents.isPending && documents.fetchStatus === 'fetching' && <LoadingStatus>Loading shared books…</LoadingStatus>}
     {!books.length && reading.ready && !documents.isFetching && !(sharedEnabled && hasNextPage) && <p>{offline ? 'No matching books on this device.' : 'No matching books. Try another search or add an EPUB.'}</p>}
     <div className={styles.grid}>
-      {books.map((book) => <BookCard key={bookKey(book.ref)} book={book} linkState={bookLinkState} action={offline ? 'read' : 'books'}>{book.ref.kind === 'server' && (offline || book.document?.file_available || reading.deviceCopies?.has(book.ref.documentId)) && <OfflinePin overlay book={book.ref} metadata={book} canSave={offline || !!book.document?.file_available} />}</BookCard>)}
+      {books.map((book) => <BookCard key={bookKey(book.ref)} book={book} linkState={bookLinkState} action={offline ? 'read' : 'books'}>{book.ref.kind === 'server' && (offline || book.document?.file_available || reading.deviceCopies?.has(book.ref.documentId)) && <BookDownloadActions overlay book={book.ref} metadata={book} canSave={offline || !!book.document?.file_available} />}</BookCard>)}
       {!books.length && (!reading.ready || documents.isPending && documents.fetchStatus === 'fetching') && Array.from({ length: 6 }, (_, index) => <div key={index} className={styles.card} aria-hidden="true">
         <Skeleton block className={`${styles.cover} ${styles.coverThumbnail}`} />
         <h2 className={styles.cardTitle}><Skeleton width="75%" /></h2>

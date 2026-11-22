@@ -66,7 +66,7 @@ export class ReadingRuntime implements ReadingActions {
     if (this.disposed) return;
     const serial = ++this.refreshSerial, access = this.access;
     try {
-      const [deviceCopies, books, resumeAccount, pending, offlineRecords] = await Promise.all([access.kind === 'authenticated' || access.kind === 'offline' ? this.repo.deviceCopies(access.account) : undefined, this.repo.projection(access), this.repo.resume(), this.repo.pending(), access.kind === 'authenticated' ? this.repo.db.offline.where('scope').equals(accountKey(access.account)).toArray() : []]);
+      const [{ deviceCopies, books }, resumeAccount, pending, offlineRecords] = await Promise.all([this.repo.projection(access), this.repo.resume(), this.repo.pending(), access.kind === 'authenticated' ? this.repo.db.offline.where('scope').equals(accountKey(access.account)).toArray() : []]);
       if (serial !== this.refreshSerial || this.disposed) return;
       const scope = 'account' in access && access.kind !== 'logout' ? accountKey(access.account) : null;
       const visible = pending.filter(e => e.scope === scope);
@@ -182,14 +182,19 @@ export class ReadingRuntime implements ReadingActions {
     await this.repo.keepSource(opened.row.sourceId, external);
     return opened;
   }
-  async setPinned(ref: Extract<BookRef, { kind: 'server' }>, pinned: boolean, signal: AbortSignal, metadata: Pick<StoredBook, 'title' | 'author'>) {
+  async saveToDevice(ref: Extract<BookRef, { kind: 'server' }>, signal: AbortSignal, metadata: Pick<StoredBook, 'title' | 'author'>) {
     if (!sameAccount(ref.account, this.selectedAccount())) throw new Error('Account changed');
-    if (pinned && this.access.kind === 'authenticated') {
+    if (this.access.kind === 'authenticated') {
       await this.worker.ensureOfflineShell(signal);
       await this.openServerBook(ref, signal, undefined, metadata);
       return;
     }
-    await this.write(() => this.repo.setPinned(ref, pinned, signal, this.access.kind === 'offline'));
+    await this.write(() => this.repo.retainCachedCopy(ref, signal));
+  }
+  async removeFromDevice(ref: Extract<BookRef, { kind: 'server' }>, signal: AbortSignal) {
+    const access = this.access;
+    if ((access.kind !== 'authenticated' && access.kind !== 'offline') || !sameAccount(ref.account, access.account)) throw new Error('Account changed');
+    await this.write(() => this.repo.removeFromDevice(ref, signal, access.kind));
   }
   readerCacheSummary = () => { this.requireReady(); return this.repo.readerCacheSummary(); };
   clearReaderCache = () => { this.requireReady(); return this.repo.clearServerCache(); };

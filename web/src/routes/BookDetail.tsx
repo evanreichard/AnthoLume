@@ -6,7 +6,7 @@ import { bookKey, combineBooks } from '../library';
 import { queryClient, session, useSession } from '../session';
 import { BookHero, Dialog, ErrorNotice, missingFileLabel, PageHeader } from '../ui';
 import { Icon } from '../Icon';
-import { OfflinePin } from '../OfflinePin';
+import { BookDownloadActions } from '../BookDownloadActions';
 import { BookEditor } from './BookEditor';
 import { IdentifyBook } from './IdentifyBook';
 import { useBookRef } from './bookRef';
@@ -110,7 +110,7 @@ function BookDetailContent() {
     <div className={styles.bookOverview}>
       <BookHero variant="detail" book={{ ...book, title }} headingRef={heading} progress={started ? Math.round(fraction * 100) : null} series={metadata?.series} edition={edition?.[2]}
         action={metadata?.file_available ? (started ? 'Resume' : 'Read') : null} />
-      {(metadata?.file_available || reading.deviceCopies?.has(ref.documentId)) && <OfflinePin book={ref} metadata={book} canSave={!!metadata?.file_available} />}
+      {(metadata?.file_available || reading.deviceCopies?.has(ref.documentId)) && <BookDownloadActions book={ref} metadata={book} canSave={!!metadata?.file_available} />}
       {fileUnavailable && <div className={styles.bookFileWarning} role="status">
         <Icon name="warning" size={18} />
         <p><strong>{missingFileLabel}</strong> <span>The server can’t find or read this file.</span></p>

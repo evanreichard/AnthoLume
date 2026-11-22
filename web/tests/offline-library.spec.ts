@@ -79,7 +79,7 @@ test('cold start, pick a profile, review offline reading and upload the selected
   await expect(cold.getByRole('article')).toHaveCount(0);
 });
 
-test('a signed-out profile can read a shared copy; only that account sees its review', async ({page,context,server}) => {
+test('removing a shared download clears both shelves but preserves the offline reader’s private review', async ({page,context,server}) => {
   async function signOut() {
     await page.goto(`${server.origin}/settings`);
     await page.getByRole('button',{name:'Sign out',exact:true}).click();
@@ -98,9 +98,27 @@ test('a signed-out profile can read a shared copy; only that account sees its re
   await page.getByRole('button',{name:bob,exact:true}).click();
   await page.getByRole('article').getByRole('link').click();
   await expect(page.getByRole('region',{name:'Book reader'})).toHaveAttribute('data-reader-state','ready');
-  await page.keyboard.press('c');
-  await page.getByRole('button',{name:'Next page',exact:true}).click();
-  await expect.poll(async () => (await storedRows(page,'offline')).length).toBe(1);
+  const start = Date.now();
+  for (const [index, next] of [2, 3].entries()) {
+    await page.clock.setFixedTime(start + index * 30_000);
+    await page.keyboard.press('c');
+    await page.getByRole('button',{name:'Next page',exact:true}).click();
+    await expect(page.locator('footer')).toContainText(`${next} /`);
+  }
+  await expect.poll(async () => (await storedRows(page,'offline')).map(row => row.kind).sort()).toEqual(['activity', 'progress']);
+  const checkpoint = (await storedRows(page, 'offline')).find(row => row.kind === 'progress')!.checkpoint!;
+  await page.goto(`${server.origin}/library`);
+  const card = page.getByRole('article').filter({ hasText: 'Public book 01' });
+  await expect(card.getByRole('img', {name:'Saved to device'})).toBeVisible();
+  await card.locator('summary').click();
+  await card.getByRole('button', {name:'Remove from Device'}).click();
+  await page.getByRole('dialog').getByRole('button', {name:'Remove from Device'}).click();
+  const emptyShelf = page.getByText('No matching books on this device.');
+  await expect(emptyShelf).toBeVisible();
+  await page.getByRole('button', {name:`Switch profile: ${bob}`}).click();
+  await page.getByRole('button', {name:alice, exact:true}).click();
+  await expect(page.getByRole('button', {name:`Switch profile: ${alice}`})).toBeVisible();
+  await expect(emptyShelf).toBeVisible();
   await context.setOffline(false);
   await page.goto(`${server.origin}/library`);
   await expect(page.getByRole('button',{name:'Add Book'})).toBeEnabled();
@@ -111,9 +129,12 @@ test('a signed-out profile can read a shared copy; only that account sees its re
   await expect(dialog).toBeVisible();
   expect(serverEffects(server.data,bob).head).toBeUndefined();
   await dialog.getByLabel('Progress').check();
+  await dialog.getByLabel('Activity').check();
   await dialog.getByRole('button',{name:'Upload selected'}).click();
-  await expect.poll(() => serverEffects(server.data,bob).head?.revision).toBe(1);
+  await expect.poll(() => serverEffects(server.data,bob).head?.position).toBe(checkpoint.position);
+  await expect.poll(() => serverEffects(server.data,bob).activity).toBe(1);
   expect(serverEffects(server.data,alice).head).toBeUndefined();
+  expect(serverEffects(server.data,alice).activity).toBe(0);
 });
 
 test('seven pins and an automatically cached book coexist on the offline shelf', async ({ page, context, server }) => {

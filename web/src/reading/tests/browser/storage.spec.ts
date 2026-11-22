@@ -40,17 +40,17 @@ test('passive access states leave shared replay and resume intact; logout fences
     for (const access of [{ kind: 'expired', account }, { kind: 'loading' }, { kind: 'anonymous' }] as const) {
       await observer.setAccess(access);
       passive.push({
-        books: (await observer.projection(access)).map(book => book.title).sort(),
+        books: (await observer.projection(access)).books.map(book => book.title).sort(),
         batch: await repo.replayBatch(account), resume: await repo.resume(),
       });
     }
     await observer.setAccess({ kind: 'logout', account });
-    const logout = { books: (await observer.projection({ kind: 'logout', account })).map(book => book.title), resume: await repo.resume(), batch: await repo.replayBatch(account) };
+    const logout = { books: (await observer.projection({ kind: 'logout', account })).books.map(book => book.title), resume: await repo.resume(), batch: await repo.replayBatch(account) };
     observer.db.close();
     await repo.setAccess({ kind: 'authenticated', account });
     let staleAck = false; try { await repo.acknowledge(batch.access, event, { event_id: event.id, kind: 'progress', revision: '1' }); } catch { staleAck = true; }
     await repo.setAccess({ kind: 'authenticated', account: other }); let denied = false; try { await repo.open(ref); } catch { denied = true; }
-    const bBooks = (await repo.projection({ kind: 'authenticated', account: other })).map(b => b.title), pending = (await repo.pending()).map(e => e.id);
+    const bBooks = (await repo.projection({ kind: 'authenticated', account: other })).books.map(b => b.title), pending = (await repo.pending()).map(e => e.id);
     await repo.db.delete(); return { account, batch, eventId: event.id, passive, logout, staleAck, denied, bBooks, pending };
   });
   expect(result.batch.ids).toEqual([result.eventId]);
@@ -77,7 +77,7 @@ test('legacy username rows stay quarantined even when the username equals the ac
     await repo.db.events.add({ key, scope, id: 'legacy-event', kind: 'progress', created: 1, payload: { event_id: 'legacy-event', document_id: ref.documentId, device_id: 'legacy-device', observed_at: '2026-01-01T00:00:00Z', base_revision: '0', position: '/body/p[1]', fraction: .2 } });
     const legacyResume = await repo.resume();
     await repo.setAccess({ kind: 'authenticated', account });
-    const books = (await repo.projection({ kind: 'authenticated', account })).map(book => book.title);
+    const books = (await repo.projection({ kind: 'authenticated', account })).books.map(book => book.title);
     const batch = await repo.replayBatch(account);
     const { source } = await repo.open(local);
     const retained = (await repo.pending()).map(event => event.id);

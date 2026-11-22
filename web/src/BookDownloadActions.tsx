@@ -5,7 +5,7 @@ import { Dialog, ErrorNotice } from './ui';
 import { Icon } from './Icon';
 import styles from './OfflineReading.module.css';
 
-export function OfflinePin({ book, metadata, overlay = false, canSave = true }: { overlay?: boolean; book: Extract<BookRef, { kind: 'server' }>; canSave?: boolean; metadata: { title: string | null; author: string | null } }) {
+export function BookDownloadActions({ book, metadata, overlay = false, canSave = true }: { overlay?: boolean; book: Extract<BookRef, { kind: 'server' }>; canSave?: boolean; metadata: { title: string | null; author: string | null } }) {
   const reading = useReading();
   const controller = useRef<AbortController | null>(null);
   const menu = useRef<HTMLDetailsElement>(null);
@@ -30,11 +30,11 @@ export function OfflinePin({ book, metadata, overlay = false, canSave = true }: 
     menu.current.open = false;
     menu.current.querySelector('summary')?.focus();
   }
-  async function save(keep: boolean) {
+  async function run(action: (signal: AbortSignal) => Promise<void>) {
     if (controller.current) return;
     const operation = controller.current = new AbortController();
     setBusy(true); setError(null);
-    try { await reading.setPinned(book, keep, operation.signal, metadata); setConfirm(false); }
+    try { await action(operation.signal); setConfirm(false); }
     catch (failure) { if (!operation.signal.aborted) setError(failure); }
     finally {
       if (!operation.signal.aborted) setBusy(false);
@@ -44,7 +44,7 @@ export function OfflinePin({ book, metadata, overlay = false, canSave = true }: 
   const copy = reading.deviceCopies?.get(book.documentId);
   const Action = overlay ? 'button' : Button;
   const actions = <>
-    {canSave && copy !== 'saved' && <Action type="button" disabled={busy || !reading.ready} onClick={() => { closeMenu(); void save(true); }}>{overlay && <Icon name="download" size={17} />}{busy ? 'Saving…' : 'Save to Device'}</Action>}
+    {canSave && copy !== 'saved' && <Action type="button" disabled={busy || !reading.ready} onClick={() => { closeMenu(); void run(signal => reading.saveToDevice(book, signal, metadata)); }}>{overlay && <Icon name="download" size={17} />}{busy ? 'Saving…' : 'Save to Device'}</Action>}
     {copy && <Action type="button" disabled={busy || !reading.ready} onClick={() => { closeMenu(); setError(null); setConfirm(true); }}>{overlay && <Icon name="minus" size={17} />}Remove from Device</Action>}
   </>;
   return <>{overlay ? <>
@@ -55,7 +55,7 @@ export function OfflinePin({ book, metadata, overlay = false, canSave = true }: 
     {!confirm && <ErrorNotice error={error} />}
     {confirm && <Dialog title="Remove this download?" onClose={() => { if (!busy) setConfirm(false); }} footer={<>
       <Button disabled={busy} onClick={() => setConfirm(false)}>Cancel</Button>
-      <Button tone="primary" disabled={busy} onClick={() => void save(false)}>Remove from Device</Button>
+      <Button tone="primary" disabled={busy} onClick={() => void run(signal => reading.removeFromDevice(book, signal))}>Remove from Device</Button>
     </>}><p>This removes the offline copy for all profiles on this device. Your reading progress and activity are kept.</p><ErrorNotice error={error} /></Dialog>}
   </>;
 }

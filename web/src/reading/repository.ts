@@ -63,6 +63,12 @@ export class ReadingDB extends Dexie {
 }
 export async function checksum(input: ArrayBuffer | Blob | Source): Promise<string> { return (await hashSource(input instanceof Blob ? blobSource(input) : input instanceof ArrayBuffer ? blobSource(new Blob([input])) : input)).sha256; }
 export const scopeOf = (ref: BookRef) => ref.kind === 'local' ? 'local' : accountKey(ref.account);
+type ServerRef = Extract<BookRef, { kind: 'server' }>;
+type DeviceCopy = BookRow & { ref: ServerRef; sourceId: string };
+function isDeviceCopy(book: BookRow, account: Account): book is DeviceCopy {
+  return book.ref.kind === 'server' && book.ref.account.origin === account.origin &&
+    book.ref.account.readingGeneration === account.readingGeneration && book.availability === 'available' && !!book.sourceId;
+}
 export class Repository {
   readonly stagingStats = { maxIncoming: 0, bytes: 0, chunks: 0, buffer: sourceLimits.chunkBytes };
   constructor(readonly db = new ReadingDB()) {}
@@ -89,10 +95,17 @@ export class Repository {
   }
   async permitted(ref: BookRef) { return ref.kind === 'local' || !!(await this.db.access.get(scopeOf(ref)))?.eligible; }
   async projection(access: ReadingAccess) {
-    if (access.kind === 'offline') return this.offlineShelf(access.account);
+    const rows = await this.db.books.toArray();
+    const account = access.kind === 'offline' || access.kind === 'authenticated' ? access.account : null;
+    const copies = account ? rows.filter(row => isDeviceCopy(row, account)) : [];
+    const deviceCopies = account ? new Map<string, 'saved' | 'cached'>() : undefined;
+    for (const { ref, pinned } of copies) {
+      if (pinned || !deviceCopies?.has(ref.documentId)) deviceCopies?.set(ref.documentId, pinned ? 'saved' : 'cached');
+    }
+    if (access.kind === 'offline') return { deviceCopies, books: await this.offlineShelf(access.account, rows, copies) };
     const scope = 'account' in access && access.kind !== 'logout' ? accountKey(access.account) : null;
     const eligible = scope && (await this.db.access.get(scope))?.eligible;
-    return (await this.db.books.toArray()).filter(b => b.scope === 'local' || b.scope === scope && eligible);
+    return { deviceCopies, books: rows.filter(b => b.scope === 'local' || b.scope === scope && eligible) };
   }
   async device(account: Account): Promise<S['Device']> {
     return this.db.transaction('rw', this.db.meta, async () => {
@@ -190,32 +203,28 @@ export class Repository {
     }
     if (!clear && (bytes > bookCacheBytes || count > bookCacheCount)) throw new Error('Close another open book before caching this EPUB');
   }
-  async deviceCopies(account: Account) {
-    const copies = new Map<string, 'cached' | 'saved'>();
-    for (const book of await this.db.books.toArray()) {
-      const ref = book.ref;
-      if (ref.kind !== 'server' || ref.account.origin !== account.origin || ref.account.readingGeneration !== account.readingGeneration || book.availability !== 'available') continue;
-      if (book.pinned || !copies.has(ref.documentId)) copies.set(ref.documentId, book.pinned ? 'saved' : 'cached');
-    }
-    return copies;
+  private copiesFor(ref: ServerRef) {
+    return this.db.books.filter(row => isDeviceCopy(row, ref.account) && row.ref.documentId === ref.documentId).toArray();
   }
-  async setPinned(ref: BookRef, pinned: boolean, signal: AbortSignal, offline = false) {
+  async retainCachedCopy(ref: ServerRef, signal: AbortSignal) {
+    await this.db.transaction('rw', this.db.books, this.db.sources, async () => {
+      signal.throwIfAborted();
+      const copies = await this.copiesFor(ref);
+      const book = copies.find(b => b.key === refKey(ref)) ?? copies[0];
+      if (!book?.sourceId || !(await this.db.sources.get(book.sourceId))?.complete) throw new Error('Book is not downloaded');
+      await this.db.books.update(book.key, { pinned: true });
+      signal.throwIfAborted();
+    });
+  }
+  async removeFromDevice(ref: ServerRef, signal: AbortSignal, access: 'authenticated' | 'offline') {
     await this.db.transaction('rw', [this.db.books, this.db.access, this.db.sources, this.db.sourceChunks], async () => {
       signal.throwIfAborted();
-      if (!offline && !await this.permitted(ref)) throw new Error('Account changed');
-      if (ref.kind !== 'server') throw new Error('Expected a server book');
-      const copies = await this.db.books.filter(b => b.ref.kind === 'server' && b.ref.documentId === ref.documentId && b.ref.account.origin === ref.account.origin && b.ref.account.readingGeneration === ref.account.readingGeneration && b.availability === 'available').toArray();
-      if (pinned) {
-        const book = copies.find(b => b.key === refKey(ref)) ?? copies[0];
-        if (!book?.sourceId || !(await this.db.sources.get(book.sourceId))?.complete) throw new Error('Book is not downloaded');
-        await this.db.books.update(book.key, { pinned: true });
-      } else {
-        for (const book of copies) {
-          await this.db.books.update(book.key, { pinned: false, sourceId: undefined, bytes: null, cover: null, availability: 'unavailable', etag: undefined });
-          for (const source of await this.db.sources.where('key').equals(book.key).filter(s => s.complete).toArray()) {
-            if (cacheLive(source, Date.now())) await this.db.sources.update(source.id, { evictOnRelease: true });
-            else await this.removeSource(source.id);
-          }
+      if (access === 'authenticated' && !await this.permitted(ref)) throw new Error('Account changed');
+      for (const book of await this.copiesFor(ref)) {
+        await this.db.books.update(book.key, { pinned: false, sourceId: undefined, bytes: null, cover: null, availability: 'unavailable', etag: undefined });
+        for (const source of await this.db.sources.where('key').equals(book.key).filter(s => s.complete).toArray()) {
+          if (cacheLive(source, Date.now())) await this.db.sources.update(source.id, { evictOnRelease: true });
+          else await this.removeSource(source.id);
         }
       }
       signal.throwIfAborted();
@@ -377,14 +386,12 @@ export class Repository {
     if (stored.manifestHash !== manifestHash) throw new Error('Validated index integrity mismatch');
     return { row, source: { ...this.descriptor(stored), digests: integrity?.digests }, manifest: stored.manifest };
   }
-  private async offlineShelf(account: Account) {
+  private async offlineShelf(account: Account, rows: BookRow[], copies: DeviceCopy[]) {
     const scope = accountKey(account), shelf = new Map<string, BookRow>();
-    const rows = await this.db.books.toArray();
     const own = new Map(rows.filter(b => b.scope === scope).map(b => [b.key,b]));
     const drafts = await this.db.offline.where('scope').equals(scope).toArray();
-    const heads = new Map((await this.db.heads.bulkGet(rows.flatMap(b => b.ref.kind === 'server' ? [refKey({ ...b.ref, account })] : []))).filter(h => !!h).map(h => [h.key, h.state]));
-    for (const row of rows) {
-      if (row.ref.kind !== 'server' || row.ref.account.origin !== account.origin || row.ref.account.readingGeneration !== account.readingGeneration || !row.sourceId || row.availability !== 'available') continue;
+    const heads = new Map((await this.db.heads.bulkGet(copies.map(b => refKey({ ...b.ref, account })))).filter(h => !!h).map(h => [h.key, h.state]));
+    for (const row of copies) {
       const ref = { ...row.ref, account }, key = refKey(ref), previous = own.get(key);
       if (shelf.has(key) && row.scope !== scope) continue;
       const draft = drafts.find(d => d.document === ref.documentId && d.kind === 'progress');
@@ -395,7 +402,8 @@ export class Repository {
     return [...shelf.values()];
   }
   async openOffline(ref: Extract<BookRef, {kind: 'server'}>) {
-    const book = (await this.offlineShelf(ref.account)).find(b => b.key === refKey(ref));
+    const { books } = await this.projection({ kind: 'offline', account: ref.account });
+    const book = books.find(b => b.key === refKey(ref));
     if (!book) throw new Error('Book not on this device');
     return this.openSource(book);
   }

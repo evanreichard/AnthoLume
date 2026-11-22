@@ -34,7 +34,8 @@ export type ReaderCacheSummary = { books: number; epubBytes: number; metadataByt
 export interface ReadingActions {
   decideOffline(account: Account, choices: OfflineChoice[], discard: boolean): Promise<void>;
   forgetDrafts(account: Account): Promise<void>;
-  setPinned(ref: Extract<BookRef, { kind: 'server' }>, pinned: boolean, signal: AbortSignal, metadata: Pick<StoredBook, 'title' | 'author'>): Promise<void>;
+  removeFromDevice(ref: Extract<BookRef, { kind: 'server' }>, signal: AbortSignal): Promise<void>;
+  saveToDevice(ref: Extract<BookRef, { kind: 'server' }>, signal: AbortSignal, metadata: Pick<StoredBook, 'title' | 'author'>): Promise<void>;
   readerCacheSummary(): Promise<ReaderCacheSummary>;
   clearReaderCache(): Promise<void>;
   replay(): Promise<void>;
