@@ -17,15 +17,17 @@ The build writes `../assets/app/` for Go packaging. Generate API bindings from t
 From the repository root, after `npm --prefix web ci`:
 
 ```sh
-make dev                          # Create or reopen the loopback library
-make dev-tailnet                  # Also listen on the Tailscale IPv4 address
-make clean-dev                    # Delete only the local dev library
-make dev RESTORE=/path/to/backup.zip
+make dev                            # Start with demo data on first run
+make dev SEED=0                     # Start empty if no dev library exists
+make dev RESTORE=/path/to/backup.zip # Start from a backup instead of demo data
+make clean-dev                      # Delete only the local dev library
 ```
 
-`RESTORE` accepts a compatible AnthoLume ZIP backup (including packaged books and covers) or a database-only SQLite backup. It uses the same format and schema checks as Administration → Restore; pre-migration backups may need upgrading first. It seeds `data/dev/` and never replaces existing state. Without `RESTORE`, `make dev` creates or reuses the local database. Register a test account on loopback before sharing it. `RESET_USER` is optional and sets only that dev account's password to `antholume`, invalidating its existing sessions. Stop the server with Ctrl-C before running `make clean-dev`; cleanup removes only `data/dev/`, not the source backup.
+A fresh dev library includes six books, recent sample reading activity and a resume point. Sign in as `robin` with password `antholume`. The first seeded run needs `curl` and network access unless the EPUBs are already cached. Existing libraries are reused without seeding; `SEED=0` does not remove demo data. If a crash interrupts seeding, the launcher refuses to serve the partial library. Inspect `data/dev/`, then run `make clean-dev` and `make dev` to start over.
 
-The launcher uses `flock` to guard dev state through setup and shutdown. Vite serves hot reload at `http://127.0.0.1:5323` only. `make dev-tailnet` adds the printed Tailscale IPv4 URL and disables registration. The normal `antholume serve` backend runs with `LISTEN_HOST=127.0.0.1` on port 5324. Override occupied ports with `DEV_PORT` and `DEV_GO_PORT`. Use this plain-HTTP setup only on a trusted tailnet. Both modes share the same dev library.
+`RESTORE` accepts a compatible AnthoLume ZIP backup (including packaged books and covers) or a database-only SQLite backup. It uses the same checks as Administration → Restore and requires a fresh `data/dev/`. `RESET_USER` optionally sets a dev account's password to `antholume`, invalidating its sessions. Stop the server with Ctrl-C before `make clean-dev`; cleanup removes only `data/dev/`, not the source backup.
+
+The launcher uses `flock` to guard dev state. Vite serves hot reload at `http://127.0.0.1:5323` and automatically listens on the tailnet IPv4 address when available. Registration is open on both addresses, so use this plain-HTTP setup only on a trusted tailnet. The Go backend stays on `127.0.0.1:5324`. Override occupied ports with `DEV_PORT` and `DEV_GO_PORT`.
 
 Browser tests share port 5323 by default; stop dev before running them. Set `CHROMIUM_PATH` for a system Chromium or `GO_BINARY` to override `go` on `PATH`. Fixture binaries and databases use the OS temporary directory and are removed at teardown.
 
@@ -39,7 +41,7 @@ The app mark is `assets/icons/mark.svg`; `banner.svg` pairs the same mark with t
 
 From the repository root, run `make screenshots` with Go, Node/npm, and curl installed. It builds the app and uses Playwright Chromium; set `CHROMIUM_PATH` to use a system Chromium instead. If Linux browser dependencies are missing, run `web/node_modules/.bin/playwright install --with-deps --only-shell chromium`.
 
-The command starts a private server on a free loopback port with temporary SQLite and library directories. It imports six [Project Gutenberg](https://www.gutenberg.org/) EPUBs and their embedded covers, creates a fictional account and reading history, and writes four PNGs to `screenshots/mobile/` after all views pass their readiness checks. It never needs a running instance or access to your library.
+The command starts a private server on a free loopback port with temporary SQLite and library directories. It uses the same [Project Gutenberg](https://www.gutenberg.org/) books, covers, and reading fixtures as `make dev`, and writes four PNGs to `screenshots/mobile/` after all views pass their readiness checks. It never needs a running instance or access to your library.
 
 The gallery uses a 390 × 844 viewport at 2×, light mode, UTC, and a fixed March 2025 reading journal. The home view is the Library with **Continue reading**; the cover grid is the Library before activity. The Insights image uses the historical Activity tab rather than the rolling 30-day overview.
 

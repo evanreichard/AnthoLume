@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { lstat, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer as createListener, isIPv4 } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -33,9 +33,10 @@ const uuidFallback = `if (!crypto.randomUUID) crypto.randomUUID = () => {
 
 async function run() {
   const root = join(repo, 'data/dev');
-  const share = process.argv.includes('--tailnet');
-  const ip = share ? tailnetIP() : null;
-  if (share && !ip) throw new Error('make dev-tailnet requires a Tailscale IPv4 address.');
+  const ip = tailnetIP();
+  const shouldSeed = process.env.SEED !== '0' && !process.env.RESTORE && await lstat(root).then(
+    () => false, error => { if (error.code === 'ENOENT') return true; throw error; },
+  );
   const vitePort = port('DEV_PORT', 5323);
   const goPort = port('DEV_GO_PORT', 5324);
   if (vitePort === goPort) throw new Error('DEV_PORT and DEV_GO_PORT must differ.');
@@ -66,8 +67,10 @@ async function run() {
     if (buildDir) await rm(buildDir, { recursive: true, force: true });
   })();
 
-  let stop;
-  const stopped = new Promise(resolve => { stop = resolve; });
+  let discardSeed = false, frontendReady = false;
+  const shutdown = new AbortController();
+  const stopped = new Promise(resolve => shutdown.signal.addEventListener('abort', () => resolve(), { once: true }));
+  const stop = () => shutdown.abort();
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
   try {
@@ -79,6 +82,11 @@ async function run() {
         name: 'antholume-local-development',
         closeServer: clean,
         configureServer(server) {
+          server.middlewares.use((_req, res, next) => {
+            if (frontendReady) return next();
+            res.writeHead(503, { 'Retry-After': '1', 'Cache-Control': 'no-store' });
+            res.end('Dev library is starting.');
+          });
           for (const options of Object.values(server.config.server.proxy)) {
             options.configure = proxy => proxy.on('proxyReq', (out, req) => {
               const host = req.headers.host;
@@ -94,7 +102,7 @@ async function run() {
     });
     await vite.listen();
     if (ip) {
-      // Share Vite's HTTP and WebSocket handlers without binding every interface.
+      // Tailnet Listener - Reuse Vite's HTTP and WebSocket handlers without binding every interface.
       extra = createListener(socket => {
         sockets.add(socket);
         socket.once('close', () => sockets.delete(socket));
@@ -105,7 +113,6 @@ async function run() {
         extra.listen(vitePort, ip, resolve);
       });
     }
-
     const probe = createListener();
     await new Promise((resolve, reject) => {
       probe.once('error', reject);
@@ -116,14 +123,15 @@ async function run() {
     const binary = join(buildDir, 'antholume');
     execFileSync('go', ['build', '-o', setup, './tools/dev'], { cwd: repo, stdio: 'inherit' });
     execFileSync('go', ['build', '-o', binary, '.'], { cwd: repo, stdio: 'inherit' });
-    const prepared = await Promise.race([stopped, launch(setup, ['prepare'], { ...process.env, GIN_MODE: 'release' })]);
+    const prepared = await Promise.race([stopped, launch(setup, [shouldSeed ? 'prepare-seed' : 'prepare'], { ...process.env, GIN_MODE: 'release' })]);
     if (prepared === undefined) return;
     if (prepared !== 0) throw new Error(`Go setup exited (${prepared})`);
+    discardSeed = shouldSeed;
     const cookieKey = await readFile(join(root, 'cookie-auth.key'), 'utf8');
     const exited = launch(binary, ['serve'], {
       ...process.env, GIN_MODE: 'release', CONFIG_PATH: root, DATA_PATH: root,
       LISTEN_HOST: '127.0.0.1', LISTEN_PORT: String(goPort), PUBLIC_ORIGIN: target,
-      DATABASE_TYPE: 'sqlite', DATABASE_NAME: 'antholume', REGISTRATION_ENABLED: share ? 'false' : 'true', DEMO_MODE: 'false',
+      DATABASE_TYPE: 'sqlite', DATABASE_NAME: 'antholume', REGISTRATION_ENABLED: 'true', DEMO_MODE: 'false',
       COOKIE_AUTH_KEY: cookieKey, COOKIE_ENC_KEY: '',
     }).then(result => `Go backend exited (${result})`);
     const cancelStartup = new AbortController();
@@ -143,6 +151,21 @@ async function run() {
     cancelStartup.abort();
     if (result === undefined) return;
     if (result !== 'ready') throw new Error(result);
+    if (shouldSeed) {
+      const [{ request }, { seedLibrary }] = await Promise.all([import('@playwright/test'), import('./screenshots/seed.mjs')]);
+      const context = await request.newContext({ timeout: 10_000 });
+      try {
+        const { addReadingHistory } = await seedLibrary(context, target, { username: 'robin', password: 'antholume' }, { signal: shutdown.signal });
+        await addReadingHistory(new Date());
+        await rm(join(root, '.seed-incomplete'));
+        discardSeed = false;
+        console.log('Demo login: robin / antholume');
+      } finally {
+        await context.dispose();
+      }
+    }
+    if (shutdown.signal.aborted) return;
+    frontendReady = true;
     for (const address of [local, tailnet].filter(Boolean)) {
       const res = await fetch(`http://${address}/api/v1/session`, { signal: AbortSignal.timeout(3000) });
       await res.body?.cancel();
@@ -153,9 +176,13 @@ async function run() {
     console.log('Database: data/dev/antholume.db\nSession endpoint ready. Ctrl-C stops both servers.');
     const failure = await Promise.race([stopped, exited]);
     if (failure) throw new Error(failure);
+  } catch (error) {
+    if (!shutdown.signal.aborted) throw error;
   } finally {
     await clean();
     await vite?.close();
+    // Seed Failure - A partial fixture library must not be mistaken for existing dev data on retry.
+    if (discardSeed) await rm(root, { recursive: true, force: true });
   }
 }
 

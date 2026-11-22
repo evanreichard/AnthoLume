@@ -1,8 +1,11 @@
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { mkdir, readFile, writeFile, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import JSZip from 'jszip';
+
+const exec = promisify(execFile);
 
 const editions = [
   [11, "Alice's Adventures in Wonderland", 'Lewis Carroll', '8920c32185106b53e7a87c101b7908193ce1ad00048ee77e0aa60f2fa2dbf4ae'],
@@ -14,7 +17,7 @@ const editions = [
 ];
 
 const cache = 'build/screenshot-books';
-export async function* books() {
+export async function* books({ signal } = {}) {
   await mkdir(cache, { recursive: true });
   for (const [id, title, author, sha] of editions) {
     const path = join(cache, id + '.epub');
@@ -23,8 +26,8 @@ export async function* books() {
       if (error.code !== 'ENOENT') throw error;
     }
     const cached = !!bytes;
-    bytes ??= execFileSync('curl', ['--fail', '--silent', '--show-error', '--location', '--retry', '2', '--max-time', '90',
-      `https://gutenberg.pglaf.org/cache/epub/${id}/pg${id}-images-3.epub`], { maxBuffer: 16 * 1024 * 1024 });
+    bytes ??= (await exec('curl', ['--fail', '--silent', '--show-error', '--location', '--retry', '2', '--max-time', '90',
+      `https://gutenberg.pglaf.org/cache/epub/${id}/pg${id}-images-3.epub`], { encoding: 'buffer', maxBuffer: 16 * 1024 * 1024, signal })).stdout;
     if (createHash('sha256').update(bytes).digest('hex') !== sha) throw new Error(`Checksum mismatch for ${title} (${cached ? path : 'upstream EPUB'}). Review the edition before changing its pin.`);
     if (!cached) {
       const tmp = path + '.' + process.pid;

@@ -21,7 +21,6 @@ fi
 
 case "${1:-}" in
   start) exec node web/dev.mjs ;;
-  tailnet) exec node web/dev.mjs --tailnet ;;
   clean) exec go run ./tools/dev clean ;;
-  *) echo 'Usage: bash web/dev.sh {start|tailnet|clean}' >&2; exit 2 ;;
+  *) echo 'Usage: bash web/dev.sh {start|clean}' >&2; exit 2 ;;
 esac

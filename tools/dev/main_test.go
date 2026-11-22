@@ -33,6 +33,19 @@ func TestPrepareFreshLibraryAndReuseWithoutOverwriting(t *testing.T) {
 	require.Equal(t, "Existing library", title)
 }
 
+func TestInterruptedSeedRequiresExplicitCleanup(t *testing.T) {
+	data := t.TempDir()
+	ctx := context.Background()
+	require.NoError(t, run(ctx, data, "prepare-seed", "", ""))
+	require.ErrorContains(t, run(ctx, data, "prepare", "", ""), "interrupted demo seed")
+	require.FileExists(t, filepath.Join(data, "dev", "antholume.db"))
+	require.NoError(t, run(ctx, data, "clean", "", ""))
+	require.NoError(t, run(ctx, data, "prepare-seed", "", ""))
+	require.NoError(t, os.Remove(filepath.Join(data, "dev", ".seed-incomplete")))
+	require.NoError(t, run(ctx, data, "prepare", "", ""))
+	require.ErrorContains(t, run(ctx, data, "prepare-seed", "", ""), "requires a fresh library")
+}
+
 func TestPrepareLeavesIncompleteExistingDirectoryAlone(t *testing.T) {
 	data := t.TempDir()
 	root := filepath.Join(data, "dev")

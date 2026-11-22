@@ -45,17 +45,12 @@ generate:
 check_generation:
 	bash api/check-generation.sh
 
-.PHONY: dev dev-tailnet clean-dev clean-dev-tailnet
+.PHONY: dev clean-dev
 dev:
 	bash web/dev.sh start
 
-dev-tailnet:
-	bash web/dev.sh tailnet
-
 clean-dev:
 	bash web/dev.sh clean
-
-clean-dev-tailnet: clean-dev
 
 clean:
 	rm -rf ./build

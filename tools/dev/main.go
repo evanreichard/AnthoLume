@@ -25,8 +25,8 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	args := os.Args[1:]
-	if len(args) != 1 || (args[0] != "prepare" && args[0] != "clean") {
-		log.Fatal("usage: dev-setup <prepare|clean>")
+	if len(args) != 1 || (args[0] != "prepare" && args[0] != "prepare-seed" && args[0] != "clean") {
+		log.Fatal("usage: dev-setup <prepare|prepare-seed|clean>")
 	}
 	data, err := filepath.Abs("data")
 	if err == nil {
@@ -58,6 +58,18 @@ func run(ctx context.Context, data, action, restore, resetUser string) error {
 		}
 		fmt.Println("Removed dev state:", root)
 		return nil
+	}
+
+	seedMarker := filepath.Join(root, ".seed-incomplete")
+	if rootInfo != nil {
+		if _, err := os.Lstat(seedMarker); err == nil {
+			return errors.New("interrupted demo seed; inspect data/dev, then run make clean-dev and make dev to retry")
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	if action == "prepare-seed" && (rootInfo != nil || restore != "") {
+		return errors.New("demo seeding requires a fresh library without RESTORE")
 	}
 
 	dbPath := filepath.Join(root, "antholume.db")
@@ -93,6 +105,11 @@ func run(ctx context.Context, data, action, restore, resetUser string) error {
 		}
 	}()
 
+	if action == "prepare-seed" {
+		if err := os.WriteFile(seedMarker, nil, 0600); err != nil {
+			return err
+		}
+	}
 	key, err := cookieKey(root)
 	if err != nil {
 		return err
