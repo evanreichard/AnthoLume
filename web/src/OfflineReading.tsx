@@ -103,10 +103,10 @@ export function OfflineReview({account}: {account: Account}) {
   }
   if (later) return <button onClick={() => setLater(false)}>Review offline reading</button>;
   return <Dialog title="Offline Reading" onClose={close} layout="scroll-body" placement="mobile-sheet" footer={<div className={styles.reviewActions}>
-    <button className={styles.quiet} disabled={busy} onClick={() => discard ? setDiscard(false) : close()}>{discard ? 'Cancel' : 'Not now'}</button>
+    <button className={styles.quiet} disabled={busy} onClick={() => discard ? setDiscard(false) : close()}>{discard ? 'Cancel' : 'Keep Reading'}</button>
     {!discard && <button className={styles.quiet} title="Discard selected records" aria-label="Discard selected records" disabled={busy || !choices.length} onClick={() => setDiscard(true)}><Icon name="trash" size={17} /></button>}
     <Button tone={discard ? 'danger' : 'primary'} disabled={busy || !choices.length} onClick={() => void submit(discard)}>{discard ? 'Discard selected' : 'Upload selected'}</Button>
-  </div>}><ErrorNotice error={error} />{group(records).map(book => <BookComparison key={book.document} book={book} account={account} timezone={current?.user?.timezone ?? 'UTC'} selected={selected} select={(items, checked) => {
+  </div>}><ErrorNotice error={error} />{records.some(record => record.kind === 'progress') && <p>While a book’s progress is waiting for review, new reading for that book stays on this device.</p>}{group(records).map(book => <BookComparison key={book.document} book={book} account={account} timezone={current?.user?.timezone ?? 'UTC'} selected={selected} select={(items, checked) => {
     if (busy) return;
     setDiscard(false); setSelected(previous => { const next = new Map(previous); for (const item of items) { if (checked) next.set(item.id,item); else next.delete(item.id); } return next; });
   }} />)}</Dialog>;

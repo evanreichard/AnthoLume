@@ -1,3 +1,4 @@
+import type { BrowserContext, Page } from '@playwright/test';
 import { test, expect, register, signIn } from './fixtures';
 import { storedRows, serverEffects } from './storage';
 
@@ -108,6 +109,91 @@ test('cold start, pick a profile, review offline reading and upload the selected
   await cold.getByRole('button', { name: 'Forget on this device' }).click();
   await expect(cold.getByRole('button',{ name:user, exact:true })).toHaveCount(0);
   await expect(cold.getByRole('article')).toHaveCount(0);
+});
+
+const bookReader = (page: Page) => page.getByRole('region', { name: 'Book reader', includeHidden: true });
+const offlineReview = (page: Page) => page.getByRole('dialog', { name: 'Offline reading' });
+const offlineProgress = async (page: Page) => (await storedRows(page, 'offline')).find(row => row.kind === 'progress');
+const offlinePosition = async (page: Page) => (await offlineProgress(page))?.checkpoint?.position;
+
+async function turnPage(page: Page, next: number) {
+  await page.keyboard.press('c');
+  await page.getByRole('button', { name: 'Next page', exact: true }).click();
+  await expect(bookReader(page).locator('footer')).toContainText(`${next} /`);
+}
+
+async function readOffline(page: Page, context: BrowserContext, origin: string, user: string) {
+  await register(page, origin, user);
+  const card = page.getByRole('article').filter({ hasText: 'Public book 01' });
+  await card.locator('summary').click();
+  await card.getByRole('button', { name: 'Save to Device' }).click();
+  await expect(card.getByRole('img', { name: 'Saved to device' })).toBeVisible();
+  await context.setOffline(true);
+  await page.getByRole('button', { name: user, exact: true }).click();
+  await page.getByRole('article').getByRole('link').click();
+  await expect(bookReader(page)).toHaveAttribute('data-reader-state', 'ready');
+  await turnPage(page, 2);
+  await turnPage(page, 3);
+  await expect.poll(() => offlinePosition(page)).toBeTruthy();
+}
+
+test('reconnect keeps the open page and frame through review, then syncs the first turn after upload', async ({ page, context, server }) => {
+  const user = 'offline-upload-open-book';
+  await readOffline(page, context, server.origin, user);
+  const checkpoint = await offlinePosition(page);
+  const reader = bookReader(page), review = offlineReview(page);
+  const frame = reader.locator('iframe').first();
+  const openedFrame = await frame.elementHandle();
+  await context.setOffline(false);
+  await expect(review.getByLabel('Progress')).toBeEnabled();
+  await expect(reader).toHaveAttribute('data-reader-state', 'ready');
+  await expect(reader.locator('footer')).toContainText('3 /');
+  expect(await frame.evaluate((current, original) => current === original, openedFrame)).toBe(true);
+  await page.keyboard.press('ArrowRight');
+  await expect(reader.locator('footer')).toContainText('3 /');
+  expect(serverEffects(server.data, user).head).toBeUndefined();
+
+  await review.getByLabel('Progress').check();
+  await review.getByRole('button', { name: 'Upload selected' }).click();
+  await expect(review).toBeHidden();
+  const head = () => serverEffects(server.data, user).head;
+  await expect.poll(head).toMatchObject({ revision: 1, position: checkpoint });
+  await expect(reader.locator('footer')).toContainText('3 /');
+  const uploadedFraction = Number(head()!.fraction);
+  await turnPage(page, 4);
+  await expect.poll(() => head()?.revision).toBe(2);
+  expect(head()!.position).not.toBe(checkpoint);
+  expect(Number(head()!.fraction)).toBeGreaterThan(uploadedFraction);
+});
+
+test('Keep Reading preserves pending progress locally across turns and an online reload', async ({ page, context, server }) => {
+  const user = 'offline-defer-open-book';
+  await readOffline(page, context, server.origin, user);
+  const checkpoint = await offlinePosition(page);
+  await context.setOffline(false);
+  const review = offlineReview(page);
+  const keepReading = review.getByRole('button', { name: 'Keep Reading', exact: true });
+  await keepReading.click();
+  await expect(review).toBeHidden();
+  await turnPage(page, 4);
+  await expect.poll(async () => (await offlinePosition(page)) ?? checkpoint).not.toBe(checkpoint);
+  const deferredPosition = await offlinePosition(page);
+  expect(serverEffects(server.data, user).head).toBeUndefined();
+
+  await page.reload();
+  await keepReading.click();
+  const reader = bookReader(page);
+  await expect(reader).toHaveAttribute('data-reader-state', 'ready');
+  const paragraph = deferredPosition?.match(/\/p\[(\d+)\]$/)?.[1];
+  expect(paragraph).toBeTruthy();
+  await expect(reader.locator('iframe').first().contentFrame().locator('body > p').nth(Number(paragraph) - 1)).toBeInViewport();
+  const restored = await offlineProgress(page);
+  expect(restored?.checkpoint?.position).toBe(deferredPosition);
+  const currentPage = Number((await reader.locator('footer').textContent())?.split('/')[0]);
+  await turnPage(page, currentPage + 1);
+  await expect.poll(async () => (await offlineProgress(page))?.id ?? restored?.id).not.toBe(restored?.id);
+  expect((await storedRows(page, 'events')).filter(row => row.kind === 'progress')).toEqual([]);
+  expect(serverEffects(server.data, user).head).toBeUndefined();
 });
 
 test('removing a shared download clears both shelves but preserves the offline reader’s private review', async ({page,context,server}) => {

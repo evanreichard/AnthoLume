@@ -121,8 +121,9 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
     const timer = setTimeout(() => setShowLoading(true), 450);
     return () => clearTimeout(timer);
   }, [hasOpened, status.state, permitted, key]);
+  const readerReady = permitted && (snapshot.ready || (hasOpened && readerState.key === key));
   useEffect(() => {
-    if (!runtime || !snapshot.ready || !host.current || !permitted || parentGestures === undefined) return;
+    if (!runtime || !readerReady || !host.current || parentGestures === undefined) return;
     let alive = true, resizeTimer: ReturnType<typeof setTimeout> | undefined;
     setHasOpened(false);
     setStatus({ state: 'opening', message: 'Reading your preferences…' });
@@ -142,17 +143,13 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
         const device = await runtime.repo.device(book.account);
         activity = activityEvent(book.documentId, device.id, measured);
       }
-      const checkpoint = { position: location.ko, fraction: location.fraction };
-      if (book.kind === 'server' && (access.kind === 'offline' || !navigator.onLine)) await runtime.offlineSave(book, checkpoint, activity);
-      else await runtime.save(book, checkpoint, activity);
+      await runtime.save(book, { position: location.ko, fraction: location.fraction }, activity);
     }, { localOnly: book.kind === 'local', parentGestures, interact: wake.interact, chrome: reveal, resizeText: resizeFromPinch,
       cycleTheme: () => { const themes = Object.keys(palette) as Appearance['theme'][]; void changeAppearance({ ...appearanceRef.current, theme: themes[(themes.indexOf(appearanceRef.current.theme) + 1) % themes.length]! }); },
       credit: async measured => {
         if (book.kind !== 'server') return;
         const device = await runtime.repo.device(book.account);
-        const event = activityEvent(book.documentId, device.id, measured);
-        if (access.kind === 'offline' || !navigator.onLine) await runtime.offlineSave(book, undefined, event);
-        else await runtime.credit(book, event, measured);
+        await runtime.credit(book, activityEvent(book.documentId, device.id, measured), measured);
       },
     });
     controller.current = instance;
@@ -203,7 +200,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
       pendingAppearance.current = null; draggingSize.current = false; controller.current = null;
       void instance.dispose();
     };
-  }, [runtime, snapshot.ready, key, access.kind, permitted, attempt, explicitBeginning, parentGestures]);
+  }, [runtime, readerReady, key, attempt, explicitBeginning, parentGestures]);
   async function applyAppearance() {
     clearTimeout(appearanceTimer.current); appearanceTimer.current = undefined;
     const instance = controller.current;

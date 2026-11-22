@@ -65,6 +65,7 @@ export class ReadingDB extends Dexie {
 export async function checksum(input: ArrayBuffer | Blob | Source): Promise<string> { return (await hashSource(input instanceof Blob ? blobSource(input) : input instanceof ArrayBuffer ? blobSource(new Blob([input])) : input)).sha256; }
 export const scopeOf = (ref: BookRef) => ref.kind === 'local' ? 'local' : accountKey(ref.account);
 type ServerRef = Extract<BookRef, { kind: 'server' }>;
+type Capture = { offline(): boolean; title?: string | null };
 type DeviceCopy = BookRow & { ref: ServerRef; sourceId: string };
 function isDeviceCopy(book: BookRow, account: Account): book is DeviceCopy {
   return book.ref.kind === 'server' && book.ref.account.origin === account.origin &&
@@ -424,20 +425,31 @@ export class Repository {
     if (!book) throw new Error('Book not on this device');
     return this.openSource(book);
   }
-  async recordOffline(ref: Extract<BookRef, {kind: 'server'}>, title: string, checkpoint?: Checkpoint, activity?: S['ActivityEvent']) {
+  private offlineProgress(ref: ServerRef) {
+    return this.db.offline.where('[scope+document+kind]').equals([scopeOf(ref), ref.documentId, 'progress']);
+  }
+  async withOfflineProgress(row: BookRow) {
+    if (row.ref.kind !== 'server') return row;
+    const draft = await this.offlineProgress(row.ref).first();
+    return draft?.kind === 'progress'
+      ? { ...row, checkpoint: draft.checkpoint, lastReadAt: draft.created, resumeCandidate: undefined }
+      : row;
+  }
+  private async recordOffline(ref: ServerRef, title: string, checkpoint?: Checkpoint, activity?: S['ActivityEvent']) {
     const scope = scopeOf(ref), document = ref.documentId, created = new Date().toISOString();
-    await this.db.transaction('rw', this.db.offline, async () => {
-      if (checkpoint) {
-        const { position, fraction } = checkpoint;
-        if (position === null || fraction === null || !validProgressPosition(position, fraction)) throw new Error('Invalid position');
-        await this.db.offline.where('[scope+document+kind]').equals([scope,document,'progress']).delete();
-        await this.db.offline.add({ id: crypto.randomUUID(), scope, document, title, created, kind: 'progress', checkpoint: { position, fraction } });
-      }
-      if (activity) {
-        if (activity.document_id !== document || !validSubmission({kind: 'activity', payload: activity})) throw new Error('Invalid activity');
-        await this.db.offline.put({ id: activity.event_id, scope, document, title, created, kind: 'activity', event: activity });
-      }
-    });
+    if (checkpoint) {
+      const { position, fraction } = checkpoint;
+      if (position === null || fraction === null || !validProgressPosition(position, fraction)) throw new Error('Invalid position');
+      await this.offlineProgress(ref).delete();
+      await this.db.offline.add({ id: crypto.randomUUID(), scope, document, title, created, kind: 'progress', checkpoint: { position, fraction } });
+    }
+    if (activity) {
+      if (activity.document_id !== document || !validSubmission({kind: 'activity', payload: activity})) throw new Error('Invalid activity');
+      const previous = await this.db.offline.get(activity.event_id);
+      if (previous) {
+        if (previous.kind !== 'activity' || previous.scope !== scope || previous.document !== document || JSON.stringify(previous.event) !== JSON.stringify(activity)) throw new Error('Activity interval identity collision');
+      } else await this.db.offline.add({ id: activity.event_id, scope, document, title, created, kind: 'activity', event: activity });
+    }
   }
   async decideOffline(account: Account, choices: OfflineChoice[], discard: boolean) {
     const scope = accountKey(account), device = await this.device(account);
@@ -446,11 +458,16 @@ export class Repository {
       for (const choice of choices) {
         const row = await this.db.offline.get(choice.id);
         if (!row || row.scope !== scope) throw new Error('Offline records changed. Review again.');
-        const key = refKey({ kind: 'server', account, documentId: row.document });
+        const ref: ServerRef = { kind: 'server', account, documentId: row.document }, key = refKey(ref);
         if (!discard && row.kind === 'progress') {
           if (!choice.revision || await this.hasPendingProgress(key)) throw new Error('Refresh after progress syncs.');
           await this.addEvent(key, scope, { kind: 'progress', payload: { event_id: row.id, document_id: row.document, device_id: device.id, observed_at: row.created, base_revision: choice.revision, ...row.checkpoint } }, row.title);
-          await this.db.books.update(key, { checkpoint: row.checkpoint, lastReadAt: row.created });
+          const book = await this.db.books.get(key);
+          // Shared Copies - The reviewing account can have a position without having downloaded its own EPUB.
+          await this.db.books.put({
+            ...(book ?? { key, scope, ref, title: row.title, author: null, cover: null, availability: 'unavailable', bytes: null, size: 0, checksum: null, protocolHash: null }),
+            checkpoint: row.checkpoint, lastReadAt: row.created, resumeCandidate: undefined,
+          });
         } else if (!discard && row.kind === 'activity') await this.addEvent(key, scope, { kind: 'activity', payload: row.event });
         await this.db.offline.delete(row.id);
       }
@@ -466,37 +483,61 @@ export class Repository {
   private async enqueueProgress(draft: ProgressDraft, scope: string, document: string, device: string, revision: string) {
     await this.addEvent(draft.key, scope, { kind: 'progress', payload: { event_id: crypto.randomUUID(), document_id: document, device_id: device, observed_at: draft.observedAt, base_revision: revision, position: draft.position, fraction: draft.fraction } });
   }
-  async save(ref: BookRef, checkpoint: Checkpoint, activity?: S['ActivityEvent']) {
+  async save(ref: BookRef, checkpoint: Checkpoint, activity?: S['ActivityEvent'], capture?: Capture) {
     const device = ref.kind === 'server' ? await this.device(ref.account) : null;
-    await this.db.transaction('rw', [this.db.books, this.db.events, this.db.heads, this.db.access, this.db.progressDrafts], async () => {
-      if (!await this.permitted(ref)) throw new Error('Account hidden');
+    await this.db.transaction('rw', this.tables(), async () => {
       const key = refKey(ref), book = await this.db.books.get(key);
-      if (!book || ref.kind === 'local' && book.availability !== 'available') throw new Error('Book unavailable');
-      await this.db.books.put({ ...book, checkpoint, lastReadAt: new Date().toISOString() });
-      if (ref.kind === 'local') { if (activity) throw new Error('Local activity must never upload'); return; }
+      const observedAt = new Date().toISOString();
+      if (ref.kind === 'local') {
+        if (activity) throw new Error('Local activity must never upload');
+        if (!book || book.availability !== 'available') throw new Error('Book unavailable');
+        await this.db.books.put({ ...book, checkpoint, lastReadAt: observedAt });
+        return;
+      }
+      const offline = await this.offlineProgress(ref).first();
       const state = (await this.db.heads.get(key))?.state;
-      if (!state || checkpoint.position === null || checkpoint.fraction === null || !validProgressPosition(checkpoint.position, checkpoint.fraction)) throw new Error('A known server revision and recoverable position are required');
-      const scope = scopeOf(ref), draft = { key, observedAt: new Date().toISOString(), position: checkpoint.position, fraction: checkpoint.fraction };
-      if (await this.hasPendingProgress(key)) {
-        await this.db.progressDrafts.put(draft);
-      } else {
+      const pending = await this.hasPendingProgress(key);
+      const disconnected = capture?.offline();
+      if (!disconnected && !await this.permitted(ref)) throw new Error('Account hidden');
+      if (disconnected || offline || (capture && !state && !pending)) {
+        await this.recordOffline(ref, book?.title ?? offline?.title ?? capture?.title ?? ref.documentId, checkpoint, activity);
+        capture?.offline();
+        return;
+      }
+      if (!book) throw new Error('Book unavailable');
+      const { position, fraction } = checkpoint;
+      if (position === null || fraction === null || !validProgressPosition(position, fraction)) throw new Error('A recoverable position is required');
+      const scope = scopeOf(ref), draft = { key, observedAt, position, fraction };
+      await this.db.books.put({ ...book, checkpoint, lastReadAt: observedAt });
+      if (pending) await this.db.progressDrafts.put(draft);
+      else {
+        if (!state) throw new Error('A known server revision is required');
         await this.enqueueProgress(draft, scope, ref.documentId, device!.id, state.revision);
       }
       if (activity) await this.addEvent(key, scope, { kind: 'activity', payload: activity });
+      if (capture?.offline()) throw new DOMException('Reading went offline', 'AbortError');
     });
   }
-  async credit(ref: BookRef, payload: S['ActivityEvent'], measured?: CapturedActivity) {
+  async credit(ref: BookRef, payload: S['ActivityEvent'], measured?: CapturedActivity, capture?: Capture) {
     if (ref.kind !== 'server' || payload.document_id !== ref.documentId || !validSubmission({ kind: 'activity', payload })) throw new Error('Invalid server activity');
-    await this.db.transaction('rw', this.db.events, this.db.access, async () => {
-      if (!await this.permitted(ref)) throw new Error('Account hidden');
+    await this.db.transaction('rw', this.db.events, this.db.access, this.db.offline, async () => {
       const interval = measured ? { id: measured.intervalId, startMs: measured.startMs, endMs: measured.endMs } : undefined;
       if (interval && (payload.event_id !== interval.id || !Number.isFinite(interval.startMs) || !Number.isFinite(interval.endMs) || interval.endMs <= interval.startMs)) throw new Error('Invalid activity interval');
+      const offline = await this.offlineProgress(ref).first();
+      const disconnected = capture?.offline();
+      if (!disconnected && !await this.permitted(ref)) throw new Error('Account hidden');
       const previous = await this.db.events.get(payload.event_id);
       if (previous) {
         if (previous.kind !== 'activity' || previous.scope !== scopeOf(ref) || previous.key !== refKey(ref) || JSON.stringify(previous.payload) !== JSON.stringify(payload) || JSON.stringify(previous.interval) !== JSON.stringify(interval)) throw new Error('Activity interval identity collision');
         return;
       }
+      if (disconnected || offline) {
+        await this.recordOffline(ref, offline?.title ?? capture?.title ?? ref.documentId, undefined, payload);
+        capture?.offline();
+        return;
+      }
       await this.db.events.add({ id: payload.event_id, key: refKey(ref), scope: scopeOf(ref), created: Date.now(), kind: 'activity', payload, ...(interval ? { interval } : {}) });
+      if (capture?.offline()) throw new DOMException('Reading went offline', 'AbortError');
     });
   }
   pending(scope?: string) { return scope ? this.db.events.where('scope').equals(scope).sortBy('created') : this.db.events.orderBy('created').toArray(); }
@@ -563,14 +604,14 @@ export class Repository {
       const head = (await this.db.heads.get(event.key))?.state;
       if (head && BigInt(head.revision) > BigInt(state.revision)) state = head;
       if (event.kind !== 'progress') throw new Error('Expected a progress event');
+      const device = await this.db.progressDrafts.get(event.key) ?? { ...event.payload, observedAt: event.payload.observed_at };
+      let resumeCandidate: ResumeCandidate | undefined;
       if (event.offlineTitle !== undefined) {
         const document = event.payload.document_id;
         if (!await this.db.offline.where('[scope+document+kind]').equals([event.scope,document,'progress']).count()) {
-          await this.db.offline.add({ id: crypto.randomUUID(), kind: 'progress', document, scope: event.scope, title: event.offlineTitle, created: event.payload.observed_at, checkpoint: {position: event.payload.position, fraction: event.payload.fraction} });
+          await this.db.offline.add({ id: crypto.randomUUID(), kind: 'progress', document, scope: event.scope, title: event.offlineTitle, created: device.observedAt, checkpoint: { position: device.position, fraction: device.fraction } });
         }
-      }
-      const device = await this.db.progressDrafts.get(event.key) ?? { ...event.payload, observedAt: event.payload.observed_at };
-      const resumeCandidate = { eventId: event.id, position: device.position, fraction: device.fraction, savedAt: device.observedAt };
+      } else resumeCandidate = { eventId: event.id, position: device.position, fraction: device.fraction, savedAt: device.observedAt };
       await this.db.events.where('key').equals(event.key).filter(row => row.kind === 'progress' && !row.rejected).delete();
       await this.db.progressDrafts.delete(event.key);
       await this.db.heads.put({ key: event.key, state });

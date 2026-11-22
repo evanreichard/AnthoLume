@@ -46,7 +46,7 @@ export class ReaderController {
   private contentCleanup = new Map<Document, () => void>();
   private passiveLinks = new WeakMap<Element, string>();
   private key = (event: KeyboardEvent) => {
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || document.querySelector('dialog:modal')) return;
     if (event.key === 'ArrowRight') void this.next();
     if (event.key === 'ArrowLeft') void this.previous();
     if (event.key.toLowerCase() === 't') this.options.cycleTheme?.();
