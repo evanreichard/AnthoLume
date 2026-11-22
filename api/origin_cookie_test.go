@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,7 +13,7 @@ func TestHTTPSCookiesAndOriginIndependentOfHost(t *testing.T) {
 	f := newWebFixture(t)
 	cfg := *f.cfg
 	cfg.PublicOrigin = "https://books.example:443"
-	api, err := NewAPI(f.db, &cfg, os.DirFS(".."))
+	api, err := NewAPI(f.db, &cfg, f.api.assets)
 	require.NoError(t, err)
 	recorder := httptest.NewRecorder()
 	api.Handler().ServeHTTP(recorder, httptest.NewRequest("GET", cfg.PublicOrigin+"/api/v1/session", nil))

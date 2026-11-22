@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { build, type Plugin, type ResolvedConfig } from 'vite';
 
-export function readingWorker(appNavigation: RegExp): Plugin {
+export function readingWorker(appNavigation: string[]): Plugin {
   let config: ResolvedConfig;
   return {
     name: 'antholume-offline-shell',
@@ -14,11 +14,13 @@ export function readingWorker(appNavigation: RegExp): Plugin {
       const files = ['/', '/assets/icons/mark.svg', ...Object.keys(bundle).filter(path => path.startsWith('assets/')).sort().map(path => `/assets/app/${path}`)];
       const html = bundle['index.html'];
       if (html?.type !== 'asset') throw new Error('Missing shell HTML');
-      const version = createHash('sha256').update(JSON.stringify(files)).update(html.source).digest('hex');
+      const navigation = JSON.stringify(appNavigation);
+      this.emitFile({ type: 'asset', fileName: 'shell-paths.json', source: navigation });
+      const version = createHash('sha256').update(JSON.stringify(files)).update(navigation).update(html.source).digest('hex');
       const result = await build({
         configFile: false,
         root: config.root,
-        define: { __APP_NAVIGATION__: JSON.stringify(appNavigation.source), __SHELL_FILES__: JSON.stringify(files), __SHELL_VERSION__: JSON.stringify(version), __HTML_INTEGRITY__: JSON.stringify('sha256-' + createHash('sha256').update(html.source).digest('base64')) },
+        define: { __APP_NAVIGATION__: navigation, __SHELL_FILES__: JSON.stringify(files), __SHELL_VERSION__: JSON.stringify(version), __HTML_INTEGRITY__: JSON.stringify('sha256-' + createHash('sha256').update(html.source).digest('base64')) },
         logLevel: 'warn',
         build: {
           write: false,

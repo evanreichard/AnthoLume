@@ -1,7 +1,7 @@
 package api
 
 import (
-	_ "embed"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -11,14 +11,37 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-//go:embed app-navigation.regexp
-var appNavigationPattern string
+const shellPathsFile = "assets/app/shell-paths.json"
 
-var appNavigation = regexp.MustCompile(strings.TrimSpace(appNavigationPattern))
+func loadShellPaths(assets fs.FS) (map[string]bool, error) {
+	data, err := fs.ReadFile(assets, shellPathsFile)
+	if err != nil {
+		return nil, fmt.Errorf("load shell paths (run npm --prefix web run build): %w", err)
+	}
+	var paths []string
+	if err := json.Unmarshal(data, &paths); err != nil {
+		return nil, fmt.Errorf("invalid %s: %w", shellPathsFile, err)
+	}
+	allowed := make(map[string]bool, len(paths)*2)
+	for _, p := range paths {
+		if p != "/" && (!strings.HasPrefix(p, "/") || !fs.ValidPath(p[1:]) || strings.ContainsAny(p, ":*?#%\\")) {
+			return nil, fmt.Errorf("invalid shell path %q", p)
+		}
+		allowed[p] = true
+		if p != "/" {
+			allowed[p+"/"] = true
+		}
+	}
+	if !allowed["/"] {
+		return nil, fmt.Errorf("missing root in %s", shellPathsFile)
+	}
+	return allowed, nil
+}
+
 var hashedAsset = regexp.MustCompile(`-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$`)
 
 func CheckAppAssets(assets fs.FS) error {
-	for _, name := range []string{"assets/app/index.html", "assets/app/sw.js", "assets/app/manifest.json"} {
+	for _, name := range []string{"assets/app/index.html", "assets/app/sw.js", "assets/app/manifest.json", shellPathsFile} {
 		info, err := fs.Stat(assets, name)
 		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 			return fmt.Errorf("compiled application missing; run npm --prefix web ci and npm --prefix web run build")

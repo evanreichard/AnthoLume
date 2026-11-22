@@ -1,4 +1,4 @@
-export {};
+import { matchesShell } from '../app-routes';
 type LifetimeEvent = Event & { waitUntil(promise: Promise<unknown>): void };
 type RequestEvent = Event & { request: Request; respondWith(response: Promise<Response>): void };
 const sw = globalThis as unknown as {
@@ -12,8 +12,8 @@ declare const __HTML_INTEGRITY__: string;
 declare const __SHELL_FILES__: string[];
 const name = 'antholume-shell-' + __SHELL_VERSION__;
 const files = new Set(__SHELL_FILES__);
-declare const __APP_NAVIGATION__: string;
-const navigation = new RegExp(__APP_NAVIGATION__);
+declare const __APP_NAVIGATION__: string[];
+const navigation = new Set(__APP_NAVIGATION__);
 
 async function ensureShell() {
   const cache = await caches.open(name);
@@ -43,7 +43,7 @@ sw.addEventListener('fetch', event => {
   const request = event.request, url = new URL(request.url);
   if (url.origin !== location.origin || request.method !== 'GET') return;
   const navigate = request.mode === 'navigate';
-  if (navigate ? !navigation.test(url.pathname) : url.pathname === '/' || !files.has(url.pathname) || url.search !== '') return;
+  if (navigate ? !matchesShell(navigation, url.pathname) : url.pathname === '/' || !files.has(url.pathname) || url.search !== '') return;
   event.respondWith((async () => {
     const cache = await caches.open(name);
     return await cache.match(navigate ? '/' : url.pathname) ?? fetch(request);

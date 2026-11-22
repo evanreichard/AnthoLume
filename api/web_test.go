@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -64,7 +65,7 @@ func (f *webFixture) start() {
 	f.server = httptest.NewUnstartedServer(nil)
 	f.cfg.PublicOrigin = "http://" + f.server.Listener.Addr().String()
 	var err error
-	f.api, err = NewAPI(f.db, f.cfg, os.DirFS(".."))
+	f.api, err = NewAPI(f.db, f.cfg, overlayAssets{fstest.MapFS{shellPathsFile: {Data: []byte(`["/"]`)}}, os.DirFS("..")})
 	require.NoError(f.t, err)
 	f.server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Test-Drop-Response") == "yes" {

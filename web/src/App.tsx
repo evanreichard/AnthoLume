@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, ScrollRestoration, useLocation, useNavigate, useRouteError } from 'react-router';
+import type { RouteObject } from 'react-router';
+import { appRoutes, type AppRoute } from './app-routes';
 import { ReadingProvider, useReading } from './reading';
 import { sameAccount } from './api/client';
 import { queryClient, session, useSession } from './session';
@@ -106,33 +108,35 @@ function RouteError() {
   const error = useRouteError();
   return <><PageHeader title="This page could not open" /><ErrorNotice error={error} /><Link to="/library">Return to Library</Link></>;
 }
-const router = createBrowserRouter([{
-  Component: Providers,
-  HydrateFallback: AppLoading,
-  children: [
-    { path: 'login', element: <Auth key="login" mode="login" /> },
-    { path: 'register', element: <Auth key="register" mode="register" /> },
-    { Component: Shell, children: [
-      { Component: ProtectedApp, ErrorBoundary: RouteError, children: [
-      { index: true, element: <Navigate to="/library" replace /> },
-      { path: 'library', Component: Library },
-      { path: 'books/:kind', Component: BookDetail },
-      { path: 'read/:kind', lazy: () => import('./routes/ReaderRoute') },
-      { path: 'insights', Component: Insights },
-      { path: 'insights/activity', element: <Insights view="activity" /> },
-      { path: 'insights/progress', element: <Insights view="progress" /> },
-      { path: 'insights/rankings', element: <Insights view="rankings" /> },
-      { path: 'settings', Component: Settings },
-      { path: 'admin', Component: Administration, children: [
-        { index: true, element: <Navigate to="library" replace /> },
-        { path: 'library', Component: AdminLibrary },
-        { path: 'users', Component: AdminUsers },
-        { path: 'system', Component: AdminSystem },
-        { path: 'logs', Component: AdminLogs },
-      ] },
-      { path: '*', element: <><PageHeader title="Page not found" /><Link to="/library">Library</Link></> },
-      ] },
-    ] },
-  ],
-}]);
+const screens = {
+  providers: { Component: Providers, HydrateFallback: AppLoading },
+  login: { element: <Auth key="login" mode="login" /> },
+  register: { element: <Auth key="register" mode="register" /> },
+  shell: { Component: Shell },
+  protected: { Component: ProtectedApp, ErrorBoundary: RouteError },
+  home: { element: <Navigate to="/library" replace /> },
+  library: { Component: Library },
+  book: { Component: BookDetail },
+  reader: { lazy: () => import('./routes/ReaderRoute') },
+  insights: { Component: Insights },
+  activity: { element: <Insights view="activity" /> },
+  progress: { element: <Insights view="progress" /> },
+  rankings: { element: <Insights view="rankings" /> },
+  settings: { Component: Settings },
+  admin: { Component: Administration },
+  adminHome: { element: <Navigate to="library" replace /> },
+  adminLibrary: { Component: AdminLibrary },
+  users: { Component: AdminUsers },
+  system: { Component: AdminSystem },
+  logs: { Component: AdminLogs },
+  notFound: { element: <><PageHeader title="Page not found" /><Link to="/library">Library</Link></> },
+} satisfies Record<AppRoute['id'], Pick<RouteObject, 'Component' | 'element' | 'lazy' | 'ErrorBoundary' | 'HydrateFallback'>>;
+
+function bindRoute(route: AppRoute): RouteObject {
+  return 'children' in route
+    ? { ...route, ...screens[route.id], children: route.children.map(bindRoute) }
+    : { ...route, ...screens[route.id] };
+}
+
+const router = createBrowserRouter(appRoutes.map(bindRoute));
 export function App() { return <RouterProvider router={router} />; }

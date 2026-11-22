@@ -43,7 +43,7 @@ const uuidPlugin = {
 };
 
 async function hasAppBuild() {
-  for (const name of ['index.html', 'sw.js', 'manifest.json']) {
+  for (const name of ['index.html', 'sw.js', 'manifest.json', 'shell-paths.json']) {
     const info = await stat(join(repo, 'assets/app', name)).catch(error => {
       if (error.code !== 'ENOENT') throw error;
     });

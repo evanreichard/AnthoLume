@@ -1,1 +1,0 @@
-^/(?:|library/?|login/?|register/?|settings/?|admin(?:/(?:library|users|system|logs))?/?|insights(?:/(?:activity|progress|rankings))?/?|(?:books|read)/(?:local|server)/?)$

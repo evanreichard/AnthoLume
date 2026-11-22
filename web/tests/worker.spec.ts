@@ -31,7 +31,7 @@ test('offline reloads enter the app on known routes but never serve the shell fo
     await expect(page).toHaveURL(server.origin + '/library');
     await expect(page.getByRole('region', { name: 'Offline controls' })).toBeVisible();
   }
-  for (const path of ['/api/v1/session', '/admin/unknown']) {
+  for (const path of ['/api/v1/session', '/admin/unknown', '/read/typo']) {
     await expect(page.goto(server.origin + path)).rejects.toThrow(/ERR_INTERNET_DISCONNECTED/);
   }
 });

@@ -3,9 +3,8 @@ WORKDIR /src
 COPY web/package.json web/package-lock.json ./web/
 RUN npm --prefix web ci
 COPY web ./web
-COPY api/app-navigation.regexp ./api/app-navigation.regexp
 COPY assets/manifest.json ./assets/manifest.json
-RUN npm --prefix web run build && test -s assets/app/index.html && test -s assets/app/sw.js && test -s assets/app/manifest.json
+RUN npm --prefix web run build && test -s assets/app/index.html && test -s assets/app/sw.js && test -s assets/app/manifest.json && test -s assets/app/shell-paths.json
 
 FROM alpine AS alpine
 RUN apk add --no-cache ca-certificates tzdata

@@ -2,8 +2,8 @@ package server
 
 import (
 	"context"
-	"os"
 	"testing"
+	"testing/fstest"
 	"testing/synctest"
 	"time"
 
@@ -33,7 +33,7 @@ func TestTaskContextStartsAtEachTick(t *testing.T) {
 func TestShutdownDrainsWorkerBeforeClosingDatabase(t *testing.T) {
 	root := t.TempDir()
 	c := &config.Config{Version: "test", DBType: "sqlite", DBName: "scheduler", ConfigPath: root, DataPath: root, PublicOrigin: "http://127.0.0.1:8585", CookieAuthKey: "synthetic-scheduler-test-secret-key"}
-	s, err := New(c, os.DirFS(".."))
+	s, err := New(c, fstest.MapFS{"assets/app/shell-paths.json": {Data: []byte(`["/"]`)}})
 	require.NoError(t, err)
 	t.Cleanup(s.Stop)
 	var workerErr error
