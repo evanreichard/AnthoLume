@@ -56,10 +56,10 @@ test('cold start, pick a profile, review offline reading and upload the selected
   await cold.goto(`${server.origin}/`);
   await cold.getByRole('button', {name: user, exact:true}).click();
   const bar = cold.getByRole('region', {name:'Offline controls'});
-  await expect(bar.getByRole('button', {name:`Switch profile: ${user}`})).toBeVisible();
+  await expect(bar.getByRole('button', {name:`Switch Profile: ${user}`})).toBeVisible();
   expect(Math.round((await bar.boundingBox())!.y + (await bar.boundingBox())!.height)).toBe(cold.viewportSize()!.height);
   await expect(cold.getByRole('navigation',{name:'Main navigation'})).toHaveCount(0);
-  await expect(cold.getByRole('button',{name:'Switch profile'})).toBeVisible();
+  await expect(cold.getByRole('button',{name:'Switch Profile'})).toBeVisible();
   await expect(cold.getByRole('article')).toHaveCount(1);
   await expect(cold.getByRole('article')).toContainText('Public book 01');
   await cold.clock.setFixedTime(started);
@@ -68,7 +68,7 @@ test('cold start, pick a profile, review offline reading and upload the selected
   for (const next of [2, 3]) {
     await cold.clock.setFixedTime(+started + (next - 2) * 30_000);
     await cold.keyboard.press('c');
-    await cold.getByRole('button', { name: 'Next page', exact: true }).click();
+    await cold.getByRole('button', { name: 'Next Page', exact: true }).click();
     await expect(cold.locator('footer')).toContainText(`${next} /`);
   }
   await expect.poll(async () => (await storedRows(cold, 'offline')).map(e => e.kind).sort()).toEqual(['activity', 'progress']);
@@ -91,22 +91,22 @@ test('cold start, pick a profile, review offline reading and upload the selected
   await expect(review.getByText('30s', {exact:true})).toBeVisible();
   expect(serverEffects(server.data,user)).toMatchObject({activity:2});
   expect(serverEffects(server.data,user).head).toBeUndefined();
-  await expect(review.getByRole('button',{name:'Upload selected'})).toBeDisabled();
+  await expect(review.getByRole('button',{name:'Upload Selected'})).toBeDisabled();
   await review.getByLabel('Activity').check();
-  await review.getByRole('button',{name:'Upload selected'}).click();
+  await review.getByRole('button',{name:'Upload Selected'}).click();
   await expect.poll(() => serverEffects(server.data,user).activity).toBe(3);
   expect(serverEffects(server.data,user).head).toBeUndefined();
-  await cold.getByRole('button',{name:'Review offline reading'}).click();
+  await cold.getByRole('button',{name:'Review Offline Reading'}).click();
   await review.getByLabel('Progress').check();
-  await review.getByRole('button',{name:'Upload selected'}).click();
+  await review.getByRole('button',{name:'Upload Selected'}).click();
   await expect.poll(() => serverEffects(server.data, user).head?.position).toBe(checkpoint!.position);
   await expect.poll(async () => (await storedRows(cold, 'events')).length).toBe(0);
   expect(serverEffects(server.data, user)).toMatchObject({ activity: 3, activitySeconds: 450 });
   await cold.goto(`${server.origin}/library`);
   await context.setOffline(true);
-  await cold.getByRole('button', { name: 'Manage profiles' }).click();
+  await cold.getByRole('button', { name: 'Manage Profiles' }).click();
   await cold.getByRole('button', { name: `Forget ${user}` }).click();
-  await cold.getByRole('button', { name: 'Forget on this device' }).click();
+  await cold.getByRole('button', { name: 'Forget on This Device' }).click();
   await expect(cold.getByRole('button',{ name:user, exact:true })).toHaveCount(0);
   await expect(cold.getByRole('article')).toHaveCount(0);
 });
@@ -118,7 +118,7 @@ const offlinePosition = async (page: Page) => (await offlineProgress(page))?.che
 
 async function turnPage(page: Page, next: number) {
   await page.keyboard.press('c');
-  await page.getByRole('button', { name: 'Next page', exact: true }).click();
+  await page.getByRole('button', { name: 'Next Page', exact: true }).click();
   await expect(bookReader(page).locator('footer')).toContainText(`${next} /`);
 }
 
@@ -154,7 +154,7 @@ test('reconnect keeps the open page and frame through review, then syncs the fir
   expect(serverEffects(server.data, user).head).toBeUndefined();
 
   await review.getByLabel('Progress').check();
-  await review.getByRole('button', { name: 'Upload selected' }).click();
+  await review.getByRole('button', { name: 'Upload Selected' }).click();
   await expect(review).toBeHidden();
   const head = () => serverEffects(server.data, user).head;
   await expect.poll(head).toMatchObject({ revision: 1, position: checkpoint });
@@ -199,8 +199,8 @@ test('Keep Reading preserves pending progress locally across turns and an online
 test('removing a shared download clears both shelves but preserves the offline reader’s private review', async ({page,context,server}) => {
   async function signOut() {
     await page.goto(`${server.origin}/settings`);
-    await page.getByRole('button',{name:'Sign out',exact:true}).click();
-    await page.getByRole('dialog').getByRole('button',{name:'Sign out',exact:true}).click();
+    await page.getByRole('button',{name:'Sign Out',exact:true}).click();
+    await page.getByRole('dialog').getByRole('button',{name:'Sign Out',exact:true}).click();
     await expect(page.getByRole('heading',{name:'Sign in'})).toBeVisible();
   }
   const bob = 'offline-bob', alice = 'offline-alice';
@@ -220,7 +220,7 @@ test('removing a shared download clears both shelves but preserves the offline r
   for (const [index, next] of [2, 3].entries()) {
     await page.clock.setFixedTime(start + index * 30_000);
     await page.keyboard.press('c');
-    await page.getByRole('button',{name:'Next page',exact:true}).click();
+    await page.getByRole('button',{name:'Next Page',exact:true}).click();
     await expect(page.locator('footer')).toContainText(`${next} /`);
   }
   await expect.poll(async () => (await storedRows(page,'offline')).map(row => row.kind).sort()).toEqual(['activity', 'progress']);
@@ -233,9 +233,9 @@ test('removing a shared download clears both shelves but preserves the offline r
   await page.getByRole('dialog').getByRole('button', {name:'Remove from Device'}).click();
   const emptyShelf = page.getByText('No matching books on this device.');
   await expect(emptyShelf).toBeVisible();
-  await page.getByRole('button', {name:`Switch profile: ${bob}`}).click();
+  await page.getByRole('button', {name:`Switch Profile: ${bob}`}).click();
   await page.getByRole('button', {name:alice, exact:true}).click();
-  await expect(page.getByRole('button', {name:`Switch profile: ${alice}`})).toBeVisible();
+  await expect(page.getByRole('button', {name:`Switch Profile: ${alice}`})).toBeVisible();
   await expect(emptyShelf).toBeVisible();
   await context.setOffline(false);
   await page.goto(`${server.origin}/library`);
@@ -248,7 +248,7 @@ test('removing a shared download clears both shelves but preserves the offline r
   expect(serverEffects(server.data,bob).head).toBeUndefined();
   await dialog.getByLabel('Progress').check();
   await dialog.getByLabel('Activity').check();
-  await dialog.getByRole('button',{name:'Upload selected'}).click();
+  await dialog.getByRole('button',{name:'Upload Selected'}).click();
   await expect.poll(() => serverEffects(server.data,bob).head?.position).toBe(checkpoint.position);
   await expect.poll(() => serverEffects(server.data,bob).activity).toBe(1);
   expect(serverEffects(server.data,alice).head).toBeUndefined();

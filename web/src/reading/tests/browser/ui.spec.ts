@@ -28,8 +28,8 @@ test('React StrictMode owns actual full-viewport renderer, edge/keyboard/swipe n
   };
   await expect(page.locator('iframe')).toHaveCount(1); await readerReady();
   const contents = region.getByRole('button', { name: 'Contents', exact: true });
-  const appearance = region.getByRole('button', { name: 'Reading progress and appearance', exact: true });
-  const next = region.getByRole('button', { name: 'Next page', exact: true });
+  const appearance = region.getByRole('button', { name: 'Reading Progress and Appearance', exact: true });
+  const next = region.getByRole('button', { name: 'Next Page', exact: true });
   await expect(contents).toBeHidden();
   const center = async () => {
     const box = (await region.boundingBox())!;

@@ -115,7 +115,7 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await expect(dialog).toHaveAccessibleName('Identify Book');
   await expect(dialog.getByRole('heading', { name: 'Identify Book' })).toBeFocused();
   await page.keyboard.press('Tab');
-  const closeDialog = dialog.getByRole('button', { name: 'Close dialog' });
+  const closeDialog = dialog.getByRole('button', { name: 'Close Dialog' });
   await expect(closeDialog).toBeFocused();
   expect(await closeDialog.evaluate(button => button.matches(':focus-visible'))).toBe(true);
   const sheet = (await dialog.boundingBox())!;
@@ -150,22 +150,22 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   try {
     const preview = dialog.getByRole('region', { name: 'Match preview' });
     await expect(preview.getByRole('status')).toHaveText('Loading match preview…');
-    await expect(dialog.getByRole('button', { name: 'Apply changes', exact: true })).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: 'Apply Changes', exact: true })).toBeDisabled();
     await expect(dialog.getByRole('searchbox')).toHaveCount(0);
     await expect(preview.locator('[class*="matchLoadingCover"]')).toBeVisible();
-    await dialog.getByRole('button', { name: 'Back to results' }).click();
+    await dialog.getByRole('button', { name: 'Back to Results' }).click();
     const result = dialog.getByRole('button', { name: /Looked-up title/ });
     await expect(result).toBeFocused();
     await result.click();
     await expect(preview.getByRole('status')).toHaveText('Loading match preview…');
   } finally { releaseMatch!(); }
   await opening;
-  await dialog.getByRole('button', { name: 'Back to results' }).click();
+  await dialog.getByRole('button', { name: 'Back to Results' }).click();
   await expect(dialog.getByRole('button', { name: /Looked-up title/ })).toBeFocused();
   await dialog.getByRole('button', { name: /Looked-up title/ }).click();
   await expect(dialog.getByText('Work synopsis from Open Library.', { exact: true })).toBeVisible();
   await expect(dialog.getByRole('textbox', { name: 'Synopsis', exact: true })).toHaveCount(0);
-  const coverChoice = dialog.getByRole('button', { name: 'Edition cover', exact: true });
+  const coverChoice = dialog.getByRole('button', { name: 'Edition Cover', exact: true });
   await expect(coverChoice).toHaveAttribute('aria-pressed', 'true');
   await coverChoice.click();
   await expect(coverChoice).toHaveAttribute('aria-pressed', 'false');
@@ -174,7 +174,7 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   const isbnChoice = dialog.getByRole('button', { name: 'ISBN-13', exact: true });
   await expect(isbn10Choice).toHaveAttribute('aria-pressed', 'true');
   await expect(isbnChoice).toHaveAttribute('aria-pressed', 'true');
-  await expect(dialog.getByRole('button', { name: 'Apply 3 changes', exact: true })).toBeEnabled();
+  await expect(dialog.getByRole('button', { name: 'Apply 3 Changes', exact: true })).toBeEnabled();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Disposable editor book', exact: true })).toBeVisible();
@@ -187,7 +187,7 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await synopsis.focus();
   await page.keyboard.press('Space');
   await expect(synopsis).toHaveAttribute('aria-pressed', 'true');
-  await expect(dialog.getByRole('button', { name: 'Apply 4 changes', exact: true })).toBeEnabled();
+  await expect(dialog.getByRole('button', { name: 'Apply 4 Changes', exact: true })).toBeEnabled();
   await expect(dialog.getByRole('textbox')).toHaveCount(0);
   await dialog.screenshot({ path: testInfo.outputPath('identify-match-390.png'), animations: 'disabled' });
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -196,10 +196,10 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await dialog.getByRole('button', { name: 'Title', exact: true }).click();
   await isbnChoice.click();
   await expect(isbnChoice).toHaveAttribute('aria-pressed', 'false');
-  await expect(dialog.getByRole('button', { name: 'Apply 4 changes', exact: true })).toBeEnabled();
+  await expect(dialog.getByRole('button', { name: 'Apply 4 Changes', exact: true })).toBeEnabled();
   await isbnChoice.click();
   await expect(coverChoice).toHaveAttribute('aria-pressed', 'true');
-  await dialog.getByRole('button', { name: 'Apply 5 changes', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Apply 5 Changes', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   const appliedTitle = page.getByRole('heading', { name: 'Looked-up title', exact: true });
   await expect(appliedTitle).toBeVisible();

@@ -22,7 +22,7 @@ test('rapid turns wait for the previous receipt without changing its payload or 
     await route.fulfill({ response });
   }, { times: 1 });
 
-  const next = page.getByRole('button', { name: 'Next page', exact: true });
+  const next = page.getByRole('button', { name: 'Next Page', exact: true });
   let latest: string | null | undefined;
   try {
     await next.click();

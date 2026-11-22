@@ -50,7 +50,7 @@ test('standalone sign-in gates app routes and Settings signs out immediately', a
   await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible();
   await expect(nav).toHaveCount(0);
   await fillCredentials();
-  await page.getByRole('button', { name: 'Create account' }).click();
+  await page.getByRole('button', { name: 'Create Account' }).click();
   await expect(page).toHaveURL(`${root}/library`);
   await expect(nav.getByRole('link')).toHaveCount(3);
   await expect(nav.getByRole('link', { name: 'Library', exact: true })).toBeVisible();
@@ -73,8 +73,8 @@ test('standalone sign-in gates app routes and Settings signs out immediately', a
     await route.continue();
   }, { times: 1 });
   try {
-    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Sign out', exact: true }).click();
+    await page.getByRole('button', { name: 'Sign Out', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Sign Out', exact: true }).click();
     await expect(signIn).toBeVisible();
     await expect(page).toHaveURL(`${root}/login`);
     await expect(nav).toHaveCount(0);
@@ -83,6 +83,6 @@ test('standalone sign-in gates app routes and Settings signs out immediately', a
     finishLogout();
   }
   await fillCredentials();
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('button', { name: 'Sign In', exact: true }).click();
   await expect(page).toHaveURL(`${root}/library`);
 });

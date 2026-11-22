@@ -50,7 +50,7 @@ test('a recreated username cannot reopen the previous account URL, reuse its cac
     const originalReader = page.url();
     expect(new URL(originalReader).searchParams.get('account')).toBe(original.account_id);
     await page.keyboard.press('c');
-    await page.getByRole('button', { name: 'Next page', exact: true }).click();
+    await page.getByRole('button', { name: 'Next Page', exact: true }).click();
     await expect(page.locator('footer')).toContainText('2 /');
     await expect.poll(() => pendingIds(page)).toHaveLength(1);
     const originalPending = await pendingIds(page);

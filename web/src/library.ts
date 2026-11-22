@@ -25,7 +25,7 @@ export function combineBooks(stored: readonly StoredBook[], documents: readonly 
   }
   return [...books.values()];
 }
-export const sortOptions = [['title', 'Title A–Z'], ['author', 'Author A–Z'], ['added', 'Recently added'], ['read', 'Last read']] as const;
+export const sortOptions = [['title', 'Title A–Z'], ['author', 'Author A–Z'], ['added', 'Recently Added'], ['read', 'Last Read']] as const;
 export type LibrarySort = typeof sortOptions[number][0];
 export function parseSort(value: string | null): LibrarySort {
   return sortOptions.find(([key]) => key === value)?.[0] ?? 'read';

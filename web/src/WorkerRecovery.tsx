@@ -18,14 +18,14 @@ export function WorkerRecovery({ duringReading = false }: { duringReading?: bool
     setBusy(true);
     try { await reading.applyUpdate(); } finally { setBusy(false); }
   }
-  const workerLabel = 'Retry update / recovery';
+  const workerLabel = 'Retry Update / Recovery';
   return <>
     <section className={duringReading ? styles.recoveryDock : styles.notice} aria-label="App update and recovery">
       {duringReading ? <>
         <span>{workerVisible ? 'App recovery' : 'Connection unavailable'}</span>
         {sessionError && <button disabled={sessionBusy} onClick={() => void session.checkSession()}>Reconnect</button>}
-        {workerVisible && <button disabled={busy} aria-label={workerLabel} onClick={() => void retry()}>{busy ? 'Retrying…' : 'Retry update'}</button>}
-        <button onClick={() => setDetails(true)} aria-haspopup="dialog">Recovery details</button>
+        {workerVisible && <button disabled={busy} aria-label={workerLabel} onClick={() => void retry()}>{busy ? 'Retrying…' : 'Retry Update'}</button>}
+        <button onClick={() => setDetails(true)} aria-haspopup="dialog">Recovery Details</button>
       </> : <>
         {sessionError && <><ErrorNotice error={sessionError} /><button disabled={sessionBusy} onClick={() => void session.checkSession()}>Reconnect</button></>}
         {workerVisible && <><ErrorNotice error={error} /><button disabled={busy} onClick={() => void retry()}>{busy ? 'Retrying…' : workerLabel}</button></>}
@@ -35,7 +35,7 @@ export function WorkerRecovery({ duringReading = false }: { duringReading?: bool
       {sessionError && <ErrorNotice error={sessionError} />}
       {workerVisible && <ErrorNotice error={error} />}
       <p>Updating the offline app does not delete books or pending progress.</p>
-      <button onClick={() => setDetails(false)}>Close recovery details</button>
+      <button onClick={() => setDetails(false)}>Close Recovery Details</button>
     </Dialog>}
   </>;
 }

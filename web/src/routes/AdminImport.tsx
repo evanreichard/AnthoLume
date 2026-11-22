@@ -75,7 +75,7 @@ export function AdminImport({ account, roots, readOnly }: Context & { readOnly: 
     })}
     {latest && <div className={styles.adminCardDetails}>
       <p role="status">{latest.status === 'running' ? 'Import running…' : latest.status === 'succeeded' ? 'Import finished' : `Import ${latest.status}`}</p>
-      {results.data && <Disclosure inset title={results.data.length === 1 ? '1 file result' : `${results.data.length} file results`}><ul>{results.data.map(row => <li key={row.file}><span>{row.file}</span><strong>{row.status}</strong></li>)}</ul></Disclosure>}
+      {results.data && <Disclosure inset title={results.data.length === 1 ? '1 File Result' : `${results.data.length} File Results`}><ul>{results.data.map(row => <li key={row.file}><span>{row.file}</span><strong>{row.status}</strong></li>)}</ul></Disclosure>}
     </div>}
     {editor === 'manual' && <ManualImport account={account} roots={roots} running={latest?.status === 'running'} close={() => setEditor(null)} />}
     {editor && editor !== 'manual' && <RuleEditor key={editor === 'new' ? 'new' : editor.id} account={account} roots={roots} rule={editor === 'new' ? undefined : rules.data?.find(rule => rule.id === editor.id) ?? editor} close={() => setEditor(null)} />}
@@ -105,15 +105,15 @@ function ManualImport({ account, roots, running, close }: Context & { running: b
   }
   return <Dialog title="Manual Import" onClose={() => { if (!busy) close(); }} footer={<>
     <Button size="slim" form={formId} type="submit" tone={preview?.length ? undefined : 'primary'} disabled={busy || !mappedSource(roots, fields.source)}>Preview</Button>
-    {!!preview?.length && <Button size="slim" tone="primary" disabled={!validFields(roots, fields) || busy || running} onClick={() => void run(true)}>Start import</Button>}
+    {!!preview?.length && <Button size="slim" tone="primary" disabled={!validFields(roots, fields) || busy || running} onClick={() => void run(true)}>Start Import</Button>}
     <Button size="slim" disabled={busy} onClick={close}>Cancel</Button>
   </>}>
     <form id={formId} className={layout.form} onSubmit={event => { event.preventDefault(); void run(false); }}>
       <ImportFields roots={roots} value={fields} onChange={change} busy={busy} />
-      <Disclosure inset title="Import options"><label className={styles.settingsCheck}><input type="checkbox" checked={relink} onChange={event => setRelink(event.target.checked)} /> Relink missing copies when the file matches exactly</label></Disclosure>
+      <Disclosure inset title="Import Options"><label className={styles.settingsCheck}><input type="checkbox" checked={relink} onChange={event => setRelink(event.target.checked)} /> Relink missing copies when the file matches exactly</label></Disclosure>
       <ErrorNotice error={error} />
       {preview?.length === 0 && <p>No EPUBs found.</p>}
-      {!!preview?.length && <Disclosure inset title={preview.length === 1 ? '1 EPUB ready to review' : `${preview.length} EPUBs ready to review`}><ul>{preview.map(file => <li key={file}>{file}</li>)}</ul></Disclosure>}
+      {!!preview?.length && <Disclosure inset title={preview.length === 1 ? '1 EPUB Ready to Review' : `${preview.length} EPUBs Ready to Review`}><ul>{preview.map(file => <li key={file}>{file}</li>)}</ul></Disclosure>}
     </form>
   </Dialog>;
 }
@@ -165,7 +165,7 @@ function RuleEditor({ account, roots, rule, close }: Context & { rule?: Rule; cl
   const onClose = () => { if (!busy) close(); };
   if (confirmDelete) return <Dialog title="Delete import rule?" onClose={onClose}>
     <p>Imported books will stay in the library.</p><ErrorNotice error={error} />
-    <div className={styles.backupActions}><Button tone="danger" size="slim" type="button" disabled={busy} onClick={() => void run('delete')}>Delete rule</Button><Button size="slim" disabled={busy} onClick={() => setConfirmDelete(false)}>Cancel</Button></div>
+    <div className={styles.backupActions}><Button tone="danger" size="slim" type="button" disabled={busy} onClick={() => void run('delete')}>Delete Rule</Button><Button size="slim" disabled={busy} onClick={() => setConfirmDelete(false)}>Cancel</Button></div>
   </Dialog>;
   return <Dialog title={rule ? 'Edit Auto Import Rule' : 'Add Auto Import Rule'} onClose={onClose} footer={<>
     <Button size="slim" form={formId} type="submit" tone="primary" disabled={busy || !dirty || !valid}>Save</Button>

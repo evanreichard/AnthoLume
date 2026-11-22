@@ -82,7 +82,7 @@ export async function register(page: import('@playwright/test').Page, origin: st
   await page.goto(`${origin}/register`);
   await page.getByLabel('Username', { exact: true }).fill(username);
   await page.getByLabel('Password', { exact: true }).fill('synthetic-public-password');
-  await page.getByRole('button', { name: 'Create account', exact: true }).click();
+  await page.getByRole('button', { name: 'Create Account', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Public book 01', exact: true })).toBeVisible();
 }
@@ -90,6 +90,6 @@ export async function signIn(page: import('@playwright/test').Page, origin: stri
   await page.goto(`${origin}/login`);
   await page.getByLabel('Username', { exact: true }).fill(username);
   await page.getByLabel('Password', { exact: true }).fill('synthetic-public-password');
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('button', { name: 'Sign In', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
 }

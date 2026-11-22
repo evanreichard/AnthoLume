@@ -2,7 +2,7 @@ import { ko } from './ko';
 import { test, expect, register } from './fixtures';
 import { pendingIds, serverEffects, storedRows } from './storage';
 
-for (const choice of ['This device', 'Server']) {
+for (const choice of ['This Device', 'Server']) {
 test(`resume conflict: ${choice} opens without publishing progress`, async ({ page, server }) => {
   const user = `ko-${Date.now()}`;
   await register(page, server.origin, user);
@@ -13,7 +13,7 @@ test(`resume conflict: ${choice} opens without publishing progress`, async ({ pa
   await ko(server.origin, user, .95);
   const shared = await ko(server.origin, user);
   await page.keyboard.press('c');
-  await page.getByRole('button', { name: 'Next page', exact: true }).click();
+  await page.getByRole('button', { name: 'Next Page', exact: true }).click();
   await expect.poll(() => serverEffects(server.data, user).receipts).toMatchObject([{ kind: 'progress', status: 409 }]);
   await expect.poll(async () => (await storedRows(page, 'books')).find(book => book.ref?.documentId === 'book_001')?.checkpoint).toEqual({ position: shared.progress, fraction: .95 });
   expect(await pendingIds(page)).toEqual([]);
@@ -29,13 +29,13 @@ test(`resume conflict: ${choice} opens without publishing progress`, async ({ pa
     return page.getByRole('dialog', { name: 'Conflicting Positions', exact: true });
   };
   let dialog = await openConflict();
-  await expect(dialog.getByRole('button', { name: /^This device · \d+%/ })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /^This Device · \d+%/ })).toBeVisible();
   await expect(dialog.getByRole('button', { name: /^Server · 95%/ })).toBeVisible();
-  await dialog.getByRole('button', { name: 'Close dialog' }).click();
+  await dialog.getByRole('button', { name: 'Close Dialog' }).click();
   dialog = await openConflict();
   await dialog.getByRole('button', { name: new RegExp(`^${choice} ·`) }).click();
   await expect(page.getByRole('region', { name: 'Book reader', exact: true })).toHaveAttribute('data-reader-state', 'ready');
-  if (choice === 'This device') await expect(page.locator('footer')).toContainText('2 /');
+  if (choice === 'This Device') await expect(page.locator('footer')).toContainText('2 /');
   else await expect(page.locator('footer')).not.toContainText(/^2 \//);
   expect(await pendingIds(page)).toEqual([]);
   expect(serverEffects(server.data, user)).toEqual(effects);

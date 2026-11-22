@@ -25,7 +25,7 @@ test('restore signs out another browser and preserves its old queue without repl
     await page.getByRole('link', { name: /^(Read|Resume)$/ }).click();
     await expect(page.locator('footer')).toContainText('1 /');
     await page.keyboard.press('c');
-    await page.getByRole('button', { name: 'Next page', exact: true }).click();
+    await page.getByRole('button', { name: 'Next Page', exact: true }).click();
     await expect(page.locator('footer')).toContainText('2 /');
     await expect.poll(() => pendingIds(page)).toHaveLength(1);
     const queued = await pendingIds(page);

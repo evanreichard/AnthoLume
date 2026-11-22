@@ -16,7 +16,7 @@ for (const fault of ['503', 'malformed-200']) {
     for (const next of [2, 3]) {
       await page.clock.setFixedTime(started + (next - 2) * 30_000);
       await page.keyboard.press('c');
-      await page.getByRole('button', { name: 'Next page', exact: true }).click();
+      await page.getByRole('button', { name: 'Next Page', exact: true }).click();
       await expect(page.locator('footer')).toContainText(`${next} /`);
     }
     await expect.poll(() => pendingIds(page)).toHaveLength(2);
@@ -42,7 +42,7 @@ for (const fault of ['503', 'malformed-200']) {
         expect.objectContaining({ event_id: activity.id, status: 200 }),
       ]));
       await unlink(`${server.data}/state-fault`);
-      await page.getByRole('button', { name: 'Retry synchronization', exact: true }).click();
+      await page.getByRole('button', { name: 'Retry Synchronization', exact: true }).click();
       await expect(page.getByRole('status').filter({ hasText: 'Resume position changed on another device.' })).toBeVisible();
       await expect.poll(() => pendingIds(page)).toEqual([]);
       const shared = await ko(server.origin, user);

@@ -4,7 +4,7 @@ test('actual bootstrap, credentials, server paging, inert detail, URL sorting an
   await register(page, server.origin, `layout-${Date.now()}`);
   await expect(page.getByRole('heading', { name: 'Public book 24', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Public book 25', exact: true })).toHaveCount(0);
-  const loadMore = page.getByRole('button', { name: 'Load more shared books' });
+  const loadMore = page.getByRole('button', { name: 'Load More Shared Books' });
   await loadMore.scrollIntoViewIfNeeded();
   await expect(page.getByRole('heading', { name: 'Public book 30', exact: true })).toBeAttached();
   await expect(page.getByRole('article').filter({ has: page.getByRole('heading', { name: /^Public book \d+$/ }) })).toHaveCount(30);

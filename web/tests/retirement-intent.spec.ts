@@ -9,8 +9,8 @@ test('root retirement keeps only document intent through logout/login/register/r
   await register(page, server.origin, user);
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
   await page.goto(`${server.origin}/settings`);
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Sign out', exact: true }).click();
+  await page.getByRole('button', { name: 'Sign Out', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Sign Out', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
   const resources: string[] = [];
   page.on('request', (request) => resources.push(new URL(request.url()).pathname));
@@ -26,7 +26,7 @@ test('root retirement keeps only document intent through logout/login/register/r
   await expect(page).toHaveURL(/\/login\?legacyDocument=book_001$/);
   await page.getByLabel('Username', { exact: true }).fill(user);
   await page.getByLabel('Password', { exact: true }).fill('synthetic-public-password');
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('button', { name: 'Sign In', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Book reader', exact: true })).toBeVisible();
   await expect(page.frameLocator('iframe').first().getByRole('heading', { name: 'Public chapter', exact: true })).toBeVisible();
   const destination = new URL(page.url());
@@ -50,7 +50,7 @@ test('expired-account retirement intent hides retained pending counts until expl
     await page.getByRole('link', { name: /^(Read|Resume)$/ }).click();
     await expect(page.locator('footer')).toContainText('1 /');
     await page.keyboard.press('c');
-    await page.getByRole('button', { name: 'Next page', exact: true }).click();
+    await page.getByRole('button', { name: 'Next Page', exact: true }).click();
     await expect(page.locator('footer')).toContainText('2 /');
     await page.keyboard.press('c');
     await page.getByRole('button', { name: 'Library', exact: true }).click();
@@ -65,7 +65,7 @@ test('expired-account retirement intent hides retained pending counts until expl
     await unlink(`${server.data}/receipt-fault`);
     await page.getByLabel('Username', { exact: true }).fill(user);
     await page.getByLabel('Password', { exact: true }).fill('synthetic-public-password');
-    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.getByRole('button', { name: 'Sign In', exact: true }).click();
     await expect(page.getByRole('region', { name: 'Book reader', exact: true })).toBeVisible();
     await expect(page.locator('iframe').first()).toBeVisible();
     await expect.poll(() => pendingIds(page)).toEqual([]);

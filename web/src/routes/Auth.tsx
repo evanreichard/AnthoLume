@@ -33,7 +33,7 @@ export function Auth({ mode }: { mode: 'login' | 'register' }) {
   const location = useLocation();
   const intent = legacyDocument(location.search);
   const title = mode === 'login' ? 'Sign in' : 'Create an account';
-  const submitLabel = mode === 'login' ? (submitting ? 'Signing in…' : 'Sign in') : (submitting ? 'Creating account…' : 'Create account');
+  const submitLabel = mode === 'login' ? (submitting ? 'Signing In…' : 'Sign In') : (submitting ? 'Creating Account…' : 'Create Account');
   useEffect(() => { document.title = `AnthoLume · ${title}`; }, [title]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

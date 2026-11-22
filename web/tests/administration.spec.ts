@@ -25,10 +25,10 @@ test('Import lists independent rules and opens editors on demand', async ({ page
   await manual.click();
   await expect(dialog).toHaveAccessibleName('Manual Import');
   await expect(dialog.getByRole('combobox', { name: 'Destination', exact: true })).toHaveCount(0);
-  await dialog.getByRole('button', { name: 'Close dialog' }).click();
+  await dialog.getByRole('button', { name: 'Close Dialog' }).click();
   await roots.getByRole('button', { name: 'Imports', exact: true }).click();
   await expect(dialog.getByRole('button', { name: 'Auto-import' })).toHaveCount(0);
-  await dialog.getByRole('button', { name: 'Close dialog' }).click();
+  await dialog.getByRole('button', { name: 'Close Dialog' }).click();
   await expect(imports).toContainText('No auto-import rules yet.');
   await expect(page.getByRole('combobox', { name: 'Source' })).toHaveCount(0);
   for (const [name, folder] of [['New arrivals', 'Imports'], ['Archive books', 'Archive']]) {
@@ -90,7 +90,7 @@ test('Import lists independent rules and opens editors on demand', async ({ page
   await expect(ruleRow.locator('time')).toHaveAttribute('datetime', completedScan!);
   await ruleRow.click();
   await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Delete rule' }).click();
+  await dialog.getByRole('button', { name: 'Delete Rule' }).click();
   await expect(imports.getByRole('button', { name: 'New arrivals', exact: true })).toHaveCount(0);
   await expect(imports.getByRole('button', { name: 'Archive books', exact: true })).toBeVisible();
 });
@@ -155,26 +155,26 @@ test('administrators manage users while members cannot open Administration', asy
   await page.getByRole('button', { name: 'Add Root', exact: true }).click();
   await dialog.getByLabel('Name', { exact: true }).fill('Alternate library');
   await dialog.getByLabel('Directory', { exact: true }).fill(server.data);
-  await dialog.getByRole('button', { name: 'Browse directories' }).click();
+  await dialog.getByRole('button', { name: 'Browse Directories' }).click();
   await expect(dialog).toHaveAccessibleName('Select Folder');
   await expect(dialog.getByLabel('Directory', { exact: true })).toHaveCount(0);
   await dialog.getByRole('button', { name: 'alternate-library', exact: true }).click();
   await expect(dialog.getByText('No subfolders.')).toBeVisible();
   const location = dialog.getByRole('status');
   await expect(location).toHaveText(`${server.data}/alternate-library`);
-  await dialog.getByRole('button', { name: 'Up one level' }).click();
+  await dialog.getByRole('button', { name: 'Up One Level' }).click();
   await expect(location).toHaveText(server.data);
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(dialog.getByLabel('Directory', { exact: true })).toHaveValue(server.data);
   await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Alternate library');
-  await dialog.getByRole('button', { name: 'Browse directories' }).click();
+  await dialog.getByRole('button', { name: 'Browse Directories' }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await dialog.getByRole('button', { name: 'alternate-library', exact: true }).waitFor();
   await page.screenshot({ path: testInfo.outputPath('directory-picker-390.png') });
   const filter = dialog.getByRole('searchbox', { name: 'Filter folders' });
   await filter.fill('no-match');
   await expect(dialog.getByText('No matching folders.')).toBeVisible();
-  await dialog.getByRole('button', { name: 'Clear folder filter' }).click();
+  await dialog.getByRole('button', { name: 'Clear Folder Filter' }).click();
   await expect(filter).toBeFocused();
   await expect(dialog.getByRole('button', { name: 'alternate-library', exact: true })).toBeVisible();
   const selectFolder = dialog.getByRole('button', { name: 'Select', exact: true });
@@ -211,10 +211,10 @@ test('administrators manage users while members cannot open Administration', asy
   const original = await readFile(`${server.data}/documents/public.epub`);
   await writeFile(`${server.data}/imports/nested/sample.epub`, original);
   await page.getByRole('button', { name: 'Preview', exact: true }).click();
-  await expect(page.getByText('1 EPUB ready to review')).toBeVisible();
-  await page.getByRole('button', { name: 'Start import' }).click();
+  await expect(page.getByText('1 EPUB Ready to Review')).toBeVisible();
+  await page.getByRole('button', { name: 'Start Import' }).click();
   await expect(page.getByText('Import finished', { exact: true })).toBeVisible();
-  await page.getByText('1 file result', { exact: true }).click();
+  await page.getByText('1 File Result', { exact: true }).click();
   await expect(page.getByText('nested/sample.epub', { exact: true })).toBeVisible();
   await page.reload();
   await expect(sections.getByRole('link', { name: 'Library', exact: true })).toHaveAttribute('aria-current', 'page');
@@ -290,14 +290,14 @@ test('administrators manage users while members cannot open Administration', asy
   await sections.getByRole('link', { name: 'System' }).click();
   const serverCard = page.getByRole('region', { name: 'Server', exact: true });
   const maintenance = page.getByRole('region', { name: 'Maintenance', exact: true });
-  const recentJobs = maintenance.locator('details').filter({ hasText: 'Recent jobs' });
+  const recentJobs = maintenance.locator('details').filter({ hasText: 'Recent Jobs' });
   await expect(serverCard.getByText(/^Version:/)).toBeVisible();
   await expect(serverCard.getByText('Recent server logs')).toHaveCount(0);
   await expect(recentJobs.getByText('No maintenance jobs yet.')).toBeHidden();
-  await recentJobs.getByText('Recent jobs', { exact: true }).click();
+  await recentJobs.getByText('Recent Jobs', { exact: true }).click();
   await expect(recentJobs.getByText('No maintenance jobs yet.')).toBeVisible();
   await expect(maintenance.getByText('Never run', { exact: true })).toHaveCount(2);
-  for (const name of ['Refresh reading statistics', 'Check database integrity']) {
+  for (const name of ['Refresh Reading Statistics', 'Check Database Integrity']) {
     const started = page.waitForResponse(response => response.url().endsWith('/api/v1/admin/jobs') && response.request().method() === 'POST');
     await maintenance.getByRole('button', { name, exact: true }).click();
     expect((await started).status()).toBe(202);
@@ -308,7 +308,7 @@ test('administrators manage users while members cannot open Administration', asy
   await expect(recentJobs).toHaveCount(0);
   await sections.getByRole('link', { name: 'System' }).click();
   await expect(maintenance.getByText(/^Last ran on /)).toHaveCount(2);
-  await expect(recentJobs.getByText(/Refresh reading statistics ·/)).toBeHidden();
+  await expect(recentJobs.getByText(/Refresh Reading Statistics ·/)).toBeHidden();
   for (const [width, colorScheme] of [[320, 'dark'], [390, 'light'], [1440, 'light']] as const) {
     await page.emulateMedia({ colorScheme });
     await page.setViewportSize({ width, height: 844 });
@@ -321,9 +321,9 @@ test('administrators manage users while members cannot open Administration', asy
   await server.start();
   await page.reload();
   await expect(maintenance.getByText(/^Last ran on /)).toHaveCount(2);
-  await recentJobs.getByText('Recent jobs', { exact: true }).click();
-  await expect(recentJobs.getByText(/Refresh reading statistics ·/)).toBeVisible();
-  await expect(recentJobs.getByText(/Check database integrity ·/)).toBeVisible();
+  await recentJobs.getByText('Recent Jobs', { exact: true }).click();
+  await expect(recentJobs.getByText(/Refresh Reading Statistics ·/)).toBeVisible();
+  await expect(recentJobs.getByText(/Check Database Integrity ·/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Administration', level: 1 })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
   await sections.getByRole('link', { name: 'Users' }).click();
@@ -382,10 +382,10 @@ test('administrators manage users while members cannot open Administration', asy
   await dialog.locator('footer').getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(dialog).toHaveAccessibleName('Delete admin-test-member?');
   await dialog.getByLabel(/Type .* to confirm/).fill('wrong');
-  await dialog.getByRole('button', { name: 'Delete user' }).click();
+  await dialog.getByRole('button', { name: 'Delete User' }).click();
   await expect(dialog.getByRole('alert')).toHaveText('Enter the exact username to confirm.');
   await dialog.getByLabel(/Type .* to confirm/).fill('admin-test-member');
-  await dialog.getByRole('button', { name: 'Delete user' }).click();
+  await dialog.getByRole('button', { name: 'Delete User' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Deleted admin-test-member.' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Manage admin-test-member' })).toHaveCount(0);
 
@@ -402,7 +402,7 @@ test('administrators manage users while members cannot open Administration', asy
   await expect(entries).toHaveCount(15);
   await expect(entries.first()).toContainText('HTTP 503');
   const eventSearch = logViewer.getByRole('searchbox', { name: 'Search log events' });
-  const loadOlder = logViewer.getByRole('button', { name: 'Load older logs' });
+  const loadOlder = logViewer.getByRole('button', { name: 'Load Older Logs' });
   await loadOlder.scrollIntoViewIfNeeded();
   await expect(entries).toHaveCount(17);
   await expect(entries.first()).toContainText('HTTP 503');
@@ -431,7 +431,7 @@ test('administrators manage users while members cannot open Administration', asy
   const toolbar = await Promise.all([
     eventSearch.boundingBox(),
     logViewer.getByRole('combobox', { name: 'Log level' }).boundingBox(),
-    logViewer.getByRole('button', { name: 'Refresh logs' }).boundingBox(),
+    logViewer.getByRole('button', { name: 'Refresh Logs' }).boundingBox(),
   ]);
   expect(new Set(toolbar.map(box => box?.y)).size).toBe(1);
   await page.screenshot({ path: testInfo.outputPath('logs-390.png') });
@@ -451,7 +451,7 @@ test('administrators manage users while members cannot open Administration', asy
   const applyRestore = async () => {
     await expect(async () => {
       const applied = page.waitForResponse(response => response.url().endsWith('/api/v1/admin/restore') && response.request().method() === 'PATCH');
-      await dialog.getByRole('button', { name: 'Restore backup' }).click();
+      await dialog.getByRole('button', { name: 'Restore Backup' }).click();
       expect((await applied).status()).toBe(204);
     }).toPass({ timeout: 5000 });
     await expect(page).toHaveURL(`${server.origin}/login`);

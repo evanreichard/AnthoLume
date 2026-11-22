@@ -69,7 +69,7 @@ export function BookDownloadActions({ book, metadata, canSave = true }: { book: 
   }
   return <>
     <details ref={menu} onToggle={e => setOpen(e.currentTarget.open)} className={styles.bookOptions} name="offline-book-options" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); closeMenu(); } }}>
-      <summary aria-label={`Options for ${metadata.title ?? 'Untitled'}`} title="Book options"><Icon name="more" size={20} /></summary>
+      <summary aria-label={`Options for ${metadata.title ?? 'Untitled'}`} title="Book Options"><Icon name="more" size={20} /></summary>
       <div data-options>
         {canSave && download.copy !== 'saved' && <button type="button" disabled={download.disabled} onClick={() => { closeMenu(); download.save(metadata); }}><Icon name="download" size={17} />{download.busy ? 'Saving…' : 'Save to Device'}</button>}
         {download.copy && <button type="button" disabled={download.disabled} onClick={() => { closeMenu(); download.askToRemove(); }}><Icon name="minus" size={17} />Remove from Device</button>}

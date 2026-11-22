@@ -45,7 +45,7 @@ function SettingsForm({ action, children, onClose }: { action(data: FormData): P
   return <form className={styles.form} onSubmit={submit}>
     <fieldset className={styles.settingsFields} disabled={busy}>{children}</fieldset>
     <ErrorNotice error={error} />
-    <div className={styles.actions}><Button type="submit" tone="primary" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</Button><Button type="button" disabled={busy} onClick={onClose}>Cancel</Button></div>
+    <div className={styles.actions}><Button type="submit" tone="primary" disabled={busy}>{busy ? 'Saving…' : 'Save Changes'}</Button><Button type="button" disabled={busy} onClick={onClose}>Cancel</Button></div>
   </form>;
 }
 
@@ -140,7 +140,7 @@ export function AccountSettings({ account, username, timezone, readOnly, syncSta
     <Card aria-labelledby="account-heading">
       <CardHeader id="account-heading" title="Account" subtitle={username}
         leading={<span className={styles.accountAvatar}><Icon name="user" size={18} /></span>}
-        action={<IconButton aria-label="Sign out" title="Sign out" onClick={onSignOut}><Icon name="sign-out" size={18} /></IconButton>} />
+        action={<IconButton aria-label="Sign Out" title="Sign Out" onClick={onSignOut}><Icon name="sign-out" size={18} /></IconButton>} />
       <ActionRows>
         <ActionRow divider label="Locale" value={timezoneLabel} disabled={readOnly} onClick={() => setModal('timezone')} />
         <ActionRow divider label="Password" disabled={readOnly} onClick={() => setModal('password')} />

@@ -12,7 +12,7 @@ for (const fault of ['extra-field', 'server-error']) {
       await page.getByRole('link', { name: /^(Read|Resume)$/ }).click();
       await expect(page.locator('footer')).toContainText('1 /');
       await page.keyboard.press('c');
-      await page.getByRole('button', { name: 'Next page', exact: true }).click();
+      await page.getByRole('button', { name: 'Next Page', exact: true }).click();
       await expect(page.locator('footer')).toContainText('2 /');
       await expect.poll(() => serverEffects(server.data, user).receipts.length).toBe(1);
       const ids = await pendingIds(page);
@@ -24,7 +24,7 @@ for (const fault of ['extra-field', 'server-error']) {
       expect(await pendingIds(page)).toEqual(ids);
       const effects = serverEffects(server.data, user);
       await unlink(`${server.data}/receipt-fault`);
-      await page.getByRole('button', { name: 'Retry synchronization' }).click();
+      await page.getByRole('button', { name: 'Retry Synchronization' }).click();
       await expect.poll(() => pendingIds(page)).toEqual([]);
       expect(serverEffects(server.data, user)).toEqual(effects);
     } finally { await unlink(`${server.data}/receipt-fault`).catch(() => undefined); }

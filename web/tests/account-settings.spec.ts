@@ -16,7 +16,7 @@ test('Settings updates timezone, manages devices and rotates the current passwor
   const sync = account.getByRole('button', { name: 'Sync', exact: true });
   const timezone = account.getByRole('button', { name: 'Locale', exact: true });
   const password = account.getByRole('button', { name: 'Password', exact: true });
-  const signOut = account.getByRole('button', { name: 'Sign out', exact: true });
+  const signOut = account.getByRole('button', { name: 'Sign Out', exact: true });
   await expect(sync).toHaveAttribute('aria-expanded', 'false');
   await expect(account.getByRole('region', { name: 'Sync status' })).toBeHidden();
   const rowWidth = (await sync.boundingBox())!.width;
@@ -57,7 +57,7 @@ test('Settings updates timezone, manages devices and rotates the current passwor
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
   await expect(devices.getByRole('button', { name: 'Manage Original reader' })).toBeVisible();
   const modal = page.getByRole('dialog');
-  const save = modal.getByRole('button', { name: 'Save changes' });
+  const save = modal.getByRole('button', { name: 'Save Changes' });
   await timezone.click();
   await expect(modal).toHaveAccessibleName('Change Locale');
   await expect(modal.getByRole('searchbox')).toHaveCount(0);

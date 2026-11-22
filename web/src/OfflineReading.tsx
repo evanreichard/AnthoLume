@@ -26,11 +26,11 @@ export function OfflinePicker() {
         <strong>{p.name}</strong><Icon name="forward" size={18} />
       </button>{manage && <button className={styles.quiet} aria-label={`Forget ${p.name}`} onClick={() => { setError(null); setForget(p); }}><Icon name="trash" size={17} /></button>}
     </li>)}</ul>
-    {!!remembered.length && <button className={styles.manage} aria-pressed={manage} onClick={() => setManage(!manage)}>{manage ? 'Done' : 'Manage profiles'}</button>}
+    {!!remembered.length && <button className={styles.manage} aria-pressed={manage} onClick={() => setManage(!manage)}>{manage ? 'Done' : 'Manage Profiles'}</button>}
     <OfflineStatusBar />
     {forget && <Dialog title={`Forget ${forget.name}?`} onClose={() => setForget(undefined)}>
       <p>This removes the offline profile and its unsubmitted reading.</p><ErrorNotice error={error} />
-      <Button onClick={async () => { try { await reading.forgetDrafts(forget.account); session.forgetOffline(forget.account); setForget(undefined); } catch (e) { setError(e); } }}>Forget on this device</Button>
+      <Button onClick={async () => { try { await reading.forgetDrafts(forget.account); session.forgetOffline(forget.account); setForget(undefined); } catch (e) { setError(e); } }}>Forget on This Device</Button>
     </Dialog>}
   </main>;
 }
@@ -72,7 +72,7 @@ function BookComparison({ account, book, timezone, selected, select }: { account
     <header><h3>{book.title}</h3><small>Offline</small><small>Server</small></header>
     {progress && <label><span><input aria-label="Progress" type="checkbox" disabled={!query.data?.progress} checked={selected.has(progress.id)} onChange={e => select([{id: progress.id, revision: query.data?.progress?.revision}], e.target.checked)} />Progress</span><b>{percent(progress.checkpoint.fraction)}</b><span>{query.data ? percent(query.data.progress?.fraction ?? null) : '…'}</span></label>}
     {!!activities.length && <label><span><input aria-label="Activity" type="checkbox" disabled={!query.data} checked={activities.every(r => selected.has(r.id))} onChange={e => select(activities.map(r => ({id:r.id})), e.target.checked)} />Activity</span><b>{duration(activities.reduce((n,r) => n + r.event.duration,0))}</b><span>{query.data ? duration(query.data.seconds) : '…'}</span></label>}
-    {query.isError && <button onClick={() => void query.refetch()}>Retry comparison</button>}
+    {query.isError && <button onClick={() => void query.refetch()}>Retry Comparison</button>}
   </section>;
 }
 export function OfflineReview({account}: {account: Account}) {
@@ -101,11 +101,11 @@ export function OfflineReview({account}: {account: Account}) {
     } catch (e) { setError(e); }
     finally { setSelected(new Map()); setBusy(false); setDiscard(false); }
   }
-  if (later) return <button onClick={() => setLater(false)}>Review offline reading</button>;
+  if (later) return <button onClick={() => setLater(false)}>Review Offline Reading</button>;
   return <Dialog title="Offline Reading" onClose={close} layout="scroll-body" placement="mobile-sheet" footer={<div className={styles.reviewActions}>
     <button className={styles.quiet} disabled={busy} onClick={() => discard ? setDiscard(false) : close()}>{discard ? 'Cancel' : 'Keep Reading'}</button>
-    {!discard && <button className={styles.quiet} title="Discard selected records" aria-label="Discard selected records" disabled={busy || !choices.length} onClick={() => setDiscard(true)}><Icon name="trash" size={17} /></button>}
-    <Button tone={discard ? 'danger' : 'primary'} disabled={busy || !choices.length} onClick={() => void submit(discard)}>{discard ? 'Discard selected' : 'Upload selected'}</Button>
+    {!discard && <button className={styles.quiet} title="Discard Selected Records" aria-label="Discard Selected Records" disabled={busy || !choices.length} onClick={() => setDiscard(true)}><Icon name="trash" size={17} /></button>}
+    <Button tone={discard ? 'danger' : 'primary'} disabled={busy || !choices.length} onClick={() => void submit(discard)}>{discard ? 'Discard Selected' : 'Upload Selected'}</Button>
   </div>}><ErrorNotice error={error} />{records.some(record => record.kind === 'progress') && <p>While a book’s progress is waiting for review, new reading for that book stays on this device.</p>}{group(records).map(book => <BookComparison key={book.document} book={book} account={account} timezone={current?.user?.timezone ?? 'UTC'} selected={selected} select={(items, checked) => {
     if (busy) return;
     setDiscard(false); setSelected(previous => { const next = new Map(previous); for (const item of items) { if (checked) next.set(item.id,item); else next.delete(item.id); } return next; });

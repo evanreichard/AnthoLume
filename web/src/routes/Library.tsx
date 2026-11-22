@@ -146,7 +146,7 @@ export function Library() {
       <div className={styles.search}>
         <button type="submit" className={styles.searchSubmit} aria-label="Search"><Icon name="search" size={17} /></button>
         <label><span className={styles.srOnly}>Search title or author</span><input ref={searchInput} type="search" value={input} maxLength={256} placeholder="Title or author" onChange={(event) => setInput(event.target.value)} /></label>
-        {(input || q) && <button type="button" className={styles.searchClear} aria-label="Clear search" onClick={clearSearch}>×</button>}
+        {(input || q) && <button type="button" className={styles.searchClear} aria-label="Clear Search" onClick={clearSearch}>×</button>}
       </div>
       {!offline && <button type="button" className={styles.icon} aria-label="Add Book" disabled={access.kind !== 'authenticated' || !!capabilities?.demo_mode} onClick={() => { setNewBook(null); setError(null); open('add'); }}><Icon name="add" /></button>}
       <button type="button" className={styles.icon} aria-label="Sort Books" aria-haspopup="dialog" aria-expanded={dialog === 'sort'} onClick={() => open('sort')}><Icon name="sort" /></button>
@@ -165,7 +165,7 @@ export function Library() {
     </div>
     {importNotice && <p role="status">{importNotice}</p>}
     <ErrorNotice error={dialog === 'add' ? null : error} />
-    {sharedEnabled && hasNextPage && <div className={styles.loadMore}><Button ref={loadMore} disabled={isFetching} onClick={() => void fetchNextPage({ cancelRefetch: false })}>{documents.isFetchingNextPage ? 'Loading…' : isFetchNextPageError ? 'Retry loading shared books' : 'Load more shared books'}</Button></div>}
+    {sharedEnabled && hasNextPage && <div className={styles.loadMore}><Button ref={loadMore} disabled={isFetching} onClick={() => void fetchNextPage({ cancelRefetch: false })}>{documents.isFetchingNextPage ? 'Loading…' : isFetchNextPageError ? 'Retry Loading Shared Books' : 'Load More Shared Books'}</Button></div>}
     {dialog === 'sort' && <Dialog title="Sort Books" onClose={close}><div className={styles.sortOptions}>
       {sortOptions.map(([value, label]) => <button key={value} type="button" aria-pressed={sort === value} onClick={() => applySort(value)}>
         {label}{sort === value && <Icon name="check" size={17} />}
@@ -177,7 +177,7 @@ export function Library() {
       {importing && <p role="status">Uploading to the shared library…</p>}
       {newBook && <p role="status">Book is in the shared library. <Link to={newBook} state={bookLinkState}>Open book</Link></p>}
       <ErrorNotice error={error} />
-      <Button onClick={close}>{importing ? 'Cancel upload' : 'Done'}</Button>
+      <Button onClick={close}>{importing ? 'Cancel Upload' : 'Done'}</Button>
     </div></Dialog>}
   </>;
 }

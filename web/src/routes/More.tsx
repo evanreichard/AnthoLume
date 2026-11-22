@@ -20,7 +20,7 @@ export function Settings() {
       syncStatus={sync === 'idle' && pendingCount ? `${pendingCount} pending` : syncLabels[sync]} syncDetails={<SyncDetails />}
       onSignOut={() => setLogout(true)} />}
     </div>
-    {logout && <Dialog title="Sign out on this device?" onClose={() => setLogout(false)}><div className={styles.form}><p>Pending progress and activity stay on this device and can sync only after you sign back into this account.</p><div className={styles.actions}><Button tone="danger" onClick={() => { void session.logout(); navigate('/login', { replace: true }); }}>Sign out</Button><Button onClick={() => setLogout(false)}>Keep signed in</Button></div></div></Dialog>}
+    {logout && <Dialog title="Sign out on this device?" onClose={() => setLogout(false)}><div className={styles.form}><p>Pending progress and activity stay on this device and can sync only after you sign back into this account.</p><div className={styles.actions}><Button tone="danger" onClick={() => { void session.logout(); navigate('/login', { replace: true }); }}>Sign Out</Button><Button onClick={() => setLogout(false)}>Keep Signed In</Button></div></div></Dialog>}
   </>;
 }
 const syncLabels = {
@@ -34,7 +34,7 @@ function SyncDetails() {
   return <section className={styles.inlineSync} aria-label="Sync status">
     <div className={styles.syncRow}>
       <div role="status"><CardHeader title={syncLabels[reading.sync]} subtitle={`${reading.pendingCount} pending`} /></div>
-      <Button size="slim" aria-label="Retry synchronization" onClick={() => { setError(null); void reading.replay().catch(setError); }}>Retry</Button>
+      <Button size="slim" aria-label="Retry Synchronization" onClick={() => { setError(null); void reading.replay().catch(setError); }}>Retry</Button>
     </div>
     <ErrorNotice error={error} />
   </section>;

@@ -56,7 +56,7 @@ export function Dialog({ title, children, onClose, size = 'default', layout = 'c
     const rect = event.currentTarget.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom) onClose();
   } }} aria-labelledby={titleId}>
-    <header className={styles.dialogHeader}>{titleLeading ? <div className={styles.dialogTitleGroup}>{titleLeading}{heading}</div> : heading}<button type="button" className={styles.icon} onClick={onClose} aria-label="Close dialog">×</button></header>
+    <header className={styles.dialogHeader}>{titleLeading ? <div className={styles.dialogTitleGroup}>{titleLeading}{heading}</div> : heading}<button type="button" className={styles.icon} onClick={onClose} aria-label="Close Dialog">×</button></header>
     {toolbar != null && <div className={styles.dialogToolbar}>{toolbar}</div>}
     {layout === 'scroll-body' ? <div className={styles.dialogBody}>{children}</div> : children}
     {footer != null && <footer className={styles.dialogFooter}>{footer}</footer>}

@@ -9,7 +9,7 @@ test('online reader checkpoint drives compact Folio Resume, density and touch', 
   await page.getByRole('link', { name: 'Read', exact: true }).click();
   await expect(page.frameLocator('iframe').first().getByRole('heading', { name: 'Public chapter', exact: true })).toBeVisible();
   await page.keyboard.press('c');
-  await page.getByRole('button', { name: 'Next page', exact: true }).click();
+  await page.getByRole('button', { name: 'Next Page', exact: true }).click();
   await expect(page.locator('footer')).toContainText('2 /');
   await page.keyboard.press('c');
   await page.getByRole('button', { name: 'Library', exact: true }).click();

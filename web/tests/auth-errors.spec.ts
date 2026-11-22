@@ -8,7 +8,7 @@ test('a wrong password shows one form error and lets the reader retry', async ({
   await page.getByLabel('Username', { exact: true }).fill('auth-error-reader');
   const password = page.getByLabel('Password', { exact: true });
   await password.fill('wrong-password');
-  const submit = page.getByRole('button', { name: 'Sign in', exact: true });
+  const submit = page.getByRole('button', { name: 'Sign In', exact: true });
   await submit.click();
 
   await expect(page.getByRole('alert')).toHaveText('The username or password is incorrect.');
@@ -31,7 +31,7 @@ test('rejected sessions suggest checking the app URL instead of reconnecting', a
   }, { times: 1 });
   await page.getByLabel('Username', { exact: true }).fill('auth-error-reader');
   await page.getByLabel('Password', { exact: true }).fill('synthetic-public-password');
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('button', { name: 'Sign In', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText(/check that you opened the correct app URL/i);
   await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toHaveCount(0);
 });

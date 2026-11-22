@@ -52,8 +52,8 @@ export function BookEditor({ book, refId, document, onClose, onSaved }: {
             if (file.size > 2 * 1024 * 1024) { event.currentTarget.value = ''; setError(new Error('Choose a JPEG or PNG up to 2 MiB.')); return; }
             setError(null); setRemove(false); setCover(file);
           }} /></label>
-          {(cover || remove) ? <Button size="slim" disabled={busy} onClick={() => { setCover(null); setRemove(false); }}>Keep original cover</Button> :
-            document.cover_available && <Button size="slim" disabled={busy} onClick={() => setRemove(true)}>Remove cover</Button>}
+          {(cover || remove) ? <Button size="slim" disabled={busy} onClick={() => { setCover(null); setRemove(false); }}>Keep Original Cover</Button> :
+            document.cover_available && <Button size="slim" disabled={busy} onClick={() => setRemove(true)}>Remove Cover</Button>}
         </div>
       </div>
       <label>Title<input required maxLength={512} value={draft.title} onChange={event => setField('title', event.target.value)} /></label>

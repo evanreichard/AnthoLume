@@ -138,7 +138,7 @@ function History({ account, view }: { account: Account; view: 'activity' | 'prog
     {view === 'progress' && progressItems.length > 0 && <ProgressList account={account} items={progressItems} timezone={timezone} />}
     {showLoad && <div className={styles.loadMore}>
       <Button aria-disabled={!current.hasNextPage || current.isFetching} onClick={() => { if (current.hasNextPage && !current.isFetching) void current.fetchNextPage(); }}>
-        {current.isFetchingNextPage ? 'Loading…' : !current.hasNextPage ? (view === 'activity' ? 'All activity loaded' : 'All books loaded') : current.isFetchNextPageError ? 'Try again' : view === 'activity' ? 'Load older activity' : 'Load more books'}
+        {current.isFetchingNextPage ? 'Loading…' : !current.hasNextPage ? (view === 'activity' ? 'All Activity Loaded' : 'All Books Loaded') : current.isFetchNextPageError ? 'Try Again' : view === 'activity' ? 'Load Older Activity' : 'Load More Books'}
       </Button>
       <span className={styles.srOnly} role="status">{count(items.length, view === 'activity' ? 'session' : 'book')} shown</span>
     </div>}

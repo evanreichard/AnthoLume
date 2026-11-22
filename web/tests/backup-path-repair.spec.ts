@@ -35,7 +35,7 @@ test('backup requires catalog repair and restore directs invalid paths back to t
   await expect(download).toBeDisabled();
   await dialog.getByLabel('Storage root').selectOption({ label: 'Archive' });
   const path = dialog.getByLabel('Relative file path');
-  const relink = dialog.getByRole('button', { name: 'Relink path' });
+  const relink = dialog.getByRole('button', { name: 'Relink Path' });
   await path.fill('../book.epub');
   await expect(relink).toBeDisabled();
   await path.fill('shelf/book.epub');
@@ -51,7 +51,7 @@ test('backup requires catalog repair and restore directs invalid paths back to t
   await expect(dialog.getByLabel('Storage root')).toHaveCount(0);
   await expect(download).toBeDisabled();
   await dialog.getByRole('radio', { name: 'Clear the reference' }).check();
-  const clear = dialog.getByRole('button', { name: 'Clear path' });
+  const clear = dialog.getByRole('button', { name: 'Clear Path' });
   await expect(dialog.getByText('It does not delete any files or reading history.', { exact: false })).toBeVisible();
   await expect(clear).toBeDisabled();
   await dialog.getByRole('checkbox', { name: 'I confirm clearing this cover path.' }).check();
