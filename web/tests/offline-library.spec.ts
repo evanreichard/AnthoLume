@@ -310,6 +310,34 @@ test('Keep Reading preserves pending progress locally across turns and an online
   expect(serverEffects(server.data, user).head).toBeUndefined();
 });
 
+test('a deleted book’s draft can be discarded locally without a server comparison', async ({ page, context, server }) => {
+  const user = 'discard-deleted-book';
+  await readOffline(page, context, server.origin, user);
+  await page.goto(server.origin + '/library');
+  const { csrf_token, user: identity } = await (await page.request.get(server.origin + '/api/v1/session')).json();
+  const removed = await page.request.delete(server.origin + '/api/v1/documents/book_001', { headers: {
+    Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': identity.reading_generation,
+  } });
+  expect(removed.status()).toBe(204);
+  await context.setOffline(false);
+  const review = offlineReview(page);
+  await expect(review.getByRole('button', { name: 'Retry Comparison' })).toBeVisible();
+  const progress = review.getByLabel('Progress', { exact: true });
+  await expect(review.getByRole('button', { name: 'Upload Selected' })).toBeDisabled();
+  await review.getByRole('button', { name: 'Discard Records', exact: true }).click();
+  await progress.check();
+  await review.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(review.getByRole('button', { name: 'Upload Selected' })).toBeDisabled();
+  const before = await storedRows(page, 'offline');
+  expect(before.some(row => row.kind === 'progress')).toBe(true);
+  await review.getByRole('button', { name: 'Discard Records', exact: true }).click();
+  await progress.check();
+  await review.getByRole('button', { name: 'Discard Selected', exact: true }).click();
+  await expect.poll(() => storedRows(page, 'offline')).toEqual(before.filter(row => row.kind !== 'progress'));
+  expect(await storedRows(page, 'events')).toEqual([]);
+  expect(serverEffects(server.data, user).receipts).toEqual([]);
+});
+
 test('removing a shared download clears both shelves but preserves the offline reader’s private review', async ({page,context,server}) => {
   async function signOut() {
     await page.goto(`${server.origin}/settings`);

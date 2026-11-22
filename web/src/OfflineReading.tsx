@@ -62,7 +62,7 @@ async function comparison(account: Account, book: Group, timezone: string, signa
   return { progress, seconds };
 }
 
-function BookComparison({ account, book, timezone, selected, select }: { account: Account; book: Group; timezone: string; selected: Map<string, OfflineChoice>; select(choices: OfflineChoice[], checked: boolean): void }) {
+function BookComparison({ account, book, timezone, discard, selected, select }: { discard: boolean; account: Account; book: Group; timezone: string; selected: Map<string, OfflineChoice>; select(choices: OfflineChoice[], checked: boolean): void }) {
   const ids = book.rows.map(r => r.id).sort();
   const query = useQuery({ queryKey: ['offline-comparison', account, book.document, timezone, ids], staleTime: 0,
     queryFn: ({signal}) => comparison(account, book, timezone, signal) });
@@ -70,8 +70,8 @@ function BookComparison({ account, book, timezone, selected, select }: { account
   const activities = book.rows.filter(r => r.kind === 'activity');
   return <section className={styles.reviewBook} role="group" aria-label={book.title}>
     <header><h3>{book.title}</h3><small>Offline</small><small>Server</small></header>
-    {progress && <label><span><input aria-label="Progress" type="checkbox" disabled={!query.data?.progress} checked={selected.has(progress.id)} onChange={e => select([{id: progress.id, revision: query.data?.progress?.revision}], e.target.checked)} />Progress</span><b>{percent(progress.checkpoint.fraction)}</b><span>{query.data ? percent(query.data.progress?.fraction ?? null) : '…'}</span></label>}
-    {!!activities.length && <label><span><input aria-label="Activity" type="checkbox" disabled={!query.data} checked={activities.every(r => selected.has(r.id))} onChange={e => select(activities.map(r => ({id:r.id})), e.target.checked)} />Activity</span><b>{duration(activities.reduce((n,r) => n + r.event.duration,0))}</b><span>{query.data ? duration(query.data.seconds) : '…'}</span></label>}
+    {progress && <label><span><input aria-label="Progress" type="checkbox" disabled={!discard && !query.data?.progress} checked={selected.has(progress.id)} onChange={e => select([{id: progress.id, revision: query.data?.progress?.revision}], e.target.checked)} />Progress</span><b>{percent(progress.checkpoint.fraction)}</b><span>{query.data ? percent(query.data.progress?.fraction ?? null) : '…'}</span></label>}
+    {!!activities.length && <label><span><input aria-label="Activity" type="checkbox" disabled={!discard && !query.data} checked={activities.every(r => selected.has(r.id))} onChange={e => select(activities.map(r => ({id:r.id})), e.target.checked)} />Activity</span><b>{duration(activities.reduce((n,r) => n + r.event.duration,0))}</b><span>{query.data ? duration(query.data.seconds) : '…'}</span></label>}
     {query.isError && <button onClick={() => void query.refetch()}>Retry Comparison</button>}
   </section>;
 }
@@ -103,11 +103,11 @@ export function OfflineReview({account}: {account: Account}) {
   }
   if (later) return <button onClick={() => setLater(false)}>Review Offline Reading</button>;
   return <Dialog title="Offline Reading" onClose={close} layout="scroll-body" placement="mobile-sheet" footer={<div className={styles.reviewActions}>
-    <button className={styles.quiet} disabled={busy} onClick={() => discard ? setDiscard(false) : close()}>{discard ? 'Cancel' : 'Keep Reading'}</button>
-    {!discard && <button className={styles.quiet} title="Discard Selected Records" aria-label="Discard Selected Records" disabled={busy || !choices.length} onClick={() => setDiscard(true)}><Icon name="trash" size={17} /></button>}
+    <button className={styles.quiet} disabled={busy} onClick={() => { if (discard) { setDiscard(false); setSelected(new Map()); } else close(); }}>{discard ? 'Cancel' : 'Keep Reading'}</button>
+    {!discard && <button className={styles.quiet} title="Discard Records" aria-label="Discard Records" disabled={busy} onClick={() => setDiscard(true)}><Icon name="trash" size={17} /></button>}
     <Button tone={discard ? 'danger' : 'primary'} disabled={busy || !choices.length} onClick={() => void submit(discard ? 'discard' : 'upload')}>{discard ? 'Discard Selected' : 'Upload Selected'}</Button>
-  </div>}><ErrorNotice error={error} />{records.some(record => record.kind === 'progress') && <p>While a book’s progress is waiting for review, new reading for that book stays on this device.</p>}{group(records).map(book => <BookComparison key={book.document} book={book} account={account} timezone={current?.user?.timezone ?? 'UTC'} selected={selected} select={(items, checked) => {
+  </div>}><ErrorNotice error={error} />{discard ? <p>Select the local records to discard. This does not change the server.</p> : records.some(record => record.kind === 'progress') && <p>While a book’s progress is waiting for review, new reading for that book stays on this device.</p>}{group(records).map(book => <BookComparison key={book.document} book={book} account={account} timezone={current?.user?.timezone ?? 'UTC'} discard={discard} selected={selected} select={(items, checked) => {
     if (busy) return;
-    setDiscard(false); setSelected(previous => { const next = new Map(previous); for (const item of items) { if (checked) next.set(item.id,item); else next.delete(item.id); } return next; });
+    setSelected(previous => { const next = new Map(previous); for (const item of items) { if (checked) next.set(item.id,item); else next.delete(item.id); } return next; });
   }} />)}</Dialog>;
 }
