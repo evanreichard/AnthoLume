@@ -8,6 +8,7 @@ import { receiptFor, validSubmission, validProgressPosition, type Submission } f
 import { validState } from './protocol';
 import type { CapturedActivity } from './activity';
 import { StagingWriter } from './staging-writer';
+import { validCover } from './cover';
 
 export type ResumeCandidate = Checkpoint & { eventId: string; savedAt: string };
 export type BookRow = StoredBook & { resumeCandidate?: ResumeCandidate; key: string; scope: string; bytes: Blob | null; sourceId?: string; checksum: string | null; protocolHash: string | null; size: number; etag?: string };
@@ -206,6 +207,22 @@ export class Repository {
   private copiesFor(ref: ServerRef) {
     return this.db.books.filter(row => isDeviceCopy(row, ref.account) && row.ref.documentId === ref.documentId).toArray();
   }
+  async cacheCover(ref: ServerRef, cover: Blob, signal: AbortSignal, expectedSource?: string) {
+    if (!validCover(cover)) return;
+    await this.db.transaction('rw', [this.db.books, this.db.sources, this.db.access], async () => {
+      const tx = Dexie.currentTransaction!, abort = () => tx.abort();
+      signal.addEventListener('abort', abort, { once: true });
+      try {
+        signal.throwIfAborted();
+        const row = await this.db.books.get(refKey(ref));
+        if (!row || row.cover || row.availability !== 'available' || !row.sourceId || (expectedSource && row.sourceId !== expectedSource)) return;
+        if (!(await this.db.access.get(scopeOf(ref)))?.authenticated || !(await this.db.sources.get(row.sourceId))?.complete) return;
+        signal.throwIfAborted();
+        await this.db.books.update(row.key, { cover });
+        signal.throwIfAborted();
+      } finally { signal.removeEventListener('abort', abort); }
+    });
+  }
   async retainCachedCopy(ref: ServerRef, signal: AbortSignal) {
     await this.db.transaction('rw', this.db.books, this.db.sources, async () => {
       signal.throwIfAborted();
@@ -354,7 +371,7 @@ export class Repository {
         await this.db.sources.put({ ...row, complete: true, manifest, manifestHash, until: 0, ...(cache ? { cacheUsedAt: Date.now() } : {}) });
       }
       const reading = cache ? await this.refreshCheckpoint(ref, checkpoint, state) : { checkpoint };
-      await this.db.books.put({ key, scope, ref, title, author, cover, pinned: old?.pinned, ...(cache?.pin && { title: cache.pin.title, author: cache.pin.author, pinned: true }), addedAt: old?.addedAt ?? new Date().toISOString(), lastReadAt: old?.lastReadAt ?? state?.updated_at ?? undefined, ...reading, resumeCandidate: old?.resumeCandidate, availability: 'available', bytes: null, sourceId: existingSource || stage.id, size: stage.size, checksum: integrity?.sha256 ?? null, protocolHash: integrity?.protocolHash ?? null, etag: cache?.etag });
+      await this.db.books.put({ key, scope, ref, title, author, cover: cache ? old?.cover ?? cover : cover, pinned: old?.pinned, ...(cache?.pin && { title: cache.pin.title, author: cache.pin.author, pinned: true }), addedAt: old?.addedAt ?? new Date().toISOString(), lastReadAt: old?.lastReadAt ?? state?.updated_at ?? undefined, ...reading, resumeCandidate: old?.resumeCandidate, availability: 'available', bytes: null, sourceId: existingSource || stage.id, size: stage.size, checksum: integrity?.sha256 ?? null, protocolHash: integrity?.protocolHash ?? null, etag: cache?.etag });
       if (cache) await this.trimServerCache(0, key);
       else if (state) { if (!validState(state, ref.kind === 'server' ? ref.documentId : '')) throw new Error('Invalid server state'); const head = await this.db.heads.get(key); if (!head || BigInt(head.state.revision) < BigInt(state.revision)) await this.db.heads.put({ key, state }); }
       signal?.throwIfAborted();

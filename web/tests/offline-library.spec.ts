@@ -1,6 +1,37 @@
 import { test, expect, register, signIn } from './fixtures';
 import { storedRows, serverEffects } from './storage';
 
+test('offline startup failure is reported once above the library, not under the book', async ({ page, server }) => {
+  await page.addInitScript(() => { Reflect.deleteProperty(Navigator.prototype, 'serviceWorker'); });
+  await register(page, server.origin, 'no-worker-reader');
+  const card = page.getByRole('article').filter({ hasText: 'Public book 01' });
+  await card.locator('summary').click();
+  await card.getByRole('button', { name: 'Save to Device' }).click();
+  await expect(page.getByRole('region', { name: 'App update and recovery' }).getByRole('alert')).toContainText('service workers');
+  await expect(card.getByRole('alert')).toHaveCount(0);
+  await expect(card.getByRole('img', { name: 'Saved to device' })).toHaveCount(0);
+});
+
+test('a saved book opens without a recovery prompt when the browser is online but the server is stopped', async ({ page, context, server }) => {
+  await register(page, server.origin, 'offline-update-reader');
+  const card = page.getByRole('article').filter({ hasText: 'Public book 01' });
+  await card.locator('summary').click();
+  await card.getByRole('button', { name: 'Save to Device' }).click();
+  await expect(card.getByRole('img', { name: 'Saved to device' })).toBeVisible();
+  await page.close();
+  await server.stop();
+
+  const cold = await context.newPage();
+  await cold.goto(server.origin);
+  expect(await cold.evaluate(() => navigator.onLine)).toBe(true);
+  await cold.getByRole('button', { name: 'offline-update-reader', exact: true }).click();
+  await expect(cold.getByRole('article')).toContainText('Public book 01');
+  await expect(cold.getByRole('region', { name: 'App update and recovery' })).toHaveCount(0);
+  await cold.getByRole('article').getByRole('link').click();
+  await expect(cold.getByRole('region', { name: 'Book reader' })).toHaveAttribute('data-reader-state', 'ready');
+  await expect(cold.getByRole('region', { name: 'App update and recovery' })).toHaveCount(0);
+});
+
 test('cold start, pick a profile, review offline reading and upload the selected kinds separately', async ({ page, context, server }) => {
   const user = 'offline-library';
   await register(page, server.origin, user);

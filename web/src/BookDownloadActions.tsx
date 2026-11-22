@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useReading, type BookRef } from './reading';
+import { OfflineShellError, useReading, type BookRef } from './reading';
 import { Button } from './Controls';
 import { Dialog, ErrorNotice } from './ui';
 import { Icon } from './Icon';
@@ -18,7 +18,7 @@ export function useBookDownload(book: ServerBook | null) {
     const operation = controller.current = new AbortController();
     setBusy(true); setError(null);
     try { await action(book, operation.signal); setConfirm(false); }
-    catch (failure) { if (!operation.signal.aborted) setError(failure); }
+    catch (failure) { if (!operation.signal.aborted && !(failure instanceof OfflineShellError)) setError(failure); }
     finally {
       if (!operation.signal.aborted) setBusy(false);
       operation.abort(); controller.current = null;

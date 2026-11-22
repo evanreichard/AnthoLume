@@ -3,13 +3,14 @@ import { sourceLimits } from './source';
 import { Repository } from './repository';
 import { Replay } from './sync';
 import { WorkerCoordinator } from './worker-client';
-import { accountKey, refKey, sameAccount, type Account, type BookRef, type Checkpoint, type ReadingAccess, type OfflineChoice, type ReadingActions, type ReadingBridge, type ReadingSnapshot, type StoredBook, type S } from './types';
+import { accountKey, refKey, sameAccount, type Account, type BookRef, type Checkpoint, type CoverLookup, type ReadingAccess, type OfflineChoice, type ReadingActions, type ReadingBridge, type ReadingSnapshot, type StoredBook, type S } from './types';
 import { validState } from './protocol';
 import type { CapturedActivity } from './activity';
+import { readCover } from './cover';
 
 const cacheETag = (value: string | null | undefined): string | undefined => value && /^(?:W\/)?"[\x21\x23-\x7e]{1,128}"$/.test(value) ? value : undefined;
 
-export const emptySnapshot: ReadingSnapshot = { ready: false, resumeAccount: null, books: [], sync: 'idle', pendingCount: 0, notice: null, downloads: [], update: 'idle', error: null };
+export const emptySnapshot: ReadingSnapshot = { ready: false, resumeAccount: null, books: [], sync: 'idle', pendingCount: 0, notice: null, downloads: [], workerError: null, error: null };
 export class ReadingRuntime implements ReadingActions {
   readonly repo = new Repository();
   readonly worker: WorkerCoordinator;
@@ -24,11 +25,13 @@ export class ReadingRuntime implements ReadingActions {
   private timer?: ReturnType<typeof setTimeout>;
   private failures = 0;
   private jobs = new Map<AbortController, boolean>();
+  private coverAccess = new AbortController();
+  private coverJobs = new Set<string>();
   private quotaError = false;
   private snapshot: ReadingSnapshot = emptySnapshot;
   private error: string | null = null;
   private refreshSerial = 0;
-  constructor(private bridge: ReadingBridge, private changed: (snapshot: ReadingSnapshot) => void, private onExpired: (account: Account) => void) {
+  constructor(private bridge: ReadingBridge, private changed: (snapshot: ReadingSnapshot) => void, private onExpired: (account: Account) => void, private lookupCover?: CoverLookup) {
     this.worker = new WorkerCoordinator(() => { void this.refresh(); });
     this.sync = new Replay(this.repo, bridge, () => { void this.refresh(); }, account => {
       if (this.access.kind === 'authenticated' && sameAccount(this.access.account, account)) { this.access = { kind: 'expired', account }; this.onExpired(account); }
@@ -49,6 +52,7 @@ export class ReadingRuntime implements ReadingActions {
     if (this.generation && this.access === access && this.appliedGeneration === this.generation) return this.accessTail;
     this.access = access; const version = ++this.generation; this.sync.stop(); this.error = null; this.quotaError = false;
     for (const [job, accountBound] of this.jobs) if (accountBound) job.abort();
+    this.coverAccess.abort(); this.coverAccess = new AbortController();
     this.snapshot = { ...this.snapshot, downloads: [] };
     void this.refresh();
     this.accessTail = this.accessTail.catch(() => undefined).then(async () => {
@@ -71,7 +75,7 @@ export class ReadingRuntime implements ReadingActions {
       const scope = 'account' in access && access.kind !== 'logout' ? accountKey(access.account) : null;
       const visible = pending.filter(e => e.scope === scope);
       this.projectionAccess = access;
-      this.snapshot = { deviceCopies, offlineRecords, ready: this.appliedGeneration === this.generation, resumeAccount, books: books.map(({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned }) => ({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned })), sync: this.quotaError ? 'quota-error' : !visible.length ? 'idle' : visible.every(e => e.rejected) ? 'blocked' : this.sync.status === 'idle' ? access.kind === 'authenticated' ? 'pending' : 'auth-required' : this.sync.status, pendingCount: visible.length, notice: access.kind === 'authenticated' ? this.sync.notice : null, downloads: this.snapshot.downloads, update: this.worker.update, error: this.error || this.worker.error || null };
+      this.snapshot = { deviceCopies, offlineRecords, ready: this.appliedGeneration === this.generation, resumeAccount, books: books.map(({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned }) => ({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned })), sync: this.quotaError ? 'quota-error' : !visible.length ? 'idle' : visible.every(e => e.rejected) ? 'blocked' : this.sync.status === 'idle' ? access.kind === 'authenticated' ? 'pending' : 'auth-required' : this.sync.status, pendingCount: visible.length, notice: access.kind === 'authenticated' ? this.sync.notice : null, downloads: this.snapshot.downloads, workerError: this.worker.error, error: this.error };
       this.changed(this.snapshot);
     } catch (error) { if (!this.disposed) { this.snapshot = { ...this.snapshot, ready: false, error: String(error) }; this.changed(this.snapshot); } }
   }
@@ -180,7 +184,22 @@ export class ReadingRuntime implements ReadingActions {
     external.throwIfAborted();
     if (generation !== this.generation || !opened.row.sourceId) throw new Error('Book account or source changed');
     await this.repo.keepSource(opened.row.sourceId, external);
+    if (!opened.row.cover && generation === this.generation) void this.fillCover(ref, opened.row.sourceId);
     return opened;
+  }
+  cacheCover = async (ref: Extract<BookRef, { kind: 'server' }>, cover: Blob) => {
+    if (this.disposed || this.appliedGeneration !== this.generation || this.access.kind !== 'authenticated' || !sameAccount(ref.account, this.access.account)) return;
+    await this.repo.cacheCover(ref, cover, this.coverAccess.signal).catch(() => undefined);
+  };
+  private async fillCover(ref: Extract<BookRef, { kind: 'server' }>, sourceId: string) {
+    if (this.disposed || this.access.kind !== 'authenticated' || !sameAccount(ref.account, this.access.account) || this.coverJobs.has(sourceId) || this.coverJobs.size >= 4) return;
+    this.coverJobs.add(sourceId);
+    const signal = AbortSignal.any([this.coverAccess.signal, AbortSignal.timeout(8_000)]);
+    try {
+      const cover = this.lookupCover?.(ref) ?? await readCover(await this.bridge.fetchCover(ref.account, ref.documentId, signal), signal);
+      await this.repo.cacheCover(ref, cover, signal, sourceId);
+    } catch { /* Artwork is optional; the source is already usable. */ }
+    finally { this.coverJobs.delete(sourceId); }
   }
   async saveToDevice(ref: Extract<BookRef, { kind: 'server' }>, signal: AbortSignal, metadata: Pick<StoredBook, 'title' | 'author'>) {
     if (!sameAccount(ref.account, this.selectedAccount())) throw new Error('Account changed');
@@ -219,5 +238,5 @@ export class ReadingRuntime implements ReadingActions {
     if (pending.some(event => !event.rejected)) { this.failures = this.sync.status === 'retryable-error' ? this.failures + 1 : 0; this.schedule(Math.min(60000, 1000 * 2 ** Math.min(this.failures, 6)) + Math.random() * 500); }
   }
   applyUpdate = async () => { await this.worker.apply(); await this.refresh(); };
-  dispose() { this.disposed = true; this.sync.stop(); for (const [job] of this.jobs) job.abort(); clearTimeout(this.timer); this.subscription?.unsubscribe(); this.worker.dispose(); window.removeEventListener('online', this.foreground); document.removeEventListener('visibilitychange', this.foreground); void this.accessTail.finally(() => this.repo.db.close()); }
+  dispose() { this.disposed = true; this.coverAccess.abort(); this.sync.stop(); for (const [job] of this.jobs) job.abort(); clearTimeout(this.timer); this.subscription?.unsubscribe(); this.worker.dispose(); window.removeEventListener('online', this.foreground); document.removeEventListener('visibilitychange', this.foreground); void this.accessTail.finally(() => this.repo.db.close()); }
 }

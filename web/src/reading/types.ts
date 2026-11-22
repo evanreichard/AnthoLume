@@ -28,12 +28,13 @@ export interface ReadingSnapshot {
   offlineRecords?: readonly OfflineRecord[];
   ready: boolean; resumeAccount: Account | null; books: readonly StoredBook[]; sync: SyncStatus; pendingCount: number; notice: string | null;
   downloads: readonly { ref: BookRef; receivedBytes: number; totalBytes: number | null; preparing?: boolean }[];
-  update: 'idle' | 'error'; error: string | null;
+  workerError: string | null; error: string | null;
 }
 export type ReaderCacheSummary = { books: number; epubBytes: number; metadataBytes: number };
 export interface ReadingActions {
   decideOffline(account: Account, choices: OfflineChoice[], discard: boolean): Promise<void>;
   forgetDrafts(account: Account): Promise<void>;
+  cacheCover(ref: Extract<BookRef, { kind: 'server' }>, cover: Blob): Promise<void>;
   removeFromDevice(ref: Extract<BookRef, { kind: 'server' }>, signal: AbortSignal): Promise<void>;
   saveToDevice(ref: Extract<BookRef, { kind: 'server' }>, signal: AbortSignal, metadata: Pick<StoredBook, 'title' | 'author'>): Promise<void>;
   readerCacheSummary(): Promise<ReaderCacheSummary>;
@@ -41,7 +42,8 @@ export interface ReadingActions {
   replay(): Promise<void>;
   applyUpdate(): Promise<void>;
 }
-export type ProviderProps = { access: ReadingAccess; bridge: ReadingBridge; onSessionExpired: (account: Account) => void; children: ReactNode };
+export type CoverLookup = (ref: Extract<BookRef, { kind: 'server' }>) => Blob | undefined;
+export type ProviderProps = { access: ReadingAccess; bridge: ReadingBridge; lookupCover?: CoverLookup; onSessionExpired: (account: Account) => void; children: ReactNode };
 // Separate UUID scopes from the older username scopes, even for usernames that look like UUIDs.
 export function accountKey(account: Account): string { return JSON.stringify(['account', new URL(account.origin).origin, account.userId, ...(account.readingGeneration ? [account.readingGeneration] : [])]); }
 export function refKey(ref: BookRef): string { return ref.kind === 'local' ? JSON.stringify(['local', ref.localId]) : JSON.stringify(['server', accountKey(ref.account), ref.documentId]); }

@@ -45,7 +45,7 @@ function Providers() {
   const intent = legacyDocument(location.search);
   const pendingIntent = intent && !['/login', '/register'].includes(location.pathname);
   return <QueryClientProvider client={queryClient}>
-    <ReadingProvider access={intent && state.access.kind === 'expired' ? retirementAccess : state.access} bridge={session.api.bridge} onSessionExpired={(account) => session.expire(account)}>
+    <ReadingProvider access={intent && state.access.kind === 'expired' ? retirementAccess : state.access} bridge={session.api.bridge} lookupCover={ref => queryClient.getQueryData<Blob>(['cover', ref])} onSessionExpired={(account) => session.expire(account)}>
       <ReadingSession />
       <RetirementDestination />
       {state.access.kind === 'picker' ? <OfflinePicker /> : state.access.kind === 'offline' && ['/login','/register'].includes(location.pathname) ? <Navigate to="/library" replace /> : pendingIntent ? <AppLoading message="Opening requested book…" /> : <Outlet />}

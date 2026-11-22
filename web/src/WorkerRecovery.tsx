@@ -8,22 +8,16 @@ export function WorkerRecovery({ duringReading = false }: { duringReading?: bool
   const reading = useReading();
   const { access, error: sessionError, busy: sessionBusy } = useSession();
   const scope = JSON.stringify(access);
-  const [failure, setFailure] = useState<{ scope: string; error: unknown } | null>(null);
-  const error = failure?.scope === scope ? failure.error : null;
+  const error = reading.workerError;
   const [busy, setBusy] = useState(false);
   const [details, setDetails] = useState(false);
-  useEffect(() => {
-    if (reading.update === 'error' && reading.error) setFailure({ scope, error: reading.error });
-  }, [reading.update, reading.error, scope]);
   useEffect(() => { setDetails(false); }, [scope]);
-  const workerVisible = reading.update === 'error' || !!error;
+  const workerVisible = !!error;
   if (!workerVisible && !sessionError) return null;
   async function retry() {
     setBusy(true);
-    setFailure(null);
-    try { await reading.applyUpdate(); } catch (error) { setFailure({ scope, error }); } finally { setBusy(false); }
+    try { await reading.applyUpdate(); } finally { setBusy(false); }
   }
-  const message = 'The offline app could not be prepared. You can still read online and save your progress.';
   const workerLabel = 'Retry update / recovery';
   return <>
     <section className={duringReading ? styles.recoveryDock : styles.notice} aria-label="App update and recovery">
@@ -34,12 +28,12 @@ export function WorkerRecovery({ duringReading = false }: { duringReading?: bool
         <button onClick={() => setDetails(true)} aria-haspopup="dialog">Recovery details</button>
       </> : <>
         {sessionError && <><ErrorNotice error={sessionError} /><button disabled={sessionBusy} onClick={() => void session.checkSession()}>Reconnect</button></>}
-        {workerVisible && <><p>{message}</p><ErrorNotice error={error} /><button disabled={busy} onClick={() => void retry()}>{busy ? 'Retrying…' : workerLabel}</button></>}
+        {workerVisible && <><ErrorNotice error={error} /><button disabled={busy} onClick={() => void retry()}>{busy ? 'Retrying…' : workerLabel}</button></>}
       </>}
     </section>
     {details && <Dialog title="App recovery details" onClose={() => setDetails(false)}>
       {sessionError && <ErrorNotice error={sessionError} />}
-      {workerVisible && <><p>{message}</p><ErrorNotice error={error} /></>}
+      {workerVisible && <ErrorNotice error={error} />}
       <p>Updating the offline app does not delete books or pending progress.</p>
       <button onClick={() => setDetails(false)}>Close recovery details</button>
     </Dialog>}

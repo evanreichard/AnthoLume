@@ -9,7 +9,7 @@ export function ReadingProvider(props: ProviderProps): ReactNode {
   const latest = useRef(props); latest.current = props;
   useEffect(() => {
     let active = true;
-    const instance = new ReadingRuntime(props.bridge, next => { if (active) setSnapshot(next); }, account => latest.current.onSessionExpired(account));
+    const instance = new ReadingRuntime(props.bridge, next => { if (active) setSnapshot(next); }, account => latest.current.onSessionExpired(account), ref => latest.current.lookupCover?.(ref));
     setRuntime(instance);
     void instance.start(latest.current.access).catch(error => { if (active) setSnapshot(old => ({ ...old, ready: false, error: String(error) })); });
     return () => { active = false; instance.dispose(); };
@@ -24,6 +24,7 @@ export function ReadingProvider(props: ProviderProps): ReactNode {
   return <ReadingContext.Provider value={{ runtime, access: props.access, snapshot: filtered }}>{props.children}</ReadingContext.Provider>;
 }
 export function useReadingContext() { const context = useContext(ReadingContext); if (!context) throw new Error('ReadingProvider is required'); return context; }
+const ignoreCover = async () => {};
 export function useReading(): ReadingSnapshot & ReadingActions {
   const { runtime, snapshot } = useReadingContext();
   const requireRuntime = () => { if (!runtime) throw new Error('Reader storage is opening'); return runtime; };
@@ -31,6 +32,7 @@ export function useReading(): ReadingSnapshot & ReadingActions {
     decideOffline: (account, choices, discard) => requireRuntime().decideOffline(account, choices, discard),
     forgetDrafts: account => requireRuntime().forgetDrafts(account),
     saveToDevice: (ref, signal, metadata) => requireRuntime().saveToDevice(ref, signal, metadata),
+    cacheCover: runtime?.cacheCover ?? ignoreCover,
     removeFromDevice: (ref, signal) => requireRuntime().removeFromDevice(ref, signal),
     readerCacheSummary: () => requireRuntime().readerCacheSummary(),
     clearReaderCache: () => requireRuntime().clearReaderCache(),
