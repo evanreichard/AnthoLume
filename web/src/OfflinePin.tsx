@@ -5,7 +5,7 @@ import { Dialog, ErrorNotice } from './ui';
 import { Icon } from './Icon';
 import styles from './OfflineReading.module.css';
 
-export function OfflinePin({ book, pinned, metadata, overlay = false }: { overlay?: boolean; book: Extract<BookRef, { kind: 'server' }>; pinned: boolean; metadata: { title: string | null; author: string | null } }) {
+export function OfflinePin({ book, metadata, overlay = false, canSave = true }: { overlay?: boolean; book: Extract<BookRef, { kind: 'server' }>; canSave?: boolean; metadata: { title: string | null; author: string | null } }) {
   const reading = useReading();
   const controller = useRef<AbortController | null>(null);
   const menu = useRef<HTMLDetailsElement>(null);
@@ -27,21 +27,20 @@ export function OfflinePin({ book, pinned, metadata, overlay = false }: { overla
       operation.abort(); controller.current = null;
     }
   }
-  function choose() {
-    closeMenu(); setError(null);
-    if (pinned) setConfirm(true); else void save(true);
-  }
-  const label = busy ? 'Updating offline copy…' : pinned ? 'Stop keeping on this device' : 'Keep on this device';
+  const copy = reading.deviceCopies?.get(book.documentId);
+  const actions = <>
+    {canSave && copy !== 'saved' && <Button disabled={busy || !reading.ready} onClick={() => { closeMenu(); void save(true); }}>{busy ? 'Saving…' : 'Save to Device'}</Button>}
+    {copy && <Button disabled={busy || !reading.ready} onClick={() => { closeMenu(); setError(null); setConfirm(true); }}>Remove from Device</Button>}
+  </>;
   return <>{overlay ? <>
-    {pinned && <span className={styles.keptBadge} role="img" aria-label="Kept on this device" title="Kept on this device"><Icon name="kept" size={16} /></span>}
     <details ref={menu} className={styles.bookOptions} name="offline-book-options" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); closeMenu(); } }}>
       <summary aria-label={`Options for ${metadata.title ?? 'Untitled'}`} title="Book options"><Icon name="more" size={20} /></summary>
-      <div><button onClick={choose} disabled={busy || !reading.ready}>{label}</button></div>
-    </details></> : <Button disabled={busy || !reading.ready} onClick={choose}>{label}</Button>}
+      <div>{actions}</div>
+    </details></> : actions}
     {!confirm && <ErrorNotice error={error} />}
-    {confirm && <Dialog title="Stop keeping this book?" onClose={() => { if (!busy) setConfirm(false); }} footer={<>
+    {confirm && <Dialog title="Remove this download?" onClose={() => { if (!busy) setConfirm(false); }} footer={<>
       <Button disabled={busy} onClick={() => setConfirm(false)}>Cancel</Button>
-      <Button tone="primary" disabled={busy} onClick={() => void save(false)}>Stop keeping</Button>
-    </>}><p>Its offline copy may be cleared. Your reading progress is kept.</p><ErrorNotice error={error} /></Dialog>}
+      <Button tone="primary" disabled={busy} onClick={() => void save(false)}>Remove from Device</Button>
+    </>}><p>This removes the offline copy for all profiles on this device. Your reading progress and activity are kept.</p><ErrorNotice error={error} /></Dialog>}
   </>;
 }

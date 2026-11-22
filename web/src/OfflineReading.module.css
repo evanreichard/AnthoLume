@@ -22,9 +22,7 @@
 .statusBar strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ink); }
 .statusBar button { min-width: 0; }
 .statusBar button:last-child { flex: none; }
-.keptBadge, .bookOptions { position: absolute; top: 4px; }
-.keptBadge { left: 7px; top: 10px; width: 25px; height: 25px; display: grid; place-items: center; color: var(--ink); background: var(--surface); border-radius: 6px; pointer-events: none; box-shadow: 0 1px 4px #0003; }
-.bookOptions { right: 2px; }
+.bookOptions { position: absolute; top: 4px; right: 2px; }
 .bookOptions[open] { z-index: 2; }
 .bookOptions summary { width: 44px; height: 44px; display: grid; place-items: center; list-style: none; cursor: pointer; }
 .bookOptions summary::-webkit-details-marker { display: none; }

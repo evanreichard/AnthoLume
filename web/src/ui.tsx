@@ -2,7 +2,7 @@ import { ButtonLink } from './Controls';
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import type { BookRef } from './reading';
+import { useReading, type BookRef } from './reading';
 import { bookKey, bookPath, type LibraryBook } from './library';
 import { session, useSession } from './session';
 import styles from './App.module.css';
@@ -80,6 +80,7 @@ export function Cover({ book, sourceId, warningId, thumbnail = false }: {
 }) {
   const { access } = useSession();
   const [localURL, setLocalURL] = useState<string | null>(null);
+  const { deviceCopies } = useReading();
   const cover = book.stored?.cover;
   useEffect(() => {
     if (!cover) { setLocalURL(null); return; }
@@ -140,6 +141,7 @@ export function Cover({ book, sourceId, warningId, thumbnail = false }: {
     {warningId && book.document?.file_available === false && <span id={warningId} className={styles.coverWarning} role="img" aria-label={missingFileLabel} title={missingFileLabel}><Icon name="warning" size={17} /></span>}
     <div className={styles.coverBadges}>
       <span id={sourceId} className={styles.provenance} role="img" aria-label={sourceLabel} title={sourceLabel}><Icon name={ref.kind === 'local' ? 'device' : 'cloud'} size={14} /></span>
+      {ref.kind === 'server' && deviceCopies?.get(ref.documentId) === 'saved' && <span role="img" aria-label="Saved to device" title="Saved to device"><Icon name="kept" size={16} /></span>}
     </div>
   </div>;
 }

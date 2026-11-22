@@ -66,12 +66,12 @@ export class ReadingRuntime implements ReadingActions {
     if (this.disposed) return;
     const serial = ++this.refreshSerial, access = this.access;
     try {
-      const [books, resumeAccount, pending, offlineRecords] = await Promise.all([this.repo.projection(access), this.repo.resume(), this.repo.pending(), access.kind === 'authenticated' ? this.repo.db.offline.where('scope').equals(accountKey(access.account)).toArray() : []]);
+      const [deviceCopies, books, resumeAccount, pending, offlineRecords] = await Promise.all([access.kind === 'authenticated' || access.kind === 'offline' ? this.repo.deviceCopies(access.account) : undefined, this.repo.projection(access), this.repo.resume(), this.repo.pending(), access.kind === 'authenticated' ? this.repo.db.offline.where('scope').equals(accountKey(access.account)).toArray() : []]);
       if (serial !== this.refreshSerial || this.disposed) return;
       const scope = 'account' in access && access.kind !== 'logout' ? accountKey(access.account) : null;
       const visible = pending.filter(e => e.scope === scope);
       this.projectionAccess = access;
-      this.snapshot = { offlineRecords, ready: this.appliedGeneration === this.generation, resumeAccount, books: books.map(({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned }) => ({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned })), sync: this.quotaError ? 'quota-error' : !visible.length ? 'idle' : visible.every(e => e.rejected) ? 'blocked' : this.sync.status === 'idle' ? access.kind === 'authenticated' ? 'pending' : 'auth-required' : this.sync.status, pendingCount: visible.length, notice: access.kind === 'authenticated' ? this.sync.notice : null, downloads: this.snapshot.downloads, update: this.worker.update, error: this.error || this.worker.error || null };
+      this.snapshot = { deviceCopies, offlineRecords, ready: this.appliedGeneration === this.generation, resumeAccount, books: books.map(({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned }) => ({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned })), sync: this.quotaError ? 'quota-error' : !visible.length ? 'idle' : visible.every(e => e.rejected) ? 'blocked' : this.sync.status === 'idle' ? access.kind === 'authenticated' ? 'pending' : 'auth-required' : this.sync.status, pendingCount: visible.length, notice: access.kind === 'authenticated' ? this.sync.notice : null, downloads: this.snapshot.downloads, update: this.worker.update, error: this.error || this.worker.error || null };
       this.changed(this.snapshot);
     } catch (error) { if (!this.disposed) { this.snapshot = { ...this.snapshot, ready: false, error: String(error) }; this.changed(this.snapshot); } }
   }

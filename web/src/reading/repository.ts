@@ -190,17 +190,34 @@ export class Repository {
     }
     if (!clear && (bytes > bookCacheBytes || count > bookCacheCount)) throw new Error('Close another open book before caching this EPUB');
   }
+  async deviceCopies(account: Account) {
+    const copies = new Map<string, 'cached' | 'saved'>();
+    for (const book of await this.db.books.toArray()) {
+      const ref = book.ref;
+      if (ref.kind !== 'server' || ref.account.origin !== account.origin || ref.account.readingGeneration !== account.readingGeneration || book.availability !== 'available') continue;
+      if (book.pinned || !copies.has(ref.documentId)) copies.set(ref.documentId, book.pinned ? 'saved' : 'cached');
+    }
+    return copies;
+  }
   async setPinned(ref: BookRef, pinned: boolean, signal: AbortSignal, offline = false) {
     await this.db.transaction('rw', [this.db.books, this.db.access, this.db.sources, this.db.sourceChunks], async () => {
       signal.throwIfAborted();
       if (!offline && !await this.permitted(ref)) throw new Error('Account changed');
-      let book = await this.db.books.get(refKey(ref));
-      if (offline && ref.kind === 'server' && !book?.sourceId) {
-        book = await this.db.books.filter(b => b.ref.kind === 'server' && b.ref.documentId === ref.documentId && b.ref.account.origin === ref.account.origin && b.ref.account.readingGeneration === ref.account.readingGeneration && !!b.sourceId).first();
+      if (ref.kind !== 'server') throw new Error('Expected a server book');
+      const copies = await this.db.books.filter(b => b.ref.kind === 'server' && b.ref.documentId === ref.documentId && b.ref.account.origin === ref.account.origin && b.ref.account.readingGeneration === ref.account.readingGeneration && b.availability === 'available').toArray();
+      if (pinned) {
+        const book = copies.find(b => b.key === refKey(ref)) ?? copies[0];
+        if (!book?.sourceId || !(await this.db.sources.get(book.sourceId))?.complete) throw new Error('Book is not downloaded');
+        await this.db.books.update(book.key, { pinned: true });
+      } else {
+        for (const book of copies) {
+          await this.db.books.update(book.key, { pinned: false, sourceId: undefined, bytes: null, cover: null, availability: 'unavailable', etag: undefined });
+          for (const source of await this.db.sources.where('key').equals(book.key).filter(s => s.complete).toArray()) {
+            if (cacheLive(source, Date.now())) await this.db.sources.update(source.id, { evictOnRelease: true });
+            else await this.removeSource(source.id);
+          }
+        }
       }
-      if (!book?.sourceId || book.availability !== 'available' || !(await this.db.sources.get(book.sourceId))?.complete) throw new Error('Book is not downloaded');
-      await this.db.books.update(book.key, { pinned });
-      if (!pinned) await this.trimServerCache(0);
       signal.throwIfAborted();
     });
   }

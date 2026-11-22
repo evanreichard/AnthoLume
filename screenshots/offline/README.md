@@ -6,11 +6,13 @@ Captured from the running app in mobile Chromium (390 × 844). Select a screensh
 | --- | --- | --- |
 | [![Offline profile picker](01-profiles.png)](01-profiles.png) | [![Library showing two cached books](02-library.png)](02-library.png) | [![Reader after turning pages offline](03-reader.png)](03-reader.png) |
 
+[Save a book directly from its online Library menu](00-online-save.png), without opening the reader.
+
 The bottom bar offers **Reconnect** on both screens and a profile switcher only after selection. A device ✓ marks a book kept on this device.
 
-| Book options | Confirm before releasing a kept copy |
+| Book options | Confirm before removing the local download |
 | --- | --- |
-| [![Cover options](02b-book-options.png)](02b-book-options.png) | [![Stop keeping confirmation](02c-confirm.png)](02c-confirm.png) |
+| [![Cover options](02b-book-options.png)](02b-book-options.png) | [![Remove from Device confirmation](02c-confirm.png)](02c-confirm.png) |
 
 | 4. Review after reconnecting | 5. Choose what to upload | 6. Review what remains |
 | --- | --- | --- |

@@ -28,7 +28,7 @@ Docker Image: `docker pull gitea.va.reichard.io/evan/antholume:latest`
 
 ### EPUB Reader
 
-Sign in over HTTPS (or localhost) to cache books. Choose **Keep on this device** to pin a book outside the automatic six-book, 768 MiB cache. When offline, pick a remembered profile and read any book cached from the same library. Offline profiles are passwordless, including after sign-out; **Forget on this device** removes a profile and its unsubmitted drafts.
+Sign in over HTTPS (or localhost) to cache books. In the Library, choose **••• → Save to Device** to download a book without opening it. Saved books are kept outside the automatic six-book, 768 MiB cache. **Remove from Device** clears the download for all local profiles without deleting reading records or the server book. When offline, pick a remembered profile and read any book cached from the same library. Offline profiles are passwordless, including after sign-out; **Forget on this device** removes a profile and its unsubmitted drafts.
 
 Offline reading stays on the device until that account signs in and chooses **Upload selected**. Review progress and activity separately for each book. Server activity covers the same dates as the offline reading. Clearing browser storage removes downloads and unsubmitted drafts.
 

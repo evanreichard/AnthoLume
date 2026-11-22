@@ -24,6 +24,7 @@ export class ReadingHTTPError extends Error {
   constructor(readonly status: number, readonly problem: S['Problem']) { super(problem.detail); this.name = 'ReadingHTTPError'; }
 }
 export interface ReadingSnapshot {
+  deviceCopies?: ReadonlyMap<string, 'cached' | 'saved'>;
   offlineRecords?: readonly OfflineRecord[];
   ready: boolean; resumeAccount: Account | null; books: readonly StoredBook[]; sync: SyncStatus; pendingCount: number; notice: string | null;
   downloads: readonly { ref: BookRef; receivedBytes: number; totalBytes: number | null; preparing?: boolean }[];
