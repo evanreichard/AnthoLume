@@ -18,7 +18,7 @@ export function readingWorker(): Plugin {
       const result = await build({
         configFile: false,
         root: config.root,
-        define: { __SHELL_FILES__: JSON.stringify(files), __SHELL_VERSION__: JSON.stringify(version) },
+        define: { __SHELL_FILES__: JSON.stringify(files), __SHELL_VERSION__: JSON.stringify(version), __HTML_INTEGRITY__: JSON.stringify('sha256-' + createHash('sha256').update(html.source).digest('base64')) },
         logLevel: 'warn',
         build: {
           write: false,

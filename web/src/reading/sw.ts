@@ -3,20 +3,27 @@ type LifetimeEvent = Event & { waitUntil(promise: Promise<unknown>): void };
 type RequestEvent = Event & { request: Request; respondWith(response: Promise<Response>): void };
 const sw = globalThis as unknown as {
   clients: { claim(): Promise<void> };
-  addEventListener(type: 'message', listener: (event: MessageEvent) => void): void;
+  addEventListener(type: 'message', listener: (event: MessageEvent & LifetimeEvent) => void): void;
   addEventListener(type: 'install' | 'activate', listener: (event: LifetimeEvent) => void): void;
   addEventListener(type: 'fetch', listener: (event: RequestEvent) => void): void;
 };
 declare const __SHELL_VERSION__: string;
+declare const __HTML_INTEGRITY__: string;
 declare const __SHELL_FILES__: string[];
 const name = 'antholume-shell-' + __SHELL_VERSION__;
 const files = new Set(__SHELL_FILES__);
 const navigation = /^\/(?:|library\/?|login\/?|register\/?|(?:books|read)\/server\/?)$/;
 
-sw.addEventListener('install', event => event.waitUntil((async () => {
+async function ensureShell() {
   const cache = await caches.open(name);
-  await cache.addAll([...files].map(path => new Request(path, { cache: 'reload', credentials: 'omit' })));
-})()));
+  const cached = new Set((await cache.keys()).map(request => request.url));
+  const missing = [...files].filter(path => !cached.has(new URL(path, location.origin).href));
+  if (missing.length) await cache.addAll(missing.map(path => new Request(path, {
+    cache: 'reload', credentials: 'omit', redirect: 'error', integrity: path === '/' ? __HTML_INTEGRITY__ : '',
+  })));
+}
+
+sw.addEventListener('install', event => event.waitUntil(ensureShell()));
 sw.addEventListener('activate', event => event.waitUntil((async () => {
   for (const key of await caches.keys()) {
     if (key !== name && /^antholume-shell-[a-f0-9]{64}$/.test(key)) await caches.delete(key);
@@ -24,7 +31,12 @@ sw.addEventListener('activate', event => event.waitUntil((async () => {
   await sw.clients.claim();
 })()));
 sw.addEventListener('message', event => {
-  if (event.data === 'check-shell') event.ports[0]?.postMessage('shell-ready');
+  if (event.data === 'verify-shell' || event.data === 'check-shell') {
+    event.waitUntil(ensureShell().then(
+      () => event.ports[0]?.postMessage('shell-ready'),
+      () => event.ports[0]?.postMessage('shell-incomplete'),
+    ));
+  }
 });
 sw.addEventListener('fetch', event => {
   const request = event.request, url = new URL(request.url);

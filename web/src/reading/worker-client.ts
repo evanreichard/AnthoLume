@@ -71,9 +71,12 @@ export class WorkerCoordinator {
       };
       const abort = () => finish(new Error('The offline app did not finish preparing. Close other app tabs, check your connection, then try saving again.'));
       signal.addEventListener('abort', abort, { once: true });
-      channel.port1.onmessage = event => { if (event.data === 'shell-ready') finish(); };
+      channel.port1.onmessage = event => {
+        if (event.data === 'shell-ready') finish();
+        else if (event.data === 'shell-incomplete') finish(new Error('The offline app is incomplete. Reconnect and try saving again.'));
+      };
       void navigator.serviceWorker.ready.then(registration => {
-        if (!signal.aborted) registration.active?.postMessage('check-shell', [channel.port2]);
+        if (!signal.aborted) registration.active?.postMessage('verify-shell', [channel.port2]);
       }).catch(abort);
     });
   }

@@ -205,8 +205,9 @@ export class ReadingRuntime implements ReadingActions {
   }
   async saveToDevice(ref: Extract<BookRef, { kind: 'server' }>, signal: AbortSignal, metadata: Pick<StoredBook, 'title' | 'author'>) {
     if (!sameAccount(ref.account, this.selectedAccount())) throw new Error('Account changed');
+    await this.worker.ensureOfflineShell(signal);
+    if (!sameAccount(ref.account, this.selectedAccount())) throw new Error('Account changed');
     if (this.access.kind === 'authenticated') {
-      await this.worker.ensureOfflineShell(signal);
       await this.openServerBook(ref, signal, undefined, metadata);
       return;
     }

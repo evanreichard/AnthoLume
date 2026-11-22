@@ -1,5 +1,5 @@
 import { unlink, writeFile } from 'node:fs/promises';
-import { test, expect } from './fixtures';
+import { test, expect, register } from './fixtures';
 
 const ownedShell = `antholume-shell-${'0'.repeat(64)}`;
 
@@ -14,6 +14,40 @@ test('fresh visits install a public shell containing the lazy reader but no API 
   expect(paths).toContain('/');
   expect(paths.some(path => path.includes('ReaderRoute-') && path.endsWith('.js'))).toBe(true);
   expect(paths.every(path => path === '/' || path.startsWith('/assets/'))).toBe(true);
+});
+
+test('Save to Device refuses an incomplete shell and repairs an evicted cache before reporting success', async ({ page, context, server }) => {
+  const user = 'cache-repair-reader';
+  await register(page, server.origin, user);
+  const key = await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    const key = (await caches.keys()).find(name => /^antholume-shell-[a-f0-9]{64}$/.test(name))!;
+    const cache = await caches.open(key);
+    const reader = (await cache.keys()).find(request => request.url.includes('/ReaderRoute-') && request.url.endsWith('.js'))!;
+    if (!await cache.delete(reader)) throw new Error('Reader asset was not cached');
+    return key;
+  });
+  const card = page.getByRole('article').filter({ hasText: 'Public book 01' });
+  async function save() {
+    await card.locator('summary').click();
+    await card.getByRole('button', { name: 'Save to Device' }).click();
+  }
+  await server.stop();
+  await save();
+  await expect(page.getByRole('alert')).toContainText('offline app is incomplete');
+  await expect(card.getByRole('img', { name: 'Saved to device' })).toHaveCount(0);
+
+  await page.evaluate(key => caches.delete(key), key);
+  await server.start();
+  await save();
+  await expect(card.getByRole('img', { name: 'Saved to device' })).toBeVisible();
+  await page.close();
+  await server.stop();
+  const cold = await context.newPage();
+  await cold.goto(server.origin);
+  await cold.getByRole('button', { name: user, exact: true }).click();
+  await cold.getByRole('article').getByRole('link').click();
+  await expect(cold.getByRole('region', { name: 'Book reader' })).toHaveAttribute('data-reader-state', 'ready');
 });
 
 test('an existing root worker is upgraded after its clients close without removing book caches or unrelated caches', async ({ page, server }) => {
