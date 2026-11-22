@@ -310,6 +310,46 @@ test('Keep Reading preserves pending progress locally across turns and an online
   expect(serverEffects(server.data, user).head).toBeUndefined();
 });
 
+for (const failed of ['Progress', 'Activity'] as const) {
+  test(`a failed ${failed} comparison does not block the other upload`, async ({ page, context, server }) => {
+    const user = 'partial-' + failed.toLowerCase();
+    const started = Date.now() - 60_000;
+    await page.clock.setFixedTime(started);
+    await readOffline(page, context, server.origin, user);
+    await page.clock.setFixedTime(started + 30_000);
+    await turnPage(page, 4);
+    const local = () => storedRows(page, 'offline');
+    await expect.poll(async () => (await local()).map(row => row.kind).sort()).toEqual(['activity', 'progress']);
+    const kept = (await local()).filter(row => row.kind === failed.toLowerCase());
+
+    const endpoint = failed === 'Progress' ? '**/me/reading-state/book_001' : '**/me/insights/activity?*';
+    await page.route(endpoint, route => route.fulfill({ status: 500 }));
+    await context.setOffline(false);
+    const review = offlineReview(page);
+    const retry = review.getByRole('button', { name: `Retry ${failed} Comparison` });
+    await expect(retry).toBeVisible();
+    await expect(review.getByLabel(failed, { exact: true })).toBeDisabled();
+    await review.getByLabel(failed === 'Progress' ? 'Activity' : 'Progress', { exact: true }).check();
+    await review.getByRole('button', { name: 'Upload Selected' }).click();
+    await expect.poll(local).toEqual(kept);
+    const effects = () => serverEffects(server.data, user);
+    if (failed === 'Progress') {
+      await expect.poll(() => effects().activity).toBe(1);
+      expect(effects().head).toBeUndefined();
+    } else {
+      await expect.poll(() => effects().head?.revision).toBe(1);
+      expect(effects().activity).toBe(0);
+    }
+
+    await page.getByRole('button', { name: 'Review Offline Reading' }).click();
+    await expect(retry).toBeVisible();
+    await page.unroute(endpoint);
+    await retry.click();
+    await expect(review.getByLabel(failed, { exact: true })).toBeEnabled();
+    expect(await local()).toEqual(kept);
+  });
+}
+
 test('a deleted book’s draft can be discarded locally without a server comparison', async ({ page, context, server }) => {
   const user = 'discard-deleted-book';
   await readOffline(page, context, server.origin, user);
@@ -321,7 +361,7 @@ test('a deleted book’s draft can be discarded locally without a server compari
   expect(removed.status()).toBe(204);
   await context.setOffline(false);
   const review = offlineReview(page);
-  await expect(review.getByRole('button', { name: 'Retry Comparison' })).toBeVisible();
+  await expect(review.getByRole('button', { name: 'Retry Progress Comparison' })).toBeVisible();
   const progress = review.getByLabel('Progress', { exact: true });
   await expect(review.getByRole('button', { name: 'Upload Selected' })).toBeDisabled();
   await review.getByRole('button', { name: 'Discard Records', exact: true }).click();

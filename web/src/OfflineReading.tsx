@@ -46,33 +46,47 @@ function group(records: readonly OfflineRecord[]) {
   }
   return [...books.values()].sort((a,b) => a.title.localeCompare(b.title));
 }
-async function comparison(account: Account, book: Group, timezone: string, signal: AbortSignal) {
-  const progress = book.rows.some(r => r.kind === 'progress') ? await session.api.bridge.getState(account, book.document, signal) : null;
+async function serverActivitySeconds(account: Account, document: string, activities: Extract<OfflineRecord, {kind: 'activity'}>[], timezone: string, signal: AbortSignal) {
   const fmt = new Intl.DateTimeFormat('sv-SE', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
-  const days = new Set(book.rows.flatMap(row => row.kind === 'activity' ? [fmt.format(new Date(row.event.start_time))] : []));
+  const days = new Set(activities.map(row => fmt.format(new Date(row.event.start_time))));
   let seconds = 0;
   for (const day of days) {
     let cursor: string | undefined;
     do {
-      const page = await session.api.insightActivity(account, {document: book.document, day, cursor}, signal);
+      const page = await session.api.insightActivity(account, {document, day, cursor}, signal);
       seconds += page.items.reduce((n, entry) => n + entry.duration, 0);
       cursor = page.next_cursor ?? undefined;
     } while (cursor);
   }
-  return { progress, seconds };
+  return seconds;
+}
+
+function ComparisonRow({ label, offline, server, checked, discard, onCheck, retry }: {
+  label: 'Progress' | 'Activity'; offline: string; server?: string; checked: boolean; discard: boolean;
+  onCheck(checked: boolean): void; retry?: () => void;
+}) {
+  return <>
+    <label><span><input type="checkbox" aria-label={label} checked={checked} disabled={!discard && server === undefined}
+      onChange={event => onCheck(event.target.checked)} />{label}</span><b>{offline}</b><span>{server ?? (retry ? 'Unavailable' : '…')}</span></label>
+    {retry && !discard && <button onClick={retry}>Retry {label} Comparison</button>}
+  </>;
 }
 
 function BookComparison({ account, book, timezone, discard, selected, select }: { discard: boolean; account: Account; book: Group; timezone: string; selected: Map<string, OfflineChoice>; select(choices: OfflineChoice[], checked: boolean): void }) {
-  const ids = book.rows.map(r => r.id).sort();
-  const query = useQuery({ queryKey: ['offline-comparison', account, book.document, timezone, ids], staleTime: 0,
-    queryFn: ({signal}) => comparison(account, book, timezone, signal) });
   const progress = book.rows.find(r => r.kind === 'progress');
   const activities = book.rows.filter(r => r.kind === 'activity');
+  const state = useQuery({ queryKey: ['offline-progress', account, book.document, progress?.id], enabled: !!progress && !discard, staleTime: 0,
+    queryFn: ({signal}) => session.api.bridge.getState(account, book.document, signal) });
+  const activity = useQuery({ queryKey: ['offline-activity', account, book.document, timezone, activities.map(r => r.id).sort()], enabled: activities.length > 0 && !discard, staleTime: 0,
+    queryFn: ({signal}) => serverActivitySeconds(account, book.document, activities, timezone, signal) });
   return <section className={styles.reviewBook} role="group" aria-label={book.title}>
     <header><h3>{book.title}</h3><small>Offline</small><small>Server</small></header>
-    {progress && <label><span><input aria-label="Progress" type="checkbox" disabled={!discard && !query.data?.progress} checked={selected.has(progress.id)} onChange={e => select([{id: progress.id, revision: query.data?.progress?.revision}], e.target.checked)} />Progress</span><b>{percent(progress.checkpoint.fraction)}</b><span>{query.data ? percent(query.data.progress?.fraction ?? null) : '…'}</span></label>}
-    {!!activities.length && <label><span><input aria-label="Activity" type="checkbox" disabled={!discard && !query.data} checked={activities.every(r => selected.has(r.id))} onChange={e => select(activities.map(r => ({id:r.id})), e.target.checked)} />Activity</span><b>{duration(activities.reduce((n,r) => n + r.event.duration,0))}</b><span>{query.data ? duration(query.data.seconds) : '…'}</span></label>}
-    {query.isError && <button onClick={() => void query.refetch()}>Retry Comparison</button>}
+    {progress && <ComparisonRow label="Progress" discard={discard} offline={percent(progress.checkpoint.fraction)} server={state.data && percent(state.data.fraction)}
+      checked={selected.has(progress.id)} onCheck={checked => select([{id: progress.id, revision: state.data?.revision}], checked)}
+      retry={state.isError ? () => void state.refetch() : undefined} />}
+    {!!activities.length && <ComparisonRow label="Activity" discard={discard} offline={duration(activities.reduce((sum, row) => sum + row.event.duration, 0))}
+      server={activity.data === undefined ? undefined : duration(activity.data)} checked={activities.every(r => selected.has(r.id))}
+      onCheck={checked => select(activities.map(r => ({id: r.id})), checked)} retry={activity.isError ? () => void activity.refetch() : undefined} />}
   </section>;
 }
 export function OfflineReview({account}: {account: Account}) {
@@ -91,7 +105,7 @@ export function OfflineReview({account}: {account: Account}) {
         if (choice.revision !== undefined) {
           const state = await session.api.bridge.getState(account, record.document, AbortSignal.timeout(10000));
           if (state.revision !== choice.revision) {
-            await queryClient.invalidateQueries({queryKey:['offline-comparison',account,record.document]});
+            await queryClient.invalidateQueries({queryKey:['offline-progress',account,record.document]});
             throw new Error('Server progress changed. Select again.');
           }
         }
@@ -104,7 +118,7 @@ export function OfflineReview({account}: {account: Account}) {
   if (later) return <button onClick={() => setLater(false)}>Review Offline Reading</button>;
   return <Dialog title="Offline Reading" onClose={close} layout="scroll-body" placement="mobile-sheet" footer={<div className={styles.reviewActions}>
     <button className={styles.quiet} disabled={busy} onClick={() => { if (discard) { setDiscard(false); setSelected(new Map()); } else close(); }}>{discard ? 'Cancel' : 'Keep Reading'}</button>
-    {!discard && <button className={styles.quiet} title="Discard Records" aria-label="Discard Records" disabled={busy} onClick={() => setDiscard(true)}><Icon name="trash" size={17} /></button>}
+    {!discard && <button className={styles.quiet} title="Discard Records" aria-label="Discard Records" disabled={busy} onClick={() => { setSelected(new Map()); setDiscard(true); }}><Icon name="trash" size={17} /></button>}
     <Button tone={discard ? 'danger' : 'primary'} disabled={busy || !choices.length} onClick={() => void submit(discard ? 'discard' : 'upload')}>{discard ? 'Discard Selected' : 'Upload Selected'}</Button>
   </div>}><ErrorNotice error={error} />{discard ? <p>Select the local records to discard. This does not change the server.</p> : records.some(record => record.kind === 'progress') && <p>While a book’s progress is waiting for review, new reading for that book stays on this device.</p>}{group(records).map(book => <BookComparison key={book.document} book={book} account={account} timezone={current?.user?.timezone ?? 'UTC'} discard={discard} selected={selected} select={(items, checked) => {
     if (busy) return;
