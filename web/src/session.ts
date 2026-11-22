@@ -177,7 +177,9 @@ class SessionCoordinator {
       if (access.kind === 'authenticated' || access.kind === 'expired') this.publish({ access: { kind: 'logout', account: access.account } }, true);
     }
     const previous = this.storageBlocked ? null : this.eligible();
-    this.publish({ busy: true, session: null, access: this.snapshot.access.kind === 'logout' ? this.snapshot.access : { kind: 'loading' }, error: null }, true);
+    const access = this.snapshot.access;
+    const offline = access.kind === 'offline' || access.kind === 'picker';
+    this.publish({ busy: true, session: null, access: offline || access.kind === 'logout' ? access : { kind: 'loading' }, error: null }, true);
     const epoch = this.generation;
     try {
       let session = await this.api.session(AbortSignal.timeout(10_000));
@@ -201,7 +203,8 @@ class SessionCoordinator {
       }
     } catch (error) {
       if (epoch !== this.generation) return;
-      if (unreachable(error) && profiles().length) this.chooseOffline(selectedProfile());
+      if (offline) this.publish({ busy: false, session: null, error: unreachable(error) ? null : message(error) });
+      else if (unreachable(error) && profiles().length) this.chooseOffline(selectedProfile());
       else this.publish({ busy: false, session: null, error: message(error), access: this.retainedAccess(previous) });
     }
   }

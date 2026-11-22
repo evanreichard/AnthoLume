@@ -44,6 +44,39 @@ test('a failed session refresh keeps the same rendition while the backend is rea
   await expect(page.locator('iframe')).toHaveCount(0);
 });
 
+test('a pending sign-out retries without interrupting an offline reader', async ({ page, server }) => {
+  const user = 'offline-after-signout';
+  await register(page, server.origin, user);
+  const card = page.getByRole('article').filter({hasText: 'Public book 01'});
+  await card.locator('summary').click();
+  await card.getByRole('button', { name: 'Save to Device' }).click();
+  await expect(card.getByRole('img', { name: 'Saved to device' })).toBeVisible();
+  await page.goto(server.origin + '/settings');
+  await page.route('**/api/v1/session/logout', route => route.abort(), { times: 1 });
+  await page.getByRole('button', { name: 'Sign Out', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Sign Out', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  await server.stop();
+  await page.clock.install();
+  await page.goto(server.origin);
+  await page.getByRole('button', { name: user, exact: true }).click();
+  await page.getByRole('article').getByRole('link').click();
+  await expect(page.locator('footer')).toContainText('1 /');
+  const frame = await page.locator('iframe').first().elementHandle();
+  const probe = page.waitForEvent('requestfailed', req => req.url().endsWith('/api/v1/session'));
+  await page.clock.fastForward(30_000);
+  await probe;
+  await expect(page.locator('footer')).toContainText('1 /');
+  expect(await frame.evaluate(el => el.isConnected)).toBe(true);
+
+  await server.start();
+  const logout = page.waitForResponse(res => res.url().endsWith('/api/v1/session/logout') && res.ok());
+  await page.clock.fastForward(30_000);
+  await logout;
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  expect((await (await page.request.get(server.origin + '/api/v1/session')).json()).user).toBeFalsy();
+});
+
 test('a stopped backend preserves a live reader but a cold tab asks who is reading', async ({ page, context, server }) => {
   const user = 'session-backend-offline';
   await register(page, server.origin, user);
