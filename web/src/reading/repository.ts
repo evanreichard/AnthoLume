@@ -157,7 +157,7 @@ export class Repository {
     const bySource = new Map(books.map(book => [book.sourceId, book]));
     const sources = await this.db.sources.filter(source => source.complete && !source.evictOnRelease && source.key.startsWith('["server",')).toArray();
     const candidates = [...sources.map(source => ({ source, book: bySource.get(source.id), bytes: source.size, used: source.cacheUsedAt ?? 0 })),
-      ...books.filter(book => !book.sourceId || !sources.some(source => source.id === book.sourceId)).map(book => ({ source: undefined, book, bytes: book.size, used: 0 }))].sort((a, b) => a.used - b.used);
+      ...books.filter(book => !book.sourceId || !sources.some(source => source.id === book.sourceId)).map(book => ({ source: undefined, book, bytes: book.size, used: 0 }))].filter(entry => !entry.book?.pinned).sort((a, b) => a.used - b.used);
     let bytes = candidates.reduce((sum, entry) => sum + entry.bytes, reserve), count = candidates.length + (reserve > 0 ? 1 : 0);
     const now = Date.now();
     for (const { source, book, bytes: size } of candidates) {
@@ -168,6 +168,17 @@ export class Repository {
       bytes -= size; count--;
     }
     if (!clear && (bytes > bookCacheBytes || count > bookCacheCount)) throw new Error('Close another open book before caching this EPUB');
+  }
+  async setPinned(ref: BookRef, pinned: boolean, signal: AbortSignal) {
+    await this.db.transaction('rw', [this.db.books, this.db.access, this.db.sources, this.db.sourceChunks], async () => {
+      signal.throwIfAborted();
+      if (!await this.permitted(ref)) throw new Error('Account changed');
+      const key = refKey(ref), book = await this.db.books.get(key);
+      if (!book?.sourceId || book.availability !== 'available' || !(await this.db.sources.get(book.sourceId))?.complete) throw new Error('Book is not downloaded');
+      await this.db.books.update(key, { pinned });
+      if (!pinned) await this.trimServerCache(0);
+      signal.throwIfAborted();
+    });
   }
   async freeServerCache() {
     await this.db.transaction('rw', this.db.books, this.db.sources, this.db.sourceChunks, () => this.trimServerCache(0, undefined, true));
@@ -201,7 +212,7 @@ export class Repository {
     await this.db.transaction('rw', this.db.books, this.db.sources, this.db.sourceChunks, async () => {
       const now = Date.now();
       const books = await this.db.books.filter(book => book.ref.kind === 'server' && book.availability === 'available').toArray();
-      for (const book of books) await this.db.books.update(book.key, { sourceId: undefined, bytes: null, cover: null, availability: 'unavailable', etag: undefined });
+      for (const book of books) await this.db.books.update(book.key, { pinned: false, sourceId: undefined, bytes: null, cover: null, availability: 'unavailable', etag: undefined });
       const sources = await this.db.sources.filter(source => source.key.startsWith('["server",') && (source.complete || source.until <= now)).toArray();
       for (const source of sources) {
         if (cacheLive(source, now)) await this.db.sources.update(source.id, { evictOnRelease: true });
@@ -218,7 +229,7 @@ export class Repository {
     await this.db.heads.put({ key, state });
     return { checkpoint: { position: state.position, fraction: state.fraction }, ...(state.updated_at ? { lastReadAt: state.updated_at } : {}) };
   }
-  async useCached(ref: Extract<BookRef, { kind: 'server' }>, sourceId: string, etag: string, state: S['ReadingState'], signal: AbortSignal) {
+  async useCached(ref: Extract<BookRef, { kind: 'server' }>, sourceId: string, etag: string, state: S['ReadingState'], signal: AbortSignal, pin?: Pick<StoredBook, 'title' | 'author'>) {
     const opened = await this.open(ref);
     if (opened.row.sourceId !== sourceId || opened.row.etag !== etag) throw new Error('Cached original changed');
     return this.db.transaction('rw', [this.db.books, this.db.sources, this.db.heads, this.db.events, this.db.access], async () => {
@@ -226,7 +237,7 @@ export class Repository {
       const key = refKey(ref), row = await this.db.books.get(key);
       if (!row || row.sourceId !== sourceId || row.etag !== etag || !(await this.db.access.get(row.scope))?.authenticated) throw new Error('Cached original or account changed');
       await this.db.sources.update(sourceId, { cacheUsedAt: Date.now() });
-      const next = { ...row, ...await this.refreshCheckpoint(ref, row.checkpoint, state) };
+      const next = { ...row, ...(pin && { title: pin.title, author: pin.author, pinned: true }), ...await this.refreshCheckpoint(ref, row.checkpoint, state) };
       await this.db.books.put(next);
       signal.throwIfAborted();
       return { ...opened, row: next };
@@ -261,7 +272,7 @@ export class Repository {
     if (signal.aborted) release();
     signal.throwIfAborted();
   }
-  async publish(ref: BookRef, stage: SourceRow, manifest: BookManifest, title: string | null, author: string | null, cover: Blob | null, state?: S['ReadingState'], signal?: AbortSignal, cache?: { etag?: string }) {
+  async publish(ref: BookRef, stage: SourceRow, manifest: BookManifest, title: string | null, author: string | null, cover: Blob | null, state?: S['ReadingState'], signal?: AbortSignal, cache?: { etag?: string; pin?: Pick<StoredBook, 'title' | 'author'> }) {
     signal?.throwIfAborted(); const key = refKey(ref), scope = scopeOf(ref);
     if (!await this.permitted(ref)) throw new Error('Account no longer accessible');
     const metadata = new Blob([JSON.stringify(manifest)]); if (metadata.size > 16 * 1024 * 1024) throw new Error('Validated index metadata exceeds 16 MiB');
@@ -293,7 +304,7 @@ export class Repository {
         await this.db.sources.put({ ...row, complete: true, manifest, manifestHash, until: 0, ...(cache ? { cacheUsedAt: Date.now() } : {}) });
       }
       const reading = cache ? await this.refreshCheckpoint(ref, checkpoint, state) : { checkpoint };
-      await this.db.books.put({ key, scope, ref, title, author, cover, addedAt: old?.addedAt ?? new Date().toISOString(), lastReadAt: old?.lastReadAt ?? state?.updated_at ?? undefined, ...reading, resumeCandidate: old?.resumeCandidate, availability: 'available', bytes: null, sourceId: existingSource || stage.id, size: stage.size, checksum: integrity?.sha256 ?? null, protocolHash: integrity?.protocolHash ?? null, etag: cache?.etag });
+      await this.db.books.put({ key, scope, ref, title, author, cover, pinned: old?.pinned, ...(cache?.pin && { title: cache.pin.title, author: cache.pin.author, pinned: true }), addedAt: old?.addedAt ?? new Date().toISOString(), lastReadAt: old?.lastReadAt ?? state?.updated_at ?? undefined, ...reading, resumeCandidate: old?.resumeCandidate, availability: 'available', bytes: null, sourceId: existingSource || stage.id, size: stage.size, checksum: integrity?.sha256 ?? null, protocolHash: integrity?.protocolHash ?? null, etag: cache?.etag });
       if (cache) await this.trimServerCache(0, key);
       else if (state) { if (!validState(state, ref.kind === 'server' ? ref.documentId : '')) throw new Error('Invalid server state'); const head = await this.db.heads.get(key); if (!head || BigInt(head.state.revision) < BigInt(state.revision)) await this.db.heads.put({ key, state }); }
       signal?.throwIfAborted();

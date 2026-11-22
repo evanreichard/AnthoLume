@@ -9,6 +9,7 @@ import styles from '../App.module.css';
 import { Icon } from '../Icon';
 import { LoadingStatus, Skeleton } from '../Skeleton';
 import { RecentBooks } from '../RecentBooks';
+import { OfflinePin } from '../OfflinePin';
 import { Button } from '../Controls';
 
 export function Library() {
@@ -27,7 +28,8 @@ export function Library() {
   if (q) libraryParams.set('q', q);
   if (sort !== 'read') libraryParams.set('sort', sort);
   const bookLinkState = { librarySearch: libraryParams.toString() };
-  const account = access.kind === 'authenticated' || access.kind === 'expired' ? access.account : null;
+  const offline = access.kind === 'offline';
+  const account = access.kind === 'authenticated' || offline || access.kind === 'expired' ? access.account : null;
   const [input, setInput] = useState(q);
   const [error, setError] = useState<unknown>(null);
   const [importing, setImporting] = useState(false);
@@ -80,7 +82,9 @@ export function Library() {
   }, [sharedEnabled, dialog, hasNextPage, isFetching, isFetchNextPageError, fetchNextPage, account, q, sort]);
   const serverDocuments = sharedEnabled ? documents.data?.pages.flatMap((page) => page.items) ?? [] : [];
   const serverRows = reading.books.filter(book => book.ref.kind === 'server');
-  const books = sortBooks(combineBooks(serverRows, serverDocuments, account).filter(book => !!book.document), sort);
+  const books = sortBooks(combineBooks(serverRows, serverDocuments, account).filter(book => offline
+    ? book.stored?.availability === 'available' && `${book.title ?? ''} ${book.author ?? ''}`.toLocaleLowerCase().includes(q.trim().toLocaleLowerCase())
+    : !!book.document), sort);
   const recent = sharedEnabled && !q && resume.data && account
     ? resume.data.flatMap(document => combineBooks(serverRows.filter(book => book.ref.kind === 'server' && book.ref.documentId === document.id), [document], account))
     : [];
@@ -133,6 +137,7 @@ export function Library() {
   return <>
     <PageHeader title="Library" headingRef={heading} mobileBrand
       actions={reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>} />
+    {offline && <p role="status">Offline · Showing books on this device. Reading progress and activity will sync when you reconnect. <button onClick={() => void session.checkSession()}>Reconnect</button> <button onClick={() => void session.logout()}>Sign out</button></p>}
     {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}
     <RecentBooks books={recent} bookLinkState={bookLinkState} />
     <form className={styles.searchRow} role="search" onSubmit={(event) => { event.preventDefault(); update('q', input.trim()); }}>
@@ -147,9 +152,9 @@ export function Library() {
     <div className={styles.divider} />
     <ErrorNotice error={documents.error} />
     {documents.isPending && documents.fetchStatus === 'fetching' && <LoadingStatus>Loading shared books…</LoadingStatus>}
-    {!books.length && reading.ready && !documents.isFetching && !(sharedEnabled && hasNextPage) && <p>No matching books. Try another search or add an EPUB.</p>}
+    {!books.length && reading.ready && !documents.isFetching && !(sharedEnabled && hasNextPage) && <p>{offline ? 'No matching books on this device.' : 'No matching books. Try another search or add an EPUB.'}</p>}
     <div className={styles.grid}>
-      {books.map((book) => <BookCard key={bookKey(book.ref)} book={book} linkState={bookLinkState} />)}
+      {books.map((book) => <BookCard key={bookKey(book.ref)} book={book} linkState={bookLinkState} action={offline ? 'read' : 'books'}>{offline && book.ref.kind === 'server' && <OfflinePin book={book.ref} metadata={book} pinned={!!book.stored?.pinned} />}</BookCard>)}
       {!books.length && (!reading.ready || documents.isPending && documents.fetchStatus === 'fetching') && Array.from({ length: 6 }, (_, index) => <div key={index} className={styles.card} aria-hidden="true">
         <Skeleton block className={`${styles.cover} ${styles.coverThumbnail}`} />
         <h2 className={styles.cardTitle}><Skeleton width="75%" /></h2>

@@ -28,7 +28,9 @@ Docker Image: `docker pull gitea.va.reichard.io/evan/antholume:latest`
 
 ### EPUB Reader
 
-Opening or reopening a book requires a connection to the server, even if the EPUB is cached on your device. The reader can continue displaying already loaded content during a connection drop, but the app does not support offline launch or reopening.
+To prepare for offline reading, sign in over HTTPS (or localhost), open a book’s details, and choose **Keep on this device**. When disconnected, reopen the Library to read pinned books and any other EPUBs still cached for your account. Progress and reading activity sync the next time the app is open and connected.
+
+Pinned books are separate from the automatic six-book, 768 MiB cache. Clearing site storage removes downloads. Sign out before sharing the device: offline access stays available until sign-out or until the app learns the session expired.
 
 ### KOSync API
 

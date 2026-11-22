@@ -23,7 +23,7 @@ export function WorkerRecovery({ duringReading = false }: { duringReading?: bool
     setFailure(null);
     try { await reading.applyUpdate(); } catch (error) { setFailure({ scope, error }); } finally { setBusy(false); }
   }
-  const message = 'The old offline worker could not be checked for retirement. You can still read online and save your progress.';
+  const message = 'The offline app could not be prepared. You can still read online and save your progress.';
   const workerLabel = 'Retry update / recovery';
   return <>
     <section className={duringReading ? styles.recoveryDock : styles.notice} aria-label="App update and recovery">
@@ -40,7 +40,7 @@ export function WorkerRecovery({ duringReading = false }: { duringReading?: bool
     {details && <Dialog title="App recovery details" onClose={() => setDetails(false)}>
       {sessionError && <ErrorNotice error={sessionError} />}
       {workerVisible && <><p>{message}</p><ErrorNotice error={error} /></>}
-      <p>Retiring the offline worker does not delete books or pending progress.</p>
+      <p>Updating the offline app does not delete books or pending progress.</p>
       <button onClick={() => setDetails(false)}>Close recovery details</button>
     </Dialog>}
   </>;

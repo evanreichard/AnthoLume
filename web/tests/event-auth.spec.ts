@@ -13,7 +13,7 @@ test('a failed session check in a second tab leaves the signed-in reader able to
     const failed = other.waitForEvent('requestfailed', req => req.url().endsWith('/api/v1/session'));
     await other.goto(`${server.origin}/library`);
     await failed;
-    await expect(other.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
+    await expect(other.getByText(/Offline · Showing books/)).toBeVisible();
     expect(await storedRows(page, 'access')).toEqual(before);
     await turn(page);
     await expect.poll(() => serverEffects(server.data, user).receipts).toHaveLength(1);

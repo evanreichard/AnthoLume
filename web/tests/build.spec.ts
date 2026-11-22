@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect, root } from './fixtures';
 
-test('Go serves the compiled application, retirement worker and real errors instead of SPA fallback', async ({ request, server }) => {
+test('Go serves the compiled application, offline shell worker and real errors instead of SPA fallback', async ({ request, server }) => {
   const worker = await request.get(`${server.origin}/sw.js`);
   expect(worker.status()).toBe(200);
   expect(worker.headers()['content-type']).toMatch(/javascript/);

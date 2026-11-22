@@ -3,9 +3,9 @@ import type { components } from '../api/schema.gen';
 export type S = components['schemas'];
 export type Account = { origin: string; userId: string; readingGeneration?: string };
 export type BookRef = { kind: 'local'; localId: string } | { kind: 'server'; account: Account; documentId: string };
-export type ReadingAccess = { kind: 'loading' } | { kind: 'anonymous' } | { kind: 'authenticated'; account: Account } | { kind: 'expired'; account: Account } | { kind: 'logout'; account: Account };
+export type ReadingAccess = { kind: 'loading' } | { kind: 'anonymous' } | { kind: 'authenticated'; account: Account } | { kind: 'offline'; account: Account } | { kind: 'expired'; account: Account } | { kind: 'logout'; account: Account };
 export type Checkpoint = { position: string | null; fraction: number | null };
-export type StoredBook = { ref: BookRef; title: string | null; author: string | null; cover: Blob | null; availability: 'available' | 'unavailable'; addedAt?: string; lastReadAt?: string; checkpoint: Checkpoint };
+export type StoredBook = { ref: BookRef; title: string | null; author: string | null; cover: Blob | null; pinned?: boolean; availability: 'available' | 'unavailable'; addedAt?: string; lastReadAt?: string; checkpoint: Checkpoint };
 export type SyncStatus = 'idle' | 'pending' | 'syncing' | 'auth-required' | 'retryable-error' | 'quota-error' | 'blocked';
 export interface ReadingBridge {
   registerDevice(account: Account, device: S['Device'], signal: AbortSignal): Promise<S['Device']>;
@@ -26,6 +26,7 @@ export interface ReadingSnapshot {
 }
 export type ReaderCacheSummary = { books: number; epubBytes: number; metadataBytes: number };
 export interface ReadingActions {
+  setPinned(ref: Extract<BookRef, { kind: 'server' }>, pinned: boolean, signal: AbortSignal, metadata: Pick<StoredBook, 'title' | 'author'>): Promise<void>;
   readerCacheSummary(): Promise<ReaderCacheSummary>;
   clearReaderCache(): Promise<void>;
   replay(): Promise<void>;

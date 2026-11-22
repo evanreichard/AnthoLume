@@ -3,13 +3,20 @@ import { test, expect } from './fixtures';
 
 const ownedShell = `antholume-shell-${'0'.repeat(64)}`;
 
-test('fresh online React visits do not register a service worker or create a shell cache', async ({ page, server }) => {
+test('fresh visits install a public shell containing the lazy reader but no API responses', async ({ page, server }) => {
   await page.goto(`${server.origin}/login`);
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
-  expect(await page.evaluate(async () => ({ scopes: (await navigator.serviceWorker.getRegistrations()).map(worker => worker.scope), caches: await caches.keys() }))).toEqual({ scopes: [], caches: [] });
+  const paths = await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    const [key] = await caches.keys();
+    return (await (await caches.open(key!)).keys()).map(request => new URL(request.url).pathname);
+  });
+  expect(paths).toContain('/');
+  expect(paths.some(path => path.includes('ReaderRoute-') && path.endsWith('.js'))).toBe(true);
+  expect(paths.every(path => path === '/' || path.startsWith('/assets/'))).toBe(true);
 });
 
-test('an existing root worker is replaced and unregistered without removing book caches or unrelated caches', async ({ page, server }) => {
+test('an existing root worker is upgraded after its clients close without removing book caches or unrelated caches', async ({ page, server }) => {
   test.setTimeout(60_000);
   const override = `${server.data}/legacy-worker`;
   await writeFile(override, "self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));");
@@ -30,13 +37,17 @@ test('an existing root worker is replaced and unregistered without removing book
 
   await page.goto(`${server.origin}/login`);
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
-  await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
-  await page.reload();
+  await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.waiting?.state)).toBe('installed');
+  await page.goto('about:blank');
+  await page.goto(`${server.origin}/login`);
+  await expect.poll(() => page.evaluate(() => caches.has('antholume-shell-' + '0'.repeat(64)))).toBe(false);
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   const state = await page.evaluate(async () => ({
     controller: navigator.serviceWorker.controller?.scriptURL ?? null,
     caches: await caches.keys(),
     cachedBook: await (await caches.match('/documents/00000000000000000000000000000001/file'))?.text(),
   }));
-  expect(state).toEqual({ controller: null, caches: ['OFFLINE_V1', 'antholume-shell-unrelated'], cachedBook: 'legacy EPUB' });
+  expect(state.controller).toBe(`${server.origin}/sw.js`);
+  expect(state.cachedBook).toBe('legacy EPUB');
+  expect(state.caches.sort()).toEqual(['OFFLINE_V1', expect.stringMatching(/^antholume-shell-[a-f0-9]{64}$/), 'antholume-shell-unrelated']);
 });

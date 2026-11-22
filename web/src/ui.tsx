@@ -173,10 +173,10 @@ export function BookHero(props: BookHeroProps) {
   </section>;
 }
 
-export function BookCard({ book, children, linkState }: { book: LibraryBook; children?: ReactNode; linkState?: { librarySearch: string } }) {
+export function BookCard({ book, children, linkState, action = 'books' }: { book: LibraryBook; children?: ReactNode; action?: 'books' | 'read'; linkState?: { librarySearch: string } }) {
   const id = useId();
   return <article className={styles.card}>
-    <Link to={bookPath(book.ref)} state={linkState} className={styles.bookLink} aria-labelledby={`${id}-source ${id}-title ${id}-author`} aria-describedby={book.document?.file_available === false ? `${id}-warning` : undefined}>
+    <Link to={bookPath(book.ref, action)} state={linkState} className={styles.bookLink} aria-labelledby={`${id}-source ${id}-title ${id}-author`} aria-describedby={book.document?.file_available === false ? `${id}-warning` : undefined}>
       <Cover book={book} thumbnail sourceId={`${id}-source`} warningId={`${id}-warning`} />
       <div>
         <h2 id={`${id}-title`} className={styles.cardTitle}>{book.title || 'Untitled'}</h2>

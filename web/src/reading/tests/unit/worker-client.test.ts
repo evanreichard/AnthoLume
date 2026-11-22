@@ -3,14 +3,14 @@ import { WorkerCoordinator } from '../../worker-client';
 
 afterEach(() => vi.unstubAllGlobals());
 
-test('retirement failure is non-blocking and a successful retry clears recovery', async () => {
+test('shell update failure is non-blocking and a successful retry clears recovery', async () => {
   const root = 'https://reader.example/';
   let fail!: (error: Error) => void;
   const firstCheck = new Promise<void>((_, reject) => { fail = reject; });
   const update = vi.fn<() => Promise<void>>().mockReturnValueOnce(firstCheck).mockResolvedValueOnce(undefined);
   const getRegistration = vi.fn(async () => ({ scope: root, active: { scriptURL: `${root}sw.js` }, update }));
   vi.stubGlobal('location', { href: `${root}app/` });
-  vi.stubGlobal('navigator', { serviceWorker: { getRegistration } });
+  vi.stubGlobal('navigator', { onLine: true, serviceWorker: { getRegistration } });
   const states: string[] = [];
   const worker = new WorkerCoordinator(() => { states.push(worker.update); });
 

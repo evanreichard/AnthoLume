@@ -3,7 +3,7 @@ import { sourceLimits } from './source';
 import { Repository } from './repository';
 import { Replay } from './sync';
 import { WorkerCoordinator } from './worker-client';
-import { accountKey, refKey, sameAccount, type Account, type BookRef, type Checkpoint, type ReadingAccess, type ReadingActions, type ReadingBridge, type ReadingSnapshot, type S } from './types';
+import { accountKey, refKey, sameAccount, type Account, type BookRef, type Checkpoint, type ReadingAccess, type ReadingActions, type ReadingBridge, type ReadingSnapshot, type StoredBook, type S } from './types';
 import { validState } from './protocol';
 import type { CapturedActivity } from './activity';
 
@@ -61,7 +61,7 @@ export class ReadingRuntime implements ReadingActions {
   private foreground = () => { if (document.visibilityState === 'visible' || navigator.onLine) { this.failures = 0; this.schedule(0); void this.worker.connect().catch(error => { this.error = String(error); void this.refresh(); }); } };
   private schedule(delay: number) { clearTimeout(this.timer); if (!this.disposed) this.timer = setTimeout(() => { void this.replay(); }, delay); }
   private requireReady() { if (this.disposed || this.appliedGeneration !== this.generation) throw new Error('Reading storage is not ready'); }
-  private selectedAccount(): Account { if (this.access.kind !== 'authenticated') throw new Error('Authentication required'); return this.access.account; }
+  private selectedAccount(): Account { if (this.access.kind !== 'authenticated' && this.access.kind !== 'offline') throw new Error('Authentication required'); return this.access.account; }
   async refresh() {
     if (this.disposed) return;
     const serial = ++this.refreshSerial, access = this.access;
@@ -71,7 +71,7 @@ export class ReadingRuntime implements ReadingActions {
       const scope = 'account' in access && access.kind !== 'logout' ? accountKey(access.account) : null;
       const visible = pending.filter(e => e.scope === scope);
       this.projectionAccess = access;
-      this.snapshot = { ready: this.appliedGeneration === this.generation, resumeAccount, books: books.map(({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt }) => ({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt })), sync: this.quotaError ? 'quota-error' : !visible.length ? 'idle' : visible.every(e => e.rejected) ? 'blocked' : this.sync.status === 'idle' ? access.kind === 'authenticated' ? 'pending' : 'auth-required' : this.sync.status, pendingCount: visible.length, notice: access.kind === 'authenticated' ? this.sync.notice : null, downloads: this.snapshot.downloads, update: this.worker.update, error: this.error || this.worker.error || null };
+      this.snapshot = { ready: this.appliedGeneration === this.generation, resumeAccount, books: books.map(({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned }) => ({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned })), sync: this.quotaError ? 'quota-error' : !visible.length ? 'idle' : visible.every(e => e.rejected) ? 'blocked' : this.sync.status === 'idle' ? access.kind === 'authenticated' ? 'pending' : 'auth-required' : this.sync.status, pendingCount: visible.length, notice: access.kind === 'authenticated' ? this.sync.notice : null, downloads: this.snapshot.downloads, update: this.worker.update, error: this.error || this.worker.error || null };
       this.changed(this.snapshot);
     } catch (error) { if (!this.disposed) { this.snapshot = { ...this.snapshot, ready: false, error: String(error) }; this.changed(this.snapshot); } }
   }
@@ -93,13 +93,22 @@ export class ReadingRuntime implements ReadingActions {
     const timer = setTimeout(() => controller.abort(new Error('Reading operation deadline exceeded')), deadlineMs);
     try { return await action(controller.signal); } finally { clearTimeout(timer); this.jobs.delete(controller); external?.removeEventListener('abort', abort); }
   }
-  async openServerBook(ref: Extract<BookRef, { kind: 'server' }>, external: AbortSignal, onStage?: (message: string) => void) {
+  async openServerBook(ref: Extract<BookRef, { kind: 'server' }>, external: AbortSignal, onStage?: (message: string) => void, pin?: Pick<StoredBook, 'title' | 'author'>) {
     const stageMessage = (message: string) => { if (!external.aborted) onStage?.(message); };
     const account = this.selectedAccount(), generation = this.generation, key = refKey(ref);
     if (!sameAccount(account, ref.account)) throw new Error('Book belongs to another account');
     if (this.appliedGeneration !== generation) await this.accessTail;
     external.throwIfAborted();
     if (generation !== this.generation) throw new DOMException('Book account changed', 'AbortError');
+    if (this.access.kind === 'offline') {
+      this.requireReady();
+      onStage?.('Opening offline copy…');
+      const opened = await this.repo.open(ref);
+      external.throwIfAborted();
+      if (generation !== this.generation || !opened.row.sourceId) throw new Error('Book account or source changed');
+      await this.repo.keepSource(opened.row.sourceId, external);
+      return opened;
+    }
     const opened = await this.write(() => this.job(external, async signal => {
       const current = () => {
         signal.throwIfAborted();
@@ -125,7 +134,7 @@ export class ReadingRuntime implements ReadingActions {
       if (response.status === 304 && !response.redirected && etag && response.headers.get('ETag') === etag) {
         const state = await getState();
         stageMessage('Opening cached copy…');
-        try { return await this.repo.useCached(ref, previous!.sourceId!, etag, state, signal); }
+        try { return await this.repo.useCached(ref, previous!.sourceId!, etag, state, signal, pin); }
         catch { current(); response = await fetchFile(); }
       }
       try {
@@ -153,7 +162,7 @@ export class ReadingRuntime implements ReadingActions {
               try {
                 const state = await getState();
                 stageMessage('Saving a copy on this device…');
-                await this.repo.publish(ref, stage, policy.manifest, previous?.title ?? policy.manifest.title, previous?.author ?? policy.manifest.author, null, state, signal, { etag: cacheETag(response.headers.get('ETag')) });
+                await this.repo.publish(ref, stage, policy.manifest, previous?.title ?? policy.manifest.title, previous?.author ?? policy.manifest.author, null, state, signal, { etag: cacheETag(response.headers.get('ETag')), pin });
               } finally { policy.dispose(); }
             } finally { await this.repo.discardSource(stage.id); }
             return await this.repo.open(ref);
@@ -172,6 +181,15 @@ export class ReadingRuntime implements ReadingActions {
     if (generation !== this.generation || !opened.row.sourceId) throw new Error('Book account or source changed');
     await this.repo.keepSource(opened.row.sourceId, external);
     return opened;
+  }
+  async setPinned(ref: Extract<BookRef, { kind: 'server' }>, pinned: boolean, signal: AbortSignal, metadata: Pick<StoredBook, 'title' | 'author'>) {
+    if (!sameAccount(ref.account, this.selectedAccount())) throw new Error('Account changed');
+    if (pinned && this.access.kind === 'authenticated') {
+      await this.worker.ensureOfflineShell(signal);
+      await this.openServerBook(ref, signal, undefined, metadata);
+      return;
+    }
+    await this.write(() => this.repo.setPinned(ref, pinned, signal));
   }
   readerCacheSummary = () => { this.requireReady(); return this.repo.readerCacheSummary(); };
   clearReaderCache = () => { this.requireReady(); return this.repo.clearServerCache(); };

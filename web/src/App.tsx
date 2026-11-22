@@ -55,10 +55,15 @@ function Providers() {
 function ProtectedApp() {
   const { access } = useSession();
   const navigate = useNavigate();
+  const location = useLocation();
   useEffect(() => {
-    if (access.kind !== 'loading' && access.kind !== 'authenticated' && session.getSnapshot().access === access) navigate('/login', { replace: true });
+    if (access.kind !== 'offline' && access.kind !== 'loading' && access.kind !== 'authenticated' && session.getSnapshot().access === access) navigate('/login', { replace: true });
   }, [access, navigate]);
   if (access.kind === 'loading') return <p role="status">Connecting…</p>;
+  if (access.kind === 'offline') {
+    if (location.pathname === '/books/server') return <Navigate to={'/read/server' + location.search} replace />;
+    return ['/library', '/read/server'].includes(location.pathname) ? <Outlet /> : <Navigate to="/library" replace />;
+  }
   return access.kind === 'authenticated' ? <Outlet /> : null;
 }
 
@@ -67,7 +72,7 @@ function Shell() {
   const location = useLocation();
   const reader = location.pathname.startsWith('/read/');
   const { access } = useSession();
-  const showShell = access.kind === 'authenticated';
+  const showShell = access.kind === 'authenticated' || access.kind === 'offline';
   const recovery = useRef<HTMLDivElement>(null);
   const main = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
@@ -89,8 +94,8 @@ function Shell() {
         <Link to="/library" className={styles.brand}><Brand /></Link>
         <nav aria-label="Main navigation" className={styles.tabs}>
           <NavLink to="/library"><i className={styles.tabIcon}><Icon name="library" /></i><span>Library</span></NavLink>
-          <NavLink to="/insights"><i className={styles.tabIcon}><Icon name="insights" /></i><span>Insights</span></NavLink>
-          <NavLink to="/settings" data-section-active={location.pathname.startsWith('/admin') || undefined}><i className={styles.tabIcon}><Icon name="settings" /></i><span>Settings</span></NavLink>
+          {access.kind !== 'offline' && <><NavLink to="/insights"><i className={styles.tabIcon}><Icon name="insights" /></i><span>Insights</span></NavLink>
+          <NavLink to="/settings" data-section-active={location.pathname.startsWith('/admin') || undefined}><i className={styles.tabIcon}><Icon name="settings" /></i><span>Settings</span></NavLink></>}
         </nav>
       </aside>
     <div className={styles.workspace}>

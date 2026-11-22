@@ -11,6 +11,7 @@ export const sameAccount = (a: Account, b: Account) => a.origin === b.origin && 
 const accountHeader = (account: Account) => ({ 'X-AnthoLume-Account': account.userId, ...(account.readingGeneration ? { 'X-AnthoLume-Reading-Generation': account.readingGeneration } : {}) });
 interface SessionGate {
   token(): string | null;
+  disconnected?(): void;
   epoch(): number;
   assert(account: Account, epoch: number): void;
   expired(account: Account): void;
@@ -18,6 +19,13 @@ interface SessionGate {
 }
 
 export function createAPI(gate: SessionGate) {
+  async function transport(request: Request, scoped: boolean) {
+    try { return await fetch(request); }
+    catch (error) {
+      if (scoped && error instanceof TypeError && !request.signal.aborted) gate.disconnected?.();
+      throw error;
+    }
+  }
   const scopedClient = (account?: Account) => createClient<paths>({
     baseUrl: apiOrigin,
     headers: account ? accountHeader(account) : undefined,
@@ -30,7 +38,7 @@ export function createAPI(gate: SessionGate) {
         request.headers.set('X-CSRF-Token', token);
       }
       request.headers.set('Accept', 'application/json, application/problem+json');
-      return fetch(request);
+      return transport(request, !!account);
     },
   });
   const client = scopedClient();
@@ -116,7 +124,7 @@ export function createAPI(gate: SessionGate) {
   async function binary(account: Account, id: string, kind: 'file' | 'cover', signal: AbortSignal, etag?: string) {
     const epoch = gate.epoch();
     gate.assert(account, epoch);
-    const response = await fetch(`${apiOrigin}/api/v1/documents/${encodeURIComponent(id)}/${kind}`, { credentials: 'same-origin', cache: 'no-store', signal, headers: { ...accountHeader(account), ...(etag ? { 'If-None-Match': etag } : {}) } });
+    const response = await transport(new Request(`${apiOrigin}/api/v1/documents/${encodeURIComponent(id)}/${kind}`, { credentials: 'same-origin', cache: 'no-store', signal, headers: { ...accountHeader(account), ...(etag ? { 'If-None-Match': etag } : {}) } }), true);
     try { gate.assert(account, epoch); } catch (error) { await response.body?.cancel(); throw error; }
     if ((response.status === 401 || response.status === 409) && !response.redirected && response.headers.get('content-type')?.split(';')[0].trim() === 'application/problem+json') {
       const problem: unknown = await response.clone().json().catch(() => null);

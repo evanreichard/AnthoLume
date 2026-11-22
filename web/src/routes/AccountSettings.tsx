@@ -87,7 +87,7 @@ function ReaderCacheSettings() {
       <Button type="button" disabled={busy} onClick={close}>{confirm ? 'Cancel' : 'Done'}</Button>
     </>}>
       {confirm ? <>
-        <p>Cached books will download again the next time you open them. Local books, reading progress, and settings are kept.</p>
+        <p>This removes all cached EPUBs on this device, including pinned offline copies. Books can download again when online. Local books, reading progress, and settings are kept.</p>
         <ErrorNotice error={error} />
       </> : <>
         {summary.isPending && <SkeletonRows label="Checking reader cache…" count={2} secondary={false} />}

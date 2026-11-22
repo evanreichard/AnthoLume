@@ -73,7 +73,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
   const applyingAppearance = useRef<ReaderController | null>(null);
   const [attempt, setAttempt] = useState(0), [explicitBeginning, setExplicitBeginning] = useState(false);
   const [resumeChoice, setResumeChoice] = useState<{ key: string; device: string; server: string; choose: (device: boolean) => void } | null>(null);
-  const permitted = book.kind === 'local' || (access.kind === 'authenticated' && sameAccount(access.account, book.account));
+  const permitted = book.kind === 'local' || ((access.kind === 'authenticated' || access.kind === 'offline') && sameAccount(access.account, book.account));
   const appearanceRef = useRef(appearance), appliedAppearance = useRef(defaults);
   function refreshChrome() { setChrome(current => ({ ...current, activity: current.activity + 1 })); }
   function reveal(action: ChromeAction) {

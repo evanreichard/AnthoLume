@@ -28,6 +28,7 @@ export function useReading(): ReadingSnapshot & ReadingActions {
   const { runtime, snapshot } = useReadingContext();
   const requireRuntime = () => { if (!runtime) throw new Error('Reader storage is opening'); return runtime; };
   return { ...snapshot,
+    setPinned: (ref, pinned, signal, metadata) => requireRuntime().setPinned(ref, pinned, signal, metadata),
     readerCacheSummary: () => requireRuntime().readerCacheSummary(),
     clearReaderCache: () => requireRuntime().clearReaderCache(),
     replay: () => requireRuntime().replay(), applyUpdate: () => requireRuntime().applyUpdate(),

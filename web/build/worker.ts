@@ -1,18 +1,24 @@
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { build, type Plugin, type ResolvedConfig } from 'vite';
 
 export function readingWorker(): Plugin {
   let config: ResolvedConfig;
   return {
-    name: 'antholume-worker-retirement',
+    name: 'antholume-offline-shell',
     apply: 'build',
     enforce: 'post',
     configResolved(value) { config = value; },
-    async generateBundle() {
+    async generateBundle(_, bundle) {
+      const files = ['/', '/assets/icons/mark.svg', ...Object.keys(bundle).filter(path => path.startsWith('assets/')).sort().map(path => `/assets/app/${path}`)];
+      const html = bundle['index.html'];
+      if (html?.type !== 'asset') throw new Error('Missing shell HTML');
+      const version = createHash('sha256').update(JSON.stringify(files)).update(html.source).digest('hex');
       const result = await build({
         configFile: false,
         root: config.root,
+        define: { __SHELL_FILES__: JSON.stringify(files), __SHELL_VERSION__: JSON.stringify(version) },
         logLevel: 'warn',
         build: {
           write: false,
@@ -23,7 +29,7 @@ export function readingWorker(): Plugin {
       });
       const outputs = Array.isArray(result) ? result : [result];
       const worker = outputs.flatMap((output) => 'output' in output ? output.output : []).find((entry) => entry.type === 'chunk');
-      if (!worker || worker.type !== 'chunk') throw new Error('Missing compiled retirement worker');
+      if (!worker || worker.type !== 'chunk') throw new Error('Missing compiled shell worker');
       this.emitFile({ type: 'asset', fileName: 'sw.js', source: worker.code });
       const manifest = JSON.parse(await readFile(resolve(config.root, '../assets/manifest.json'), 'utf8'));
       if (manifest.start_url !== '/' || manifest.scope !== '/' || 'id' in manifest) throw new Error('Manifest install identity changed');
