@@ -27,9 +27,10 @@
 .bookOptions summary { width: 44px; height: 44px; display: grid; place-items: center; list-style: none; cursor: pointer; }
 .bookOptions summary::-webkit-details-marker { display: none; }
 .bookOptions summary svg { box-sizing: content-box; padding: 5px; stroke-width: 3.5; color: var(--ink); background: var(--surface); border-radius: 50%; box-shadow: 0 1px 4px #0003; }
-.bookOptions > div { position: absolute; right: 5px; top: 40px; width: min(156px, 39vw); padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 4px 16px #0003; }
-.bookOptions button { width: 100%; text-align: start; border: 0; border-radius: 6px; font-size: .875rem; }
-.bookOptions button:hover { background: var(--hero); }
+.bookOptions > div { position: absolute; right: 4px; top: 42px; transform: translateX(var(--shift, 0px)); width: min(194px, calc(100vw - 16px)); padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 3px 12px #0002; }
+.bookOptions button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 8px 10px; background: transparent; color: var(--ink); text-align: start; border: 0; border-radius: 6px; font: inherit; font-size: .875rem; }
+.bookOptions button svg { flex: none; color: var(--muted); }
+.bookOptions button:is(:hover, :focus-visible) { background: var(--hero); }
 .reviewBook { padding: 12px 0; border-top: 1px solid var(--line); }
 .reviewBook header, .reviewBook label { display: grid; grid-template-columns: minmax(0, 1fr) repeat(2, minmax(52px, 18%)); gap: 6px; align-items: center; text-align: end; }
 .reviewBook header { padding: 0 8px 6px; }

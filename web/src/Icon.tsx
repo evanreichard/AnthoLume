@@ -1,4 +1,4 @@
-type Name = 'more' | 'kept' | 'down' | 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'device' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'user' | 'warning' | 'folder' | 'up' | 'forward' | 'refresh' | 'sign-out' | 'upload' | 'info';
+type Name = 'minus' | 'more' | 'kept' | 'down' | 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'device' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'user' | 'warning' | 'folder' | 'up' | 'forward' | 'refresh' | 'sign-out' | 'upload' | 'info';
 
 const paths: Record<Name, string> = {
   more: 'M4 12h.1m7.9 0h.1m7.9 0h.1',
@@ -13,6 +13,7 @@ const paths: Record<Name, string> = {
   book: 'M12 6v14 M12 6C8 3 4 4 3 5v13c3-1 6-1 9 2 3-3 6-3 9-2V5c-1-1-5-2-9 1Z',
   upload: 'M12 16V3m-4 4 4-4 4 4 M5 17v3h14v-3',
   info: 'M12 11v5m0-8v.01 M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z',
+  minus: 'M5 12h14',
   download: 'M12 3v12m-4-4 4 4 4-4 M5 17v3h14v-3',
   check: 'm5 12 4 4L19 6',
   warning: 'M10.3 4.4a2 2 0 0 1 3.4 0l7.9 13.2a2 2 0 0 1-1.7 3H4.1a2 2 0 0 1-1.7-3z M12 9v4m0 3.5h.01',

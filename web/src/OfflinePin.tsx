@@ -11,6 +11,20 @@ export function OfflinePin({ book, metadata, overlay = false, canSave = true }: 
   const menu = useRef<HTMLDetailsElement>(null);
   const [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState<unknown>(null);
   useEffect(() => () => controller.current?.abort(), []);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const details = menu.current;
+    const panel = details?.querySelector<HTMLElement>('[data-options]');
+    if (!open || !details || !panel) return;
+    function place() {
+      if (!details || !panel) return;
+      const right = details.getBoundingClientRect().right - 4;
+      panel.style.setProperty('--shift', `${Math.max(0, 8 + panel.offsetWidth - right)}px`);
+    }
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [open]);
   function closeMenu() {
     if (!menu.current?.open) return;
     menu.current.open = false;
@@ -28,14 +42,15 @@ export function OfflinePin({ book, metadata, overlay = false, canSave = true }: 
     }
   }
   const copy = reading.deviceCopies?.get(book.documentId);
+  const Action = overlay ? 'button' : Button;
   const actions = <>
-    {canSave && copy !== 'saved' && <Button disabled={busy || !reading.ready} onClick={() => { closeMenu(); void save(true); }}>{busy ? 'Saving…' : 'Save to Device'}</Button>}
-    {copy && <Button disabled={busy || !reading.ready} onClick={() => { closeMenu(); setError(null); setConfirm(true); }}>Remove from Device</Button>}
+    {canSave && copy !== 'saved' && <Action type="button" disabled={busy || !reading.ready} onClick={() => { closeMenu(); void save(true); }}>{overlay && <Icon name="download" size={17} />}{busy ? 'Saving…' : 'Save to Device'}</Action>}
+    {copy && <Action type="button" disabled={busy || !reading.ready} onClick={() => { closeMenu(); setError(null); setConfirm(true); }}>{overlay && <Icon name="minus" size={17} />}Remove from Device</Action>}
   </>;
   return <>{overlay ? <>
-    <details ref={menu} className={styles.bookOptions} name="offline-book-options" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); closeMenu(); } }}>
+    <details ref={menu} onToggle={e => setOpen(e.currentTarget.open)} className={styles.bookOptions} name="offline-book-options" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); closeMenu(); } }}>
       <summary aria-label={`Options for ${metadata.title ?? 'Untitled'}`} title="Book options"><Icon name="more" size={20} /></summary>
-      <div>{actions}</div>
+      <div data-options>{actions}</div>
     </details></> : actions}
     {!confirm && <ErrorNotice error={error} />}
     {confirm && <Dialog title="Remove this download?" onClose={() => { if (!busy) setConfirm(false); }} footer={<>
