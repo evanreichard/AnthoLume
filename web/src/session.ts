@@ -6,7 +6,7 @@ import type { Account, ReadingAccess } from './reading';
 
 type S = components['schemas'];
 const sessionAccount = (user: NonNullable<S['Session']['user']>): Account => ({ origin: apiOrigin, userId: user.account_id, readingGeneration: user.reading_generation });
-const offlineKey = 'antholume:offline-account-v1';
+import { profiles, rememberProfile, selectProfile, selectedProfile, forgetProfile, isProfileKey } from './offlineProfiles';
 const unreachable = (error: unknown) => error instanceof TypeError || error instanceof DOMException && error.name === 'TimeoutError';
 const logoutKey = 'antholume:logout-pending';
 export const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000, gcTime: 300_000 } } });
@@ -43,9 +43,10 @@ class SessionCoordinator {
     try { this.pendingLogout = localStorage.getItem(logoutKey) === '1'; } catch { this.storageBlocked = true; }
     this.channel?.addEventListener('message', () => { void this.checkSession(); });
     window.addEventListener('storage', (event) => {
-      if (event.key === offlineKey && this.snapshot.access.kind === 'offline') {
-        const grant = this.offlineAccount();
-        if (!grant || !sameAccount(this.snapshot.access.account, grant)) void this.bootstrap();
+      if (isProfileKey(event.key)) {
+        const access = this.snapshot.access;
+        if (access.kind === 'offline' && !profiles().some(p => sameAccount(p.account, access.account))) this.chooseOffline();
+        else if (access.kind === 'picker') this.publish({});
       }
       if (event.key === logoutKey) {
         this.pendingLogout = event.newValue === '1';
@@ -67,29 +68,29 @@ class SessionCoordinator {
     }
     this.snapshot = { ...this.snapshot, ...value };
     clearTimeout(this.reconnect);
-    if (this.snapshot.access.kind === 'offline') this.retryOffline();
+    if (['offline', 'picker'].includes(this.snapshot.access.kind)) this.retryOffline();
     this.listeners.forEach((listener) => listener());
   }
   private retryOffline() {
     clearTimeout(this.reconnect);
     this.reconnect = setTimeout(() => {
-      if (this.snapshot.access.kind !== 'offline') return;
+      if (!['offline', 'picker'].includes(this.snapshot.access.kind)) return;
       if (navigator.onLine && document.visibilityState === 'visible') void this.checkSession();
       this.retryOffline();
     }, 30_000);
   }
-  private remember(account: Account | null) {
+  private remember(account: Account | null, name?: string) {
     try {
-      if (account) localStorage.setItem(offlineKey, JSON.stringify(account)); else localStorage.removeItem(offlineKey);
+      if (account && name) rememberProfile(account, name);
+      selectProfile(null);
     } catch { this.storageBlocked = true; }
   }
-  private offlineAccount(): Account | null {
-    if (this.pendingLogout || this.storageBlocked) return null;
-    try {
-      const value = JSON.parse(localStorage.getItem(offlineKey) ?? 'null');
-      return value?.origin === apiOrigin && typeof value.userId === 'string' && typeof value.readingGeneration === 'string' ? value : null;
-    } catch { return null; }
+  chooseOffline(account?: Account) {
+    if (account && !profiles().some(p => sameAccount(p.account, account))) return;
+    selectProfile(account ?? null);
+    this.publish({ session: null, busy: false, access: account ? { kind: 'offline', account } : { kind: 'picker' }, error: null }, true);
   }
+  forgetOffline(account: Account) { forgetProfile(account); this.chooseOffline(); }
   private eligible(): Account | null {
     const access = this.snapshot.access;
     if (access.kind === 'logout' || this.pendingLogout) return null;
@@ -102,6 +103,7 @@ class SessionCoordinator {
     return account ? { kind: 'expired', account } : { kind: 'anonymous' };
   }
   observeResume(account: Account | null) {
+    if (['offline', 'picker'].includes(this.snapshot.access.kind)) return;
     if (this.pendingLogout) {
       this.resume = null;
       if (account && this.snapshot.access.kind !== 'logout') this.publish({ access: { kind: 'logout', account } }, this.snapshot.access.kind === 'authenticated' || this.snapshot.access.kind === 'expired');
@@ -135,7 +137,7 @@ class SessionCoordinator {
         this.publish({ session, access: { kind: 'expired', account: access.account } }, true);
         return;
       }
-      this.remember(account);
+      this.remember(account, session.user?.id);
       const same = access.kind === 'authenticated' && sameAccount(account, access.account);
       this.publish({ session, access: same ? access : { kind: 'authenticated', account }, error: null }, !same);
       if (same && !this.snapshot.capabilities) {
@@ -148,11 +150,8 @@ class SessionCoordinator {
       }
     } catch (error) {
       if (refresh.signal.aborted) return;
-      const account = this.offlineAccount();
-      if (unreachable(error) && account && sameAccount(account, access.account)) {
-        if (access.kind !== 'offline') this.publish({ session: null, access: { kind: 'offline', account }, error: null }, true);
-      } else if (access.kind === 'offline' && (!account || !sameAccount(account, access.account))) {
-        this.publish({ session: null, access: { kind: 'expired', account: access.account } }, true);
+      if (unreachable(error) && profiles().length) {
+        if (access.kind !== 'offline') this.chooseOffline();
       } else this.publish({ error: message(error) });
     } finally {
       if (this.refresh === refresh) this.refresh = null;
@@ -177,7 +176,7 @@ class SessionCoordinator {
         if (epoch !== this.generation) return;
       }
       const account = session.user && !this.storageBlocked && !this.pendingLogout ? sessionAccount(session.user) : null;
-      this.remember(account);
+      this.remember(account, session.user?.id);
       this.publish({ session, busy: false, access: account ? { kind: 'authenticated', account } : this.retainedAccess(previous), error: this.storageBlocked ? 'Browser storage is unavailable. Automatic account access is disabled; sign in explicitly.' : null });
       try {
         const capabilities = await this.api.capabilities();
@@ -190,8 +189,8 @@ class SessionCoordinator {
       }
     } catch (error) {
       if (epoch !== this.generation) return;
-      const account = unreachable(error) ? this.offlineAccount() : null;
-      this.publish({ busy: false, session: null, error: account ? null : message(error), access: account ? { kind: 'offline', account } : this.retainedAccess(previous) });
+      if (unreachable(error) && profiles().length) this.chooseOffline(selectedProfile());
+      else this.publish({ busy: false, session: null, error: message(error), access: this.retainedAccess(previous) });
     }
   }
   async authenticate(mode: 'login' | 'register', username: string, password: string) {
@@ -211,7 +210,7 @@ class SessionCoordinator {
       const session = await this.api[mode]({ username, password });
       if (epoch !== this.generation) throw new DOMException('Session changed', 'AbortError');
       if (!session.user) throw new Error('The server did not authenticate the account.');
-      this.remember(sessionAccount(session.user));
+      this.remember(sessionAccount(session.user), session.user.id);
       this.publish({ session, busy: false, access: { kind: 'authenticated', account: sessionAccount(session.user) } });
       this.channel?.postMessage('changed');
     } catch (error) {

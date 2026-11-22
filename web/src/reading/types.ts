@@ -3,9 +3,13 @@ import type { components } from '../api/schema.gen';
 export type S = components['schemas'];
 export type Account = { origin: string; userId: string; readingGeneration?: string };
 export type BookRef = { kind: 'local'; localId: string } | { kind: 'server'; account: Account; documentId: string };
-export type ReadingAccess = { kind: 'loading' } | { kind: 'anonymous' } | { kind: 'authenticated'; account: Account } | { kind: 'offline'; account: Account } | { kind: 'expired'; account: Account } | { kind: 'logout'; account: Account };
+export type ReadingAccess = { kind: 'loading' } | { kind: 'picker' } | { kind: 'anonymous' } | { kind: 'authenticated'; account: Account } | { kind: 'offline'; account: Account } | { kind: 'expired'; account: Account } | { kind: 'logout'; account: Account };
 export type Checkpoint = { position: string | null; fraction: number | null };
 export type StoredBook = { ref: BookRef; title: string | null; author: string | null; cover: Blob | null; pinned?: boolean; availability: 'available' | 'unavailable'; addedAt?: string; lastReadAt?: string; checkpoint: Checkpoint };
+export type OfflineRecord = { id: string; scope: string; document: string; title: string; created: string } & (
+  { kind: 'progress'; checkpoint: { position: string; fraction: number } } | { kind: 'activity'; event: S['ActivityEvent'] }
+);
+export type OfflineChoice = { id: string; revision?: string };
 export type SyncStatus = 'idle' | 'pending' | 'syncing' | 'auth-required' | 'retryable-error' | 'quota-error' | 'blocked';
 export interface ReadingBridge {
   registerDevice(account: Account, device: S['Device'], signal: AbortSignal): Promise<S['Device']>;
@@ -20,12 +24,15 @@ export class ReadingHTTPError extends Error {
   constructor(readonly status: number, readonly problem: S['Problem']) { super(problem.detail); this.name = 'ReadingHTTPError'; }
 }
 export interface ReadingSnapshot {
+  offlineRecords?: readonly OfflineRecord[];
   ready: boolean; resumeAccount: Account | null; books: readonly StoredBook[]; sync: SyncStatus; pendingCount: number; notice: string | null;
   downloads: readonly { ref: BookRef; receivedBytes: number; totalBytes: number | null; preparing?: boolean }[];
   update: 'idle' | 'error'; error: string | null;
 }
 export type ReaderCacheSummary = { books: number; epubBytes: number; metadataBytes: number };
 export interface ReadingActions {
+  decideOffline(account: Account, choices: OfflineChoice[], discard: boolean): Promise<void>;
+  forgetDrafts(account: Account): Promise<void>;
   setPinned(ref: Extract<BookRef, { kind: 'server' }>, pinned: boolean, signal: AbortSignal, metadata: Pick<StoredBook, 'title' | 'author'>): Promise<void>;
   readerCacheSummary(): Promise<ReaderCacheSummary>;
   clearReaderCache(): Promise<void>;

@@ -142,13 +142,17 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
         const device = await runtime.repo.device(book.account);
         activity = activityEvent(book.documentId, device.id, measured);
       }
-      await runtime.save(book, { position: location.ko, fraction: location.fraction }, activity);
+      const checkpoint = { position: location.ko, fraction: location.fraction };
+      if (book.kind === 'server' && (access.kind === 'offline' || !navigator.onLine)) await runtime.offlineSave(book, checkpoint, activity);
+      else await runtime.save(book, checkpoint, activity);
     }, { localOnly: book.kind === 'local', parentGestures, interact: wake.interact, chrome: reveal, resizeText: resizeFromPinch,
       cycleTheme: () => { const themes = Object.keys(palette) as Appearance['theme'][]; void changeAppearance({ ...appearanceRef.current, theme: themes[(themes.indexOf(appearanceRef.current.theme) + 1) % themes.length]! }); },
       credit: async measured => {
         if (book.kind !== 'server') return;
         const device = await runtime.repo.device(book.account);
-        await runtime.credit(book, activityEvent(book.documentId, device.id, measured), measured);
+        const event = activityEvent(book.documentId, device.id, measured);
+        if (access.kind === 'offline' || !navigator.onLine) await runtime.offlineSave(book, undefined, event);
+        else await runtime.credit(book, event, measured);
       },
     });
     controller.current = instance;
@@ -199,7 +203,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
       pendingAppearance.current = null; draggingSize.current = false; controller.current = null;
       void instance.dispose();
     };
-  }, [runtime, snapshot.ready, key, permitted, attempt, explicitBeginning, parentGestures]);
+  }, [runtime, snapshot.ready, key, access.kind, permitted, attempt, explicitBeginning, parentGestures]);
   async function applyAppearance() {
     clearTimeout(appearanceTimer.current); appearanceTimer.current = undefined;
     const instance = controller.current;

@@ -14,6 +14,7 @@ import { AdminLogs } from './routes/AdminLogs';
 import { ErrorNotice, PageHeader } from './ui';
 import { Icon } from './Icon';
 import { Brand } from './Brand';
+import { OfflinePicker, OfflineReview } from './OfflineReading';
 import { WorkerRecovery } from './WorkerRecovery';
 import { authPath, legacyDocument, retirementDestination } from './retirement';
 import styles from './App.module.css';
@@ -47,7 +48,7 @@ function Providers() {
     <ReadingProvider access={intent && state.access.kind === 'expired' ? retirementAccess : state.access} bridge={session.api.bridge} onSessionExpired={(account) => session.expire(account)}>
       <ReadingSession />
       <RetirementDestination />
-      {pendingIntent ? <AppLoading message="Opening requested book…" /> : <Outlet />}
+      {state.access.kind === 'picker' ? <OfflinePicker /> : state.access.kind === 'offline' && ['/login','/register'].includes(location.pathname) ? <Navigate to="/library" replace /> : pendingIntent ? <AppLoading message="Opening requested book…" /> : <Outlet />}
       <ScrollRestoration />
     </ReadingProvider>
   </QueryClientProvider>;
@@ -103,6 +104,7 @@ function Shell() {
         <div ref={recovery} className={reader ? styles.readerRecovery : undefined}>
           {reading.error && !reader && <ErrorNotice error={reading.error} />}
           {reading.notice && !reader && <p role="status" className={styles.notice}>{reading.notice}</p>}
+          {access.kind === 'authenticated' && <OfflineReview key={JSON.stringify(access.account)} account={access.account} />}
           <WorkerRecovery duringReading={reader} />
         </div>
         <Outlet />

@@ -137,7 +137,7 @@ export function Library() {
   return <>
     <PageHeader title="Library" headingRef={heading} mobileBrand
       actions={reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>} />
-    {offline && <p role="status">Offline · Showing books on this device. Reading progress and activity will sync when you reconnect. <button onClick={() => void session.checkSession()}>Reconnect</button> <button onClick={() => void session.logout()}>Sign out</button></p>}
+    {offline && <p role="status">Offline · Books on this device. <button onClick={() => void session.checkSession()}>Reconnect</button> <button onClick={() => session.chooseOffline()}>Switch profile</button></p>}
     {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}
     <RecentBooks books={recent} bookLinkState={bookLinkState} />
     <form className={styles.searchRow} role="search" onSubmit={(event) => { event.preventDefault(); update('q', input.trim()); }}>

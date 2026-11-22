@@ -11,7 +11,7 @@ declare const __SHELL_VERSION__: string;
 declare const __SHELL_FILES__: string[];
 const name = 'antholume-shell-' + __SHELL_VERSION__;
 const files = new Set(__SHELL_FILES__);
-const navigation = /^\/(?:|library\/?|(?:books|read)\/server\/?)$/;
+const navigation = /^\/(?:|library\/?|login\/?|register\/?|(?:books|read)\/server\/?)$/;
 
 sw.addEventListener('install', event => event.waitUntil((async () => {
   const cache = await caches.open(name);

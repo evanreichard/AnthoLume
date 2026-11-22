@@ -3,7 +3,7 @@ import { sourceLimits } from './source';
 import { Repository } from './repository';
 import { Replay } from './sync';
 import { WorkerCoordinator } from './worker-client';
-import { accountKey, refKey, sameAccount, type Account, type BookRef, type Checkpoint, type ReadingAccess, type ReadingActions, type ReadingBridge, type ReadingSnapshot, type StoredBook, type S } from './types';
+import { accountKey, refKey, sameAccount, type Account, type BookRef, type Checkpoint, type ReadingAccess, type OfflineChoice, type ReadingActions, type ReadingBridge, type ReadingSnapshot, type StoredBook, type S } from './types';
 import { validState } from './protocol';
 import type { CapturedActivity } from './activity';
 
@@ -35,7 +35,7 @@ export class ReadingRuntime implements ReadingActions {
     });
   }
   async start(access: ReadingAccess) {
-    this.subscription = liveQuery(() => Promise.all([this.repo.db.books.toArray(), this.repo.db.events.toArray(), this.repo.db.access.toArray(), this.repo.db.meta.toArray()])).subscribe({ next: () => { void this.refresh(); }, error: error => { this.error = String(error); void this.refresh(); } });
+    this.subscription = liveQuery(() => Promise.all([this.repo.db.books.toArray(), this.repo.db.events.toArray(), this.repo.db.offline.count(), this.repo.db.access.toArray(), this.repo.db.meta.toArray()])).subscribe({ next: () => { void this.refresh(); }, error: error => { this.error = String(error); void this.refresh(); } });
     window.addEventListener('online', this.foreground); document.addEventListener('visibilitychange', this.foreground);
     if (this.generation === 0) void this.setAccess(access);
     await this.repo.cleanupStages();
@@ -66,12 +66,12 @@ export class ReadingRuntime implements ReadingActions {
     if (this.disposed) return;
     const serial = ++this.refreshSerial, access = this.access;
     try {
-      const [books, resumeAccount, pending] = await Promise.all([this.repo.projection(access), this.repo.resume(), this.repo.pending()]);
+      const [books, resumeAccount, pending, offlineRecords] = await Promise.all([this.repo.projection(access), this.repo.resume(), this.repo.pending(), access.kind === 'authenticated' ? this.repo.db.offline.where('scope').equals(accountKey(access.account)).toArray() : []]);
       if (serial !== this.refreshSerial || this.disposed) return;
       const scope = 'account' in access && access.kind !== 'logout' ? accountKey(access.account) : null;
       const visible = pending.filter(e => e.scope === scope);
       this.projectionAccess = access;
-      this.snapshot = { ready: this.appliedGeneration === this.generation, resumeAccount, books: books.map(({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned }) => ({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned })), sync: this.quotaError ? 'quota-error' : !visible.length ? 'idle' : visible.every(e => e.rejected) ? 'blocked' : this.sync.status === 'idle' ? access.kind === 'authenticated' ? 'pending' : 'auth-required' : this.sync.status, pendingCount: visible.length, notice: access.kind === 'authenticated' ? this.sync.notice : null, downloads: this.snapshot.downloads, update: this.worker.update, error: this.error || this.worker.error || null };
+      this.snapshot = { offlineRecords, ready: this.appliedGeneration === this.generation, resumeAccount, books: books.map(({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned }) => ({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned })), sync: this.quotaError ? 'quota-error' : !visible.length ? 'idle' : visible.every(e => e.rejected) ? 'blocked' : this.sync.status === 'idle' ? access.kind === 'authenticated' ? 'pending' : 'auth-required' : this.sync.status, pendingCount: visible.length, notice: access.kind === 'authenticated' ? this.sync.notice : null, downloads: this.snapshot.downloads, update: this.worker.update, error: this.error || this.worker.error || null };
       this.changed(this.snapshot);
     } catch (error) { if (!this.disposed) { this.snapshot = { ...this.snapshot, ready: false, error: String(error) }; this.changed(this.snapshot); } }
   }
@@ -103,7 +103,7 @@ export class ReadingRuntime implements ReadingActions {
     if (this.access.kind === 'offline') {
       this.requireReady();
       onStage?.('Opening offline copy…');
-      const opened = await this.repo.open(ref);
+      const opened = await this.repo.openOffline(ref);
       external.throwIfAborted();
       if (generation !== this.generation || !opened.row.sourceId) throw new Error('Book account or source changed');
       await this.repo.keepSource(opened.row.sourceId, external);
@@ -189,10 +189,20 @@ export class ReadingRuntime implements ReadingActions {
       await this.openServerBook(ref, signal, undefined, metadata);
       return;
     }
-    await this.write(() => this.repo.setPinned(ref, pinned, signal));
+    await this.write(() => this.repo.setPinned(ref, pinned, signal, this.access.kind === 'offline'));
   }
   readerCacheSummary = () => { this.requireReady(); return this.repo.readerCacheSummary(); };
   clearReaderCache = () => { this.requireReady(); return this.repo.clearServerCache(); };
+  async decideOffline(account: Account, choices: OfflineChoice[], discard: boolean) {
+    if (this.access.kind !== 'authenticated' || !sameAccount(this.access.account, account)) throw new Error('Account changed');
+    await this.write(() => this.repo.decideOffline(account, choices, discard));
+    if (!discard) this.schedule(0);
+  }
+  async forgetDrafts(account: Account) { await this.repo.db.offline.where('scope').equals(accountKey(account)).delete(); }
+  async offlineSave(ref: Extract<BookRef, {kind: 'server'}>, checkpoint?: Checkpoint, activity?: S['ActivityEvent']) {
+    const book = this.snapshot.books.find(b => refKey(b.ref) === refKey(ref));
+    await this.repo.recordOffline(ref, book?.title ?? ref.documentId, checkpoint, activity);
+  }
   async save(ref: BookRef, checkpoint: Checkpoint, activity?: S['ActivityEvent']) { await this.write(() => this.repo.save(ref, checkpoint, activity)); this.schedule(0); }
   async credit(ref: BookRef, event: S['ActivityEvent'], measured?: CapturedActivity) { await this.write(() => this.repo.credit(ref, event, measured)); this.schedule(0); }
   async replay() {

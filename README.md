@@ -28,9 +28,9 @@ Docker Image: `docker pull gitea.va.reichard.io/evan/antholume:latest`
 
 ### EPUB Reader
 
-To prepare for offline reading, sign in over HTTPS (or localhost), open a book’s details, and choose **Keep on this device**. When disconnected, reopen the Library to read pinned books and any other EPUBs still cached for your account. Progress and reading activity sync the next time the app is open and connected.
+Sign in over HTTPS (or localhost) to cache books. Choose **Keep on this device** to pin a book outside the automatic six-book, 768 MiB cache. When offline, pick a remembered profile and read any book cached from the same library. Offline profiles are passwordless, including after sign-out; **Forget on this device** removes a profile and its unsubmitted drafts.
 
-Pinned books are separate from the automatic six-book, 768 MiB cache. Clearing site storage removes downloads. Sign out before sharing the device: offline access stays available until sign-out or until the app learns the session expired.
+Offline reading stays on the device until that account signs in and chooses **Upload selected**. Review progress and activity separately for each book. Server activity covers the same dates as the offline reading. Clearing browser storage removes downloads and unsubmitted drafts.
 
 ### KOSync API
 

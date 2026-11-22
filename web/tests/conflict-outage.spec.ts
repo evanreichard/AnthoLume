@@ -12,7 +12,7 @@ for (const fault of ['503', 'malformed-200']) {
     await page.clock.setFixedTime(started);
     await page.getByRole('link', { name: /^(Read|Resume)$/ }).click();
     await expect(page.locator('footer')).toContainText('1 /');
-    await context.setOffline(true);
+    await context.route('**/api/v1/me/devices', route => route.fulfill({ status: 503 }));
     for (const next of [2, 3]) {
       await page.clock.setFixedTime(started + (next - 2) * 30_000);
       await page.keyboard.press('c');
@@ -29,7 +29,7 @@ for (const fault of ['503', 'malformed-200']) {
     await ko(server.origin, user, .8);
     await writeFile(`${server.data}/state-fault`, fault);
     try {
-      await context.setOffline(false);
+      await context.unroute('**/api/v1/me/devices');
       await page.goto(`${server.origin}/settings?sync=open`);
       await expect(page.getByRole('heading', { name: 'Waiting to retry', exact: true })).toBeVisible();
       await expect.poll(() => pendingIds(page)).toEqual([progress.id]);
