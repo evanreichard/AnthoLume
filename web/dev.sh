@@ -21,6 +21,7 @@ fi
 
 case "${1:-}" in
   start) exec node web/dev.mjs ;;
+  hot) exec node web/dev.mjs --hot ;;
   clean) exec go run ./tools/dev clean ;;
-  *) echo 'Usage: bash web/dev.sh {start|clean}' >&2; exit 2 ;;
+  *) echo 'Usage: bash web/dev.sh {start|hot|clean}' >&2; exit 2 ;;
 esac

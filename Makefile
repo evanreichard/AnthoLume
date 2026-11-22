@@ -45,9 +45,12 @@ generate:
 check_generation:
 	bash api/check-generation.sh
 
-.PHONY: dev clean-dev
+.PHONY: dev dev-hot clean-dev
 dev:
 	bash web/dev.sh start
+
+dev-hot:
+	bash web/dev.sh hot
 
 clean-dev:
 	bash web/dev.sh clean

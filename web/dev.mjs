@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { lstat, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { lstat, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { createServer as createListener, isIPv4 } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -31,18 +31,41 @@ const uuidFallback = `if (!crypto.randomUUID) crypto.randomUUID = () => {
   return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20)].join('-');
 };`;
 
+const configFile = join(web, 'vite.config.ts');
+const uuidPlugin = {
+  name: 'antholume-dev-tailnet-uuid',
+  transformIndexHtml: {
+    order: 'pre',
+    handler() {
+      return [{ tag: 'script', attrs: { type: 'module' }, injectTo: 'head-prepend', children: uuidFallback }];
+    },
+  },
+};
+
+async function hasAppBuild() {
+  for (const name of ['index.html', 'sw.js', 'manifest.json']) {
+    const info = await stat(join(repo, 'assets/app', name)).catch(error => {
+      if (error.code !== 'ENOENT') throw error;
+    });
+    if (!info?.isFile() || !info.size) return false;
+  }
+  return true;
+}
+
 async function run() {
+  const hot = process.argv.includes('--hot');
   const root = join(repo, 'data/dev');
   const ip = tailnetIP();
   const shouldSeed = process.env.SEED !== '0' && !process.env.RESTORE && await lstat(root).then(
     () => false, error => { if (error.code === 'ENOENT') return true; throw error; },
   );
-  const vitePort = port('DEV_PORT', 5323);
+  const frontendPort = port('DEV_PORT', hot ? 5325 : 5323);
   const goPort = port('DEV_GO_PORT', 5324);
-  if (vitePort === goPort) throw new Error('DEV_PORT and DEV_GO_PORT must differ.');
-  const local = `127.0.0.1:${vitePort}`;
-  const tailnet = ip ? `${ip}:${vitePort}` : null;
-  const frontendHosts = new Set([local, `localhost:${vitePort}`, ...(tailnet ? [tailnet] : [])]);
+  if (frontendPort === goPort) throw new Error('DEV_PORT and DEV_GO_PORT must differ.');
+  const local = `localhost:${frontendPort}`;
+  const loopback = `127.0.0.1:${frontendPort}`;
+  const tailnet = ip ? `${ip}:${frontendPort}` : null;
+  const frontendHosts = new Set([local, loopback, ...(tailnet ? [tailnet] : [])]);
   const target = `http://127.0.0.1:${goPort}`;
   process.env.ANTHOLUME_BACKEND = target;
 
@@ -75,11 +98,28 @@ async function run() {
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
   try {
-    const { createServer } = await import('vite');
+    const { build, createServer } = await import('vite');
+    if (!hot || !(await hasAppBuild())) {
+      // Production Shell - Vite derives import.meta.env.DEV from NODE_ENV, even for builds.
+      const nodeEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      try {
+        await build({ root: web, configFile, plugins: ip ? [uuidPlugin] : [] });
+      } finally {
+        if (nodeEnv === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = nodeEnv;
+      }
+    }
+    if (shutdown.signal.aborted) return;
     vite = await createServer({
-      root: web, configFile: join(web, 'vite.config.ts'),
-      server: { host: '127.0.0.1', port: vitePort, strictPort: true },
-      plugins: [{
+      root: web, configFile: hot ? configFile : false,
+      ...(hot ? {} : { appType: 'custom' }),
+      server: {
+        host: '127.0.0.1', port: frontendPort, strictPort: true,
+        // Built App - Go serves the actual shell, assets and worker; Vite just proxies requests.
+        ...(hot ? {} : { ws: false, watch: null, proxy: { '^/': { target } } }),
+      },
+      plugins: [...(hot && ip ? [uuidPlugin] : []), {
         name: 'antholume-local-development',
         closeServer: clean,
         configureServer(server) {
@@ -96,14 +136,11 @@ async function run() {
             });
           }
         },
-        transformIndexHtml() {
-          if (tailnet) return [{ tag: 'script', injectTo: 'head-prepend', children: uuidFallback }];
-        },
       }],
     });
     await vite.listen();
     if (ip) {
-      // Tailnet Listener - Reuse Vite's HTTP and WebSocket handlers without binding every interface.
+      // Tailnet Listener - Share the frontend without binding every interface.
       extra = createListener(socket => {
         sockets.add(socket);
         socket.once('close', () => sockets.delete(socket));
@@ -111,7 +148,7 @@ async function run() {
       });
       await new Promise((resolve, reject) => {
         extra.once('error', reject);
-        extra.listen(vitePort, ip, resolve);
+        extra.listen(frontendPort, ip, resolve);
       });
     }
     const probe = createListener();
