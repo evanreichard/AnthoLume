@@ -75,6 +75,33 @@ test('saved EPUB opens probe both gateway and stream failures; only an unreachab
   expect(probes).toBe(1);
 });
 
+test('a stalled saved-book request opens the offline copy on timeout, but leaving does not probe', async ({ page, server }) => {
+  await register(page, server.origin, 'stalled-reader');
+  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
+
+  const file = '**/api/v1/documents/book_001/file';
+  await page.route(file, () => {});
+  let probes = 0;
+  await page.route('**/api/v1/session', route => { probes++; return route.fulfill({ status: 504 }); });
+  await page.clock.install();
+  const read = page.getByRole('link', { name: 'Read', exact: true });
+  const reader = page.getByRole('region', { name: 'Book reader' });
+  const open = () => Promise.all([page.waitForRequest(file), read.click()]);
+
+  await open();
+  await reader.getByRole('button', { name: 'Library', exact: true }).click();
+  await expect(read).toBeVisible();
+  expect(probes).toBe(0);
+
+  await open();
+  await page.clock.fastForward(90_000);
+  await expect(reader).toHaveAttribute('data-reader-state', 'ready');
+  await expect(reader.locator('iframe').first()).toBeVisible();
+  expect(probes).toBe(1);
+});
+
 test('concurrent API failures share a probe; a cold offline profile regains account settings on reconnect', async ({ page, server }) => {
   const user = 'gateway-library-reader';
   await register(page, server.origin, user);

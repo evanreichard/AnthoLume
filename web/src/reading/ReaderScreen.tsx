@@ -130,8 +130,9 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
     setStatus({ state: 'opening', message: 'Reading your preferences…' });
     const abort = new AbortController(), wake = new ReaderWakeLock();
     const prepareDeadline = () => setTimeout(() => {
-      abort.abort();
-      if (alive) setStatus({ state: 'error', message: 'The book took too long to prepare. Check your connection and retry.' });
+      const message = 'The book took too long to prepare. Check your connection and retry.';
+      abort.abort(new DOMException(message, 'TimeoutError'));
+      if (alive) setStatus({ state: 'error', message });
     }, 90_000);
     let deadline = prepareDeadline(), ready = false;
     let serverBook: Awaited<ReturnType<typeof runtime.openServerBook>> | undefined;
