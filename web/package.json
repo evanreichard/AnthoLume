@@ -10,7 +10,7 @@
     "dev": "vite --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && vite build",
-    "test": "vitest run",
+    "test": "node --test demo-data/history.test.mjs && vitest run",
     "test:browser": "playwright test",
     "test:smoke": "playwright test tests/app.spec.ts tests/account-isolation.spec.ts tests/density.spec.ts tests/online-reader.spec.ts",
     "test:reader": "node src/reading/tests/generate-fixtures.mjs && playwright test -c src/reading/tests/playwright.config.ts",

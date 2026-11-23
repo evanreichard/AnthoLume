@@ -2,9 +2,9 @@
 
 <p align="center">
     <a href="screenshots/mobile/home.png"><img src="screenshots/mobile/home.png" width="24%" alt="Resume Alice’s Adventures in Wonderland from the Library"></a>
-    <a href="screenshots/mobile/library.png"><img src="screenshots/mobile/library.png" width="24%" alt="Browse the library by book cover"></a>
+    <a href="screenshots/mobile/overview.png"><img src="screenshots/mobile/overview.png" width="24%" alt="Insights overview with daily reading time, streaks, and rankings"></a>
+    <a href="screenshots/mobile/book.png"><img src="screenshots/mobile/book.png" width="24%" alt="Alice’s Adventures in Wonderland: book details, reading progress, and synopsis"></a>
     <a href="screenshots/mobile/reader.png"><img src="screenshots/mobile/reader.png" width="24%" alt="Read a chapter on a phone"></a>
-    <a href="screenshots/mobile/statistics.png"><img src="screenshots/mobile/statistics.png" width="24%" alt="Reading times and progress in Insights"></a>
 </p>
 
 <p align="center">

@@ -190,14 +190,14 @@ async function run() {
     if (result === undefined) return;
     if (result !== 'ready') throw new Error(result);
     if (shouldSeed) {
-      const [{ request }, { seedLibrary }] = await Promise.all([import('@playwright/test'), import('./screenshots/seed.mjs')]);
+      const [{ request }, { seedLibrary }] = await Promise.all([import('@playwright/test'), import('./demo-data/seed.mjs')]);
       const context = await request.newContext({ timeout: 10_000 });
       try {
-        const { addReadingHistory } = await seedLibrary(context, target, { username: 'robin', password: 'antholume' }, { signal: shutdown.signal });
-        await addReadingHistory(new Date());
+        const { addReadingHistory } = await seedLibrary(context, target, 'antholume', { signal: shutdown.signal });
+        await addReadingHistory();
         await rm(join(root, '.seed-incomplete'));
         discardSeed = false;
-        console.log('Demo login: robin / antholume');
+        console.log('Demo users: robin and sam (password: antholume)');
       } finally {
         await context.dispose();
       }
