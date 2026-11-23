@@ -92,8 +92,8 @@ export class Repository {
   }
   async permitted(ref: BookRef) { return ref.kind === 'local' || !!(await this.db.access.get(scopeOf(ref)))?.eligible; }
   async projection(access: ReadingAccess) {
-    const local = await this.db.books.where('scope').equals('local').toArray();
-    if (!('account' in access) || access.kind === 'logout') return { books: local };
+    const localBooks = () => this.db.books.where('scope').equals('local').toArray();
+    if (!('account' in access) || access.kind === 'logout') return { books: await localBooks() };
     const { account } = access, scope = accountKey(account);
     const downloads = await this.db.downloads.where('library').equals(libraryKey(account)).toArray();
     const deviceCopies = new Map(downloads.map(d => [d.document, d.pinned ? 'saved' as const : 'cached' as const]));
@@ -107,7 +107,23 @@ export class Repository {
     }
     const copies = new Map(downloads.map(d => [d.document, d]));
     const positions = (await this.db.access.get(scope))?.eligible ? await this.db.positions.where('scope').equals(scope).toArray() : [];
-    return { deviceCopies, books: [...local, ...positions.map(p => bookView(p.ref, copies.get(p.ref.documentId), p))] };
+    return { deviceCopies, books: [...await localBooks(), ...positions.map(p => bookView(p.ref, copies.get(p.ref.documentId), p))] };
+  }
+  async readingView(access: ReadingAccess) {
+    const db = this.db;
+    const scope = 'account' in access && access.kind !== 'logout' ? accountKey(access.account) : undefined;
+    return db.transaction('r', [db.books, db.downloads, db.positions, db.heads, db.offline, db.meta, db.access, db.events], async () => {
+      const [shelf, resumeAccount, pending, captures] = await Promise.all([
+        this.projection(access), this.resume(), scope ? db.events.where('scope').equals(scope).toArray() : [],
+        access.kind === 'authenticated' ? db.offline.where('scope').equals(accountKey(access.account)).toArray() : [],
+      ]);
+      return {
+        books: shelf.books.map(({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned }) =>
+          ({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned })),
+        deviceCopies: shelf.deviceCopies, resumeAccount, captures, pendingCount: pending.length,
+        blocked: pending.length > 0 && pending.every(event => event.rejected),
+      };
+    });
   }
   private offlineView(ref: ServerRef, download: Download, position?: Position, head?: Head, draft?: OfflineRecord, source?: SourceRow) {
     const row = bookView(ref, download, position, source);
@@ -518,7 +534,7 @@ export class Repository {
     return this.db.transaction('rw', this.tables(), async () => {
       if (!await this.replayCurrent(access) || !current()) return;
       const pending = await this.pendingProgress(key), head = await this.db.heads.get(key);
-      let promoted = false;
+      const promoted: string[] = [];
       for (const row of await this.db.offline.bulkGet(ids)) {
         if (!row || row.held || row.scope !== scope || row.document !== ref.documentId || !this.verifying.has(row.id)) continue;
         if (row.kind === 'progress') {
@@ -532,7 +548,7 @@ export class Repository {
           await this.saveCommittedPosition(ref, row);
         } else await this.addEvent(key, scope, { kind: 'activity', payload: row.event });
         await this.db.offline.delete(row.id);
-        promoted = true;
+        promoted.push(row.id);
       }
       if (!current()) throw new DOMException('Reading access changed', 'AbortError');
       return promoted;

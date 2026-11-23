@@ -21,7 +21,8 @@ export class ReadingRuntime implements ReadingActions {
   private access: ReadingAccess = { kind: 'loading' };
   projectionAccess: ReadingAccess = { kind: 'loading' };
   private accessTail: Promise<void> = Promise.resolve();
-  private subscription?: { unsubscribe(): void };
+  private stopObserving?: () => void;
+  private view?: Awaited<ReturnType<Repository['readingView']>>;
   private timer?: ReturnType<typeof setTimeout>;
   private failures = 0;
   private jobs = new Map<AbortController, boolean>();
@@ -32,15 +33,16 @@ export class ReadingRuntime implements ReadingActions {
   private quotaError = false;
   private snapshot: ReadingSnapshot = emptySnapshot;
   private error: string | null = null;
-  private refreshSerial = 0;
   constructor(private bridge: ReadingBridge, private changed: (snapshot: ReadingSnapshot) => void, private onExpired: (account: Account) => void, private lookupCover?: CoverLookup) {
-    this.worker = new WorkerCoordinator(() => { void this.refresh(); });
-    this.sync = new Replay(this.repo, bridge, () => { void this.refresh(); }, account => {
-      if (this.access.kind === 'authenticated' && sameAccount(this.access.account, account)) { this.access = { kind: 'expired', account }; this.onExpired(account); }
+    this.worker = new WorkerCoordinator(() => this.publishSnapshot());
+    this.sync = new Replay(this.repo, bridge, () => this.publishSnapshot(), account => {
+      if (this.access.kind === 'authenticated' && sameAccount(this.access.account, account)) {
+        void this.setAccess({ kind: 'expired', account });
+        this.onExpired(account);
+      }
     });
   }
   async start(access: ReadingAccess) {
-    this.subscription = liveQuery(() => Promise.all([this.repo.db.books.toArray(), this.repo.db.downloads.toArray(), this.repo.db.positions.toArray(), this.repo.db.events.toArray(), this.repo.db.offline.count(), this.repo.db.access.toArray(), this.repo.db.meta.toArray()])).subscribe({ next: () => { void this.refresh(); }, error: error => { this.error = String(error); void this.refresh(); } });
     window.addEventListener('online', this.foreground); document.addEventListener('visibilitychange', this.foreground);
     if (this.generation === 0) void this.setAccess(access);
     await this.repo.cleanupStages();
@@ -48,15 +50,18 @@ export class ReadingRuntime implements ReadingActions {
     if (this.disposed) return;
     await this.worker.start();
     await this.accessTail;
-    if (!this.disposed) { await this.refresh(); this.schedule(0); }
+    if (!this.disposed) this.schedule(0);
   }
   setAccess(access: ReadingAccess) {
-    if (this.generation && this.access === access && this.appliedGeneration === this.generation) return this.accessTail;
+    if (this.generation && this.access === access) return this.accessTail;
+    this.stopObserving?.();
+    this.view = undefined;
     this.access = access; const version = ++this.generation; this.sync.stop(); this.error = null; this.quotaError = false;
     for (const [job, accountBound] of this.jobs) if (accountBound) job.abort();
     this.accountAccess.abort(); this.accountAccess = new AbortController(); this.reconnectHead = undefined;
-    this.snapshot = { ...this.snapshot, downloads: [] };
-    void this.refresh();
+    this.snapshot = emptySnapshot;
+    this.projectionAccess = access;
+    this.publishSnapshot();
     this.accessTail = this.accessTail.catch(() => undefined).then(async () => {
       if (this.disposed || version !== this.generation) return;
       await this.repo.setAccess(access);
@@ -65,8 +70,12 @@ export class ReadingRuntime implements ReadingActions {
         const signal = AbortSignal.any([reader.signal, this.accountAccess.signal, AbortSignal.timeout(autoSyncBudgetMs)]);
         this.reconnectHead = { key: refKey(reader.ref), revision: this.recoverRevision(reader.ref, signal).catch(() => undefined) };
       }
-      if (!this.disposed && version === this.generation) { this.appliedGeneration = version; await this.refresh(); this.schedule(0); }
-    }).catch(error => { if (!this.disposed && version === this.generation) { this.error = String(error); void this.refresh(); } });
+      if (!this.disposed && version === this.generation) {
+        this.appliedGeneration = version;
+        await this.observeView(access, version);
+        if (!this.disposed && version === this.generation) this.schedule(0);
+      }
+    }).catch(error => { if (!this.disposed && version === this.generation) { this.error = String(error); this.publishSnapshot(); } });
     return this.accessTail;
   }
   private async recoverRevision(ref: Extract<BookRef, { kind: 'server' }>, signal: AbortSignal) {
@@ -77,23 +86,47 @@ export class ReadingRuntime implements ReadingActions {
     await this.repo.rememberMissingHead(ref, state, signal);
     return state.revision;
   }
-  private foreground = () => { if (document.visibilityState === 'visible' || navigator.onLine) { this.failures = 0; this.schedule(0); void this.worker.connect().catch(error => { this.error = String(error); void this.refresh(); }); } };
+  private foreground = () => { if (document.visibilityState === 'visible' || navigator.onLine) { this.failures = 0; this.schedule(0); void this.worker.connect().catch(error => { this.error = String(error); this.publishSnapshot(); }); } };
   private schedule(delay: number) { clearTimeout(this.timer); if (!this.disposed) this.timer = setTimeout(() => { void this.replay(); }, delay); }
   private requireReady() { if (this.disposed || this.appliedGeneration !== this.generation) throw new Error('Reading storage is not ready'); }
   private selectedAccount(): Account { if (this.access.kind !== 'authenticated' && this.access.kind !== 'offline') throw new Error('Authentication required'); return this.access.account; }
-  async refresh() {
+  private observeView(access: ReadingAccess, generation: number) {
+    return new Promise<void>(resolve => {
+      const subscription = liveQuery(() => this.repo.readingView(access)).subscribe({
+        next: view => {
+          if (!this.disposed && generation === this.generation) {
+            this.view = view;
+            this.publishSnapshot();
+          }
+          resolve();
+        },
+        error: error => {
+          if (!this.disposed && generation === this.generation) {
+            this.view = undefined;
+            this.error = String(error);
+            this.publishSnapshot();
+          }
+          resolve();
+        },
+      });
+      // First Emission - Unsubscribing must also release callers waiting for the initial snapshot.
+      this.stopObserving = () => { subscription.unsubscribe(); resolve(); };
+    });
+  }
+  private publishSnapshot() {
     if (this.disposed) return;
-    const serial = ++this.refreshSerial, access = this.access;
-    try {
-      const [{ deviceCopies, books }, resumeAccount, pending, captures] = await Promise.all([this.repo.projection(access), this.repo.resume(), this.repo.pending(), access.kind === 'authenticated' ? this.repo.db.offline.where('scope').equals(accountKey(access.account)).toArray() : []]);
-      if (serial !== this.refreshSerial || this.disposed) return;
-      const offlineRecords = captures.filter(row => this.repo.awaitingReview(row));
-      const scope = 'account' in access && access.kind !== 'logout' ? accountKey(access.account) : null;
-      const visible = pending.filter(e => e.scope === scope);
-      this.projectionAccess = access;
-      this.snapshot = { deviceCopies, offlineRecords, ready: this.appliedGeneration === this.generation, resumeAccount, books: books.map(({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned }) => ({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned })), sync: this.quotaError ? 'quota-error' : !visible.length ? 'idle' : visible.every(e => e.rejected) ? 'blocked' : this.sync.status === 'idle' ? access.kind === 'authenticated' ? 'pending' : 'auth-required' : this.sync.status, pendingCount: visible.length, notice: access.kind === 'authenticated' ? this.sync.notice : null, downloads: this.snapshot.downloads, workerError: this.worker.error, error: this.error };
-      this.changed(this.snapshot);
-    } catch (error) { if (!this.disposed) { this.snapshot = { ...this.snapshot, ready: false, error: String(error) }; this.changed(this.snapshot); } }
+    const view = this.view, authenticated = this.access.kind === 'authenticated';
+    const pendingCount = view?.pendingCount ?? 0;
+    this.snapshot = {
+      books: view?.books ?? [], deviceCopies: view?.deviceCopies, resumeAccount: view?.resumeAccount ?? null,
+      offlineRecords: view?.captures.filter(row => this.repo.awaitingReview(row)) ?? [],
+      ready: !!view, pendingCount,
+      sync: this.quotaError ? 'quota-error' : !pendingCount ? 'idle' : view?.blocked ? 'blocked'
+        : this.sync.status !== 'idle' ? this.sync.status : authenticated ? 'pending' : 'auth-required',
+      notice: authenticated ? this.sync.notice : null, downloads: this.snapshot.downloads,
+      workerError: this.worker.error, error: this.error,
+    };
+    this.changed(this.snapshot);
   }
   private async write<T>(action: () => Promise<T>, { signal, localError = false }: { signal?: AbortSignal; localError?: boolean } = {}) {
     this.requireReady();
@@ -104,7 +137,7 @@ export class ReadingRuntime implements ReadingActions {
         this.error = this.quotaError ? 'Storage quota exceeded. No partial book/save was published.' : String(error);
       }
       throw error;
-    } finally { await this.refresh(); }
+    } finally { this.publishSnapshot(); }
   }
   private async job<T>(external: AbortSignal | undefined, action: (signal: AbortSignal) => Promise<T>, accountBound = true, deadlineMs = 1200000) {
     if (this.jobs.size >= 2) throw new Error('Two bounded reading operations are already active');
@@ -276,11 +309,16 @@ export class ReadingRuntime implements ReadingActions {
         signal.throwIfAborted();
         const registered = await this.bridge.registerDevice(ref.account, device, signal);
         if (!validDevice(registered, device.id)) return;
-        if (await this.repo.promoteCapture(capture, device.id, eligible)) void this.replay(device.id);
+        const promoted = await this.repo.promoteCapture(capture, device.id, eligible);
+        if (promoted?.length) {
+          // Committed Captures - The last emitted view can still contain rows deleted by this transaction.
+          if (this.view) this.view.captures = this.view.captures.filter(row => !promoted.includes(row.id));
+          void this.replay(device.id);
+        }
       } catch { /* The capture is already durable and remains local. */ }
       finally {
         this.repo.releaseCapture(capture);
-        if (!this.disposed) await this.refresh();
+        this.publishSnapshot();
       }
     })();
   }
@@ -291,9 +329,8 @@ export class ReadingRuntime implements ReadingActions {
     if (this.disposed || this.access !== access || !navigator.onLine) return;
     await this.sync.run(access.account, registeredDevice);
     const pending = await this.repo.pending(accountKey(access.account));
-    await this.refresh();
     if (this.access === access && navigator.onLine && pending.some(event => !event.rejected)) { this.failures = this.sync.status === 'retryable-error' ? this.failures + 1 : 0; this.schedule(Math.min(60000, 1000 * 2 ** Math.min(this.failures, 6)) + Math.random() * 500); }
   }
-  applyUpdate = async () => { await this.worker.apply(); await this.refresh(); };
-  dispose() { this.disposed = true; this.accountAccess.abort(); this.sync.stop(); for (const [job] of this.jobs) job.abort(); clearTimeout(this.timer); this.subscription?.unsubscribe(); this.worker.dispose(); window.removeEventListener('online', this.foreground); document.removeEventListener('visibilitychange', this.foreground); void this.accessTail.finally(() => this.repo.db.close()); }
+  applyUpdate = () => this.worker.apply();
+  dispose() { this.disposed = true; this.accountAccess.abort(); this.sync.stop(); for (const [job] of this.jobs) job.abort(); clearTimeout(this.timer); this.stopObserving?.(); this.worker.dispose(); window.removeEventListener('online', this.foreground); document.removeEventListener('visibilitychange', this.foreground); void this.accessTail.finally(() => this.repo.db.close()); }
 }

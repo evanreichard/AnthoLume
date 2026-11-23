@@ -167,6 +167,45 @@ async function readOffline(page: Page, context: BrowserContext, origin: string, 
   await expect.poll(() => offlinePosition(page)).toBeTruthy();
 }
 
+test('a failed preflight makes the saved turn reviewable in the open reader', async ({ page, server }) => {
+  await register(page, server.origin, 'preflight-review');
+  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
+  await page.getByRole('link', { name: 'Read', exact: true }).click();
+  await expect(bookReader(page)).toHaveAttribute('data-reader-state', 'ready');
+  const preflight = page.waitForRequest('**/api/v1/me/devices');
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/v1/me/devices', async route => { await held; await route.fulfill({ status: 500 }); });
+  const review = page.getByRole('button', { name: 'Review Offline Reading' });
+  try {
+    await turnPage(page, 2);
+    await preflight;
+    expect(await offlinePosition(page)).toBeTruthy();
+    await expect(review).toHaveCount(0);
+  } finally { release(); }
+  await expect(review).toBeVisible();
+  await review.click();
+  await expect(offlineReview(page).getByLabel('Progress')).toBeEnabled();
+  expect(await storedRows(page, 'events')).toEqual([]);
+});
+
+test('mounted libraries observe a shared pin and removal from another tab', async ({ page, context, server }) => {
+  await register(page, server.origin, 'shared-pin');
+  const observer = await context.newPage();
+  await observer.goto(server.origin + '/library');
+  const card = (tab: Page) => tab.getByRole('article').filter({ hasText: 'Public book 01' });
+  const saved = card(observer).getByRole('img', { name: 'Saved to device' });
+  await expect(card(observer)).toBeVisible();
+  await card(page).locator('summary').click();
+  await card(page).getByRole('button', { name: 'Save to Device' }).click();
+  await expect(saved).toBeVisible();
+  await card(page).locator('summary').click();
+  await card(page).getByRole('button', { name: 'Remove from Device' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove from Device' }).click();
+  await expect(saved).toHaveCount(0);
+  await expect(card(observer)).toBeVisible();
+});
+
 test('the first turn during a backend-only outage stays local through restart and reload until approved', async ({ page, server }) => {
   const user = 'backend-outage-reader';
   await register(page, server.origin, user);
