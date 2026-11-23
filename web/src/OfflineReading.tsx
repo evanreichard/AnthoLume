@@ -36,14 +36,18 @@ export function OfflinePicker() {
 
 const percent = (v: number | null) => v == null ? '—' : `${Math.round(v * 100)}%`;
 const duration = (v: number) => v < 60 ? `${v}s` : `${Math.floor(v / 60)}m${v % 60 ? ` ${v % 60}s` : ''}`;
-type Group = { rows: OfflineRecord[]; document: string; title: string };
+type Group = { document: string; title: string; progress?: Extract<OfflineRecord, {kind: 'progress'}>; activities: Extract<OfflineRecord, {kind: 'activity'}>[] };
 function group(records: readonly OfflineRecord[]) {
   const books = new Map<string, Group>();
   for (const row of records) {
-    const book = books.get(row.document) ?? { rows: [], document: row.document, title: row.title };
-    book.rows.push(row); books.set(row.document, book);
+    const book: Group = books.get(row.document) ?? { activities: [], document: row.document, title: row.title };
+    if (row.kind === 'activity') book.activities.push(row);
+    else book.progress = row;
+    books.set(row.document, book);
   }
-  return [...books.values()].sort((a,b) => a.title.localeCompare(b.title));
+  return [...books.values()].sort((a,b) => a.title.localeCompare(b.title)).map(book => ({
+    ...book, activityKey: JSON.stringify(book.activities.map(r => r.id).sort()),
+  }));
 }
 async function serverActivitySeconds(account: Account, document: string, activities: Extract<OfflineRecord, {kind: 'activity'}>[], timezone: string, signal: AbortSignal) {
   const fmt = new Intl.DateTimeFormat('sv-SE', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -71,30 +75,33 @@ function ComparisonRow({ label, offline, server, checked, discard, onCheck, retr
   </>;
 }
 
-function BookComparison({ account, book, timezone, discard, selected, select }: { discard: boolean; account: Account; book: Group; timezone: string; selected: Map<string, OfflineChoice>; select(choices: OfflineChoice[], checked: boolean): void }) {
-  const progress = book.rows.find(r => r.kind === 'progress');
-  const activities = book.rows.filter(r => r.kind === 'activity');
+function BookComparison({ account, book, timezone, discard, selected, select }: { discard: boolean; account: Account; book: Group & { activityKey: string }; timezone: string; selected: Map<string, OfflineChoice[]>; select(key: string, choices: OfflineChoice[], checked: boolean): void }) {
+  const { progress, activities, activityKey } = book;
   const state = useQuery({ queryKey: ['offline-progress', account, book.document, progress?.id], enabled: !!progress && !discard, staleTime: 0,
     queryFn: ({signal}) => session.api.bridge.getState(account, book.document, signal) });
-  const activity = useQuery({ queryKey: ['offline-activity', account, book.document, timezone, activities.map(r => r.id).sort()], enabled: activities.length > 0 && !discard, staleTime: 0,
+  const activity = useQuery({ queryKey: ['offline-activity', account, book.document, timezone, activityKey], enabled: activities.length > 0 && !discard, staleTime: 0,
     queryFn: ({signal}) => serverActivitySeconds(account, book.document, activities, timezone, signal) });
   return <section className={styles.reviewBook} role="group" aria-label={book.title}>
     <header><h3>{book.title}</h3><small>Offline</small><small>Server</small></header>
     {progress && <ComparisonRow label="Progress" discard={discard} offline={percent(progress.checkpoint.fraction)} server={state.data && percent(state.data.fraction)}
-      checked={selected.has(progress.id)} onCheck={checked => select([{id: progress.id, revision: state.data?.revision}], checked)}
+      checked={selected.has(progress.id)} onCheck={checked => select(progress.id, [{id: progress.id, revision: state.data?.revision}], checked)}
       retry={state.isError ? () => void state.refetch() : undefined} />}
     {!!activities.length && <ComparisonRow label="Activity" discard={discard} offline={duration(activities.reduce((sum, row) => sum + row.event.duration, 0))}
-      server={activity.data === undefined ? undefined : duration(activity.data)} checked={activities.every(r => selected.has(r.id))}
-      onCheck={checked => select(activities.map(r => ({id: r.id})), checked)} retry={activity.isError ? () => void activity.refetch() : undefined} />}
+      server={activity.data === undefined ? undefined : duration(activity.data)} checked={selected.has(activityKey)}
+      onCheck={checked => select(activityKey, activities.map(r => ({id: r.id})), checked)} retry={activity.isError ? () => void activity.refetch() : undefined} />}
   </section>;
 }
 export function OfflineReview({account}: {account: Account}) {
   const reading = useReading(), {session: current} = useSession();
   const [later, setLater] = useState(!reading.offlineRecords?.length), [discard, setDiscard] = useState(false);
-  const [selected, setSelected] = useState(new Map<string, OfflineChoice>()), [busy,setBusy] = useState(false), [error,setError] = useState<unknown>();
+  const [selected, setSelected] = useState(new Map<string, OfflineChoice[]>()), [busy,setBusy] = useState(false), [error,setError] = useState<unknown>();
   const records = reading.offlineRecords ?? [];
+  const books = group(records);
+  const rowKeys = new Set(books.flatMap(book => [book.progress?.id, book.activityKey]));
+  const currentSelection = [...selected].filter(([key]) => rowKeys.has(key));
+  if (currentSelection.length !== selected.size) setSelected(new Map(currentSelection));
   if (!records.length) return null;
-  const choices = records.flatMap(r => selected.get(r.id) ?? []);
+  const choices = currentSelection.flatMap(([, items]) => items);
   function close() { if (!busy) { setLater(true); setSelected(new Map()); setDiscard(false); setError(null); } }
   async function submit(decision: ReviewDecision) {
     setBusy(true); setError(null);
@@ -119,8 +126,8 @@ export function OfflineReview({account}: {account: Account}) {
     <button className={styles.quiet} disabled={busy} onClick={() => { if (discard) { setDiscard(false); setSelected(new Map()); } else close(); }}>{discard ? 'Cancel' : 'Keep Reading'}</button>
     {!discard && <button className={styles.quiet} title="Discard Records" aria-label="Discard Records" disabled={busy} onClick={() => { setSelected(new Map()); setDiscard(true); }}><Icon name="trash" size={17} /></button>}
     <Button tone={discard ? 'danger' : 'primary'} disabled={busy || !choices.length} onClick={() => void submit(discard ? 'discard' : 'upload')}>{discard ? 'Discard Selected' : 'Upload Selected'}</Button>
-  </div>}><ErrorNotice error={error} />{discard ? <p>Select the local records to discard. This does not change the server.</p> : records.some(record => record.kind === 'progress') && <p>Turns made in a device-only reader stay here until you choose to upload them.</p>}{group(records).map(book => <BookComparison key={book.document} book={book} account={account} timezone={current?.user?.timezone ?? 'UTC'} discard={discard} selected={selected} select={(items, checked) => {
+  </div>}><ErrorNotice error={error} />{discard ? <p>Select the local records to discard. This does not change the server.</p> : records.some(record => record.kind === 'progress') && <p>Turns made in a device-only reader stay here until you choose to upload them.</p>}{books.map(book => <BookComparison key={book.document} book={book} account={account} timezone={current?.user?.timezone ?? 'UTC'} discard={discard} selected={selected} select={(key, items, checked) => {
     if (busy) return;
-    setSelected(previous => { const next = new Map(previous); for (const item of items) { if (checked) next.set(item.id,item); else next.delete(item.id); } return next; });
+    setSelected(previous => { const next = new Map(previous); if (checked) next.set(key, items); else next.delete(key); return next; });
   }} />)}</Dialog>;
 }

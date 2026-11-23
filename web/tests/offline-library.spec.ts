@@ -244,6 +244,34 @@ test('a device-only reader stays on the same page and keeps new turns private af
   expect(await offlinePosition(page)).toBe(draft);
 });
 
+for (const action of ['Upload', 'Discard'] as const) {
+  test(`${action} requires reselecting activity after another tab adds reading time`, async ({ page, context, server }) => {
+    const started = Date.now() - 120_000;
+    await page.clock.setFixedTime(started);
+    await readOffline(page, context, server.origin, `changed-activity-${action.toLowerCase()}`);
+    await page.clock.setFixedTime(started + 30_000);
+    await turnPage(page, 4);
+    await context.setOffline(false);
+    await offlineReview(page).getByRole('button', { name: 'Keep Reading' }).click();
+
+    const reviewer = await context.newPage();
+    await reviewer.goto(server.origin + '/library');
+    const review = offlineReview(reviewer);
+    if (action === 'Discard') await review.getByRole('button', { name: 'Discard Records' }).click();
+    const activity = review.getByLabel('Activity', { exact: true });
+    const submit = review.getByRole('button', { name: `${action} Selected` });
+    await activity.check();
+    await expect(submit).toBeEnabled();
+    await page.clock.setFixedTime(started + 60_000);
+    await turnPage(page, 5);
+    await expect(activity).not.toBeChecked();
+    await expect(submit).toBeDisabled();
+    await activity.check();
+    await submit.click();
+    await expect.poll(async () => (await storedRows(reviewer, 'offline')).map(row => row.kind)).toEqual(['progress']);
+  });
+}
+
 for (const failed of ['Progress', 'Activity'] as const) {
   test(`a failed ${failed} comparison does not block the other upload`, async ({ page, context, server }) => {
     const user = 'partial-' + failed.toLowerCase();
