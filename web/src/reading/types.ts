@@ -22,6 +22,7 @@ export interface ReadingBridge {
   submitActivity(account: Account, event: S['ActivityEvent'], signal: AbortSignal): Promise<Delivery>;
 }
 export type Delivery = { status: number; body: unknown };
+export class NoOfflineCopyError extends Error {}
 export class ReadingHTTPError extends Error {
   constructor(readonly status: number, readonly problem: S['Problem']) { super(problem.detail); this.name = 'ReadingHTTPError'; }
 }

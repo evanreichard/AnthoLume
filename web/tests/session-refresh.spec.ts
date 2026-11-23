@@ -27,15 +27,19 @@ test('a failed session refresh keeps the same rendition while the backend is rea
 
   await page.route(sessionURL, route => route.abort(), { times: 1 });
   await visible();
-  const recovery = page.getByRole('region', { name: 'App update and recovery' });
-  await expect(recovery.getByText('Connection unavailable', { exact: true })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Reading offline' })).toBeVisible();
+  const reconnect = page.getByRole('button', { name: 'Offline Reconnect', exact: true });
+  await expect(reconnect).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Offline Profiles', exact: true })).toHaveCount(0);
   await expect(page).toHaveURL(readerURL);
   await expect(page.locator('footer')).toContainText('1 /');
   expect(await sameFrame()).toBe(true);
 
-  await recovery.getByRole('button', { name: 'Reconnect', exact: true }).click();
-  await expect(recovery).toHaveCount(0);
+  await page.keyboard.press('c');
+  await expect(page.getByText('Reading offline', { exact: true })).toHaveCount(0);
+  await reconnect.click();
+  await expect(page.getByRole('status').filter({ hasText: 'Back online' })).toBeVisible();
+  await expect(reconnect).toHaveCount(0);
   expect(await sameFrame()).toBe(true);
 
   await context.clearCookies();
@@ -178,12 +182,14 @@ test('a stopped backend preserves a live reader but a cold tab asks who is readi
   const readerURL = page.url();
   const originalFrame = await page.locator('iframe').first().elementHandle();
   const sameFrame = () => originalFrame.evaluate(frame => frame.isConnected && frame === document.querySelector('iframe'));
-  const recovery = page.getByRole('region', { name: 'App update and recovery' });
+  const reconnect = page.getByRole('button', { name: 'Offline Reconnect', exact: true });
 
   await server.stop();
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   expect(await page.evaluate(() => navigator.onLine)).toBe(true);
-  await expect(recovery.getByText('Connection unavailable', { exact: true })).toBeVisible();
+  await expect(page.getByText('Reading offline', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Dismiss', exact: true }).click();
+  await expect(reconnect).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Offline Profiles', exact: true })).toHaveCount(0);
   await expect(page).toHaveURL(readerURL);
   await expect(page.locator('footer')).toContainText('1 /');
@@ -197,8 +203,9 @@ test('a stopped backend preserves a live reader but a cold tab asks who is readi
   } finally { await cold.close(); }
 
   await server.start();
-  await recovery.getByRole('button', { name: 'Reconnect', exact: true }).click();
-  await expect(recovery).toHaveCount(0);
+  await page.keyboard.press('c');
+  await reconnect.click();
+  await expect(reconnect).toHaveCount(0);
   await expect(page).toHaveURL(readerURL);
   await expect(page.locator('footer')).toContainText('1 /');
   expect(await sameFrame()).toBe(true);

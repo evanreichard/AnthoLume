@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ReaderController, palette, type Appearance, type ReaderStatus } from './controller';
 import { useReadingContext } from './provider';
-import { sameAccount, refKey, type BookRef } from './types';
+import { NoOfflineCopyError, sameAccount, refKey, type BookRef } from './types';
 import { ReaderWakeLock } from './wake-lock';
 import { readerFontLabel, readerFontNames } from './reader-fonts';
 import { activityEvent } from './activity';
@@ -9,6 +9,7 @@ import styles from './reader.module.css';
 import { Icon } from '../Icon';
 import { Button } from '../Controls';
 import { Dialog } from '../ui';
+import { useSnackbar } from '../Snackbar';
 import { GestureLayer, useParentGestures } from './GestureLayer';
 
 const defaults: Appearance = { size: 100, font: 'serif', theme: 'tan' };
@@ -49,9 +50,17 @@ function PageEdge({ next, turn }: { next: boolean; turn: (forward: boolean) => v
   </button>;
 }
 
-export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => void }): ReactNode {
+export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onReconnect, recoveryControl }: {
+  book: BookRef;
+  onClose: () => void;
+  onBackToLibrary?: () => void;
+  onReconnect?: () => Promise<void>;
+  recoveryControl?: ReactNode;
+}): ReactNode {
   const { runtime, snapshot, access } = useReadingContext();
   const key = refKey(book);
+  const snackbar = useSnackbar(key);
+  const offline = access.kind === 'offline' && book.kind === 'server';
   const parentGestures = useParentGestures();
   const [selecting, setSelecting] = useState(false);
   const host = useRef<HTMLDivElement>(null), controller = useRef<ReaderController | null>(null);
@@ -73,6 +82,12 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
   const pendingAppearance = useRef<Appearance | null>(null);
   const applyingAppearance = useRef<ReaderController | null>(null);
   const [attempt, setAttempt] = useState(0), [explicitBeginning, setExplicitBeginning] = useState(false);
+  const [retryingOfflineOpen, setRetryingOfflineOpen] = useState(false);
+  const retryConnection = useRef<symbol | null>(null);
+  useLayoutEffect(() => {
+    setRetryingOfflineOpen(false);
+    return () => { retryConnection.current = null; };
+  }, [key]);
   const [resumeChoice, setResumeChoice] = useState<{ key: string; device: string; server: string; choose: (device: boolean) => void } | null>(null);
   const permitted = book.kind === 'local' || ((access.kind === 'authenticated' || access.kind === 'offline') && sameAccount(access.account, book.account));
   const appearanceRef = useRef(appearance), appliedAppearance = useRef(defaults);
@@ -98,14 +113,14 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
   useEffect(() => {
     if (!chrome.visible || panel !== 'hide' || hovering) return;
     const timer = setTimeout(() => {
-      if (top.current?.querySelector(':focus-visible') || bottom.current?.querySelector(':focus-visible')) return;
+      if (top.current?.querySelector(':focus-visible') || bottom.current?.querySelector(':focus-visible') || document.querySelector('dialog:modal')) return;
       setChrome(current => ({ ...current, visible: false }));
     }, chromeIdleMs);
     return () => clearTimeout(timer);
   }, [chrome, panel, hovering]);
   useEffect(() => {
     setShowHint(false);
-    if (!hasOpened || !permitted) return;
+    if (!hasOpened || !permitted || offline) return;
     const hintKey = 'antholume.reader-controls-hint';
     try {
       if (localStorage.getItem(hintKey)) return;
@@ -114,7 +129,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
     setShowHint(true);
     const timer = setTimeout(() => setShowHint(false), chromeIdleMs);
     return () => clearTimeout(timer);
-  }, [hasOpened, permitted]);
+  }, [hasOpened, permitted, offline]);
   useEffect(() => { setExplicitBeginning(false); setChrome({ visible: false, activity: 0 }); setHovering(false); setSelecting(false); }, [key]);
   useEffect(() => {
     setShowLoading(false);
@@ -122,7 +137,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
     const timer = setTimeout(() => setShowLoading(true), 450);
     return () => clearTimeout(timer);
   }, [hasOpened, status.state, permitted, key]);
-  const readerReady = permitted && (snapshot.ready || (hasOpened && readerState.key === key));
+  const readerReady = permitted && !retryingOfflineOpen && (snapshot.ready || (hasOpened && readerState.key === key));
   useEffect(() => {
     if (!runtime || !readerReady || !host.current || parentGestures === undefined) return;
     let alive = true, resizeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -132,12 +147,12 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
     const prepareDeadline = () => setTimeout(() => {
       const message = 'The book took too long to prepare. Check your connection and retry.';
       abort.abort(new DOMException(message, 'TimeoutError'));
-      if (alive) setStatus({ state: 'error', message });
+      if (alive) setStatus({ state: 'error', failure: 'general', message });
     }, 90_000);
     let deadline = prepareDeadline(), ready = false;
     let serverBook: Awaited<ReturnType<typeof runtime.openServerBook>> | undefined;
     const instance = new ReaderController(host.current, next => {
-      if (!alive) return;
+      if (!alive || abort.signal.aborted) return;
       if (next.state === 'ready') { ready = true; setHasOpened(true); }
       setStatus(next);
     }, async (location, measured) => {
@@ -188,7 +203,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
       if (!explicitBeginning && resumeCandidate) await runtime.repo.clearResumeCandidate(book, resumeCandidate);
       if (alive && host.current) observer.observe(host.current);
     })().catch(error => {
-      if (alive && !abort.signal.aborted) setStatus({ state: 'error', message: String(error) });
+      if (alive && !abort.signal.aborted) setStatus({ state: 'error', failure: error instanceof NoOfflineCopyError ? 'no-offline-copy' : 'general', message: String(error) });
     }).finally(() => clearTimeout(deadline));
     return () => {
       alive = false; clearTimeout(deadline); abort.abort(); setResumeChoice(null); observer.disconnect(); clearTimeout(resizeTimer); wake.dispose();
@@ -212,7 +227,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
         await instance.reflow(next.size, next.font, next.theme);
       }
     } catch {
-      if (controller.current === instance) setStatus({ state: 'error', message: 'Could not apply reading preferences. Please try again.' });
+      if (controller.current === instance) setStatus({ state: 'error', failure: 'general', message: 'Could not apply reading preferences. Please try again.' });
     } finally {
       if (applyingAppearance.current === instance) applyingAppearance.current = null;
     }
@@ -266,7 +281,37 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
   const download = snapshot.downloads.find(item => refKey(item.ref) === key);
   const loadingMessage = !snapshot.ready ? 'Starting reader storage…' : status.message;
   const storageError = !hasOpened && !snapshot.ready ? snapshot.error : null;
+  const failure = permitted && !storageError && status.state === 'error' ? status.failure : 'general';
+  const noOfflineCopy = failure === 'no-offline-copy';
+  const blocked = !permitted || !!storageError || status.state === 'error';
+  const failureMessage = !permitted ? 'Sign in to this account to open its books.'
+    : storageError ? `Could not start reader storage. ${storageError}`
+    : noOfflineCopy && attempt > 0 && offline ? 'Still offline. Try again when you reconnect.'
+    : noOfflineCopy ? 'This book isn’t saved on this device. Reconnect to open it.' : status.message;
+  function retry(beginning = false) {
+    setExplicitBeginning(beginning);
+    setAttempt(n => n + 1);
+  }
+  async function tryAgain() {
+    if (storageError) { window.location.reload(); return; }
+    if (noOfflineCopy && onReconnect) {
+      if (retryConnection.current) return;
+      const token = retryConnection.current = Symbol();
+      setRetryingOfflineOpen(true);
+      try { await onReconnect(); } catch { /* An offline copy may have been added by another tab. */ }
+      if (retryConnection.current !== token) return;
+      retryConnection.current = null;
+      setRetryingOfflineOpen(false);
+    }
+    retry();
+  }
   const chromeVisible = chrome.visible || panel !== 'hide';
+  const readingOffline = hasOpened && !blocked && offline;
+  useEffect(() => {
+    if (readingOffline) snackbar.show({ message: 'Reading offline', icon: 'cloud-off', placement: 'reader' });
+    return snackbar.dismiss;
+  }, [readingOffline, snackbar]);
+  useEffect(() => { if (chromeVisible) snackbar.dismiss(); }, [chromeVisible, readingOffline, snackbar]);
   const chromeEvents = {
     onPointerEnter: (event: React.PointerEvent) => { if (event.pointerType === 'mouse') setHovering(true); },
     onPointerLeave: (event: React.PointerEvent) => { if (event.pointerType === 'mouse') setHovering(false); },
@@ -277,16 +322,17 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
   const turn = (forward: boolean) => {
     if (canTurn) void (forward ? controller.current?.next() : controller.current?.previous());
   };
-  return <section className={styles.reader} style={{ visibility: !storedAppearance && !showLoading && status.state === 'opening' && !storageError ? 'hidden' : undefined, background, color, colorScheme: appearance.theme === 'gray' || appearance.theme === 'black' ? 'dark' : 'light', '--reader-paper': background } as CSSProperties} aria-label="Book reader" data-reader-state={status.state} data-reader-metrics={permitted ? JSON.stringify(status.diagnostics) : undefined}>
+  return <section className={styles.reader} style={{ visibility: !storedAppearance && !showLoading && status.state === 'opening' && !storageError ? 'hidden' : undefined, background, color, colorScheme: appearance.theme === 'gray' || appearance.theme === 'black' ? 'dark' : 'light', '--reader-paper': background } as CSSProperties} aria-label="Book reader" data-reader-controls={chromeVisible ? 'visible' : undefined} data-reader-state={status.state} data-reader-metrics={permitted ? JSON.stringify(status.diagnostics) : undefined}>
     {hasOpened && permitted && status.state !== 'error' && <button ref={keyboardReveal} type="button" className={`${styles.srOnly} ${styles.keyboardReveal}`} aria-keyshortcuts="C" onClick={() => reveal('focus')}>Show Reader Controls</button>}
     <header ref={top} inert={!chromeVisible && permitted && status.state !== 'error' && hasOpened} className={`${styles.bar} ${styles.top}`}>
       <button {...chromeEvents} className={styles.glass} onClick={onClose}><Chevron /><span>Library</span></button>
+      {hasOpened && !blocked && recoveryControl && <div className={styles.connection} {...chromeEvents}>{recoveryControl}</div>}
       <div className={styles.tools} role="group" aria-label="Reading tools">
         {permitted && status.canGoBack && <button {...chromeEvents} className={styles.glass} disabled={status.state !== 'ready'} aria-label="Back to Previous Spot" title="Back to Previous Spot" onClick={() => { closePanel(); reveal('show'); void controller.current?.back(); }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 14-5-5 5-5M4 9h10a5 5 0 0 1 0 10h-2" /></svg><span>Back</span></button>}
         <button {...chromeEvents} className={styles.glass} disabled={!hasOpened} aria-label="Contents" aria-controls={panel === 'toc' ? 'reader-panel' : undefined} aria-expanded={panel === 'toc'} onClick={() => panel === 'toc' ? closePanel() : setPanel('toc')}><Icon name="contents" /><span>Contents</span></button>
       </div>
     </header>
-    <div ref={host} className={styles.viewport} hidden={!permitted || readerState.key !== key} />
+    <div ref={host} className={styles.viewport} hidden={!permitted || readerState.key !== key} inert={blocked} />
     {permitted && resumeChoice?.key === key && <Dialog title="Conflicting Positions" onClose={onClose} footer={<>
       <Button size="slim" onClick={() => resumeChoice.choose(true)}>{resumeChoice.device}</Button>
       <Button size="slim" tone="primary" onClick={() => resumeChoice.choose(false)}>{resumeChoice.server}</Button>
@@ -303,15 +349,27 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
       }} />}
     {pinchSize !== null && permitted && <output className={`${styles.pinchHud} ${styles.glass}`} aria-label="Text size">Aa <strong>{pinchSize}%</strong></output>}
     {selecting && permitted && <button className={`${styles.doneSelecting} ${styles.glass}`} onClick={() => { setSelecting(false); reveal('show'); }}>Done</button>}
-    {showHint && !chromeVisible && canTurn && <p className={`${styles.hint} ${styles.glass}`} role="status"><span className={styles.touchHint}>Tap the center for controls</span><span className={styles.mouseHint}>Move to the center or press C for controls</span></p>}
+    {showHint && !offline && !chromeVisible && canTurn && <p className={`${styles.hint} ${styles.glass}`} role="status"><span className={styles.touchHint}>Tap the center for controls</span><span className={styles.mouseHint}>Move to the center or press C for controls</span></p>}
     {permitted && <span className={styles.srOnly} role="status">{status.state === 'opening' && !storageError ? loadingMessage : ''}</span>}
     {showLoading && permitted && !hasOpened && status.state === 'opening' && !storageError && <div className={styles.loading}><span aria-hidden="true">{loadingMessage}</span>{download && !download.preparing && <><progress aria-label="EPUB download progress" max={download.totalBytes || undefined} value={download.totalBytes ? Math.min(download.receivedBytes, download.totalBytes) : undefined} /><small>{(download.receivedBytes / 1048576).toFixed(1)} MiB{download.totalBytes ? ` / ${(download.totalBytes / 1048576).toFixed(1)} MiB · ${Math.floor(Math.min(1, download.receivedBytes / download.totalBytes) * 100)}%` : ''}</small></>}</div>}
-    {permitted && storageError && <div className={styles.message} role="alert"><p>Could not start reader storage. {storageError}</p><button onClick={() => window.location.reload()}>Reload Reader</button></div>}
-    {(!permitted || status.state === 'error') && <div className={styles.message} role="alert">
-      <p>{!permitted ? 'Sign in to this account to open its books.' : status.message}</p>
-      {permitted && <><button onClick={() => setAttempt(n => n + 1)}>Retry Original Position</button><button onClick={() => { setExplicitBeginning(true); setAttempt(n => n + 1); }}>Open Beginning Without Changing Saved Position</button><p>Only a subsequent intentional navigation can save a new position.</p></>}
+    {blocked && <div className={styles.failureScreen} data-failure={failure}>
+      <div className={styles.failureBody}>
+        <span className={styles.failureIcon}><Icon name="book" size={30} /></span>
+        <div role="alert">
+          <h1>{noOfflineCopy ? 'No Offline Copy' : 'Couldn’t Open This Book'}</h1>
+          <p>{failureMessage}</p>
+        </div>
+        <div className={styles.failureActions}>
+          <button type="button" data-primary={noOfflineCopy || !permitted || undefined} onClick={onBackToLibrary}>Back to Library</button>
+          {permitted && (failure === 'saved-position' ? <>
+            <button type="button" data-primary onClick={() => retry()}>Retry Original Position</button>
+            <button type="button" onClick={() => retry(true)}>Open Beginning Without Changing Saved Position</button>
+          </> : <button type="button" data-primary={!noOfflineCopy || undefined} aria-disabled={retryingOfflineOpen || undefined} onClick={() => void tryAgain()}>{retryingOfflineOpen ? 'Reconnecting…' : 'Try Again'}</button>)}
+        </div>
+        {failure === 'saved-position' && <p>Only a subsequent intentional navigation can save a new position.</p>}
+      </div>
     </div>}
-    {permitted && panel !== 'hide' && <aside id="reader-panel" className={`${styles.panel} ${panel === 'appearance' ? styles.progressPanel : ''}`} aria-labelledby="reader-panel-title">
+    {!blocked && panel !== 'hide' && <aside id="reader-panel" className={`${styles.panel} ${panel === 'appearance' ? styles.progressPanel : ''}`} aria-labelledby="reader-panel-title">
       <div className={styles.panelHeader}>
         <h2 id="reader-panel-title">{panel === 'toc' ? 'Contents' : 'Appearance'}</h2>
         <button onClick={(event) => { if (event.currentTarget.matches(':focus-visible')) (panel === 'toc' ? top : bottom).current?.querySelector<HTMLButtonElement>('[aria-expanded="true"]')?.focus(); closePanel(); }}>Done</button>

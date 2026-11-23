@@ -54,13 +54,16 @@ test('Save to Device refuses an incomplete shell and repairs an evicted cache be
   }
   await server.stop();
   await save();
-  await expect(page.getByRole('alert')).toContainText('offline app is incomplete');
+  const notice = page.locator('[data-snackbar]');
+  await expect(notice.getByRole('status')).toContainText('Couldn’t save for offline reading. The offline app is incomplete.');
+  await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(card.getByRole('img', { name: 'Saved to device' })).toHaveCount(0);
 
   await page.evaluate(key => caches.delete(key), key);
   await server.start();
-  await save();
+  await notice.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(card.getByRole('img', { name: 'Saved to device' })).toBeVisible();
+  await expect(notice).toHaveCount(0);
   await page.close();
   await server.stop();
   const cold = await context.newPage();
@@ -68,6 +71,30 @@ test('Save to Device refuses an incomplete shell and repairs an evicted cache be
   await cold.getByRole('button', { name: user, exact: true }).click();
   await cold.getByRole('article').getByRole('link').click();
   await expect(cold.getByRole('region', { name: 'Book reader' })).toHaveAttribute('data-reader-state', 'ready');
+});
+
+test('a background worker failure can be repaired from the reader controls without closing the book', async ({ page, server }) => {
+  await register(page, server.origin, 'reader-worker-repair');
+  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
+  await page.getByRole('link', { name: 'Read', exact: true }).click();
+  const reader = page.getByRole('region', { name: 'Book reader' });
+  await expect(reader).toHaveAttribute('data-reader-state', 'ready');
+  const frame = await reader.locator('iframe').first().elementHandle();
+  await page.evaluate(() => {
+    Object.defineProperty(navigator.serviceWorker, 'getRegistration', { configurable: true, value: async () => {
+      Reflect.deleteProperty(navigator.serviceWorker, 'getRegistration');
+      throw new Error('Worker registration temporarily unavailable');
+    } });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.keyboard.press('c');
+  await reader.getByRole('button', { name: 'App Recovery', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'App Recovery', exact: true });
+  await expect(dialog.getByRole('alert')).toContainText('Could not update the offline app');
+  await dialog.getByRole('button', { name: 'Retry Update / Recovery' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(reader.getByRole('button', { name: 'App Recovery' })).toHaveCount(0);
+  expect(await frame.evaluate(element => element.isConnected)).toBe(true);
 });
 
 test('an existing root worker is upgraded after its clients close without removing book caches or unrelated caches', async ({ page, server }) => {

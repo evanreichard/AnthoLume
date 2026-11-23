@@ -19,7 +19,8 @@ export type ReaderSnapshot = { ko: string; cfi: string; chapter: string; page: n
 export type { CapturedActivity } from './activity';
 export type Appearance = { size: number; font: string; theme: 'light' | 'tan' | 'blue' | 'gray' | 'black' };
 export const palette = { light: ['#ffffff', '#202020'], tan: ['#f3ead5', '#392e21'], blue: ['#dce7ef', '#203747'], gray: ['#35383d', '#eeeeee'], black: ['#121212', '#dddddd'] } as const;
-export type ReaderStatus = { state: 'opening' | 'ready' | 'error'; message: string; location?: ReaderSnapshot; canGoBack?: boolean; toc?: { label: string; href: string }[]; diagnostics?: ReturnType<ReaderController['diagnostics']> };
+type ReaderPhase = { state: 'opening' | 'ready' } | { state: 'error'; failure: 'general' | 'no-offline-copy' | 'saved-position' };
+export type ReaderStatus = ReaderPhase & { message: string; location?: ReaderSnapshot; canGoBack?: boolean; toc?: { label: string; href: string }[]; diagnostics?: ReturnType<ReaderController['diagnostics']> };
 
 export class ReaderController {
   private dead = false;
@@ -67,7 +68,7 @@ export class ReaderController {
       if (this.dead) return;
       try { await action(); } finally { this.releaseInactive(); }
     });
-    this.tail = result.catch(error => { this.readyToInteract = false; this.send({ state: 'error', message: String(error), location: this.location, toc: this.tocItems(), diagnostics: this.diagnostics() }); });
+    this.tail = result.catch(error => { this.readyToInteract = false; this.send({ state: 'error', failure: 'general', message: String(error), location: this.location, toc: this.tocItems(), diagnostics: this.diagnostics() }); });
     return this.tail as Promise<void>;
   }
   open(input: Source | Blob | ArrayBuffer, saved?: string, signal?: AbortSignal, manifest?: BookManifest, appearance?: Appearance) {
@@ -148,7 +149,7 @@ export class ReaderController {
         const result = await toCFI(book, saved);
         if (!result.ok) {
           const message = result.phase === 'chapter' ? `Could not load the saved chapter: ${result.reason}` : `Saved location unavailable; original retained: ${saved}`;
-          this.send({ state: 'error', message });
+          this.send({ state: 'error', failure: result.phase === 'position' ? 'saved-position' : 'general', message });
           return;
         }
         target = result.cfi;

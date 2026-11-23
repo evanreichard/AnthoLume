@@ -2,14 +2,17 @@ import type { BrowserContext, Page } from '@playwright/test';
 import { test, expect, register, signIn } from './fixtures';
 import { storedRows, serverEffects } from './storage';
 
-test('offline startup failure is reported once above the library, not under the book', async ({ page, server }) => {
+test('missing service worker support is attributed to Save to Device, not app recovery', async ({ page, server }) => {
   await page.addInitScript(() => { Reflect.deleteProperty(Navigator.prototype, 'serviceWorker'); });
   await register(page, server.origin, 'no-worker-reader');
   const card = page.getByRole('article').filter({ hasText: 'Public book 01' });
   await card.locator('summary').click();
   await card.getByRole('button', { name: 'Save to Device' }).click();
-  await expect(page.getByRole('region', { name: 'App update and recovery' }).getByRole('alert')).toContainText('service workers');
-  await expect(card.getByRole('alert')).toHaveCount(0);
+  const notice = page.locator('[data-snackbar]');
+  await expect(notice.getByRole('status')).toHaveText('Couldn’t save for offline reading. Save to Device requires service workers. Open the app on localhost or HTTPS in a browser that supports them.');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await notice.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(notice.getByRole('status')).toContainText('requires service workers');
   await expect(card.getByRole('img', { name: 'Saved to device' })).toHaveCount(0);
 });
 
@@ -56,9 +59,32 @@ test('a saved book opens without a recovery prompt when the browser is online bu
   await cold.getByRole('button', { name: 'offline-update-reader', exact: true }).click();
   await expect(cold.getByRole('article')).toContainText('Public book 01');
   await expect(cold.getByRole('region', { name: 'App update and recovery' })).toHaveCount(0);
+  await cold.clock.install();
   await cold.getByRole('article').getByRole('link').click();
-  await expect(cold.getByRole('region', { name: 'Book reader' })).toHaveAttribute('data-reader-state', 'ready');
-  await expect(cold.getByRole('region', { name: 'App update and recovery' })).toHaveCount(0);
+  const reader = bookReader(cold);
+  const reconnect = reader.getByRole('button', { name: 'Offline Reconnect' });
+  const pill = cold.getByText('Reading offline', { exact: true });
+  await expect(reader).toHaveAttribute('data-reader-state', 'ready');
+  await expect(pill).toBeVisible();
+  await cold.clock.fastForward(3100);
+  await expect(pill).toHaveCount(0);
+  await expect(reconnect).toHaveCount(0);
+  for (const width of [320, 390, 1280]) {
+    await cold.setViewportSize({ width, height: 844 });
+    await cold.keyboard.press('c');
+    const bounds = [];
+    for (const button of [reader.getByRole('button', { name: 'Library', exact: true }), reconnect, reader.getByRole('button', { name: 'Contents' })]) {
+      await button.click({ trial: true });
+      bounds.push((await button.boundingBox())!);
+    }
+    expect(bounds[0]!.x + bounds[0]!.width).toBeLessThanOrEqual(bounds[1]!.x);
+    expect(bounds[1]!.x + bounds[1]!.width).toBeLessThanOrEqual(bounds[2]!.x);
+    expect(bounds[2]!.x + bounds[2]!.width).toBeLessThanOrEqual(width);
+    await expect(pill).toHaveCount(0);
+  }
+  await reconnect.click();
+  await expect(cold.getByRole('status').filter({ hasText: 'Still offline. You can keep reading.' })).toBeVisible();
+  await expect(reader.locator('iframe').first()).toBeVisible();
 });
 
 test('cold start, pick a profile, review offline reading and upload the selected kinds separately', async ({ page, context, server }) => {

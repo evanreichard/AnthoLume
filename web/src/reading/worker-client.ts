@@ -1,7 +1,6 @@
 export class OfflineShellError extends Error {}
 
 export class WorkerCoordinator {
-  private shellFailed = false;
   error: string | null = null;
   private dead = false;
   private checking?: Promise<void>;
@@ -12,33 +11,35 @@ export class WorkerCoordinator {
 
   connect(): Promise<void> {
     if (this.dead || !('serviceWorker' in navigator)) return Promise.resolve();
+    return this.prepareRegistration().catch(() => {
+      if (this.dead || this.error) return;
+      this.error = 'Could not update the offline app. You can still read online.'; this.changed();
+    });
+  }
+
+  private prepareRegistration() {
     return this.checking ??= this.register().finally(() => { this.checking = undefined; });
   }
 
   private async register() {
-    try {
-      const root = new URL('/', location.href).href;
-      const script = new URL('sw.js', root).href;
-      const registration = await navigator.serviceWorker.getRegistration(root);
-      if (this.dead) return;
-      if (!registration && !import.meta.env.DEV) {
-        await navigator.serviceWorker.register(script, { scope: '/', updateViaCache: 'none' });
-      } else if (registration?.scope === root && navigator.onLine) {
-        const worker = registration.installing ?? registration.waiting ?? registration.active;
-        if (worker?.scriptURL === script) {
-          try { await registration.update(); }
-          catch (error) {
-            // Offline Updates - A failed check for a newer script does not invalidate the installed worker.
-            if (registration.active?.scriptURL !== script) throw error;
-          }
+    const root = new URL('/', location.href).href;
+    const script = new URL('sw.js', root).href;
+    const registration = await navigator.serviceWorker.getRegistration(root);
+    if (this.dead) return;
+    if (!registration && !import.meta.env.DEV) {
+      await navigator.serviceWorker.register(script, { scope: '/', updateViaCache: 'none' });
+    } else if (registration?.scope === root && navigator.onLine) {
+      const worker = registration.installing ?? registration.waiting ?? registration.active;
+      if (worker?.scriptURL === script) {
+        try { await registration.update(); }
+        catch (error) {
+          // Offline Updates - A failed check for a newer script does not invalidate the installed worker.
+          if (registration.active?.scriptURL !== script) throw error;
         }
       }
-      if (!this.dead && !this.shellFailed && this.error !== null) {
-        this.error = null; this.changed();
-      }
-    } catch {
-      if (this.dead || this.error) return;
-      this.error = 'Could not update the offline app. You can still read online.'; this.changed();
+    }
+    if (!this.dead && this.error !== null) {
+      this.error = null; this.changed();
     }
   }
 
@@ -47,14 +48,12 @@ export class WorkerCoordinator {
       external.throwIfAborted();
       if (import.meta.env.DEV) throw new Error('Save to Device is unavailable in hot-reload mode. Stop the hot server and run make dev for offline testing.');
       if (!('serviceWorker' in navigator)) throw new Error('Save to Device requires service workers. Open the app on localhost or HTTPS in a browser that supports them.');
-      await this.connect();
+      try { await this.prepareRegistration(); }
+      catch { throw new Error('Could not prepare the offline app. Check your connection and try again.'); }
       await this.checkShell(external);
-      this.shellFailed = false;
-      if (this.error) { this.error = null; this.changed(); }
     } catch (error) {
       external.throwIfAborted();
       const message = error instanceof Error ? error.message : 'Could not prepare the offline app.';
-      this.shellFailed = true; this.error = message; this.changed();
       throw new OfflineShellError(message);
     }
   }
@@ -79,11 +78,6 @@ export class WorkerCoordinator {
         if (!signal.aborted) registration.active?.postMessage('verify-shell', [channel.port2]);
       }).catch(abort);
     });
-  }
-  async apply() {
-    if (!this.shellFailed) return this.connect();
-    try { await this.ensureOfflineShell(new AbortController().signal); }
-    catch (error) { if (!(error instanceof OfflineShellError)) throw error; }
   }
   dispose() { this.dead = true; }
 }

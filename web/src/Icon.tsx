@@ -1,8 +1,8 @@
-type Name = 'minus' | 'more' | 'kept' | 'down' | 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'device' | 'device-saved' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'user' | 'warning' | 'folder' | 'up' | 'forward' | 'refresh' | 'sign-out' | 'upload' | 'info';
+export type IconName = 'minus' | 'more' | 'kept' | 'down' | 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'cloud-off' | 'device' | 'device-saved' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'user' | 'warning' | 'folder' | 'up' | 'forward' | 'refresh' | 'sign-out' | 'upload' | 'info';
 
 const device = 'M6 2.5h12A1.5 1.5 0 0 1 19.5 4v16a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 20V4A1.5 1.5 0 0 1 6 2.5z M10.5 18.5h3';
 
-const paths: Record<Name, string> = {
+const paths: Record<IconName, string> = {
   more: 'M4 12h.1m7.9 0h.1m7.9 0h.1',
   kept: 'M15 20H5V3h13v8 M8 6h7 M10 17h1 m3-1 2.5 2.5L22 13',
   down: 'm6 9 6 6 6-6',
@@ -20,6 +20,7 @@ const paths: Record<Name, string> = {
   check: 'm5 12 4 4L19 6',
   warning: 'M10.3 4.4a2 2 0 0 1 3.4 0l7.9 13.2a2 2 0 0 1-1.7 3H4.1a2 2 0 0 1-1.7-3z M12 9v4m0 3.5h.01',
   cloud: 'M7 18a4 4 0 0 1-.5-8A5.5 5.5 0 0 1 17 9a4.5 4.5 0 1 1 1.5 9Z',
+  'cloud-off': 'm3 3 18 18 M7 7a6 6 0 0 0-1 3 4 4 0 0 0 1 8h11 M11 5a6 6 0 0 1 6 4 4.5 4.5 0 0 1 3.8 7',
   device,
   'device-saved': `${device} M8.5 10.5 11 13l4.8-5`,
   user: 'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM5 20v-1a7 7 0 0 1 14 0v1',
@@ -34,6 +35,6 @@ const paths: Record<Name, string> = {
   contents: 'M8 6h12 M8 12h12 M8 18h12 M4 6h.01 M4 12h.01 M4 18h.01',
 };
 
-export function Icon({ name, size = 20 }: { name: Name; size?: number }) {
+export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d={paths[name]} /></svg>;
 }

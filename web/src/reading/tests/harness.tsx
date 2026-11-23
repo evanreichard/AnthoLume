@@ -19,6 +19,7 @@ import { elementFromKO, primaryElementFromKO, koFromElement } from '../codec';
 import { ReaderWakeLock } from '../wake-lock';
 import { ReadingProvider, useReading } from '../provider';
 import { ReaderScreen } from '../ReaderScreen';
+import { SnackbarProvider } from '../../Snackbar';
 import type { BookRef, Checkpoint, ReadingBridge, ReadingAccess, S } from '../types';
 const root = createRoot(document.getElementById('root')!);
 async function checkArchive(bytes: ArrayBuffer, signal?: AbortSignal) { const source = blobSource(new Blob([bytes])), index = await sourceTask<ZipIndex>(source, 'index', undefined, signal), reader = new ArchiveReader(source, index, signal); for (const entry of index.entries) await reader.bytes(entry.name); return reader; }
@@ -29,7 +30,7 @@ async function accountTurn(repo: Repository, ref: Extract<BookRef, {kind: 'serve
 const testAPI = { seedLegacyLibrary, legacyLibrary, accountTurn, ReadingRuntime, stagingWorkers, ArchiveReader, blobSource, hashSource, sourceTask, sourceStats, sourceLimits, sourceScheduler, JSZip, zipFlags, activityEvent, ReadingHTTPError, ReaderController, lifecycle, validateEPUB, Repository, ReadingDB, Replay, checksum, checkArchive, requireStableBody, elementFromKO, primaryElementFromKO, koFromElement, ReaderWakeLock,
   unmount: () => root.render(null),
   project: (access: ReadingAccess, bridge: ReadingBridge) => flushSync(() => root.render(<ReadingProvider access={access} bridge={bridge} onSessionExpired={() => {}}><Projection /></ReadingProvider>)),
-  mount: (bridge: ReadingBridge, book: BookRef, access: ReadingAccess = { kind: 'anonymous' }) => root.render(<StrictMode><ReadingProvider access={access} bridge={bridge} onSessionExpired={() => {}}><ReaderScreen book={book} onClose={() => root.render(null)} /></ReadingProvider></StrictMode>),
+  mount: (bridge: ReadingBridge, book: BookRef, access: ReadingAccess = { kind: 'anonymous' }) => root.render(<StrictMode><ReadingProvider access={access} bridge={bridge} onSessionExpired={() => {}}><SnackbarProvider><ReaderScreen book={book} onClose={() => root.render(null)} /></SnackbarProvider></ReadingProvider></StrictMode>),
 };
 Object.assign(window, { readingTest: testAPI });
 declare global { interface Window { readingTest: typeof testAPI } }

@@ -154,7 +154,7 @@ export class ReadingRuntime implements ReadingActions {
       Object.assign(opened.row, await this.repo.applyServerState(ref, state, external));
     }
     check();
-    await this.repo.keepSource(opened.row.sourceId!, external);
+    await this.repo.keepSource(opened.row.sourceId!, external, policy.mode);
     return { ...opened, mode: policy.mode, deviceId: device.id,
       save: (checkpoint: Checkpoint, activity?: S['ActivityEvent']) => this.saveTurn(ref, policy, checkpoint, activity, external) };
   }
@@ -279,6 +279,6 @@ export class ReadingRuntime implements ReadingActions {
     const pending = await this.repo.pending(accountKey(access.account));
     if (this.access === access && navigator.onLine && pending.some(event => !event.rejected)) { this.failures = this.sync.status === 'retryable-error' ? this.failures + 1 : 0; this.schedule(Math.min(60000, 1000 * 2 ** Math.min(this.failures, 6)) + Math.random() * 500); }
   }
-  applyUpdate = () => this.worker.apply();
+  applyUpdate = () => this.worker.connect();
   dispose() { this.disposed = true; this.accountAccess.abort(); this.sync.stop(); for (const [job] of this.jobs) job.abort(); clearTimeout(this.timer); this.stopObserving?.(); this.worker.dispose(); window.removeEventListener('online', this.foreground); document.removeEventListener('visibilitychange', this.foreground); void this.accessTail.finally(() => this.repo.db.close()); }
 }

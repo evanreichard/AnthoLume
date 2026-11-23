@@ -1,39 +1,62 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { OfflineShellError, useReading, type BookRef } from './reading';
 import { Button } from './Controls';
 import { Dialog, ErrorNotice } from './ui';
 import { Icon } from './Icon';
+import { bookKey } from './library';
+import { useSnackbar } from './Snackbar';
 import styles from './OfflineReading.module.css';
 
 type ServerBook = Extract<BookRef, { kind: 'server' }>;
 type Metadata = { title: string | null; author: string | null };
+type DownloadAction = { kind: 'save'; metadata: Metadata } | { kind: 'remove' };
 
-export function useBookDownload(book: ServerBook | null) {
+export function useBookDownload(book: ServerBook | null, canSave: boolean) {
   const reading = useReading();
+  const key = book ? bookKey(book) : null;
+  const copy = book ? reading.deviceCopies?.get(book.documentId) : undefined;
+  const confirmation = useSnackbar(key ?? undefined);
+  const retryNotice = useSnackbar(JSON.stringify([key, copy, canSave, reading.ready]));
   const controller = useRef<AbortController | null>(null);
-  const [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState<unknown>(null);
-  useEffect(() => () => controller.current?.abort(), []);
-  async function run(action: (book: ServerBook, signal: AbortSignal) => Promise<void>) {
-    if (!book || controller.current || !reading.ready) return;
+  const [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false), [removalError, setRemovalError] = useState<unknown>(null);
+  useLayoutEffect(() => {
+    setConfirm(false); setBusy(false); setRemovalError(null);
+    return () => { controller.current?.abort(); controller.current = null; };
+  }, [key]);
+  async function run(action: DownloadAction) {
+    if (!book || controller.current || !reading.ready || (action.kind === 'save' && (!canSave || copy === 'saved'))) return;
     const operation = controller.current = new AbortController();
-    setBusy(true); setError(null);
-    try { await action(book, operation.signal); setConfirm(false); }
-    catch (failure) { if (!operation.signal.aborted && !(failure instanceof OfflineShellError)) setError(failure); }
-    finally {
-      if (!operation.signal.aborted) setBusy(false);
-      operation.abort(); controller.current = null;
+    const { signal } = operation;
+    retryNotice.dismiss(); confirmation.dismiss(); setBusy(true); setRemovalError(null);
+    try {
+      if (action.kind === 'save') {
+        await reading.saveToDevice(book, signal, action.metadata);
+        if (!signal.aborted) confirmation.show({ message: 'Saved to device', icon: 'check' });
+      } else await reading.removeFromDevice(book, signal);
+      if (!signal.aborted) setConfirm(false);
+    } catch (failure) {
+      if (signal.aborted) return;
+      if (action.kind === 'remove') setRemovalError(failure);
+      else retryNotice.show({
+        message: failure instanceof OfflineShellError ? `Couldn’t save for offline reading. ${failure.message}` : 'Couldn’t save for offline reading.',
+        tone: 'error',
+        action: { label: 'Retry', onClick: () => void run(action) },
+      });
+    } finally {
+      if (controller.current === operation) { controller.current = null; setBusy(false); }
+      operation.abort();
     }
   }
   return {
-    copy: book ? reading.deviceCopies?.get(book.documentId) : undefined,
+    copy,
     busy,
     disabled: busy || !reading.ready,
-    error,
+    removalError,
     confirm,
-    save: (metadata: Metadata) => void run((ref, signal) => reading.saveToDevice(ref, signal, metadata)),
-    askToRemove: () => { setError(null); setConfirm(true); },
-    cancel: () => { if (!busy) { setConfirm(false); setError(null); } },
-    remove: () => void run((ref, signal) => reading.removeFromDevice(ref, signal)),
+    save: ({ title, author }: Metadata) => void run({ kind: 'save', metadata: { title, author } }),
+    askToRemove: () => { retryNotice.dismiss(); confirmation.dismiss(); setRemovalError(null); setConfirm(true); },
+    cancel: () => { if (!busy) { setConfirm(false); setRemovalError(null); } },
+    remove: () => void run({ kind: 'remove' }),
   };
 }
 
@@ -42,11 +65,11 @@ export function DownloadRemovalDialog({ download }: { download: ReturnType<typeo
   return <Dialog title="Remove this download?" onClose={download.cancel} footer={<>
     <Button disabled={download.busy} onClick={download.cancel}>Cancel</Button>
     <Button tone="primary" disabled={download.busy} onClick={download.remove}>Remove from Device</Button>
-  </>}><p>This removes the offline copy for all profiles on this device. Your reading progress and activity are kept.</p><ErrorNotice error={download.error} /></Dialog>;
+  </>}><p>This removes the offline copy for all profiles on this device. Your reading progress and activity are kept.</p><ErrorNotice error={download.removalError} /></Dialog>;
 }
 
 export function BookDownloadActions({ book, metadata, canSave = true }: { book: ServerBook; metadata: Metadata; canSave?: boolean }) {
-  const download = useBookDownload(book);
+  const download = useBookDownload(book, canSave);
   const menu = useRef<HTMLDetailsElement>(null);
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -75,7 +98,6 @@ export function BookDownloadActions({ book, metadata, canSave = true }: { book: 
         {download.copy && <button type="button" disabled={download.disabled} onClick={() => { closeMenu(); download.askToRemove(); }}><Icon name="minus" size={17} />Remove from Device</button>}
       </div>
     </details>
-    {!download.confirm && <ErrorNotice error={download.error} />}
     <DownloadRemovalDialog download={download} />
   </>;
 }

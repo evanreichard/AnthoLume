@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { Account, BookRef, Checkpoint, ReaderCacheSummary, ReviewDecision, OfflineChoice, OfflineRecord, ReadingAccess, S, StoredBook } from './types';
-import { accountKey, refKey } from './types';
+import { accountKey, NoOfflineCopyError, refKey } from './types';
 import { blobSource, hashSource, sourceLimits, type Source } from './source';
 import { validateEPUB } from './content-policy';
 import type { BookManifest } from './book-manifest';
@@ -337,13 +337,15 @@ export class Repository {
       return position;
     });
   }
-  async keepSource(id: string, signal: AbortSignal) {
+  async keepSource(id: string, signal: AbortSignal, mode: TurnPolicy['mode'] = 'account') {
     signal.throwIfAborted();
+    const retired = (message: string) => mode === 'device' ? new NoOfflineCopyError(message) : new Error(message);
     const reader = crypto.randomUUID();
     const update = (release = false) => this.db.transaction('rw', this.db.sources, this.db.sourceChunks, async () => {
       const row = await this.db.sources.get(id);
-      if (!row?.complete) { if (release) return; throw new Error('Cached original was evicted; reopen to download again'); }
-      if (row.evictOnRelease && !release && !row.cacheReaders?.[reader]) throw new Error('Cached original was cleared; reopen to download again');
+      if (!row) { if (release) return; throw retired('Cached original was evicted; reopen to download again'); }
+      if (!row.complete) { if (release) return; throw new Error('Original source/index unavailable'); }
+      if (row.evictOnRelease && !release && !row.cacheReaders?.[reader]) throw retired('Cached original was cleared; reopen to download again');
       const now = Date.now(), readers = Object.fromEntries(Object.entries(row.cacheReaders ?? {}).filter(([key, until]) => key !== reader && until > now));
       if (!release) {
         if (Object.keys(readers).length >= 32) throw new Error('Too many readers for this EPUB');
@@ -453,10 +455,17 @@ export class Repository {
     const key = refKey(ref);
     const { row, source } = await this.db.transaction('r', [this.db.downloads, this.db.positions, this.db.sources, this.db.offline, this.db.heads], async () => {
       const copy = await this.db.downloads.get(downloadKey(ref));
-      if (!copy) throw new Error('Book not on this device');
-      const position = mode === 'source' ? undefined : await this.db.positions.get(key);
+      if (!copy) {
+        if (mode === 'device') throw new NoOfflineCopyError('Book not on this device');
+        throw new Error('Book not on this device');
+      }
       const source = await this.db.sources.get(copy.sourceId);
-      if (!source?.complete || source.evictOnRelease || source.key !== copy.key) throw new Error('Original source/index unavailable');
+      if (!source?.complete || source.key !== copy.key) throw new Error('Original source/index unavailable');
+      if (source.evictOnRelease) {
+        if (mode === 'device') throw new NoOfflineCopyError('Book not on this device');
+        throw new Error('Original source/index unavailable');
+      }
+      const position = mode === 'source' ? undefined : await this.db.positions.get(key);
       const row = mode === 'device'
         ? this.offlineView(ref, copy, position, await this.db.heads.get(key), await this.offlineProgress(ref).first(), source)
         : bookView(ref, copy, position, source);

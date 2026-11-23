@@ -33,7 +33,6 @@ export function BookDetail() {
 function BookDetailContent() {
   const ref = useBookRef();
   const reading = useReading();
-  const download = useBookDownload(ref?.kind === 'server' ? ref : null);
   const { access, capabilities } = useSession();
   const menuId = useId();
   const menu = useRef<HTMLDivElement>(null);
@@ -66,6 +65,7 @@ function BookDetailContent() {
       return session.api.document(ref.account, ref.documentId, signal);
     },
   });
+  const download = useBookDownload(ref?.kind === 'server' ? ref : null, !!document.data?.file_available);
   const state = useQuery({
     queryKey: ['reading-state', ref],
     enabled: ref?.kind === 'server' && access.kind === 'authenticated',
@@ -155,7 +155,6 @@ function BookDetailContent() {
         </div>
       </div>} />
     <div className={styles.bookOverview}>
-      {!download.confirm && <ErrorNotice error={download.error} />}
       <BookHero variant="detail" book={{ ...book, title }} headingRef={heading} progress={started ? Math.round(fraction * 100) : null} series={metadata?.series} edition={edition?.[2]}
         action={metadata?.file_available ? (started ? 'Resume' : 'Read') : null} />
       {fileUnavailable && <div className={styles.bookFileWarning} role="status">

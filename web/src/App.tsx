@@ -18,6 +18,7 @@ import { Icon } from './Icon';
 import { Brand } from './Brand';
 import { OfflinePicker, OfflineReview } from './OfflineReading';
 import { WorkerRecovery } from './WorkerRecovery';
+import { SnackbarProvider } from './Snackbar';
 import { authPath, legacyDocument, retirementDestination } from './retirement';
 import styles from './App.module.css';
 
@@ -81,7 +82,7 @@ function Shell() {
     if (!reader && showShell) document.title = `AnthoLume · ${location.pathname.startsWith('/settings') ? 'Settings' : location.pathname.startsWith('/insights') ? 'Insights' : 'Library'}`;
   }, [location.pathname, reader, showShell]);
   if (!showShell) return <Outlet />;
-  return <div className={`${styles.shell} ${reader ? styles.readerShell : ''}`}>
+  return <SnackbarProvider><div className={`${styles.shell} ${reader ? styles.readerShell : ''}`}>
       <a className={styles.skip} href="#content">Skip to content</a>
       {access.kind !== 'offline' && <aside className={styles.rail}>
         <Link to="/library" className={styles.brand}><Brand /></Link>
@@ -93,16 +94,16 @@ function Shell() {
       </aside>}
     <div className={access.kind === 'offline' ? styles.offlineWorkspace : styles.workspace}>
       <main id="content" className={styles.main}>
-        <div className={reader ? styles.readerRecovery : undefined}>
+        <div className={reader ? styles.readerReview : undefined}>
           {reading.error && !reader && <ErrorNotice error={reading.error} />}
           {reading.notice && !reader && <p role="status" className={styles.notice}>{reading.notice}</p>}
           {access.kind === 'authenticated' && reading.ready && <OfflineReview key={JSON.stringify(access.account)} account={access.account} />}
-          <WorkerRecovery duringReading={reader} />
+          {!reader && <WorkerRecovery />}
         </div>
         <Outlet />
       </main>
     </div>
-  </div>;
+  </div></SnackbarProvider>;
 }
 function RouteError() {
   const error = useRouteError();

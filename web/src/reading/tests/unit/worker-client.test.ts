@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { WorkerCoordinator } from '../../worker-client';
+import { OfflineShellError, WorkerCoordinator } from '../../worker-client';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 test('an update failure without an active shell shows recovery until retry succeeds', async () => {
   const root = 'https://reader.example/';
@@ -21,8 +21,23 @@ test('an update failure without an active shell shows recovery until retry succe
   await checking;
   expect(worker.error).toContain('You can still read online');
 
-  await worker.apply();
+  await worker.connect();
   expect(worker.error).toBeNull();
   expect(states).toEqual(['error', 'idle']);
   expect(getRegistration).toHaveBeenCalledWith(root);
+});
+
+test('a registration failure requested only by Save to Device returns to its caller without publishing recovery', async () => {
+  const root = 'https://reader.example/';
+  vi.stubEnv('DEV', false);
+  vi.stubGlobal('location', { href: `${root}app/` });
+  vi.stubGlobal('navigator', { serviceWorker: { getRegistration: async () => { throw new Error('registration failed'); } } });
+  const states: (string | null)[] = [];
+  const worker = new WorkerCoordinator(() => { states.push(worker.error); });
+
+  const checking = worker.ensureOfflineShell(new AbortController().signal);
+  await expect(checking).rejects.toBeInstanceOf(OfflineShellError);
+  await expect(checking).rejects.toThrow('Could not prepare the offline app. Check your connection and try again.');
+  expect(worker.error).toBeNull();
+  expect(states).toEqual([]);
 });
