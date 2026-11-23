@@ -1,8 +1,9 @@
 import { ButtonLink } from './Controls';
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react';
+import { useEffect, useEffectEvent, useId, useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import type { BookRef } from './reading';
+import { readCover, useReading, type BookRef } from './reading';
+import { sameAccount } from './api/client';
 import { bookKey, bookPath, type LibraryBook } from './library';
 import { session, useSession } from './session';
 import styles from './App.module.css';
@@ -55,7 +56,7 @@ export function Dialog({ title, children, onClose, size = 'default', layout = 'c
     const rect = event.currentTarget.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom) onClose();
   } }} aria-labelledby={titleId}>
-    <header className={styles.dialogHeader}>{titleLeading ? <div className={styles.dialogTitleGroup}>{titleLeading}{heading}</div> : heading}<button type="button" className={styles.icon} onClick={onClose} aria-label="Close dialog">×</button></header>
+    <header className={styles.dialogHeader}>{titleLeading ? <div className={styles.dialogTitleGroup}>{titleLeading}{heading}</div> : heading}<button type="button" className={styles.icon} onClick={onClose} aria-label="Close Dialog">×</button></header>
     {toolbar != null && <div className={styles.dialogToolbar}>{toolbar}</div>}
     {layout === 'scroll-body' ? <div className={styles.dialogBody}>{children}</div> : children}
     {footer != null && <footer className={styles.dialogFooter}>{footer}</footer>}
@@ -80,6 +81,7 @@ export function Cover({ book, sourceId, warningId, thumbnail = false }: {
 }) {
   const { access } = useSession();
   const [localURL, setLocalURL] = useState<string | null>(null);
+  const { cacheCover, deviceCopies, ready } = useReading();
   const cover = book.stored?.cover;
   useEffect(() => {
     if (!cover) { setLocalURL(null); return; }
@@ -88,33 +90,23 @@ export function Cover({ book, sourceId, warningId, thumbnail = false }: {
     return () => URL.revokeObjectURL(url);
   }, [cover]);
   const ref = book.ref;
-  const authenticated = access.kind === 'authenticated' && ref.kind === 'server' && access.account.userId === ref.account.userId && access.account.origin === ref.account.origin;
+  const authenticated = access.kind === 'authenticated' && ref.kind === 'server' && sameAccount(access.account, ref.account);
   const remote = useQuery({
     queryKey: ['cover', ref],
     enabled: authenticated && !!book.document?.cover_available,
     queryFn: async ({ signal }) => {
       if (ref.kind !== 'server') throw new Error('Not a server book');
-      const response = await session.api.bridge.fetchCover(ref.account, ref.documentId, signal);
-      if (!response.ok || !response.headers.get('content-type')?.startsWith('image/')) throw new Error('Cover unavailable');
-      const length = Number(response.headers.get('content-length'));
-      if (length > 8 * 1024 * 1024) { await response.body?.cancel(); throw new Error('Cover too large'); }
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('Cover unavailable');
-      const parts: Uint8Array<ArrayBuffer>[] = [];
-      let bytes = 0;
-      try {
-        while (true) {
-          const part = await reader.read();
-          if (part.done) break;
-          bytes += part.value.length;
-          if (bytes > 8 * 1024 * 1024) throw new Error('Cover too large');
-          parts.push(new Uint8Array(part.value));
-        }
-      } catch (error) { await reader.cancel(); throw error; }
-      if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
-      return new Blob(parts, { type: response.headers.get('content-type')! });
+      return readCover(await session.api.bridge.fetchCover(ref.account, ref.documentId, signal), signal);
     },
   });
+  const storeCover = useEffectEvent((blob: Blob) => {
+    if (ref.kind === 'server') void cacheCover(ref, blob);
+  });
+  const canBackfill = authenticated && ready && !!book.document?.cover_available && deviceCopies?.has(ref.documentId) && !cover;
+  const key = bookKey(ref);
+  useEffect(() => {
+    if (canBackfill && remote.data) storeCover(remote.data);
+  }, [canBackfill, key, remote.data]);
   const [remoteURL, setRemoteURL] = useState<string | null>(null);
   useEffect(() => {
     if (!remote.data || !authenticated) { setRemoteURL(null); return; }
@@ -140,6 +132,7 @@ export function Cover({ book, sourceId, warningId, thumbnail = false }: {
     {warningId && book.document?.file_available === false && <span id={warningId} className={styles.coverWarning} role="img" aria-label={missingFileLabel} title={missingFileLabel}><Icon name="warning" size={17} /></span>}
     <div className={styles.coverBadges}>
       <span id={sourceId} className={styles.provenance} role="img" aria-label={sourceLabel} title={sourceLabel}><Icon name={ref.kind === 'local' ? 'device' : 'cloud'} size={14} /></span>
+      {ref.kind === 'server' && deviceCopies?.get(ref.documentId) === 'saved' && <span role="img" aria-label="Saved to device" title="Saved to device"><Icon name="kept" size={16} /></span>}
     </div>
   </div>;
 }
@@ -173,10 +166,10 @@ export function BookHero(props: BookHeroProps) {
   </section>;
 }
 
-export function BookCard({ book, children, linkState }: { book: LibraryBook; children?: ReactNode; linkState?: { librarySearch: string } }) {
+export function BookCard({ book, children, linkState, action = 'books' }: { book: LibraryBook; children?: ReactNode; action?: 'books' | 'read'; linkState?: { librarySearch: string } }) {
   const id = useId();
   return <article className={styles.card}>
-    <Link to={bookPath(book.ref)} state={linkState} className={styles.bookLink} aria-labelledby={`${id}-source ${id}-title ${id}-author`} aria-describedby={book.document?.file_available === false ? `${id}-warning` : undefined}>
+    <Link to={bookPath(book.ref, action)} state={linkState} className={styles.bookLink} aria-labelledby={`${id}-source ${id}-title ${id}-author`} aria-describedby={book.document?.file_available === false ? `${id}-warning` : undefined}>
       <Cover book={book} thumbnail sourceId={`${id}-source`} warningId={`${id}-warning`} />
       <div>
         <h2 id={`${id}-title`} className={styles.cardTitle}>{book.title || 'Untitled'}</h2>

@@ -19,7 +19,8 @@ export type ReaderSnapshot = { ko: string; cfi: string; chapter: string; page: n
 export type { CapturedActivity } from './activity';
 export type Appearance = { size: number; font: string; theme: 'light' | 'tan' | 'blue' | 'gray' | 'black' };
 export const palette = { light: ['#ffffff', '#202020'], tan: ['#f3ead5', '#392e21'], blue: ['#dce7ef', '#203747'], gray: ['#35383d', '#eeeeee'], black: ['#121212', '#dddddd'] } as const;
-export type ReaderStatus = { state: 'opening' | 'ready' | 'error'; message: string; location?: ReaderSnapshot; canGoBack?: boolean; toc?: { label: string; href: string }[]; diagnostics?: ReturnType<ReaderController['diagnostics']> };
+type ReaderPhase = { state: 'opening' | 'ready' } | { state: 'error'; failure: 'general' | 'no-offline-copy' | 'saved-position' };
+export type ReaderStatus = ReaderPhase & { message: string; location?: ReaderSnapshot; canGoBack?: boolean; toc?: { label: string; href: string }[]; diagnostics?: ReturnType<ReaderController['diagnostics']> };
 
 export class ReaderController {
   private dead = false;
@@ -46,14 +47,14 @@ export class ReaderController {
   private contentCleanup = new Map<Document, () => void>();
   private passiveLinks = new WeakMap<Element, string>();
   private key = (event: KeyboardEvent) => {
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || document.querySelector('dialog:modal')) return;
     if (event.key === 'ArrowRight') void this.next();
     if (event.key === 'ArrowLeft') void this.previous();
     if (event.key.toLowerCase() === 't') this.options.cycleTheme?.();
     if (event.key.toLowerCase() === 'c' && !event.altKey && !event.ctrlKey && !event.metaKey) this.options.chrome?.('focus');
     if (event.key === 'Escape') this.options.chrome?.('hide');
   };
-  constructor(host: HTMLElement, private status: (value: ReaderStatus) => void, private publish: (location: ReaderSnapshot, activity?: CapturedActivity) => Promise<void>, private options: { localOnly?: boolean; parentGestures?: boolean; resizeText?: (scale: number, finished: boolean) => void; credit?: (activity: CapturedActivity) => Promise<void>; cycleTheme?: () => void; interact?: () => void; chrome?: (action: 'show' | 'toggle' | 'focus' | 'hide') => void } = {}) {
+  constructor(host: HTMLElement, private status: (value: ReaderStatus) => void, private publish: (location: ReaderSnapshot, activity?: CapturedActivity) => Promise<void>, private options: { localOnly?: boolean; parentGestures?: boolean; resizeText?: (scale: number, finished: boolean) => void; cycleTheme?: () => void; interact?: () => void; chrome?: (action: 'show' | 'toggle' | 'focus' | 'hide') => void } = {}) {
     this.lifetime.signal.addEventListener('abort', () => this.readerFonts.dispose(), { once: true });
     this.host = document.createElement('div');
     this.host.style.height = '100%';
@@ -67,7 +68,7 @@ export class ReaderController {
       if (this.dead) return;
       try { await action(); } finally { this.releaseInactive(); }
     });
-    this.tail = result.catch(error => { this.readyToInteract = false; this.send({ state: 'error', message: String(error), location: this.location, toc: this.tocItems(), diagnostics: this.diagnostics() }); });
+    this.tail = result.catch(error => { this.readyToInteract = false; this.send({ state: 'error', failure: 'general', message: String(error), location: this.location, toc: this.tocItems(), diagnostics: this.diagnostics() }); });
     return this.tail as Promise<void>;
   }
   open(input: Source | Blob | ArrayBuffer, saved?: string, signal?: AbortSignal, manifest?: BookManifest, appearance?: Appearance) {
@@ -148,7 +149,7 @@ export class ReaderController {
         const result = await toCFI(book, saved);
         if (!result.ok) {
           const message = result.phase === 'chapter' ? `Could not load the saved chapter: ${result.reason}` : `Saved location unavailable; original retained: ${saved}`;
-          this.send({ state: 'error', message });
+          this.send({ state: 'error', failure: result.phase === 'position' ? 'saved-position' : 'general', message });
           return;
         }
         target = result.cfi;
@@ -194,12 +195,6 @@ export class ReaderController {
       if (mode === 'back' && !this.jumpHistory.length) return;
       if (!this.rendition || !this.location) throw new Error('Reader not ready; fallback requires explicit reopen');
       const activity = mode === 'forward' ? await this.captureActivity() : undefined;
-      if (activity && this.options.credit) {
-        await this.options.credit(activity);
-        // Interval Consumption - A committed credit survives engine/checkpoint failure; it is not available for another event.
-        this.pageStart = activity.endMs;
-        this.pendingActivity = undefined;
-      }
       this.options.interact?.();
       this.readyToInteract = false;
       this.send({ state: 'opening', message: 'Updating book layout', location: this.location, toc: this.tocItems() });
@@ -220,7 +215,7 @@ export class ReaderController {
       }
       if (this.dead) return;
       if (logical?.ko && this.location) this.location = { ...this.location, ko: logical.ko, cfi: logical.cfi };
-      await this.publish(this.location!, this.options.credit ? undefined : activity);
+      await this.publish(this.location!, activity);
       if (mode === 'back') this.jumpHistory.pop();
       else if (mode === 'jump' && previous.ko !== this.location!.ko) {
         this.jumpHistory.push({ ko: previous.ko, cfi: previous.cfi });

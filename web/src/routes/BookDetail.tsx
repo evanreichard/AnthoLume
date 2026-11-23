@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useReading } from '../reading';
@@ -6,6 +6,7 @@ import { bookKey, combineBooks } from '../library';
 import { queryClient, session, useSession } from '../session';
 import { BookHero, Dialog, ErrorNotice, missingFileLabel, PageHeader } from '../ui';
 import { Icon } from '../Icon';
+import { DownloadRemovalDialog, useBookDownload } from '../BookDownloadActions';
 import { BookEditor } from './BookEditor';
 import { IdentifyBook } from './IdentifyBook';
 import { useBookRef } from './bookRef';
@@ -33,6 +34,20 @@ function BookDetailContent() {
   const ref = useBookRef();
   const reading = useReading();
   const { access, capabilities } = useSession();
+  const menuId = useId();
+  const menu = useRef<HTMLDivElement>(null);
+  const more = useRef<HTMLButtonElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!menuOpen) return;
+    menu.current?.querySelector('button')?.focus({ preventScroll: true });
+    function dismiss(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && !menu.current?.contains(target) && !more.current?.contains(target)) setMenuOpen(false);
+    }
+    window.addEventListener('pointerdown', dismiss);
+    return () => window.removeEventListener('pointerdown', dismiss);
+  }, [menuOpen]);
   const navigate = useNavigate();
   const librarySearch = useLocation().state?.librarySearch;
   const library = typeof librarySearch === 'string' && librarySearch ? `/library?${librarySearch}` : '/library';
@@ -50,6 +65,7 @@ function BookDetailContent() {
       return session.api.document(ref.account, ref.documentId, signal);
     },
   });
+  const download = useBookDownload(ref?.kind === 'server' ? ref : null, !!document.data?.file_available);
   const state = useQuery({
     queryKey: ['reading-state', ref],
     enabled: ref?.kind === 'server' && access.kind === 'authenticated',
@@ -69,6 +85,11 @@ function BookDetailContent() {
     void queryClient.invalidateQueries({ queryKey: ['library-resume'] });
     void queryClient.invalidateQueries({ queryKey: ['insight-activity'] });
     void queryClient.invalidateQueries({ queryKey: ['insight-progress'] });
+  }
+  async function metadataSaved(updated: { title: string | null; author: string | null }, cover?: Blob | null) {
+    if (ref?.kind === 'server') await reading.updateDownloadMetadata(ref, { title: updated.title, author: updated.author }, cover);
+    refreshManagement();
+    setManagement(null);
   }
   async function deleteSharedBook() {
     if (ref?.kind !== 'server' || deleting) return;
@@ -94,18 +115,45 @@ function BookDetailContent() {
   const title = edition?.[1] ?? (book.title || 'Untitled');
   const format = metadata?.media_type === 'application/epub+zip' ? 'EPUB' : null;
   const canManage = ref.kind === 'server' && access.kind === 'authenticated' && !!document.data && !!capabilities && !capabilities.demo_mode;
+  const saved = download.copy === 'saved';
+  const removeCopy = saved || (!!download.copy && fileUnavailable);
+  const deviceLabel = saved ? 'Saved' : removeCopy ? 'Remove' : download.busy ? 'Saving' : 'Save';
+  function closeMenu() {
+    setMenuOpen(false);
+    more.current?.focus({ preventScroll: true });
+  }
+  function openManagement(action: NonNullable<typeof management>) {
+    closeMenu();
+    if (action === 'delete') setDeleteError(null);
+    setManagement(action);
+  }
   return <article className={styles.bookPage}>
     <PageHeader leading={<BackPill to={library}>Library</BackPill>}
-      actions={<JoinedActions label="Book actions">
-        {metadata?.file_available && <JoinedActionLink reloadDocument download aria-label="Download EPUB" title="Download EPUB" to={`/api/v1/documents/${encodeURIComponent(ref.documentId)}/file`}><Icon name="download" size={18} /></JoinedActionLink>}
-        <JoinedAction aria-label="Book information" title="Book information" onClick={() => setManagement('info')}><Icon name="info" size={18} /></JoinedAction>
-        <JoinedActionLink aria-label="Activity" title="Activity" to={`/insights/activity?${new URLSearchParams({ document: ref.documentId })}`}><Icon name="insights" size={18} /></JoinedActionLink>
-        {canManage && <>
-          <JoinedAction aria-label="Identify book" title="Identify book" onClick={() => setManagement('identify')}><Icon name="search" size={18} /></JoinedAction>
-          <JoinedAction aria-label="Edit book" title="Edit book" onClick={() => setManagement('edit')}><Icon name="edit" size={18} /></JoinedAction>
-          <JoinedAction tone="danger" aria-label="Delete from shared library" title="Delete from shared library" onClick={() => { setDeleteError(null); setManagement('delete'); }}><Icon name="trash" size={18} /></JoinedAction>
-        </>}
-      </JoinedActions>} />
+      actions={<div className={styles.bookActions}
+        onBlur={event => { if (menuOpen && event.relatedTarget && event.relatedTarget !== more.current && !menu.current?.contains(event.relatedTarget)) setMenuOpen(false); }}
+        onKeyDown={event => { if (menuOpen && event.key === 'Escape') { event.preventDefault(); closeMenu(); } }}>
+        <JoinedActions label="Book actions" className={styles.bookToolbar}>
+          {(metadata?.file_available || download.copy) && <JoinedAction aria-label={deviceLabel} title={deviceLabel} aria-description={removeCopy ? 'Remove the offline copy from this device' : 'Save for offline reading'} aria-haspopup={removeCopy ? 'dialog' : undefined} aria-disabled={download.disabled || undefined} aria-busy={download.busy || undefined}
+            onClick={event => {
+              if (download.disabled) return;
+              if (removeCopy) { event.currentTarget.focus(); download.askToRemove(); }
+              else download.save(book);
+            }}><Icon name={saved ? 'device-saved' : 'device'} size={20} /></JoinedAction>}
+          <JoinedActionLink aria-label="Activity" title="Activity" to={`/insights/activity?${new URLSearchParams({ document: ref.documentId })}`}><Icon name="insights" size={18} /></JoinedActionLink>
+          <JoinedAction ref={more} aria-label="More" title="More" aria-expanded={menuOpen} aria-controls={menuId} onClick={() => { if (menuOpen) closeMenu(); else setMenuOpen(true); }}><Icon name="more" size={20} /></JoinedAction>
+        </JoinedActions>
+        <div ref={menu} id={menuId} className={styles.bookActionMenu} role="group" aria-label="More actions" hidden={!menuOpen}>
+          <button type="button" aria-haspopup="dialog" onClick={() => openManagement('info')}><Icon name="info" size={18} />Info</button>
+          {metadata?.file_available && <Link reloadDocument download to={`/api/v1/documents/${encodeURIComponent(ref.documentId)}/file`} onClick={closeMenu}><Icon name="download" size={18} />Export</Link>}
+          {canManage && <>
+            <hr />
+            <button type="button" aria-haspopup="dialog" onClick={() => openManagement('identify')}><Icon name="search" size={18} />Identify</button>
+            <button type="button" aria-haspopup="dialog" onClick={() => openManagement('edit')}><Icon name="edit" size={18} />Edit</button>
+            <hr />
+            <button type="button" aria-haspopup="dialog" className={styles.bookActionDelete} onClick={() => openManagement('delete')}><Icon name="trash" size={18} />Delete</button>
+          </>}
+        </div>
+      </div>} />
     <div className={styles.bookOverview}>
       <BookHero variant="detail" book={{ ...book, title }} headingRef={heading} progress={started ? Math.round(fraction * 100) : null} series={metadata?.series} edition={edition?.[2]}
         action={metadata?.file_available ? (started ? 'Resume' : 'Read') : null} />
@@ -149,10 +197,11 @@ function BookDetailContent() {
       <p>The catalog ID is used for KOReader sync. For newly imported books, it is the KOReader partial MD5.</p>
     </Dialog>}
     {canManage && document.data && management === 'edit' &&
-      <BookEditor book={book} refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={() => { refreshManagement(); setManagement(null); }} />}
+      <BookEditor book={book} refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={metadataSaved} />}
     {canManage && document.data && management === 'identify' &&
-      <IdentifyBook refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={() => { refreshManagement(); setManagement(null); }} />}
-    {ref.kind === 'server' && access.kind === 'authenticated' && management === 'delete' && <Dialog title="Delete from shared library?" onClose={() => { if (!deleting) setManagement(null); }}>
+      <IdentifyBook refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={metadataSaved} />}
+    <DownloadRemovalDialog download={download} />
+    {canManage && management === 'delete' && <Dialog title="Delete from shared library?" onClose={() => { if (!deleting) setManagement(null); }}>
       <p>“{title}” will be removed from the shared library for everyone. The server keeps the original file and reading history. This does not remove downloads from other devices.</p>
       <ErrorNotice error={deleteError} />
       <div className={styles.actions}>

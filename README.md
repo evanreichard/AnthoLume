@@ -28,7 +28,9 @@ Docker Image: `docker pull gitea.va.reichard.io/evan/antholume:latest`
 
 ### EPUB Reader
 
-Opening or reopening a book requires a connection to the server, even if the EPUB is cached on your device. The reader can continue displaying already loaded content during a connection drop, but the app does not support offline launch or reopening.
+Sign in over HTTPS (or localhost) to cache books. In the Library, choose **••• → Save to Device** to download a book without opening it. Saved books are kept outside the automatic six-book, 768 MiB cache. **Remove from Device** clears the download for all local profiles without deleting reading records or the server book. When offline, pick a remembered profile and read any book cached from the same library. Offline profiles are passwordless, including after sign-out; **Forget on This Device** removes a profile and its unsubmitted drafts.
+
+A book opened while signed in queues progress and activity for that account, even if the connection drops. A book opened from the offline shelf stays device-only for that reading session, even after reconnecting. Sign in and choose **Upload Selected** to share those records. Review progress and activity separately for each book. Server activity covers the same dates as the offline reading. Clearing browser storage removes downloads and unsubmitted drafts.
 
 ### KOSync API
 
@@ -118,7 +120,7 @@ Goose Migrations:
 go install github.com/pressly/goose/v3/cmd/goose@latest
 ```
 
-Run `make dev` for a persistent library seeded with demo books on first launch at `http://127.0.0.1:5323`. For backup seeding, account reset, or optional Tailscale access, see [web development](web/README.md).
+Run `make dev` for a persistent library seeded with demo books on first launch at `http://localhost:5323`. For offline testing, Vite hot reload, backup seeding, and optional Tailscale access, see [web development](web/README.md).
 
 Pull requests run Go tests, the frontend build, unit tests, and a browser smoke suite. The full race, app-browser, and reader suites run monthly, on dispatch, and on tags: comment `/publish` on a same-repository pull request to build and receive a `pr-<number>-<commit>` image reference.
 

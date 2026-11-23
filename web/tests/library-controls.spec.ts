@@ -20,13 +20,13 @@ test('Library searches for literal all and Book Detail returns to the filtered L
   await expect(page.getByRole('article')).toHaveCount(1);
 });
 
-test('one named 44px Clear search clears draft and applied q, preserves sort, and returns focus to search', async ({ page, server }) => {
+test('one named 44px Clear Search clears draft and applied q, preserves sort, and returns focus to search', async ({ page, server }) => {
   await register(page, server.origin, `clear-${Date.now()}`);
   await page.goto(`${server.origin}/library?q=Public+book+01&sort=author`);
   await expect(page.getByRole('article')).toHaveCount(1);
   const search = page.getByRole('searchbox', { name: 'Search title or author', exact: true });
   await search.fill('Different unsubmitted draft');
-  const clear = page.getByRole('button', { name: 'Clear search', exact: true });
+  const clear = page.getByRole('button', { name: 'Clear Search', exact: true });
   await expect(clear).toHaveCount(1);
   const box = await clear.boundingBox();
   expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44);
@@ -58,7 +58,7 @@ test('one named 44px Clear search clears draft and applied q, preserves sort, an
 });
 
 
-test('the Library defaults to Last read and features the last shared checkpoint independently of grid sort', async ({ page, server }) => {
+test('the Library defaults to Last Read and features the last shared checkpoint independently of grid sort', async ({ page, server }) => {
   await register(page, server.origin, 'continue-reader');
   const { csrf_token, user } = await (await page.request.get(`${server.origin}/api/v1/session`)).json();
   const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': user.reading_generation };
@@ -76,13 +76,13 @@ test('the Library defaults to Last read and features the last shared checkpoint 
   await expect(feature.getByRole('link', { name: 'Resume' })).toHaveAttribute('href', /\/read\/server\?id=book_030&/);
   await expect(page.getByRole('article').first().getByRole('heading')).toHaveText('Public book 30');
   await page.getByRole('button', { name: 'Sort Books' }).click();
-  await expect(page.getByRole('button', { name: 'Last read', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Last Read', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Title A–Z', exact: true }).click();
   await expect(page.getByRole('article').first().getByRole('heading')).toHaveText('Public book 01');
   await expect(feature.getByRole('heading')).toHaveText('Public book 30');
 });
 
-test('Add book uploads to the shared library and Recently added includes it on page one', async ({ page, browser, server }) => {
+test('Add book uploads to the shared library and Recently Added includes it on page one', async ({ page, browser, server }) => {
   await register(page, server.origin, 'upload-reader');
   await page.getByRole('button', { name: 'Add Book', exact: true }).click();
   await page.getByLabel('Choose EPUB to upload').setInputFiles({
@@ -99,7 +99,7 @@ test('Add book uploads to the shared library and Recently added includes it on p
   try {
     await register(other, server.origin, 'other-upload-reader');
     await other.getByRole('button', { name: 'Sort Books', exact: true }).click();
-    await other.getByRole('button', { name: 'Recently added', exact: true }).click();
+    await other.getByRole('button', { name: 'Recently Added', exact: true }).click();
     await expect(other.getByRole('article').first().getByRole('heading')).toHaveText('ZZ Shared Upload');
   } finally { await other.close(); }
 });

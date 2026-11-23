@@ -39,7 +39,7 @@ test('Library rotates through the three newest books with dots, pause and native
   await expect(story()).toHaveText('Public book 04');
   await page.clock.fastForward(5000);
   await expect(story()).toHaveText('Public book 03');
-  await carousel.getByRole('button', { name: 'Pause recent books' }).tap();
+  await carousel.getByRole('button', { name: 'Pause Recent Books' }).tap();
   await page.clock.fastForward(10_000);
   await expect(story()).toHaveText('Public book 03');
 
@@ -64,7 +64,7 @@ test('Library rotates through the three newest books with dots, pause and native
   await dots.first().tap();
   await expect(story()).toHaveText('Public book 04');
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await expect(carousel.getByRole('button', { name: 'Play recent books' })).toHaveCount(0);
+  await expect(carousel.getByRole('button', { name: 'Play Recent Books' })).toHaveCount(0);
   await page.clock.fastForward(10_000);
   await expect(story()).toHaveText('Public book 04');
   await expect(dotGroup).toHaveCSS('opacity', '0');

@@ -27,7 +27,7 @@ export function DirectoryPicker({ account, initialPath, onChoose, onCancel }: { 
   return <Dialog title="Select Folder" layout="scroll-body" onClose={onCancel} toolbar={
     <div className={picker.navigation}>
       <div className={picker.toolbar}>
-        <button type="button" className={styles.icon} aria-label="Up one level" title="Up one level" disabled={parent === path} onClick={() => browse(parent, parent === '/')}><Icon name="up" /></button>
+        <button type="button" className={styles.icon} aria-label="Up One Level" title="Up One Level" disabled={parent === path} onClick={() => browse(parent, parent === '/')}><Icon name="up" /></button>
         <div className={picker.path}>
           <Icon name="folder" size={17} />
           <div ref={pathBar} tabIndex={0} role="status" title={path} className={picker.pathText}><bdi dir="ltr">{path}</bdi></div>
@@ -36,7 +36,7 @@ export function DirectoryPicker({ account, initialPath, onChoose, onCancel }: { 
       {folder && folder.entries.length >= 10 && <div className={picker.search}>
         <Icon name="search" size={17} />
         <input ref={searchInput} type="search" aria-label="Filter folders" placeholder="Filter folders" value={filter} onChange={event => setFilter(event.target.value)} />
-        {filter && <button type="button" aria-label="Clear folder filter" title="Clear folder filter" onClick={() => {
+        {filter && <button type="button" aria-label="Clear Folder Filter" title="Clear Folder Filter" onClick={() => {
           setFilter('');
           searchInput.current?.focus();
         }}>×</button>}

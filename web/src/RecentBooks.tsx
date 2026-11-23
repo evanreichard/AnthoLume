@@ -72,7 +72,7 @@ function RecentCarousel({ books, bookLinkState }: RecentBooksProps) {
       <div className={styles.recentDots} role="group" aria-label="Choose recent book">
         {books.map((book, index) => <button key={bookKey(book.ref)} type="button" aria-label={`Show ${book.title || 'Untitled'} (${index + 1} of ${books.length})`} aria-pressed={index === active} onClick={() => go(index)}><span /></button>)}
       </div>
-      {!reduced && <button type="button" className={styles.recentPause} aria-label={paused ? 'Play recent books' : 'Pause recent books'} onClick={() => setPaused(!paused)}>
+      {!reduced && <button type="button" className={styles.recentPause} aria-label={paused ? 'Play Recent Books' : 'Pause Recent Books'} onClick={() => setPaused(!paused)}>
         <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">{paused ? <path d="M5 3v10l8-5z" /> : <path d="M4 3h3v10H4zm5 0h3v10H9z" />}</svg>
       </button>}
     </div>

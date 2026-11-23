@@ -9,10 +9,12 @@ import styles from '../App.module.css';
 import { Icon } from '../Icon';
 import { LoadingStatus, Skeleton } from '../Skeleton';
 import { RecentBooks } from '../RecentBooks';
+import { OfflineStatusBar } from '../OfflineStatusBar';
+import { BookDownloadActions } from '../BookDownloadActions';
 import { Button } from '../Controls';
 
 export function Library() {
-  const { access, capabilities } = useSession();
+  const { access, capabilities, profiles } = useSession();
   const reading = useReading();
   const [params, setParams] = useSearchParams();
   const location = useLocation();
@@ -27,7 +29,8 @@ export function Library() {
   if (q) libraryParams.set('q', q);
   if (sort !== 'read') libraryParams.set('sort', sort);
   const bookLinkState = { librarySearch: libraryParams.toString() };
-  const account = access.kind === 'authenticated' || access.kind === 'expired' ? access.account : null;
+  const offline = access.kind === 'offline';
+  const account = access.kind === 'authenticated' || offline || access.kind === 'expired' ? access.account : null;
   const [input, setInput] = useState(q);
   const [error, setError] = useState<unknown>(null);
   const [importing, setImporting] = useState(false);
@@ -80,7 +83,9 @@ export function Library() {
   }, [sharedEnabled, dialog, hasNextPage, isFetching, isFetchNextPageError, fetchNextPage, account, q, sort]);
   const serverDocuments = sharedEnabled ? documents.data?.pages.flatMap((page) => page.items) ?? [] : [];
   const serverRows = reading.books.filter(book => book.ref.kind === 'server');
-  const books = sortBooks(combineBooks(serverRows, serverDocuments, account).filter(book => !!book.document), sort);
+  const books = sortBooks(combineBooks(serverRows, serverDocuments, account).filter(book => offline
+    ? book.stored?.availability === 'available' && `${book.title ?? ''} ${book.author ?? ''}`.toLocaleLowerCase().includes(q.trim().toLocaleLowerCase())
+    : !!book.document), sort);
   const recent = sharedEnabled && !q && resume.data && account
     ? resume.data.flatMap(document => combineBooks(serverRows.filter(book => book.ref.kind === 'server' && book.ref.documentId === document.id), [document], account))
     : [];
@@ -132,24 +137,25 @@ export function Library() {
   }
   return <>
     <PageHeader title="Library" headingRef={heading} mobileBrand
-      actions={reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>} />
+      actions={!offline && reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>} />
+    {offline && <OfflineStatusBar profile={profiles.find(p => p.account.userId === access.account.userId && p.account.readingGeneration === access.account.readingGeneration)?.name ?? 'Reader'} />}
     {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}
     <RecentBooks books={recent} bookLinkState={bookLinkState} />
     <form className={styles.searchRow} role="search" onSubmit={(event) => { event.preventDefault(); update('q', input.trim()); }}>
       <div className={styles.search}>
         <button type="submit" className={styles.searchSubmit} aria-label="Search"><Icon name="search" size={17} /></button>
         <label><span className={styles.srOnly}>Search title or author</span><input ref={searchInput} type="search" value={input} maxLength={256} placeholder="Title or author" onChange={(event) => setInput(event.target.value)} /></label>
-        {(input || q) && <button type="button" className={styles.searchClear} aria-label="Clear search" onClick={clearSearch}>×</button>}
+        {(input || q) && <button type="button" className={styles.searchClear} aria-label="Clear Search" onClick={clearSearch}>×</button>}
       </div>
-      <button type="button" className={styles.icon} aria-label="Add Book" disabled={access.kind !== 'authenticated' || !!capabilities?.demo_mode} onClick={() => { setNewBook(null); setError(null); open('add'); }}><Icon name="add" /></button>
+      {!offline && <button type="button" className={styles.icon} aria-label="Add Book" disabled={access.kind !== 'authenticated' || !!capabilities?.demo_mode} onClick={() => { setNewBook(null); setError(null); open('add'); }}><Icon name="add" /></button>}
       <button type="button" className={styles.icon} aria-label="Sort Books" aria-haspopup="dialog" aria-expanded={dialog === 'sort'} onClick={() => open('sort')}><Icon name="sort" /></button>
     </form>
     <div className={styles.divider} />
     <ErrorNotice error={documents.error} />
     {documents.isPending && documents.fetchStatus === 'fetching' && <LoadingStatus>Loading shared books…</LoadingStatus>}
-    {!books.length && reading.ready && !documents.isFetching && !(sharedEnabled && hasNextPage) && <p>No matching books. Try another search or add an EPUB.</p>}
+    {!books.length && reading.ready && !documents.isFetching && !(sharedEnabled && hasNextPage) && <p>{offline ? 'No matching books on this device.' : 'No matching books. Try another search or add an EPUB.'}</p>}
     <div className={styles.grid}>
-      {books.map((book) => <BookCard key={bookKey(book.ref)} book={book} linkState={bookLinkState} />)}
+      {books.map((book) => <BookCard key={bookKey(book.ref)} book={book} linkState={bookLinkState} action={offline ? 'read' : 'books'}>{book.ref.kind === 'server' && (offline || book.document?.file_available || reading.deviceCopies?.has(book.ref.documentId)) && <BookDownloadActions book={book.ref} metadata={book} canSave={offline || !!book.document?.file_available} />}</BookCard>)}
       {!books.length && (!reading.ready || documents.isPending && documents.fetchStatus === 'fetching') && Array.from({ length: 6 }, (_, index) => <div key={index} className={styles.card} aria-hidden="true">
         <Skeleton block className={`${styles.cover} ${styles.coverThumbnail}`} />
         <h2 className={styles.cardTitle}><Skeleton width="75%" /></h2>
@@ -158,7 +164,7 @@ export function Library() {
     </div>
     {importNotice && <p role="status">{importNotice}</p>}
     <ErrorNotice error={dialog === 'add' ? null : error} />
-    {sharedEnabled && hasNextPage && <div className={styles.loadMore}><Button ref={loadMore} disabled={isFetching} onClick={() => void fetchNextPage({ cancelRefetch: false })}>{documents.isFetchingNextPage ? 'Loading…' : isFetchNextPageError ? 'Retry loading shared books' : 'Load more shared books'}</Button></div>}
+    {sharedEnabled && hasNextPage && <div className={styles.loadMore}><Button ref={loadMore} disabled={isFetching} onClick={() => void fetchNextPage({ cancelRefetch: false })}>{documents.isFetchingNextPage ? 'Loading…' : isFetchNextPageError ? 'Retry Loading Shared Books' : 'Load More Shared Books'}</Button></div>}
     {dialog === 'sort' && <Dialog title="Sort Books" onClose={close}><div className={styles.sortOptions}>
       {sortOptions.map(([value, label]) => <button key={value} type="button" aria-pressed={sort === value} onClick={() => applySort(value)}>
         {label}{sort === value && <Icon name="check" size={17} />}
@@ -170,7 +176,7 @@ export function Library() {
       {importing && <p role="status">Uploading to the shared library…</p>}
       {newBook && <p role="status">Book is in the shared library. <Link to={newBook} state={bookLinkState}>Open book</Link></p>}
       <ErrorNotice error={error} />
-      <Button onClick={close}>{importing ? 'Cancel upload' : 'Done'}</Button>
+      <Button onClick={close}>{importing ? 'Cancel Upload' : 'Done'}</Button>
     </div></Dialog>}
   </>;
 }

@@ -1,32 +1,32 @@
 import Dexie, { type Table } from 'dexie';
-import type { Account, BookRef, Checkpoint, ReaderCacheSummary, ReadingAccess, S, StoredBook } from './types';
-import { accountKey, refKey } from './types';
+import type { Account, BookRef, Checkpoint, ReaderCacheSummary, ReviewDecision, OfflineChoice, OfflineRecord, ReadingAccess, S, StoredBook } from './types';
+import { accountKey, NoOfflineCopyError, refKey } from './types';
 import { blobSource, hashSource, sourceLimits, type Source } from './source';
 import { validateEPUB } from './content-policy';
 import type { BookManifest } from './book-manifest';
 import { receiptFor, validSubmission, validProgressPosition, type Submission } from './wire';
 import { validState } from './protocol';
-import type { CapturedActivity } from './activity';
 import { StagingWriter } from './staging-writer';
+import { validCover } from './cover';
+import { bookView, downloadKey, libraryKey, migrateDownloads, positionFor, sourceKey, type BookRow, type Download, type Position, type ResumeCandidate, type ServerRef, type SourceRow } from './download-layout';
 
-export type ResumeCandidate = Checkpoint & { eventId: string; savedAt: string };
-export type BookRow = StoredBook & { resumeCandidate?: ResumeCandidate; key: string; scope: string; bytes: Blob | null; sourceId?: string; checksum: string | null; protocolHash: string | null; size: number; etag?: string };
-export type SourceRow = { id: string; key: string; size: number; received: number; blob: Blob | null; complete: boolean; until: number; manifest?: BookManifest; manifestHash?: string; cacheUsedAt?: number; cacheReaders?: Record<string, number>; evictOnRelease?: boolean };
 const bookCacheBytes = 768 * 1024 * 1024;
 const bookCacheCount = 6;
 const cacheLeaseMs = 15 * 60_000;
 const resumeKey = 'resume:account';
 const cacheLive = (row: SourceRow, now: number) => Object.values(row.cacheReaders ?? {}).some(until => until > now);
 export type SourceChunk = { key: string; sourceId: string; data: ArrayBuffer };
-export type EventRow = { id: string; key: string; scope: string; created: number; rejected?: { status: number; code: string }; interval?: { id: string; startMs: number; endMs: number } } & Submission;
+export type EventRow = { offlineTitle?: string; id: string; key: string; scope: string; created: number; rejected?: { status: number; code: string } } & Submission;
 type AccessRow = { key: string; account: Account; epoch: number; eligible: boolean; authenticated: boolean };
 export type ReplayAccess = { scope: string; epoch: number };
-type Head = { key: string; state: S['ReadingState'] };
-type ProgressDraft = { key: string; observedAt: string; position: string; fraction: number };
+type Head = { key: string; state: S['ReadingState']; eventId?: string };
+type ProgressDraft = { key: string; id?: string; observedAt: string; position: string; fraction: number };
 type Meta = { key: string; value: unknown };
 export class ReadingDB extends Dexie {
   sources!: Table<SourceRow, string>; sourceChunks!: Table<SourceChunk, string>;
   books!: Table<BookRow, string>; events!: Table<EventRow, string>; access!: Table<AccessRow, string>;
+  offline!: Table<OfflineRecord, string>;
+  downloads!: Table<Download, string>; positions!: Table<Position, string>;
   progressDrafts!: Table<ProgressDraft, string>;
   heads!: Table<Head, string>; meta!: Table<Meta, string>;
   constructor(name = 'antholume-reading-v1') {
@@ -39,14 +39,39 @@ export class ReadingDB extends Dexie {
       await tx.table('events').bulkDelete(completed);
     });
     this.version(5).stores({ decisions: null, conflicts: null, history: null });
+    this.version(6).stores({ offline: '&id,scope,[scope+document+kind]' }).upgrade(async tx => {
+      // Legacy Outbox - The previous cache did not distinguish online retries from offline writes. Hold uncertain events for review rather than silently uploading them.
+      const events: EventRow[] = await tx.table('events').orderBy('created').toArray();
+      for (const event of events) {
+        if (event.rejected) continue;
+        const book = await tx.table('books').get(event.key);
+        const document = event.payload.document_id, scope = event.scope, title = book?.title ?? document;
+        if (event.kind === 'activity') {
+          await tx.table('offline').put({ id: event.id, kind: 'activity', document, scope, title, created: event.payload.start_time, event: event.payload });
+        } else {
+          const draft: ProgressDraft | undefined = await tx.table('progressDrafts').get(event.key);
+          const { position, fraction } = draft ?? event.payload;
+          await tx.table('offline').where('[scope+document+kind]').equals([scope,document,'progress']).delete();
+          await tx.table('offline').put({ id: crypto.randomUUID(), kind: 'progress', document, scope, title, created: draft?.observedAt ?? event.payload.observed_at, checkpoint: { position, fraction } });
+          await tx.table('progressDrafts').delete(event.key);
+        }
+        await tx.table('events').delete(event.id);
+      }
+    });
+    this.version(7).stores({ downloads: '&key,library', positions: '&key,scope' }).upgrade(migrateDownloads);
   }
 }
 export async function checksum(input: ArrayBuffer | Blob | Source): Promise<string> { return (await hashSource(input instanceof Blob ? blobSource(input) : input instanceof ArrayBuffer ? blobSource(new Blob([input])) : input)).sha256; }
 export const scopeOf = (ref: BookRef) => ref.kind === 'local' ? 'local' : accountKey(ref.account);
+export type TurnPolicy = { mode: 'device' } | { mode: 'account'; deviceId: string };
+export const profileKey = (account: Account) => 'profile:' + accountKey(account);
 export class Repository {
+  private async requireProfile(account: Account) {
+    if (!await this.db.meta.get(profileKey(account))) throw new Error('Offline profile is not saved on this device. Sign in again before saving books.');
+  }
   readonly stagingStats = { maxIncoming: 0, bytes: 0, chunks: 0, buffer: sourceLimits.chunkBytes };
   constructor(readonly db = new ReadingDB()) {}
-  private tables() { return [this.db.books, this.db.events, this.db.access, this.db.heads, this.db.progressDrafts]; }
+  private tables() { return [this.db.positions, this.db.downloads, this.db.events, this.db.access, this.db.heads, this.db.progressDrafts, this.db.offline]; }
   async setAccess(access: ReadingAccess) {
     if (access.kind !== 'authenticated' && access.kind !== 'logout') return;
     const key = accountKey(access.account), authenticated = access.kind === 'authenticated';
@@ -69,9 +94,49 @@ export class Repository {
   }
   async permitted(ref: BookRef) { return ref.kind === 'local' || !!(await this.db.access.get(scopeOf(ref)))?.eligible; }
   async projection(access: ReadingAccess) {
-    const scope = 'account' in access && access.kind !== 'logout' ? accountKey(access.account) : null;
-    const eligible = scope && (await this.db.access.get(scope))?.eligible;
-    return (await this.db.books.toArray()).filter(b => b.scope === 'local' || b.scope === scope && eligible);
+    const localBooks = () => this.db.books.where('scope').equals('local').toArray();
+    if (!('account' in access) || access.kind === 'logout') return { books: await localBooks() };
+    const { account } = access, scope = accountKey(account);
+    const downloads = await this.db.downloads.where('library').equals(libraryKey(account)).toArray();
+    const deviceCopies = new Map(downloads.map(d => [d.document, d.pinned ? 'saved' as const : 'cached' as const]));
+    if (access.kind === 'offline') {
+      const refs = downloads.map(({ document }) => ({ kind: 'server' as const, account, documentId: document }));
+      const keys = refs.map(refKey);
+      const [positions, heads, drafts] = await Promise.all([this.db.positions.bulkGet(keys), this.db.heads.bulkGet(keys),
+        this.db.offline.where('[scope+document+kind]').anyOf(refs.map(ref => [scope, ref.documentId, 'progress'])).toArray()]);
+      const byDoc = new Map(drafts.map(d => [d.document, d]));
+      return { deviceCopies, books: refs.map((ref, i) => this.offlineView(ref, downloads[i], positions[i], heads[i], byDoc.get(ref.documentId))) };
+    }
+    const copies = new Map(downloads.map(d => [d.document, d]));
+    const positions = (await this.db.access.get(scope))?.eligible ? await this.db.positions.where('scope').equals(scope).toArray() : [];
+    return { deviceCopies, books: [...await localBooks(), ...positions.map(p => bookView(p.ref, copies.get(p.ref.documentId), p))] };
+  }
+  async readingView(access: ReadingAccess) {
+    const db = this.db;
+    const scope = 'account' in access && access.kind !== 'logout' ? accountKey(access.account) : undefined;
+    return db.transaction('r', [db.books, db.downloads, db.positions, db.heads, db.offline, db.meta, db.access, db.events], async () => {
+      const [shelf, resumeAccount, pending, captures] = await Promise.all([
+        this.projection(access), this.resume(), scope ? db.events.where('scope').equals(scope).toArray() : [],
+        access.kind === 'authenticated' ? db.offline.where('scope').equals(accountKey(access.account)).toArray() : [],
+      ]);
+      return {
+        books: shelf.books.map(({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned }) =>
+          ({ ref, title, author, cover, availability, checkpoint, addedAt, lastReadAt, pinned })),
+        deviceCopies: shelf.deviceCopies, resumeAccount, captures, pendingCount: pending.length,
+        blocked: pending.length > 0 && pending.every(event => event.rejected),
+      };
+    });
+  }
+  private offlineView(ref: ServerRef, download: Download, position?: Position, head?: Head, draft?: OfflineRecord, source?: SourceRow) {
+    const row = bookView(ref, download, position, source);
+    const checkpoint = draft?.kind === 'progress' ? draft.checkpoint : position?.checkpoint ?? { position: head?.state.position ?? null, fraction: head?.state.fraction ?? null };
+    return { ...row, checkpoint, lastReadAt: draft?.created ?? position?.lastReadAt, resumeCandidate: undefined };
+  }
+  async cachedOriginal(ref: ServerRef) {
+    const download = await this.db.downloads.get(downloadKey(ref));
+    if (!download) return;
+    const source = await this.db.sources.get(download.sourceId);
+    return { ...download, etag: source?.complete && !source.evictOnRelease && source.key === download.key ? source.etag : undefined };
   }
   async device(account: Account): Promise<S['Device']> {
     return this.db.transaction('rw', this.db.meta, async () => {
@@ -96,7 +161,7 @@ export class Repository {
     signal?.throwIfAborted();
     if (!blob.size || blob.size > sourceLimits.diskBytes) throw new Error('Original source exceeds 512 MiB disk capacity');
     await this.cleanupStages();
-    const row: SourceRow = { id: crypto.randomUUID(), key: refKey(ref), size: blob.size, received: blob.size, blob, complete: false, until: Date.now() + 120000 };
+    const row: SourceRow = { id: crypto.randomUUID(), key: sourceKey(ref), size: blob.size, received: blob.size, blob, complete: false, until: Date.now() + 120000 };
     try {
       await this.db.transaction('rw', this.db.sources, async () => {
         const tx = Dexie.currentTransaction!, abort = () => tx.abort(); signal?.addEventListener('abort', abort, { once: true });
@@ -106,8 +171,8 @@ export class Repository {
       return row;
     } catch (error) { signal?.throwIfAborted(); throw error; }
   }
-  async stageStream(ref: BookRef, stream: ReadableStream<Uint8Array>, signal?: AbortSignal, progress?: (received: number) => void): Promise<SourceRow> {
-    signal?.throwIfAborted(); await this.cleanupStages(); const row: SourceRow = { id: crypto.randomUUID(), key: refKey(ref), size: 0, received: 0, blob: null, complete: false, until: Date.now() + 120000 };
+  async stageStream(ref: BookRef, stream: ReadableStream<Uint8Array>, signal?: AbortSignal, progress?: (received: number) => void, onReadFailure?: () => void): Promise<SourceRow> {
+    signal?.throwIfAborted(); await this.cleanupStages(); const row: SourceRow = { id: crypto.randomUUID(), key: sourceKey(ref), size: 0, received: 0, blob: null, complete: false, until: Date.now() + 120000 };
     let byob: ReadableStreamBYOBReader | undefined;
     if (globalThis.isSecureContext) {
       try { byob = stream.getReader({ mode: 'byob' }); } catch { /* Use the bounded default reader. */ }
@@ -116,13 +181,16 @@ export class Repository {
     let writer: StagingWriter | undefined, n = 0, incoming = 0;
     const createWriter = () => new StagingWriter(this.db.name, row.id, row.received, n, key => this.db.sourceChunks.add({ key, sourceId: row.id, data: new ArrayBuffer(0) }), signal);
     const read = () => byob ? byob.read(new Uint8Array(Math.min(65536, writer!.remaining))) : fallback!.read();
-    const abort = () => { void reader.cancel(signal?.reason); }; signal?.addEventListener('abort', abort, { once: true });
+    const abort = () => { void reader.cancel(signal?.reason).catch(() => undefined); }; signal?.addEventListener('abort', abort, { once: true });
     try {
       signal?.throwIfAborted(); await this.db.sources.add(row); signal?.throwIfAborted();
       writer = createWriter(); await writer.ready;
       for (;;) {
         signal?.throwIfAborted(); let timer: ReturnType<typeof setTimeout> | undefined;
-        const part = await Promise.race([read(), new Promise<never>((_, reject) => { timer = setTimeout(() => { abort(); reject(new Error('Original download idle deadline exceeded')); }, 30000); })]).finally(() => clearTimeout(timer));
+        const part = await Promise.race([read(), new Promise<never>((_, reject) => { timer = setTimeout(() => { reject(new DOMException('Original download idle deadline exceeded', 'TimeoutError')); abort(); }, 30000); })]).catch(error => {
+          if (!signal?.aborted && (error instanceof TypeError || error instanceof DOMException && error.name === 'TimeoutError')) onReadFailure?.();
+          throw error;
+        }).finally(() => clearTimeout(timer));
         if (part.done) break;
         const bytes = part.value as Uint8Array<ArrayBuffer>;
         if (!bytes.length) continue;
@@ -152,93 +220,132 @@ export class Repository {
     await this.db.sourceChunks.where('sourceId').equals(id).delete();
     await this.db.sources.delete(id);
   }
-  private async trimServerCache(reserve: number, keepKey?: string, clear = false) {
-    const books = await this.db.books.filter(book => book.ref.kind === 'server' && book.availability === 'available').toArray();
-    const bySource = new Map(books.map(book => [book.sourceId, book]));
-    const sources = await this.db.sources.filter(source => source.complete && !source.evictOnRelease && source.key.startsWith('["server",')).toArray();
-    const candidates = [...sources.map(source => ({ source, book: bySource.get(source.id), bytes: source.size, used: source.cacheUsedAt ?? 0 })),
-      ...books.filter(book => !book.sourceId || !sources.some(source => source.id === book.sourceId)).map(book => ({ source: undefined, book, bytes: book.size, used: 0 }))].sort((a, b) => a.used - b.used);
-    let bytes = candidates.reduce((sum, entry) => sum + entry.bytes, reserve), count = candidates.length + (reserve > 0 ? 1 : 0);
-    const now = Date.now();
-    for (const { source, book, bytes: size } of candidates) {
-      if (!clear && bytes <= bookCacheBytes && count <= bookCacheCount) break;
-      if (book?.key === keepKey || source && cacheLive(source, now)) continue;
-      if (source) await this.removeSource(source.id);
-      if (book) await this.db.books.update(book.key, { sourceId: undefined, bytes: null, cover: null, availability: 'unavailable', etag: undefined });
-      bytes -= size; count--;
+  private async retireSource(id: string) {
+    const source = await this.db.sources.get(id);
+    if (source && cacheLive(source, Date.now())) await this.db.sources.update(id, { evictOnRelease: true });
+    else await this.removeSource(id);
+  }
+  private async trimServerCache(keepKey?: string, clear = false) {
+    const copies = await this.db.downloads.filter(d => !d.pinned).toArray();
+    const sources = await this.db.sources.bulkGet(copies.map(d => d.sourceId));
+    const candidates = copies.map((copy, i) => ({ copy, source: sources[i] })).sort((a, b) => (a.source?.cacheUsedAt ?? 0) - (b.source?.cacheUsedAt ?? 0));
+    let bytes = sources.reduce((sum, s) => sum + (s?.size ?? 0), 0), count = copies.length;
+    for (const { copy, source } of candidates) {
+      if (!clear && bytes <= bookCacheBytes && count <= bookCacheCount) return;
+      if (copy.key === keepKey || source && cacheLive(source, Date.now())) continue;
+      await this.removeSource(copy.sourceId);
+      await this.db.downloads.delete(copy.key);
+      bytes -= source?.size ?? 0; count--;
     }
     if (!clear && (bytes > bookCacheBytes || count > bookCacheCount)) throw new Error('Close another open book before caching this EPUB');
   }
-  async freeServerCache() {
-    await this.db.transaction('rw', this.db.books, this.db.sources, this.db.sourceChunks, () => this.trimServerCache(0, undefined, true));
+  async updateDownload(ref: ServerRef, cover: Blob | undefined | null, signal: AbortSignal, metadata?: Pick<StoredBook, 'title' | 'author'>, expectedSource?: string) {
+    if (cover && !validCover(cover) || !metadata && !cover) return;
+    await this.db.transaction('rw', this.db.downloads, this.db.sources, this.db.access, async () => {
+      signal.throwIfAborted();
+      const copy = await this.db.downloads.get(downloadKey(ref));
+      if (!copy || !metadata && (copy.cover || copy.coverRemoved) || expectedSource && copy.sourceId !== expectedSource) return;
+      if (!(await this.db.access.get(scopeOf(ref)))?.authenticated || !(await this.db.sources.get(copy.sourceId))?.complete) return;
+      await this.db.downloads.update(copy.key, { ...metadata, ...(cover !== undefined && { cover, coverRemoved: cover === null }) });
+      signal.throwIfAborted();
+    });
+  }
+  async retainCachedCopy(ref: ServerRef, signal: AbortSignal) {
+    await this.db.transaction('rw', this.db.downloads, this.db.sources, this.db.meta, async () => {
+      await this.requireProfile(ref.account);
+      signal.throwIfAborted();
+      const copy = await this.db.downloads.get(downloadKey(ref));
+      if (!copy || !(await this.db.sources.get(copy.sourceId))?.complete) throw new Error('Book is not downloaded');
+      await this.db.downloads.update(copy.key, { pinned: true });
+      signal.throwIfAborted();
+    });
+  }
+  async removeFromDevice(ref: ServerRef, signal: AbortSignal, access: 'authenticated' | 'offline') {
+    await this.db.transaction('rw', [this.db.downloads, this.db.access, this.db.sources, this.db.sourceChunks], async () => {
+      signal.throwIfAborted();
+      if (access === 'authenticated' && !await this.permitted(ref)) throw new Error('Account changed');
+      const copy = await this.db.downloads.get(downloadKey(ref));
+      if (copy) { await this.db.downloads.delete(copy.key); await this.retireSource(copy.sourceId); }
+      signal.throwIfAborted();
+    });
+  }
+  async freeServerCache(ref: ServerRef) {
+    await this.db.transaction('rw', this.db.downloads, this.db.sources, this.db.sourceChunks, () => this.trimServerCache(downloadKey(ref), true));
+  }
+  private legacyServerBooks() {
+    return this.db.books.where('scope').notEqual('local').filter(book => book.ref.kind === 'server');
   }
   async readerCacheSummary(): Promise<ReaderCacheSummary> {
-    return this.db.transaction('r', this.db.books, this.db.sources, async () => {
-      const books = await this.db.books.filter(book => book.ref.kind === 'server' && book.availability === 'available').toArray();
-      const sources = await this.db.sources.filter(row => row.key.startsWith('["server",')).toArray();
-      const byId = new Map(sources.map(source => [source.id, source]));
-      const current = new Set<string>();
+    return this.db.transaction('r', this.db.books, this.db.downloads, this.db.sources, async () => {
+      const copies = await this.db.downloads.toArray();
+      const sources = await this.db.sources.bulkGet(copies.map(d => d.sourceId));
       const summary = { books: 0, epubBytes: 0, metadataBytes: 0 };
-      for (const book of books) {
-        const source = book.sourceId && byId.get(book.sourceId);
-        if (source && source.complete && !source.evictOnRelease) {
-          summary.books++;
-          if (!current.has(source.id)) {
-            current.add(source.id);
-            summary.epubBytes += source.size;
-            if (source.manifest) summary.metadataBytes += new Blob([JSON.stringify(source.manifest)]).size;
-          }
-        } else if (book.bytes) {
-          summary.books++;
-          summary.epubBytes += book.bytes.size;
-        } else continue;
+      sources.forEach((s, i) => {
+        if (!s?.complete || s.evictOnRelease) return;
+        summary.books++; summary.epubBytes += s.size;
+        summary.metadataBytes += (copies[i].cover?.size ?? 0) + (s.manifest ? new Blob([JSON.stringify(s.manifest)]).size : 0);
+      });
+      for (const book of await this.legacyServerBooks().toArray()) {
+        const legacySources = await this.db.sources.where('key').equals(book.key).filter(s => !s.evictOnRelease).toArray();
+        if (book.bytes || book.cover || legacySources.length) summary.books++;
+        summary.epubBytes += book.bytes?.size ?? 0;
         summary.metadataBytes += book.cover?.size ?? 0;
+        for (const source of legacySources) {
+          summary.epubBytes += source.received;
+          if (source.manifest) summary.metadataBytes += new Blob([JSON.stringify(source.manifest)]).size;
+        }
       }
       return summary;
     });
   }
   async clearServerCache() {
-    await this.db.transaction('rw', this.db.books, this.db.sources, this.db.sourceChunks, async () => {
-      const now = Date.now();
-      const books = await this.db.books.filter(book => book.ref.kind === 'server' && book.availability === 'available').toArray();
-      for (const book of books) await this.db.books.update(book.key, { sourceId: undefined, bytes: null, cover: null, availability: 'unavailable', etag: undefined });
-      const sources = await this.db.sources.filter(source => source.key.startsWith('["server",') && (source.complete || source.until <= now)).toArray();
-      for (const source of sources) {
-        if (cacheLive(source, now)) await this.db.sources.update(source.id, { evictOnRelease: true });
-        else await this.removeSource(source.id);
+    await this.db.transaction('rw', [this.db.books, this.db.downloads, this.db.sources, this.db.sourceChunks], async () => {
+      for (const book of await this.legacyServerBooks().toArray()) {
+        for (const id of await this.db.sources.where('key').equals(book.key).primaryKeys()) await this.retireSource(id);
+        await this.db.books.update(book.key, { bytes: null, cover: null, sourceId: undefined, size: 0, availability: 'unavailable' });
       }
+      for (const copy of await this.db.downloads.toArray()) await this.retireSource(copy.sourceId);
+      await this.db.downloads.clear();
     });
   }
-  private async refreshCheckpoint(ref: BookRef, previous: Checkpoint, state?: S['ReadingState']) {
-    if (!state) return { checkpoint: previous };
-    if (!validState(state, ref.kind === 'server' ? ref.documentId : '')) throw new Error('Invalid server state');
-    const key = refKey(ref), head = await this.db.heads.get(key);
-    if (await this.hasPendingProgress(key)) return { checkpoint: previous };
-    if (head && BigInt(head.state.revision) > BigInt(state.revision)) return { checkpoint: previous };
-    await this.db.heads.put({ key, state });
-    return { checkpoint: { position: state.position, fraction: state.fraction }, ...(state.updated_at ? { lastReadAt: state.updated_at } : {}) };
-  }
-  async useCached(ref: Extract<BookRef, { kind: 'server' }>, sourceId: string, etag: string, state: S['ReadingState'], signal: AbortSignal) {
-    const opened = await this.open(ref);
-    if (opened.row.sourceId !== sourceId || opened.row.etag !== etag) throw new Error('Cached original changed');
-    return this.db.transaction('rw', [this.db.books, this.db.sources, this.db.heads, this.db.events, this.db.access], async () => {
-      signal.throwIfAborted();
-      const key = refKey(ref), row = await this.db.books.get(key);
-      if (!row || row.sourceId !== sourceId || row.etag !== etag || !(await this.db.access.get(row.scope))?.authenticated) throw new Error('Cached original or account changed');
+  async useCached(ref: ServerRef, sourceId: string, etag: string, signal: AbortSignal, pin?: Pick<StoredBook, 'title' | 'author'>) {
+    const opened = await this.openDownload(ref, 'source');
+    return this.db.transaction('rw', [this.db.downloads, this.db.sources, this.db.meta, this.db.access], async () => {
+      const copy = await this.cachedOriginal(ref);
+      if (!copy || opened.row.sourceId !== sourceId || copy.sourceId !== sourceId || copy.etag !== etag || !(await this.db.access.get(scopeOf(ref)))?.authenticated) throw new Error('Cached original or account changed');
       await this.db.sources.update(sourceId, { cacheUsedAt: Date.now() });
-      const next = { ...row, ...await this.refreshCheckpoint(ref, row.checkpoint, state) };
-      await this.db.books.put(next);
+      if (pin) {
+        await this.requireProfile(ref.account);
+        await this.db.downloads.update(copy.key, { title: pin.title, author: pin.author, pinned: true });
+      }
       signal.throwIfAborted();
-      return { ...opened, row: next };
+      return opened;
     });
   }
-  async keepSource(id: string, signal: AbortSignal) {
+  async applyServerState(ref: ServerRef, state: S['ReadingState'], signal: AbortSignal) {
+    if (!validState(state, ref.documentId)) throw new Error('Invalid server state');
+    return this.db.transaction('rw', [this.db.positions, this.db.heads, this.db.events, this.db.access], async () => {
+      if (!(await this.db.access.get(scopeOf(ref)))?.authenticated) throw new Error('Account changed');
+      const old = await this.db.positions.get(refKey(ref)) ?? positionFor(ref, { position: null, fraction: null });
+      signal.throwIfAborted();
+      const head = await this.db.heads.get(old.key);
+      if (await this.hasPendingProgress(old.key) || head && BigInt(head.state.revision) > BigInt(state.revision)) return old;
+      await this.db.heads.put({ key: old.key, state, ...(head?.state.revision === state.revision && head.eventId && { eventId: head.eventId }) });
+      const position = { ...old, checkpoint: { position: state.position, fraction: state.fraction }, ...(state.updated_at && { lastReadAt: state.updated_at }) };
+      await this.db.positions.put(position);
+      signal.throwIfAborted();
+      return position;
+    });
+  }
+  async keepSource(id: string, signal: AbortSignal, mode: TurnPolicy['mode'] = 'account') {
     signal.throwIfAborted();
+    const retired = (message: string) => mode === 'device' ? new NoOfflineCopyError(message) : new Error(message);
     const reader = crypto.randomUUID();
     const update = (release = false) => this.db.transaction('rw', this.db.sources, this.db.sourceChunks, async () => {
       const row = await this.db.sources.get(id);
-      if (!row?.complete) { if (release) return; throw new Error('Cached original was evicted; reopen to download again'); }
-      if (row.evictOnRelease && !release && !row.cacheReaders?.[reader]) throw new Error('Cached original was cleared; reopen to download again');
+      if (!row) { if (release) return; throw retired('Cached original was evicted; reopen to download again'); }
+      if (!row.complete) { if (release) return; throw new Error('Original source/index unavailable'); }
+      if (row.evictOnRelease && !release && !row.cacheReaders?.[reader]) throw retired('Cached original was cleared; reopen to download again');
       const now = Date.now(), readers = Object.fromEntries(Object.entries(row.cacheReaders ?? {}).filter(([key, until]) => key !== reader && until > now));
       if (!release) {
         if (Object.keys(readers).length >= 32) throw new Error('Too many readers for this EPUB');
@@ -261,55 +368,76 @@ export class Repository {
     if (signal.aborted) release();
     signal.throwIfAborted();
   }
-  async publish(ref: BookRef, stage: SourceRow, manifest: BookManifest, title: string | null, author: string | null, cover: Blob | null, state?: S['ReadingState'], signal?: AbortSignal, cache?: { etag?: string }) {
+  async publish(ref: BookRef, stage: SourceRow, manifest: BookManifest, title: string | null, author: string | null, cover: Blob | null, state?: S['ReadingState'], signal?: AbortSignal, cache?: { etag?: string; previousSource?: string; pin?: Pick<StoredBook, 'title' | 'author'> }) {
     signal?.throwIfAborted(); const key = refKey(ref), scope = scopeOf(ref);
     if (!await this.permitted(ref)) throw new Error('Account no longer accessible');
     const metadata = new Blob([JSON.stringify(manifest)]); if (metadata.size > 16 * 1024 * 1024) throw new Error('Validated index metadata exceeds 16 MiB');
     const integrity = manifest.integrity;
     if (!integrity && (!manifest.lazy || !cache || ref.kind !== 'server')) throw new Error('Original fingerprint required');
-    const manifestHash = await checksum(metadata), previous = await this.db.books.get(key);
+    const manifestHash = await checksum(metadata);
+    const ownerKey = sourceKey(ref);
+    const currentCopy = () => ref.kind === 'local' ? this.db.books.get(key) : this.db.downloads.get(ownerKey);
+    const previous = await currentCopy();
+    const previousId = previous?.sourceId;
+    const oldSource = previousId ? await this.db.sources.get(previousId) : undefined;
+    const previousChecksum = previous && 'checksum' in previous ? previous.checksum : oldSource?.checksum;
     let reuse = false;
-    if (!cache && integrity && previous?.availability === 'available' && previous.sourceId && previous.checksum === integrity.sha256) {
-      const source = await this.db.sources.get(previous.sourceId);
-      if (source?.complete) {
-        try { reuse = (await hashSource({ ...this.descriptor(source), digests: integrity.digests }, signal)).sha256 === integrity.sha256; } catch { signal?.throwIfAborted(); }
-      }
+    if (!cache && oldSource?.complete && integrity && previousChecksum === integrity.sha256) {
+      try { reuse = (await hashSource({ ...this.descriptor(oldSource), digests: integrity.digests }, signal)).sha256 === integrity.sha256; } catch { signal?.throwIfAborted(); }
     }
     signal?.throwIfAborted();
-    await this.db.transaction('rw', [this.db.books, this.db.heads, this.db.access, this.db.sources, this.db.sourceChunks, this.db.events], async () => {
+    await this.db.transaction('rw', [this.db.books, this.db.meta, this.db.positions, this.db.downloads, this.db.heads, this.db.access, this.db.sources, this.db.sourceChunks, this.db.events], async () => {
       if (!await this.permitted(ref) || cache && !(await this.db.access.get(scope))?.authenticated) throw new Error('Account no longer accessible');
-      const row = await this.db.sources.get(stage.id); if (!row || row.complete || row.size !== stage.size || row.received !== stage.size) throw new Error('Incomplete staged original');
-      const old = await this.db.books.get(key);
-      if (!cache && old?.availability === 'available' && old.checksum !== integrity?.sha256) throw new Error('Original server bytes changed; remove old download before replacing');
-      const checkpoint = old?.checkpoint || { position: state?.position ?? null, fraction: state?.fraction ?? null };
-      if (old?.sourceId !== previous?.sourceId) throw new Error('Stored source changed during publication; retry');
-      const existingSource = reuse ? old?.sourceId : undefined;
-      if (existingSource) await this.db.sources.update(existingSource, { manifest, manifestHash });
+      const row = await this.db.sources.get(stage.id);
+      if (!row || row.key !== ownerKey || row.complete || row.size !== stage.size || row.received !== stage.size) throw new Error('Incomplete staged original');
+      const old = await currentCopy();
+      if (old?.sourceId !== previousId || cache && 'previousSource' in cache && cache.previousSource !== previousId) throw new Error('Stored source changed during publication; retry');
+      const fingerprint = { checksum: integrity?.sha256 ?? null, protocolHash: integrity?.protocolHash ?? null };
+      const sourceId = reuse ? previousId! : stage.id;
+      if (!cache && previous && previousChecksum !== fingerprint.checksum) throw new Error('Original bytes changed; remove the old download before replacing');
+      if (reuse) await this.db.sources.update(sourceId, { manifest, manifestHash });
       else {
-        if (old?.sourceId) {
-          const existing = await this.db.sources.get(old.sourceId);
-          if (!existing || !cacheLive(existing, Date.now())) await this.removeSource(old.sourceId);
-        }
-        await this.db.sources.put({ ...row, complete: true, manifest, manifestHash, until: 0, ...(cache ? { cacheUsedAt: Date.now() } : {}) });
+        if (previousId) await this.retireSource(previousId);
+        await this.db.sources.put({ ...row, ...fingerprint, complete: true, manifest, manifestHash, until: 0, etag: cache?.etag, cacheUsedAt: Date.now() });
       }
-      const reading = cache ? await this.refreshCheckpoint(ref, checkpoint, state) : { checkpoint };
-      await this.db.books.put({ key, scope, ref, title, author, cover, addedAt: old?.addedAt ?? new Date().toISOString(), lastReadAt: old?.lastReadAt ?? state?.updated_at ?? undefined, ...reading, resumeCandidate: old?.resumeCandidate, availability: 'available', bytes: null, sourceId: existingSource || stage.id, size: stage.size, checksum: integrity?.sha256 ?? null, protocolHash: integrity?.protocolHash ?? null, etag: cache?.etag });
-      if (cache) await this.trimServerCache(0, key);
-      else if (state) { if (!validState(state, ref.kind === 'server' ? ref.documentId : '')) throw new Error('Invalid server state'); const head = await this.db.heads.get(key); if (!head || BigInt(head.state.revision) < BigInt(state.revision)) await this.db.heads.put({ key, state }); }
+      const addedAt = old?.addedAt ?? new Date().toISOString();
+      if (ref.kind === 'local') {
+        const local = old as BookRow | undefined;
+        await this.db.books.put({ key, scope, ref, title, author, cover, addedAt, checkpoint: local?.checkpoint ?? { position: null, fraction: null },
+          lastReadAt: local?.lastReadAt, availability: 'available', bytes: null, sourceId, size: stage.size, ...fingerprint });
+      } else {
+        if (cache?.pin) await this.requireProfile(ref.account);
+        if (!cache) {
+          const oldPosition = await this.db.positions.get(key);
+          if (!oldPosition) await this.db.positions.put({ ...positionFor(ref, { position: state?.position ?? null, fraction: state?.fraction ?? null }), lastReadAt: state?.updated_at ?? undefined });
+        }
+        await this.db.downloads.put({ key: ownerKey, library: libraryKey(ref.account), document: ref.documentId, sourceId, addedAt,
+          title, author, cover: old?.cover ?? cover, coverRemoved: old && 'coverRemoved' in old && old.coverRemoved, pinned: !!old?.pinned, ...(cache?.pin && { title: cache.pin.title, author: cache.pin.author, pinned: true }) });
+        if (cache) await this.trimServerCache(ownerKey);
+        else if (state) {
+          if (!validState(state, ref.documentId)) throw new Error('Invalid server state');
+          const head = await this.db.heads.get(key);
+          if (!head || BigInt(head.state.revision) < BigInt(state.revision)) await this.db.heads.put({ key, state });
+        }
+      }
       signal?.throwIfAborted();
     });
   }
   async install(ref: BookRef, input: Blob | ArrayBuffer, title: string | null, author: string | null, cover: Blob | null, state?: S['ReadingState'], signal?: AbortSignal) {
     const stage = await this.stageBlob(ref, input instanceof Blob ? input : new Blob([input]), signal);
-    try { const policy = await this.validateStage(stage, signal); await this.publish(ref, stage, policy.manifest, title, author, cover, state, signal); policy.dispose(); }
+    try { const policy = await this.validateStage(stage, signal); try { await this.publish(ref, stage, policy.manifest, title, author, cover, state, signal); } finally { policy.dispose(); } }
     finally { await this.discardSource(stage.id); }
   }
   async open(ref: BookRef): Promise<{ row: BookRow; source: Source; manifest: BookManifest }> {
     if (!await this.permitted(ref)) throw new Error('Account hidden');
+    if (ref.kind === 'server') return this.openDownload(ref, 'account');
     const row = await this.db.books.get(refKey(ref));
     if (!row || row.availability !== 'available') throw new Error('Book unavailable; download or re-import required');
     if (!row.sourceId && row.bytes) { await this.install(ref, row.bytes, row.title, row.author, row.cover); return this.open(ref); }
-    const stored = row.sourceId && await this.db.sources.get(row.sourceId);
+    return this.openSource(row, row.sourceId ? await this.db.sources.get(row.sourceId) : undefined);
+  }
+  private async openSource(row: BookRow, stored?: SourceRow) {
+    const ref = row.ref;
     if (!stored || !stored.complete || !stored.manifest || stored.size !== row.size) throw new Error('Original source/index unavailable');
     const { integrity } = stored.manifest;
     const identityMatches = integrity ? integrity.sha256 === row.checksum && integrity.protocolHash === row.protocolHash
@@ -321,48 +449,116 @@ export class Repository {
     if (stored.manifestHash !== manifestHash) throw new Error('Validated index integrity mismatch');
     return { row, source: { ...this.descriptor(stored), digests: integrity?.digests }, manifest: stored.manifest };
   }
-  private async addEvent(key: string, scope: string, event: Submission) {
-    if (!validSubmission(event)) throw new Error('Invalid immutable reading event');
-    await this.db.events.add({ ...event, id: event.payload.event_id, key, scope, created: Date.now() });
+  openOffline(ref: ServerRef) { return this.openDownload(ref, 'device'); }
+  openSourceCopy(ref: ServerRef) { return this.openDownload(ref, 'source'); }
+  private async openDownload(ref: ServerRef, mode: 'source' | 'account' | 'device') {
+    const key = refKey(ref);
+    const { row, source } = await this.db.transaction('r', [this.db.downloads, this.db.positions, this.db.sources, this.db.offline, this.db.heads], async () => {
+      const copy = await this.db.downloads.get(downloadKey(ref));
+      if (!copy) {
+        if (mode === 'device') throw new NoOfflineCopyError('Book not on this device');
+        throw new Error('Book not on this device');
+      }
+      const source = await this.db.sources.get(copy.sourceId);
+      if (!source?.complete || source.key !== copy.key) throw new Error('Original source/index unavailable');
+      if (source.evictOnRelease) {
+        if (mode === 'device') throw new NoOfflineCopyError('Book not on this device');
+        throw new Error('Original source/index unavailable');
+      }
+      const position = mode === 'source' ? undefined : await this.db.positions.get(key);
+      const row = mode === 'device'
+        ? this.offlineView(ref, copy, position, await this.db.heads.get(key), await this.offlineProgress(ref).first(), source)
+        : bookView(ref, copy, position, source);
+      return { row, source };
+    });
+    if (source.needsIndex && source.blob) {
+      // Inline V1 Originals - Validate the retained blob on first use without copying its bytes during upgrade.
+      const policy = await validateEPUB(this.descriptor(source));
+      try {
+        const integrity = policy.manifest.integrity;
+        if (!integrity || source.checksum && source.checksum !== integrity.sha256 || source.protocolHash && source.protocolHash !== integrity.protocolHash) throw new Error('Legacy source integrity mismatch');
+        const manifestHash = await checksum(new Blob([JSON.stringify(policy.manifest)]));
+        Object.assign(source, { needsIndex: undefined, manifest: policy.manifest, manifestHash, checksum: integrity.sha256, protocolHash: integrity.protocolHash });
+        await this.db.sources.update(source.id, { needsIndex: undefined, manifest: source.manifest, manifestHash, checksum: integrity.sha256, protocolHash: integrity.protocolHash });
+        row.checksum = integrity.sha256; row.protocolHash = integrity.protocolHash;
+      } finally { policy.dispose(); }
+    }
+    return this.openSource(row, source);
   }
-  private async hasPendingProgress(key: string) {
-    return !!await this.db.events.where('key').equals(key).filter(event => event.kind === 'progress' && !event.rejected).first();
+  private offlineProgress(ref: ServerRef) {
+    return this.db.offline.where('[scope+document+kind]').equals([scopeOf(ref), ref.documentId, 'progress']);
   }
-  private async enqueueProgress(draft: ProgressDraft, scope: string, document: string, device: string, revision: string) {
-    await this.addEvent(draft.key, scope, { kind: 'progress', payload: { event_id: crypto.randomUUID(), document_id: document, device_id: device, observed_at: draft.observedAt, base_revision: revision, position: draft.position, fraction: draft.fraction } });
-  }
-  async save(ref: BookRef, checkpoint: Checkpoint, activity?: S['ActivityEvent']) {
-    const device = ref.kind === 'server' ? await this.device(ref.account) : null;
-    await this.db.transaction('rw', [this.db.books, this.db.events, this.db.heads, this.db.access, this.db.progressDrafts], async () => {
-      if (!await this.permitted(ref)) throw new Error('Account hidden');
-      const key = refKey(ref), book = await this.db.books.get(key);
-      if (!book || ref.kind === 'local' && book.availability !== 'available') throw new Error('Book unavailable');
+  async saveLocal(ref: Extract<BookRef, { kind: 'local' }>, checkpoint: Checkpoint) {
+    await this.db.transaction('rw', this.db.books, async () => {
+      const book = await this.db.books.get(refKey(ref));
+      if (!book || book.availability !== 'available') throw new Error('Book unavailable');
       await this.db.books.put({ ...book, checkpoint, lastReadAt: new Date().toISOString() });
-      if (ref.kind === 'local') { if (activity) throw new Error('Local activity must never upload'); return; }
-      const state = (await this.db.heads.get(key))?.state;
-      if (!state || checkpoint.position === null || checkpoint.fraction === null || !validProgressPosition(checkpoint.position, checkpoint.fraction)) throw new Error('A known server revision and recoverable position are required');
-      const scope = scopeOf(ref), draft = { key, observedAt: new Date().toISOString(), position: checkpoint.position, fraction: checkpoint.fraction };
-      if (await this.hasPendingProgress(key)) {
-        await this.db.progressDrafts.put(draft);
-      } else {
-        await this.enqueueProgress(draft, scope, ref.documentId, device!.id, state.revision);
-      }
-      if (activity) await this.addEvent(key, scope, { kind: 'activity', payload: activity });
     });
   }
-  async credit(ref: BookRef, payload: S['ActivityEvent'], measured?: CapturedActivity) {
-    if (ref.kind !== 'server' || payload.document_id !== ref.documentId || !validSubmission({ kind: 'activity', payload })) throw new Error('Invalid server activity');
-    await this.db.transaction('rw', this.db.events, this.db.access, async () => {
-      if (!await this.permitted(ref)) throw new Error('Account hidden');
-      const interval = measured ? { id: measured.intervalId, startMs: measured.startMs, endMs: measured.endMs } : undefined;
-      if (interval && (payload.event_id !== interval.id || !Number.isFinite(interval.startMs) || !Number.isFinite(interval.endMs) || interval.endMs <= interval.startMs)) throw new Error('Invalid activity interval');
-      const previous = await this.db.events.get(payload.event_id);
-      if (previous) {
-        if (previous.kind !== 'activity' || previous.scope !== scopeOf(ref) || previous.key !== refKey(ref) || JSON.stringify(previous.payload) !== JSON.stringify(payload) || JSON.stringify(previous.interval) !== JSON.stringify(interval)) throw new Error('Activity interval identity collision');
-        return;
+  async recordTurn(ref: ServerRef, policy: TurnPolicy, checkpoint: Checkpoint | undefined, activity: S['ActivityEvent'] | undefined, current: () => boolean) {
+    const scope = scopeOf(ref), document = ref.documentId, key = refKey(ref), created = new Date().toISOString();
+    await this.db.transaction('rw', this.tables(), async () => {
+      if (policy.mode === 'account' && !(await this.db.access.get(scope))?.eligible) throw new Error('Account changed');
+      const title = policy.mode === 'device' ? (await this.db.downloads.get(downloadKey(ref)))?.title ?? (await this.offlineProgress(ref).first())?.title ?? document : document;
+      if (checkpoint) {
+        const { position, fraction } = checkpoint;
+        if (position === null || fraction === null || !validProgressPosition(position, fraction)) throw new Error('Invalid position');
+        const row = { id: crypto.randomUUID(), scope, document, title, created, kind: 'progress' as const, checkpoint: { position, fraction } };
+        if (policy.mode === 'device') {
+          await this.offlineProgress(ref).delete();
+          await this.db.offline.add(row);
+        } else {
+          const revision = (await this.db.heads.get(key))?.state.revision;
+          if (!revision) throw new Error('Missing reading revision');
+          const draft = { key, id: row.id, observedAt: created, position, fraction };
+          if (await this.hasPendingProgress(key)) await this.db.progressDrafts.put(draft);
+          else await this.enqueueProgress(draft, scope, document, policy.deviceId, revision);
+          await this.saveCommittedPosition(ref, row);
+        }
       }
-      await this.db.events.add({ id: payload.event_id, key: refKey(ref), scope: scopeOf(ref), created: Date.now(), kind: 'activity', payload, ...(interval ? { interval } : {}) });
+      if (activity) {
+        if (activity.document_id !== document || !validSubmission({ kind: 'activity', payload: activity })) throw new Error('Invalid activity');
+        const existing = await this.db.offline.get(activity.event_id), sent = await this.db.events.get(activity.event_id);
+        if (existing && (existing.kind !== 'activity' || existing.scope !== scope || JSON.stringify(existing.event) !== JSON.stringify(activity)) ||
+          sent && (sent.kind !== 'activity' || sent.scope !== scope || JSON.stringify(sent.payload) !== JSON.stringify(activity))) throw new Error('Activity interval identity collision');
+        if (!existing && !sent) {
+          if (policy.mode === 'device') await this.db.offline.add({ id: activity.event_id, scope, document, title, created, kind: 'activity', event: activity });
+          else await this.addEvent(key, scope, { kind: 'activity', payload: activity });
+        }
+      }
+      if (!current()) throw new DOMException('Reading access changed', 'AbortError');
     });
+  }
+  private async saveCommittedPosition(ref: ServerRef, row: Extract<OfflineRecord, {kind: 'progress'}>) {
+    await this.db.positions.put({ ...positionFor(ref, row.checkpoint), lastReadAt: row.created });
+  }
+  async decideOffline(account: Account, choices: OfflineChoice[], decision: ReviewDecision) {
+    const scope = accountKey(account), device = await this.device(account);
+    await this.db.transaction('rw', [this.db.offline,this.db.access,this.db.events,this.db.positions], async () => {
+      if (!(await this.db.access.get(scope))?.authenticated) throw new Error('Sign in again');
+      for (const choice of choices) {
+        const row = await this.db.offline.get(choice.id);
+        if (!row || row.scope !== scope) throw new Error('Offline records changed. Review again.');
+        const ref: ServerRef = { kind: 'server', account, documentId: row.document }, key = refKey(ref);
+        if (decision === 'upload' && row.kind === 'progress') {
+          if (!choice.revision || await this.hasPendingProgress(key)) throw new Error('Refresh after progress syncs.');
+          await this.addEvent(key, scope, { kind: 'progress', payload: { event_id: row.id, document_id: row.document, device_id: device.id, observed_at: row.created, base_revision: choice.revision, ...row.checkpoint } }, row.title);
+          await this.saveCommittedPosition(ref, row);
+        } else if (decision === 'upload' && row.kind === 'activity') await this.addEvent(key, scope, { kind: 'activity', payload: row.event });
+        await this.db.offline.delete(row.id);
+      }
+    });
+  }
+  private async addEvent(key: string, scope: string, event: Submission, offlineTitle?: string) {
+    if (!validSubmission(event)) throw new Error('Invalid immutable reading event');
+    await this.db.events.add({ ...event, id: event.payload.event_id, key, scope, created: Date.now(), ...(offlineTitle !== undefined && { offlineTitle }) });
+  }
+  private pendingProgress(key: string) {
+    return this.db.events.where('key').equals(key).filter(event => event.kind === 'progress' && !event.rejected).first();
+  }
+  private async hasPendingProgress(key: string) { return !!await this.pendingProgress(key); }
+  private async enqueueProgress(draft: ProgressDraft, scope: string, document: string, device: string, revision: string) {
+    await this.addEvent(draft.key, scope, { kind: 'progress', payload: { event_id: draft.id ?? crypto.randomUUID(), document_id: document, device_id: device, observed_at: draft.observedAt, base_revision: revision, position: draft.position, fraction: draft.fraction } });
   }
   pending(scope?: string) { return scope ? this.db.events.where('scope').equals(scope).sortBy('created') : this.db.events.orderBy('created').toArray(); }
   async replayCurrent(access: ReplayAccess) {
@@ -412,7 +608,7 @@ export class Repository {
       await this.db.events.delete(event.id);
       if (event.kind === 'progress') {
         const old = (await this.db.heads.get(event.key))?.state;
-        if (!old || BigInt(receipt.revision!) > BigInt(old.revision)) await this.db.heads.put({ key: event.key, state: { document_id: event.payload.document_id, revision: receipt.revision!, position: event.payload.position, fraction: event.payload.fraction, device_id: event.payload.device_id, updated_at: event.payload.observed_at } });
+        if (!old || BigInt(receipt.revision!) > BigInt(old.revision)) await this.db.heads.put({ key: event.key, eventId: event.id, state: { document_id: event.payload.document_id, revision: receipt.revision!, position: event.payload.position, fraction: event.payload.fraction, device_id: event.payload.device_id, updated_at: event.payload.observed_at } });
         const draft = await this.db.progressDrafts.get(event.key);
         if (draft && !await this.hasPendingProgress(event.key)) {
           await this.enqueueProgress(draft, event.scope, event.payload.document_id, event.payload.device_id, receipt.revision!);
@@ -429,19 +625,26 @@ export class Repository {
       if (head && BigInt(head.revision) > BigInt(state.revision)) state = head;
       if (event.kind !== 'progress') throw new Error('Expected a progress event');
       const device = await this.db.progressDrafts.get(event.key) ?? { ...event.payload, observedAt: event.payload.observed_at };
-      const resumeCandidate = { eventId: event.id, position: device.position, fraction: device.fraction, savedAt: device.observedAt };
+      let resumeCandidate: ResumeCandidate | undefined;
+      if (event.offlineTitle !== undefined) {
+        const document = event.payload.document_id;
+        if (!await this.db.offline.where('[scope+document+kind]').equals([event.scope,document,'progress']).count()) {
+          await this.db.offline.add({ id: crypto.randomUUID(), kind: 'progress', document, scope: event.scope, title: event.offlineTitle, created: device.observedAt, checkpoint: { position: device.position, fraction: device.fraction } });
+        }
+      } else resumeCandidate = { eventId: event.id, position: device.position, fraction: device.fraction, savedAt: device.observedAt };
       await this.db.events.where('key').equals(event.key).filter(row => row.kind === 'progress' && !row.rejected).delete();
       await this.db.progressDrafts.delete(event.key);
       await this.db.heads.put({ key: event.key, state });
-      await this.db.books.update(event.key, { resumeCandidate, checkpoint: { position: state.position, fraction: state.fraction }, lastReadAt: state.updated_at ?? undefined });
+      await this.db.positions.update(event.key, { resumeCandidate, checkpoint: { position: state.position, fraction: state.fraction }, lastReadAt: state.updated_at ?? undefined });
       return true;
     });
   }
   async clearResumeCandidate(ref: BookRef, candidate: ResumeCandidate) {
-    await this.db.transaction('rw', this.db.books, this.db.access, async () => {
+    if (ref.kind !== 'server') return;
+    await this.db.transaction('rw', this.db.positions, this.db.access, async () => {
       if (!await this.permitted(ref)) return;
-      const key = refKey(ref), row = await this.db.books.get(key);
-      if (row?.resumeCandidate?.eventId === candidate.eventId) await this.db.books.update(key, { resumeCandidate: undefined });
+      const key = refKey(ref), row = await this.db.positions.get(key);
+      if (row?.resumeCandidate?.eventId === candidate.eventId) await this.db.positions.update(key, { resumeCandidate: undefined });
     });
   }
 }

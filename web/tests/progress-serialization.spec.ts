@@ -22,7 +22,7 @@ test('rapid turns wait for the previous receipt without changing its payload or 
     await route.fulfill({ response });
   }, { times: 1 });
 
-  const next = page.getByRole('button', { name: 'Next page', exact: true });
+  const next = page.getByRole('button', { name: 'Next Page', exact: true });
   let latest: string | null | undefined;
   try {
     await next.click();
@@ -34,7 +34,8 @@ test('rapid turns wait for the previous receipt without changing its payload or 
     await expect(page.locator('footer')).toContainText('3 /');
     await next.click();
     await expect(page.locator('footer')).toContainText('4 /');
-    latest = (await storedRows(page, 'books')).find(row => row.ref?.documentId === 'book_001')?.checkpoint?.position;
+    await expect.poll(async () => (await storedRows(page, 'offline')).filter(row => row.kind === 'progress')).toEqual([]);
+    latest = (await storedRows(page, 'positions')).find(row => row.ref?.documentId === 'book_001')?.checkpoint?.position;
     expect(latest).toBeTruthy();
     expect(latest).not.toBe(submitted[0].position);
     expect(submitted).toHaveLength(1);

@@ -33,7 +33,7 @@ function ResultCover({ id }: { id?: number }) {
 }
 
 export function IdentifyBook({ document, refId, onClose, onSaved }: {
-  document: components['schemas']['Document']; refId: Extract<BookRef, { kind: 'server' }>; onClose(): void; onSaved(): void;
+  document: components['schemas']['Document']; refId: Extract<BookRef, { kind: 'server' }>; onClose(): void; onSaved(document: components['schemas']['Document'], cover?: Blob): void;
 }) {
   const formId = useId();
   const original = bookMetadataDraft(document);
@@ -97,17 +97,17 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
     void run('apply', async signal => {
       const next = bookMetadataDraft(document);
       for (const field of selected) if (field !== 'cover') next[field] = match[field] ?? '';
-      let cover_base64: string | undefined;
+      let image: Blob | undefined;
       if (selected.includes('cover') && match.cover_id && cover === 'ready') {
-        const response = await fetch(`${coverURL(match.cover_id)}?prefer_large=true`, { signal, cache: 'no-store' });
-        if (!response.ok || response.headers.get('Content-Type') !== 'image/jpeg') throw new Error('This cover is unavailable. Try again or deselect Edition cover.');
-        const image = await response.blob();
-        if (image.size > 2 * 1024 * 1024) throw new Error('This cover is larger than 2 MiB. Deselect Edition cover to apply the other fields.');
-        cover_base64 = await encodeBookCover(image);
+        const response = await session.api.metadataCover(refId.account, match.cover_id, signal);
+        if (!response.ok || response.headers.get('Content-Type') !== 'image/jpeg') throw new Error('This cover is unavailable. Try again or deselect “Edition Cover”.');
+        image = await response.blob();
+        if (image.size > 2 * 1024 * 1024) throw new Error('This cover is larger than 2 MiB. Deselect “Edition Cover” to apply the other fields.');
       }
+      const cover_base64 = image && await encodeBookCover(image);
       if (signal.aborted) return;
-      await session.api.editDocument(refId.account, refId.documentId, { ...next, title: next.title.trim(), ...(cover_base64 ? { cover_base64 } : {}) }, signal);
-      if (!signal.aborted) onSaved();
+      const updated = await session.api.editDocument(refId.account, refId.documentId, { ...next, title: next.title.trim(), ...(cover_base64 ? { cover_base64 } : {}) }, signal);
+      if (!signal.aborted) await onSaved(updated, image);
     });
   }
 
@@ -125,7 +125,7 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
         <span className={styles.matchFieldLabel}>{label}</span>{indicator(field)}
         <span id={valueID} className={styles.matchValue}>{long && !expanded ? `${value.slice(0, 220).trimEnd()}…` : value}</span>
       </button>
-      {long && <button type="button" className={styles.matchTextAction} aria-controls={valueID} aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? 'Read less' : 'Read more'}</button>}
+      {long && <button type="button" className={styles.matchTextAction} aria-controls={valueID} aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? 'Read Less' : 'Read More'}</button>}
     </div>;
   }
   const identityFields = fields.filter(field => field === 'title' || field === 'author');
@@ -142,9 +142,9 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
   }
   const close = () => { if (busy !== 'apply') onClose(); };
   return <Dialog title="Identify Book" placement="mobile-sheet" layout={showPreview ? 'scroll-body' : 'content'} onClose={close}
-    titleLeading={showPreview && <button type="button" className={styles.icon} aria-label="Back to results" disabled={busy === 'apply'} onClick={backToResults}><Icon name="back" size={18} /></button>}
+    titleLeading={showPreview && <button type="button" className={styles.icon} aria-label="Back to Results" disabled={busy === 'apply'} onClick={backToResults}><Icon name="back" size={18} /></button>}
     footer={showPreview ? <>
-    <Button type="submit" form={formId} tone="primary" disabled={!!busy || !selected.length || !validTitle || awaitingDefaultCover}>{busy === 'apply' ? 'Applying…' : match && selected.length ? `Apply ${selected.length} ${selected.length === 1 ? 'change' : 'changes'}` : 'Apply changes'}</Button>
+    <Button type="submit" form={formId} tone="primary" disabled={!!busy || !selected.length || !validTitle || awaitingDefaultCover}>{busy === 'apply' ? 'Applying…' : match && selected.length ? `Apply ${selected.length} ${selected.length === 1 ? 'Change' : 'Changes'}` : 'Apply Changes'}</Button>
     <Button disabled={busy === 'apply'} onClick={onClose}>Cancel</Button>
   </> : undefined}>
     {previewLoading ? <section ref={loadingSection} tabIndex={-1} aria-label="Match preview" className={styles.matchLoading}>
@@ -188,7 +188,7 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
       <form id={formId} className={styles.form} onSubmit={event => { event.preventDefault(); apply(); }}>
         <fieldset ref={heading} tabIndex={-1} aria-label="Suggested metadata" className={styles.matchFields} disabled={busy === 'apply'}>
           <div className={styles.matchIdentity} data-cover={showCover || undefined}>
-            {showCover && <button type="button" className={`${styles.matchCard} ${styles.matchCoverCard}`} aria-label="Edition cover" aria-pressed={selected.includes('cover')} disabled={cover !== 'ready'} onClick={() => toggle('cover')}>
+            {showCover && <button type="button" className={`${styles.matchCard} ${styles.matchCoverCard}`} aria-label="Edition Cover" aria-pressed={selected.includes('cover')} disabled={cover !== 'ready'} onClick={() => toggle('cover')}>
               {indicator('cover')}
               <img src={coverURL(match.cover_id!)} className={styles.metadataPreview} alt={`Cover for ${match.title}`} onLoad={() => { setCover('ready'); if (awaitingDefaultCover) choose('cover', true); }} onError={() => { setCover('missing'); choose('cover', false); }} />
             </button>}

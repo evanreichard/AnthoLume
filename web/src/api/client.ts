@@ -1,4 +1,5 @@
 import createClient from 'openapi-fetch';
+import { createTransport } from './transport';
 import type { paths, components, operations } from './schema.gen';
 import { ReadingHTTPError, type Account, type ReadingBridge } from '../reading';
 import { InvalidResponse, isMakeLibraryPlan, isAdminAutoImport, isAdminRestore, isStorageRoots, isStorageDirectories, isBackupPreview, isAdminLogs, isImportPreview, isImportResults, isAdminJob, isAdminJobs, isAdminSystem, isAdminUser, isAdminUsers, isCapabilities, isDevice, isDocument, isInsights, isMetadataMatch, isMetadataMatches, isManagedDevice, isManagedDevices, isInsightActivity, isInsightProgress, isInsightRankings, isPage, isProblem, isSession, isState, validated } from './validate';
@@ -11,6 +12,7 @@ export const sameAccount = (a: Account, b: Account) => a.origin === b.origin && 
 const accountHeader = (account: Account) => ({ 'X-AnthoLume-Account': account.userId, ...(account.readingGeneration ? { 'X-AnthoLume-Reading-Generation': account.readingGeneration } : {}) });
 interface SessionGate {
   token(): string | null;
+  suspectOutage(): void;
   epoch(): number;
   assert(account: Account, epoch: number): void;
   expired(account: Account): void;
@@ -18,7 +20,8 @@ interface SessionGate {
 }
 
 export function createAPI(gate: SessionGate) {
-  const scopedClient = (account?: Account) => createClient<paths>({
+  const transport = createTransport(gate);
+  const scopedClient = (account?: Account, role: 'operation' | 'session-probe' = 'operation') => createClient<paths>({
     baseUrl: apiOrigin,
     headers: account ? accountHeader(account) : undefined,
     credentials: 'same-origin',
@@ -30,10 +33,11 @@ export function createAPI(gate: SessionGate) {
         request.headers.set('X-CSRF-Token', token);
       }
       request.headers.set('Accept', 'application/json, application/problem+json');
-      return fetch(request);
+      return transport(request, role, 'json');
     },
   });
   const client = scopedClient();
+  const probe = scopedClient(undefined, 'session-probe');
   function checkIdentity(status: number, problem: S['Problem'], account: Account) {
     if ((status === 401 && problem.code === 'account_changed') || (status === 409 && problem.code === 'stale_reading_generation')) {
       gate.changed(account);
@@ -63,7 +67,7 @@ export function createAPI(gate: SessionGate) {
   }
   const path = (id: string) => ({ path: { id } });
   const api = {
-    session: (signal?: AbortSignal) => consume(client => client.GET('/api/v1/session', { signal, parseAs: 'stream' }), isSession, 200),
+    session: (signal?: AbortSignal) => consume(() => probe.GET('/api/v1/session', { signal, parseAs: 'stream' }), isSession, 200),
     capabilities: (signal?: AbortSignal) => consume(client => client.GET('/api/v1/capabilities', { signal, parseAs: 'stream' }), isCapabilities, 200),
     login: (credentials: { username: string; password: string }) => consume(client => client.POST('/api/v1/session/login', { body: credentials, parseAs: 'stream' }), isSession, 200),
     register: (credentials: { username: string; password: string }) => consume(client => client.POST('/api/v1/session/register', { body: credentials, parseAs: 'stream' }), isSession, 201),
@@ -109,14 +113,15 @@ export function createAPI(gate: SessionGate) {
     }), isDocument, 200, account),
     editDocument: (account: Account, id: string, body: S['DocumentEdit'], signal: AbortSignal) => consume(client => client.PATCH('/api/v1/documents/{id}', { params: path(id), body, signal, parseAs: 'stream' }), isDocument, 200, account),
     deleteDocument: (account: Account, id: string, signal: AbortSignal) => consume(client => client.DELETE('/api/v1/documents/{id}', { params: path(id), signal, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
+    metadataCover: (account: Account, id: number, signal: AbortSignal) => binary(account, `/api/v1/metadata/covers/${id}?prefer_large=true`, signal),
     previewMetadataMatch: (account: Account, query: { work_id: string; edition_id?: string; isbn?: string }, signal: AbortSignal) => consume(client => client.GET('/api/v1/metadata/match', { params: { query }, signal, parseAs: 'stream' }), isMetadataMatch, 200, account),
     lookupMetadata: (account: Account, q: string, signal: AbortSignal) => consume(client => client.GET('/api/v1/metadata/search', { params: { query: { q } }, signal, parseAs: 'stream' }), isMetadataMatches, 200, account),
     document: (account: Account, id: string, signal: AbortSignal) => consume(client => client.GET('/api/v1/documents/{id}', { params: path(id), signal, parseAs: 'stream' }), isDocument, 200, account),
   };
-  async function binary(account: Account, id: string, kind: 'file' | 'cover', signal: AbortSignal, etag?: string) {
+  async function binary(account: Account, path: string, signal: AbortSignal, etag?: string) {
     const epoch = gate.epoch();
     gate.assert(account, epoch);
-    const response = await fetch(`${apiOrigin}/api/v1/documents/${encodeURIComponent(id)}/${kind}`, { credentials: 'same-origin', cache: 'no-store', signal, headers: { ...accountHeader(account), ...(etag ? { 'If-None-Match': etag } : {}) } });
+    const response = await transport(new Request(`${apiOrigin}${path}`, { credentials: 'same-origin', cache: 'no-store', signal, headers: { ...accountHeader(account), ...(etag ? { 'If-None-Match': etag } : {}) } }));
     try { gate.assert(account, epoch); } catch (error) { await response.body?.cancel(); throw error; }
     if ((response.status === 401 || response.status === 409) && !response.redirected && response.headers.get('content-type')?.split(';')[0].trim() === 'application/problem+json') {
       const problem: unknown = await response.clone().json().catch(() => null);
@@ -155,8 +160,9 @@ export function createAPI(gate: SessionGate) {
       if (result.document_id !== documentId) throw new InvalidResponse();
       return result;
     },
-    fetchFile: (account, documentId, signal, etag) => binary(account, documentId, 'file', signal, etag),
-    fetchCover: (account, documentId, signal) => binary(account, documentId, 'cover', signal),
+    fileReadFailed: account => { gate.assert(account, gate.epoch()); gate.suspectOutage(); },
+    fetchFile: (account, documentId, signal, etag) => binary(account, `/api/v1/documents/${encodeURIComponent(documentId)}/file`, signal, etag),
+    fetchCover: (account, documentId, signal) => binary(account, `/api/v1/documents/${encodeURIComponent(documentId)}/cover`, signal),
     submitProgress: (account, event, signal) => deliver(account, event, 'progress', signal),
     submitActivity: (account, event, signal) => deliver(account, event, 'activity', signal),
   };

@@ -13,7 +13,7 @@ test('a failed session check in a second tab leaves the signed-in reader able to
     const failed = other.waitForEvent('requestfailed', req => req.url().endsWith('/api/v1/session'));
     await other.goto(`${server.origin}/library`);
     await failed;
-    await expect(other.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
+    await expect(other.getByRole('heading', { name: 'Offline Profiles' })).toBeVisible();
     expect(await storedRows(page, 'access')).toEqual(before);
     await turn(page);
     await expect.poll(() => serverEffects(server.data, user).receipts).toHaveLength(1);
@@ -29,7 +29,7 @@ async function turn(page: Page, { expectPageTwo = true } = {}) {
   await page.getByRole('link', { name: /^(Read|Resume)$/ }).click();
   await expect(page.locator('footer')).toContainText('1 /');
   await page.keyboard.press('c');
-  await page.getByRole('button', { name: 'Next page', exact: true }).click();
+  await page.getByRole('button', { name: 'Next Page', exact: true }).click();
   if (expectPageTwo) await expect(page.locator('footer')).toContainText('2 /');
 }
 
@@ -67,8 +67,8 @@ for (const fault of ['malformed-401', 'valid-401']) {
         // The fault expires the client session without invalidating the fixture's cookie.
         await page.getByLabel('Username', { exact: true }).fill(user);
         await page.getByLabel('Password', { exact: true }).fill('synthetic-public-password');
-        await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-      } else await page.getByRole('button', { name: 'Retry synchronization', exact: true }).click();
+        await page.getByRole('button', { name: 'Sign In', exact: true }).click();
+      } else await page.getByRole('button', { name: 'Retry Synchronization', exact: true }).click();
       const replay = await replayed;
       expect(replay.status()).toBe(200);
       expect(replay.request().postDataJSON()).toEqual(submitted);
@@ -89,7 +89,7 @@ test('a delayed duplicate response cannot expire authentication after another ta
     await expect(other.getByRole('button', { name: 'Add Book', exact: true })).toBeEnabled();
     await other.getByRole('link', { name: 'Settings', exact: true }).click();
     await other.getByRole('button', { name: 'Sync', exact: true }).click();
-    await expect(other.getByRole('button', { name: 'Retry synchronization', exact: true })).toBeVisible();
+    await expect(other.getByRole('button', { name: 'Retry Synchronization', exact: true })).toBeVisible();
     await expect.poll(async () => (await storedRows(other, 'access'))[0]?.authenticated).toBe(true);
     const accessBefore = await storedRows(page, 'access');
     let bootstrapRequests = 0;
@@ -98,7 +98,7 @@ test('a delayed duplicate response cannot expire authentication after another ta
     await turn(page);
     await expect.poll(async () => readFile(`${server.data}/event-held`, 'utf8').catch(() => '')).not.toBe('');
     expect(await storedRows(page, 'access')).toEqual(accessBefore);
-    await other.getByRole('button', { name: 'Retry synchronization', exact: true }).click();
+    await other.getByRole('button', { name: 'Retry Synchronization', exact: true }).click();
     await expect.poll(() => pendingIds(other)).toEqual([]);
     expect(await storedRows(page, 'access')).toEqual(accessBefore);
     const delivered = page.waitForResponse((response) => response.url().endsWith('/api/v1/me/reading-progress') && response.status() === 401);

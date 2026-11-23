@@ -49,6 +49,10 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 	if err := c.NormalizePublicOrigin(); err != nil {
 		return nil, err
 	}
+	shellPaths, err := loadShellPaths(assets)
+	if err != nil {
+		return nil, err
+	}
 	api := &API{
 		db:             db,
 		cfg:            c,
@@ -93,7 +97,6 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 
 	// Generate auth token
 	var newToken []byte
-	var err error
 	if c.CookieAuthKey != "" {
 		log.Info("utilizing environment cookie auth key")
 		newToken = []byte(c.CookieAuthKey)
@@ -139,7 +142,7 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 		return nil, err
 	}
 	router.NoRoute(func(c *gin.Context) {
-		if (c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead) && appNavigation.MatchString(c.Request.URL.EscapedPath()) {
+		if (c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead) && shellPaths[c.Request.URL.EscapedPath()] {
 			api.serveAppShell(c)
 			return
 		}

@@ -142,7 +142,7 @@ function RepairBackupPath({ account, issue, busy, onRepair }: { account: Account
         <p id={hintId}>Enter a path within {book ? 'the selected storage root' : 'the covers directory'}, using <code>/</code> between folders. Do not use absolute paths, <code>.</code>, or <code>..</code>.</p>
       </>}
     </fieldset>
-    <div className={styles.backupActions}><Button size="slim" type="submit" tone={clear ? 'danger' : 'primary'} disabled={disabled}>{clear ? 'Clear path' : 'Relink path'}</Button></div>
+    <div className={styles.backupActions}><Button size="slim" type="submit" tone={clear ? 'danger' : 'primary'} disabled={disabled}>{clear ? 'Clear Path' : 'Relink Path'}</Button></div>
     <ErrorNotice error={error} />
   </form>;
 }
@@ -176,7 +176,7 @@ function RestoreBackup({ account, close }: { account: Account; close: () => void
   }
   return <Dialog title={candidate ? 'Confirm Restore' : 'Restore Backup'} onClose={() => { if (!busy) close(); }} footer={<>
     {candidate
-      ? <Button size="slim" tone="danger" disabled={confirm !== 'RESTORE' || busy} onClick={() => void restore(true)}>Restore backup</Button>
+      ? <Button size="slim" tone="danger" disabled={confirm !== 'RESTORE' || busy} onClick={() => void restore(true)}>Restore Backup</Button>
       : <Button size="slim" tone="primary" disabled={!file || busy} onClick={() => void restore(false)}>{busy ? 'Validating…' : 'Validate'}</Button>}
     <Button size="slim" disabled={busy} onClick={close}>Cancel</Button>
   </>}>

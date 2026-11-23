@@ -9,7 +9,7 @@ import styles from '../App.module.css';
 import { bookMetadataDraft, encodeBookCover } from './bookMetadataDraft';
 
 export function BookEditor({ book, refId, document, onClose, onSaved }: {
-  book: LibraryBook; refId: Extract<BookRef, { kind: 'server' }>; document: components['schemas']['Document']; onClose(): void; onSaved(): void;
+  book: LibraryBook; refId: Extract<BookRef, { kind: 'server' }>; document: components['schemas']['Document']; onClose(): void; onSaved(document: components['schemas']['Document'], cover?: Blob | null): void;
 }) {
   const formId = useId();
   const [draft, setDraft] = useState(() => bookMetadataDraft(document));
@@ -31,10 +31,10 @@ export function BookEditor({ book, refId, document, onClose, onSaved }: {
     try {
       const cover_base64 = cover ? await encodeBookCover(cover) : undefined;
       if (signal.aborted) return;
-      await session.api.editDocument(refId.account, refId.documentId, {
+      const updated = await session.api.editDocument(refId.account, refId.documentId, {
         ...draft, title: draft.title.trim(), ...(cover_base64 ? { cover_base64 } : remove ? { remove_cover: true } : {}),
       }, signal);
-      if (!signal.aborted) onSaved();
+      if (!signal.aborted) await onSaved(updated, cover ?? (remove ? null : undefined));
     } catch (err) { if (!signal.aborted) setError(err); }
     finally { request.current = null; if (!signal.aborted) setBusy(false); }
   }
@@ -52,8 +52,8 @@ export function BookEditor({ book, refId, document, onClose, onSaved }: {
             if (file.size > 2 * 1024 * 1024) { event.currentTarget.value = ''; setError(new Error('Choose a JPEG or PNG up to 2 MiB.')); return; }
             setError(null); setRemove(false); setCover(file);
           }} /></label>
-          {(cover || remove) ? <Button size="slim" disabled={busy} onClick={() => { setCover(null); setRemove(false); }}>Keep original cover</Button> :
-            document.cover_available && <Button size="slim" disabled={busy} onClick={() => setRemove(true)}>Remove cover</Button>}
+          {(cover || remove) ? <Button size="slim" disabled={busy} onClick={() => { setCover(null); setRemove(false); }}>Keep Original Cover</Button> :
+            document.cover_available && <Button size="slim" disabled={busy} onClick={() => setRemove(true)}>Remove Cover</Button>}
         </div>
       </div>
       <label>Title<input required maxLength={512} value={draft.title} onChange={event => setField('title', event.target.value)} /></label>

@@ -51,13 +51,13 @@ export function AdminLogs() {
       <div role="group" aria-label="Log controls" className={styles.filters}>
         <form className={styles.searchForm} onSubmit={event => { event.preventDefault(); setTerm(search.trim()); }}>
           <input type="search" aria-label="Search log events" placeholder="Search logs" maxLength={200} value={search} onChange={event => setSearch(event.target.value)} />
-          <button type="submit" aria-label="Search logs" title="Search logs"><Icon name="search" size={17} /></button>
+          <button type="submit" aria-label="Search Logs" title="Search Logs"><Icon name="search" size={17} /></button>
         </form>
         <Dropdown aria-label="Log level" value={level} onChange={event => { setLevel(event.target.value as Level | ''); }}>
           <option value="">All levels</option>
           {Object.entries(levels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
         </Dropdown>
-        <IconButton aria-label="Refresh logs" title="Refresh logs" disabled={logs.isFetching} onClick={() => void client.resetQueries({ queryKey, exact: true })}><Icon name="refresh" size={17} /></IconButton>
+        <IconButton aria-label="Refresh Logs" title="Refresh Logs" disabled={logs.isFetching} onClick={() => void client.resetQueries({ queryKey, exact: true })}><Icon name="refresh" size={17} /></IconButton>
       </div>
     </div>
     <ErrorNotice error={logs.error} />
@@ -78,7 +78,7 @@ export function AdminLogs() {
       </ul>}
       {hasNextPage && <div className={styles.more}>
         <Button ref={loadMore} size="slim" disabled={isFetching} onClick={() => void fetchNextPage({ cancelRefetch: false })}>
-          {logs.isFetchingNextPage ? 'Loading older logs…' : isFetchNextPageError ? 'Retry loading older logs' : 'Load older logs'}
+          {logs.isFetchingNextPage ? 'Loading Older Logs…' : isFetchNextPageError ? 'Retry Loading Older Logs' : 'Load Older Logs'}
         </Button>
       </div>}
     </>}

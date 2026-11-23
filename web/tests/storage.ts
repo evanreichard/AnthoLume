@@ -1,8 +1,8 @@
 import type { Page } from '@playwright/test';
 import { DatabaseSync } from 'node:sqlite';
 
-type Row = { key?: string; epoch?: number; authenticated?: boolean; eligible?: boolean; scope?: string; id?: string; kind?: string; payload?: { event_id: string; base_revision?: string; duration?: number; position?: string }; ref?: { kind: string; documentId?: string }; checkpoint?: { position: string | null; fraction: number | null } };
-export async function storedRows(page: Page, store: 'events' | 'books' | 'access'): Promise<Row[]> {
+type Row = { cacheReaders?: Record<string, number>; key?: string; epoch?: number; authenticated?: boolean; eligible?: boolean; scope?: string; id?: string; kind?: string; payload?: { event_id: string; base_revision?: string; duration?: number; position?: string }; ref?: { kind: string; documentId?: string }; checkpoint?: { position: string | null; fraction: number | null } };
+export async function storedRows(page: Page, store: 'events' | 'positions' | 'access' | 'offline' | 'sources' | 'heads'): Promise<Row[]> {
   return page.evaluate((name) => new Promise<Row[]>((resolve, reject) => {
     const request = indexedDB.open('antholume-reading-v1');
     request.onupgradeneeded = () => { request.transaction?.abort(); reject(new Error('Production reader DB missing')); };

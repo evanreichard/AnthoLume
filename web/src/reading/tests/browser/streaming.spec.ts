@@ -27,7 +27,7 @@ test('300 MB streamed download publishes complete originals, bounded caches and 
       await (window as unknown as { memoryPhase(value: string): Promise<void> }).memoryPhase('open');
       const bytesBefore = p.sourceStats.readBytes, opened = await repo.open(ref);
       let status: import('../../controller').ReaderStatus = { state: 'opening', message: '' }, saves = 0;
-      const reader = new p.ReaderController(host, next => { status = next; }, async location => { await repo.save(ref, { position: location.ko, fraction: location.fraction }); saves++; }, { localOnly: true });
+      const reader = new p.ReaderController(host, next => { status = next; }, async location => { await repo.saveLocal(ref, { position: location.ko, fraction: location.fraction }); saves++; }, { localOnly: true });
       await reader.open(opened.source, undefined, undefined, opened.manifest);
       const openBytes = p.sourceStats.readBytes - bytesBefore, initial = status.state;
       await (window as unknown as { memoryPhase(value: string): Promise<void> }).memoryPhase('navigate');

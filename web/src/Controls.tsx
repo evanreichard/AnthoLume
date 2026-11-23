@@ -55,11 +55,11 @@ export function RadioChoices<T extends string>({ legend, name, options, value, d
 
 type ControlSize = 'full' | 'slim';
 
-export function JoinedActions({ label, children, size = 'full' }: { label: string; children: ReactNode; size?: ControlSize }) {
-  return <div className={styles.joinedActions} data-size={size} role="group" aria-label={label}>{children}</div>;
+export function JoinedActions({ label, children, size = 'full', className }: { label: string; children: ReactNode; size?: ControlSize; className?: string }) {
+  return <div className={[styles.joinedActions, className].filter(Boolean).join(' ')} data-size={size} role="group" aria-label={label}>{children}</div>;
 }
 
-export function JoinedAction({ children, tone, ...props }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> & { tone?: 'danger' }) {
+export function JoinedAction({ children, tone, ...props }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> & { tone?: 'danger'; ref?: Ref<HTMLButtonElement> }) {
   return <button {...props} type="button" data-tone={tone}><span>{children}</span></button>;
 }
 

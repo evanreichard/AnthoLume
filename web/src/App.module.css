@@ -1,18 +1,15 @@
 .shell { min-height: 100dvh; }
-.readerRecovery { position: fixed; bottom: 0; left: 12px; right: 12px; margin-inline: auto; width: fit-content; max-width: calc(100% - 24px); padding-block: 8px calc(8px + env(safe-area-inset-bottom)); z-index: 110; max-height: min(128px, calc(100dvh - 192px)); overflow-y: auto; }
-.readerViewport { position: fixed; inset: 0; bottom: var(--app-recovery-height, 0px); transform: translateZ(0); z-index: 100; }
+.readerReview { position: fixed; bottom: calc(4rem + env(safe-area-inset-bottom)); left: 12px; right: 12px; margin-inline: auto; width: fit-content; max-width: calc(100% - 24px); padding-block: 8px calc(8px + env(safe-area-inset-bottom)); z-index: 110; max-height: min(128px, calc(100dvh - 192px)); overflow-y: auto; }
+.readerViewport { position: fixed; inset: 0; transform: translateZ(0); z-index: 100; }
 .readerViewport > [aria-label="Book reader"] { height: 100%; }
-.recoveryDock { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); box-shadow: 0 2px 10px #0003; }
-.recoveryDock > span { font-size: 12px; }
-.recoveryDock button { font-size: 12px; padding-inline: 8px; }
-.readerRecovery:empty { display: none; }
+.readerReview:empty { display: none; }
 .rail { position: fixed; inset: 0 auto 0 0; width: 184px; border-right: 1px solid var(--line); padding: 28px 16px; display: flex; flex-direction: column; gap: 28px; background: var(--surface); }
 .brand { align-self: center; font-size: 24px; text-decoration: none; }
 .brandLockup { display: block; text-align: center; font-family: var(--display); white-space: nowrap; }
 .brandLockup img { display: block; margin: 0 auto 4px; }
 .mobileBrand { display: none; }
-.authBrand { font-size: clamp(36px, 8vw, 48px); line-height: 1.1; margin-bottom: clamp(20px, 4vh, 36px); }
-.authBrand img { width: clamp(72px, 14vh, 96px); height: auto; }
+.authBrand { font-size: clamp(32px, 7vw, 42px); line-height: 1.1; margin-bottom: clamp(16px, 4dvh, 28px); }
+.authBrand img { width: clamp(44px, 9dvh, 64px); height: auto; }
 .tabs { display: grid; gap: 6px; }
 .tabs a { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; text-decoration: none; border-radius: var(--radius); }
 .tabs a:is([aria-current], [data-section-active]) { background: var(--hero); font-weight: 650; }
@@ -22,6 +19,9 @@
   .brand:hover { color: var(--accent); }
 }
 .workspace { margin-left: 184px; }
+.offlineWorkspace { margin: 0 auto; }
+.offlineWorkspace:has([aria-label='Offline controls']) { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+.offlineWorkspace .mobileBrand { display: block; }
 .main { padding: 22px 28px 36px; max-width: 1260px; margin: auto; }
 .readerShell .rail, .readerShell .skip { display: none; }
 .readerShell .workspace { margin: 0; padding: 0; }
@@ -79,7 +79,7 @@
 .icon { composes: iconButton from './Controls.module.css'; }
 .divider { height: 1px; background: var(--line); margin: 16px 0 10px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(142px, 1fr)); gap: 22px 18px; }
-.card { min-width: 0; }
+.card { min-width: 0; position: relative; }
 .bookLink { text-decoration: none; display: block; }
 .cover { position: relative; height: 198px; width: 100%; background: var(--subtle); box-shadow: 0 2px 5px #0002; border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
 .cover img { height: 100%; width: 100%; object-fit: cover; }
@@ -231,10 +231,22 @@
 .form label { display: grid; gap: 5px; }
 .form p { margin: 0; }
 .form a { min-height: 44px; display: flex; align-items: center; }
-.auth { width: min(430px, calc(100% - 32px)); margin: clamp(32px, 12vh, 120px) auto; }
+.auth { width: min(400px, calc(100% - 32px)); margin-inline: auto; padding-block: max(env(safe-area-inset-top), clamp(16px, 6dvh, 56px)) max(env(safe-area-inset-bottom), 16px); }
 .auth > a { display: inline-flex; align-items: center; min-height: 44px; }
-.auth .form { margin: 20px 0 12px; }
+.auth .form { margin: 16px 0 8px; }
 .auth > p { margin: 12px 0; }
+.authError { margin: 0; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--danger) 25%, var(--line)); border-radius: var(--radius); background: color-mix(in srgb, var(--danger) 6%, var(--surface)); color: var(--danger); font-size: .875rem; }
+.bookActions { position: relative; flex: none; }
+.bookToolbar > :is(button, a) { inline-size: 44px; }
+.bookToolbar > button[aria-expanded='true'] { background: var(--hero); }
+.bookToolbar > button[aria-disabled='true'] { opacity: .55; cursor: default; }
+.bookToolbar > button[aria-busy='true'] { cursor: wait; }
+.bookActionMenu { position: absolute; z-index: 5; inset-inline-end: 0; inset-block-start: calc(100% + 6px); width: min(154px, calc(100vw - 24px)); max-height: min(280px, calc(100dvh - 80px)); overflow: auto; padding: 5px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: 0 6px 22px #332b2028; }
+.bookActionMenu > :is(button, a) { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: .875rem; text-decoration: none; }
+.bookActionMenu > :is(button, a):is(:hover, :focus-visible) { background: var(--hero); }
+.bookActionMenu > :is(button, a):focus-visible { outline-offset: -2px; }
+.bookActionMenu > .bookActionDelete { color: var(--danger); }
+.bookActionMenu > hr { width: auto; margin: 3px 6px; border-color: var(--line); }
 .bookOverview:has(> .bookFileWarning) > .bookHeroDetail { margin-bottom: 8px; }
 .bookFileWarning { display: flex; align-items: center; gap: 8px; padding: 9px 12px; margin-bottom: 16px; border: 1px solid color-mix(in srgb, var(--danger) 22%, var(--line)); border-radius: var(--radius); background: color-mix(in srgb, var(--danger) 6%, var(--surface)); font-size: .8125rem; line-height: 1.4; }
 .bookFileWarning svg { flex: none; color: var(--danger); }

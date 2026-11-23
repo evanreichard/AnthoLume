@@ -32,7 +32,7 @@ build_web:
 	npm --prefix web run build
 
 check_web: build_web
-	test -s assets/app/index.html && test -s assets/app/sw.js && test -s assets/app/manifest.json
+	test -s assets/app/index.html && test -s assets/app/sw.js && test -s assets/app/manifest.json && test -s assets/app/shell-paths.json
 
 .PHONY: screenshots
 screenshots: check_web
@@ -45,9 +45,12 @@ generate:
 check_generation:
 	bash api/check-generation.sh
 
-.PHONY: dev clean-dev
+.PHONY: dev dev-hot clean-dev
 dev:
 	bash web/dev.sh start
+
+dev-hot:
+	bash web/dev.sh hot
 
 clean-dev:
 	bash web/dev.sh clean

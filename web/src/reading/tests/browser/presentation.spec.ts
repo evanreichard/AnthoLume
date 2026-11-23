@@ -17,8 +17,8 @@ for (const viewport of [{ width: 320, height: 568 }, { width: 844, height: 390 }
   await page.setViewportSize(viewport); await page.goto('/'); await page.waitForFunction(() => !!window.readingTest);
   await page.evaluate(async () => { const p = window.readingTest; const repo = new p.Repository(), ref = { kind: 'local' as const, localId: 'targets' }; await repo.install(ref, await (await fetch('/fixtures/synthetic.epub')).blob(), null, null, null); repo.db.close(); const noHTTP = async () => { throw new Error('Local book has no bridge dependency'); }; const bridge: ReadingBridge = { getState: noHTTP, registerDevice: noHTTP, fetchFile: noHTTP, fetchCover: noHTTP, submitActivity: noHTTP, submitProgress: noHTTP }; p.mount(bridge, ref); });
   await expect(page.locator('section[aria-label="Book reader"]')).toHaveAttribute('data-reader-state', 'ready');
-  await page.getByRole('button', { name: 'Show reader controls' }).press('Enter');
-  for (const name of ['Previous page', 'Next page']) { const button = page.getByRole('button', { name, exact: true }); await button.click({ trial: true }); const box = await button.boundingBox(); expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44); const hit = await button.evaluate(element => { const rect = element.getBoundingClientRect(); return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)); }); expect(hit).toBe(true); }
+  await page.getByRole('button', { name: 'Show Reader Controls' }).press('Enter');
+  for (const name of ['Previous Page', 'Next Page']) { const button = page.getByRole('button', { name, exact: true }); await button.click({ trial: true }); const box = await button.boundingBox(); expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44); const hit = await button.evaluate(element => { const rect = element.getBoundingClientRect(); return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)); }); expect(hit).toBe(true); }
   const before = await page.locator('footer span').innerText();
   const center = await page.getByRole('region', { name: 'Book reader', exact: true }).evaluate(element => { const header = element.querySelector('header')!.getBoundingClientRect(), footer = element.querySelector('footer')!.getBoundingClientRect(); return (header.bottom + footer.top) / 2; });
   await page.mouse.click(viewport.width * .9, center); await expect(page.locator('footer span')).not.toHaveText(before);
@@ -31,7 +31,7 @@ test('canonical new paragraph/anchored-image positions restore visible source no
     const p = window.readingTest;
     const zip = await p.JSZip.loadAsync(await (await fetch('/fixtures/synthetic.epub')).arrayBuffer()), chapter = await zip.file('one.xhtml')!.async('string'), nav = await zip.file('nav.xhtml')!.async('string');
     zip.file('one.xhtml', chapter.replace('</body>', '<div><blockquote><p>Nested source paragraph.</p></blockquote><p id="unsafe">First child-axis paragraph. <a href="one.xhtml#anchored">Jump to image</a></p><p>Second child-axis paragraph.</p><h1><a><img id="anchored" src="pixel.png" width="16" height="8"/></a></h1></div></body>')); zip.file('nav.xhtml', nav.replace('</ol>', '<li><a href="one.xhtml#unsafe">Canonical source anchor</a></li><li><a href="one.xhtml#anchored">Anchored image</a></li></ol>'));
-    const repo = new p.Repository(), ref = { kind: 'local' as const, localId: 'ambiguous-recovery' }; await repo.install(ref, await zip.generateAsync({ type: 'blob' }), null, null, null); await repo.save(ref, { position: '/body/DocFragment[1]/body/h1', fraction: .12345 }); repo.db.close();
+    const repo = new p.Repository(), ref = { kind: 'local' as const, localId: 'ambiguous-recovery' }; await repo.install(ref, await zip.generateAsync({ type: 'blob' }), null, null, null); await repo.saveLocal(ref, { position: '/body/DocFragment[1]/body/h1', fraction: .12345 }); repo.db.close();
     const noHTTP = async () => { throw new Error('Local book has no bridge dependency'); }; const bridge: ReadingBridge = { getState: noHTTP, registerDevice: noHTTP, fetchFile: noHTTP, fetchCover: noHTTP, submitActivity: noHTTP, submitProgress: noHTTP }; p.mount(bridge, ref);
   });
   const region = page.getByRole('region', { name: 'Book reader', exact: true }); await expect(region).toHaveAttribute('data-reader-state', 'ready');
@@ -42,7 +42,7 @@ test('canonical new paragraph/anchored-image positions restore visible source no
     await page.getByRole('button', { name: 'Contents', exact: true }).click(); await page.getByRole('button', { name, exact: true }).click(); await expect.poll(async () => (await read()).checkpoint.position).toBe(path); await expect(region).toHaveAttribute('data-reader-state', 'ready');
     const visible = await page.evaluate(path => { const frame = document.querySelector('iframe')!, doc = frame.contentDocument!, node = window.readingTest.primaryElementFromKO(doc, path)!, origin = frame.getBoundingClientRect(), viewport = document.querySelector('section[aria-label="Book reader"] > div')!.getBoundingClientRect(); return [...node.getClientRects()].some(r => r.right + origin.left > viewport.left && r.left + origin.left < viewport.right && r.bottom + origin.top > viewport.top && r.top + origin.top < viewport.bottom); }, path); expect(visible).toBe(true);
   }
-  const back = page.getByRole('button', { name: 'Back to previous spot', exact: true });
+  const back = page.getByRole('button', { name: 'Back to Previous Spot', exact: true });
   const chapterAnchor = '/body/DocFragment[1]/body/div[2]/p[1]';
   const originalAnchor = '/body/DocFragment[1]/body/h1';
   await back.click();

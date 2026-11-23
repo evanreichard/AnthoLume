@@ -215,7 +215,7 @@ test('Insights appends older activity and more progress without losing filters, 
   const url = `${server.origin}/insights/activity?document=book_001`;
   await page.goto(url);
   const activity = page.getByRole('region', { name: 'Reading activity' });
-  const next = activity.getByRole('button', { name: 'Load older activity' });
+  const next = activity.getByRole('button', { name: 'Load Older Activity' });
   await expect(activity.getByRole('listitem')).toHaveCount(20);
   await expect(activity.getByText('10 min loaded')).toBeVisible();
   // Insert a newer session between requests: the cursor must not repeat the boundary row.
@@ -226,7 +226,7 @@ test('Insights appends older activity and more progress without losing filters, 
   await expect(activity.getByRole('listitem')).toHaveCount(21);
   await expect(activity.getByRole('heading', { level: 2 })).toHaveCount(1);
   await expect(activity.getByText('10 min read')).toBeVisible();
-  await expect(activity.getByRole('button', { name: 'All activity loaded' })).toBeFocused();
+  await expect(activity.getByRole('button', { name: 'All Activity Loaded' })).toBeFocused();
   await activity.getByRole('link', { name: 'Public book 01' }).last().scrollIntoViewIfNeeded();
   const before = await page.evaluate(() => scrollY);
   await activity.getByRole('link', { name: 'Public book 01' }).last().click();
@@ -236,8 +236,8 @@ test('Insights appends older activity and more progress without losing filters, 
   await page.getByRole('navigation', { name: 'Insights sections' }).getByRole('link', { name: 'Progress' }).click();
   const progress = page.getByRole('region', { name: 'Saved progress' });
   await expect(progress.getByRole('listitem')).toHaveCount(20);
-  await progress.getByRole('button', { name: 'Load more books' }).click();
+  await progress.getByRole('button', { name: 'Load More Books' }).click();
   await expect(progress.getByRole('listitem')).toHaveCount(21);
   await expect(progress.getByRole('progressbar')).toHaveCount(21);
-  await expect(progress.getByRole('button', { name: 'All books loaded' })).toBeFocused();
+  await expect(progress.getByRole('button', { name: 'All Books Loaded' })).toBeFocused();
 });

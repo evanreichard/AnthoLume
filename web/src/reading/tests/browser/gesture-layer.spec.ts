@@ -29,7 +29,7 @@ test('when chapter callbacks are blocked, center taps and swipes work without en
   await page.touchscreen.tap(x, y);
   const select = reader.getByRole('button', { name: 'Select Text', exact: true });
   await expect(select).toBeHidden();
-  const progress = reader.getByRole('button', { name: 'Reading progress and appearance' });
+  const progress = reader.getByRole('button', { name: 'Reading Progress and Appearance' });
   await progress.tap();
   const panel = reader.getByRole('complementary', { name: 'Appearance', exact: true });
   await expect(panel).toBeVisible();
@@ -80,8 +80,8 @@ test('when chapter callbacks are blocked, center taps and swipes work without en
   };
   await pinch(60, 90, 150);
   await pinch(90, 20, 50);
-  await reader.getByRole('button', { name: 'Show reader controls' }).press('Enter');
+  await reader.getByRole('button', { name: 'Show Reader Controls' }).press('Enter');
   await progress.tap();
   await expect(reader.getByRole('slider', { name: 'Text size' })).toHaveValue('50');
-  await expect(reader.getByRole('button', { name: 'Decrease text size' })).toBeDisabled();
+  await expect(reader.getByRole('button', { name: 'Decrease Text Size' })).toBeDisabled();
 });

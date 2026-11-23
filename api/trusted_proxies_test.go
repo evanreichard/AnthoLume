@@ -3,7 +3,6 @@ package api
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,7 +24,7 @@ func TestTrustedProxiesScopeCredentialRateLimit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := *f.cfg
 			cfg.TrustedProxies = tc.proxies
-			app, err := NewAPI(f.db, &cfg, os.DirFS(".."))
+			app, err := NewAPI(f.db, &cfg, f.api.assets)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, app.Stop()) })
 			attempt := func(clientIP string) int {
@@ -50,6 +49,6 @@ func TestInvalidTrustedProxiesRejectStartup(t *testing.T) {
 	f := newWebFixture(t)
 	cfg := *f.cfg
 	cfg.TrustedProxies = []string{"192.0.2.10", "proxy.example"}
-	_, err := NewAPI(f.db, &cfg, os.DirFS(".."))
+	_, err := NewAPI(f.db, &cfg, f.api.assets)
 	require.ErrorContains(t, err, "invalid TRUSTED_PROXIES")
 }

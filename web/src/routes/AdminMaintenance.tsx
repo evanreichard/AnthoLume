@@ -7,8 +7,8 @@ import { session } from '../session';
 import styles from '../App.module.css';
 
 const tasks = {
-  statistics: 'Refresh reading statistics',
-  database_check: 'Check database integrity',
+  statistics: 'Refresh Reading Statistics',
+  database_check: 'Check Database Integrity',
 } as const;
 type Kind = keyof typeof tasks;
 const kinds = Object.keys(tasks) as Kind[];
@@ -55,7 +55,7 @@ export function AdminMaintenance({ account, readOnly }: { account: Account; read
     </div>
     <ErrorNotice error={error || histories.find(result => result.error)?.error} />
     <div className={styles.disclosureInset}>
-      <Disclosure inset title="Recent jobs">
+      <Disclosure inset title="Recent Jobs">
         {recent.length ? <ul>{recent.map(job => <li key={job.id}>
           <span>{tasks[job.kind as Kind]} · <time dateTime={job.started_at}>{date.format(new Date(job.started_at))}</time></span>
           <span className={styles.jobStatus} data-status={job.status}>{labels[job.status]}</span>

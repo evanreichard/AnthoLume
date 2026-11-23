@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { ReadingBridge, ReadingSnapshot } from '../../types';
 
-test('leaving during preparation cancels the open without a Library error', async ({ page }) => {
+test('leaving during checkpoint lookup cancels the reader, not the validated download', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(() => !!window.readingTest);
   const result = await page.evaluate(async () => {
@@ -32,10 +32,10 @@ test('leaving during preparation cancels the open without a Library error', asyn
       await selecting;
       await Promise.race([preparing, opening.then(error => { throw new Error(`Open failed before preparation: ${error}`); })]);
       lifetime.abort();
-      return { outcome: await opening, error: snapshots.at(-1)?.error, downloads: snapshots.at(-1)?.downloads.length, books: await runtime.repo.db.books.count(), pending: (await runtime.repo.pending()).length };
+      return { outcome: await opening, error: snapshots.at(-1)?.error, downloads: snapshots.at(-1)?.downloads.length, books: await runtime.repo.db.downloads.count(), pending: (await runtime.repo.pending()).length };
     } finally { lifetime.abort(); runtime.dispose(); }
   });
-  expect(result).toEqual({ outcome: 'AbortError', error: null, downloads: 0, books: 0, pending: 0 });
+  expect(result).toEqual({ outcome: 'AbortError', error: null, downloads: 0, books: 1, pending: 0 });
 });
 
 test('authenticated EPUB cache revalidates, repairs and evicts without changing queued progress', async ({ page }) => {
@@ -84,13 +84,13 @@ test('authenticated EPUB cache revalidates, repairs and evicts without changing 
       revision = '1';
       const cached = await open();
       const local = { position: '/body/DocFragment[1]/body/p[2]', fraction: .25 };
-      await runtime.save(ref, local);
+      await first.save(local);
       revision = '2'; version = 2;
       const fresh = await open();
       const heldDuringReplacement = !!await runtime.repo.db.sources.get(first.row.sourceId!);
       lifetime.abort();
       for (let i = 0; i < 6; i++) await open({ ...ref, documentId: `next-${i}` });
-      const evicted = await runtime.repo.db.books.get(first.row.key);
+      const evicted = (await runtime.repo.projection({ kind: 'authenticated', account })).books.find(b => b.key === first.row.key);
       const cachedCount = await runtime.repo.db.sources.filter(row => row.complete).count();
       const pending = await runtime.repo.pending();
       const downloads = deliveries.length;
@@ -103,7 +103,7 @@ test('authenticated EPUB cache revalidates, repairs and evicts without changing 
       const opened = await runtime.openServerBook({ ...ref, documentId: 'next-5' }, active.signal);
       await runtime.clearReaderCache();
       const held = await runtime.repo.db.sources.get(opened.row.sourceId!);
-      const unavailable = (await runtime.repo.db.books.get(opened.row.key))?.availability === 'unavailable';
+      const unavailable = !await runtime.repo.cachedOriginal({ ...ref, documentId: 'next-5' });
       const reopened = await open({ ...ref, documentId: 'next-5' });
       active.abort();
       const deadline = performance.now() + 2000;
@@ -116,9 +116,9 @@ test('authenticated EPUB cache revalidates, repairs and evicts without changing 
       const cleared = {
         held: !!held?.evictOnRelease, unavailable, released,
         fetchedWithoutValidator: validators.at(-1) === null && reopened.row.sourceId !== opened.row.sourceId,
-        serverSources: await runtime.repo.db.sources.filter(row => row.key.startsWith('["server",')).count(),
+        serverSources: await runtime.repo.db.sources.filter(row => row.key.startsWith('["download",')).count(),
         retainedPending: (await runtime.repo.pending()).length,
-        retainedCheckpoint: (await runtime.repo.db.books.get(first.row.key))?.checkpoint,
+        retainedCheckpoint: (await runtime.repo.db.positions.get(first.row.key))?.checkpoint,
         localBytes: localSource.kind === 'blob' && localSource.blob.size === original.size,
         summary: await runtime.readerCacheSummary(),
       };
@@ -129,7 +129,7 @@ test('authenticated EPUB cache revalidates, repairs and evicts without changing 
         evicted: evicted?.availability, checkpoint: evicted?.checkpoint, pending: pending.map(event => event.payload.event_id).length, downloads, denied, hidden, cleared, coldStages, summaryWithBook, noWholeBookFingerprint };
     } finally { lifetime.abort(); runtime.dispose(); }
   });
-  expect(result).toEqual({ coldStages: ['Connecting to the server…', 'Downloading EPUB…', 'Reading the ZIP directory…', 'Checking the EPUB package…', 'Fetching your saved position…', 'Saving a copy on this device…'], firstValidators: [null, 'W/"book-1"', 'W/"book-1"'], reused: true, replaced: true, remote: .1, pendingFraction: .25,
+  expect(result).toEqual({ coldStages: ['Connecting to the server…', 'Downloading EPUB…', 'Reading the ZIP directory…', 'Checking the EPUB package…', 'Saving a copy on this device…', 'Fetching your saved position…'], firstValidators: [null, 'W/"book-1"', 'W/"book-1"'], reused: true, replaced: true, remote: .1, pendingFraction: .25,
     heldDuringReplacement: true, cachedCount: 6, evicted: 'unavailable', checkpoint: { position: '/body/DocFragment[1]/body/p[2]', fraction: .25 }, pending: 1, downloads: 8, denied: true, hidden: true,
     summaryWithBook: true, noWholeBookFingerprint: true,
     cleared: { summary: { books: 0, epubBytes: 0, metadataBytes: 0 }, held: true, unavailable: true, released: true, fetchedWithoutValidator: true, serverSources: 0, retainedPending: 1, retainedCheckpoint: { position: '/body/DocFragment[1]/body/p[2]', fraction: .25 }, localBytes: true } });

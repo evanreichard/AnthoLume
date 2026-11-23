@@ -29,7 +29,7 @@ test('a stale tab rejects another account’s activity and rechecks the session'
   expect((await (await rechecked).json()).user.id).toBe('replacement-reader');
 });
 
-test('a recreated username cannot reopen the previous account URL, reuse its cache, or send its pending events', async ({ page, context, browser, server }) => {
+test('a recreated username revalidates the shared EPUB without inheriting the previous account URL, position or events', async ({ page, context, browser, server }) => {
   const username = 'reused-reader';
   const endpoint = `${server.origin}/api/v1`;
   const admin = await browser.newPage();
@@ -46,11 +46,11 @@ test('a recreated username cannot reopen the previous account URL, reuse its cac
     await page.getByRole('link', { name: /^(Read|Resume)$/ }).click();
     await expect(page.locator('footer')).toContainText('1 /');
     const originalScope = JSON.stringify(['account', server.origin, original.account_id, original.reading_generation]);
-    await expect.poll(async () => (await storedRows(page, 'books')).some(row => row.ref?.documentId === 'book_001' && row.scope === originalScope)).toBe(true);
+    await expect.poll(async () => (await storedRows(page, 'positions')).some(row => row.ref?.documentId === 'book_001' && row.scope === originalScope)).toBe(true);
     const originalReader = page.url();
     expect(new URL(originalReader).searchParams.get('account')).toBe(original.account_id);
     await page.keyboard.press('c');
-    await page.getByRole('button', { name: 'Next page', exact: true }).click();
+    await page.getByRole('button', { name: 'Next Page', exact: true }).click();
     await expect(page.locator('footer')).toContainText('2 /');
     await expect.poll(() => pendingIds(page)).toHaveLength(1);
     const originalPending = await pendingIds(page);
@@ -84,7 +84,7 @@ test('a recreated username cannot reopen the previous account URL, reuse its cac
     const file = page.waitForRequest(request => request.url().endsWith('/api/v1/documents/book_001/file'));
     await page.getByRole('link', { name: /^(Read|Resume)$/ }).click();
     const fileHeaders = await (await file).allHeaders();
-    expect(fileHeaders['if-none-match']).toBeUndefined();
+    expect(fileHeaders['if-none-match']).toBeTruthy();
     expect(fileHeaders['x-antholume-account']).toBe(replacement.account_id);
     await expect(page.locator('footer')).toContainText('1 /');
     expect(await pendingIds(page)).toEqual(originalPending);

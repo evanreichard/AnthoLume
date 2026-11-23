@@ -79,7 +79,7 @@ function RootEditor({ account, current, libraryPath, close }: { account: Account
         <label htmlFor={directoryId}>Directory</label>
         <div className={storage.directoryRow}>
           <input id={directoryId} required value={path} maxLength={4096} placeholder="/books" onChange={event => setPath(event.target.value)} />
-          <button type="button" className={styles.icon} aria-label="Browse directories" title="Browse directories" aria-haspopup="dialog" disabled={busy} onClick={() => setBrowsing('edit')}><Icon name="folder" /></button>
+          <button type="button" className={styles.icon} aria-label="Browse Directories" title="Browse Directories" aria-haspopup="dialog" disabled={busy} onClick={() => setBrowsing('edit')}><Icon name="folder" /></button>
         </div>
       </div>
       {current && <p className={storage.hint}>Changing the folder does not move files.</p>}
