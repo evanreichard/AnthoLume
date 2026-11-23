@@ -102,7 +102,7 @@ export function Cover({ book, sourceId, warningId, thumbnail = false }: {
   const storeCover = useEffectEvent((blob: Blob) => {
     if (ref.kind === 'server') void cacheCover(ref, blob);
   });
-  const canBackfill = authenticated && ready && !!book.document?.cover_available && book.stored?.availability === 'available' && !cover;
+  const canBackfill = authenticated && ready && !!book.document?.cover_available && deviceCopies?.has(ref.documentId) && !cover;
   const key = bookKey(ref);
   useEffect(() => {
     if (canBackfill && remote.data) storeCover(remote.data);

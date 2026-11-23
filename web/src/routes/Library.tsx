@@ -10,12 +10,11 @@ import { Icon } from '../Icon';
 import { LoadingStatus, Skeleton } from '../Skeleton';
 import { RecentBooks } from '../RecentBooks';
 import { OfflineStatusBar } from '../OfflineStatusBar';
-import { profiles } from '../offlineProfiles';
 import { BookDownloadActions } from '../BookDownloadActions';
 import { Button } from '../Controls';
 
 export function Library() {
-  const { access, capabilities } = useSession();
+  const { access, capabilities, profiles } = useSession();
   const reading = useReading();
   const [params, setParams] = useSearchParams();
   const location = useLocation();
@@ -139,7 +138,7 @@ export function Library() {
   return <>
     <PageHeader title="Library" headingRef={heading} mobileBrand
       actions={!offline && reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>} />
-    {offline && <OfflineStatusBar profile={profiles().find(p => p.account.userId === access.account.userId && p.account.readingGeneration === access.account.readingGeneration)?.name ?? 'Reader'} />}
+    {offline && <OfflineStatusBar profile={profiles.find(p => p.account.userId === access.account.userId && p.account.readingGeneration === access.account.readingGeneration)?.name ?? 'Reader'} />}
     {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}
     <RecentBooks books={recent} bookLinkState={bookLinkState} />
     <form className={styles.searchRow} role="search" onSubmit={(event) => { event.preventDefault(); update('q', input.trim()); }}>

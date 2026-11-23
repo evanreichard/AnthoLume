@@ -19,7 +19,7 @@ for (const failure of ['progress', 'activity', 'lost-save-result'] as const) tes
     repo.db.offline.hook('creating', hook);
     const reader = new p.ReaderController(host, value => { statuses.push(value); }, async (location, measured) => {
       if (measured) candidates.push(measured);
-      await repo.recordCapture(ref, { position: location.ko, fraction: location.fraction }, measured && p.activityEvent(ref.documentId, device.id, measured), { current: () => true });
+      await repo.recordTurn(ref, { mode: 'device' }, { position: location.ko, fraction: location.fraction }, measured && p.activityEvent(ref.documentId, device.id, measured), () => true);
       if (failure === 'lost-save-result' && !failed) { failed = true; throw new Error('Lost local result after committed capture'); }
     });
     try {
@@ -40,8 +40,8 @@ for (const failure of ['progress', 'activity', 'lost-save-result'] as const) tes
   const reopened = await page.evaluate(async previous => {
     const p = window.readingTest, repo = new p.Repository(new p.ReadingDB(previous.name));
     const event = p.activityEvent(previous.ref.documentId, previous.device.id, previous.measured);
-    await repo.recordCapture(previous.ref, undefined, event, { current: () => true });
-    const collision = await repo.recordCapture(previous.ref, undefined, { ...event, duration: 60 }, { current: () => true }).then(() => false, () => true);
+    await repo.recordTurn(previous.ref, { mode: 'device' }, undefined, event, () => true);
+    const collision = await repo.recordTurn(previous.ref, { mode: 'device' }, undefined, { ...event, duration: 60 }, () => true).then(() => false, () => true);
     const credits = (await repo.db.offline.toArray()).flatMap(row => row.kind === 'activity' ? [row.event] : []);
     const pending = await repo.replayBatch(previous.ref.account);
     await repo.db.delete(); return { credits, pending, collision };

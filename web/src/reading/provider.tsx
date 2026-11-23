@@ -30,7 +30,7 @@ export function useReading(): ReadingSnapshot & ReadingActions {
   const requireRuntime = () => { if (!runtime) throw new Error('Reader storage is opening'); return runtime; };
   return { ...snapshot,
     decideOffline: (account, choices, decision) => requireRuntime().decideOffline(account, choices, decision),
-    forgetDrafts: account => requireRuntime().forgetDrafts(account),
+    updateDownloadMetadata: (ref, metadata, cover) => requireRuntime().updateDownloadMetadata(ref, metadata, cover),
     saveToDevice: (ref, signal, metadata) => requireRuntime().saveToDevice(ref, signal, metadata),
     cacheCover: runtime?.cacheCover ?? ignoreCover,
     removeFromDevice: (ref, signal) => requireRuntime().removeFromDevice(ref, signal),

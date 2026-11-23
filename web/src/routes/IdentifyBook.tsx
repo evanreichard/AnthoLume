@@ -33,7 +33,7 @@ function ResultCover({ id }: { id?: number }) {
 }
 
 export function IdentifyBook({ document, refId, onClose, onSaved }: {
-  document: components['schemas']['Document']; refId: Extract<BookRef, { kind: 'server' }>; onClose(): void; onSaved(cover?: Blob): void;
+  document: components['schemas']['Document']; refId: Extract<BookRef, { kind: 'server' }>; onClose(): void; onSaved(document: components['schemas']['Document'], cover?: Blob): void;
 }) {
   const formId = useId();
   const original = bookMetadataDraft(document);
@@ -106,8 +106,8 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
       }
       const cover_base64 = image && await encodeBookCover(image);
       if (signal.aborted) return;
-      await session.api.editDocument(refId.account, refId.documentId, { ...next, title: next.title.trim(), ...(cover_base64 ? { cover_base64 } : {}) }, signal);
-      if (!signal.aborted) onSaved(image);
+      const updated = await session.api.editDocument(refId.account, refId.documentId, { ...next, title: next.title.trim(), ...(cover_base64 ? { cover_base64 } : {}) }, signal);
+      if (!signal.aborted) await onSaved(updated, image);
     });
   }
 

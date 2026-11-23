@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ReaderController, palette, type Appearance, type ReaderStatus } from './controller';
 import { useReadingContext } from './provider';
-import { sameAccount, refKey, type BookRef, type S } from './types';
+import { sameAccount, refKey, type BookRef } from './types';
 import { ReaderWakeLock } from './wake-lock';
 import { readerFontLabel, readerFontNames } from './reader-fonts';
 import { activityEvent } from './activity';
@@ -62,6 +62,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
   const appearance = storedAppearance ?? defaults;
   const [chrome, setChrome] = useState({ visible: false, activity: 0 });
   const [hovering, setHovering] = useState(false), [showHint, setShowHint] = useState(false);
+  const [readerMode, setReaderMode] = useState<'account' | 'device'>('device');
   const [hasOpened, setHasOpened] = useState(false), [showLoading, setShowLoading] = useState(false);
   const top = useRef<HTMLElement>(null), bottom = useRef<HTMLElement>(null);
   const keyboardReveal = useRef<HTMLButtonElement>(null), focusControls = useRef(false);
@@ -133,17 +134,16 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
       if (alive) setStatus({ state: 'error', message: 'The book took too long to prepare. Check your connection and retry.' });
     }, 90_000);
     let deadline = prepareDeadline(), ready = false;
+    let serverBook: Awaited<ReturnType<typeof runtime.openServerBook>> | undefined;
     const instance = new ReaderController(host.current, next => {
       if (!alive) return;
       if (next.state === 'ready') { ready = true; setHasOpened(true); }
       setStatus(next);
     }, async (location, measured) => {
-      let activity: S['ActivityEvent'] | undefined;
-      if (measured && book.kind === 'server') {
-        const device = await runtime.repo.device(book.account);
-        activity = activityEvent(book.documentId, device.id, measured);
-      }
-      await runtime.save(book, { position: location.ko, fraction: location.fraction }, activity, abort.signal);
+      const checkpoint = { position: location.ko, fraction: location.fraction };
+      if (book.kind === 'local') return runtime.repo.saveLocal(book, checkpoint);
+      if (!serverBook) throw new Error('Reader not open');
+      await serverBook.save(checkpoint, measured && activityEvent(book.documentId, serverBook.deviceId, measured));
     }, { localOnly: book.kind === 'local', parentGestures, interact: wake.interact, chrome: reveal, resizeText: resizeFromPinch,
       cycleTheme: () => { const themes = Object.keys(palette) as Appearance['theme'][]; void changeAppearance({ ...appearanceRef.current, theme: themes[(themes.indexOf(appearanceRef.current.theme) + 1) % themes.length]! }); },
     });
@@ -162,8 +162,9 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
       appliedAppearance.current = chosen; appearanceRef.current = chosen; setAppearance(chosen);
       const reportStage = (message: string) => { if (alive && !abort.signal.aborted) setStatus({ state: 'opening', message }); };
       if (book.kind === 'local') reportStage('Opening stored copy…');
-      const opened = book.kind === 'server' ? await runtime.openServerBook(book, abort.signal, reportStage) : await runtime.repo.open(book);
+      const opened = book.kind === 'server' ? (serverBook = await runtime.openServerBook(book, abort.signal, reportStage)) : await runtime.repo.open(book);
       if (!alive) return;
+      setReaderMode(serverBook?.mode ?? 'device');
       const { checkpoint, resumeCandidate, lastReadAt } = opened.row;
       let position = explicitBeginning ? null : checkpoint.position;
       if (!explicitBeginning && resumeCandidate && resumeCandidate.position !== checkpoint.position) {
@@ -338,6 +339,7 @@ export function ReaderScreen({ book, onClose }: { book: BookRef; onClose: () => 
             </button>;
           })}</div>
         </fieldset>
+        <p className={styles.panelNote}>{readerMode === 'account' ? 'Reading syncs with your account when connected.' : 'Reading stays on this device.'}</p>
         {parentGestures && <button className={styles.selectAction} onClick={() => { setSelecting(true); reveal('hide'); }}>Select Text</button>}
       </div>}
     </aside>}

@@ -86,8 +86,8 @@ function BookDetailContent() {
     void queryClient.invalidateQueries({ queryKey: ['insight-activity'] });
     void queryClient.invalidateQueries({ queryKey: ['insight-progress'] });
   }
-  function metadataSaved(cover?: Blob | null) {
-    if (cover !== undefined && ref?.kind === 'server') void reading.cacheCover(ref, cover, 'replace');
+  async function metadataSaved(updated: { title: string | null; author: string | null }, cover?: Blob | null) {
+    if (ref?.kind === 'server') await reading.updateDownloadMetadata(ref, { title: updated.title, author: updated.author }, cover);
     refreshManagement();
     setManagement(null);
   }

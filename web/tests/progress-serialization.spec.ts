@@ -34,7 +34,6 @@ test('rapid turns wait for the previous receipt without changing its payload or 
     await expect(page.locator('footer')).toContainText('3 /');
     await next.click();
     await expect(page.locator('footer')).toContainText('4 /');
-    // Capture Promotion - The turn is locally durable before its preflight updates the committed checkpoint.
     await expect.poll(async () => (await storedRows(page, 'offline')).filter(row => row.kind === 'progress')).toEqual([]);
     latest = (await storedRows(page, 'positions')).find(row => row.ref?.documentId === 'book_001')?.checkpoint?.position;
     expect(latest).toBeTruthy();

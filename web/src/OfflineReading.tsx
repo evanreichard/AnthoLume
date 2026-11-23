@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { queryClient, session, useSession } from './session';
-import { profiles, type OfflineProfile } from './offlineProfiles';
+import type { OfflineProfile } from './reading';
 import { useReading, type Account, type ReviewDecision, type OfflineChoice, type OfflineRecord } from './reading';
 import { Dialog, ErrorNotice } from './ui';
 import { Button } from './Controls';
@@ -15,13 +14,13 @@ export function OfflinePicker() {
   const [forget, setForget] = useState<OfflineProfile>();
   const [error, setError] = useState<unknown>();
   const [manage, setManage] = useState(false);
-  const reading = useReading(), navigate = useNavigate(), remembered = profiles();
+  const { profiles: remembered } = useSession();
   return <main className={styles.picker}>
     <header><div className={styles.wordmark}><Brand /></div>
       <h1>Offline Profiles</h1><p>{remembered.length ? 'Choose a reader on this device.' : 'Reconnect to sign in and add a profile.'}</p>
     </header>
     <ul className={styles.profiles}>{remembered.map(p => <li key={JSON.stringify(p.account)}>
-      <button className={styles.profile} onClick={() => { session.chooseOffline(p.account); navigate('/library', {replace:true}); }}>
+      <button className={styles.profile} onClick={() => session.chooseOffline(p.account)}>
         <span className={styles.avatar} aria-hidden="true">{Array.from(p.name)[0]?.toLocaleUpperCase()}</span>
         <strong>{p.name}</strong><Icon name="forward" size={18} />
       </button>{manage && <button className={styles.quiet} aria-label={`Forget ${p.name}`} onClick={() => { setError(null); setForget(p); }}><Icon name="trash" size={17} /></button>}
@@ -30,7 +29,7 @@ export function OfflinePicker() {
     <OfflineStatusBar />
     {forget && <Dialog title={`Forget ${forget.name}?`} onClose={() => setForget(undefined)}>
       <p>This removes the offline profile and its unsubmitted reading.</p><ErrorNotice error={error} />
-      <Button onClick={async () => { try { await reading.forgetDrafts(forget.account); session.forgetOffline(forget.account); setForget(undefined); } catch (e) { setError(e); } }}>Forget on This Device</Button>
+      <Button onClick={async () => { try { await session.forgetOffline(forget.account); setForget(undefined); } catch (e) { setError(e); } }}>Forget on This Device</Button>
     </Dialog>}
   </main>;
 }
@@ -96,7 +95,7 @@ export function OfflineReview({account}: {account: Account}) {
   const records = reading.offlineRecords ?? [];
   if (!records.length) return null;
   const choices = records.flatMap(r => selected.get(r.id) ?? []);
-  function close() { if (!busy) void submit('keep'); }
+  function close() { if (!busy) { setLater(true); setSelected(new Map()); setDiscard(false); setError(null); } }
   async function submit(decision: ReviewDecision) {
     setBusy(true); setError(null);
     try {
@@ -110,7 +109,7 @@ export function OfflineReview({account}: {account: Account}) {
           }
         }
       }
-      await reading.decideOffline(account, decision === 'keep' ? records.map(({id}) => ({id})) : choices, decision);
+      await reading.decideOffline(account, choices, decision);
       setLater(true);
     } catch (e) { setError(e); }
     finally { setSelected(new Map()); setBusy(false); setDiscard(false); }
@@ -120,7 +119,7 @@ export function OfflineReview({account}: {account: Account}) {
     <button className={styles.quiet} disabled={busy} onClick={() => { if (discard) { setDiscard(false); setSelected(new Map()); } else close(); }}>{discard ? 'Cancel' : 'Keep Reading'}</button>
     {!discard && <button className={styles.quiet} title="Discard Records" aria-label="Discard Records" disabled={busy} onClick={() => { setSelected(new Map()); setDiscard(true); }}><Icon name="trash" size={17} /></button>}
     <Button tone={discard ? 'danger' : 'primary'} disabled={busy || !choices.length} onClick={() => void submit(discard ? 'discard' : 'upload')}>{discard ? 'Discard Selected' : 'Upload Selected'}</Button>
-  </div>}><ErrorNotice error={error} />{discard ? <p>Select the local records to discard. This does not change the server.</p> : records.some(record => record.kind === 'progress') && <p>While a book’s progress is waiting for review, new reading for that book stays on this device.</p>}{group(records).map(book => <BookComparison key={book.document} book={book} account={account} timezone={current?.user?.timezone ?? 'UTC'} discard={discard} selected={selected} select={(items, checked) => {
+  </div>}><ErrorNotice error={error} />{discard ? <p>Select the local records to discard. This does not change the server.</p> : records.some(record => record.kind === 'progress') && <p>Turns made in a device-only reader stay here until you choose to upload them.</p>}{group(records).map(book => <BookComparison key={book.document} book={book} account={account} timezone={current?.user?.timezone ?? 'UTC'} discard={discard} selected={selected} select={(items, checked) => {
     if (busy) return;
     setSelected(previous => { const next = new Map(previous); for (const item of items) { if (checked) next.set(item.id,item); else next.delete(item.id); } return next; });
   }} />)}</Dialog>;

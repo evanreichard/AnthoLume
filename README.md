@@ -30,7 +30,7 @@ Docker Image: `docker pull gitea.va.reichard.io/evan/antholume:latest`
 
 Sign in over HTTPS (or localhost) to cache books. In the Library, choose **••• → Save to Device** to download a book without opening it. Saved books are kept outside the automatic six-book, 768 MiB cache. **Remove from Device** clears the download for all local profiles without deleting reading records or the server book. When offline, pick a remembered profile and read any book cached from the same library. Offline profiles are passwordless, including after sign-out; **Forget on This Device** removes a profile and its unsubmitted drafts.
 
-Offline reading stays on the device until that account signs in and chooses **Upload Selected**. Review progress and activity separately for each book. Server activity covers the same dates as the offline reading. Clearing browser storage removes downloads and unsubmitted drafts.
+A book opened while signed in queues progress and activity for that account, even if the connection drops. A book opened from the offline shelf stays device-only for that reading session, even after reconnecting. Sign in and choose **Upload Selected** to share those records. Review progress and activity separately for each book. Server activity covers the same dates as the offline reading. Clearing browser storage removes downloads and unsubmitted drafts.
 
 ### KOSync API
 

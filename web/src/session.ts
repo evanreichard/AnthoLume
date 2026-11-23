@@ -3,18 +3,18 @@ import { useSyncExternalStore } from 'react';
 import type { components } from './api/schema.gen';
 import { apiOrigin, createAPI, sameAccount } from './api/client';
 import { APIUnavailable } from './api/transport';
-import { profiles, rememberProfile, selectProfile, selectedProfile, forgetProfile, isProfileKey } from './offlineProfiles';
+import { watchProfiles, rememberProfile, selectProfile, selectedProfile, forgetProfile, type OfflineProfile } from './reading';
 import type { Account, ReadingAccess } from './reading';
 
 type S = components['schemas'];
 const sessionAccount = (user: NonNullable<S['Session']['user']>): Account => ({ origin: apiOrigin, userId: user.account_id, readingGeneration: user.reading_generation });
 const logoutKey = 'antholume:logout-pending';
 export const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000, gcTime: 300_000 } } });
-type Snapshot = { session: S['Session'] | null; capabilities: S['Capabilities'] | null; access: ReadingAccess; error: string | null; busy: boolean };
+type Snapshot = { profiles: OfflineProfile[]; session: S['Session'] | null; capabilities: S['Capabilities'] | null; access: ReadingAccess; error: string | null; busy: boolean };
 const message = (error: unknown) => error instanceof Error ? error.message : 'Could not contact the server.';
 
 class SessionCoordinator {
-  private snapshot: Snapshot = { session: null, capabilities: null, access: { kind: 'loading' }, error: null, busy: false };
+  private snapshot: Snapshot = { profiles: [], session: null, capabilities: null, access: { kind: 'loading' }, error: null, busy: false };
   private listeners = new Set<() => void>();
   private generation = 0;
   private refresh: AbortController | null = null;
@@ -40,15 +40,15 @@ class SessionCoordinator {
       void this.checkSession();
     },
   });
+  private profilesReady = watchProfiles(profiles => {
+    const access = this.snapshot.access;
+    this.publish({ profiles });
+    if (access.kind === 'offline' && !profiles.some(p => sameAccount(p.account, access.account))) this.chooseOffline();
+  }).catch(() => undefined);
   constructor() {
     try { this.pendingLogout = localStorage.getItem(logoutKey) === '1'; } catch { this.storageBlocked = true; }
     this.channel?.addEventListener('message', () => { void this.checkSession(); });
     window.addEventListener('storage', (event) => {
-      if (isProfileKey(event.key)) {
-        const access = this.snapshot.access;
-        if (access.kind === 'offline' && !profiles().some(p => sameAccount(p.account, access.account))) this.chooseOffline();
-        else if (access.kind === 'picker') this.publish({});
-      }
       if (event.key === logoutKey) {
         this.pendingLogout = event.newValue === '1';
         void this.bootstrap();
@@ -85,17 +85,17 @@ class SessionCoordinator {
     }, 30_000);
   }
   private remember(account: Account | null, name?: string) {
-    try {
-      if (account && name) rememberProfile(account, name);
-      selectProfile(null);
-    } catch { this.storageBlocked = true; }
+    if (account && name) void rememberProfile(account, name).catch(() => {
+      // Optional Storage - Online access still works; pinning checks the profile inside its own transaction.
+    });
+    selectProfile();
   }
   chooseOffline(account?: Account) {
-    if (account && !profiles().some(p => sameAccount(p.account, account))) return;
-    selectProfile(account ?? null);
+    if (account && !this.snapshot.profiles.some(p => sameAccount(p.account, account))) return;
+    selectProfile(account);
     this.publish({ session: null, busy: false, access: account ? { kind: 'offline', account } : { kind: 'picker' }, error: null }, true);
   }
-  forgetOffline(account: Account) { forgetProfile(account); this.chooseOffline(); }
+  async forgetOffline(account: Account) { await forgetProfile(account); this.chooseOffline(); }
   private eligible(): Account | null {
     const access = this.snapshot.access;
     if (access.kind === 'logout' || this.pendingLogout) return null;
@@ -164,7 +164,9 @@ class SessionCoordinator {
           this.publish({ session: null, access: { kind: 'offline', account: access.account }, error: 'Could not verify your session. You can keep reading on this device.' }, true);
           return;
         }
-        if (profiles().length) { this.chooseOffline(); return; }
+        await this.profilesReady;
+        if (refresh.signal.aborted) return;
+        if (this.snapshot.profiles.length) { this.chooseOffline(); return; }
       }
       this.publish({ error: message(error) });
     } finally {
@@ -197,8 +199,10 @@ class SessionCoordinator {
       await this.discoverCapabilities();
     } catch (error) {
       if (epoch !== this.generation) return;
+      await this.profilesReady;
+      if (epoch !== this.generation) return;
       if (offline) this.publish({ busy: false, session: null, error: error instanceof APIUnavailable ? null : message(error) });
-      else if (error instanceof APIUnavailable && profiles().length) this.chooseOffline(selectedProfile());
+      else if (error instanceof APIUnavailable && this.snapshot.profiles.length) this.chooseOffline(selectedProfile(this.snapshot.profiles));
       else this.publish({ busy: false, session: null, error: message(error), access: this.retainedAccess(previous) });
     }
   }

@@ -6,15 +6,16 @@ export type BookRef = { kind: 'local'; localId: string } | { kind: 'server'; acc
 export type ReadingAccess = { kind: 'loading' } | { kind: 'picker' } | { kind: 'anonymous' } | { kind: 'authenticated'; account: Account } | { kind: 'offline'; account: Account } | { kind: 'expired'; account: Account } | { kind: 'logout'; account: Account };
 export type Checkpoint = { position: string | null; fraction: number | null };
 export type StoredBook = { ref: BookRef; title: string | null; author: string | null; cover: Blob | null; pinned?: boolean; availability: 'available' | 'unavailable'; addedAt?: string; lastReadAt?: string; checkpoint: Checkpoint };
-export type OfflineRecord = { id: string; scope: string; document: string; title: string; created: string; held?: true } & (
+export type OfflineRecord = { id: string; scope: string; document: string; title: string; created: string } & (
   { kind: 'progress'; checkpoint: { position: string; fraction: number } } | { kind: 'activity'; event: S['ActivityEvent'] }
 );
-export type ReviewDecision = 'upload' | 'keep' | 'discard';
+export type ReviewDecision = 'upload' | 'discard';
 export type OfflineChoice = { id: string; revision?: string };
 export type SyncStatus = 'idle' | 'pending' | 'syncing' | 'auth-required' | 'retryable-error' | 'quota-error' | 'blocked';
 export interface ReadingBridge {
   registerDevice(account: Account, device: S['Device'], signal: AbortSignal): Promise<S['Device']>;
   getState(account: Account, documentId: string, signal: AbortSignal): Promise<S['ReadingState']>;
+  fileReadFailed?(account: Account): void;
   fetchFile(account: Account, documentId: string, signal: AbortSignal, etag?: string): Promise<Response>;
   fetchCover(account: Account, documentId: string, signal: AbortSignal): Promise<Response>;
   submitProgress(account: Account, event: S['ProgressEvent'], signal: AbortSignal): Promise<Delivery>;
@@ -34,8 +35,8 @@ export interface ReadingSnapshot {
 export type ReaderCacheSummary = { books: number; epubBytes: number; metadataBytes: number };
 export interface ReadingActions {
   decideOffline(account: Account, choices: OfflineChoice[], decision: ReviewDecision): Promise<void>;
-  forgetDrafts(account: Account): Promise<void>;
-  cacheCover(ref: Extract<BookRef, { kind: 'server' }>, cover: Blob | null, mode?: 'backfill' | 'replace'): Promise<void>;
+  updateDownloadMetadata(ref: Extract<BookRef, { kind: 'server' }>, metadata: Pick<StoredBook, 'title' | 'author'>, cover?: Blob | null): Promise<void>;
+  cacheCover(ref: Extract<BookRef, { kind: 'server' }>, cover: Blob): Promise<void>;
   removeFromDevice(ref: Extract<BookRef, { kind: 'server' }>, signal: AbortSignal): Promise<void>;
   saveToDevice(ref: Extract<BookRef, { kind: 'server' }>, signal: AbortSignal, metadata: Pick<StoredBook, 'title' | 'author'>): Promise<void>;
   readerCacheSummary(): Promise<ReaderCacheSummary>;

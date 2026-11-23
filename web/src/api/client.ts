@@ -160,6 +160,7 @@ export function createAPI(gate: SessionGate) {
       if (result.document_id !== documentId) throw new InvalidResponse();
       return result;
     },
+    fileReadFailed: account => { gate.assert(account, gate.epoch()); gate.suspectOutage(); },
     fetchFile: (account, documentId, signal, etag) => binary(account, `/api/v1/documents/${encodeURIComponent(documentId)}/file`, signal, etag),
     fetchCover: (account, documentId, signal) => binary(account, `/api/v1/documents/${encodeURIComponent(documentId)}/cover`, signal),
     submitProgress: (account, event, signal) => deliver(account, event, 'progress', signal),

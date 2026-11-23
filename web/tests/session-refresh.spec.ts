@@ -44,7 +44,7 @@ test('a failed session refresh keeps the same rendition while the backend is rea
   await expect(page.locator('iframe')).toHaveCount(0);
 });
 
-test('opening a saved EPUB probes a gateway failure and only falls back when the session is unreachable', async ({ page, server }) => {
+test('saved EPUB opens probe both gateway and stream failures; only an unreachable session permits fallback', async ({ page, server }) => {
   await register(page, server.origin, 'warm-gateway-reader');
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
   const toolbar = page.getByRole('group', { name: 'Book actions' });
@@ -61,6 +61,12 @@ test('opening a saved EPUB probes a gateway failure and only falls back when the
   await expect(reader.getByRole('alert')).toContainText('Could not load EPUB');
   await reader.getByRole('button', { name: 'Library', exact: true }).click();
 
+  await page.evaluate(() => {
+    const fetch = window.fetch;
+    window.fetch = (request, init) => request instanceof Request && new URL(request.url).pathname.endsWith('/file')
+      ? Promise.resolve(new Response(new ReadableStream({ pull(c) { c.error(new TypeError('Connection reset')); } }), { headers: { 'Content-Type': 'application/epub+zip' } }))
+      : fetch(request, init);
+  });
   let probes = 0;
   await page.route('**/api/v1/session', route => { probes++; return route.fulfill(gateway); });
   await page.getByRole('link', { name: 'Read', exact: true }).click();

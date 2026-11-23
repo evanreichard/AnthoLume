@@ -167,28 +167,6 @@ async function readOffline(page: Page, context: BrowserContext, origin: string, 
   await expect.poll(() => offlinePosition(page)).toBeTruthy();
 }
 
-test('a failed preflight makes the saved turn reviewable in the open reader', async ({ page, server }) => {
-  await register(page, server.origin, 'preflight-review');
-  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
-  await page.getByRole('link', { name: 'Read', exact: true }).click();
-  await expect(bookReader(page)).toHaveAttribute('data-reader-state', 'ready');
-  const preflight = page.waitForRequest('**/api/v1/me/devices');
-  let release!: () => void;
-  const held = new Promise<void>(resolve => { release = resolve; });
-  await page.route('**/api/v1/me/devices', async route => { await held; await route.fulfill({ status: 500 }); });
-  const review = page.getByRole('button', { name: 'Review Offline Reading' });
-  try {
-    await turnPage(page, 2);
-    await preflight;
-    expect(await offlinePosition(page)).toBeTruthy();
-    await expect(review).toHaveCount(0);
-  } finally { release(); }
-  await expect(review).toBeVisible();
-  await review.click();
-  await expect(offlineReview(page).getByLabel('Progress')).toBeEnabled();
-  expect(await storedRows(page, 'events')).toEqual([]);
-});
-
 test('mounted libraries observe a shared pin and removal from another tab', async ({ page, context, server }) => {
   await register(page, server.origin, 'shared-pin');
   const observer = await context.newPage();
@@ -206,100 +184,29 @@ test('mounted libraries observe a shared pin and removal from another tab', asyn
   await expect(card(observer)).toBeVisible();
 });
 
-test('the first turn during a backend-only outage stays local through restart and reload until approved', async ({ page, server }) => {
-  const user = 'backend-outage-reader';
+test('an account reader queues outage turns and delivers them after the tab closes', async ({ page, context, server }) => {
+  const user = 'account-reader';
   await register(page, server.origin, user);
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
-  const started = Date.now();
-  await page.clock.setFixedTime(started);
-  await page.getByRole('link', { name: 'Read', exact: true }).click();
-  const reader = bookReader(page), frame = reader.locator('iframe').first();
-  await expect(reader).toHaveAttribute('data-reader-state', 'ready');
-  const openedFrame = await frame.elementHandle();
-  await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
-
-  const submissions: string[] = [];
-  page.on('request', request => {
-    const path = new URL(request.url()).pathname;
-    if (request.method() === 'POST' && /\/me\/(activity|reading-progress)$/.test(path)) submissions.push(path);
-  });
-  await server.stop();
-  expect(await page.evaluate(() => navigator.onLine)).toBe(true);
-  await page.clock.setFixedTime(started + 30_000);
-  await turnPage(page, 2);
-  await expect.poll(async () => (await storedRows(page, 'offline')).map(row => row.kind).sort()).toEqual(['activity', 'progress']);
-  const firstPosition = await offlinePosition(page);
-  expect(firstPosition).toBeTruthy();
-  await turnPage(page, 3);
-  await expect.poll(async () => (await offlinePosition(page)) ?? firstPosition).not.toBe(firstPosition);
-  const checkpoint = await offlinePosition(page);
-  expect(await frame.evaluate((current, original) => current === original, openedFrame)).toBe(true);
-  expect(await storedRows(page, 'events')).toEqual([]);
-  expect(submissions).toEqual([]);
-
-  await server.start();
-  await page.reload();
-  const review = offlineReview(page);
-  await expect(review.getByLabel('Progress')).toBeEnabled();
-  await expect(review.getByLabel('Activity')).toBeEnabled();
-  expect(submissions).toEqual([]);
-  expect(serverEffects(server.data, user)).toMatchObject({ head: undefined, activity: 0, receipts: [] });
-  await review.getByLabel('Progress').check();
-  await review.getByLabel('Activity').check();
-  await review.getByRole('button', { name: 'Upload Selected', exact: true }).click();
-  await expect.poll(() => serverEffects(server.data, user)).toMatchObject({ head: { revision: 1, position: checkpoint }, activity: 1, activitySeconds: 30 });
-});
-
-test('closing the tab during preflight preserves the turn for review without another tab submitting it', async ({ page, context, server }) => {
-  const user = 'abandoned-preflight-reader';
-  await register(page, server.origin, user);
-  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
-  const started = Date.now();
-  await page.clock.setFixedTime(started);
   await page.getByRole('link', { name: 'Read', exact: true }).click();
   await expect(bookReader(page)).toHaveAttribute('data-reader-state', 'ready');
-
-  const originalSubmissions: string[] = [];
-  context.on('request', request => {
-    const path = new URL(request.url()).pathname;
-    if (request.method() === 'POST' && /\/me\/(activity|reading-progress)$/.test(path) &&
-      request.postDataJSON().document_id === 'book_001') originalSubmissions.push(path);
-  });
-  const preflightURL = '**/api/v1/me/devices';
-  let release!: () => void;
-  const held = new Promise<void>(resolve => { release = resolve; });
-  await page.route(preflightURL, async route => { await held; await route.abort().catch(() => undefined); });
-  const preflight = page.waitForRequest(request => request.method() === 'POST' && request.url().endsWith('/me/devices'));
-  try {
-    await page.clock.setFixedTime(started + 30_000);
-    await turnPage(page, 2);
-    await preflight;
-    // Inspect immediately: settling the request could also move a premature outbox row back to a draft.
-    expect((await storedRows(page, 'offline')).map(row => row.kind).sort()).toEqual(['activity', 'progress']);
-    const draft = await offlineProgress(page);
-    expect(draft?.checkpoint?.position).toBeTruthy();
-    expect(await storedRows(page, 'events')).toEqual([]);
-    expect(originalSubmissions).toEqual([]);
-
-    const survivor = await context.newPage();
-    await survivor.goto(`${server.origin}/library`);
-    await expect(survivor.getByRole('heading', { name: 'Library', exact: true, includeHidden: true })).toBeAttached();
-    expect(await storedRows(survivor, 'events')).toEqual([]);
-    expect(await offlineProgress(survivor)).toEqual(draft);
-
-    await page.close();
-    await survivor.reload();
-    const review = offlineReview(survivor);
-    await expect(review.getByLabel('Progress')).toBeEnabled();
-    await expect(review.getByLabel('Activity')).toBeEnabled();
-    expect(await offlineProgress(survivor)).toEqual(draft);
-    expect(await storedRows(survivor, 'events')).toEqual([]);
-    expect(originalSubmissions).toEqual([]);
-    expect(serverEffects(server.data, user)).toMatchObject({ head: undefined, activity: 0 });
-  } finally { release(); }
+  await server.stop();
+  await turnPage(page, 2);
+  const queued = (await storedRows(page, 'events')).find(row => row.kind === 'progress')!;
+  expect(queued.payload?.position).toBeTruthy();
+  await turnPage(page, 3);
+  const latest = (await storedRows(page, 'positions')).find(row => row.ref?.documentId === 'book_001')!.checkpoint!;
+  expect(latest.position).not.toBe(queued.payload?.position);
+  expect(await storedRows(page, 'offline')).toEqual([]);
+  await page.close();
+  await server.start();
+  const next = await context.newPage();
+  await next.goto(server.origin);
+  await expect.poll(() => serverEffects(server.data, user).head).toMatchObject({ position: latest.position, revision: 2 });
+  await expect(offlineReview(next)).toHaveCount(0);
 });
 
-test('reconnect keeps the open page and frame through review, then syncs the first turn after upload', async ({ page, context, server }) => {
+test('a device-only reader stays on the same page and keeps new turns private after upload', async ({ page, context, server }) => {
   const user = 'offline-upload-open-book';
   await readOffline(page, context, server.origin, user);
   const checkpoint = await offlinePosition(page);
@@ -321,41 +228,20 @@ test('reconnect keeps the open page and frame through review, then syncs the fir
   const head = () => serverEffects(server.data, user).head;
   await expect.poll(head).toMatchObject({ revision: 1, position: checkpoint });
   await expect(reader.locator('footer')).toContainText('3 /');
-  const uploadedFraction = Number(head()!.fraction);
   await turnPage(page, 4);
-  await expect.poll(() => head()?.revision).toBe(2);
-  expect(head()!.position).not.toBe(checkpoint);
-  expect(Number(head()!.fraction)).toBeGreaterThan(uploadedFraction);
-});
-
-test('Keep Reading preserves pending progress locally across turns and an online reload', async ({ page, context, server }) => {
-  const user = 'offline-defer-open-book';
-  await readOffline(page, context, server.origin, user);
-  const checkpoint = await offlinePosition(page);
-  await context.setOffline(false);
-  const review = offlineReview(page);
-  const keepReading = review.getByRole('button', { name: 'Keep Reading', exact: true });
-  await keepReading.click();
-  await expect(review).toBeHidden();
-  await turnPage(page, 4);
-  await expect.poll(async () => (await offlinePosition(page)) ?? checkpoint).not.toBe(checkpoint);
-  const deferredPosition = await offlinePosition(page);
-  expect(serverEffects(server.data, user).head).toBeUndefined();
-
+  await expect.poll(() => offlinePosition(page)).not.toBe(checkpoint);
+  expect(await offlinePosition(page)).toBeTruthy();
+  expect(head()?.revision).toBe(1);
+  expect(await storedRows(page, 'events')).toEqual([]);
+  // A new authenticated open uses the server checkpoint; the separate device draft is not permission to upload it.
+  const draft = await offlinePosition(page);
   await page.reload();
-  await keepReading.click();
-  const reader = bookReader(page);
+  await offlineReview(page).getByRole('button', { name: 'Keep Reading' }).click();
   await expect(reader).toHaveAttribute('data-reader-state', 'ready');
-  const paragraph = deferredPosition?.match(/\/p\[(\d+)\]$/)?.[1];
-  expect(paragraph).toBeTruthy();
-  await expect(reader.locator('iframe').first().contentFrame().locator('body > p').nth(Number(paragraph) - 1)).toBeInViewport();
-  const restored = await offlineProgress(page);
-  expect(restored?.checkpoint?.position).toBe(deferredPosition);
   const currentPage = Number((await reader.locator('footer').textContent())?.split('/')[0]);
   await turnPage(page, currentPage + 1);
-  await expect.poll(async () => (await offlineProgress(page))?.id ?? restored?.id).not.toBe(restored?.id);
-  expect((await storedRows(page, 'events')).filter(row => row.kind === 'progress')).toEqual([]);
-  expect(serverEffects(server.data, user).head).toBeUndefined();
+  await expect.poll(() => head()?.revision).toBe(2);
+  expect(await offlinePosition(page)).toBe(draft);
 });
 
 for (const failed of ['Progress', 'Activity'] as const) {
@@ -485,38 +371,30 @@ test('removing a shared download clears both shelves but preserves the offline r
   expect(serverEffects(server.data,alice).activity).toBe(0);
 });
 
-test('reconnect supplies a first-time profile’s revision without reopening the shared book', async ({ page, context, server }) => {
-  await register(page, server.origin, 'downloader');
-  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
-  const toolbar = page.getByRole('group', { name: 'Book actions' });
-  await toolbar.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(toolbar.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
-  await page.goto(server.origin + '/settings');
-  await page.getByRole('button', { name: 'Sign Out', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Sign Out', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
-  const reader = 'first-time-reader';
-  await register(page, server.origin, reader);
+test('pinning needs no reading state, position, or reader lease and does not need localStorage profiles', async ({ page, context, server }) => {
+  await context.addInitScript(() => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function(key, value) {
+      if (key.startsWith('antholume:offline-profile:')) throw new DOMException('Full', 'QuotaExceededError');
+      set.call(this, key, value);
+    };
+  });
+  await register(page, server.origin, 'pin-only');
+  let stateRequests = 0;
+  await page.route('**/me/reading-state/**', route => { stateRequests++; return route.fulfill({ status: 503 }); });
+  const card = page.getByRole('article').filter({ hasText: 'Public book 01' });
+  await card.locator('summary').click();
+  await card.getByRole('button', { name: 'Save to Device' }).click();
+  await expect(card.getByRole('img', { name: 'Saved to device' })).toBeVisible();
+  expect(stateRequests).toBe(0);
+  expect(await storedRows(page, 'positions')).toEqual([]);
+  expect(await storedRows(page, 'heads')).toEqual([]);
+  expect((await storedRows(page, 'sources')).every(row => !Object.keys(row.cacheReaders ?? {}).length)).toBe(true);
+  await page.getByRole('heading', { name: 'Public book 02', exact: true }).click();
   await context.setOffline(true);
-  await page.getByRole('button', { name: reader, exact: true }).click();
-  await page.getByRole('article').getByRole('link').click();
-  await expect(bookReader(page)).toHaveAttribute('data-reader-state', 'ready');
-  const frame = await bookReader(page).locator('iframe').first().elementHandle();
-  const endpoint = '**/me/reading-state/book_001';
-  let release!: () => void;
-  const held = new Promise<void>(resolve => { release = resolve; });
-  await page.route(endpoint, async route => { await held; await route.continue(); }, { times: 1 });
-  try {
-    await Promise.all([page.waitForRequest(endpoint), context.setOffline(false)]);
-    await expect(page.locator('footer')).toContainText('1 /');
-    expect(await frame!.evaluate(node => node.isConnected)).toBe(true);
-    await turnPage(page, 2);
-    await expect.poll(async () => (await storedRows(page, 'offline')).some(row => row.kind === 'progress')).toBe(true);
-    expect(serverEffects(server.data, reader).head).toBeUndefined();
-  } finally { release(); }
-  await expect.poll(() => serverEffects(server.data, reader).head?.revision).toBe(1);
-  expect(await storedRows(page, 'offline')).toEqual([]);
-  expect(serverEffects(server.data, 'downloader').head).toBeUndefined();
+  await page.getByRole('button', { name: 'pin-only', exact: true }).click();
+  await expect(page).toHaveURL(/\/library$/);
+  await expect(card).toBeVisible();
 });
 
 test('the detail toolbar only checks pinned copies and confirms before removing one', async ({ page, server }) => {

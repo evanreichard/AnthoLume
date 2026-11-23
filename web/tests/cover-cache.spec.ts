@@ -72,7 +72,7 @@ test('Save to Device keeps the server artwork on a cold offline start and remove
   expect(await storedCovers(cold)).toEqual([]);
 });
 
-test('confirmed cover edits replace or remove saved artwork without fetching the EPUB', async ({ page, server }) => {
+test('confirmed catalog edits update the saved book without fetching the EPUB', async ({ page, context, server }) => {
   await register(page, server.origin, 'edit-cached-cover');
   await saveBook(page);
   await expect.poll(async () => (await storedCovers(page)).length).toBe(1);
@@ -85,6 +85,8 @@ test('confirmed cover edits replace or remove saved artwork without fetching the
     await page.getByRole('button', { name: 'Edit', exact: true }).click();
   }
   await editCover();
+  await dialog.getByLabel('Title', { exact: true }).fill('Updated title');
+  await dialog.getByLabel('Author', { exact: true }).fill('Updated author');
   await dialog.getByLabel('Cover image').setInputFiles({ name: 'new.png', mimeType: 'image/png', buffer: artwork });
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(dialog).toHaveCount(0);
@@ -95,6 +97,10 @@ test('confirmed cover edits replace or remove saved artwork without fetching the
   await expect(dialog).toHaveCount(0);
   await expect.poll(() => storedCovers(page)).toEqual([]);
   await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
+  await context.setOffline(true);
+  await page.getByRole('button', { name: 'edit-cached-cover', exact: true }).click();
+  await expect(bookCard(page)).toContainText('Updated title');
+  await expect(bookCard(page)).toContainText('Updated author');
   expect(fileRequests).toBe(0);
 });
 

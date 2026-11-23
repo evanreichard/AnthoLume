@@ -50,7 +50,7 @@ function Providers() {
     <ReadingProvider access={intent && state.access.kind === 'expired' ? retirementAccess : state.access} bridge={session.api.bridge} lookupCover={ref => queryClient.getQueryData<Blob>(['cover', ref])} onSessionExpired={(account) => session.expire(account)}>
       <ReadingSession />
       <RetirementDestination />
-      {state.access.kind === 'picker' ? <OfflinePicker /> : state.access.kind === 'offline' && ['/login','/register'].includes(location.pathname) ? <Navigate to="/library" replace /> : pendingIntent ? <AppLoading message="Opening requested book…" /> : <Outlet />}
+      {state.access.kind === 'picker' ? (location.pathname === '/library' ? <OfflinePicker /> : <Navigate to="/library" replace />) : state.access.kind === 'offline' && ['/login','/register'].includes(location.pathname) ? <Navigate to="/library" replace /> : pendingIntent ? <AppLoading message="Opening requested book…" /> : <Outlet />}
       <ScrollRestoration />
     </ReadingProvider>
   </QueryClientProvider>;

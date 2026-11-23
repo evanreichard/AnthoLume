@@ -1,13 +1,11 @@
 import { liveQuery } from 'dexie';
 import { sourceLimits } from './source';
-import { Repository } from './repository';
+import { Repository, type TurnPolicy } from './repository';
 import { Replay } from './sync';
 import { WorkerCoordinator } from './worker-client';
 import { accountKey, refKey, sameAccount, type Account, type BookRef, type Checkpoint, type CoverLookup, type ReadingAccess, type OfflineChoice, type ReviewDecision, type ReadingActions, type ReadingBridge, type ReadingSnapshot, type StoredBook, type S } from './types';
-import { validDevice, validState } from './protocol';
 import { readCover } from './cover';
 
-const autoSyncBudgetMs = 4_000;
 const cacheETag = (value: string | null | undefined): string | undefined => value && /^(?:W\/)?"[\x21\x23-\x7e]{1,128}"$/.test(value) ? value : undefined;
 
 export const emptySnapshot: ReadingSnapshot = { ready: false, resumeAccount: null, books: [], sync: 'idle', pendingCount: 0, notice: null, downloads: [], workerError: null, error: null };
@@ -26,8 +24,6 @@ export class ReadingRuntime implements ReadingActions {
   private timer?: ReturnType<typeof setTimeout>;
   private failures = 0;
   private jobs = new Map<AbortController, boolean>();
-  private offlineReader?: { ref: Extract<BookRef, { kind: 'server' }>; signal: AbortSignal };
-  private reconnectHead?: { key: string; revision: Promise<string | undefined> };
   private accountAccess = new AbortController();
   private coverJobs = new Set<string>();
   private quotaError = false;
@@ -58,18 +54,13 @@ export class ReadingRuntime implements ReadingActions {
     this.view = undefined;
     this.access = access; const version = ++this.generation; this.sync.stop(); this.error = null; this.quotaError = false;
     for (const [job, accountBound] of this.jobs) if (accountBound) job.abort();
-    this.accountAccess.abort(); this.accountAccess = new AbortController(); this.reconnectHead = undefined;
+    this.accountAccess.abort(); this.accountAccess = new AbortController();
     this.snapshot = emptySnapshot;
     this.projectionAccess = access;
     this.publishSnapshot();
     this.accessTail = this.accessTail.catch(() => undefined).then(async () => {
       if (this.disposed || version !== this.generation) return;
       await this.repo.setAccess(access);
-      const reader = this.offlineReader;
-      if (version === this.generation && access.kind === 'authenticated' && reader && !reader.signal.aborted && sameAccount(access.account, reader.ref.account)) {
-        const signal = AbortSignal.any([reader.signal, this.accountAccess.signal, AbortSignal.timeout(autoSyncBudgetMs)]);
-        this.reconnectHead = { key: refKey(reader.ref), revision: this.recoverRevision(reader.ref, signal).catch(() => undefined) };
-      }
       if (!this.disposed && version === this.generation) {
         this.appliedGeneration = version;
         await this.observeView(access, version);
@@ -77,14 +68,6 @@ export class ReadingRuntime implements ReadingActions {
       }
     }).catch(error => { if (!this.disposed && version === this.generation) { this.error = String(error); this.publishSnapshot(); } });
     return this.accessTail;
-  }
-  private async recoverRevision(ref: Extract<BookRef, { kind: 'server' }>, signal: AbortSignal) {
-    const head = await this.repo.db.heads.get(refKey(ref));
-    if (head) return head.state.revision;
-    signal.throwIfAborted();
-    const state = await this.bridge.getState(ref.account, ref.documentId, signal);
-    await this.repo.rememberMissingHead(ref, state, signal);
-    return state.revision;
   }
   private foreground = () => { if (document.visibilityState === 'visible' || navigator.onLine) { this.failures = 0; this.schedule(0); void this.worker.connect().catch(error => { this.error = String(error); this.publishSnapshot(); }); } };
   private schedule(delay: number) { clearTimeout(this.timer); if (!this.disposed) this.timer = setTimeout(() => { void this.replay(); }, delay); }
@@ -119,7 +102,7 @@ export class ReadingRuntime implements ReadingActions {
     const pendingCount = view?.pendingCount ?? 0;
     this.snapshot = {
       books: view?.books ?? [], deviceCopies: view?.deviceCopies, resumeAccount: view?.resumeAccount ?? null,
-      offlineRecords: view?.captures.filter(row => this.repo.awaitingReview(row)) ?? [],
+      offlineRecords: view?.captures ?? [],
       ready: !!view, pendingCount,
       sync: this.quotaError ? 'quota-error' : !pendingCount ? 'idle' : view?.blocked ? 'blocked'
         : this.sync.status !== 'idle' ? this.sync.status : authenticated ? 'pending' : 'auth-required',
@@ -146,23 +129,38 @@ export class ReadingRuntime implements ReadingActions {
     const timer = setTimeout(() => controller.abort(new Error('Reading operation deadline exceeded')), deadlineMs);
     try { return await action(controller.signal); } finally { clearTimeout(timer); this.jobs.delete(controller); external?.removeEventListener('abort', abort); }
   }
-  async openServerBook(ref: Extract<BookRef, { kind: 'server' }>, external: AbortSignal, onStage?: (message: string) => void, pin?: Pick<StoredBook, 'title' | 'author'>) {
-    const stageMessage = (message: string) => { if (!external.aborted) onStage?.(message); };
+  async openServerBook(ref: Extract<BookRef, { kind: 'server' }>, external: AbortSignal, onStage?: (message: string) => void) {
     const account = this.selectedAccount(), generation = this.generation;
     if (!sameAccount(account, ref.account)) throw new Error('Book belongs to another account');
     if (this.appliedGeneration !== generation) await this.accessTail;
-    external.throwIfAborted();
-    if (generation !== this.generation) throw new DOMException('Book account changed', 'AbortError');
-    if (this.access.kind === 'offline') {
-      this.requireReady();
-      onStage?.('Opening offline copy…');
-      const opened = await this.repo.openOffline(ref);
+    const check = () => {
       external.throwIfAborted();
-      if (generation !== this.generation || !opened.row.sourceId) throw new Error('Book account or source changed');
-      this.offlineReader = { ref, signal: external };
-      await this.repo.keepSource(opened.row.sourceId, external);
-      return opened;
+      if (generation !== this.generation) throw new DOMException('Book account changed', 'AbortError');
+    };
+    check();
+    this.requireReady();
+    const device = await this.repo.device(account);
+    check();
+    const policy: TurnPolicy = this.access.kind === 'offline' ? { mode: 'device' } : { mode: 'account', deviceId: device.id };
+    let opened;
+    if (policy.mode === 'device') {
+      onStage?.('Opening offline copy…');
+      opened = await this.repo.openOffline(ref);
+    } else {
+      opened = await this.ensureDownload(ref, external, onStage);
+      check();
+      onStage?.('Fetching your saved position…');
+      const state = await this.bridge.getState(account, ref.documentId, AbortSignal.any([external, this.accountAccess.signal]));
+      Object.assign(opened.row, await this.repo.applyServerState(ref, state, external));
     }
+    check();
+    await this.repo.keepSource(opened.row.sourceId!, external);
+    return { ...opened, mode: policy.mode, deviceId: device.id,
+      save: (checkpoint: Checkpoint, activity?: S['ActivityEvent']) => this.saveTurn(ref, policy, checkpoint, activity, external) };
+  }
+  private async ensureDownload(ref: Extract<BookRef, { kind: 'server' }>, external: AbortSignal, onStage?: (message: string) => void, pin?: Pick<StoredBook, 'title' | 'author'>) {
+    const generation = this.generation, account = ref.account;
+    const stageMessage = (message: string) => { if (!external.aborted) onStage?.(message); };
     const opened = await this.write(() => this.job(external, async signal => {
       const current = () => {
         signal.throwIfAborted();
@@ -177,18 +175,10 @@ export class ReadingRuntime implements ReadingActions {
         try { current(); } catch (error) { await response.body?.cancel(); throw error; }
         return response;
       };
-      const getState = async () => {
-        stageMessage('Fetching your saved position…');
-        const state = await this.bridge.getState(account, ref.documentId, signal);
-        current();
-        if (!validState(state, ref.documentId)) throw new Error('Invalid server reading state');
-        return state;
-      };
       let response = await fetchFile(etag);
       if (response.status === 304 && !response.redirected && etag && response.headers.get('ETag') === etag) {
-        const state = await getState();
         stageMessage('Opening cached copy…');
-        try { return await this.repo.useCached(ref, previous!.sourceId!, etag, state, signal, pin); }
+        try { return await this.repo.useCached(ref, previous!.sourceId!, etag, signal, pin); }
         catch { current(); response = await fetchFile(); }
       }
       try {
@@ -207,19 +197,18 @@ export class ReadingRuntime implements ReadingActions {
             const stage = await this.repo.stageStream(ref, response.body, signal, receivedBytes => {
               this.snapshot = { ...this.snapshot, downloads: this.snapshot.downloads.map(item => item.ref === ref ? { ...item, receivedBytes } : item) };
               this.changed(this.snapshot);
-            });
+            }, () => { if (generation === this.generation) this.bridge.fileReadFailed?.(account); });
             try {
               if (length !== null && length !== stage.size) throw new Error('Incomplete EPUB download');
               this.snapshot = { ...this.snapshot, downloads: this.snapshot.downloads.map(item => item.ref === ref ? { ...item, receivedBytes: stage.size, preparing: true } : item) };
               this.changed(this.snapshot);
               const policy = await this.repo.validateStage(stage, signal, true, stageMessage);
               try {
-                const state = await getState();
                 stageMessage('Saving a copy on this device…');
-                await this.repo.publish(ref, stage, policy.manifest, previous?.title ?? policy.manifest.title, previous?.author ?? policy.manifest.author, null, state, signal, { etag: cacheETag(response.headers.get('ETag')), previousSource: previous?.sourceId, pin });
+                await this.repo.publish(ref, stage, policy.manifest, previous?.title ?? policy.manifest.title, previous?.author ?? policy.manifest.author, null, undefined, signal, { etag: cacheETag(response.headers.get('ETag')), previousSource: previous?.sourceId, pin });
               } finally { policy.dispose(); }
             } finally { await this.repo.discardSource(stage.id); }
-            return await this.repo.open(ref);
+            return await this.repo.openSourceCopy(ref);
           } catch (error) {
             current();
             if (attempt || !(error instanceof Error) || error.name !== 'QuotaExceededError') throw error;
@@ -231,24 +220,23 @@ export class ReadingRuntime implements ReadingActions {
         this.snapshot = { ...this.snapshot, downloads: this.snapshot.downloads.filter(item => item.ref !== ref) };
       }
     }), { signal: external, localError: !!pin });
-    const row = await this.repo.withOfflineProgress(opened.row);
-    external.throwIfAborted();
-    if (generation !== this.generation || !row.sourceId) throw new Error('Book account or source changed');
-    await this.repo.keepSource(row.sourceId, external);
-    if (!row.cover && generation === this.generation) void this.fillCover(ref, row.sourceId);
-    return { ...opened, row };
+    if (!opened.row.cover && opened.row.sourceId && generation === this.generation) void this.fillCover(ref, opened.row.sourceId);
+    return opened;
   }
-  cacheCover = async (ref: Extract<BookRef, { kind: 'server' }>, cover: Blob | null, mode: 'backfill' | 'replace' = 'backfill') => {
+  cacheCover = async (ref: Extract<BookRef, { kind: 'server' }>, cover: Blob) => {
     if (this.disposed || this.appliedGeneration !== this.generation || this.access.kind !== 'authenticated' || !sameAccount(ref.account, this.access.account)) return;
-    await this.repo.cacheCover(ref, cover, this.accountAccess.signal, { replace: mode === 'replace' }).catch(() => undefined);
+    await this.repo.updateDownload(ref, cover, this.accountAccess.signal).catch(() => undefined);
   };
+  async updateDownloadMetadata(ref: Extract<BookRef, { kind: 'server' }>, metadata: Pick<StoredBook, 'title' | 'author'>, cover?: Blob | null) {
+    if (this.access.kind === 'authenticated' && sameAccount(ref.account, this.access.account)) await this.repo.updateDownload(ref, cover, this.accountAccess.signal, metadata);
+  }
   private async fillCover(ref: Extract<BookRef, { kind: 'server' }>, sourceId: string) {
     if (this.disposed || this.access.kind !== 'authenticated' || !sameAccount(ref.account, this.access.account) || this.coverJobs.has(sourceId) || this.coverJobs.size >= 4) return;
     this.coverJobs.add(sourceId);
     const signal = AbortSignal.any([this.accountAccess.signal, AbortSignal.timeout(8_000)]);
     try {
       const cover = this.lookupCover?.(ref) ?? await readCover(await this.bridge.fetchCover(ref.account, ref.documentId, signal), signal);
-      await this.repo.cacheCover(ref, cover, signal, { expectedSource: sourceId });
+      await this.repo.updateDownload(ref, cover, signal, undefined, sourceId);
     } catch { /* Artwork is optional; the source is already usable. */ }
     finally { this.coverJobs.delete(sourceId); }
   }
@@ -257,7 +245,7 @@ export class ReadingRuntime implements ReadingActions {
     await this.worker.ensureOfflineShell(signal);
     if (!sameAccount(ref.account, this.selectedAccount())) throw new Error('Account changed');
     if (this.access.kind === 'authenticated') {
-      await this.openServerBook(ref, signal, undefined, metadata);
+      await this.ensureDownload(ref, signal, undefined, metadata);
       return;
     }
     await this.write(() => this.repo.retainCachedCopy(ref, signal), { signal, localError: true });
@@ -274,60 +262,20 @@ export class ReadingRuntime implements ReadingActions {
     await this.write(() => this.repo.decideOffline(account, choices, decision));
     if (decision === 'upload') this.schedule(0);
   }
-  async forgetDrafts(account: Account) { await this.repo.db.offline.where('scope').equals(accountKey(account)).delete(); }
-  async save(ref: BookRef, checkpoint: Checkpoint, activity?: S['ActivityEvent'], lifetime?: AbortSignal) {
+  private async saveTurn(ref: Extract<BookRef, { kind: 'server' }>, policy: TurnPolicy, checkpoint: Checkpoint, activity: S['ActivityEvent'] | undefined, lifetime: AbortSignal) {
     if (this.appliedGeneration !== this.generation) await this.accessTail;
-    lifetime?.throwIfAborted();
-    if (ref.kind === 'local') return this.write(() => this.repo.saveLocal(ref, checkpoint));
-    const access = this.access;
-    const current = () => {
-      const now = this.access;
-      return !this.disposed && !lifetime?.aborted && (now.kind === 'authenticated' || now.kind === 'offline') && sameAccount(now.account, ref.account);
-    };
+    const current = () => !this.disposed && !lifetime.aborted
+      && (this.access.kind === 'authenticated' || this.access.kind === 'offline') && sameAccount(this.access.account, ref.account);
     if (!current()) throw new DOMException('Reading access changed', 'AbortError');
-    const autoSync = access.kind === 'authenticated' && navigator.onLine;
-    const generation = this.accountAccess.signal;
-    const key = refKey(ref);
-    const reconnect = this.reconnectHead?.key === key ? this.reconnectHead.revision : undefined;
-    const capture = await this.write(() => this.repo.recordCapture(ref, checkpoint, activity, {
-      title: this.snapshot.books.find(book => refKey(book.ref) === key)?.title,
-      online: autoSync, awaitingRevision: !!reconnect,
-      current,
-    }));
-    if (!capture) return;
-    // The originating interaction alone holds this promotion token. Leaving the reader does not authorize another capture.
-    const signal = AbortSignal.any([generation, AbortSignal.timeout(autoSyncBudgetMs)]);
-    const eligible = () => !signal.aborted && navigator.onLine;
-    void (async () => {
-      try {
-        if (capture.revision === undefined && !capture.predecessor) {
-          capture.revision = await reconnect;
-          if (capture.revision === undefined) return;
-        }
-        if (!eligible()) return;
-        const device = await this.repo.device(ref.account);
-        signal.throwIfAborted();
-        const registered = await this.bridge.registerDevice(ref.account, device, signal);
-        if (!validDevice(registered, device.id)) return;
-        const promoted = await this.repo.promoteCapture(capture, device.id, eligible);
-        if (promoted?.length) {
-          // Committed Captures - The last emitted view can still contain rows deleted by this transaction.
-          if (this.view) this.view.captures = this.view.captures.filter(row => !promoted.includes(row.id));
-          void this.replay(device.id);
-        }
-      } catch { /* The capture is already durable and remains local. */ }
-      finally {
-        this.repo.releaseCapture(capture);
-        this.publishSnapshot();
-      }
-    })();
+    await this.write(() => this.repo.recordTurn(ref, policy, checkpoint, activity, current));
+    if (policy.mode === 'account') this.schedule(0);
   }
-  async replay(registeredDevice?: string) {
+  async replay() {
     const access = this.access;
     if (this.disposed || access.kind !== 'authenticated' || !navigator.onLine) return;
     await this.accessTail;
     if (this.disposed || this.access !== access || !navigator.onLine) return;
-    await this.sync.run(access.account, registeredDevice);
+    await this.sync.run(access.account);
     const pending = await this.repo.pending(accountKey(access.account));
     if (this.access === access && navigator.onLine && pending.some(event => !event.rejected)) { this.failures = this.sync.status === 'retryable-error' ? this.failures + 1 : 0; this.schedule(Math.min(60000, 1000 * 2 ** Math.min(this.failures, 6)) + Math.random() * 500); }
   }
