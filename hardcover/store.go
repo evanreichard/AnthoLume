@@ -4,20 +4,12 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
+	"database/sql"
 	"encoding/json"
 	"errors"
-	"io/fs"
-	"os"
-	"path/filepath"
+	"strings"
 	"time"
-
-	"golang.org/x/sys/unix"
 )
-
-const recordLimit = 64 << 10
 
 var errStorage = errors.New("hardcover: credential storage unavailable")
 
@@ -30,103 +22,54 @@ type credential struct {
 }
 
 type credentialStore struct {
-	dir  string
-	aead cipher.AEAD
+	db *sql.DB
+	cipher.AEAD
 }
 
-func newCredentialStore(dir string) (credentialStore, error) {
-	if dir == "" {
+type accountRef struct{ generation, id string }
+
+func parseAccount(account string) (accountRef, error) {
+	generation, id, ok := strings.Cut(account, ":")
+	if !ok || generation == "" || id == "" {
+		return accountRef{}, ErrInvalidInput
+	}
+	return accountRef{generation, id}, nil
+}
+
+func newCredentialStore(db *sql.DB, key []byte) (credentialStore, error) {
+	if db == nil || len(key) != 32 {
 		return credentialStore{}, ErrInvalidInput
 	}
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return credentialStore{}, errStorage
-	}
-	info, err := os.Lstat(dir)
-	if err != nil || !info.IsDir() || info.Mode().Perm() != 0700 {
-		return credentialStore{}, errStorage
-	}
-	abs, err := filepath.Abs(dir)
-	if err != nil {
-		return credentialStore{}, errStorage
-	}
-	s := credentialStore{dir: abs}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	unlock, err := s.lock(ctx, "init.lock")
-	if err != nil {
-		return credentialStore{}, err
-	}
-	defer unlock()
-
-	key, err := s.readFile("key")
-	if errors.Is(err, fs.ErrNotExist) {
-		key = make([]byte, 32)
-		if _, err := rand.Read(key); err != nil {
-			return credentialStore{}, errStorage
-		}
-		if err := s.writeFile("key", key); err != nil {
-			return credentialStore{}, err
-		}
-	} else if err != nil || len(key) != 32 {
-		return credentialStore{}, errStorage
-	}
 	block, err := aes.NewCipher(key)
-	clear(key)
 	if err != nil {
 		return credentialStore{}, errStorage
 	}
-	s.aead, err = cipher.NewGCMWithRandomNonce(block)
+	aead, err := cipher.NewGCMWithRandomNonce(block)
+	return credentialStore{db, aead}, err
+}
+
+const currentGeneration = `EXISTS (SELECT 1 FROM reading_generation WHERE singleton = 1 AND generation = ?)`
+
+func (s credentialStore) load(ctx context.Context, account accountRef) (credential, []byte, error) {
+	var blob []byte
+	err := s.db.QueryRowContext(ctx, `SELECT l.credential FROM account_identities a
+		LEFT JOIN hardcover_links l USING (account_id) WHERE a.account_id = ? AND `+currentGeneration,
+		account.id, account.generation).Scan(&blob)
+	if errors.Is(err, sql.ErrNoRows) {
+		return credential{}, nil, ErrNotConnected
+	}
 	if err != nil {
-		return credentialStore{}, errStorage
+		return credential{}, nil, errStorage
 	}
-	return s, nil
+	if blob == nil {
+		return credential{}, nil, nil
+	}
+	link, err := s.decode(account.id, blob)
+	return link, blob, err
 }
 
-func accountName(account string) string {
-	hash := sha256.Sum256([]byte(account))
-	return hex.EncodeToString(hash[:])
-}
-
-func (s credentialStore) lock(ctx context.Context, name string) (func(), error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	fd, err := unix.Open(filepath.Join(s.dir, name), unix.O_CREAT|unix.O_RDWR|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0600)
-	if err != nil {
-		return nil, errStorage
-	}
-	var stat unix.Stat_t
-	if unix.Fstat(fd, &stat) != nil || stat.Mode&unix.S_IFMT != unix.S_IFREG || stat.Mode&0777 != 0600 {
-		_ = unix.Close(fd)
-		return nil, errStorage
-	}
-	for {
-		err := unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB)
-		if err == nil {
-			return func() { _ = unix.Close(fd) }, nil
-		}
-		if !errors.Is(err, unix.EWOULDBLOCK) && !errors.Is(err, unix.EINTR) {
-			_ = unix.Close(fd)
-			return nil, errStorage
-		}
-		select {
-		case <-ctx.Done():
-			_ = unix.Close(fd)
-			return nil, ctx.Err()
-		case <-time.After(20 * time.Millisecond):
-		}
-	}
-}
-
-func (s credentialStore) load(account string) (credential, error) {
-	encrypted, err := s.readFile(accountName(account) + ".link")
-	if errors.Is(err, fs.ErrNotExist) {
-		return credential{}, ErrNotConnected
-	}
-	if err != nil || len(encrypted) < s.aead.Overhead() {
-		return credential{}, errStorage
-	}
-	plain, err := s.aead.Open(nil, nil, encrypted, []byte(account))
+func (s credentialStore) decode(id string, blob []byte) (credential, error) {
+	plain, err := s.Open(nil, nil, blob, []byte(id))
 	if err != nil {
 		return credential{}, errStorage
 	}
@@ -138,66 +81,42 @@ func (s credentialStore) load(account string) (credential, error) {
 	return link, nil
 }
 
-func (s credentialStore) save(account string, link credential) error {
+// Compare and Swap - Keep only the writer that read the current credential and generation, even across processes.
+func (s credentialStore) save(ctx context.Context, account accountRef, old []byte, link credential) ([]byte, error) {
 	plain, err := json.Marshal(link)
-	if err != nil || len(plain)+s.aead.Overhead() > recordLimit {
-		return errStorage
+	if err != nil {
+		return nil, errStorage
 	}
 	defer clear(plain)
-	encrypted := s.aead.Seal(nil, nil, plain, []byte(account))
-	return s.writeFile(accountName(account)+".link", encrypted)
-}
-
-func (s credentialStore) remove(account string) error {
-	err := os.Remove(filepath.Join(s.dir, accountName(account)+".link"))
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
+	blob := s.Seal(nil, nil, plain, []byte(account.id))
+	var result sql.Result
+	if old == nil {
+		result, err = s.db.ExecContext(ctx, `INSERT INTO hardcover_links (account_id, credential)
+			SELECT account_id, ? FROM account_identities WHERE account_id = ? AND `+currentGeneration+`
+			ON CONFLICT(account_id) DO NOTHING`, blob, account.id, account.generation)
+	} else {
+		result, err = s.db.ExecContext(ctx, `UPDATE hardcover_links SET credential = ?
+			WHERE account_id = ? AND credential = ? AND `+currentGeneration, blob, account.id, old, account.generation)
 	}
-	if err != nil {
-		return errStorage
-	}
-	return s.syncDir()
-}
-
-func (s credentialStore) readFile(name string) ([]byte, error) {
-	path := filepath.Join(s.dir, name)
-	info, err := os.Lstat(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, fs.ErrNotExist
-	}
-	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0600 || info.Size() > recordLimit {
-		return nil, errStorage
-	}
-	contents, err := os.ReadFile(path)
 	if err != nil {
 		return nil, errStorage
 	}
-	return contents, nil
+	count, err := result.RowsAffected()
+	if err != nil {
+		return nil, errStorage
+	}
+	if count != 1 {
+		return nil, ErrNotConnected
+	}
+	return blob, nil
 }
 
-func (s credentialStore) writeFile(name string, contents []byte) error {
-	f, err := os.CreateTemp(s.dir, ".pending-")
-	if err != nil {
-		return errStorage
+func (s credentialStore) remove(ctx context.Context, account accountRef) ([]byte, error) {
+	var blob []byte
+	err := s.db.QueryRowContext(ctx, `DELETE FROM hardcover_links WHERE account_id = ? AND `+currentGeneration+
+		` RETURNING credential`, account.id, account.generation).Scan(&blob)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, errStorage
 	}
-	defer os.Remove(f.Name())
-	_, writeErr := f.Write(contents)
-	syncErr := f.Sync()
-	closeErr := f.Close()
-	if writeErr != nil || syncErr != nil || closeErr != nil || os.Rename(f.Name(), filepath.Join(s.dir, name)) != nil {
-		return errStorage
-	}
-	return s.syncDir()
-}
-
-func (s credentialStore) syncDir() error {
-	dir, err := os.Open(s.dir)
-	if err != nil {
-		return errStorage
-	}
-	defer dir.Close()
-	if dir.Sync() != nil {
-		return errStorage
-	}
-	return nil
+	return blob, nil
 }

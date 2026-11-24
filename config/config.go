@@ -38,6 +38,7 @@ type Config struct {
 
 	HardcoverClientID     string
 	HardcoverClientSecret string
+	HardcoverTokenKey     string
 }
 
 type customFormatter struct {
@@ -73,6 +74,7 @@ func Load() (*Config, error) {
 		LogLevel:              trimLowerString(getEnv("LOG_LEVEL", "info")),
 		HardcoverClientID:     getEnv("HARDCOVER_CLIENT_ID", ""),
 		HardcoverClientSecret: getEnv("HARDCOVER_CLIENT_SECRET", ""),
+		HardcoverTokenKey:     getEnv("HARDCOVER_TOKEN_KEY", ""),
 	}
 
 	if err := c.ValidateConfigPath(); err != nil {

@@ -44,7 +44,9 @@ The OPDS API endpoint is located at: `http(s)://<SERVER>/api/opds`
 
 Set `PUBLIC_ORIGIN` to the exact browser origin, with no trailing slash. Explicit default ports (`:443` for HTTPS, `:80` for HTTP) are omitted before matching browser requests. Use HTTPS for deployed instances. Loopback HTTP is allowed for local development. Cookies are always `HttpOnly` and use `Secure` when `PUBLIC_ORIGIN` is HTTPS.
 
-Optional Hardcover integration: register a [server-side OAuth app](https://hardcover.app/account/developer-apps/new) with redirect URI `{PUBLIC_ORIGIN}/oauth/hardcover/callback` and scopes `read:me:content` and `read:library`. Set `HARDCOVER_CLIENT_ID` and `HARDCOVER_CLIENT_SECRET` on the server. Readers can then choose **Settings → Connect Hardcover** to preview their Want to Read shelf. This does not request downloads or change reading status. Account links are stored under `CONFIG_PATH/hardcover`, outside portable backups; reconnect after restoring a backup.
+Optional Hardcover integration: register a [server-side OAuth app](https://hardcover.app/account/developer-apps/new) with redirect URI `{PUBLIC_ORIGIN}/oauth/hardcover/callback` and scopes `read:me:content` and `read:library`. Set `HARDCOVER_CLIENT_ID`, `HARDCOVER_CLIENT_SECRET`, and `HARDCOVER_TOKEN_KEY` on the server. Generate the token key **once** with `openssl rand -base64 32` and keep it in your deployment’s secret store, separate from the OAuth client secret. It encrypts reader tokens in SQLite. Keep it stable across restarts; changing it makes existing tokens unreadable.
+
+Readers can choose **Settings → Connect Hardcover** to preview their Want to Read shelf. This does not request downloads or change reading status. Deleting a reader deletes their local link. Portable backups omit links; readers reconnect after a restore.
 
 ```bash
 # Make Data Directory

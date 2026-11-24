@@ -2,12 +2,12 @@ package hardcover
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -16,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 )
 
 const (
@@ -23,19 +24,23 @@ const (
 	fixtureSecret = "fixture-secret"
 	callback      = "https://books.example.org/oauth/hardcover/callback"
 	verifier      = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	account       = "generation:account-a"
+	otherAccount  = "generation:account-b"
 )
 
 type providerFixture struct {
 	expires        int
 	badRefresh     bool
 	omitRotation   bool
+	onRefresh      func()
+	onProfile      func()
 	shelfStatus    func(token string) int
 	revokeRedirect string
 	refreshes      atomic.Int32
 	lastRevoked    atomic.Value
 }
 
-func (f *providerFixture) start(t *testing.T) (dir string, open func() *Client) {
+func (f *providerFixture) start(t *testing.T) (*sql.DB, func() *Client) {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
@@ -56,6 +61,9 @@ func (f *providerFixture) start(t *testing.T) (dir string, open func() *Client) 
 				id, username = 9, "bob"
 			}
 			if strings.Contains(query.Query, "me { id username }") {
+				if f.onProfile != nil {
+					f.onProfile()
+				}
 				fmt.Fprintf(w, `{"data":{"me":[{"id":%d,"username":%q}]}}`, id, username)
 				return
 			}
@@ -87,6 +95,9 @@ func (f *providerFixture) start(t *testing.T) (dir string, open func() *Client) 
 			if r.PostForm.Get("grant_type") == "refresh_token" {
 				assert.Equal(t, "hc_rt_alice", r.PostForm.Get("refresh_token"))
 				f.refreshes.Add(1)
+				if f.onRefresh != nil {
+					f.onRefresh()
+				}
 				if f.badRefresh {
 					w.Header().Set("Content-Length", "700")
 					fmt.Fprint(w, `{"access_token":`)
@@ -107,8 +118,13 @@ func (f *providerFixture) start(t *testing.T) (dir string, open func() *Client) 
 			}
 			fmt.Fprintf(w, `{"access_token":"hc_at_%s","refresh_token":"hc_rt_%s","expires_in":%d,"token_type":"Bearer"}`, pair, pair, expires)
 		case "/oauth2/revoke":
-			assert.Equal(t, "refresh_token", r.PostForm.Get("token_type_hint"))
-			f.lastRevoked.Store(r.PostForm.Get("token"))
+			token := r.PostForm.Get("token")
+			hint := "refresh_token"
+			if strings.HasPrefix(token, "hc_at_") {
+				hint = "access_token"
+			}
+			assert.Equal(t, hint, r.PostForm.Get("token_type_hint"))
+			f.lastRevoked.Store(token)
 			if f.revokeRedirect != "" {
 				http.Redirect(w, r, f.revokeRedirect, http.StatusTemporaryRedirect)
 				return
@@ -119,9 +135,17 @@ func (f *providerFixture) start(t *testing.T) (dir string, open func() *Client) 
 		}
 	}))
 	t.Cleanup(server.Close)
-	dir = filepath.Join(t.TempDir(), "links")
-	return dir, func() *Client {
-		c, err := New(dir, fixtureID, fixtureSecret, callback)
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "links.db")+"?_pragma=foreign_keys(ON)&_pragma=busy_timeout(5000)")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+	_, err = db.Exec(`CREATE TABLE account_identities (account_id TEXT PRIMARY KEY);
+		INSERT INTO account_identities VALUES ('account-a'), ('account-b'), ('copied');
+		CREATE TABLE reading_generation (singleton INTEGER PRIMARY KEY, generation TEXT);
+		INSERT INTO reading_generation VALUES (1, 'generation');
+		CREATE TABLE hardcover_links (account_id TEXT PRIMARY KEY REFERENCES account_identities(account_id) ON DELETE CASCADE, credential BLOB NOT NULL)`)
+	require.NoError(t, err)
+	return db, func() *Client {
+		c, err := New(db, make([]byte, 32), fixtureID, fixtureSecret, callback)
 		require.NoError(t, err)
 		c.oauth.Endpoint.TokenURL, c.graphql, c.revoke = server.URL+"/oauth2/token", server.URL+"/v1/graphql", server.URL+"/oauth2/revoke"
 		return c
@@ -130,7 +154,7 @@ func (f *providerFixture) start(t *testing.T) (dir string, open func() *Client) 
 
 func TestOAuthConsentAndPrivateShelf(t *testing.T) {
 	f := &providerFixture{}
-	dir, open := f.start(t)
+	db, open := f.start(t)
 	c, ctx := open(), context.Background()
 	u, err := url.Parse(c.AuthorizeURL("state +/= value", verifier))
 	require.NoError(t, err)
@@ -141,51 +165,52 @@ func TestOAuthConsentAndPrivateShelf(t *testing.T) {
 		"state": {"state +/= value"}, "scope": {"read:me:content read:library"},
 	}, u.Query())
 	require.Empty(t, c.AuthorizeURL("state", strings.Repeat("+", 43)))
-	_, err = New(dir, fixtureID, fixtureSecret, "http://books.example.org/callback")
+	_, err = New(db, make([]byte, 32), fixtureID, fixtureSecret, "http://books.example.org/callback")
 	require.ErrorIs(t, err, ErrInvalidInput)
-	require.NoError(t, c.Connect(ctx, "account-a", "alice", verifier))
-	require.NoError(t, c.Connect(ctx, "account-b", "bob", verifier))
+	_, err = New(db, nil, fixtureID, fixtureSecret, callback)
+	require.ErrorIs(t, err, ErrInvalidInput)
+	require.NoError(t, c.Connect(ctx, account, "alice", verifier))
+	require.NoError(t, c.Connect(ctx, otherAccount, "bob", verifier))
 
-	link := filepath.Join(dir, accountName("account-a")+".link")
-	contents, err := os.ReadFile(link)
-	require.NoError(t, err)
+	var contents []byte
+	require.NoError(t, db.QueryRow(`SELECT credential FROM hardcover_links WHERE account_id='account-a'`).Scan(&contents))
 	require.NotContains(t, string(contents), "hc_rt_alice")
 	require.NotContains(t, string(contents), "hc_at_alice")
-	for path, mode := range map[string]os.FileMode{dir: 0700, filepath.Join(dir, "key"): 0600, link: 0600} {
-		info, err := os.Stat(path)
-		require.NoError(t, err)
-		require.Equal(t, mode, info.Mode().Perm())
-	}
-	require.NoError(t, os.WriteFile(filepath.Join(dir, accountName("copied")+".link"), contents, 0600))
+	_, err = db.Exec(`INSERT INTO hardcover_links VALUES ('copied', ?)`, contents)
+	require.NoError(t, err)
 	c = open()
-	_, err = c.Status("copied")
-	require.Error(t, err)
-	_, err = c.Status("other-generation")
+	_, err = c.Status("generation:copied")
+	require.ErrorIs(t, err, errStorage)
+	_, err = c.Status("other-generation:account-a")
 	require.ErrorIs(t, err, ErrNotConnected)
-	first, err := c.Shelf(ctx, "account-a", 0)
+	first, err := c.Shelf(ctx, account, 0)
 	require.NoError(t, err)
 	require.Len(t, first.Books, 25)
 	require.Equal(t, Book{ID: "700", Title: "A book", Author: "One, Two"}, first.Books[0])
 	require.Equal(t, 25, *first.NextOffset)
-	last, err := c.Shelf(ctx, "account-a", *first.NextOffset)
+	last, err := c.Shelf(ctx, account, *first.NextOffset)
 	require.NoError(t, err)
 	require.Nil(t, last.NextOffset)
 	require.Len(t, last.Books, 1)
 	require.Equal(t, "725", last.Books[0].ID)
-	bob, err := c.Shelf(ctx, "account-b", 0)
+	bob, err := c.Shelf(ctx, otherAccount, 0)
 	require.NoError(t, err)
 	require.Equal(t, "900", bob.Books[0].ID)
 
-	require.ErrorIs(t, c.Connect(ctx, "account-a", "switched", verifier), ErrIdentity)
+	require.ErrorIs(t, c.Connect(ctx, account, "switched", verifier), ErrIdentity)
 	require.Equal(t, "hc_rt_switched", f.lastRevoked.Load())
-	name, err := c.Status("account-a")
+	name, err := c.Status(account)
 	require.NoError(t, err)
 	require.Equal(t, "alice", name)
-	require.NoError(t, c.Disconnect(ctx, "account-a"))
+	_, err = db.Exec(`DELETE FROM account_identities WHERE account_id='account-a'`)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO account_identities VALUES ('account-a')`)
+	require.NoError(t, err)
+	require.NoError(t, c.RevokeStored(ctx, account, contents))
 	require.Equal(t, "hc_rt_alice", f.lastRevoked.Load())
-	_, err = open().Status("account-a")
+	_, err = open().Status(account)
 	require.ErrorIs(t, err, ErrNotConnected)
-	_, err = c.Status("account-b")
+	_, err = c.Status(otherAccount)
 	require.NoError(t, err)
 }
 
@@ -198,15 +223,69 @@ func TestConcurrentRefreshPersistsReplacement(t *testing.T) {
 	}}
 	_, open := f.start(t)
 	c, ctx := open(), context.Background()
-	require.NoError(t, c.Connect(ctx, "account", "alice", verifier))
+	require.NoError(t, c.Connect(ctx, account, "alice", verifier))
 	var group sync.WaitGroup
 	for _, reader := range []*Client{c, open()} {
-		group.Go(func() { _, err := reader.Shelf(ctx, "account", 0); assert.NoError(t, err) })
+		group.Go(func() {
+			_, err := reader.Shelf(ctx, account, 0)
+			if err != nil {
+				assert.True(t, err == ErrNotConnected || err == ErrReconnect, "%v", err)
+			}
+		})
 	}
 	group.Wait()
-	_, err := open().Shelf(ctx, "account", 0)
+	_, err := open().Shelf(ctx, account, 0)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, f.refreshes.Load())
+}
+
+func TestInFlightProviderResultCannotRestoreInvalidatedLink(t *testing.T) {
+	for _, change := range []string{"restore during consent", "restore during refresh", "disconnect during refresh", "reconnect during refresh"} {
+		t.Run(change, func(t *testing.T) {
+			ctx := context.Background()
+			f := &providerFixture{expires: 1}
+			db, open := f.start(t)
+			c := open()
+			invalidate := func() {
+				switch change {
+				case "disconnect during refresh":
+					assert.NoError(t, open().Disconnect(ctx, account))
+				case "reconnect during refresh":
+					assert.NoError(t, open().Connect(ctx, account, "again", verifier))
+				default:
+					_, err := db.Exec(`UPDATE reading_generation SET generation='restored'`)
+					assert.NoError(t, err)
+				}
+			}
+			if change == "restore during consent" {
+				f.onProfile = invalidate
+				require.ErrorIs(t, c.Connect(ctx, account, "alice", verifier), ErrNotConnected)
+				require.Equal(t, "hc_rt_alice", f.lastRevoked.Load())
+			} else {
+				require.NoError(t, c.Connect(ctx, account, "alice", verifier))
+				f.onRefresh = invalidate
+				_, err := c.Shelf(ctx, account, 0)
+				require.ErrorIs(t, err, ErrNotConnected)
+				require.Equal(t, "hc_rt_renewed", f.lastRevoked.Load())
+			}
+			switch change {
+			case "reconnect during refresh":
+				f.shelfStatus = func(token string) int {
+					assert.Equal(t, "Bearer hc_at_again", token)
+					return http.StatusOK
+				}
+				_, err := c.Shelf(ctx, account, 0)
+				require.NoError(t, err)
+			case "restore during refresh":
+				_, err := c.Status("restored:account-a")
+				require.ErrorIs(t, err, ErrReconnect)
+			default:
+				var count int
+				require.NoError(t, db.QueryRow(`SELECT count(*) FROM hardcover_links`).Scan(&count))
+				require.Zero(t, count)
+			}
+		})
+	}
 }
 
 func TestRefreshFailureRequiresReconnectWithoutReplay(t *testing.T) {
@@ -224,21 +303,21 @@ func TestRefreshFailureRequiresReconnectWithoutReplay(t *testing.T) {
 			}}
 			_, open := f.start(t)
 			c, ctx := open(), context.Background()
-			require.NoError(t, c.Connect(ctx, "account", "alice", verifier))
-			_, err := c.Shelf(ctx, "account", 0)
+			require.NoError(t, c.Connect(ctx, account, "alice", verifier))
+			_, err := c.Shelf(ctx, account, 0)
 			require.ErrorIs(t, err, ErrProvider)
 			require.Zero(t, f.refreshes.Load())
-			_, err = c.Shelf(ctx, "account", 0)
+			_, err = c.Shelf(ctx, account, 0)
 			require.ErrorIs(t, err, ErrReconnect)
 			c = open()
-			name, err := c.Status("account")
+			name, err := c.Status(account)
 			require.ErrorIs(t, err, ErrReconnect)
 			require.Equal(t, "alice", name)
-			_, err = c.Shelf(ctx, "account", 0)
+			_, err = c.Shelf(ctx, account, 0)
 			require.ErrorIs(t, err, ErrReconnect)
 			require.EqualValues(t, 1, f.refreshes.Load())
-			require.NoError(t, c.Connect(ctx, "account", "again", verifier))
-			_, err = c.Shelf(ctx, "account", 0)
+			require.NoError(t, c.Connect(ctx, account, "again", verifier))
+			_, err = c.Shelf(ctx, account, 0)
 			require.NoError(t, err)
 		})
 	}
@@ -251,26 +330,26 @@ func TestDisconnectDoesNotFollowRedirectOrKeepLink(t *testing.T) {
 	f := &providerFixture{revokeRedirect: destination.URL}
 	_, open := f.start(t)
 	c, ctx := open(), context.Background()
-	require.NoError(t, c.Connect(ctx, "account", "alice", verifier))
-	err := c.Disconnect(ctx, "account")
+	require.NoError(t, c.Connect(ctx, account, "alice", verifier))
+	err := c.Disconnect(ctx, account)
 	require.ErrorIs(t, err, ErrRevocationUnconfirmed)
 	require.NotContains(t, err.Error(), "hc_rt_alice")
 	require.False(t, redirected.Load())
-	_, err = open().Status("account")
+	_, err = open().Status(account)
 	require.ErrorIs(t, err, ErrNotConnected)
 }
 
 func TestDisconnectDistinguishesUnreadableLinkFromFailedRemoval(t *testing.T) {
-	dir, open := (&providerFixture{}).start(t)
-	c := open()
-	link := filepath.Join(dir, accountName("account")+".link")
-	require.NoError(t, os.Mkdir(link, 0700))
-	require.NoError(t, os.WriteFile(filepath.Join(link, "obstruction"), nil, 0600))
-	ctx := context.Background()
-	require.ErrorIs(t, c.Disconnect(ctx, "account"), errStorage)
-	corrupt := filepath.Join(dir, accountName("corrupt")+".link")
-	require.NoError(t, os.WriteFile(corrupt, []byte("invalid ciphertext"), 0600))
-	require.ErrorIs(t, c.Disconnect(ctx, "corrupt"), ErrRevocationUnconfirmed)
-	require.NoFileExists(t, corrupt)
-	require.NoError(t, c.Disconnect(ctx, "corrupt"))
+	db, open := (&providerFixture{}).start(t)
+	c, ctx := open(), context.Background()
+	_, err := db.Exec(`INSERT INTO hardcover_links VALUES ('account-a', x'AB');
+		CREATE TRIGGER refuse_unlink BEFORE DELETE ON hardcover_links BEGIN SELECT RAISE(ABORT, 'no'); END;`)
+	require.NoError(t, err)
+	require.ErrorIs(t, c.Disconnect(ctx, account), errStorage)
+	_, err = db.Exec(`DROP TRIGGER refuse_unlink`)
+	require.NoError(t, err)
+	require.ErrorIs(t, c.Disconnect(ctx, account), ErrRevocationUnconfirmed)
+	_, err = c.Status(account)
+	require.ErrorIs(t, err, ErrNotConnected)
+	require.NoError(t, c.Disconnect(ctx, account))
 }

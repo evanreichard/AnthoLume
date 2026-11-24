@@ -4,12 +4,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"errors"
 	"html/template"
 	"mime"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -35,6 +35,7 @@ type hardcoverProvider interface {
 	Status(account string) (string, error)
 	Shelf(ctx context.Context, account string, offset int) (hardcover.Shelf, error)
 	Disconnect(ctx context.Context, account string) error
+	RevokeStored(ctx context.Context, account string, encrypted []byte) error
 }
 
 type hardcoverAttempt struct {
@@ -59,7 +60,11 @@ func (api *API) configureHardcover() error {
 	if id == "" || secret == "" {
 		return errors.New("Hardcover requires both HARDCOVER_CLIENT_ID and HARDCOVER_CLIENT_SECRET")
 	}
-	client, err := hardcover.New(filepath.Join(api.cfg.ConfigPath, "hardcover"), id, secret, api.cfg.PublicOrigin+hardcoverCallbackPath)
+	key, err := base64.StdEncoding.Strict().DecodeString(api.cfg.HardcoverTokenKey)
+	if err != nil || len(key) != 32 || base64.StdEncoding.EncodeToString(key) != api.cfg.HardcoverTokenKey {
+		return errors.New("Hardcover requires HARDCOVER_TOKEN_KEY to be 32 random bytes encoded as standard base64")
+	}
+	client, err := hardcover.New(api.db.DB, key, id, secret, api.cfg.PublicOrigin+hardcoverCallbackPath)
 	if err != nil {
 		return errors.New("initialize Hardcover integration")
 	}

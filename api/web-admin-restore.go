@@ -127,9 +127,23 @@ func (api *API) validateRestoreDB(ctx context.Context, name string) error {
 	if err := db.QueryRowContext(ctx, `PRAGMA quick_check`).Scan(&integrity); err != nil || integrity != "ok" {
 		return errors.New("snapshot integrity check failed")
 	}
+	if err := checkRestoreHardcoverLinks(ctx, db); err != nil {
+		return err
+	}
 	admins, err := database.New(db).CountSnapshotAdmins(ctx)
 	if err != nil || admins == 0 {
 		return errors.New("snapshot has no administrator")
+	}
+	return nil
+}
+
+func checkRestoreHardcoverLinks(ctx context.Context, db *sql.DB) error {
+	var linked bool
+	if err := db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM hardcover_links)`).Scan(&linked); err != nil {
+		return err
+	}
+	if linked {
+		return errors.New("portable snapshot contains Hardcover credentials")
 	}
 	return nil
 }
@@ -615,12 +629,15 @@ func (api *API) applyStagedRestore(req context.Context, stage, library string) e
 	if err != nil {
 		return err
 	}
+	defer db.Close()
+	if err = checkRestoreHardcoverLinks(req, db); err != nil {
+		return adminFailure(400, "incompatible_restore_database")
+	}
 	err = api.prepareRestoreCatalog(req, db)
 	if err == nil {
 		// Rotate in the staged database so no restored data is visible under the old generation.
 		err = database.New(db).RotateRestoredReadingGeneration(req)
 	}
-	defer db.Close()
 	if err != nil {
 		return adminFailure(400, "invalid_restore_data")
 	}

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -58,12 +59,17 @@ func NewMgr(c *config.Config) *DBManager {
 // init loads the DB manager
 func (dbm *DBManager) init(ctx context.Context) error {
 	// Build DB Location
+	const writerPragmas = "_pragma=foreign_keys(ON)&_pragma=busy_timeout(5000)&_pragma=synchronous(FULL)"
 	var dbLocation string
 	switch dbm.cfg.DBType {
 	case "sqlite":
-		dbLocation = filepath.Join(dbm.cfg.ConfigPath, fmt.Sprintf("%s.db", dbm.cfg.DBName))
+		path, err := filepath.Abs(filepath.Join(dbm.cfg.ConfigPath, dbm.cfg.DBName+".db"))
+		if err != nil {
+			return err
+		}
+		dbLocation = (&url.URL{Scheme: "file", Path: path}).String()
 	case "memory":
-		dbLocation = ":memory:"
+		dbLocation = ":memory:?" + writerPragmas
 	default:
 		return fmt.Errorf("unsupported database")
 	}
@@ -85,23 +91,37 @@ func (dbm *DBManager) init(ctx context.Context) error {
 		return err
 	}
 
-	// Init SQLc
-	dbm.Queries = New(dbm.DB)
-
 	// Execute schema
 	if _, err := dbm.DB.Exec(ddl + dbmigrations.ReadingSchema); err != nil {
 		log.Panicf("Error executing schema: %v", err)
 		return err
 	}
 
-	// Perform migrations
+	// In-Memory Bootstrap - Keep the same connection while rebuilding the fresh schema.
+	if dbm.cfg.DBType == "memory" {
+		if _, err := dbm.DB.ExecContext(ctx, `PRAGMA foreign_keys=OFF`); err != nil {
+			return err
+		}
+	}
 	err = dbm.performMigrations(isNew)
 	if err != nil && err != goose.ErrNoMigrationFiles {
 		log.Panicf("Error running DB migrations: %v", err)
 		return err
 	}
 
-	// Update settings
+	// Startup Migrations - Historical table rebuilds require foreign keys off; the runtime DSN enables them on every writer connection.
+	if dbm.cfg.DBType == "sqlite" {
+		if err := dbm.DB.Close(); err != nil {
+			return err
+		}
+		dbm.DB, err = sql.Open("sqlite", dbLocation+"?"+writerPragmas)
+		if err != nil {
+			return err
+		}
+		dbm.DB.SetMaxOpenConns(1)
+	}
+	dbm.Queries = New(dbm.DB)
+
 	err = dbm.updateSettings(ctx)
 	if err != nil {
 		log.Panicf("Error running DB settings update: %v", err)
@@ -135,6 +155,39 @@ func (dbm *DBManager) BackupSnapshot(ctx context.Context, dest string) error {
 	return err
 }
 
+// PortableBackupSnapshot compacts a private copy after deleting deployment-local links.
+func (dbm *DBManager) PortableBackupSnapshot(ctx context.Context, dest string) error {
+	dir, err := os.MkdirTemp(filepath.Dir(dest), ".redact-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+	name := filepath.Join(dir, "snapshot.db")
+	if err := dbm.BackupSnapshot(ctx, name); err != nil {
+		return err
+	}
+	uri := (&url.URL{Scheme: "file", Path: name, RawQuery: "mode=rw&_pragma=journal_mode(DELETE)"}).String()
+	snapshot, err := sql.Open("sqlite", uri)
+	if err != nil {
+		return err
+	}
+	defer snapshot.Close()
+	result, err := snapshot.ExecContext(ctx, `DELETE FROM hardcover_links`)
+	if err != nil {
+		return err
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if deleted == 0 {
+		return os.Rename(name, dest)
+	}
+	// Rebuild From Live Rows - Deletion alone can leave ciphertext on SQLite's free pages.
+	_, err = snapshot.ExecContext(ctx, `VACUUM INTO ?`, dest)
+	return err
+}
+
 // Reload closes the DB & reinits
 func (dbm *DBManager) Reload(ctx context.Context) error {
 	// Close handle
@@ -157,17 +210,8 @@ func (dbm *DBManager) CacheTempTables(ctx context.Context) error {
 	return err
 }
 
-// updateSettings ensures that we're enforcing foreign keys and enable journal
-// mode.
 func (dbm *DBManager) updateSettings(ctx context.Context) error {
-	// Set SQLite PRAGMA Settings
-	pragmaQuery := `
-		  PRAGMA foreign_keys = ON;
-		  PRAGMA journal_mode = WAL;
-          PRAGMA synchronous = FULL;
-          PRAGMA busy_timeout = 5000;
-		`
-	if _, err := dbm.DB.Exec(pragmaQuery, nil); err != nil {
+	if _, err := dbm.DB.ExecContext(ctx, `PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL`); err != nil {
 		log.Errorf("Error executing pragma: %v", err)
 		return err
 	}

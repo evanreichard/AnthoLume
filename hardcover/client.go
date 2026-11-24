@@ -2,6 +2,8 @@ package hardcover
 
 import (
 	"context"
+	"crypto/sha256"
+	"database/sql"
 	"errors"
 	"net"
 	"net/http"
@@ -9,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -34,6 +37,7 @@ type Client struct {
 	oauth           oauth2.Config
 	revoke, graphql string
 	http            *http.Client
+	reads           [32]sync.Mutex
 }
 
 type Shelf struct {
@@ -47,8 +51,7 @@ type Book struct {
 	Author string `json:"author"`
 }
 
-// New opens a dedicated private directory outside portable application backups.
-func New(dir, clientID, clientSecret, redirectURI string) (*Client, error) {
+func New(db *sql.DB, key []byte, clientID, clientSecret, redirectURI string) (*Client, error) {
 	u, err := url.Parse(redirectURI)
 	if clientID == "" || clientSecret == "" || err != nil || u.Hostname() == "" || u.User != nil || u.Opaque != "" || strings.Contains(redirectURI, "#") {
 		return nil, ErrInvalidInput
@@ -57,7 +60,7 @@ func New(dir, clientID, clientSecret, redirectURI string) (*Client, error) {
 	if u.Scheme != "https" && !(u.Scheme == "http" && (u.Hostname() == "localhost" || ip != nil && ip.IsLoopback())) {
 		return nil, ErrInvalidInput
 	}
-	store, err := newCredentialStore(dir)
+	store, err := newCredentialStore(db, key)
 	if err != nil {
 		return nil, err
 	}
@@ -91,13 +94,12 @@ func (c *Client) Connect(ctx context.Context, account, code, verifier string) er
 	if code == "" || !pkceVerifier.MatchString(verifier) {
 		return ErrInvalidInput
 	}
-	unlock, err := c.lock(ctx, account)
+	ref, err := parseAccount(account)
 	if err != nil {
 		return err
 	}
-	defer unlock()
-	previous, err := c.store.load(account)
-	if err != nil && !errors.Is(err, ErrNotConnected) {
+	previous, blob, err := c.store.load(ctx, ref)
+	if err != nil {
 		return err
 	}
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.http)
@@ -124,20 +126,27 @@ func (c *Client) Connect(ctx context.Context, account, code, verifier string) er
 		_ = c.revokeToken(ctx, link)
 		return ErrIdentity
 	}
-	return c.store.save(account, link)
+	if _, err := c.store.save(ctx, ref, blob, link); err != nil {
+		c.revokeDiscarded(ctx, link)
+		return err
+	}
+	return nil
 }
 
 func (c *Client) Status(account string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), requestLimit)
-	defer cancel()
-	unlock, err := c.lock(ctx, account)
+	ref, err := parseAccount(account)
 	if err != nil {
 		return "", err
 	}
-	defer unlock()
-	link, err := c.store.load(account)
+	ctx, cancel := context.WithTimeout(context.Background(), requestLimit)
+	defer cancel()
+	defer c.lockReads(ref)()
+	link, blob, err := c.store.load(ctx, ref)
 	if err != nil {
 		return "", err
+	}
+	if blob == nil {
+		return "", ErrNotConnected
 	}
 	if link.Refresh == "" {
 		return link.Username, ErrReconnect
@@ -146,18 +155,26 @@ func (c *Client) Status(account string) (string, error) {
 }
 
 func (c *Client) Disconnect(ctx context.Context, account string) error {
-	unlock, err := c.lock(ctx, account)
+	ref, err := parseAccount(account)
 	if err != nil {
 		return err
 	}
-	defer unlock()
-	link, err := c.store.load(account)
-	if removeErr := c.store.remove(account); removeErr != nil {
-		return removeErr
+	blob, err := c.store.remove(ctx, ref)
+	if err != nil {
+		return err
 	}
-	if errors.Is(err, ErrNotConnected) {
+	return c.RevokeStored(ctx, ref.id, blob)
+}
+
+// RevokeStored revokes a credential removed by a committed deletion without touching the database.
+func (c *Client) RevokeStored(ctx context.Context, account string, encrypted []byte) error {
+	if encrypted == nil {
 		return nil
 	}
+	if _, id, composite := strings.Cut(account, ":"); composite {
+		account = id
+	}
+	link, err := c.store.decode(account, encrypted)
 	if err != nil || c.revokeToken(ctx, link) != nil {
 		return ErrRevocationUnconfirmed
 	}
@@ -174,14 +191,17 @@ func (c *Client) Shelf(ctx context.Context, account string, offset int) (Shelf, 
 	if offset < 0 || offset > maxOffset {
 		return Shelf{}, ErrInvalidInput
 	}
-	unlock, err := c.lock(ctx, account)
+	ref, err := parseAccount(account)
 	if err != nil {
 		return Shelf{}, err
 	}
-	defer unlock()
-	link, err := c.store.load(account)
+	defer c.lockReads(ref)()
+	link, blob, err := c.store.load(ctx, ref)
 	if err != nil {
 		return Shelf{}, err
+	}
+	if blob == nil {
+		return Shelf{}, ErrNotConnected
 	}
 	if link.Refresh == "" {
 		return Shelf{}, ErrReconnect
@@ -192,14 +212,15 @@ func (c *Client) Shelf(ctx context.Context, account string, offset int) (Shelf, 
 			return page, err
 		}
 	}
-	link, err = c.refresh(ctx, account, link)
+	link, blob, err = c.refresh(ctx, ref, blob, link)
 	if err != nil {
 		return Shelf{}, err
 	}
 	page, err := c.readPage(ctx, link, offset)
 	if errors.Is(err, ErrReconnect) {
 		// Rejected After Refresh - Don't repeat rotation when the provider rejects a replacement access token.
-		if err := c.markReconnect(account, link); err != nil {
+		link.Refresh = ""
+		if _, err := c.store.save(ctx, ref, blob, link); err != nil {
 			return Shelf{}, err
 		}
 		return Shelf{}, ErrReconnect
@@ -247,14 +268,13 @@ func (c *Client) readPage(ctx context.Context, link credential, offset int) (She
 	return result, nil
 }
 
-func (c *Client) refresh(ctx context.Context, account string, old credential) (credential, error) {
-	if err := ctx.Err(); err != nil {
-		return credential{}, err
-	}
+func (c *Client) refresh(ctx context.Context, account accountRef, blob []byte, old credential) (credential, []byte, error) {
 	refreshToken := old.Refresh
 	// Spend Before Send - A crash or a lost response must not replay a rotating token.
-	if err := c.markReconnect(account, old); err != nil {
-		return credential{}, err
+	old.Refresh = ""
+	spent, err := c.store.save(ctx, account, blob, old)
+	if err != nil {
+		return credential{}, nil, err
 	}
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.http)
 	// Single Rotation - Supply only the refresh token so TokenSource makes one exchange, even after an early access-token rejection.
@@ -262,23 +282,25 @@ func (c *Client) refresh(ctx context.Context, account string, old credential) (c
 	next, err := hardcoverCredential(source.Token())
 	// Hardcover rotates on every use; oauth2 otherwise retains the spent token when the response omits its replacement.
 	if err != nil || next.Refresh == refreshToken {
-		return credential{}, ErrReconnect
+		return credential{}, nil, ErrReconnect
 	}
 	next.UserID, next.Username = old.UserID, old.Username
-	if err := c.store.save(account, next); err != nil {
-		return credential{}, err
+	blob, err = c.store.save(ctx, account, spent, next)
+	if err != nil {
+		c.revokeDiscarded(ctx, next)
 	}
-	return next, nil
+	return next, blob, err
 }
 
-func (c *Client) markReconnect(account string, link credential) error {
-	link.Refresh = ""
-	return c.store.save(account, link)
+func (c *Client) revokeDiscarded(ctx context.Context, link credential) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), requestLimit)
+	defer cancel()
+	_ = c.revokeToken(ctx, link)
 }
 
-func (c *Client) lock(ctx context.Context, account string) (func(), error) {
-	if account == "" {
-		return nil, ErrInvalidInput
-	}
-	return c.store.lock(ctx, accountName(account)+".lock")
+// In-Process Reads - Concurrent shelf reads should not see their own pending rotation as a broken link.
+func (c *Client) lockReads(account accountRef) func() {
+	lock := &c.reads[sha256.Sum256([]byte(account.id))[0]%32]
+	lock.Lock()
+	return lock.Unlock
 }

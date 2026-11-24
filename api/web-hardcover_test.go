@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"net/http/cookiejar"
@@ -25,6 +26,8 @@ type mockHardcover struct {
 	connectErr, statusErr error
 	disconnectErr         error
 	beforeConnect         func()
+	storeLink             func(context.Context, string) error
+	revokeStored          func(context.Context, string, []byte) error
 }
 
 func hardcoverFixture(t *testing.T, m *mockHardcover) *webFixture {
@@ -42,7 +45,7 @@ func (m *mockHardcover) AuthorizeURL(state, verifier string) string {
 	return "https://hardcover.app/oauth2/authorize?state=" + state
 }
 
-func (m *mockHardcover) Connect(_ context.Context, account, code, verifier string) error {
+func (m *mockHardcover) Connect(ctx context.Context, account, code, verifier string) error {
 	if m.beforeConnect != nil {
 		m.beforeConnect()
 	}
@@ -52,10 +55,16 @@ func (m *mockHardcover) Connect(_ context.Context, account, code, verifier strin
 	if len(verifier) < 43 || verifier != m.verifier || code != "proof" {
 		return errors.New("wrong code or verifier")
 	}
-	if m.connectErr == nil {
-		m.links[account] = "hardcover-reader"
+	if m.connectErr != nil {
+		return m.connectErr
 	}
-	return m.connectErr
+	if m.storeLink != nil {
+		if err := m.storeLink(ctx, account); err != nil {
+			return err
+		}
+	}
+	m.links[account] = "hardcover-reader"
+	return nil
 }
 
 func (m *mockHardcover) Status(account string) (string, error) {
@@ -85,6 +94,13 @@ func (m *mockHardcover) Disconnect(ctx context.Context, account string) error {
 		delete(m.links, account)
 	}
 	return m.disconnectErr
+}
+
+func (m *mockHardcover) RevokeStored(ctx context.Context, account string, encrypted []byte) error {
+	if m.revokeStored == nil {
+		return nil
+	}
+	return m.revokeStored(ctx, account, encrypted)
 }
 
 func hardcoverBrowser(f *webFixture) *webFixture {
@@ -126,6 +142,28 @@ func requireHardcoverJSON(f *webFixture, method, path, expected string) {
 }
 
 const unlinkedHardcover = `{"enabled":true,"username":null,"reconnect_required":false}`
+
+func TestHardcoverEncryptionKeyConfiguration(t *testing.T) {
+	f := newWebFixture(t)
+	cfg := f.api.cfg
+	cfg.HardcoverTokenKey = "invalid key"
+	require.NoError(t, f.api.configureHardcover())
+	require.Nil(t, f.api.hardcover.client)
+
+	cfg.HardcoverClientID, cfg.HardcoverClientSecret = "app-id", "app-secret"
+	for _, key := range []string{"", "invalid key", base64.StdEncoding.EncodeToString(make([]byte, 31)), base64.StdEncoding.EncodeToString(make([]byte, 32)) + "\n"} {
+		cfg.HardcoverTokenKey = key
+		err := f.api.configureHardcover()
+		require.ErrorContains(t, err, "HARDCOVER_TOKEN_KEY")
+		if key != "" {
+			require.NotContains(t, err.Error(), key)
+		}
+		require.Nil(t, f.api.hardcover.client)
+	}
+	cfg.HardcoverTokenKey = base64.StdEncoding.EncodeToString(make([]byte, 32))
+	require.NoError(t, f.api.configureHardcover())
+	require.NotNil(t, f.api.hardcover.client)
+}
 
 func TestHardcoverOAuth(t *testing.T) {
 	m := &mockHardcover{}

@@ -6,12 +6,10 @@ import (
 	"errors"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/database"
-	"reichard.io/antholume/hardcover"
 )
 
 func adminFailure(status int, code string) error { return &webFailure{status: status, code: code} }
@@ -157,10 +155,12 @@ func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestOb
 		return nil, adminFailure(409, "current_admin")
 	}
 	var deleted authData
+	var encrypted []byte
 	err := s.adminTransaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
-		if err := tx.QueryRowContext(ctx, `SELECT a.account_id, g.generation
+		if err := tx.QueryRowContext(ctx, `SELECT a.account_id, g.generation, h.credential
 			FROM account_identities a CROSS JOIN reading_generation g
-			WHERE a.user_id = ? AND g.singleton = 1`, r.Id).Scan(&deleted.AccountID, &deleted.Generation); err != nil {
+			LEFT JOIN hardcover_links h ON h.account_id = a.account_id
+			WHERE a.user_id = ? AND g.singleton = 1`, r.Id).Scan(&deleted.AccountID, &deleted.Generation, &encrypted); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return adminFailure(404, "user_not_found")
 			}
@@ -185,34 +185,26 @@ func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestOb
 	if err != nil {
 		return nil, err
 	}
-	s.api.cleanupDeletedHardcoverAccount(requestContext(ctx), hardcoverAccountKey(deleted))
+	s.api.revokeDeletedHardcoverLink(requestContext(ctx), hardcoverAccountKey(deleted), encrypted)
 	return DeleteAdminUser204Response{}, nil
 }
 
-func (api *API) cleanupDeletedHardcoverAccount(ctx context.Context, account string) {
+func (api *API) revokeDeletedHardcoverLink(ctx context.Context, account string, encrypted []byte) {
 	f := &api.hardcover
-	defer f.lockAccount(account)()
-	// Committed Deletion - An in-flight callback must finish before removal; waiting callbacks lose their pending state.
 	f.cancel(account)
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), hardcoverCallTimeout)
-	defer cancel()
-	if f.client == nil {
-		if err := hardcover.RemoveStoredLink(cleanupCtx, filepath.Join(api.cfg.ConfigPath, "hardcover"), account); err != nil {
-			log.Warn("Could not remove stored Hardcover credentials for a deleted account")
-		}
+	if f.client == nil || len(encrypted) == 0 {
 		return
 	}
-	if err := f.client.Disconnect(cleanupCtx, account); err != nil && !errors.Is(err, hardcover.ErrNotConnected) {
-		if errors.Is(err, hardcover.ErrRevocationUnconfirmed) {
-			log.Warn("Hardcover revocation could not be confirmed for a deleted account")
-		} else {
-			log.Warn("Could not remove stored Hardcover credentials for a deleted account")
-		}
+	// After Commit - Local deletion already cascaded; a canceled HTTP request must not skip remote revocation.
+	call, cancel := context.WithTimeout(context.WithoutCancel(ctx), hardcoverCallTimeout)
+	defer cancel()
+	if err := f.client.RevokeStored(call, account, encrypted); err != nil {
+		log.Warn("Hardcover revocation could not be confirmed for a deleted account")
 	}
 }
 
 func (api *API) writeVerifiedSnapshot(ctx context.Context, filename string) error {
-	if err := api.db.BackupSnapshot(ctx, filename); err != nil {
+	if err := api.db.PortableBackupSnapshot(ctx, filename); err != nil {
 		return err
 	}
 	uri := (&url.URL{Scheme: "file", Path: filename, RawQuery: "mode=ro"}).String()

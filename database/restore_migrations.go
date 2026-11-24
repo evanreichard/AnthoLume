@@ -13,12 +13,16 @@ import (
 
 const PreReactSchemaVersion int64 = 20240510123707
 const ReactSchemaVersion int64 = 20261126000000
+const ScopedDevicesSchemaVersion int64 = 20261126000001
 
 //go:embed historical/20240510123707.sql
 var preReactSchema string
 
 //go:embed historical/20261126000000.sql
 var firstReactSchema string
+
+//go:embed historical/20261126000001.sql
+var scopedDevicesSchema string
 
 func restoreMigrationProvider(db *sql.DB) (*goose.Provider, error) {
 	files, err := fs.Sub(migrations, "migrations")
@@ -35,6 +39,8 @@ func InitHistoricalSchema(ctx context.Context, db *sql.DB, version int64) error 
 		schema = preReactSchema
 	case ReactSchemaVersion:
 		schema = firstReactSchema
+	case ScopedDevicesSchemaVersion:
+		schema = scopedDevicesSchema
 	default:
 		return errors.New("unsupported historical schema")
 	}
