@@ -946,6 +946,7 @@ components:
       required: [token]
       properties:
         token: {type: string, pattern: '^[a-f0-9]{64}$'}
+        exclude_hardcover_links: {type: boolean, description: Restore without Hardcover account links. Does not modify the backup.}
     AdminRestore:
       type: object
       additionalProperties: false

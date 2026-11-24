@@ -19,6 +19,7 @@ import (
 	"modernc.org/sqlite"
 	"reichard.io/antholume/database"
 	dbmigrations "reichard.io/antholume/database/migrations"
+	"reichard.io/antholume/hardcover"
 	"reichard.io/antholume/pkg/storagepath"
 	"reichard.io/antholume/utils"
 )
@@ -485,8 +486,18 @@ func (s *webAPI) ApplyAdminRestore(ctx context.Context, r ApplyAdminRestoreReque
 	if library != string(confirmed) {
 		return nil, adminFailure(409, "restore_library_changed")
 	}
-	if err := api.applyStagedRestore(req, stage, library); err != nil {
-		return nil, err
+	excludeHardcoverLinks := r.Body.ExcludeHardcoverLinks != nil && *r.Body.ExcludeHardcoverLinks
+	if err := api.applyStagedRestore(req, stage, library, excludeHardcoverLinks); err != nil {
+		switch {
+		case errors.Is(err, hardcover.ErrKeyMissing):
+			return nil, adminFailure(400, "hardcover_key_missing")
+		case errors.Is(err, hardcover.ErrKeyInvalid):
+			return nil, adminFailure(400, "hardcover_key_invalid")
+		case errors.Is(err, hardcover.ErrKeyMismatch):
+			return nil, adminFailure(400, "hardcover_key_mismatch")
+		default:
+			return nil, err
+		}
 	}
 	_ = os.RemoveAll(stage)
 	_ = api.anonymousSession(sessions.Default(ginContext(ctx)))
@@ -518,10 +529,10 @@ func (api *API) RestoreFreshInstance(ctx context.Context, input io.Reader) error
 	if err != nil {
 		return err
 	}
-	return api.applyStagedRestore(ctx, stage, library)
+	return api.applyStagedRestore(ctx, stage, library, false)
 }
 
-func (api *API) applyStagedRestore(req context.Context, stage, library string) error {
+func (api *API) applyStagedRestore(req context.Context, stage, library string, excludeHardcoverLinks bool) error {
 	original := filepath.Join(stage, adminBackupName)
 	if err := api.checkRestorePageSize(req, original); err != nil {
 		return adminFailure(400, "incompatible_restore_database")
@@ -551,10 +562,19 @@ func (api *API) applyStagedRestore(req context.Context, stage, library string) e
 		return err
 	}
 	defer db.Close()
+	q := database.New(db)
+	if excludeHardcoverLinks {
+		err = q.ClearHardcoverLinks(req)
+	} else {
+		err = hardcover.CheckStoredKey(req, db, api.cfg.HardcoverTokenKey)
+	}
+	if err != nil {
+		return err
+	}
 	err = api.prepareRestoreCatalog(req, db)
 	if err == nil {
 		// Rotate in the staged database so no restored data is visible under the old generation.
-		err = database.New(db).RotateRestoredReadingGeneration(req)
+		err = q.RotateRestoredReadingGeneration(req)
 	}
 	if err != nil {
 		return adminFailure(400, "invalid_restore_data")
@@ -576,7 +596,7 @@ func (api *API) applyStagedRestore(req context.Context, stage, library string) e
 			return err
 		}
 	}
-	docs, err := database.New(db).ListDocumentsForRestore(req)
+	docs, err := q.ListDocumentsForRestore(req)
 	if err != nil {
 		return err
 	}

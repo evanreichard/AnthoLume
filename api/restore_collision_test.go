@@ -26,7 +26,7 @@ func TestRestoreCollisionPublishesOnlyWithCatalog(t *testing.T) {
 	obstruction := filepath.Join(library, "z")
 	require.NoError(t, os.WriteFile(obstruction, nil, 0600))
 	require.NoError(t, os.Mkdir(filepath.Join(books, "z"), 0700))
-	require.Error(t, f.api.applyStagedRestore(ctx, stage, library))
+	require.Error(t, f.api.applyStagedRestore(ctx, stage, library, false))
 	entries, err := os.ReadDir(library)
 	require.NoError(t, err)
 	var names []string
@@ -41,7 +41,7 @@ func TestRestoreCollisionPublishesOnlyWithCatalog(t *testing.T) {
 	}
 	readPath()
 	require.Equal(t, "first.epub", path)
-	require.NoError(t, f.api.applyStagedRestore(ctx, stage, library))
+	require.NoError(t, f.api.applyStagedRestore(ctx, stage, library, false))
 	readPath()
 	require.NotEqual(t, "first.epub", path)
 	restored, err := os.ReadFile(filepath.Join(library, path))

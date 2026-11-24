@@ -800,6 +800,8 @@ export interface components {
         };
         AdminRestoreApply: {
             token: string;
+            /** @description Restore without Hardcover account links. Does not modify the backup. */
+            exclude_hardcover_links?: boolean;
         };
         AdminRestore: {
             token: string;

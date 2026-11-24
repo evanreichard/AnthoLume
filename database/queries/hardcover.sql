@@ -26,3 +26,9 @@ SELECT a.account_id, g.generation, h.credential
 FROM account_identities a CROSS JOIN reading_generation g
 LEFT JOIN hardcover_links h ON h.account_id = a.account_id
 WHERE a.user_id = ? AND g.singleton = 1;
+
+-- name: SampleHardcoverCredential :one
+SELECT account_id, credential FROM hardcover_links ORDER BY account_id LIMIT 1;
+
+-- name: ClearHardcoverLinks :exec
+DELETE FROM hardcover_links;

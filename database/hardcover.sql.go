@@ -9,6 +9,15 @@ import (
 	"context"
 )
 
+const clearHardcoverLinks = `-- name: ClearHardcoverLinks :exec
+DELETE FROM hardcover_links
+`
+
+func (q *Queries) ClearHardcoverLinks(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearHardcoverLinks)
+	return err
+}
+
 const getHardcoverCredential = `-- name: GetHardcoverCredential :one
 SELECT l.credential FROM account_identities a
 LEFT JOIN hardcover_links l ON l.account_id = a.account_id
@@ -112,4 +121,15 @@ func (q *Queries) ReplaceHardcoverCredential(ctx context.Context, arg ReplaceHar
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const sampleHardcoverCredential = `-- name: SampleHardcoverCredential :one
+SELECT account_id, credential FROM hardcover_links ORDER BY account_id LIMIT 1
+`
+
+func (q *Queries) SampleHardcoverCredential(ctx context.Context) (HardcoverLink, error) {
+	row := q.db.QueryRowContext(ctx, sampleHardcoverCredential)
+	var i HardcoverLink
+	err := row.Scan(&i.AccountID, &i.Credential)
+	return i, err
 }

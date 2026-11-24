@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { components } from '../api/schema.gen';
 import { ReadingHTTPError, type Account } from '../reading';
@@ -147,17 +147,62 @@ function RepairBackupPath({ account, issue, busy, onRepair }: { account: Account
   </form>;
 }
 
+const restoreKeyProblems = new Map([
+  ['hardcover_key_missing', 'HARDCOVER_TOKEN_KEY is not set on this server.'],
+  ['hardcover_key_invalid', 'HARDCOVER_TOKEN_KEY must be 32 bytes encoded in standard base64.'],
+  ['hardcover_key_mismatch', 'HARDCOVER_TOKEN_KEY could not decrypt a Hardcover account link in this backup.'],
+]);
+
+function RestoreHardcoverInfo() {
+  const id = useId();
+  const group = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    function dismissOnEscape(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setOpen(false);
+    }
+    function dismissOutside(event: PointerEvent) {
+      if (event.target instanceof Node && !group.current?.contains(event.target)) setOpen(false);
+    }
+    document.addEventListener('keydown', dismissOnEscape);
+    document.addEventListener('pointerdown', dismissOutside);
+    return () => {
+      document.removeEventListener('keydown', dismissOnEscape);
+      document.removeEventListener('pointerdown', dismissOutside);
+    };
+  }, [open]);
+
+  return <div ref={group} className={styles.restoreInfo} onPointerLeave={event => {
+    if (event.pointerType === 'mouse' && !button.current?.matches(':focus-visible')) setOpen(false);
+  }}>
+    <Button ref={button} size="slim" aria-label="About Restoring Without Hardcover Account Links" aria-describedby={id}
+      onPointerEnter={event => { if (event.pointerType === 'mouse') setOpen(true); }}
+      onFocus={() => { if (button.current?.matches(':focus-visible')) setOpen(true); }}
+      onBlur={() => setOpen(false)} onClick={() => setOpen(true)}>
+      <Icon name="info" size={18} />
+    </Button>
+    <p id={id} role="tooltip" hidden={!open} className={styles.restoreTooltip}>
+      Restores your library without its Hardcover account links. Readers will need to reconnect. Your backup file is not changed.
+    </p>
+  </div>;
+}
+
 function RestoreBackup({ account, close }: { account: Account; close: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [candidate, setCandidate] = useState<components['schemas']['AdminRestore'] | null>(null);
   const [confirm, setConfirm] = useState('');
+  const [excludeHardcoverLinks, setExcludeHardcoverLinks] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   async function restore(apply: boolean) {
     setBusy(true); setError(null);
     try {
       if (apply && candidate && confirm === 'RESTORE') {
-        await session.api.applyAdminRestore(account, { token: candidate.token });
+        await session.api.applyAdminRestore(account, { token: candidate.token, ...(excludeHardcoverLinks ? { exclude_hardcover_links: true } : {}) });
         window.location.assign('/login');
       } else if (!apply && file) {
         const staged = await session.api.stageAdminRestore(account, file);
@@ -170,7 +215,10 @@ function RestoreBackup({ account, close }: { account: Account; close: () => void
         setError(new Error(`${message} Repair the catalog on the source server, then create a new backup.`));
       } else {
         const code = failure instanceof ReadingHTTPError ? failure.problem.code : '';
-        setError(code === 'incompatible_restore_database' ? new Error('The database is damaged, has no administrator, or does not match this server’s schema.') : code === 'server_busy' ? new Error('The server is busy. Wait for other requests and jobs to finish, then retry.') : code === 'invalid_restore_archive' ? new Error('Choose a valid AnthoLume backup.') : code === 'restore_library_changed' ? new Error('The Library destination changed. Close this dialog and validate the backup again.') : code === 'restore_library_unavailable' ? new Error('The managed Library folder is unavailable.') : failure);
+        const keyProblem = restoreKeyProblems.get(code);
+        if (keyProblem) {
+          setError(new Error(`${keyProblem} Configure the original key and try again, or select “Restore without Hardcover account links” and retry.`));
+        } else setError(code === 'incompatible_restore_database' ? new Error('The database is damaged, has no administrator, or does not match this server’s schema.') : code === 'server_busy' ? new Error('The server is busy. Wait for other requests and jobs to finish, then retry.') : code === 'invalid_restore_archive' ? new Error('Choose a valid AnthoLume backup.') : code === 'restore_library_changed' ? new Error('The Library destination changed. Close this dialog and validate the backup again.') : code === 'restore_library_unavailable' ? new Error('The managed Library folder is unavailable.') : failure);
       }
     } finally { setBusy(false); }
   }
@@ -185,6 +233,10 @@ function RestoreBackup({ account, close }: { account: Account; close: () => void
         {candidate.library_path && <p>Book files will be restored to <code>{candidate.library_path}</code>.</p>}
         <p>{candidate.files ? `${candidate.files} files are included. Existing files are not overwritten. Restored files can receive new names.` : 'No book or cover files are included.'}</p>
         <p>Restore replaces the current database and signs everyone out. No backup is created automatically. Reading changes queued before restore stay on the device and do not sync into the restored library.</p>
+        <div className={styles.restoreOption}>
+          <label className={styles.settingsCheck}><input type="checkbox" checked={excludeHardcoverLinks} disabled={busy} onChange={event => setExcludeHardcoverLinks(event.target.checked)} />Restore without Hardcover account links</label>
+          <RestoreHardcoverInfo />
+        </div>
         <label>Type RESTORE to confirm<input autoComplete="off" value={confirm} disabled={busy} onChange={event => setConfirm(event.target.value)} /></label>
       </> : <>
         <label>Backup file<input type="file" accept=".zip,.db" disabled={busy} onChange={event => { setFile(event.target.files?.[0] ?? null); setError(null); }} /></label>
