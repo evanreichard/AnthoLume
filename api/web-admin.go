@@ -205,12 +205,15 @@ func (api *API) writeVerifiedSnapshot(ctx context.Context, filename string) erro
 	if err := api.db.BackupSnapshot(ctx, filename); err != nil {
 		return err
 	}
-	uri := (&url.URL{Scheme: "file", Path: filename, RawQuery: "mode=ro"}).String()
+	uri := (&url.URL{Scheme: "file", Path: filename, RawQuery: "mode=rw&_pragma=trusted_schema(OFF)&_pragma=journal_mode(DELETE)&_pragma=secure_delete(ON)"}).String()
 	check, err := sql.Open("sqlite", uri)
 	if err != nil {
 		return err
 	}
 	defer check.Close()
+	if err := database.New(check).ClearHardcoverLinks(ctx); err != nil {
+		return err
+	}
 	var integrity string
 	if err := check.QueryRowContext(ctx, `PRAGMA quick_check`).Scan(&integrity); err != nil {
 		return err

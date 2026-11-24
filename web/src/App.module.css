@@ -172,10 +172,6 @@
 .settingsFields { display: grid; gap: 14px; margin: 0; padding: 0; border: 0; min-width: 0; }
 .form .settingsCheck { display: flex; align-items: center; }
 .settingsCheck input { width: auto; min-height: auto; }
-.restoreOption { position: relative; display: flex; align-items: center; gap: 4px; }
-.restoreInfo { flex: none; }
-.restoreInfo button { min-width: 44px; }
-.form .restoreTooltip { position: absolute; inset: 100% 0 auto; z-index: 1; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); font-size: .875rem; }
 .deviceLastSynced { color: var(--muted); font-size: .8125rem; }
 .dialog::backdrop { background: #17221bb3; }
 .dialog[data-size='wide'] { width: min(620px, calc(100% - 24px)); max-height: min(760px, calc(100dvh - 48px)); padding: clamp(16px, 4vw, 24px); overscroll-behavior: contain; }

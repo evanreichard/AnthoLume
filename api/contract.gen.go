@@ -430,9 +430,7 @@ type AdminRestore struct {
 
 // AdminRestoreApply defines model for AdminRestoreApply.
 type AdminRestoreApply struct {
-	// ExcludeHardcoverLinks Restore without Hardcover account links. Does not modify the backup.
-	ExcludeHardcoverLinks *bool  `json:"exclude_hardcover_links,omitempty"`
-	Token                 string `json:"token"`
+	Token string `json:"token"`
 }
 
 // AdminStorageDirectories defines model for AdminStorageDirectories.

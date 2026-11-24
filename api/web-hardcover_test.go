@@ -2,8 +2,6 @@ package api
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
 	"encoding/base64"
 	"errors"
 	"net/http"
@@ -156,10 +154,8 @@ func TestHardcoverEncryptionKeyConfiguration(t *testing.T) {
 	for _, key := range []string{"", "invalid key", base64.StdEncoding.EncodeToString(make([]byte, 31)), base64.StdEncoding.EncodeToString(make([]byte, 32)) + "\n"} {
 		cfg.HardcoverTokenKey = key
 		err := f.api.configureHardcover()
-		if key == "" {
-			require.ErrorIs(t, err, hardcover.ErrKeyMissing)
-		} else {
-			require.ErrorIs(t, err, hardcover.ErrKeyInvalid)
+		require.ErrorContains(t, err, "HARDCOVER_TOKEN_KEY")
+		if key != "" {
 			require.NotContains(t, err.Error(), key)
 		}
 		require.Nil(t, f.api.hardcover.client)
@@ -167,49 +163,6 @@ func TestHardcoverEncryptionKeyConfiguration(t *testing.T) {
 	cfg.HardcoverTokenKey = base64.StdEncoding.EncodeToString(make([]byte, 32))
 	require.NoError(t, f.api.configureHardcover())
 	require.NotNil(t, f.api.hardcover.client)
-}
-
-func TestHardcoverStartupChecksStoredKey(t *testing.T) {
-	f := newWebFixture(t)
-	f.register("alice")
-	var accountID string
-	require.NoError(t, f.db.DB.QueryRow(`SELECT account_id FROM account_identities WHERE user_id='alice'`).Scan(&accountID))
-	key := make([]byte, 32)
-	block, err := aes.NewCipher(key)
-	require.NoError(t, err)
-	aead, err := cipher.NewGCMWithRandomNonce(block)
-	require.NoError(t, err)
-	f.exec(`INSERT INTO hardcover_links(account_id, credential) VALUES (?, ?)`, accountID, aead.Seal(nil, nil, []byte("test link"), []byte(accountID)))
-	correct := base64.StdEncoding.EncodeToString(key)
-	key[0]++
-	wrong := base64.StdEncoding.EncodeToString(key)
-
-	for _, tc := range []struct {
-		name, key   string
-		demo, oauth bool
-		want        error
-	}{
-		{name: "missing with OAuth disabled", want: hardcover.ErrKeyMissing},
-		{name: "malformed in demo mode", key: "invalid key", demo: true, oauth: true, want: hardcover.ErrKeyInvalid},
-		{name: "wrong with OAuth enabled", key: wrong, oauth: true, want: hardcover.ErrKeyMismatch},
-		{name: "correct with OAuth disabled", key: correct},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := *f.cfg
-			cfg.DemoMode, cfg.HardcoverTokenKey = tc.demo, tc.key
-			if tc.oauth {
-				cfg.HardcoverClientID, cfg.HardcoverClientSecret = "app-id", "app-secret"
-			}
-			app, err := NewAPI(f.db, &cfg, f.api.assets)
-			if tc.want != nil {
-				require.ErrorIs(t, err, tc.want)
-				require.Nil(t, app)
-				return
-			}
-			require.NoError(t, err)
-			require.Nil(t, app.hardcover.client)
-		})
-	}
 }
 
 func TestHardcoverOAuth(t *testing.T) {

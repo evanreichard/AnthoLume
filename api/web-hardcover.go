@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"errors"
 	"html/template"
 	"mime"
@@ -52,9 +53,6 @@ type hardcoverFlow struct {
 }
 
 func (api *API) configureHardcover() error {
-	if err := hardcover.CheckStoredKey(context.Background(), api.db.DB, api.cfg.HardcoverTokenKey); err != nil {
-		return err
-	}
 	id, secret := api.cfg.HardcoverClientID, api.cfg.HardcoverClientSecret
 	if api.cfg.DemoMode || (id == "" && secret == "") {
 		return nil
@@ -62,11 +60,10 @@ func (api *API) configureHardcover() error {
 	if id == "" || secret == "" {
 		return errors.New("Hardcover requires both HARDCOVER_CLIENT_ID and HARDCOVER_CLIENT_SECRET")
 	}
-	key, err := hardcover.DecodeTokenKey(api.cfg.HardcoverTokenKey)
-	if err != nil {
-		return err
+	key, err := base64.StdEncoding.Strict().DecodeString(api.cfg.HardcoverTokenKey)
+	if err != nil || len(key) != 32 || base64.StdEncoding.EncodeToString(key) != api.cfg.HardcoverTokenKey {
+		return errors.New("Hardcover requires HARDCOVER_TOKEN_KEY to be 32 random bytes encoded as standard base64")
 	}
-	defer clear(key)
 	client, err := hardcover.New(api.db.DB, key, id, secret, api.cfg.PublicOrigin+hardcoverCallbackPath)
 	if err != nil {
 		return errors.New("initialize Hardcover integration")

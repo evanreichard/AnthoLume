@@ -5,22 +5,15 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
 	"reichard.io/antholume/database"
 )
 
-var (
-	ErrKeyMissing  = errors.New("Hardcover: HARDCOVER_TOKEN_KEY is not set")
-	ErrKeyInvalid  = errors.New("Hardcover: HARDCOVER_TOKEN_KEY must be 32 random bytes encoded as standard base64")
-	ErrKeyMismatch = errors.New("Hardcover: HARDCOVER_TOKEN_KEY could not decrypt a stored account link")
-	errStorage     = errors.New("hardcover: credential storage unavailable")
-)
+var errStorage = errors.New("hardcover: credential storage unavailable")
 
 type credential struct {
 	UserID    int64     `json:"user_id"`
@@ -49,53 +42,12 @@ func newCredentialStore(db *sql.DB, key []byte) (credentialStore, error) {
 	if db == nil || len(key) != 32 {
 		return credentialStore{}, ErrInvalidInput
 	}
-	aead, err := tokenCipher(key)
-	return credentialStore{database.New(db), aead}, err
-}
-
-func tokenCipher(key []byte) (cipher.AEAD, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		return credentialStore{}, errStorage
 	}
-	return cipher.NewGCMWithRandomNonce(block)
-}
-
-func DecodeTokenKey(encodedKey string) ([]byte, error) {
-	if encodedKey == "" {
-		return nil, ErrKeyMissing
-	}
-	key, err := base64.StdEncoding.Strict().DecodeString(encodedKey)
-	if err != nil || len(key) != 32 || base64.StdEncoding.EncodeToString(key) != encodedKey {
-		return nil, ErrKeyInvalid
-	}
-	return key, nil
-}
-
-// CheckStoredKey authenticates one stored link with the configured key, if any links exist.
-func CheckStoredKey(ctx context.Context, db *sql.DB, encodedKey string) error {
-	sample, err := database.New(db).SampleHardcoverCredential(ctx)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("Hardcover: read a stored account link for key validation: %w", err)
-	}
-	key, err := DecodeTokenKey(encodedKey)
-	if err != nil {
-		return err
-	}
-	defer clear(key)
-	aead, err := tokenCipher(key)
-	if err != nil {
-		return err
-	}
-	plain, err := aead.Open(nil, nil, sample.Credential, []byte(sample.AccountID))
-	if err != nil {
-		return ErrKeyMismatch
-	}
-	clear(plain)
-	return nil
+	aead, err := cipher.NewGCMWithRandomNonce(block)
+	return credentialStore{database.New(db), aead}, err
 }
 
 func (s credentialStore) load(ctx context.Context, account accountRef) (credential, []byte, error) {

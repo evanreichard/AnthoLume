@@ -122,14 +122,3 @@ func (q *Queries) ReplaceHardcoverCredential(ctx context.Context, arg ReplaceHar
 	}
 	return result.RowsAffected()
 }
-
-const sampleHardcoverCredential = `-- name: SampleHardcoverCredential :one
-SELECT account_id, credential FROM hardcover_links ORDER BY account_id LIMIT 1
-`
-
-func (q *Queries) SampleHardcoverCredential(ctx context.Context) (HardcoverLink, error) {
-	row := q.db.QueryRowContext(ctx, sampleHardcoverCredential)
-	var i HardcoverLink
-	err := row.Scan(&i.AccountID, &i.Credential)
-	return i, err
-}

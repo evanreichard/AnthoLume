@@ -467,45 +467,8 @@ test('administrators manage users while members cannot open Administration', asy
   await expect(dialog.getByText(`Book files will be restored to ${server.data}/documents.`)).toBeVisible();
   await expect(dialog.getByText(/Existing files are not overwritten/)).toBeVisible();
   await expect(dialog.getByLabel('Restore library to')).toHaveCount(0);
-  const excludeLinks = dialog.getByRole('checkbox', { name: 'Restore without Hardcover account links' });
-  const restoreInfo = dialog.getByRole('button', { name: 'About Restoring Without Hardcover Account Links' });
-  const restoreTip = dialog.getByRole('tooltip');
-  await expect(excludeLinks).not.toBeChecked();
-  await expect(restoreTip).toBeHidden();
-  for (const width of [320, 390, 1440]) {
-    await page.setViewportSize({ width, height: 844 });
-    await restoreInfo.hover();
-    await expect(restoreTip).toBeVisible();
-    expect(await dialog.evaluate(node => node.scrollWidth)).toBeLessThanOrEqual(Math.ceil((await dialog.boundingBox())!.width));
-    await page.keyboard.press('Escape');
-    await expect(restoreTip).toBeHidden();
-    await expect(dialog).toBeVisible();
-    await page.mouse.move(0, 0);
-  }
-  await excludeLinks.focus();
-  await page.keyboard.press('Tab');
-  await expect(restoreInfo).toBeFocused();
-  await expect(restoreTip).toHaveText('Restores your library without its Hardcover account links. Readers will need to reconnect. Your backup file is not changed.');
-  await page.keyboard.press('Escape');
-  await expect(restoreTip).toBeHidden();
-  await page.keyboard.press('Enter');
-  await expect(restoreTip).toBeVisible();
-  await expect(excludeLinks).not.toBeChecked();
-
   await dialog.getByLabel('Type RESTORE to confirm').fill('RESTORE');
-  await page.route('**/api/v1/admin/restore', async route => {
-    expect(route.request().postDataJSON()).not.toHaveProperty('exclude_hardcover_links');
-    await route.fulfill({ status: 400, contentType: 'application/problem+json', json: {
-      status: 400, code: 'hardcover_key_mismatch', title: 'Bad Request', type: 'urn:antholume:problem:hardcover_key_mismatch', detail: 'Invalid key',
-    } });
-  }, { times: 1 });
-  await dialog.getByRole('button', { name: 'Restore Backup' }).click();
-  await expect(dialog.getByRole('alert')).toContainText('HARDCOVER_TOKEN_KEY could not decrypt');
-  await expect(dialog.getByRole('alert')).toContainText('or select “Restore without Hardcover account links” and retry.');
-  await excludeLinks.check();
-  const retry = page.waitForRequest(request => request.url().endsWith('/api/v1/admin/restore') && request.method() === 'PATCH');
   await applyRestore();
-  expect((await retry).postDataJSON()).toMatchObject({ exclude_hardcover_links: true });
   await signIn(page, server.origin, 'admin-owner');
   const restored = await page.request.get(`${server.origin}/api/v1/documents/book_001/file`);
   expect(restored.status()).toBe(200);

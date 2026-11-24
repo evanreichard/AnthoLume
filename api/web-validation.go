@@ -75,14 +75,6 @@ func handleWebError(c *gin.Context, err error) {
 		status, code = 503, "storage_error"
 	}
 	p := problem(status, code)
-	switch code {
-	case "hardcover_key_missing":
-		p.Detail = "This backup contains Hardcover account links, but HARDCOVER_TOKEN_KEY is not set. Configure the original key or restore without Hardcover account links."
-	case "hardcover_key_invalid":
-		p.Detail = "HARDCOVER_TOKEN_KEY must be 32 bytes encoded as standard base64. Configure the original key or restore without Hardcover account links."
-	case "hardcover_key_mismatch":
-		p.Detail = "HARDCOVER_TOKEN_KEY could not decrypt a stored Hardcover account link in this backup. Configure the original key or restore without Hardcover account links."
-	}
 	if wf != nil && wf.backupPathIssue != nil {
 		p.BackupPathIssue = wf.backupPathIssue
 		p.Detail = "A catalog file reference must be repaired before this backup can be restored."

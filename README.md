@@ -46,7 +46,7 @@ Set `PUBLIC_ORIGIN` to the exact browser origin, with no trailing slash. Explici
 
 Optional Hardcover integration: register a [server-side OAuth app](https://hardcover.app/account/developer-apps/new) with redirect URI `{PUBLIC_ORIGIN}/oauth/hardcover/callback` and scopes `read:me:content` and `read:library`. Set `HARDCOVER_CLIENT_ID`, `HARDCOVER_CLIENT_SECRET`, and `HARDCOVER_TOKEN_KEY` on the server. Generate the token key **once** with `openssl rand -base64 32` and keep it in your deployment’s secret store, separate from the OAuth client secret. It encrypts reader tokens in SQLite. Keep it stable across restarts; changing it makes existing tokens unreadable.
 
-Readers can choose **Settings → Connect Hardcover** to preview their Want to Read shelf. This does not request downloads or change reading status. Deleting a reader deletes their local link. Database and archive backups include encrypted links. Back up `HARDCOVER_TOKEN_KEY` separately. Startup and restore check it against one stored link, even if Hardcover is disabled. If the key is lost, select **Restore without Hardcover account links** on the restore confirmation screen. This omits links from the restored library, not the backup.
+Readers can choose **Settings → Connect Hardcover** to preview their Want to Read shelf. This does not request downloads or change reading status. Deleting a reader deletes their local link. Database and archive backups omit Hardcover links because refresh tokens rotate. After restoring a backup, readers reconnect in Settings.
 
 ```bash
 # Make Data Directory
