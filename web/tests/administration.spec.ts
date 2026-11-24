@@ -3,6 +3,24 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import JSZip from 'jszip';
 import { expect, register, signIn, test } from './fixtures';
 
+test('Admin card headings match the Library heading size across tabs', async ({ page, server }) => {
+  await register(page, server.origin, 'admin-card-owner');
+  const db = new DatabaseSync(`${server.data}/browser.db`);
+  try { db.prepare('UPDATE users SET admin=1 WHERE id=?').run('admin-card-owner'); }
+  finally { db.close(); }
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(`${server.origin}/admin/library`);
+    const size = await page.getByRole('heading', { name: 'Storage Roots' }).evaluate(node => getComputedStyle(node).fontSize);
+    for (const tab of ['Library', 'Users', 'System']) {
+      await page.getByRole('navigation', { name: 'Administration sections' }).getByRole('link', { name: tab, exact: true }).click();
+      const headings = page.getByRole('region').getByRole('heading', { level: 2 });
+      await expect(headings.first()).toBeVisible();
+      for (const heading of await headings.all()) await expect(heading).toHaveCSS('font-size', size);
+    }
+  }
+});
+
 test('Metadata provider defaults to Open Library and explains missing Hardcover token', async ({ page, server }) => {
   await register(page, server.origin, 'metadata-owner');
   const db = new DatabaseSync(`${server.data}/browser.db`);

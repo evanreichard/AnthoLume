@@ -10,6 +10,12 @@ test('book details show file information and download the original EPUB', async 
   await page.getByLabel('Choose EPUB to upload').setInputFiles({ name: 'original.epub', mimeType: 'application/epub+zip', buffer: original });
   await page.getByRole('link', { name: 'Open book', exact: true }).click();
   await page.setViewportSize({ width: 320, height: 844 });
+  const details = page.getByRole('region', { name: 'Book details' });
+  const author = details.getByRole('term').filter({ hasText: /^Author$/ });
+  const synopsis = details.getByRole('term').filter({ hasText: /^Synopsis$/ });
+  for (const property of ['font-size', 'font-weight', 'color']) {
+    await expect(synopsis).toHaveCSS(property, await author.evaluate((node, prop) => getComputedStyle(node).getPropertyValue(prop), property));
+  }
   const more = page.getByRole('button', { name: 'More', exact: true });
   const info = page.getByRole('button', { name: 'Info', exact: true });
   const exportFile = page.getByRole('link', { name: 'Export', exact: true });

@@ -58,8 +58,8 @@ test('Library, Insights, Settings and Book Detail share mobile and desktop gutte
     expect(resume.y).toBeGreaterThan(title.y + title.height);
     expect(resume.width).toBeLessThan(160);
     expect(resume.height).toBeGreaterThanOrEqual(44);
-    const synopsis = info.getByRole('heading', { name: 'Synopsis', exact: true, level: 2 });
-    const author = info.getByText('Author', { exact: true });
+    const synopsis = info.getByRole('term').filter({ hasText: /^Synopsis$/ });
+    const author = info.getByRole('term').filter({ hasText: /^Author$/ });
     expect((await author.boundingBox())!.y).toBeLessThan((await synopsis.boundingBox())!.y);
     if (width < 1040) {
       await expectLibraryGutters(hero);

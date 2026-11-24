@@ -60,7 +60,7 @@ export function AdminSystem() {
 
 function SystemDetails({ account }: { account: Account }) {
   const info = useQuery({ queryKey: ['admin-system', account], queryFn: ({ signal }) => session.api.adminSystem(account, signal) });
-  return <Card aria-labelledby="admin-server-heading">
+  return <Card density="compact" aria-labelledby="admin-server-heading">
     <CardHeader id="admin-server-heading" title="Server" />
     <ErrorNotice error={info.error} />
     {info.isPending && <SkeletonRows label="Loading server details…" count={1} secondary={false} />}

@@ -180,9 +180,8 @@ function BookDetailContent() {
         {metadata?.series && <div><dt>Series</dt><dd>{metadata.series}</dd></div>}
         {metadata?.lang && <div><dt>Language</dt><dd>{languageName(metadata.lang)}</dd></div>}
         {metadata?.isbn13 ? <div><dt>ISBN-13</dt><dd>{metadata.isbn13}</dd></div> : metadata?.isbn10 && <div><dt>ISBN-10</dt><dd>{metadata.isbn10}</dd></div>}
+        <div className={styles.detailSynopsis}><dt>Synopsis</dt><dd>{metadata?.description?.trim() || 'No synopsis available for this edition.'}</dd></div>
       </dl>
-      <h2 className={styles.synopsisHeading}>Synopsis</h2>
-      <p className={styles.description}>{metadata?.description?.trim() || 'No synopsis available for this edition.'}</p>
     </section>
     {metadata && management === 'info' && <Dialog title="Book information" onClose={() => setManagement(null)} footer={<Button size="slim" onClick={() => setManagement(null)}>Close</Button>}>
       <dl className={styles.bookFileDetails}>
