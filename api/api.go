@@ -19,6 +19,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/config"
 	"reichard.io/antholume/database"
+	"reichard.io/antholume/hardcover"
 	"reichard.io/antholume/reading"
 	"reichard.io/antholume/utils"
 )
@@ -30,6 +31,7 @@ type API struct {
 	httpServer     *http.Server
 	reading        *reading.Store
 	hardcover      hardcoverFlow
+	catalog        hardcoverCatalog
 	attempts       credentialLimiter
 	identitySlots  chan struct{}
 	restoreGate    sync.RWMutex
@@ -63,6 +65,9 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 		webUploadSlots: make(chan struct{}, 2),
 	}
 
+	if token := c.HardcoverCatalogToken(); token != "" {
+		api.catalog = hardcover.NewCatalog(token)
+	}
 	if err := api.configureHardcover(); err != nil {
 		return nil, err
 	}

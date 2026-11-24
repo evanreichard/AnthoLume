@@ -127,6 +127,11 @@ type HardcoverLink struct {
 	Credential []byte `json:"credential"`
 }
 
+type MetadataProvider struct {
+	ID       int64  `json:"id"`
+	Provider string `json:"provider"`
+}
+
 type ReadingGeneration struct {
 	Singleton  int64  `json:"singleton"`
 	Generation string `json:"generation"`

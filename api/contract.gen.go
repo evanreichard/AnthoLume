@@ -186,6 +186,51 @@ func (e AutoImportScanTrigger) Valid() bool {
 	}
 }
 
+// Defines values for HardcoverConfirmationFields.
+const (
+	HardcoverConfirmationFieldsAuthor      HardcoverConfirmationFields = "author"
+	HardcoverConfirmationFieldsDescription HardcoverConfirmationFields = "description"
+	HardcoverConfirmationFieldsIsbn10      HardcoverConfirmationFields = "isbn10"
+	HardcoverConfirmationFieldsIsbn13      HardcoverConfirmationFields = "isbn13"
+	HardcoverConfirmationFieldsTitle       HardcoverConfirmationFields = "title"
+)
+
+// Valid indicates whether the value is a known member of the HardcoverConfirmationFields enum.
+func (e HardcoverConfirmationFields) Valid() bool {
+	switch e {
+	case HardcoverConfirmationFieldsAuthor:
+		return true
+	case HardcoverConfirmationFieldsDescription:
+		return true
+	case HardcoverConfirmationFieldsIsbn10:
+		return true
+	case HardcoverConfirmationFieldsIsbn13:
+		return true
+	case HardcoverConfirmationFieldsTitle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MetadataProvider.
+const (
+	Hardcover   MetadataProvider = "hardcover"
+	Openlibrary MetadataProvider = "openlibrary"
+)
+
+// Valid indicates whether the value is a known member of the MetadataProvider enum.
+func (e MetadataProvider) Valid() bool {
+	switch e {
+	case Hardcover:
+		return true
+	case Openlibrary:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReceiptKind.
 const (
 	Activity ReceiptKind = "activity"
@@ -419,6 +464,13 @@ type AdminLogPage struct {
 	NextCursor *string    `json:"next_cursor,omitempty"`
 }
 
+// AdminMetadataProvider defines model for AdminMetadataProvider.
+type AdminMetadataProvider struct {
+	Effective          MetadataProvider `json:"effective"`
+	HardcoverAvailable bool             `json:"hardcover_available"`
+	Selected           MetadataProvider `json:"selected"`
+}
+
 // AdminRestore defines model for AdminRestore.
 type AdminRestore struct {
 	Files int `json:"files"`
@@ -589,6 +641,22 @@ type HardcoverBook struct {
 	Title  string `json:"title"`
 }
 
+// HardcoverCatalogID defines model for HardcoverCatalogID.
+type HardcoverCatalogID = string
+
+// HardcoverConfirmation defines model for HardcoverConfirmation.
+type HardcoverConfirmation struct {
+	EditionId *HardcoverCatalogID `json:"edition_id,omitempty"`
+
+	// Fields Metadata fields to copy from the verified match. An empty array only links the work.
+	Fields []HardcoverConfirmationFields `json:"fields"`
+	Isbn   *string                       `json:"isbn,omitempty"`
+	WorkId HardcoverCatalogID            `json:"work_id"`
+}
+
+// HardcoverConfirmationFields defines model for HardcoverConfirmation.Fields.
+type HardcoverConfirmationFields string
+
 // HardcoverConnect defines model for HardcoverConnect.
 type HardcoverConnect struct {
 	AuthorizationUrl string `json:"authorization_url"`
@@ -704,20 +772,35 @@ type ManagedDevice struct {
 	Name       string    `json:"name"`
 }
 
+// MetadataEditionID defines model for MetadataEditionID.
+type MetadataEditionID = string
+
 // MetadataMatch defines model for MetadataMatch.
 type MetadataMatch struct {
-	Author      string  `json:"author"`
-	CoverId     *int64  `json:"cover_id,omitempty"`
-	Description *string `json:"description,omitempty"`
-	EditionId   *string `json:"edition_id,omitempty"`
-	Id          string  `json:"id"`
-	Isbn10      *string `json:"isbn10,omitempty"`
-	Isbn13      *string `json:"isbn13,omitempty"`
-	Published   *string `json:"published,omitempty"`
-	Publisher   *string `json:"publisher,omitempty"`
-	Title       string  `json:"title"`
-	Year        *int    `json:"year,omitempty"`
+	Author      string             `json:"author"`
+	CoverId     *int64             `json:"cover_id,omitempty"`
+	Description *string            `json:"description,omitempty"`
+	EditionId   *MetadataEditionID `json:"edition_id,omitempty"`
+	Id          MetadataWorkID     `json:"id"`
+	Isbn10      *string            `json:"isbn10,omitempty"`
+	Isbn13      *string            `json:"isbn13,omitempty"`
+	Provider    MetadataProvider   `json:"provider"`
+	Published   *string            `json:"published,omitempty"`
+	Publisher   *string            `json:"publisher,omitempty"`
+	Title       string             `json:"title"`
+	Year        *int               `json:"year,omitempty"`
 }
+
+// MetadataProvider defines model for MetadataProvider.
+type MetadataProvider string
+
+// MetadataProviderChoice defines model for MetadataProviderChoice.
+type MetadataProviderChoice struct {
+	Provider MetadataProvider `json:"provider"`
+}
+
+// MetadataWorkID defines model for MetadataWorkID.
+type MetadataWorkID = string
 
 // PasswordChange defines model for PasswordChange.
 type PasswordChange struct {
@@ -904,6 +987,15 @@ type ListAdminLogsParams struct {
 	Level  *AdminLogLevel `form:"level,omitempty" json:"level,omitempty"`
 }
 
+// SetAdminMetadataProviderParams defines parameters for SetAdminMetadataProvider.
+type SetAdminMetadataProviderParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
 // ApplyAdminRestoreParams defines parameters for ApplyAdminRestore.
 type ApplyAdminRestoreParams struct {
 	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
@@ -1015,6 +1107,15 @@ type DeleteDocumentParams struct {
 
 // EditDocumentParams defines parameters for EditDocument.
 type EditDocumentParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// ConfirmHardcoverMatchParams defines parameters for ConfirmHardcoverMatch.
+type ConfirmHardcoverMatchParams struct {
 	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
 	Origin *Origin `json:"Origin,omitempty"`
 
@@ -1134,9 +1235,9 @@ type GetMetadataCoverParams struct {
 
 // PreviewMetadataMatchParams defines parameters for PreviewMetadataMatch.
 type PreviewMetadataMatchParams struct {
-	WorkId    string  `form:"work_id" json:"work_id"`
-	EditionId *string `form:"edition_id,omitempty" json:"edition_id,omitempty"`
-	Isbn      *string `form:"isbn,omitempty" json:"isbn,omitempty"`
+	WorkId    MetadataWorkID     `form:"work_id" json:"work_id"`
+	EditionId *MetadataEditionID `form:"edition_id,omitempty" json:"edition_id,omitempty"`
+	Isbn      *string            `form:"isbn,omitempty" json:"isbn,omitempty"`
 }
 
 // LookupMetadataParams defines parameters for LookupMetadata.
@@ -1186,6 +1287,9 @@ type RepairAdminBackupPathJSONRequestBody = AdminBackupPathRepair
 // StartAdminJobJSONRequestBody defines body for StartAdminJob for application/json ContentType.
 type StartAdminJobJSONRequestBody StartAdminJobJSONBody
 
+// SetAdminMetadataProviderJSONRequestBody defines body for SetAdminMetadataProvider for application/json ContentType.
+type SetAdminMetadataProviderJSONRequestBody = MetadataProviderChoice
+
 // ApplyAdminRestoreJSONRequestBody defines body for ApplyAdminRestore for application/json ContentType.
 type ApplyAdminRestoreJSONRequestBody = AdminRestoreApply
 
@@ -1203,6 +1307,9 @@ type UpdateAdminUserJSONRequestBody = AdminUserUpdate
 
 // EditDocumentJSONRequestBody defines body for EditDocument for application/json ContentType.
 type EditDocumentJSONRequestBody = DocumentEdit
+
+// ConfirmHardcoverMatchJSONRequestBody defines body for ConfirmHardcoverMatch for application/json ContentType.
+type ConfirmHardcoverMatchJSONRequestBody = HardcoverConfirmation
 
 // SubmitActivityJSONRequestBody defines body for SubmitActivity for application/json ContentType.
 type SubmitActivityJSONRequestBody = ActivityEvent
@@ -1270,6 +1377,12 @@ type ServerInterface interface {
 	// (GET /api/v1/admin/logs)
 	ListAdminLogs(c *gin.Context, params ListAdminLogsParams)
 
+	// (GET /api/v1/admin/metadata-provider)
+	GetAdminMetadataProvider(c *gin.Context)
+
+	// (PUT /api/v1/admin/metadata-provider)
+	SetAdminMetadataProvider(c *gin.Context, params SetAdminMetadataProviderParams)
+
 	// (PATCH /api/v1/admin/restore)
 	ApplyAdminRestore(c *gin.Context, params ApplyAdminRestoreParams)
 
@@ -1329,6 +1442,9 @@ type ServerInterface interface {
 
 	// (GET /api/v1/documents/{id}/file)
 	DownloadDocument(c *gin.Context, id ID)
+
+	// (POST /api/v1/documents/{id}/identify)
+	ConfirmHardcoverMatch(c *gin.Context, id ID, params ConfirmHardcoverMatchParams)
 
 	// (GET /api/v1/insights/rankings)
 	ListInsightRankings(c *gin.Context, params ListInsightRankingsParams)
@@ -1919,6 +2035,78 @@ func (siw *ServerInterfaceWrapper) ListAdminLogs(c *gin.Context) {
 	}
 
 	siw.Handler.ListAdminLogs(c, params)
+}
+
+// GetAdminMetadataProvider operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminMetadataProvider(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminMetadataProvider(c)
+}
+
+// SetAdminMetadataProvider operation middleware
+func (siw *ServerInterfaceWrapper) SetAdminMetadataProvider(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SetAdminMetadataProviderParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SetAdminMetadataProvider(c, params)
 }
 
 // ApplyAdminRestore operation middleware
@@ -2807,6 +2995,74 @@ func (siw *ServerInterfaceWrapper) DownloadDocument(c *gin.Context) {
 	}
 
 	siw.Handler.DownloadDocument(c, id)
+}
+
+// ConfirmHardcoverMatch operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmHardcoverMatch(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ConfirmHardcoverMatchParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ConfirmHardcoverMatch(c, id, params)
 }
 
 // ListInsightRankings operation middleware
@@ -3839,6 +4095,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/api/v1/documents/:id", wrapper.DeleteDocument)
 	router.GET(options.BaseURL+"/api/v1/documents/:id", wrapper.GetDocument)
 	router.PATCH(options.BaseURL+"/api/v1/documents/:id", wrapper.EditDocument)
+	router.POST(options.BaseURL+"/api/v1/documents/:id/identify", wrapper.ConfirmHardcoverMatch)
 	router.GET(options.BaseURL+"/api/v1/metadata/search", wrapper.LookupMetadata)
 	router.GET(options.BaseURL+"/api/v1/metadata/match", wrapper.PreviewMetadataMatch)
 	router.GET(options.BaseURL+"/api/v1/metadata/covers/:cover_id", wrapper.GetMetadataCover)
@@ -3873,6 +4130,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/api/v1/admin/storage-roots/make-library", wrapper.PreviewMakeLibrary)
 	router.POST(options.BaseURL+"/api/v1/admin/storage-roots/make-library", wrapper.MakeLibrary)
 	router.GET(options.BaseURL+"/api/v1/admin/storage-directories", wrapper.BrowseAdminStorageDirectories)
+	router.GET(options.BaseURL+"/api/v1/admin/metadata-provider", wrapper.GetAdminMetadataProvider)
+	router.PUT(options.BaseURL+"/api/v1/admin/metadata-provider", wrapper.SetAdminMetadataProvider)
 	router.DELETE(options.BaseURL+"/api/v1/admin/auto-import", wrapper.DeleteAdminAutoImport)
 	router.GET(options.BaseURL+"/api/v1/admin/auto-import", wrapper.ListAdminAutoImports)
 	router.POST(options.BaseURL+"/api/v1/admin/auto-import", wrapper.QueueAdminAutoImport)
@@ -4377,6 +4636,92 @@ type ListAdminLogsdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response ListAdminLogsdefaultApplicationProblemPlusJSONResponse) VisitListAdminLogsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminMetadataProviderRequestObject struct {
+}
+
+type GetAdminMetadataProviderResponseObject interface {
+	VisitGetAdminMetadataProviderResponse(w http.ResponseWriter) error
+}
+
+type GetAdminMetadataProvider200JSONResponse AdminMetadataProvider
+
+func (response GetAdminMetadataProvider200JSONResponse) VisitGetAdminMetadataProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminMetadataProviderdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response GetAdminMetadataProviderdefaultApplicationProblemPlusJSONResponse) VisitGetAdminMetadataProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetAdminMetadataProviderRequestObject struct {
+	Params SetAdminMetadataProviderParams
+	Body   *SetAdminMetadataProviderJSONRequestBody
+}
+
+type SetAdminMetadataProviderResponseObject interface {
+	VisitSetAdminMetadataProviderResponse(w http.ResponseWriter) error
+}
+
+type SetAdminMetadataProvider200JSONResponse AdminMetadataProvider
+
+func (response SetAdminMetadataProvider200JSONResponse) VisitSetAdminMetadataProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetAdminMetadataProviderdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response SetAdminMetadataProviderdefaultApplicationProblemPlusJSONResponse) VisitSetAdminMetadataProviderResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -5296,6 +5641,51 @@ type DownloadDocumentdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response DownloadDocumentdefaultApplicationProblemPlusJSONResponse) VisitDownloadDocumentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmHardcoverMatchRequestObject struct {
+	Id     ID `json:"id"`
+	Params ConfirmHardcoverMatchParams
+	Body   *ConfirmHardcoverMatchJSONRequestBody
+}
+
+type ConfirmHardcoverMatchResponseObject interface {
+	VisitConfirmHardcoverMatchResponse(w http.ResponseWriter) error
+}
+
+type ConfirmHardcoverMatch200JSONResponse Document
+
+func (response ConfirmHardcoverMatch200JSONResponse) VisitConfirmHardcoverMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmHardcoverMatchdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response ConfirmHardcoverMatchdefaultApplicationProblemPlusJSONResponse) VisitConfirmHardcoverMatchResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -6345,6 +6735,12 @@ type StrictServerInterface interface {
 	// (GET /api/v1/admin/logs)
 	ListAdminLogs(ctx context.Context, request ListAdminLogsRequestObject) (ListAdminLogsResponseObject, error)
 
+	// (GET /api/v1/admin/metadata-provider)
+	GetAdminMetadataProvider(ctx context.Context, request GetAdminMetadataProviderRequestObject) (GetAdminMetadataProviderResponseObject, error)
+
+	// (PUT /api/v1/admin/metadata-provider)
+	SetAdminMetadataProvider(ctx context.Context, request SetAdminMetadataProviderRequestObject) (SetAdminMetadataProviderResponseObject, error)
+
 	// (PATCH /api/v1/admin/restore)
 	ApplyAdminRestore(ctx context.Context, request ApplyAdminRestoreRequestObject) (ApplyAdminRestoreResponseObject, error)
 
@@ -6404,6 +6800,9 @@ type StrictServerInterface interface {
 
 	// (GET /api/v1/documents/{id}/file)
 	DownloadDocument(ctx context.Context, request DownloadDocumentRequestObject) (DownloadDocumentResponseObject, error)
+
+	// (POST /api/v1/documents/{id}/identify)
+	ConfirmHardcoverMatch(ctx context.Context, request ConfirmHardcoverMatchRequestObject) (ConfirmHardcoverMatchResponseObject, error)
 
 	// (GET /api/v1/insights/rankings)
 	ListInsightRankings(ctx context.Context, request ListInsightRankingsRequestObject) (ListInsightRankingsResponseObject, error)
@@ -6905,6 +7304,74 @@ func (sh *strictHandler) ListAdminLogs(ctx *gin.Context, params ListAdminLogsPar
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(ListAdminLogsResponseObject); ok {
 		if err := validResponse.VisitListAdminLogsResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminMetadataProvider operation middleware
+func (sh *strictHandler) GetAdminMetadataProvider(ctx *gin.Context) {
+	var request GetAdminMetadataProviderRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminMetadataProvider(ctx, request.(GetAdminMetadataProviderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminMetadataProvider")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetAdminMetadataProviderResponseObject); ok {
+		if err := validResponse.VisitGetAdminMetadataProviderResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetAdminMetadataProvider operation middleware
+func (sh *strictHandler) SetAdminMetadataProvider(ctx *gin.Context, params SetAdminMetadataProviderParams) {
+	var request SetAdminMetadataProviderRequestObject
+
+	request.Params = params
+
+	var body SetAdminMetadataProviderJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.SetAdminMetadataProvider(ctx, request.(SetAdminMetadataProviderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetAdminMetadataProvider")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(SetAdminMetadataProviderResponseObject); ok {
+		if err := validResponse.VisitSetAdminMetadataProviderResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -7535,6 +8002,51 @@ func (sh *strictHandler) DownloadDocument(ctx *gin.Context, id ID) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(DownloadDocumentResponseObject); ok {
 		if err := validResponse.VisitDownloadDocumentResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfirmHardcoverMatch operation middleware
+func (sh *strictHandler) ConfirmHardcoverMatch(ctx *gin.Context, id ID, params ConfirmHardcoverMatchParams) {
+	var request ConfirmHardcoverMatchRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body ConfirmHardcoverMatchJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfirmHardcoverMatch(ctx, request.(ConfirmHardcoverMatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfirmHardcoverMatch")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ConfirmHardcoverMatchResponseObject); ok {
+		if err := validResponse.VisitConfirmHardcoverMatchResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {

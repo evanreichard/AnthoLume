@@ -49,6 +49,7 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
   const request = useRef<AbortController | null>(null);
   const previewLoading = busy === 'preview';
   const showPreview = previewLoading || !!match;
+  const linksHardcover = match?.provider === 'hardcover';
   const loadingSection = useRef<HTMLElement>(null);
   const heading = useRef<HTMLFieldSetElement>(null);
   const resultButtons = useRef(new Map<string, HTMLButtonElement>());
@@ -79,7 +80,7 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
     void run('preview', async signal => {
       const detail = await session.api.previewMetadataMatch(refId.account, { work_id: result.id, edition_id: result.edition_id, isbn }, signal);
       if (signal.aborted) return;
-      const proposed = { ...detail, author: result.author, year: result.year };
+      const proposed = detail.provider === 'openlibrary' ? { ...detail, author: result.author, year: result.year } : detail;
       setExpanded(false);
       setCover('loading');
       setSelected(availableFields(proposed).filter(key => !original[key].trim()));
@@ -93,8 +94,17 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
     setSelected(fields => fields.includes(field) ? fields.filter(key => key !== field) : [...fields, field]);
   }
   function apply() {
-    if (!match || !selected.length || !validTitle || awaitingDefaultCover) return;
+    if (!match || !canApply) return;
     void run('apply', async signal => {
+      if (match.provider === 'hardcover') {
+        const updated = await session.api.confirmHardcoverMatch(refId.account, refId.documentId, {
+          work_id: match.id,
+          ...(match.edition_id ? { edition_id: match.edition_id, isbn } : {}),
+          fields: selected.filter(field => field !== 'cover'),
+        }, signal);
+        if (!signal.aborted) await onSaved(updated);
+        return;
+      }
       const next = bookMetadataDraft(document);
       for (const field of selected) if (field !== 'cover') next[field] = match[field] ?? '';
       let image: Blob | undefined;
@@ -131,6 +141,11 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
   const identityFields = fields.filter(field => field === 'title' || field === 'author');
   const showCover = !!match?.cover_id && cover !== 'missing';
   const awaitingDefaultCover = showCover && !document.cover_available && cover === 'loading';
+  const canApply = !awaitingDefaultCover && (linksHardcover || (!!selected.length && !!validTitle));
+  const changeCount = selected.length ? `${selected.length} ${selected.length === 1 ? 'Change' : 'Changes'}` : '';
+  const applyLabel = linksHardcover
+    ? changeCount ? `Link and Apply ${changeCount}` : 'Link Book'
+    : changeCount ? `Apply ${changeCount}` : 'Apply Changes';
   function backToResults() {
     if (previewLoading) {
       request.current?.abort();
@@ -144,7 +159,7 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
   return <Dialog title="Identify Book" placement="mobile-sheet" layout={showPreview ? 'scroll-body' : 'content'} onClose={close}
     titleLeading={showPreview && <button type="button" className={styles.icon} aria-label="Back to Results" disabled={busy === 'apply'} onClick={backToResults}><Icon name="back" size={18} /></button>}
     footer={showPreview ? <>
-    <Button type="submit" form={formId} tone="primary" disabled={!!busy || !selected.length || !validTitle || awaitingDefaultCover}>{busy === 'apply' ? 'Applying…' : match && selected.length ? `Apply ${selected.length} ${selected.length === 1 ? 'Change' : 'Changes'}` : 'Apply Changes'}</Button>
+    <Button type="submit" form={formId} tone="primary" disabled={!!busy || !canApply}>{busy === 'apply' ? (linksHardcover ? 'Linking…' : 'Applying…') : applyLabel}</Button>
     <Button disabled={busy === 'apply'} onClick={onClose}>Cancel</Button>
   </> : undefined}>
     {previewLoading ? <section ref={loadingSection} tabIndex={-1} aria-label="Match preview" className={styles.matchLoading}>
@@ -176,14 +191,15 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
       </form>
       <ErrorNotice error={error} />
       <span role="status" className={styles.srOnly}>{busy === 'search' ? 'Searching…' : ''}</span>
-      {matches && !matches.length && <p role="status">No matches. Try a different title or ISBN.</p>}
+      {matches && !matches.length && <p role="status">No matches. Try a different title, author, or ISBN.</p>}
       {!!matches?.length && <div className={styles.metadataResultsSection}><ul className={styles.metadataResults}>{matches.map(item => <li key={item.id}><button ref={button => { if (button) resultButtons.current.set(item.id, button); else resultButtons.current.delete(item.id); }} disabled={!!busy} onClick={() => preview(item)}>
         <ResultCover key={item.cover_id} id={item.cover_id} />
         <div className={styles.metadataResultText}><strong title={item.title}>{item.title}</strong><span>{[item.author, item.year].filter(Boolean).join(' · ')}</span></div>
       </button></li>)}</ul></div>}
     </> : <section aria-label="Match preview">
+      {linksHardcover && <p className={styles.lookupHint}>Link this book to Hardcover with or without applying metadata changes.</p>}
       {!match.edition_id && <p className={styles.lookupHint}>No edition verified. Search by ISBN to find a specific edition.</p>}
-      {!match.description && <p className={styles.lookupHint}>No synopsis available from Open Library.</p>}
+      {!match.description && <p className={styles.lookupHint}>No synopsis available from {linksHardcover ? 'Hardcover' : 'Open Library'}.</p>}
       {match.cover_id && cover === 'missing' && <p className={styles.lookupHint}>The edition cover is unavailable.</p>}
       <form id={formId} className={styles.form} onSubmit={event => { event.preventDefault(); apply(); }}>
         <fieldset ref={heading} tabIndex={-1} aria-label="Suggested metadata" className={styles.matchFields} disabled={busy === 'apply'}>

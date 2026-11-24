@@ -3,7 +3,7 @@ import { createTransport } from './transport';
 import type { paths, components, operations } from './schema.gen';
 import { checkHardcoverConnect, checkHardcoverShelf, checkHardcoverStatus } from './guards.gen.js';
 import { ReadingHTTPError, type Account, type ReadingBridge } from '../reading';
-import { InvalidResponse, isMakeLibraryPlan, isAdminAutoImport, isAdminRestore, isStorageRoots, isStorageDirectories, isBackupPreview, isAdminLogs, isImportPreview, isImportResults, isAdminJob, isAdminJobs, isAdminSystem, isAdminUser, isAdminUsers, isCapabilities, isDevice, isDocument, isInsights, isMetadataMatch, isMetadataMatches, isManagedDevice, isManagedDevices, isInsightActivity, isInsightProgress, isInsightRankings, isPage, isProblem, isSession, isState, validated } from './validate';
+import { InvalidResponse, isMakeLibraryPlan, isAdminAutoImport, isAdminRestore, isStorageRoots, isStorageDirectories, isBackupPreview, isAdminLogs, isImportPreview, isImportResults, isAdminJob, isAdminJobs, isAdminSystem, isAdminMetadataProvider, isAdminUser, isAdminUsers, isCapabilities, isDevice, isDocument, isInsights, isMetadataMatch, isMetadataMatches, isManagedDevice, isManagedDevices, isInsightActivity, isInsightProgress, isInsightRankings, isPage, isProblem, isSession, isState, validated } from './validate';
 
 type S = components['schemas'];
 
@@ -114,6 +114,8 @@ export function createAPI(gate: SessionGate) {
     stageAdminRestore: (account: Account, file: File) => consume(client => client.POST('/api/v1/admin/restore', { body: file, bodySerializer: value => value, headers: { 'Content-Type': 'application/octet-stream' }, parseAs: 'stream' }), isAdminRestore, 200, account),
     applyAdminRestore: (account: Account, body: S['AdminRestoreApply']) => consume(client => client.PATCH('/api/v1/admin/restore', { body, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
     adminSystem: (account: Account, signal: AbortSignal) => consume(client => client.GET('/api/v1/admin/system', { signal, parseAs: 'stream' }), isAdminSystem, 200, account),
+    adminMetadataProvider: (account: Account, signal: AbortSignal) => consume(client => client.GET('/api/v1/admin/metadata-provider', { signal, parseAs: 'stream' }), isAdminMetadataProvider, 200, account),
+    setAdminMetadataProvider: (account: Account, provider: S['MetadataProvider']) => consume(client => client.PUT('/api/v1/admin/metadata-provider', { body: { provider }, parseAs: 'stream' }), isAdminMetadataProvider, 200, account),
     devices: (account: Account, signal: AbortSignal) => consume(client => client.GET('/api/v1/me/devices', { signal, parseAs: 'stream' }), isManagedDevices, 200, account),
     updateDevice: (account: Account, id: string, body: S['DevicePreferences']) => consume(client => client.PATCH('/api/v1/me/devices/{id}', { params: path(id), body, parseAs: 'stream' }), isManagedDevice, 200, account),
     insights: (account: Account, signal: AbortSignal) => consume(client => client.GET('/api/v1/me/insights', { signal, parseAs: 'stream' }), isInsights, 200, account),
@@ -130,6 +132,7 @@ export function createAPI(gate: SessionGate) {
     }), isDocument, 200, account),
     editDocument: (account: Account, id: string, body: S['DocumentEdit'], signal: AbortSignal) => consume(client => client.PATCH('/api/v1/documents/{id}', { params: path(id), body, signal, parseAs: 'stream' }), isDocument, 200, account),
     deleteDocument: (account: Account, id: string, signal: AbortSignal) => consume(client => client.DELETE('/api/v1/documents/{id}', { params: path(id), signal, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
+    confirmHardcoverMatch: (account: Account, id: string, body: S['HardcoverConfirmation'], signal: AbortSignal) => consume(client => client.POST('/api/v1/documents/{id}/identify', { params: path(id), body, signal, parseAs: 'stream' }), isDocument, 200, account),
     metadataCover: (account: Account, id: number, signal: AbortSignal) => binary(account, `/api/v1/metadata/covers/${id}?prefer_large=true`, signal),
     previewMetadataMatch: (account: Account, query: { work_id: string; edition_id?: string; isbn?: string }, signal: AbortSignal) => consume(client => client.GET('/api/v1/metadata/match', { params: { query }, signal, parseAs: 'stream' }), isMetadataMatch, 200, account),
     lookupMetadata: (account: Account, q: string, signal: AbortSignal) => consume(client => client.GET('/api/v1/metadata/search', { params: { query: { q } }, signal, parseAs: 'stream' }), isMetadataMatches, 200, account),

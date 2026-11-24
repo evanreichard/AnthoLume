@@ -5,6 +5,7 @@ services:
       - CONFIG_PATH=/data
       - DATA_PATH=/data
       - PUBLIC_ORIGIN=${PUBLIC_ORIGIN:?Set PUBLIC_ORIGIN to the exact HTTPS origin or loopback HTTP development origin}
+      - HARDCOVER_CATALOG_TOKEN
     ports:
       - "8585:8585"
     build: .

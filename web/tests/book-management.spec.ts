@@ -73,14 +73,14 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   let releaseSearch: () => void;
   const firstSearch = new Promise<void>(resolve => { releaseSearch = resolve; });
   await page.route('**/api/v1/metadata/search?*', async route => { await firstSearch; return route.fulfill({ json: [
-    { id: 'OL1W', title: 'Looked-up title', author: 'New author', year: 2022, edition_id: 'OL2M', cover_id: 42 },
-    { id: 'OL3W', title: longTitle, author: 'Another author', year: 2025 },
+    { provider: 'openlibrary', id: 'OL1W', title: 'Looked-up title', author: 'New author', year: 2022, edition_id: 'OL2M', cover_id: 42 },
+    { provider: 'openlibrary', id: 'OL3W', title: longTitle, author: 'Another author', year: 2025 },
   ] }); });
   let releaseMatch: () => void;
   const firstMatch = new Promise<void>(resolve => { releaseMatch = resolve; });
   await page.route('**/api/v1/metadata/match?*', async route => {
     await firstMatch;
-    await route.fulfill({ json: { id: 'OL1W', edition_id: 'OL2M', title: 'Looked-up title', author: '', description: 'Work synopsis from Open Library.', isbn10: '0765391198', isbn13: '9780765391193', cover_id: 42 } });
+    await route.fulfill({ json: { provider: 'openlibrary', id: 'OL1W', edition_id: 'OL2M', title: 'Looked-up title', author: '', description: 'Work synopsis from Open Library.', isbn10: '0765391198', isbn13: '9780765391193', cover_id: 42 } });
   });
   await page.route('**/api/v1/metadata/covers/42', route => route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(cover, 'base64') }));
   await page.route('**/api/v1/metadata/covers/42?prefer_large=true', route => route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(largeCover, 'base64') }));
@@ -227,4 +227,66 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(page).toHaveURL(`${server.origin}/library`);
   await expect(appliedTitle).toHaveCount(0);
+});
+
+test('Hardcover preview can link without edits or apply just the selected fields', async ({ page, server }) => {
+  await register(page, server.origin, 'hardcover-catalog-reader');
+  const document = await (await page.request.get(`${server.origin}/api/v1/documents/book_001`)).json();
+  const work = { provider: 'hardcover', id: '42', title: 'Hardcover Title', author: 'Verified Author', description: 'Catalog synopsis' };
+  const edition = { ...work, edition_id: '91', isbn13: '9780765391193' };
+  const confirmed: unknown[] = [];
+  await page.route('**/api/v1/metadata/search?*', route => {
+    const q = new URL(route.request().url()).searchParams.get('q');
+    expect(['Verified Author', '978-0765391193']).toContain(q);
+    return route.fulfill({ json: [q === 'Verified Author' ? work : edition] });
+  });
+  await page.route('**/api/v1/metadata/match?*', route => {
+    const url = new URL(route.request().url());
+    expect(url.searchParams.get('work_id')).toBe('42');
+    if (url.searchParams.has('edition_id')) {
+      expect(url.searchParams.get('edition_id')).toBe('91');
+      expect(url.searchParams.get('isbn')).toBe('9780765391193');
+      return route.fulfill({ json: edition });
+    }
+    return route.fulfill({ json: work });
+  });
+  let current = document;
+  await page.route('**/api/v1/documents/book_001', route => route.fulfill({ json: current }));
+  await page.route('**/api/v1/documents/book_001/identify', route => {
+    const body = route.request().postDataJSON();
+    confirmed.push(body);
+    if (body.fields.length) current = { ...document, title: work.title, isbn13: edition.isbn13 };
+    return route.fulfill({ json: current });
+  });
+  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Identify Book' });
+  const preview = async (query: string) => {
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('button', { name: 'Identify', exact: true }).click();
+    await dialog.getByRole('searchbox').fill(query);
+    await dialog.getByRole('button', { name: 'Search', exact: true }).click();
+    await dialog.getByRole('button', { name: /Hardcover Title.*Verified Author/ }).click();
+    await expect(dialog.getByRole('region', { name: 'Match preview' })).toBeVisible();
+    await expect(dialog.getByText('Catalog synopsis')).toBeVisible();
+    await expect(dialog.getByRole('radio')).toHaveCount(0);
+  };
+  await preview('Verified Author');
+  expect(confirmed).toEqual([]);
+  const link = dialog.getByRole('button', { name: 'Link Book', exact: true });
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    await link.click({ trial: true });
+  }
+  await link.click();
+  await expect(dialog).toHaveCount(0);
+  expect(confirmed).toEqual([{ work_id: '42', fields: [] }]);
+  await expect(page.getByRole('heading', { name: 'Public book 01', exact: true })).toBeVisible();
+
+  await preview('978-0765391193');
+  await expect(dialog.getByText(/ISBN match/)).toBeVisible();
+  await dialog.getByRole('button', { name: 'Title', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Link and Apply 2 Changes' }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(confirmed[1]).toEqual({ work_id: '42', edition_id: '91', isbn: '9780765391193', fields: ['isbn13', 'title'] });
+  await expect(page.getByRole('heading', { name: work.title, exact: true })).toBeVisible();
 });

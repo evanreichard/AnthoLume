@@ -48,7 +48,14 @@ type webFailure struct {
 
 func (e *webFailure) Error() string { return e.code }
 func problem(status int, code string) Problem {
-	return Problem{Type: "urn:antholume:problem:" + code, Title: http.StatusText(status), Status: status, Code: code, Detail: "The request could not be completed."}
+	detail := "The request could not be completed."
+	switch code {
+	case "hardcover_catalog_unconfigured":
+		detail = "Set HARDCOVER_CATALOG_TOKEN and restart the server to enable Hardcover."
+	case "metadata_provider_changed":
+		detail = "The active metadata provider changed. Search again to identify this book."
+	}
+	return Problem{Type: "urn:antholume:problem:" + code, Title: http.StatusText(status), Status: status, Code: code, Detail: detail}
 }
 func abortProblem(c *gin.Context, status int, code string) {
 	abortWithProblem(c, problem(status, code))

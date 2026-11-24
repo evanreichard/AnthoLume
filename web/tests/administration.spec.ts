@@ -3,6 +3,35 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import JSZip from 'jszip';
 import { expect, register, signIn, test } from './fixtures';
 
+test('Metadata provider defaults to Open Library and explains missing Hardcover token', async ({ page, server }) => {
+  await register(page, server.origin, 'metadata-owner');
+  const db = new DatabaseSync(`${server.data}/browser.db`);
+  try {
+    db.prepare('UPDATE users SET admin=1 WHERE id=?').run('metadata-owner');
+    await page.goto(`${server.origin}/admin/library`);
+    const providers = page.getByRole('group', { name: 'Metadata provider' });
+    const openLibrary = providers.getByRole('radio', { name: 'Open Library' });
+    const hardcover = providers.getByRole('radio', { name: 'Hardcover' });
+    await expect(openLibrary).toBeChecked();
+    await expect(hardcover).toBeDisabled();
+    await expect(hardcover).toHaveAccessibleDescription('Set HARDCOVER_CATALOG_TOKEN and restart the server to enable Hardcover.');
+    db.prepare("INSERT INTO metadata_provider (id, provider) VALUES (1, 'hardcover')").run();
+    await page.reload();
+    await expect(page.getByText(/Open Library is active because .* no longer has a catalog token/)).toBeVisible();
+    await expect(hardcover).toBeChecked();
+    await expect(hardcover).toBeDisabled();
+    for (const width of [320, 390, 1280]) {
+      await page.setViewportSize({ width, height: 844 });
+      await openLibrary.click({ trial: true });
+    }
+    await openLibrary.click();
+    await expect(openLibrary).toBeChecked();
+    await page.reload();
+    await expect(openLibrary).toBeChecked();
+    await expect(page.getByText(/Open Library is active because/)).toHaveCount(0);
+  } finally { db.close(); }
+});
+
 test('Import lists independent rules and opens editors on demand', async ({ page, server }, testInfo) => {
   await register(page, server.origin, 'auto-import-owner');
   const db = new DatabaseSync(`${server.data}/browser.db`);

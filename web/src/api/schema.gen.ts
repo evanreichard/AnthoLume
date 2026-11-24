@@ -161,6 +161,24 @@ export interface paths {
         patch: operations["editDocument"];
         trace?: never;
     };
+    "/api/v1/documents/{id}/identify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["confirmHardcoverMatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/metadata/search": {
         parameters: {
             query?: never;
@@ -603,6 +621,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/metadata-provider": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAdminMetadataProvider"];
+        put: operations["setAdminMetadataProvider"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/auto-import": {
         parameters: {
             query?: never;
@@ -958,12 +992,33 @@ export interface components {
             cover_base64?: string;
             remove_cover?: boolean;
         };
+        /** @enum {string} */
+        MetadataProvider: "openlibrary" | "hardcover";
+        MetadataProviderChoice: {
+            provider: components["schemas"]["MetadataProvider"];
+        };
+        AdminMetadataProvider: {
+            selected: components["schemas"]["MetadataProvider"];
+            effective: components["schemas"]["MetadataProvider"];
+            hardcover_available: boolean;
+        };
+        HardcoverCatalogID: string;
+        MetadataWorkID: string;
+        MetadataEditionID: string;
+        HardcoverConfirmation: {
+            work_id: components["schemas"]["HardcoverCatalogID"];
+            edition_id?: components["schemas"]["HardcoverCatalogID"];
+            isbn?: string;
+            /** @description Metadata fields to copy from the verified match. An empty array only links the work. */
+            fields: ("title" | "author" | "description" | "isbn10" | "isbn13")[];
+        };
         MetadataMatch: {
-            id: string;
+            provider: components["schemas"]["MetadataProvider"];
+            id: components["schemas"]["MetadataWorkID"];
             title: string;
             author: string;
             year?: number;
-            edition_id?: string;
+            edition_id?: components["schemas"]["MetadataEditionID"];
             publisher?: string;
             published?: string;
             /** Format: int64 */
@@ -1448,6 +1503,38 @@ export interface operations {
             default: components["responses"]["Problem"];
         };
     };
+    confirmHardcoverMatch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HardcoverConfirmation"];
+            };
+        };
+        responses: {
+            /** @description Book linked to a verified Hardcover work, with selected fields applied */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Document"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
     lookupMetadata: {
         parameters: {
             query: {
@@ -1474,8 +1561,8 @@ export interface operations {
     previewMetadataMatch: {
         parameters: {
             query: {
-                work_id: string;
-                edition_id?: string;
+                work_id: components["schemas"]["MetadataWorkID"];
+                edition_id?: components["schemas"]["MetadataEditionID"];
                 isbn?: string;
             };
             header?: never;
@@ -2377,6 +2464,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminStorageDirectories"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getAdminMetadataProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Selected and effective provider and Hardcover availability */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminMetadataProvider"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    setAdminMetadataProvider: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MetadataProviderChoice"];
+            };
+        };
+        responses: {
+            /** @description Saved metadata provider choice */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminMetadataProvider"];
                 };
             };
             default: components["responses"]["Problem"];
