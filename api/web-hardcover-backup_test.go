@@ -4,14 +4,12 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"database/sql"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"reichard.io/antholume/database"
 )
 
 func TestPortableBackupsOmitHardcoverCredentials(t *testing.T) {
@@ -76,13 +74,8 @@ func TestRestoreRejectsSnapshotWithHardcoverCredentials(t *testing.T) {
 
 func TestRestoreMigratesSnapshotBeforeHardcover(t *testing.T) {
 	ctx := context.Background()
-	name := filepath.Join(t.TempDir(), adminBackupName)
-	old, err := sql.Open("sqlite", name)
-	require.NoError(t, err)
-	require.NoError(t, database.InitHistoricalSchema(ctx, old, database.ScopedDevicesSchemaVersion))
-	_, err = old.Exec(`INSERT INTO users(id,pass,auth_hash,admin) VALUES ('owner','pass','hash',1);
-INSERT INTO documents(id,title) VALUES ('book','Before Hardcover');`)
-	require.NoError(t, err)
+	name, old := copyPreReactBackup(t)
+	upgradeTestBackupTo(t, old, 20261126000001)
 	require.NoError(t, old.Close())
 	payload, err := os.ReadFile(name)
 	require.NoError(t, err)
@@ -90,6 +83,6 @@ INSERT INTO documents(id,title) VALUES ('book','Before Hardcover');`)
 	f := newWebFixture(t)
 	require.NoError(t, f.api.RestoreFreshInstance(ctx, bytes.NewReader(payload)))
 	require.Equal(t, 1, f.count("users"))
-	require.Equal(t, 1, f.count("documents"))
+	require.Equal(t, 2, f.count("documents"))
 	require.Zero(t, f.count("hardcover_links"))
 }

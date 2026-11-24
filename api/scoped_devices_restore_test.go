@@ -3,23 +3,17 @@ package api
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"reichard.io/antholume/database"
 )
 
 func TestRestoreMigratesPreviouslyGlobalDevices(t *testing.T) {
 	ctx := context.Background()
-	name := filepath.Join(t.TempDir(), adminBackupName)
-	old, err := sql.Open("sqlite", name)
-	require.NoError(t, err)
-	old.SetMaxOpenConns(1)
-	require.NoError(t, database.InitHistoricalSchema(ctx, old, database.ReactSchemaVersion))
-	_, err = old.Exec(`INSERT INTO users(id,pass,auth_hash,admin) VALUES ('alice','pass','alice',1),('bob','pass','bob',0);
+	name, old := copyPreReactBackup(t)
+	upgradeTestBackupTo(t, old, 20261126000000)
+	_, err := old.Exec(`INSERT INTO users(id,pass,auth_hash,admin) VALUES ('alice','pass','alice',1),('bob','pass','bob',0);
 INSERT INTO documents(id) VALUES('book');
 INSERT INTO devices(id,user_id,device_name) VALUES ('reader','alice','Alice reader'),('bob-alias','bob','Bob reader');
 INSERT INTO kosync_device_aliases VALUES ('bob','reader','bob-alias');

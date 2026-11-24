@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
-	"reichard.io/antholume/database"
+	dbmigrations "reichard.io/antholume/database/migrations"
 )
 
 func TestRestoreMigratesPreReactBackup(t *testing.T) {
@@ -60,7 +61,7 @@ func TestRestoreMigratesPreReactBackup(t *testing.T) {
 	}
 }
 
-func TestRestoreCustomDatabaseMemberRequiresPreReactSchema(t *testing.T) {
+func TestRestoreCustomDatabaseMember(t *testing.T) {
 	f := newWebFixture(t)
 	f.register("owner")
 	name := filepath.Join(t.TempDir(), adminBackupName)
@@ -69,28 +70,42 @@ func TestRestoreCustomDatabaseMemberRequiresPreReactSchema(t *testing.T) {
 	require.NoError(t, err)
 	payload := zipStoragePaths(t, "custom.db", current, nil, nil)
 	response := f.call("POST", "/api/v1/admin/restore", string(payload), map[string]string{"Content-Type": "application/octet-stream"})
-	assertProblem(t, response, 400, "incompatible_restore_database")
+	require.Equal(t, 200, response.status, string(response.body))
+	candidate := decodeWeb[AdminRestore](t, response)
+	applied := f.call("PATCH", "/api/v1/admin/restore", AdminRestoreApply{Token: candidate.Token}, nil)
+	require.Equal(t, 204, applied.status, string(applied.body))
 }
 
-func TestRestoreRejectsUnknownHistoricalSchemaAndNewerVersion(t *testing.T) {
+func TestRestoreMigrationsPreserveExtraSchema(t *testing.T) {
+	name, source := copyPreReactBackup(t)
+	_, err := source.Exec(`CREATE TABLE custom_metadata (note TEXT); INSERT INTO custom_metadata VALUES ('keep me')`)
+	require.NoError(t, err)
+	require.NoError(t, source.Close())
+	payload, err := os.ReadFile(name)
+	require.NoError(t, err)
+
+	f := newWebFixture(t)
+	f.register("destination-owner")
+	response := f.call("POST", "/api/v1/admin/restore", string(payload), map[string]string{"Content-Type": "application/octet-stream"})
+	require.Equal(t, 200, response.status, string(response.body))
+	candidate := decodeWeb[AdminRestore](t, response)
+	applied := f.call("PATCH", "/api/v1/admin/restore", AdminRestoreApply{Token: candidate.Token}, nil)
+	require.Equal(t, 204, applied.status, string(applied.body))
+	var note string
+	require.NoError(t, f.db.DB.QueryRow(`SELECT note FROM custom_metadata`).Scan(&note))
+	require.Equal(t, "keep me", note)
+}
+
+func TestRestoreRejectsFailedMigrationAndNewerVersion(t *testing.T) {
 	f := newWebFixture(t)
 	f.register("owner")
-	for _, kind := range []string{"unknown historical schema", "newer version"} {
-		t.Run(kind, func(t *testing.T) {
-			ctx := context.Background()
-			name := filepath.Join(t.TempDir(), adminBackupName)
-			if kind == "newer version" {
-				require.NoError(t, f.api.writeVerifiedSnapshot(ctx, name))
-			}
-			snapshot, err := sql.Open("sqlite", name)
-			require.NoError(t, err)
-			snapshot.SetMaxOpenConns(1)
-			if kind == "unknown historical schema" {
-				require.NoError(t, database.InitHistoricalSchema(ctx, snapshot, database.PreReactSchemaVersion))
-				_, err = snapshot.Exec(`CREATE TABLE unexpected_table (key TEXT)`)
-			} else {
-				_, err = snapshot.Exec(`INSERT INTO goose_db_version(version_id,is_applied) VALUES (99999999999999,1)`)
-			}
+	for _, tc := range []struct{ name, damage string }{
+		{"migration failure", `ALTER TABLE documents RENAME TO missing_documents`},
+		{"newer version", `INSERT INTO goose_db_version(version_id,is_applied) VALUES (99999999999999,1)`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			name, snapshot := copyPreReactBackup(t)
+			_, err := snapshot.Exec(tc.damage)
 			require.NoError(t, err)
 			require.NoError(t, snapshot.Close())
 			payload, err := os.ReadFile(name)
@@ -99,7 +114,31 @@ func TestRestoreRejectsUnknownHistoricalSchemaAndNewerVersion(t *testing.T) {
 			assertProblem(t, response, 400, "incompatible_restore_database")
 			_, err = os.Stat(filepath.Join(f.api.adminBackupDir(), "restore-ready"))
 			require.ErrorIs(t, err, os.ErrNotExist)
-			require.Equal(t, 1, f.count("users"))
+			var owner string
+			require.NoError(t, f.db.DB.QueryRow(`SELECT id FROM users`).Scan(&owner))
+			require.Equal(t, "owner", owner)
 		})
 	}
+}
+
+func copyPreReactBackup(t *testing.T) (string, *sql.DB) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "pre-react.db"))
+	require.NoError(t, err)
+	name := filepath.Join(t.TempDir(), adminBackupName)
+	require.NoError(t, os.WriteFile(name, data, 0600))
+	db, err := sql.Open("sqlite", name)
+	require.NoError(t, err)
+	db.SetMaxOpenConns(1)
+	t.Cleanup(func() { db.Close() })
+	return name, db
+}
+
+func upgradeTestBackupTo(t *testing.T, db *sql.DB, version int64) {
+	t.Helper()
+	provider, err := goose.NewProvider(goose.DialectSQLite3, db, os.DirFS("../database/migrations"))
+	require.NoError(t, err)
+	ctx := dbmigrations.WithRestoreStorageDataPath(context.Background(), t.TempDir())
+	_, err = provider.UpTo(ctx, version)
+	require.NoError(t, err)
 }

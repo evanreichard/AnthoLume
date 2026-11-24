@@ -103,8 +103,7 @@ func (dbm *DBManager) init(ctx context.Context) error {
 			return err
 		}
 	}
-	err = dbm.performMigrations(isNew)
-	if err != nil && err != goose.ErrNoMigrationFiles {
+	if err := migrate(dbmigrations.WithStorageDataPath(ctx, dbm.cfg.DataPath), dbm.DB, isNew); err != nil && err != goose.ErrNoMigrationFiles {
 		log.Panicf("Error running DB migrations: %v", err)
 		return err
 	}
@@ -226,24 +225,6 @@ func (dbm *DBManager) updateSettings(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// performMigrations runs all migrations
-func (dbm *DBManager) performMigrations(isNew bool) error {
-	// Create context
-	ctx := context.WithValue(context.Background(), "isNew", isNew) // nolint
-	ctx = dbmigrations.WithStorageDataPath(ctx, dbm.cfg.DataPath)
-
-	// Set DB migration
-	goose.SetBaseFS(migrations)
-
-	// Run migrations
-	goose.SetLogger(log.StandardLogger())
-	if err := goose.SetDialect("sqlite"); err != nil {
-		return err
-	}
-
-	return goose.UpContext(ctx, dbm.DB, "migrations")
 }
 
 // isEmpty determines whether the database is empty

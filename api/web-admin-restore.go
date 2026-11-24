@@ -11,10 +11,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
-	"regexp"
-	"slices"
-	"strings"
 	"syscall"
 	"time"
 
@@ -41,56 +37,6 @@ func snapshotURI(name string) string {
 	return (&url.URL{Scheme: "file", Path: name, RawQuery: "mode=ro&_pragma=trusted_schema(OFF)"}).String()
 }
 
-var (
-	backupSQLToken     = regexp.MustCompile(`'(?:''|[^'])*'|[a-zA-Z_][a-zA-Z_0-9]*|[0-9]+|[^\s]`)
-	backupMovedColumns = map[string][]*regexp.Regexp{
-		"documents": {regexp.MustCompile(`,\s*basepath TEXT\b`), regexp.MustCompile(`,\s*storage_root_id TEXT REFERENCES storage_roots\s*\(id\)`)},
-		"users":     {regexp.MustCompile(`,\s*auth_hash TEXT NOT NULL\b`), regexp.MustCompile(`,\s*timezone TEXT NOT NULL DEFAULT 'Europe/London'`)},
-	}
-)
-
-// Historical table layouts append these columns rather than placing them in their current positions.
-// Move only the known clauses; keep other columns, constraints, triggers, and indexes in the comparison.
-func backupTableSchema(name, ddl string) string {
-	columns, moved := backupMovedColumns[name]
-	if !moved && name != "storage_roots" {
-		return ddl
-	}
-	var suffix string
-	for _, column := range columns {
-		match := column.FindStringIndex(ddl)
-		if match == nil {
-			return ddl
-		}
-		suffix += ddl[match[0]:match[1]]
-		ddl = ddl[:match[0]] + ddl[match[1]:]
-	}
-	return strings.Join(backupSQLToken.FindAllString(ddl+suffix, -1), " ")
-}
-
-func snapshotSchema(ctx context.Context, db *sql.DB) ([][4]string, error) {
-	rows, err := db.QueryContext(ctx, `SELECT type,name,tbl_name,coalesce(sql,'') FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var schema [][4]string
-	for rows.Next() {
-		var r [4]string
-		if err := rows.Scan(&r[0], &r[1], &r[2], &r[3]); err != nil {
-			return nil, err
-		}
-		if r[0] == "table" {
-			r[3] = backupTableSchema(r[1], r[3])
-		}
-		schema = append(schema, r)
-		if len(schema) > 10000 {
-			return nil, errors.New("schema too large")
-		}
-	}
-	return schema, rows.Err()
-}
-
 func (api *API) validateRestoreDB(ctx context.Context, name string) error {
 	info, err := os.Stat(name)
 	if err != nil {
@@ -104,17 +50,6 @@ func (api *API) validateRestoreDB(ctx context.Context, name string) error {
 		return err
 	}
 	defer db.Close()
-	expected, err := snapshotSchema(ctx, api.db.DB)
-	if err != nil {
-		return err
-	}
-	actual, err := snapshotSchema(ctx, db)
-	if !slices.ContainsFunc(actual, func(entry [4]string) bool { return entry[0] == "table" && entry[1] == "auto_import_rules" }) {
-		expected = slices.DeleteFunc(expected, func(entry [4]string) bool { return entry[0] == "table" && entry[1] == "auto_import_rules" })
-	}
-	if err != nil || !reflect.DeepEqual(expected, actual) {
-		return errors.New("restore requires a database with this server's schema")
-	}
 	const latestApplied = `SELECT COALESCE(MAX(version_id), 0) FROM goose_db_version WHERE is_applied = 1`
 	var liveVersion, backupVersion int64
 	if err := api.db.DB.QueryRowContext(ctx, latestApplied).Scan(&liveVersion); err != nil {

@@ -83,12 +83,12 @@ func TestReferenceImportRejectsNonportableCatalogPath(t *testing.T) {
 	require.Zero(t, count)
 }
 
-func TestStoragePathRestoreLegacyBackups(t *testing.T) {
+func TestRestoreNormalizesLegacyPaths(t *testing.T) {
 	for _, format := range []string{"database", "archive"} {
 		t.Run(format, func(t *testing.T) {
 			f := newWebFixture(t)
 			f.register("owner")
-			f.exec(`UPDATE users SET admin=1 WHERE id='owner'; INSERT INTO documents(id,filepath,coverfile,storage_root_id) VALUES ('legacy','./book.epub','./cover.png','library'); DROP TABLE auto_import_rules; DELETE FROM goose_db_version WHERE version_id>=20261126000000`)
+			f.exec(`UPDATE users SET admin=1 WHERE id='owner'; INSERT INTO documents(id,filepath,coverfile,storage_root_id) VALUES ('legacy','./book.epub','./cover.png','library')`)
 			ctx := context.Background()
 			snapshot := filepath.Join(t.TempDir(), adminBackupName)
 			require.NoError(t, f.api.writeVerifiedSnapshot(ctx, snapshot))
