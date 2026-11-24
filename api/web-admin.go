@@ -154,19 +154,17 @@ func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestOb
 	if r.Id == principal.UserName {
 		return nil, adminFailure(409, "current_admin")
 	}
-	var deleted authData
-	var encrypted []byte
+	var deleted database.GetHardcoverLinkForUserDeletionRow
 	err := s.adminTransaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
-		if err := tx.QueryRowContext(ctx, `SELECT a.account_id, g.generation, h.credential
-			FROM account_identities a CROSS JOIN reading_generation g
-			LEFT JOIN hardcover_links h ON h.account_id = a.account_id
-			WHERE a.user_id = ? AND g.singleton = 1`, r.Id).Scan(&deleted.AccountID, &deleted.Generation, &encrypted); err != nil {
+		q := s.api.db.Queries.WithTx(tx)
+		var err error
+		deleted, err = q.GetHardcoverLinkForUserDeletion(ctx, r.Id)
+		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return adminFailure(404, "user_not_found")
 			}
 			return err
 		}
-		q := s.api.db.Queries.WithTx(tx)
 		if err := q.DeleteAdminUserStatistics(ctx, r.Id); err != nil {
 			return err
 		}
@@ -185,7 +183,7 @@ func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestOb
 	if err != nil {
 		return nil, err
 	}
-	s.api.revokeDeletedHardcoverLink(requestContext(ctx), hardcoverAccountKey(deleted), encrypted)
+	s.api.revokeDeletedHardcoverLink(requestContext(ctx), hardcoverAccountKey(authData{AccountID: deleted.AccountID, Generation: deleted.Generation}), deleted.Credential)
 	return DeleteAdminUser204Response{}, nil
 }
 

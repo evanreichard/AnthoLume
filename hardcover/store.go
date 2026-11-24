@@ -9,6 +9,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"reichard.io/antholume/database"
 )
 
 var errStorage = errors.New("hardcover: credential storage unavailable")
@@ -22,7 +24,7 @@ type credential struct {
 }
 
 type credentialStore struct {
-	db *sql.DB
+	queries *database.Queries
 	cipher.AEAD
 }
 
@@ -45,16 +47,13 @@ func newCredentialStore(db *sql.DB, key []byte) (credentialStore, error) {
 		return credentialStore{}, errStorage
 	}
 	aead, err := cipher.NewGCMWithRandomNonce(block)
-	return credentialStore{db, aead}, err
+	return credentialStore{database.New(db), aead}, err
 }
 
-const currentGeneration = `EXISTS (SELECT 1 FROM reading_generation WHERE singleton = 1 AND generation = ?)`
-
 func (s credentialStore) load(ctx context.Context, account accountRef) (credential, []byte, error) {
-	var blob []byte
-	err := s.db.QueryRowContext(ctx, `SELECT l.credential FROM account_identities a
-		LEFT JOIN hardcover_links l USING (account_id) WHERE a.account_id = ? AND `+currentGeneration,
-		account.id, account.generation).Scan(&blob)
+	blob, err := s.queries.GetHardcoverCredential(ctx, database.GetHardcoverCredentialParams{
+		AccountID: account.id, Generation: account.generation,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return credential{}, nil, ErrNotConnected
 	}
@@ -89,19 +88,16 @@ func (s credentialStore) save(ctx context.Context, account accountRef, old []byt
 	}
 	defer clear(plain)
 	blob := s.Seal(nil, nil, plain, []byte(account.id))
-	var result sql.Result
+	var count int64
 	if old == nil {
-		result, err = s.db.ExecContext(ctx, `INSERT INTO hardcover_links (account_id, credential)
-			SELECT account_id, ? FROM account_identities WHERE account_id = ? AND `+currentGeneration+`
-			ON CONFLICT(account_id) DO NOTHING`, blob, account.id, account.generation)
+		count, err = s.queries.InsertHardcoverCredential(ctx, database.InsertHardcoverCredentialParams{
+			AccountID: account.id, Generation: account.generation, Credential: blob,
+		})
 	} else {
-		result, err = s.db.ExecContext(ctx, `UPDATE hardcover_links SET credential = ?
-			WHERE account_id = ? AND credential = ? AND `+currentGeneration, blob, account.id, old, account.generation)
+		count, err = s.queries.ReplaceHardcoverCredential(ctx, database.ReplaceHardcoverCredentialParams{
+			AccountID: account.id, Generation: account.generation, Credential: blob, Previous: old,
+		})
 	}
-	if err != nil {
-		return nil, errStorage
-	}
-	count, err := result.RowsAffected()
 	if err != nil {
 		return nil, errStorage
 	}
@@ -112,9 +108,9 @@ func (s credentialStore) save(ctx context.Context, account accountRef, old []byt
 }
 
 func (s credentialStore) remove(ctx context.Context, account accountRef) ([]byte, error) {
-	var blob []byte
-	err := s.db.QueryRowContext(ctx, `DELETE FROM hardcover_links WHERE account_id = ? AND `+currentGeneration+
-		` RETURNING credential`, account.id, account.generation).Scan(&blob)
+	blob, err := s.queries.RemoveHardcoverCredential(ctx, database.RemoveHardcoverCredentialParams{
+		AccountID: account.id, Generation: account.generation,
+	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, errStorage
 	}
