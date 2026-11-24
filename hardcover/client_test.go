@@ -36,6 +36,7 @@ type providerFixture struct {
 	onProfile      func()
 	shelfStatus    func(token string) int
 	revokeRedirect string
+	reuseOnConnect string
 	refreshes      atomic.Int32
 	lastRevoked    atomic.Value
 }
@@ -116,7 +117,16 @@ func (f *providerFixture) start(t *testing.T) (*sql.DB, func() *Client) {
 					expires = f.expires
 				}
 			}
-			fmt.Fprintf(w, `{"access_token":"hc_at_%s","refresh_token":"hc_rt_%s","expires_in":%d,"token_type":"Bearer"}`, pair, pair, expires)
+			access, refresh := pair, pair
+			if pair == "again" {
+				switch f.reuseOnConnect {
+				case "access":
+					access = "alice"
+				case "refresh":
+					refresh = "alice"
+				}
+			}
+			fmt.Fprintf(w, `{"access_token":"hc_at_%s","refresh_token":"hc_rt_%s","expires_in":%d,"token_type":"Bearer"}`, access, refresh, expires)
 		case "/oauth2/revoke":
 			token := r.PostForm.Get("token")
 			hint := "refresh_token"
@@ -212,6 +222,71 @@ func TestOAuthConsentAndPrivateShelf(t *testing.T) {
 	require.ErrorIs(t, err, ErrNotConnected)
 	_, err = c.Status(otherAccount)
 	require.NoError(t, err)
+}
+
+func TestReconnectRevokesOnlyReplacedSession(t *testing.T) {
+	for _, tc := range []struct{ name, reuse, redirect string }{
+		{name: "new session"},
+		{name: "revocation failure", redirect: "/unavailable"},
+		{name: "reused access token", reuse: "access"},
+		{name: "reused refresh token", reuse: "refresh"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &providerFixture{reuseOnConnect: tc.reuse, revokeRedirect: tc.redirect}
+			_, open := f.start(t)
+			c, ctx := open(), context.Background()
+			require.NoError(t, c.Connect(ctx, account, "alice", verifier))
+			require.NoError(t, c.Connect(ctx, account, "again", verifier))
+			if tc.reuse == "" {
+				require.Equal(t, "hc_rt_alice", f.lastRevoked.Load())
+			} else {
+				require.Nil(t, f.lastRevoked.Load())
+			}
+			f.shelfStatus = func(token string) int {
+				if token == "Bearer hc_at_again" || tc.reuse == "access" && token == "Bearer hc_at_alice" {
+					return http.StatusOK
+				}
+				return http.StatusServiceUnavailable
+			}
+			_, err := open().Shelf(ctx, account, 0)
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestLosingReconnectDoesNotRevokeWinningTokens(t *testing.T) {
+	f := &providerFixture{}
+	_, open := f.start(t)
+	c, ctx := open(), context.Background()
+	require.NoError(t, c.Connect(ctx, account, "alice", verifier))
+	var nested atomic.Bool
+	f.onProfile = func() {
+		if !nested.Swap(true) {
+			assert.NoError(t, open().Connect(ctx, account, "again", verifier))
+		}
+	}
+	require.ErrorIs(t, c.Connect(ctx, account, "again", verifier), ErrNotConnected)
+	require.Equal(t, "hc_rt_alice", f.lastRevoked.Load())
+}
+
+func TestCanceledShelfPersistsInFlightRefresh(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	f := &providerFixture{expires: 1, onRefresh: cancel}
+	_, open := f.start(t)
+	c := open()
+	require.NoError(t, c.Connect(ctx, account, "alice", verifier))
+	canceled, cancelBefore := context.WithCancel(ctx)
+	cancelBefore()
+	_, err := c.Shelf(canceled, account, 0)
+	require.Error(t, err)
+	require.Zero(t, f.refreshes.Load())
+
+	_, err = c.Shelf(ctx, account, 0)
+	require.ErrorIs(t, err, context.Canceled)
+	_, err = open().Shelf(context.Background(), account, 0)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, f.refreshes.Load())
 }
 
 func TestConcurrentRefreshPersistsReplacement(t *testing.T) {

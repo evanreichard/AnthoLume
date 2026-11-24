@@ -78,6 +78,71 @@ test('an unconfigured server never shows the Hardcover card, even after a stale 
   await expect(card).toHaveCount(0);
 });
 
+test('an initial Hardcover status error stays visible and can be retried', async ({ page, server }) => {
+  await register(page, server.origin, 'status-retry-reader');
+  let available = false;
+  await page.route(api, route => available
+    ? route.fulfill({ json: { enabled: true, username: 'Linked reader', reconnect_required: false } })
+    : route.fulfill({ status: 502, contentType: 'application/problem+json', json: { type: 'about:blank', title: 'Unavailable', status: 502, code: 'hardcover_unavailable', detail: 'Try later' } }));
+  await page.goto(`${server.origin}/settings`);
+  const card = page.getByRole('region', { name: 'Connections' });
+  await expect(card.getByText('Could not check your Hardcover connection.')).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Connect Hardcover' })).toHaveCount(0);
+  available = true;
+  await card.getByRole('button', { name: 'Retry Connection Check' }).click();
+  await expect(card.getByText('Connected as Linked reader')).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Retry Connection Check' })).toHaveCount(0);
+});
+
+for (const detection of ['loading another page', 'a status refresh']) {
+  test(`a disconnect detected by ${detection} clears the open Hardcover shelf`, async ({ page, server }) => {
+    await register(page, server.origin, 'remote-disconnect-reader');
+    let username: string | null = 'Linked reader';
+    let relinked = false;
+    let releaseShelf!: () => void;
+    const pendingShelf = new Promise<void>(resolve => { releaseShelf = resolve; });
+    await page.route(api, route => route.fulfill({ json: { enabled: true, username, reconnect_required: false } }));
+    await page.route(`${api}/shelf?*`, async route => {
+      if (!username) return route.fulfill({ status: 409, contentType: 'application/problem+json', json: { type: 'about:blank', title: 'Disconnected', status: 409, code: 'hardcover_not_connected', detail: 'No link' } });
+      const offset = Number(new URL(route.request().url()).searchParams.get('offset'));
+      if (relinked) {
+        await pendingShelf;
+        return route.fulfill({ json: { books: [{ id: 'new', title: 'New shelf book', author: '' }], next_offset: null } });
+      }
+      return route.fulfill({ json: { books: [{ id: `old-${offset}`, title: `Old shelf book ${offset}`, author: '' }], next_offset: offset + 1 } });
+    });
+    await page.goto(`${server.origin}/settings`);
+    const card = page.getByRole('region', { name: 'Connections' });
+    const preview = card.getByRole('button', { name: 'Hardcover', exact: true });
+    await preview.click();
+    const dialog = page.getByRole('dialog', { name: 'Want to Read' });
+    await expect(dialog.getByText('Old shelf book 0')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Load More Books' }).click();
+    await expect(dialog.getByText('Old shelf book 1')).toBeVisible();
+
+    username = null;
+    const rechecked = page.waitForResponse(response => response.url().endsWith('/me/hardcover') && response.ok());
+    if (detection === 'loading another page') await dialog.getByRole('button', { name: 'Load More Books' }).click();
+    else await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange', { bubbles: true })));
+    await rechecked;
+    await expect(dialog).toHaveCount(0);
+    await expect(card.getByRole('button', { name: 'Connect Hardcover' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Retry Loading Books' })).toHaveCount(0);
+
+    relinked = true;
+    username = 'Linked reader';
+    try {
+      await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange', { bubbles: true })));
+      await expect(preview).toBeVisible();
+      await expect(dialog).toHaveCount(0);
+      await preview.click();
+      await expect(dialog).toBeVisible();
+      await expect(dialog).not.toContainText('Old shelf book');
+    } finally { releaseShelf(); }
+    await expect(dialog).toContainText('New shelf book');
+  });
+}
+
 test('a revoked shelf switches to an account-bound reconnect action without a reload', async ({ page, server }) => {
   await register(page, server.origin, 'revoked-reader');
   const { user } = await (await page.request.get(`${server.origin}/api/v1/session`)).json();

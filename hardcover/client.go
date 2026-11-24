@@ -114,22 +114,23 @@ func (c *Client) Connect(ctx context.Context, account, code, verifier string) er
 		} `json:"me"`
 	}
 	if err := c.query(ctx, link.Access, `query AnthoLumeProfile { me { id username } }`, nil, &profile); err != nil {
-		_ = c.revokeToken(ctx, link)
+		c.revokeUnused(ctx, ref, link, previous)
 		return err
 	}
 	if len(profile.Me) != 1 || profile.Me[0].ID < 1 || strings.TrimSpace(profile.Me[0].Username) == "" {
-		_ = c.revokeToken(ctx, link)
+		c.revokeUnused(ctx, ref, link, previous)
 		return ErrProvider
 	}
 	link.UserID, link.Username = profile.Me[0].ID, profile.Me[0].Username
 	if previous.UserID != 0 && previous.UserID != link.UserID {
-		_ = c.revokeToken(ctx, link)
+		c.revokeUnused(ctx, ref, link, previous)
 		return ErrIdentity
 	}
 	if _, err := c.store.save(ctx, ref, blob, link); err != nil {
-		c.revokeDiscarded(ctx, link)
+		c.revokeUnused(ctx, ref, link, previous)
 		return err
 	}
+	c.revokeUnused(ctx, ref, previous, link)
 	return nil
 }
 
@@ -269,6 +270,12 @@ func (c *Client) readPage(ctx context.Context, link credential, offset int) (She
 }
 
 func (c *Client) refresh(ctx context.Context, account accountRef, blob []byte, old credential) (credential, []byte, error) {
+	if err := ctx.Err(); err != nil {
+		return credential{}, nil, err
+	}
+	// Finish Started Rotations - Closing the preview must not strand the replacement once we mark the old token spent.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), requestLimit)
+	defer cancel()
 	refreshToken := old.Refresh
 	// Spend Before Send - A crash or a lost response must not replay a rotating token.
 	old.Refresh = ""
@@ -287,15 +294,28 @@ func (c *Client) refresh(ctx context.Context, account accountRef, blob []byte, o
 	next.UserID, next.Username = old.UserID, old.Username
 	blob, err = c.store.save(ctx, account, spent, next)
 	if err != nil {
-		c.revokeDiscarded(ctx, next)
+		c.revokeUnused(ctx, account, next, old)
 	}
 	return next, blob, err
 }
 
-func (c *Client) revokeDiscarded(ctx context.Context, link credential) {
+func (c *Client) revokeUnused(ctx context.Context, account accountRef, unused, keep credential) {
+	if unused.Access == "" || unused.sharesToken(keep) {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), requestLimit)
 	defer cancel()
-	_ = c.revokeToken(ctx, link)
+	// Protect the CAS Winner - Another exchange may already have saved the same tokens, even under a new generation.
+	generation, err := c.store.queries.GetReadingGeneration(ctx)
+	if err != nil {
+		return
+	}
+	account.generation = generation
+	current, _, err := c.store.load(ctx, account)
+	if (err != nil && !errors.Is(err, ErrNotConnected)) || unused.sharesToken(current) {
+		return
+	}
+	_ = c.revokeToken(ctx, unused)
 }
 
 // In-Process Reads - Concurrent shelf reads should not see their own pending rotation as a broken link.

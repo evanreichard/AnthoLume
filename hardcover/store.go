@@ -23,6 +23,11 @@ type credential struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+func (c credential) sharesToken(other credential) bool {
+	return c.Access != "" && (c.Access == other.Access || c.Access == other.Refresh) ||
+		c.Refresh != "" && (c.Refresh == other.Access || c.Refresh == other.Refresh)
+}
+
 type credentialStore struct {
 	queries *database.Queries
 	cipher.AEAD
