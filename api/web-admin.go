@@ -6,9 +6,12 @@ import (
 	"errors"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/database"
+	"reichard.io/antholume/hardcover"
 )
 
 func adminFailure(status int, code string) error { return &webFailure{status: status, code: code} }
@@ -153,7 +156,16 @@ func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestOb
 	if r.Id == principal.UserName {
 		return nil, adminFailure(409, "current_admin")
 	}
+	var deleted authData
 	err := s.adminTransaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
+		if err := tx.QueryRowContext(ctx, `SELECT a.account_id, g.generation
+			FROM account_identities a CROSS JOIN reading_generation g
+			WHERE a.user_id = ? AND g.singleton = 1`, r.Id).Scan(&deleted.AccountID, &deleted.Generation); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return adminFailure(404, "user_not_found")
+			}
+			return err
+		}
 		q := s.api.db.Queries.WithTx(tx)
 		if err := q.DeleteAdminUserStatistics(ctx, r.Id); err != nil {
 			return err
@@ -170,7 +182,35 @@ func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestOb
 		}
 		return err
 	})
-	return DeleteAdminUser204Response{}, err
+	if err != nil {
+		return nil, err
+	}
+	s.api.cleanupDeletedHardcoverAccount(requestContext(ctx), hardcoverAccountKey(deleted))
+	return DeleteAdminUser204Response{}, nil
+}
+
+func (api *API) cleanupDeletedHardcoverAccount(ctx context.Context, account string) {
+	f := &api.hardcover
+	lock := f.accountLock(account)
+	lock.Lock()
+	defer lock.Unlock()
+	// Committed Deletion - An in-flight callback must finish before removal; waiting callbacks lose their pending state.
+	f.cancel(account)
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), hardcoverCallTimeout)
+	defer cancel()
+	if f.client == nil {
+		if err := hardcover.RemoveStoredLink(cleanupCtx, filepath.Join(api.cfg.ConfigPath, "hardcover"), account); err != nil {
+			log.Warn("Could not remove stored Hardcover credentials for a deleted account")
+		}
+		return
+	}
+	if err := f.client.Disconnect(cleanupCtx, account); err != nil && !errors.Is(err, hardcover.ErrNotConnected) {
+		if errors.Is(err, hardcover.ErrRevocationUnconfirmed) {
+			log.Warn("Hardcover revocation could not be confirmed for a deleted account")
+		} else {
+			log.Warn("Could not remove stored Hardcover credentials for a deleted account")
+		}
+	}
 }
 
 func (api *API) writeVerifiedSnapshot(ctx context.Context, filename string) error {

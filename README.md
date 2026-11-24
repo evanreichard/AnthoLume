@@ -44,6 +44,8 @@ The OPDS API endpoint is located at: `http(s)://<SERVER>/api/opds`
 
 Set `PUBLIC_ORIGIN` to the exact browser origin, with no trailing slash. Explicit default ports (`:443` for HTTPS, `:80` for HTTP) are omitted before matching browser requests. Use HTTPS for deployed instances. Loopback HTTP is allowed for local development. Cookies are always `HttpOnly` and use `Secure` when `PUBLIC_ORIGIN` is HTTPS.
 
+Optional Hardcover integration: register a [server-side OAuth app](https://hardcover.app/account/developer-apps/new) with redirect URI `{PUBLIC_ORIGIN}/oauth/hardcover/callback` and scopes `read:me:content` and `read:library`. Set `HARDCOVER_CLIENT_ID` and `HARDCOVER_CLIENT_SECRET` on the server. Readers can then choose **Settings → Connect Hardcover** to preview their Want to Read shelf. This does not request downloads or change reading status. Account links are stored under `CONFIG_PATH/hardcover`, outside portable backups; reconnect after restoring a backup.
+
 ```bash
 # Make Data Directory
 mkdir -p antholume_data

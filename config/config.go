@@ -35,6 +35,9 @@ type Config struct {
 	// Cookie Settings
 	CookieAuthKey string
 	CookieEncKey  string
+
+	HardcoverClientID     string
+	HardcoverClientSecret string
 }
 
 type customFormatter struct {
@@ -55,19 +58,21 @@ var version string = "develop"
 
 func Load() (*Config, error) {
 	c := &Config{
-		Version:             version,
-		PublicOrigin:        strings.TrimSpace(getEnv("PUBLIC_ORIGIN", "")),
-		ConfigPath:          getEnv("CONFIG_PATH", "/config"),
-		DataPath:            getEnv("DATA_PATH", "/data"),
-		ListenHost:          strings.TrimSpace(getEnv("LISTEN_HOST", "")),
-		ListenPort:          getEnv("LISTEN_PORT", "8585"),
-		DBType:              trimLowerString(getEnv("DATABASE_TYPE", "SQLite")),
-		DBName:              trimLowerString(getEnv("DATABASE_NAME", "antholume")),
-		RegistrationEnabled: trimLowerString(getEnv("REGISTRATION_ENABLED", "false")) == "true",
-		DemoMode:            trimLowerString(getEnv("DEMO_MODE", "false")) == "true",
-		CookieAuthKey:       trimLowerString(getEnv("COOKIE_AUTH_KEY", "")),
-		CookieEncKey:        trimLowerString(getEnv("COOKIE_ENC_KEY", "")),
-		LogLevel:            trimLowerString(getEnv("LOG_LEVEL", "info")),
+		Version:               version,
+		PublicOrigin:          strings.TrimSpace(getEnv("PUBLIC_ORIGIN", "")),
+		ConfigPath:            getEnv("CONFIG_PATH", "/config"),
+		DataPath:              getEnv("DATA_PATH", "/data"),
+		ListenHost:            strings.TrimSpace(getEnv("LISTEN_HOST", "")),
+		ListenPort:            getEnv("LISTEN_PORT", "8585"),
+		DBType:                trimLowerString(getEnv("DATABASE_TYPE", "SQLite")),
+		DBName:                trimLowerString(getEnv("DATABASE_NAME", "antholume")),
+		RegistrationEnabled:   trimLowerString(getEnv("REGISTRATION_ENABLED", "false")) == "true",
+		DemoMode:              trimLowerString(getEnv("DEMO_MODE", "false")) == "true",
+		CookieAuthKey:         trimLowerString(getEnv("COOKIE_AUTH_KEY", "")),
+		CookieEncKey:          trimLowerString(getEnv("COOKIE_ENC_KEY", "")),
+		LogLevel:              trimLowerString(getEnv("LOG_LEVEL", "info")),
+		HardcoverClientID:     getEnv("HARDCOVER_CLIENT_ID", ""),
+		HardcoverClientSecret: getEnv("HARDCOVER_CLIENT_SECRET", ""),
 	}
 
 	if err := c.ValidateConfigPath(); err != nil {

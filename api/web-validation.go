@@ -223,7 +223,7 @@ func (api *API) webBoundary(c *gin.Context) {
 		abortProblem(c, 429, "rate_limited")
 		return
 	}
-	if c.Request.Method == http.MethodDelete {
+	if c.Request.Method == http.MethodDelete || (c.Request.Method == http.MethodPost && path == "/api/v1/me/hardcover/connect") {
 		if c.Request.ContentLength != 0 {
 			abortProblem(c, 400, "invalid_request")
 			return

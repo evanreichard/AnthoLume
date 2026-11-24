@@ -1,10 +1,19 @@
 import createClient from 'openapi-fetch';
 import { createTransport } from './transport';
 import type { paths, components, operations } from './schema.gen';
+import { checkHardcoverConnect, checkHardcoverDisconnect, checkHardcoverShelf, checkHardcoverStatus } from './guards.gen.js';
 import { ReadingHTTPError, type Account, type ReadingBridge } from '../reading';
 import { InvalidResponse, isMakeLibraryPlan, isAdminAutoImport, isAdminRestore, isStorageRoots, isStorageDirectories, isBackupPreview, isAdminLogs, isImportPreview, isImportResults, isAdminJob, isAdminJobs, isAdminSystem, isAdminUser, isAdminUsers, isCapabilities, isDevice, isDocument, isInsights, isMetadataMatch, isMetadataMatches, isManagedDevice, isManagedDevices, isInsightActivity, isInsightProgress, isInsightRankings, isPage, isProblem, isSession, isState, validated } from './validate';
 
 type S = components['schemas'];
+
+function isHardcoverConnect(value: unknown): value is S['HardcoverConnect'] {
+  if (!checkHardcoverConnect(value)) return false;
+  try {
+    const url = new URL(value.authorization_url);
+    return url.origin === 'https://hardcover.app' && url.pathname === '/oauth2/authorize' && !url.username && !url.password;
+  } catch { return false; }
+}
 const configuredOrigin = new URL(import.meta.env.VITE_API_ORIGIN || window.location.origin);
 export const apiOrigin = configuredOrigin.origin;
 if (apiOrigin !== window.location.origin || configuredOrigin.pathname !== '/' || configuredOrigin.search || configuredOrigin.hash || configuredOrigin.username || configuredOrigin.password) throw new Error('VITE_API_ORIGIN must be the browser public origin. Configure the loopback proxy/PUBLIC_ORIGIN, not cross-origin credentials.');
@@ -74,6 +83,14 @@ export function createAPI(gate: SessionGate) {
     logout: (account: Account) => consume(() => scopedClient(account).POST('/api/v1/session/logout', { body: {}, parseAs: 'stream' }), isSession, 200),
     updatePreferences: (account: Account, timezone: string) => consume(client => client.PATCH('/api/v1/me/preferences', { body: { timezone }, parseAs: 'stream' }), isSession, 200, account),
     changePassword: (account: Account, body: S['PasswordChange']) => consume(client => client.POST('/api/v1/me/password', { body, parseAs: 'stream' }), isSession, 200, account),
+    hardcover: (account: Account, signal: AbortSignal) => consume(client => client.GET('/api/v1/me/hardcover', { signal, parseAs: 'stream' }), checkHardcoverStatus, 200, account),
+    connectHardcover: (account: Account, signal: AbortSignal) => consume(client => client.POST('/api/v1/me/hardcover/connect', { signal, parseAs: 'stream' }), isHardcoverConnect, 200, account),
+    disconnectHardcover: (account: Account, signal: AbortSignal) => consume(client => client.DELETE('/api/v1/me/hardcover', { signal, parseAs: 'stream' }), checkHardcoverDisconnect, 200, account),
+    hardcoverShelf: async (account: Account, offset: number, signal: AbortSignal) => {
+      const page = await consume(client => client.GET('/api/v1/me/hardcover/shelf', { signal, params: { query: { offset } }, parseAs: 'stream' }), checkHardcoverShelf, 200, account);
+      if (page.next_offset !== null && page.next_offset <= offset) throw new InvalidResponse();
+      return page;
+    },
     adminUsers: (account: Account, after: string, signal: AbortSignal) => consume(client => client.GET('/api/v1/admin/users', { signal, params: { query: { after } }, parseAs: 'stream' }), isAdminUsers, 200, account),
     createAdminUser: (account: Account, body: S['AdminUserCreate']) => consume(client => client.POST('/api/v1/admin/users', { body, parseAs: 'stream' }), isAdminUser, 201, account),
     updateAdminUser: (account: Account, id: string, body: S['AdminUserUpdate']) => consume(client => client.PATCH('/api/v1/admin/users/{id}', { params: path(id), body, parseAs: 'stream' }), isAdminUser, 200, account),

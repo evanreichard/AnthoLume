@@ -582,6 +582,39 @@ type DocumentPage struct {
 // EventID defines model for EventID.
 type EventID = string
 
+// HardcoverBook defines model for HardcoverBook.
+type HardcoverBook struct {
+	Author string `json:"author"`
+	Id     string `json:"id"`
+	Title  string `json:"title"`
+}
+
+// HardcoverConnect defines model for HardcoverConnect.
+type HardcoverConnect struct {
+	AuthorizationUrl string `json:"authorization_url"`
+}
+
+// HardcoverDisconnect defines model for HardcoverDisconnect.
+type HardcoverDisconnect struct {
+	// RevocationConfirmed True when Hardcover confirmed revocation or no local link existed.
+	RevocationConfirmed bool `json:"revocation_confirmed"`
+}
+
+// HardcoverShelf defines model for HardcoverShelf.
+type HardcoverShelf struct {
+	Books      []HardcoverBook `json:"books"`
+	NextOffset *int            `json:"next_offset"`
+}
+
+// HardcoverStatus defines model for HardcoverStatus.
+type HardcoverStatus struct {
+	Enabled bool `json:"enabled"`
+
+	// ReconnectRequired A saved link requires authorization from the same Hardcover account again.
+	ReconnectRequired bool    `json:"reconnect_required"`
+	Username          *string `json:"username"`
+}
+
 // ID defines model for ID.
 type ID = string
 
@@ -1035,6 +1068,29 @@ type UpdateDevicePreferencesParams struct {
 	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
 }
 
+// DisconnectHardcoverParams defines parameters for DisconnectHardcover.
+type DisconnectHardcoverParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// ConnectHardcoverParams defines parameters for ConnectHardcover.
+type ConnectHardcoverParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// GetHardcoverShelfParams defines parameters for GetHardcoverShelf.
+type GetHardcoverShelfParams struct {
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // ListInsightActivityParams defines parameters for ListInsightActivity.
 type ListInsightActivityParams struct {
 	Cursor   *string             `form:"cursor,omitempty" json:"cursor,omitempty"`
@@ -1294,6 +1350,18 @@ type ServerInterface interface {
 
 	// (PATCH /api/v1/me/devices/{id})
 	UpdateDevicePreferences(c *gin.Context, id ID, params UpdateDevicePreferencesParams)
+
+	// (DELETE /api/v1/me/hardcover)
+	DisconnectHardcover(c *gin.Context, params DisconnectHardcoverParams)
+
+	// (GET /api/v1/me/hardcover)
+	GetHardcover(c *gin.Context)
+
+	// (POST /api/v1/me/hardcover/connect)
+	ConnectHardcover(c *gin.Context, params ConnectHardcoverParams)
+
+	// (GET /api/v1/me/hardcover/shelf)
+	GetHardcoverShelf(c *gin.Context, params GetHardcoverShelfParams)
 
 	// (GET /api/v1/me/insights)
 	GetInsights(c *gin.Context)
@@ -2981,6 +3049,164 @@ func (siw *ServerInterfaceWrapper) UpdateDevicePreferences(c *gin.Context) {
 	siw.Handler.UpdateDevicePreferences(c, id, params)
 }
 
+// DisconnectHardcover operation middleware
+func (siw *ServerInterfaceWrapper) DisconnectHardcover(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DisconnectHardcoverParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DisconnectHardcover(c, params)
+}
+
+// GetHardcover operation middleware
+func (siw *ServerInterfaceWrapper) GetHardcover(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetHardcover(c)
+}
+
+// ConnectHardcover operation middleware
+func (siw *ServerInterfaceWrapper) ConnectHardcover(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ConnectHardcoverParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ConnectHardcover(c, params)
+}
+
+// GetHardcoverShelf operation middleware
+func (siw *ServerInterfaceWrapper) GetHardcoverShelf(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetHardcoverShelfParams
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "offset", c.Request.URL.Query(), &params.Offset, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetHardcoverShelf(c, params)
+}
+
 // GetInsights operation middleware
 func (siw *ServerInterfaceWrapper) GetInsights(c *gin.Context) {
 
@@ -3610,6 +3836,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/api/v1/session/login", wrapper.Login)
 	router.POST(options.BaseURL+"/api/v1/session/register", wrapper.Register)
 	router.POST(options.BaseURL+"/api/v1/session/logout", wrapper.Logout)
+	router.DELETE(options.BaseURL+"/api/v1/me/hardcover", wrapper.DisconnectHardcover)
+	router.GET(options.BaseURL+"/api/v1/me/hardcover", wrapper.GetHardcover)
+	router.POST(options.BaseURL+"/api/v1/me/hardcover/connect", wrapper.ConnectHardcover)
+	router.GET(options.BaseURL+"/api/v1/me/hardcover/shelf", wrapper.GetHardcoverShelf)
 	router.GET(options.BaseURL+"/api/v1/documents", wrapper.ListDocuments)
 	router.POST(options.BaseURL+"/api/v1/documents", wrapper.UploadDocument)
 	router.DELETE(options.BaseURL+"/api/v1/documents/:id", wrapper.DeleteDocument)
@@ -5304,6 +5534,177 @@ func (response UpdateDevicePreferencesdefaultApplicationProblemPlusJSONResponse)
 	return err
 }
 
+type DisconnectHardcoverRequestObject struct {
+	Params DisconnectHardcoverParams
+}
+
+type DisconnectHardcoverResponseObject interface {
+	VisitDisconnectHardcoverResponse(w http.ResponseWriter) error
+}
+
+type DisconnectHardcover200JSONResponse HardcoverDisconnect
+
+func (response DisconnectHardcover200JSONResponse) VisitDisconnectHardcoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DisconnectHardcoverdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response DisconnectHardcoverdefaultApplicationProblemPlusJSONResponse) VisitDisconnectHardcoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHardcoverRequestObject struct {
+}
+
+type GetHardcoverResponseObject interface {
+	VisitGetHardcoverResponse(w http.ResponseWriter) error
+}
+
+type GetHardcover200JSONResponse HardcoverStatus
+
+func (response GetHardcover200JSONResponse) VisitGetHardcoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHardcoverdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response GetHardcoverdefaultApplicationProblemPlusJSONResponse) VisitGetHardcoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConnectHardcoverRequestObject struct {
+	Params ConnectHardcoverParams
+}
+
+type ConnectHardcoverResponseObject interface {
+	VisitConnectHardcoverResponse(w http.ResponseWriter) error
+}
+
+type ConnectHardcover200JSONResponse HardcoverConnect
+
+func (response ConnectHardcover200JSONResponse) VisitConnectHardcoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConnectHardcoverdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response ConnectHardcoverdefaultApplicationProblemPlusJSONResponse) VisitConnectHardcoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHardcoverShelfRequestObject struct {
+	Params GetHardcoverShelfParams
+}
+
+type GetHardcoverShelfResponseObject interface {
+	VisitGetHardcoverShelfResponse(w http.ResponseWriter) error
+}
+
+type GetHardcoverShelf200JSONResponse HardcoverShelf
+
+func (response GetHardcoverShelf200JSONResponse) VisitGetHardcoverShelfResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHardcoverShelfdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response GetHardcoverShelfdefaultApplicationProblemPlusJSONResponse) VisitGetHardcoverShelfResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetInsightsRequestObject struct {
 }
 
@@ -6030,6 +6431,18 @@ type StrictServerInterface interface {
 
 	// (PATCH /api/v1/me/devices/{id})
 	UpdateDevicePreferences(ctx context.Context, request UpdateDevicePreferencesRequestObject) (UpdateDevicePreferencesResponseObject, error)
+
+	// (DELETE /api/v1/me/hardcover)
+	DisconnectHardcover(ctx context.Context, request DisconnectHardcoverRequestObject) (DisconnectHardcoverResponseObject, error)
+
+	// (GET /api/v1/me/hardcover)
+	GetHardcover(ctx context.Context, request GetHardcoverRequestObject) (GetHardcoverResponseObject, error)
+
+	// (POST /api/v1/me/hardcover/connect)
+	ConnectHardcover(ctx context.Context, request ConnectHardcoverRequestObject) (ConnectHardcoverResponseObject, error)
+
+	// (GET /api/v1/me/hardcover/shelf)
+	GetHardcoverShelf(ctx context.Context, request GetHardcoverShelfRequestObject) (GetHardcoverShelfResponseObject, error)
 
 	// (GET /api/v1/me/insights)
 	GetInsights(ctx context.Context, request GetInsightsRequestObject) (GetInsightsResponseObject, error)
@@ -7317,6 +7730,108 @@ func (sh *strictHandler) UpdateDevicePreferences(ctx *gin.Context, id ID, params
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(UpdateDevicePreferencesResponseObject); ok {
 		if err := validResponse.VisitUpdateDevicePreferencesResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DisconnectHardcover operation middleware
+func (sh *strictHandler) DisconnectHardcover(ctx *gin.Context, params DisconnectHardcoverParams) {
+	var request DisconnectHardcoverRequestObject
+
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.DisconnectHardcover(ctx, request.(DisconnectHardcoverRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DisconnectHardcover")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(DisconnectHardcoverResponseObject); ok {
+		if err := validResponse.VisitDisconnectHardcoverResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetHardcover operation middleware
+func (sh *strictHandler) GetHardcover(ctx *gin.Context) {
+	var request GetHardcoverRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetHardcover(ctx, request.(GetHardcoverRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHardcover")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetHardcoverResponseObject); ok {
+		if err := validResponse.VisitGetHardcoverResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConnectHardcover operation middleware
+func (sh *strictHandler) ConnectHardcover(ctx *gin.Context, params ConnectHardcoverParams) {
+	var request ConnectHardcoverRequestObject
+
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ConnectHardcover(ctx, request.(ConnectHardcoverRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConnectHardcover")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ConnectHardcoverResponseObject); ok {
+		if err := validResponse.VisitConnectHardcoverResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetHardcoverShelf operation middleware
+func (sh *strictHandler) GetHardcoverShelf(ctx *gin.Context, params GetHardcoverShelfParams) {
+	var request GetHardcoverShelfRequestObject
+
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetHardcoverShelf(ctx, request.(GetHardcoverShelfRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHardcoverShelf")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetHardcoverShelfResponseObject); ok {
+		if err := validResponse.VisitGetHardcoverShelfResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
