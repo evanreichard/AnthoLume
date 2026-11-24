@@ -85,11 +85,8 @@ paths:
       operationId: disconnectHardcover
       parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
       responses:
-        '200':
-          description: Hardcover connection removed locally; reports whether remote revocation was confirmed
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/HardcoverDisconnect'}
+        '204':
+          description: Hardcover connection removed locally or already absent
         default: {$ref: '#/components/responses/Problem'}
   /api/v1/me/hardcover/connect:
     post:
@@ -775,14 +772,6 @@ components:
         reconnect_required:
           type: boolean
           description: A saved link requires authorization from the same Hardcover account again.
-    HardcoverDisconnect:
-      type: object
-      additionalProperties: false
-      required: [revocation_confirmed]
-      properties:
-        revocation_confirmed:
-          type: boolean
-          description: True when Hardcover confirmed revocation or no local link existed.
     HardcoverConnect:
       type: object
       additionalProperties: false

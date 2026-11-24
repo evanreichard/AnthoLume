@@ -1,7 +1,7 @@
 import createClient from 'openapi-fetch';
 import { createTransport } from './transport';
 import type { paths, components, operations } from './schema.gen';
-import { checkHardcoverConnect, checkHardcoverDisconnect, checkHardcoverShelf, checkHardcoverStatus } from './guards.gen.js';
+import { checkHardcoverConnect, checkHardcoverShelf, checkHardcoverStatus } from './guards.gen.js';
 import { ReadingHTTPError, type Account, type ReadingBridge } from '../reading';
 import { InvalidResponse, isMakeLibraryPlan, isAdminAutoImport, isAdminRestore, isStorageRoots, isStorageDirectories, isBackupPreview, isAdminLogs, isImportPreview, isImportResults, isAdminJob, isAdminJobs, isAdminSystem, isAdminUser, isAdminUsers, isCapabilities, isDevice, isDocument, isInsights, isMetadataMatch, isMetadataMatches, isManagedDevice, isManagedDevices, isInsightActivity, isInsightProgress, isInsightRankings, isPage, isProblem, isSession, isState, validated } from './validate';
 
@@ -85,7 +85,7 @@ export function createAPI(gate: SessionGate) {
     changePassword: (account: Account, body: S['PasswordChange']) => consume(client => client.POST('/api/v1/me/password', { body, parseAs: 'stream' }), isSession, 200, account),
     hardcover: (account: Account, signal: AbortSignal) => consume(client => client.GET('/api/v1/me/hardcover', { signal, parseAs: 'stream' }), checkHardcoverStatus, 200, account),
     connectHardcover: (account: Account, signal: AbortSignal) => consume(client => client.POST('/api/v1/me/hardcover/connect', { signal, parseAs: 'stream' }), isHardcoverConnect, 200, account),
-    disconnectHardcover: (account: Account, signal: AbortSignal) => consume(client => client.DELETE('/api/v1/me/hardcover', { signal, parseAs: 'stream' }), checkHardcoverDisconnect, 200, account),
+    disconnectHardcover: (account: Account, signal: AbortSignal) => consume(client => client.DELETE('/api/v1/me/hardcover', { signal, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
     hardcoverShelf: async (account: Account, offset: number, signal: AbortSignal) => {
       const page = await consume(client => client.GET('/api/v1/me/hardcover/shelf', { signal, params: { query: { offset } }, parseAs: 'stream' }), checkHardcoverShelf, 200, account);
       if (page.next_offset !== null && page.next_offset <= offset) throw new InvalidResponse();

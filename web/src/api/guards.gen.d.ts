@@ -13,7 +13,6 @@ export declare function checkSessionUser(value: unknown): value is components['s
 export declare function checkID(value: unknown): value is components['schemas']['ID'];
 export declare function checkCapabilities(value: unknown): value is components['schemas']['Capabilities'];
 export declare function checkHardcoverStatus(value: unknown): value is components['schemas']['HardcoverStatus'];
-export declare function checkHardcoverDisconnect(value: unknown): value is components['schemas']['HardcoverDisconnect'];
 export declare function checkHardcoverConnect(value: unknown): value is components['schemas']['HardcoverConnect'];
 export declare function checkHardcoverShelf(value: unknown): value is components['schemas']['HardcoverShelf'];
 export declare function checkHardcoverBook(value: unknown): value is components['schemas']['HardcoverBook'];

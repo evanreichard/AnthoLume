@@ -594,12 +594,6 @@ type HardcoverConnect struct {
 	AuthorizationUrl string `json:"authorization_url"`
 }
 
-// HardcoverDisconnect defines model for HardcoverDisconnect.
-type HardcoverDisconnect struct {
-	// RevocationConfirmed True when Hardcover confirmed revocation or no local link existed.
-	RevocationConfirmed bool `json:"revocation_confirmed"`
-}
-
 // HardcoverShelf defines model for HardcoverShelf.
 type HardcoverShelf struct {
 	Books      []HardcoverBook `json:"books"`
@@ -5542,18 +5536,12 @@ type DisconnectHardcoverResponseObject interface {
 	VisitDisconnectHardcoverResponse(w http.ResponseWriter) error
 }
 
-type DisconnectHardcover200JSONResponse HardcoverDisconnect
+type DisconnectHardcover204Response struct {
+}
 
-func (response DisconnectHardcover200JSONResponse) VisitDisconnectHardcoverResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
+func (response DisconnectHardcover204Response) VisitDisconnectHardcoverResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
 }
 
 type DisconnectHardcoverdefaultApplicationProblemPlusJSONResponse struct {

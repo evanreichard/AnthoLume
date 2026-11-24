@@ -27,7 +27,7 @@ type mockHardcover struct {
 	disconnectErr         error
 	beforeConnect         func()
 	storeLink             func(context.Context, string) error
-	revokeStored          func(context.Context, string, []byte) error
+	revokeStored          func(context.Context, string, []byte)
 }
 
 func hardcoverFixture(t *testing.T, m *mockHardcover) *webFixture {
@@ -90,17 +90,16 @@ func (m *mockHardcover) Disconnect(ctx context.Context, account string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if m.disconnectErr == nil || errors.Is(m.disconnectErr, hardcover.ErrRevocationUnconfirmed) {
+	if m.disconnectErr == nil {
 		delete(m.links, account)
 	}
 	return m.disconnectErr
 }
 
-func (m *mockHardcover) RevokeStored(ctx context.Context, account string, encrypted []byte) error {
-	if m.revokeStored == nil {
-		return nil
+func (m *mockHardcover) RevokeStored(ctx context.Context, accountID string, encrypted []byte) {
+	if m.revokeStored != nil {
+		m.revokeStored(ctx, accountID, encrypted)
 	}
-	return m.revokeStored(ctx, account, encrypted)
 }
 
 func hardcoverBrowser(f *webFixture) *webFixture {
@@ -211,27 +210,19 @@ func TestHardcoverOAuth(t *testing.T) {
 
 	pending := beginHardcover(f)
 	for range 2 {
-		requireHardcoverJSON(f, "DELETE", "", `{"revocation_confirmed":true}`)
+		r := f.call("DELETE", hardcoverPath, nil, nil)
+		require.Equal(t, 204, r.status, string(r.body))
+		require.Empty(t, r.body)
 	}
 	require.Equal(t, 403, finishHardcover(f, pending, origin).status)
 	assertProblem(t, f.call("GET", hardcoverPath+"/shelf", nil, nil), 409, "hardcover_not_connected")
 }
 
-func TestHardcoverDisconnectOutcomes(t *testing.T) {
-	for _, failure := range []error{hardcover.ErrRevocationUnconfirmed, errors.New("local unlink failed")} {
-		t.Run(failure.Error(), func(t *testing.T) {
-			f := hardcoverFixture(t, &mockHardcover{statusErr: hardcover.ErrReconnect, disconnectErr: failure})
-			require.Equal(t, 204, finishHardcover(f, beginHardcover(f), f.cfg.PublicOrigin).status)
-			requireHardcoverJSON(f, "GET", "", `{"enabled":true,"username":"hardcover-reader","reconnect_required":true}`)
-			if failure == hardcover.ErrRevocationUnconfirmed {
-				requireHardcoverJSON(f, "DELETE", "", `{"revocation_confirmed":false}`)
-				requireHardcoverJSON(f, "GET", "", unlinkedHardcover)
-			} else {
-				assertProblem(t, f.call("DELETE", hardcoverPath, nil, nil), 502, "hardcover_unavailable")
-				assertProblem(t, f.call("GET", hardcoverPath+"/shelf", nil, nil), 409, "hardcover_reconnect")
-			}
-		})
-	}
+func TestHardcoverDisconnectReportsFailedLocalDeletion(t *testing.T) {
+	f := hardcoverFixture(t, &mockHardcover{statusErr: hardcover.ErrReconnect, disconnectErr: errors.New("local unlink failed")})
+	require.Equal(t, 204, finishHardcover(f, beginHardcover(f), f.cfg.PublicOrigin).status)
+	assertProblem(t, f.call("DELETE", hardcoverPath, nil, nil), 502, "hardcover_unavailable")
+	requireHardcoverJSON(f, "GET", "", `{"enabled":true,"username":"hardcover-reader","reconnect_required":true}`)
 }
 
 func TestHardcoverCallbackRejectsExpiredStateAndStaleGeneration(t *testing.T) {

@@ -14,16 +14,16 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 )
 
 var (
-	ErrInvalidInput          = errors.New("hardcover: invalid input")
-	ErrNotConnected          = errors.New("hardcover: account is not connected")
-	ErrReconnect             = errors.New("hardcover: account must reconnect")
-	ErrProvider              = errors.New("hardcover: provider request failed")
-	ErrIdentity              = errors.New("hardcover: disconnect the existing Hardcover identity before switching accounts")
-	ErrRevocationUnconfirmed = errors.New("hardcover: account disconnected locally but remote revocation could not be confirmed")
+	ErrInvalidInput = errors.New("hardcover: invalid input")
+	ErrNotConnected = errors.New("hardcover: account is not connected")
+	ErrReconnect    = errors.New("hardcover: account must reconnect")
+	ErrProvider     = errors.New("hardcover: provider request failed")
+	ErrIdentity     = errors.New("hardcover: disconnect the existing Hardcover identity before switching accounts")
 )
 
 const (
@@ -164,22 +164,25 @@ func (c *Client) Disconnect(ctx context.Context, account string) error {
 	if err != nil {
 		return err
 	}
-	return c.RevokeStored(ctx, ref.id, blob)
+	c.RevokeStored(ctx, ref.id, blob)
+	return nil
 }
 
-// RevokeStored revokes a credential removed by a committed deletion without touching the database.
-func (c *Client) RevokeStored(ctx context.Context, account string, encrypted []byte) error {
+// RevokeStored attempts remote revocation after a committed local deletion, even if the request ends.
+func (c *Client) RevokeStored(ctx context.Context, accountID string, encrypted []byte) {
 	if encrypted == nil {
-		return nil
+		return
 	}
-	if _, id, composite := strings.Cut(account, ":"); composite {
-		account = id
+	link, err := c.store.decode(accountID, encrypted)
+	if err != nil {
+		log.Warn("Could not read a removed Hardcover link for revocation")
+		return
 	}
-	link, err := c.store.decode(account, encrypted)
-	if err != nil || c.revokeToken(ctx, link) != nil {
-		return ErrRevocationUnconfirmed
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), requestLimit)
+	defer cancel()
+	if err := c.revokeToken(ctx, link); err != nil {
+		log.Warn("Could not revoke a removed Hardcover session")
 	}
-	return nil
 }
 
 const shelfQuery = `query AnthoLumeWantToRead($user: Int!, $offset: Int!, $limit: Int!) {

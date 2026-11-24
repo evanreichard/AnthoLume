@@ -35,7 +35,7 @@ type hardcoverProvider interface {
 	Status(account string) (string, error)
 	Shelf(ctx context.Context, account string, offset int) (hardcover.Shelf, error)
 	Disconnect(ctx context.Context, account string) error
-	RevokeStored(ctx context.Context, account string, encrypted []byte) error
+	RevokeStored(ctx context.Context, accountID string, encrypted []byte)
 }
 
 type hardcoverAttempt struct {
@@ -175,15 +175,10 @@ func (s *webAPI) DisconnectHardcover(ctx context.Context, _ DisconnectHardcoverR
 	f.cancel(account)
 	call, cancel := context.WithTimeout(requestContext(ctx), hardcoverCallTimeout)
 	defer cancel()
-	err := f.client.Disconnect(call, account)
-	switch {
-	case err == nil, errors.Is(err, hardcover.ErrNotConnected):
-		return DisconnectHardcover200JSONResponse{RevocationConfirmed: true}, nil
-	case errors.Is(err, hardcover.ErrRevocationUnconfirmed):
-		return DisconnectHardcover200JSONResponse{RevocationConfirmed: false}, nil
-	default:
+	if err := f.client.Disconnect(call, account); err != nil {
 		return nil, hardcoverError(err)
 	}
+	return DisconnectHardcover204Response{}, nil
 }
 
 func (s *webAPI) GetHardcoverShelf(ctx context.Context, r GetHardcoverShelfRequestObject) (GetHardcoverShelfResponseObject, error) {

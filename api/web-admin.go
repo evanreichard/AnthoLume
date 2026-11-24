@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/database"
 )
 
@@ -183,22 +182,12 @@ func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestOb
 	if err != nil {
 		return nil, err
 	}
-	s.api.revokeDeletedHardcoverLink(requestContext(ctx), hardcoverAccountKey(authData{AccountID: deleted.AccountID, Generation: deleted.Generation}), deleted.Credential)
+	f := &s.api.hardcover
+	f.cancel(hardcoverAccountKey(authData{AccountID: deleted.AccountID, Generation: deleted.Generation}))
+	if f.client != nil && deleted.Credential != nil {
+		f.client.RevokeStored(requestContext(ctx), deleted.AccountID, deleted.Credential)
+	}
 	return DeleteAdminUser204Response{}, nil
-}
-
-func (api *API) revokeDeletedHardcoverLink(ctx context.Context, account string, encrypted []byte) {
-	f := &api.hardcover
-	f.cancel(account)
-	if f.client == nil || len(encrypted) == 0 {
-		return
-	}
-	// After Commit - Local deletion already cascaded; a canceled HTTP request must not skip remote revocation.
-	call, cancel := context.WithTimeout(context.WithoutCancel(ctx), hardcoverCallTimeout)
-	defer cancel()
-	if err := f.client.RevokeStored(call, account, encrypted); err != nil {
-		log.Warn("Hardcover revocation could not be confirmed for a deleted account")
-	}
 }
 
 func (api *API) writeVerifiedSnapshot(ctx context.Context, filename string) error {

@@ -677,10 +677,6 @@ export interface components {
             /** @description A saved link requires authorization from the same Hardcover account again. */
             reconnect_required: boolean;
         };
-        HardcoverDisconnect: {
-            /** @description True when Hardcover confirmed revocation or no local link existed. */
-            revocation_confirmed: boolean;
-        };
         HardcoverConnect: {
             /** Format: uri */
             authorization_url: string;
@@ -1255,14 +1251,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Hardcover connection removed locally; reports whether remote revocation was confirmed */
-            200: {
+            /** @description Hardcover connection removed locally or already absent */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["HardcoverDisconnect"];
-                };
+                content?: never;
             };
             default: components["responses"]["Problem"];
         };

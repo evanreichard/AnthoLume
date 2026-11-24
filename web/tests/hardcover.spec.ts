@@ -13,7 +13,7 @@ test('Hardcover lazily loads the shelf and retries a failed next page', async ({
   await page.route(api, route => {
     if (route.request().method() !== 'DELETE') return route.fulfill({ json: { enabled: true, username, reconnect_required: false } });
     username = null;
-    return route.fulfill({ json: { revocation_confirmed: true } });
+    return route.fulfill({ status: 204 });
   });
   await page.route(`${api}/shelf?*`, route => {
     shelfRequests++;
@@ -70,14 +70,15 @@ for (const enabled of [false, true]) {
   });
 }
 
-for (const detection of ['loading another page', 'a status refresh']) {
-  test(`a disconnect detected by ${detection} closes the open Hardcover shelf`, async ({ page, server }) => {
+for (const lostBy of ['shelf disconnect', 'status disconnect', 'status reconnect required']) {
+  test(`${lostBy} closes the open Hardcover shelf`, async ({ page, server }) => {
     await register(page, server.origin, 'remote-disconnect-reader');
     let username: string | null = 'Linked reader';
+    let reconnectRequired = false;
     let relinked = false;
     let releaseShelf!: () => void;
     const pendingShelf = new Promise<void>(resolve => { releaseShelf = resolve; });
-    await page.route(api, route => route.fulfill({ json: { enabled: true, username, reconnect_required: false } }));
+    await page.route(api, route => route.fulfill({ json: { enabled: true, username, reconnect_required: reconnectRequired } }));
     await page.route(`${api}/shelf?*`, async route => {
       if (!username) return route.fulfill(problem(409, 'hardcover_not_connected'));
       if (relinked) {
@@ -94,23 +95,25 @@ for (const detection of ['loading another page', 'a status refresh']) {
     const dialog = page.getByRole('dialog', { name: 'Want to Read' });
     await expect(dialog.getByText('Old shelf book 0')).toBeVisible();
     const loadMore = dialog.getByRole('button', { name: 'Load More Books' });
-    const detectedOnShelf = detection === 'loading another page';
+    const detectedOnShelf = lostBy === 'shelf disconnect';
     if (detectedOnShelf) {
       await loadMore.click();
       await expect(dialog.getByText('Old shelf book 1')).toBeVisible();
     }
-    username = null;
+    reconnectRequired = lostBy === 'status reconnect required';
+    if (!reconnectRequired) username = null;
     const rechecked = page.waitForResponse(response => response.url().endsWith('/me/hardcover') && response.ok());
     if (detectedOnShelf) await loadMore.click();
     else await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange', { bubbles: true })));
     await rechecked;
-    await expect(card.getByRole('button', { name: 'Connect Hardcover' })).toBeVisible();
+    await expect(card.getByRole('button', { name: reconnectRequired ? 'Reconnect Hardcover' : 'Connect Hardcover' })).toBeVisible();
     await expect(dialog).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Retry Loading Books' })).toHaveCount(0);
-    if (!detectedOnShelf) return;
+    if (lostBy === 'status disconnect') return;
 
     relinked = true;
     username = 'Linked reader';
+    reconnectRequired = false;
     try {
       await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange', { bubbles: true })));
       await expect(preview).toBeVisible();
@@ -125,8 +128,12 @@ for (const detection of ['loading another page', 'a status refresh']) {
 
 test('a revoked shelf prompts the reader to reconnect without reloading Settings', async ({ page, server }) => {
   await register(page, server.origin, 'revoked-reader');
-  await page.route(api, route => route.fulfill({ json: { enabled: true, username: 'Linked reader', reconnect_required: false } }));
-  await page.route(`${api}/shelf?*`, route => route.fulfill(problem(409, 'hardcover_reconnect')));
+  let reconnectRequired = false;
+  await page.route(api, route => route.fulfill({ json: { enabled: true, username: 'Linked reader', reconnect_required: reconnectRequired } }));
+  await page.route(`${api}/shelf?*`, route => {
+    reconnectRequired = true;
+    return route.fulfill(problem(409, 'hardcover_reconnect'));
+  });
   await page.route(`${api}/connect`, route => route.fulfill({ json: { authorization_url: 'https://hardcover.app/oauth2/authorize?state=reconnect' } }));
   await page.route('https://hardcover.app/oauth2/authorize?*', route => route.fulfill({ contentType: 'text/html', body: '<h1>Hardcover Consent</h1>' }));
   await page.goto(`${server.origin}/settings`);
@@ -140,27 +147,33 @@ test('a revoked shelf prompts the reader to reconnect without reloading Settings
   await expect(page.getByRole('heading', { name: 'Hardcover Consent' })).toBeVisible();
 });
 
-for (const localFailure of [false, true]) {
-  test(localFailure ? 'a failed disconnect rechecks the local connection' : 'an uncertain revocation removes the local link and explains manual revocation', async ({ page, server }) => {
+for (const outcome of ['linked', 'disconnected', 'unknown']) {
+  test(`a failed disconnect checks whether the local link is ${outcome}`, async ({ page, server }) => {
     await register(page, server.origin, 'disconnect-reader');
+    let attempted = false;
     await page.route(api, route => {
-      if (route.request().method() !== 'DELETE') return route.fulfill({ json: { enabled: true, username: 'Expired reader', reconnect_required: true } });
-      if (localFailure) return route.fulfill(problem(502, 'hardcover_unavailable'));
-      return route.fulfill({ json: { revocation_confirmed: false } });
+      if (route.request().method() === 'DELETE') {
+        attempted = true;
+        return route.fulfill(problem(502, 'hardcover_unavailable'));
+      }
+      if (attempted && outcome === 'unknown') return route.fulfill(problem(502, 'hardcover_unavailable'));
+      const linked = !attempted || outcome === 'linked';
+      return route.fulfill({ json: { enabled: true, username: linked ? 'Expired reader' : null, reconnect_required: linked } });
     });
     await page.goto(`${server.origin}/settings`);
     const connections = page.getByRole('region', { name: 'Connections' });
     await connections.getByRole('button', { name: 'Disconnect', exact: true }).click();
-    const recheck = localFailure ? page.waitForResponse(response => response.url().endsWith('/me/hardcover') && response.request().method() === 'GET') : undefined;
-    await page.getByRole('dialog', { name: 'Disconnect?' }).getByRole('button', { name: 'Disconnect', exact: true }).click();
-    if (localFailure) {
-      await recheck;
-      await expect(connections).toContainText('Could not confirm the disconnect.');
+    const dialog = page.getByRole('dialog', { name: 'Disconnect?' });
+    await dialog.getByRole('button', { name: 'Disconnect', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    if (outcome === 'linked') {
+      await expect(connections).toContainText('Could not disconnect Hardcover. Try again.');
       await expect(connections.getByRole('button', { name: 'Reconnect Hardcover' })).toBeVisible();
-    } else {
+    } else if (outcome === 'disconnected') {
       await expect(connections.getByRole('button', { name: 'Connect Hardcover' })).toBeVisible();
-      await expect(connections).toContainText('Hardcover did not confirm that access was revoked.');
-      await expect(connections.getByRole('link', { name: 'Authorized Apps on Hardcover' })).toHaveAttribute('href', 'https://hardcover.app/account/api/authorized-apps');
+      await expect(connections.getByRole('alert')).toHaveCount(0);
+    } else {
+      await expect(connections.getByRole('button', { name: 'Retry Connection Check' })).toBeVisible();
     }
   });
 }

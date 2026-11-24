@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"reichard.io/antholume/hardcover"
 )
 
 const deleteHardcoverReader = "/api/v1/admin/users/bob"
@@ -15,7 +14,7 @@ const deleteHardcoverReader = "/api/v1/admin/users/bob"
 func hardcoverReader(f *webFixture) (*webFixture, string) {
 	reader := hardcoverBrowser(f)
 	user := reader.register("bob").User
-	return reader, hardcoverAccountKey(authData{AccountID: user.AccountId, Generation: user.ReadingGeneration})
+	return reader, user.AccountId
 }
 
 func linkHardcoverMock(f *webFixture, m *mockHardcover) {
@@ -30,7 +29,7 @@ func TestAdminDeletionCascadesHardcoverLinkAndRevokesAfterCommit(t *testing.T) {
 	m := &mockHardcover{}
 	f := hardcoverFixture(t, m)
 	linkHardcoverMock(f, m)
-	reader, key := hardcoverReader(f)
+	reader, accountID := hardcoverReader(f)
 	for _, browser := range []*webFixture{f, reader} {
 		require.Equal(t, 204, finishHardcover(browser, beginHardcover(browser), f.cfg.PublicOrigin).status)
 	}
@@ -41,11 +40,10 @@ func TestAdminDeletionCascadesHardcoverLinkAndRevokesAfterCommit(t *testing.T) {
 		err     error
 	}
 	revoked := make(chan revocation, 1)
-	m.revokeStored = func(ctx context.Context, account string, encrypted []byte) error {
+	m.revokeStored = func(ctx context.Context, accountID string, encrypted []byte) {
 		var count int
 		err := f.db.DB.QueryRowContext(ctx, `SELECT count(*) FROM hardcover_links`).Scan(&count)
-		revoked <- revocation{account, string(encrypted), count, err}
-		return hardcover.ErrRevocationUnconfirmed
+		revoked <- revocation{accountID, string(encrypted), count, err}
 	}
 	pending := beginHardcover(reader)
 	assertProblem(t, reader.call("DELETE", deleteHardcoverReader, nil, nil), 403, "forbidden")
@@ -61,7 +59,7 @@ func TestAdminDeletionCascadesHardcoverLinkAndRevokesAfterCommit(t *testing.T) {
 	require.Equal(t, 204, f.call("DELETE", deleteHardcoverReader, nil, nil).status)
 	select {
 	case actual := <-revoked:
-		require.Equal(t, revocation{key, "encrypted credential", 1, nil}, actual)
+		require.Equal(t, revocation{accountID, "encrypted credential", 1, nil}, actual)
 	default:
 		t.Fatal("committed link was not sent for revocation")
 	}
