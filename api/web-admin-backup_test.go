@@ -31,6 +31,9 @@ func TestAdminBackupRejectsOverlappingDownloads(t *testing.T) {
 	t.Cleanup(func() {
 		close(release)
 		<-done
+		temporary, err := filepath.Glob(filepath.Join(f.cfg.ConfigPath, ".backup-export-*"))
+		require.NoError(t, err)
+		require.Empty(t, temporary)
 	})
 	select {
 	case <-started:
