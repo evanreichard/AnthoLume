@@ -29,6 +29,7 @@ type API struct {
 	assets         fs.FS
 	httpServer     *http.Server
 	reading        *reading.Store
+	hardcover      hardcoverFlow
 	attempts       credentialLimiter
 	identitySlots  chan struct{}
 	restoreGate    sync.RWMutex
@@ -60,6 +61,10 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 		reading:        &reading.Store{DB: db.DB},
 		identitySlots:  make(chan struct{}, 4),
 		webUploadSlots: make(chan struct{}, 2),
+	}
+
+	if err := api.configureHardcover(); err != nil {
+		return nil, err
 	}
 
 	// Create router
@@ -133,6 +138,8 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 	router.GET("/manifest.json", api.appWebManifest)
 	router.GET("/favicon.ico", api.appFaviconIcon)
 	router.GET("/sw.js", api.appServiceWorker)
+	router.GET(hardcoverCallbackPath, api.hardcoverCallback)
+	router.POST(hardcoverCallbackPath, api.finishHardcoverCallback)
 
 	// Register API routes
 	apiGroup := router.Group("/api")

@@ -31,6 +31,9 @@ func TestAdminBackupRejectsOverlappingDownloads(t *testing.T) {
 	t.Cleanup(func() {
 		close(release)
 		<-done
+		temporary, err := filepath.Glob(filepath.Join(f.cfg.ConfigPath, ".backup-export-*"))
+		require.NoError(t, err)
+		require.Empty(t, temporary)
 	})
 	select {
 	case <-started:
@@ -83,10 +86,14 @@ func TestDatabaseBackupReflectsLatestCatalog(t *testing.T) {
 	f.register("owner")
 	f.exec(`UPDATE users SET admin=1 WHERE id='owner'`)
 	f.exec(`INSERT INTO documents(id,title) VALUES('book','First title')`)
+	marker := []byte("synthetic Hardcover ciphertext in the live database")
+	f.exec(`INSERT INTO hardcover_links SELECT account_id, ? FROM account_identities WHERE user_id='owner'`, marker)
 	checkTitle := func(want string) {
 		t.Helper()
 		response := f.call("GET", adminBackupEndpoint, nil, nil)
 		require.Equal(t, 200, response.status, string(response.body))
+		require.NotContains(t, string(response.body), string(marker))
+		require.Equal(t, 1, f.count("hardcover_links"))
 		catalog := openExportedCatalog(t, response.body)
 		var title string
 		require.NoError(t, catalog.QueryRow(`SELECT title FROM documents WHERE id='book'`).Scan(&title))

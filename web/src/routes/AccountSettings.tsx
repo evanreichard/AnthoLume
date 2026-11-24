@@ -6,9 +6,10 @@ import type { components } from '../api/schema.gen';
 import { ReadingHTTPError, useReading, type Account } from '../reading';
 import { session } from '../session';
 import { Dialog, ErrorNotice } from '../ui';
-import { ActionRow, ActionRows, Card, CardHeader, Pager, Button, Dropdown, IconButton } from '../Controls';
+import { ActionRow, ActionRows, Card, CardHeader, Pager, Button, Dropdown } from '../Controls';
 import styles from '../App.module.css';
 import { SkeletonRows } from '../Skeleton';
+import { HardcoverSettings } from './HardcoverSettings';
 
 type Device = components['schemas']['ManagedDevice'];
 const zones = ['UTC', ...(Intl.supportedValuesOf?.('timeZone') ?? [])];
@@ -74,7 +75,7 @@ function ReaderCacheSettings() {
     catch (err) { setError(err); }
     finally { setBusy(false); }
   }
-  return <Card aria-labelledby="debug-heading">
+  return <Card aria-labelledby="debug-heading" density="compact">
     <CardHeader id="debug-heading" title="Debug" />
     <ActionRows>
       <ActionRow label="Reader Cache" disabled={!ready} onClick={() => { setError(null); setCleared(false); setOpen(true); }} />
@@ -137,10 +138,10 @@ export function AccountSettings({ account, username, timezone, readOnly, syncSta
     /></li>;
   })}</ul>;
   return <>
-    <Card aria-labelledby="account-heading">
-      <CardHeader id="account-heading" title="Account" subtitle={username}
-        leading={<span className={styles.accountAvatar}><Icon name="user" size={18} /></span>}
-        action={<IconButton aria-label="Sign Out" title="Sign Out" onClick={onSignOut}><Icon name="sign-out" size={18} /></IconButton>} />
+    <Card aria-labelledby="general-heading" density="compact">
+      <CardHeader id="general-heading" title="General" action={<span className={styles.accountIdentity}>
+        <span>{username}</span><span className={styles.accountAvatar} aria-hidden="true"><Icon name="user" size={16} /></span>
+      </span>} />
       <ActionRows>
         <ActionRow divider label="Locale" value={timezoneLabel} disabled={readOnly} onClick={() => setModal('timezone')} />
         <ActionRow divider label="Password" disabled={readOnly} onClick={() => setModal('password')} />
@@ -150,7 +151,8 @@ export function AccountSettings({ account, username, timezone, readOnly, syncSta
       {feedback && <p className={styles.settingsCardFeedback} role="status">{feedback}</p>}
     </Card>
     <div className={styles.settingsStack}>
-    <Card aria-labelledby="devices-heading">
+    {!readOnly && <HardcoverSettings account={account} />}
+    <Card aria-labelledby="devices-heading" density="compact">
       <CardHeader id="devices-heading" title="Devices" />
       <ErrorNotice error={devices.error} />
       {devices.isPending && <SkeletonRows label="Loading devices…" />}
@@ -159,6 +161,7 @@ export function AccountSettings({ account, username, timezone, readOnly, syncSta
         hasNext={currentPage + 1 < devicePages} onPageChange={page => setDevicePage(page - 1)} />}
     </Card>
     <ReaderCacheSettings />
+    <button className={styles.settingsSignOut} type="button" onClick={onSignOut}>Sign Out</button>
     </div>
     {modal === 'timezone' && <Dialog title="Change Locale" onClose={close}><SettingsForm onClose={close} action={async data => {
       try { await session.updateTimezone(account, String(data.get('timezone'))); }

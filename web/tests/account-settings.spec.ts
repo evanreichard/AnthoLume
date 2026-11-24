@@ -11,12 +11,14 @@ test('Settings updates timezone, manages devices and rotates the current passwor
   expect(registered.status()).toBe(200);
   await page.setViewportSize({ width: 320, height: 800 });
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Settings' }).click();
-  const account = page.getByRole('region', { name: 'Account', exact: true });
-  await expect(page.getByRole('main').getByRole('region').first()).toHaveAccessibleName('Account');
+  const account = page.getByRole('region', { name: 'General', exact: true });
+  await expect(page.getByRole('main').getByRole('region').first()).toHaveAccessibleName('General');
+  await expect(account.getByText('settings-reader', { exact: true })).toBeVisible();
   const sync = account.getByRole('button', { name: 'Sync', exact: true });
   const timezone = account.getByRole('button', { name: 'Locale', exact: true });
   const password = account.getByRole('button', { name: 'Password', exact: true });
-  const signOut = account.getByRole('button', { name: 'Sign Out', exact: true });
+  await expect(account.getByRole('button', { name: 'Sign Out', exact: true })).toHaveCount(0);
+  const signOut = page.getByRole('main').getByRole('button', { name: 'Sign Out', exact: true });
   await expect(sync).toHaveAttribute('aria-expanded', 'false');
   await expect(account.getByRole('region', { name: 'Sync status' })).toBeHidden();
   const rowWidth = (await sync.boundingBox())!.width;
@@ -26,8 +28,7 @@ test('Settings updates timezone, manages devices and rotates the current passwor
     expect(box.height).toBeGreaterThanOrEqual(44);
     if (control !== signOut) expect(box.width).toBe(rowWidth);
   }
-  await expect(signOut.locator('svg')).toHaveCount(1);
-  await expect(signOut).toHaveText('');
+  await expect(signOut).toHaveText('Sign Out');
   const debug = page.getByRole('region', { name: 'Debug' });
   const readerCache = debug.getByRole('button', { name: 'Reader Cache', exact: true });
   await readerCache.click();

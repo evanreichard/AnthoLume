@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"reichard.io/antholume/database"
+	"reichard.io/antholume/hardcover"
 )
 
 func adminFailure(status int, code string) error { return &webFailure{status: status, code: code} }
@@ -153,8 +154,17 @@ func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestOb
 	if r.Id == principal.UserName {
 		return nil, adminFailure(409, "current_admin")
 	}
+	var deleted database.GetHardcoverLinkForUserDeletionRow
 	err := s.adminTransaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
 		q := s.api.db.Queries.WithTx(tx)
+		var err error
+		deleted, err = q.GetHardcoverLinkForUserDeletion(ctx, r.Id)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return adminFailure(404, "user_not_found")
+			}
+			return err
+		}
 		if err := q.DeleteAdminUserStatistics(ctx, r.Id); err != nil {
 			return err
 		}
@@ -170,19 +180,30 @@ func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestOb
 		}
 		return err
 	})
-	return DeleteAdminUser204Response{}, err
+	if err != nil {
+		return nil, err
+	}
+	f := &s.api.hardcover
+	f.cancel(hardcover.Account{ID: deleted.AccountID, Generation: deleted.Generation})
+	if f.client != nil && deleted.Credential != nil {
+		f.client.RevokeStored(requestContext(ctx), deleted.AccountID, deleted.Credential)
+	}
+	return DeleteAdminUser204Response{}, nil
 }
 
 func (api *API) writeVerifiedSnapshot(ctx context.Context, filename string) error {
 	if err := api.db.BackupSnapshot(ctx, filename); err != nil {
 		return err
 	}
-	uri := (&url.URL{Scheme: "file", Path: filename, RawQuery: "mode=ro"}).String()
+	uri := (&url.URL{Scheme: "file", Path: filename, RawQuery: "mode=rw&_pragma=trusted_schema(OFF)&_pragma=journal_mode(DELETE)&_pragma=secure_delete(ON)"}).String()
 	check, err := sql.Open("sqlite", uri)
 	if err != nil {
 		return err
 	}
 	defer check.Close()
+	if err := database.New(check).ClearHardcoverLinks(ctx); err != nil {
+		return err
+	}
 	var integrity string
 	if err := check.QueryRowContext(ctx, `PRAGMA quick_check`).Scan(&integrity); err != nil {
 		return err

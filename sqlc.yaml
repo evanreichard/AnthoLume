@@ -11,6 +11,7 @@ sql:
       - database/migrations/schema/reading_generation_schema.sql
       - database/migrations/schema/reading_schema.sql
       - database/migrations/schema/scoped_device_schema.sql
+      - database/migrations/20261126000002_hardcover_links.sql
     queries:
       - database/query.sql
       - database/queries

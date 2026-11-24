@@ -79,6 +79,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/hardcover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getHardcover"];
+        put?: never;
+        post?: never;
+        delete: operations["disconnectHardcover"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/hardcover/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["connectHardcover"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/hardcover/shelf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getHardcoverShelf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents": {
         parameters: {
             query?: never;
@@ -623,6 +671,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        HardcoverStatus: {
+            enabled: boolean;
+            username: string | null;
+            /** @description A saved link requires authorization from the same Hardcover account again. */
+            reconnect_required: boolean;
+        };
+        HardcoverConnect: {
+            /** Format: uri */
+            authorization_url: string;
+        };
+        HardcoverBook: {
+            id: string;
+            title: string;
+            author: string;
+        };
+        HardcoverShelf: {
+            books: components["schemas"]["HardcoverBook"][];
+            next_offset: number | null;
+        };
         AdminUser: {
             id: components["schemas"]["ID"];
             is_admin: boolean;
@@ -1144,6 +1211,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Session"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getHardcover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Account's Hardcover connection status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HardcoverStatus"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    disconnectHardcover: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Hardcover connection removed locally or already absent */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    connectHardcover: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Start Hardcover OAuth consent in this browser */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HardcoverConnect"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getHardcoverShelf: {
+        parameters: {
+            query?: {
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page of the account's Hardcover Want to Read shelf */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HardcoverShelf"];
                 };
             };
             default: components["responses"]["Problem"];

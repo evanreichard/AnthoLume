@@ -118,6 +118,11 @@ type DocumentUserStatistic struct {
 	WeeklyWpm          float64 `json:"weekly_wpm"`
 }
 
+type HardcoverLink struct {
+	AccountID  string `json:"account_id"`
+	Credential []byte `json:"credential"`
+}
+
 type Metadata struct {
 	ID          int64   `json:"id"`
 	DocumentID  string  `json:"document_id"`

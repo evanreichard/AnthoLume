@@ -12,6 +12,10 @@ export declare function checkSession(value: unknown): value is components['schem
 export declare function checkSessionUser(value: unknown): value is components['schemas']['SessionUser'];
 export declare function checkID(value: unknown): value is components['schemas']['ID'];
 export declare function checkCapabilities(value: unknown): value is components['schemas']['Capabilities'];
+export declare function checkHardcoverStatus(value: unknown): value is components['schemas']['HardcoverStatus'];
+export declare function checkHardcoverConnect(value: unknown): value is components['schemas']['HardcoverConnect'];
+export declare function checkHardcoverShelf(value: unknown): value is components['schemas']['HardcoverShelf'];
+export declare function checkHardcoverBook(value: unknown): value is components['schemas']['HardcoverBook'];
 export declare function checkDocumentPage(value: unknown): value is components['schemas']['DocumentPage'];
 export declare function checkDocument(value: unknown): value is components['schemas']['Document'];
 export declare function checkBookReadingStats(value: unknown): value is components['schemas']['BookReadingStats'];

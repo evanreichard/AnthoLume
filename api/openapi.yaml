@@ -71,6 +71,46 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/Session'}
         default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/hardcover:
+    get:
+      operationId: getHardcover
+      responses:
+        '200':
+          description: Account's Hardcover connection status
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HardcoverStatus'}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: disconnectHardcover
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      responses:
+        '204':
+          description: Hardcover connection removed locally or already absent
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/hardcover/connect:
+    post:
+      operationId: connectHardcover
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      responses:
+        '200':
+          description: Start Hardcover OAuth consent in this browser
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HardcoverConnect'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/me/hardcover/shelf:
+    get:
+      operationId: getHardcoverShelf
+      parameters:
+        - {name: offset, in: query, schema: {type: integer, minimum: 0, maximum: 2147483647, default: 0}}
+      responses:
+        '200':
+          description: Page of the account's Hardcover Want to Read shelf
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HardcoverShelf'}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/documents:
     get:
       operationId: listDocuments
@@ -722,6 +762,37 @@ components:
         application/problem+json:
           schema: {$ref: '#/components/schemas/Problem'}
   schemas:
+    HardcoverStatus:
+      type: object
+      additionalProperties: false
+      required: [enabled, username, reconnect_required]
+      properties:
+        enabled: {type: boolean}
+        username: {type: string, nullable: true}
+        reconnect_required:
+          type: boolean
+          description: A saved link requires authorization from the same Hardcover account again.
+    HardcoverConnect:
+      type: object
+      additionalProperties: false
+      required: [authorization_url]
+      properties:
+        authorization_url: {type: string, format: uri}
+    HardcoverBook:
+      type: object
+      additionalProperties: false
+      required: [id, title, author]
+      properties:
+        id: {type: string}
+        title: {type: string}
+        author: {type: string}
+    HardcoverShelf:
+      type: object
+      additionalProperties: false
+      required: [books, next_offset]
+      properties:
+        books: {type: array, items: {$ref: '#/components/schemas/HardcoverBook'}}
+        next_offset: {type: integer, minimum: 0, maximum: 2147483647, nullable: true}
     AdminUser:
       type: object
       additionalProperties: false

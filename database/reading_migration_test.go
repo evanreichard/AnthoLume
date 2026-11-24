@@ -3,10 +3,10 @@ package database
 import (
 	"context"
 	"database/sql"
+	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
 	"reichard.io/antholume/config"
 	dbmigrations "reichard.io/antholume/database/migrations"
@@ -14,13 +14,16 @@ import (
 
 func openPreReactDatabase(t *testing.T, cfg *config.Config) *DBManager {
 	t.Helper()
-	db, err := sql.Open("sqlite", filepath.Join(cfg.ConfigPath, cfg.DBName+".db"))
+	fixture, err := os.ReadFile(filepath.Join("..", "api", "testdata", "pre-react.db"))
+	require.NoError(t, err)
+	path := filepath.Join(cfg.ConfigPath, cfg.DBName+".db")
+	require.NoError(t, os.WriteFile(path, fixture, 0600))
+	db, err := sql.Open("sqlite", path)
 	require.NoError(t, err)
 	db.SetMaxOpenConns(1)
 	require.NoError(t, db.Ping())
 	mgr := &DBManager{DB: db, cfg: cfg}
 	t.Cleanup(func() { require.NoError(t, mgr.DB.Close()) })
-	require.NoError(t, InitHistoricalSchema(context.Background(), db, PreReactSchemaVersion))
 	return mgr
 }
 
@@ -76,7 +79,7 @@ func TestReadingAdditiveMigrationPreservesHistoricalRowsAndOrphans(t *testing.T)
 	require.Equal(t, 2, metadata)
 	require.NoError(t, db.DB.QueryRow("SELECT count(*) FROM activity").Scan(&activity))
 	require.Equal(t, 1, activity)
-	require.NoError(t, db.DB.QueryRow("SELECT count(*) FROM reading_heads").Scan(&heads))
+	require.NoError(t, db.DB.QueryRow("SELECT count(*) FROM reading_heads WHERE user_id='alice'").Scan(&heads))
 	require.Equal(t, 2, heads)
 	rows, err := db.DB.Query("PRAGMA foreign_key_check")
 	require.NoError(t, err)
@@ -100,7 +103,10 @@ func TestReadingAdditiveMigrationPreservesHistoricalRowsAndOrphans(t *testing.T)
 	// The schema extension is the same source used by Goose and may be executed repeatedly without rewriting data.
 	exec(dbmigrations.ReadingSchema)
 	require.Equal(t, before, snapshot())
-	require.ErrorContains(t, goose.DownToContext(context.Background(), db.DB, "migrations", 20240510123707), "downgrade is unsafe")
+	provider, err := migrationProvider(db.DB)
+	require.NoError(t, err)
+	_, err = provider.DownTo(context.Background(), 20240510123707)
+	require.ErrorContains(t, err, "downgrade is unsafe")
 }
 
 func TestReadingSchemaDeletionAndRevisionBounds(t *testing.T) {
