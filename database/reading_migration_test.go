@@ -27,7 +27,7 @@ func openPreReactDatabase(t *testing.T, cfg *config.Config) *DBManager {
 	return mgr
 }
 
-func TestReadingAdditiveMigrationPreservesHistoricalRowsAndOrphans(t *testing.T) {
+func TestReadingAdditiveMigrationPreservesHistoricalRows(t *testing.T) {
 	root := t.TempDir()
 	cfg := &config.Config{DBType: "sqlite", DBName: "populated", ConfigPath: root, DataPath: filepath.Join(root, "data"), Version: "test"}
 	db := openPreReactDatabase(t, cfg)
@@ -46,7 +46,6 @@ func TestReadingAdditiveMigrationPreservesHistoricalRowsAndOrphans(t *testing.T)
  ('alice','older','device-b',0.9,'old later position','2026-01-02T00:00:00Z'),
  ('alice','older','device-a',0.8,'old earlier position','2026-01-01T00:00:00Z')`)
 	exec(`INSERT INTO activity(user_id,document_id,device_id,start_time,duration,start_percentage,end_percentage) VALUES('alice','tie','device-a','2026-01-01T00:00:00Z',10,0.1,0.2)`)
-	exec(`PRAGMA foreign_keys=OFF; INSERT INTO metadata(document_id,title) VALUES('orphan-one','original one'),('orphan-two','original two'); PRAGMA foreign_keys=ON;`)
 	snapshot := func() string {
 		var value string
 		require.NoError(t, db.DB.QueryRow(`SELECT json_group_array(json_array(user_id,document_id,device_id,percentage,progress,created_at)) FROM (SELECT * FROM document_progress ORDER BY document_id,device_id)`).Scan(&value))
@@ -74,26 +73,11 @@ func TestReadingAdditiveMigrationPreservesHistoricalRowsAndOrphans(t *testing.T)
 	require.NoError(t, db.DB.QueryRow(`SELECT storage_root_id,filepath FROM documents WHERE id='docker-book'`).Scan(&rootID, &file))
 	require.NotEqual(t, "library", rootID)
 	require.Equal(t, "book.epub", file)
-	var metadata, activity, heads int
-	require.NoError(t, db.DB.QueryRow("SELECT count(*) FROM metadata").Scan(&metadata))
-	require.Equal(t, 2, metadata)
+	var activity, heads int
 	require.NoError(t, db.DB.QueryRow("SELECT count(*) FROM activity").Scan(&activity))
 	require.Equal(t, 1, activity)
 	require.NoError(t, db.DB.QueryRow("SELECT count(*) FROM reading_heads WHERE user_id='alice'").Scan(&heads))
 	require.Equal(t, 2, heads)
-	rows, err := db.DB.Query("PRAGMA foreign_key_check")
-	require.NoError(t, err)
-	orphans := 0
-	for rows.Next() {
-		var table, parent string
-		var row, fk int
-		require.NoError(t, rows.Scan(&table, &row, &parent, &fk))
-		require.Equal(t, "metadata", table)
-		orphans++
-	}
-	require.NoError(t, rows.Err())
-	rows.Close()
-	require.Equal(t, 2, orphans)
 	exec("UPDATE reading_heads SET revision=7,position='accepted backward state',fraction=0.01 WHERE document_id='tie'")
 	require.NoError(t, db.Reload(context.Background()))
 	require.NoError(t, db.DB.QueryRow(`SELECT revision,position FROM reading_heads WHERE document_id='tie'`).Scan(&revision, &position))

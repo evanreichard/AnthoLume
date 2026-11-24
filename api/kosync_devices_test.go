@@ -183,7 +183,6 @@ func TestKOSyncDevicesMigrationReopenAndDeletion(t *testing.T) {
  INSERT INTO reading_heads(user_id,document_id,revision,position,fraction,device_id,updated_at) VALUES('alice','book_a',7,'untouched past',0.12,'historical','2001-02-03T04:05:06Z');
  DROP TABLE auto_import_rules;
  DELETE FROM goose_db_version WHERE version_id>=20261126000000`)
-	f.exec(`PRAGMA foreign_keys=OFF; INSERT INTO metadata(document_id,title) VALUES('orphan','Untouched orphan'); PRAGMA foreign_keys=ON`)
 	reopen := func() {
 		t.Helper()
 		f.server.Close()
@@ -201,7 +200,6 @@ func TestKOSyncDevicesMigrationReopenAndDeletion(t *testing.T) {
 	var revision int
 	require.NoError(t, f.db.DB.QueryRow(`SELECT revision FROM reading_heads WHERE user_id='alice' AND document_id='book_a'`).Scan(&revision))
 	require.Equal(t, 7, revision)
-	require.Equal(t, 1, f.count("metadata"))
 	payload := koDevicePayload("persisted", "No ID name")
 	require.Equal(t, 200, koDeviceHTTP(t, f, "alice", "PUT", "/api/ko/syncs/progress", payload).status)
 	saved := koDeviceHTTP(t, f, "alice", "GET", "/api/ko/syncs/progress/persisted", nil)
@@ -224,5 +222,4 @@ func TestKOSyncDevicesMigrationReopenAndDeletion(t *testing.T) {
 	require.Zero(t, f.count("reading_heads"))
 	require.Zero(t, f.count("reading_receipts"))
 	require.Zero(t, f.count("devices"))
-	require.Equal(t, 1, f.count("metadata"))
 }

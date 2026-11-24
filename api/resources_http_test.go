@@ -96,9 +96,7 @@ func TestWebLibraryBinariesAndOPDSWire(t *testing.T) {
 	r = f.call("GET", "/api/v1/documents/opaque-book/cover", nil, nil)
 	require.Equal(t, 200, r.status)
 	require.Equal(t, "image/png", r.header.Get("Content-Type"))
-	require.Zero(t, f.count("metadata"))
 	assertProblem(t, f.call("GET", "/api/v1/documents/z-book/cover", nil, nil), 404, "not_found")
-	require.Zero(t, f.count("metadata"))
 	f.exec("INSERT INTO documents(id,storage_root_id,filepath) VALUES('traversal','external','../secret.epub')")
 	require.NoError(t, os.Symlink(filepath.Join(external, "original.epub"), filepath.Join(f.cfg.DataPath, "documents", "escape.epub")))
 	f.exec("INSERT INTO documents(id,filepath) VALUES('symlink','escape.epub')")
@@ -126,7 +124,6 @@ func TestWebLibraryBinariesAndOPDSWire(t *testing.T) {
 	r = f.call("GET", "/api/opds/documents/z-book/cover", nil, headers)
 	require.Equal(t, 200, r.status)
 	require.Equal(t, "image/jpeg", r.header.Get("Content-Type"))
-	require.Zero(t, f.count("metadata"))
 	var coverStillMissing bool
 	require.NoError(t, f.db.DB.QueryRow("SELECT coverfile IS NULL FROM documents WHERE id='z-book'").Scan(&coverStillMissing))
 	require.True(t, coverStillMissing)

@@ -72,5 +72,4 @@ func TestCoverServesRealSVGWithInertNavigationPolicy(t *testing.T) {
 			requireCoverPolicy(t, r)
 		}
 	}
-	require.Zero(t, f.count("metadata"))
 }

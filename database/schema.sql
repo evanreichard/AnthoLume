@@ -54,24 +54,6 @@ CREATE TABLE IF NOT EXISTS documents (
     storage_root_id TEXT REFERENCES storage_roots (id)
 );
 
--- Metadata
-CREATE TABLE IF NOT EXISTS metadata (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    document_id TEXT NOT NULL,
-
-    title TEXT,
-    author TEXT,
-    description TEXT,
-    gbid TEXT,
-    olid TEXT,
-    isbn10 TEXT,
-    isbn13 TEXT,
-
-    created_at DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now')),
-
-    FOREIGN KEY (document_id) REFERENCES documents (id)
-);
-
 -- Devices
 CREATE TABLE IF NOT EXISTS devices (
     id TEXT NOT NULL PRIMARY KEY,

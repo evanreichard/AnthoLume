@@ -123,19 +123,6 @@ type HardcoverLink struct {
 	Credential []byte `json:"credential"`
 }
 
-type Metadata struct {
-	ID          int64   `json:"id"`
-	DocumentID  string  `json:"document_id"`
-	Title       *string `json:"title"`
-	Author      *string `json:"author"`
-	Description *string `json:"description"`
-	Gbid        *string `json:"gbid"`
-	Olid        *string `json:"olid"`
-	Isbn10      *string `json:"isbn10"`
-	Isbn13      *string `json:"isbn13"`
-	CreatedAt   string  `json:"created_at"`
-}
-
 type ReadingGeneration struct {
 	Singleton  int64  `json:"singleton"`
 	Generation string `json:"generation"`
