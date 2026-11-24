@@ -16,7 +16,7 @@ var workID = regexp.MustCompile(`^OL[0-9]{1,15}W$`)
 var editionID = regexp.MustCompile(`^OL[0-9]{1,15}M$`)
 var ErrInvalidLookupMatch = errors.New("invalid metadata match")
 
-func ResolveOpenLibrary(ctx context.Context, work, edition, isbn string) (LookupMatch, error) {
+func (OpenLibraryCatalog) Resolve(ctx context.Context, work, edition, isbn string) (LookupMatch, error) {
 	return resolveOpenLibrary(ctx, lookupClient, "https://openlibrary.org", work, edition, isbn)
 }
 

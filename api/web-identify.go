@@ -10,11 +10,23 @@ import (
 	"reichard.io/antholume/reading"
 )
 
-type metadataResolver func(ctx context.Context, work, edition, isbn string) (metadata.LookupMatch, error)
-
-type hardcoverCatalog interface {
+type catalogProvider interface {
 	Lookup(context.Context, string) ([]metadata.LookupMatch, error)
 	Resolve(ctx context.Context, work, edition, isbn string) (metadata.LookupMatch, error)
+}
+
+func (api *API) catalogFor(provider MetadataProvider) (catalogProvider, error) {
+	switch provider {
+	case Openlibrary:
+		if api.openLibraryCatalog != nil {
+			return api.openLibraryCatalog, nil
+		}
+	case Hardcover:
+		if api.hardcoverCatalog != nil {
+			return api.hardcoverCatalog, nil
+		}
+	}
+	return nil, &reading.Failure{Status: 503, Code: "metadata_unavailable"}
 }
 
 func (s *webAPI) LookupMetadata(ctx context.Context, r LookupMetadataRequestObject) (LookupMetadataResponseObject, error) {
@@ -30,11 +42,11 @@ func (s *webAPI) LookupMetadata(ctx context.Context, r LookupMetadataRequestObje
 	if err != nil {
 		return nil, err
 	}
-	lookup := metadata.LookupOpenLibrary
-	if state.Effective == Hardcover {
-		lookup = s.api.catalog.Lookup
+	catalog, err := s.api.catalogFor(state.Effective)
+	if err != nil {
+		return nil, err
 	}
-	matches, err := lookup(ctx, q)
+	matches, err := catalog.Lookup(ctx, q)
 	if err != nil {
 		return nil, metadataLookupFailure(err)
 	}
@@ -90,11 +102,11 @@ func (api *API) resolveMetadataMatch(ctx context.Context, ref MetadataMatchRefer
 	if err := api.checkMetadataProvider(ctx, api.db.Queries, ref.Provider); err != nil {
 		return metadata.LookupMatch{}, err
 	}
-	resolve := api.openLibrary
-	if ref.Provider == Hardcover {
-		resolve = api.catalog.Resolve
+	catalog, err := api.catalogFor(ref.Provider)
+	if err != nil {
+		return metadata.LookupMatch{}, err
 	}
-	m, err := resolve(ctx, ref.WorkId, matchParam(ref.EditionId), matchParam(ref.Isbn))
+	m, err := catalog.Resolve(ctx, ref.WorkId, matchParam(ref.EditionId), matchParam(ref.Isbn))
 	if err != nil {
 		return metadata.LookupMatch{}, metadataLookupFailure(err)
 	}

@@ -33,7 +33,7 @@ type mockHardcover struct {
 func hardcoverFixture(t *testing.T, m *mockHardcover) *webFixture {
 	f := newWebFixture(t)
 	m.links = make(map[hardcover.Account]string)
-	f.api.hardcover.client = m
+	f.api.hardcoverAccounts.client = m
 	f.register("alice")
 	return f
 }
@@ -147,7 +147,7 @@ func TestHardcoverEncryptionKeyConfiguration(t *testing.T) {
 	cfg := f.api.cfg
 	cfg.HardcoverTokenKey = "invalid key"
 	require.NoError(t, f.api.configureHardcover())
-	require.Nil(t, f.api.hardcover.client)
+	require.Nil(t, f.api.hardcoverAccounts.client)
 
 	cfg.HardcoverClientID, cfg.HardcoverClientSecret = "app-id", "app-secret"
 	for _, key := range []string{"", "invalid key", base64.StdEncoding.EncodeToString(make([]byte, 31)), base64.StdEncoding.EncodeToString(make([]byte, 32)) + "\n"} {
@@ -157,11 +157,11 @@ func TestHardcoverEncryptionKeyConfiguration(t *testing.T) {
 		if key != "" {
 			require.NotContains(t, err.Error(), key)
 		}
-		require.Nil(t, f.api.hardcover.client)
+		require.Nil(t, f.api.hardcoverAccounts.client)
 	}
 	cfg.HardcoverTokenKey = base64.StdEncoding.EncodeToString(make([]byte, 32))
 	require.NoError(t, f.api.configureHardcover())
-	require.NotNil(t, f.api.hardcover.client)
+	require.NotNil(t, f.api.hardcoverAccounts.client)
 }
 
 func TestHardcoverOAuth(t *testing.T) {
@@ -230,7 +230,7 @@ func TestHardcoverCallbackRejectsExpiredStateAndStaleGeneration(t *testing.T) {
 	f := hardcoverFixture(t, m)
 	origin := f.cfg.PublicOrigin
 	v := beginHardcover(f)
-	flow := &f.api.hardcover
+	flow := &f.api.hardcoverAccounts
 	flow.mu.Lock()
 	a := flow.attempts[v.Get("state")]
 	a.expires = time.Now().Add(-time.Minute)
@@ -252,7 +252,7 @@ func TestHardcoverDisabledAndCallbackFailure(t *testing.T) {
 	f.register("alice")
 	requireHardcoverJSON(f, "GET", "", `{"enabled":false,"username":null,"reconnect_required":false}`)
 	assertProblem(t, f.call("POST", hardcoverPath+"/connect", nil, nil), 404, "hardcover_disabled")
-	f.api.hardcover.client = &mockHardcover{connectErr: errors.New("provider error with private details")}
+	f.api.hardcoverAccounts.client = &mockHardcover{connectErr: errors.New("provider error with private details")}
 	v := beginHardcover(f)
 	r := finishHardcover(f, v, f.cfg.PublicOrigin)
 	require.Equal(t, 502, r.status)

@@ -110,17 +110,25 @@ func (identifyCatalogFixture) Resolve(_ context.Context, work, edition, isbn str
 	return m, nil
 }
 
+type openLibraryCatalogFixture struct{}
+
+func (openLibraryCatalogFixture) Lookup(context.Context, string) ([]metadata.LookupMatch, error) {
+	return []metadata.LookupMatch{{ID: "OL20W", Title: "Open Library Title"}}, nil
+}
+
+func (openLibraryCatalogFixture) Resolve(_ context.Context, work, _, _ string) (metadata.LookupMatch, error) {
+	switch work {
+	case "OL20W", "OL21W":
+		return metadata.LookupMatch{ID: work, Title: "Open Library Title"}, nil
+	default:
+		return metadata.LookupMatch{}, metadata.ErrInvalidLookupMatch
+	}
+}
+
 func TestWebDocumentMatch(t *testing.T) {
 	f := newWebFixture(t)
-	f.api.catalog = identifyCatalogFixture{}
-	f.api.openLibrary = func(_ context.Context, work, _, _ string) (metadata.LookupMatch, error) {
-		switch work {
-		case "OL20W", "OL21W":
-			return metadata.LookupMatch{ID: work, Title: "Open Library Title"}, nil
-		default:
-			return metadata.LookupMatch{}, metadata.ErrInvalidLookupMatch
-		}
-	}
+	f.api.hardcoverCatalog = identifyCatalogFixture{}
+	f.api.openLibraryCatalog = openLibraryCatalogFixture{}
 	const path = "/api/v1/documents/book"
 	const preview = "/api/v1/metadata/match?provider=hardcover&work_id=42&edition_id=99&isbn=9780765391193"
 	const body = `{"match":{"provider":"hardcover","work_id":"42","edition_id":"99","isbn":"9780765391193"}}`
@@ -187,6 +195,12 @@ func TestWebDocumentMatch(t *testing.T) {
 	f.exec(`DROP TRIGGER reject_link`)
 
 	require.NoError(t, f.db.Queries.SetMetadataProvider(t.Context(), "openlibrary"))
+	search := f.call("GET", "/api/v1/metadata/search?q=title", nil, nil)
+	require.Equal(t, 200, search.status, string(search.body))
+	matches := decodeWeb[[]MetadataMatch](t, search)
+	require.Len(t, matches, 1)
+	require.Equal(t, Openlibrary, matches[0].Provider)
+	require.Equal(t, "OL20W", matches[0].Id)
 	assertProblem(t, f.call("PATCH", path, `{"match":{"provider":"openlibrary","work_id":"OL20W","edition_id":"OL100M"}}`, nil), 400, "invalid_request")
 	ol := DocumentMatch{Provider: Openlibrary, WorkId: "OL20W"}
 	patch(`{"match":{"provider":"openlibrary","work_id":"OL20W"}}`, hc, ol)
@@ -198,8 +212,8 @@ func TestWebDocumentMatch(t *testing.T) {
 	require.Equal(t, 6, f.count("document_identifiers"))
 
 	// Plain edits and detail reads require no live provider connection.
-	f.api.openLibrary = nil
-	f.api.catalog = nil
+	f.api.openLibraryCatalog = nil
+	f.api.hardcoverCatalog = nil
 	require.NoError(t, f.db.Queries.SetMetadataProvider(t.Context(), "hardcover"))
 	patch(`{"author":"Edited Author"}`, hc, ol)
 	require.Equal(t, 404, f.call("POST", path+"/identify", `{}`, nil).status)

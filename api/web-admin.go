@@ -183,7 +183,7 @@ func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestOb
 	if err != nil {
 		return nil, err
 	}
-	f := &s.api.hardcover
+	f := &s.api.hardcoverAccounts
 	f.cancel(hardcover.Account{ID: deleted.AccountID, Generation: deleted.Generation})
 	if f.client != nil && deleted.Credential != nil {
 		f.client.RevokeStored(requestContext(ctx), deleted.AccountID, deleted.Credential)

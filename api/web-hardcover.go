@@ -68,7 +68,7 @@ func (api *API) configureHardcover() error {
 	if err != nil {
 		return errors.New("initialize Hardcover integration")
 	}
-	api.hardcover.client = client
+	api.hardcoverAccounts.client = client
 	return nil
 }
 
@@ -129,7 +129,7 @@ func (f *hardcoverFlow) take(account hardcover.Account, session, state string, n
 }
 
 func (s *webAPI) GetHardcover(ctx context.Context, _ GetHardcoverRequestObject) (GetHardcoverResponseObject, error) {
-	client := s.api.hardcover.client
+	client := s.api.hardcoverAccounts.client
 	if client == nil {
 		return GetHardcover200JSONResponse{}, nil
 	}
@@ -146,7 +146,7 @@ func (s *webAPI) GetHardcover(ctx context.Context, _ GetHardcoverRequestObject) 
 }
 
 func (s *webAPI) ConnectHardcover(ctx context.Context, _ ConnectHardcoverRequestObject) (ConnectHardcoverResponseObject, error) {
-	f := &s.api.hardcover
+	f := &s.api.hardcoverAccounts
 	if f.client == nil {
 		return nil, &webFailure{status: 404, code: "hardcover_disabled"}
 	}
@@ -166,7 +166,7 @@ func (s *webAPI) ConnectHardcover(ctx context.Context, _ ConnectHardcoverRequest
 }
 
 func (s *webAPI) DisconnectHardcover(ctx context.Context, _ DisconnectHardcoverRequestObject) (DisconnectHardcoverResponseObject, error) {
-	f := &s.api.hardcover
+	f := &s.api.hardcoverAccounts
 	if f.client == nil {
 		return nil, &webFailure{status: 404, code: "hardcover_disabled"}
 	}
@@ -182,7 +182,7 @@ func (s *webAPI) DisconnectHardcover(ctx context.Context, _ DisconnectHardcoverR
 }
 
 func (s *webAPI) GetHardcoverShelf(ctx context.Context, r GetHardcoverShelfRequestObject) (GetHardcoverShelfResponseObject, error) {
-	client := s.api.hardcover.client
+	client := s.api.hardcoverAccounts.client
 	if client == nil {
 		return nil, &webFailure{status: 404, code: "hardcover_disabled"}
 	}
@@ -226,10 +226,10 @@ func hardcoverCallbackHeaders(c *gin.Context) {
 func (api *API) hardcoverCallback(c *gin.Context) {
 	hardcoverCallbackHeaders(c)
 	query := c.Request.URL.RawQuery
-	if api.hardcover.client != nil && len(query) <= hardcoverRequestLimit {
+	if api.hardcoverAccounts.client != nil && len(query) <= hardcoverRequestLimit {
 		params, err := url.ParseQuery(query)
 		state, code, ok := hardcoverCallbackValues(params)
-		if err == nil && ok && api.hardcover.live(state, time.Now()) {
+		if err == nil && ok && api.hardcoverAccounts.live(state, time.Now()) {
 			if nonce, err := randomCSRF(); err == nil {
 				c.Header("Content-Security-Policy", "default-src 'none'; script-src 'nonce-"+nonce+"'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 				c.Header("Content-Type", "text/html; charset=utf-8")
@@ -271,7 +271,7 @@ var hardcoverCallbackPage = template.Must(template.New("hardcover-callback").Par
 
 func (api *API) finishHardcoverCallback(c *gin.Context) {
 	hardcoverCallbackHeaders(c)
-	f := &api.hardcover
+	f := &api.hardcoverAccounts
 	origin := c.Request.Header.Values("Origin")
 	if f.client == nil || len(origin) != 1 || origin[0] != api.cfg.PublicOrigin {
 		c.Status(http.StatusForbidden)

@@ -23,7 +23,9 @@ type LookupMatch struct {
 
 var lookupClient = &http.Client{Timeout: 6 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
-func LookupOpenLibrary(ctx context.Context, query string) ([]LookupMatch, error) {
+type OpenLibraryCatalog struct{}
+
+func (OpenLibraryCatalog) Lookup(ctx context.Context, query string) ([]LookupMatch, error) {
 	return lookupOpenLibrary(ctx, lookupClient, "https://openlibrary.org/search.json", query)
 }
 
