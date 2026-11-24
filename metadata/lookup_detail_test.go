@@ -19,6 +19,8 @@ func TestOpenLibraryWorkAndEditionPreview(t *testing.T) {
 			http.Redirect(w, r, "/books/OL2M.json", http.StatusFound)
 		case "/books/OL2M.json":
 			fmt.Fprint(w, `{"key":"/books/OL2M","works":[{"key":"/works/OL1W"}],"isbn_13":["9780765391193"],"covers":[42]}`)
+		case "/books/OL6M.json":
+			http.Error(w, "unavailable", http.StatusServiceUnavailable)
 		case "/books/OL3M.json":
 			fmt.Fprint(w, `{"key":"/books/OL3M","works":[{"key":"/works/OL4W"}],"covers":[99]}`)
 		default:
@@ -39,4 +41,10 @@ func TestOpenLibraryWorkAndEditionPreview(t *testing.T) {
 	require.NotNil(t, match.Description)
 	require.Nil(t, match.EditionID)
 	require.Nil(t, match.CoverID)
+	match, err = resolveOpenLibrary(t.Context(), client, srv.URL, "OL1W", "OL5M", "")
+	require.NoError(t, err)
+	require.Nil(t, match.EditionID)
+	_, err = resolveOpenLibrary(t.Context(), client, srv.URL, "OL1W", "OL6M", "")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrInvalidLookupMatch)
 }

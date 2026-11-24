@@ -40,7 +40,11 @@ func (s *webAPI) SetAdminMetadataProvider(ctx context.Context, r SetAdminMetadat
 		if choice == Hardcover && s.api.hardcoverCatalog == nil {
 			return adminFailure(409, "hardcover_catalog_unconfigured")
 		}
-		return s.api.db.Queries.WithTx(tx).SetMetadataProvider(ctx, string(choice))
+		_, err := s.api.db.Queries.WithTx(tx).UpdateSettings(ctx, database.UpdateSettingsParams{
+			Name:  "metadata_provider",
+			Value: string(choice),
+		})
+		return err
 	}); err != nil {
 		return nil, err
 	}

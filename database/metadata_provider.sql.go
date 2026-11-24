@@ -10,7 +10,7 @@ import (
 )
 
 const getMetadataProvider = `-- name: GetMetadataProvider :one
-SELECT CAST(COALESCE((SELECT provider FROM metadata_provider WHERE id = 1), 'openlibrary') AS TEXT) AS provider
+SELECT CAST(COALESCE((SELECT value FROM settings WHERE name = 'metadata_provider'), 'openlibrary') AS TEXT) AS provider
 `
 
 func (q *Queries) GetMetadataProvider(ctx context.Context) (string, error) {
@@ -82,15 +82,5 @@ type RemoveOtherDocumentIdentifiersParams struct {
 
 func (q *Queries) RemoveOtherDocumentIdentifiers(ctx context.Context, arg RemoveOtherDocumentIdentifiersParams) error {
 	_, err := q.db.ExecContext(ctx, removeOtherDocumentIdentifiers, arg.DocumentID, arg.Namespace, arg.Value)
-	return err
-}
-
-const setMetadataProvider = `-- name: SetMetadataProvider :exec
-INSERT INTO metadata_provider (id, provider) VALUES (1, ?)
-ON CONFLICT(id) DO UPDATE SET provider = excluded.provider
-`
-
-func (q *Queries) SetMetadataProvider(ctx context.Context, provider string) error {
-	_, err := q.db.ExecContext(ctx, setMetadataProvider, provider)
 	return err
 }

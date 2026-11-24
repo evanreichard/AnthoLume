@@ -12,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"reichard.io/antholume/config"
+	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
 )
 
@@ -54,16 +55,22 @@ func TestWebMetadataProviderSelectionAndTokenRemoval(t *testing.T) {
 		require.Equal(t, 200, r.status, string(r.body))
 		require.JSONEq(t, fmt.Sprintf(`{"selected":%q,"effective":%q,"hardcover_available":%t}`, selected, effective, available), string(r.body))
 	}
+	checkStored := func(expected int) {
+		t.Helper()
+		var count int
+		require.NoError(t, f.db.DB.QueryRow(`SELECT COUNT(*) FROM settings WHERE name = 'metadata_provider'`).Scan(&count))
+		require.Equal(t, expected, count)
+	}
 	choice := MetadataProviderChoice{Provider: Hardcover}
 	f.register("admin")
 	f.exec("UPDATE users SET admin=1 WHERE id='admin'")
 	check(Openlibrary, Openlibrary, false)
 	assertProblem(t, f.call("PUT", adminMetadataPath, choice, nil), 409, "hardcover_catalog_unconfigured")
-	require.Zero(t, f.count("metadata_provider"))
+	checkStored(0)
 
 	restart(token)
 	check(Openlibrary, Openlibrary, true)
-	require.Zero(t, f.count("metadata_provider"))
+	checkStored(0)
 	assertProblem(t, f.call("PUT", adminMetadataPath, `{"provider":"hardcover","token":"not allowed"}`, nil), 400, "invalid_request")
 	assertProblem(t, f.call("PUT", adminMetadataPath, choice, map[string]string{"X-CSRF-Token": "bad"}), 403, "csrf_failed")
 	f.exec("UPDATE users SET admin=0 WHERE id='admin'")
@@ -74,7 +81,7 @@ func TestWebMetadataProviderSelectionAndTokenRemoval(t *testing.T) {
 	require.Equal(t, 200, saved.status, string(saved.body))
 	require.NotContains(t, string(saved.body), token)
 	check(Hardcover, Hardcover, true)
-	require.Equal(t, 1, f.count("metadata_provider"))
+	checkStored(1)
 	raw, err := os.ReadFile(filepath.Join(f.cfg.ConfigPath, "test.db"))
 	require.NoError(t, err)
 	require.NotContains(t, string(raw), token)
@@ -84,6 +91,7 @@ func TestWebMetadataProviderSelectionAndTokenRemoval(t *testing.T) {
 	assertProblem(t, f.call("GET", "/api/v1/metadata/match?provider=hardcover&work_id=42", nil, nil), 409, "metadata_provider_changed")
 	require.Equal(t, 200, f.call("PUT", adminMetadataPath, MetadataProviderChoice{Provider: Openlibrary}, nil).status)
 	check(Openlibrary, Openlibrary, false)
+	checkStored(1)
 	f.server.Close()
 	require.NotContains(t, logs.String(), token)
 }
@@ -116,7 +124,10 @@ func (openLibraryCatalogFixture) Lookup(context.Context, string) ([]metadata.Loo
 	return []metadata.LookupMatch{{ID: "OL20W", Title: "Open Library Title"}}, nil
 }
 
-func (openLibraryCatalogFixture) Resolve(_ context.Context, work, _, _ string) (metadata.LookupMatch, error) {
+func (openLibraryCatalogFixture) Resolve(_ context.Context, work, edition, _ string) (metadata.LookupMatch, error) {
+	if edition == "OL503M" {
+		return metadata.LookupMatch{}, errors.New("provider unavailable")
+	}
 	switch work {
 	case "OL20W", "OL21W":
 		return metadata.LookupMatch{ID: work, Title: "Open Library Title"}, nil
@@ -129,6 +140,11 @@ func TestWebDocumentMatch(t *testing.T) {
 	f := newWebFixture(t)
 	f.api.hardcoverCatalog = identifyCatalogFixture{}
 	f.api.openLibraryCatalog = openLibraryCatalogFixture{}
+	setProvider := func(provider MetadataProvider) {
+		t.Helper()
+		_, err := f.db.Queries.UpdateSettings(t.Context(), database.UpdateSettingsParams{Name: "metadata_provider", Value: string(provider)})
+		require.NoError(t, err)
+	}
 	const path = "/api/v1/documents/book"
 	const preview = "/api/v1/metadata/match?provider=hardcover&work_id=42&edition_id=99&isbn=9780765391193"
 	const body = `{"match":{"provider":"hardcover","work_id":"42","edition_id":"99","isbn":"9780765391193"}}`
@@ -141,7 +157,7 @@ func TestWebDocumentMatch(t *testing.T) {
 	require.NotNil(t, before.Matches)
 	require.Empty(t, *before.Matches)
 	assertProblem(t, f.call("PATCH", path, body, nil), 409, "metadata_provider_changed")
-	require.NoError(t, f.db.Queries.SetMetadataProvider(t.Context(), "hardcover"))
+	setProvider(Hardcover)
 	for _, query := range []string{"Hardcover+Author", "9780765391193"} {
 		r := f.call("GET", "/api/v1/metadata/search?q="+query, nil, nil)
 		require.Equal(t, 200, r.status, string(r.body))
@@ -194,7 +210,7 @@ func TestWebDocumentMatch(t *testing.T) {
 	require.Equal(t, after.Matches, live.Matches)
 	f.exec(`DROP TRIGGER reject_link`)
 
-	require.NoError(t, f.db.Queries.SetMetadataProvider(t.Context(), "openlibrary"))
+	setProvider(Openlibrary)
 	search := f.call("GET", "/api/v1/metadata/search?q=title", nil, nil)
 	require.Equal(t, 200, search.status, string(search.body))
 	matches := decodeWeb[[]MetadataMatch](t, search)
@@ -202,6 +218,8 @@ func TestWebDocumentMatch(t *testing.T) {
 	require.Equal(t, Openlibrary, matches[0].Provider)
 	require.Equal(t, "OL20W", matches[0].Id)
 	assertProblem(t, f.call("PATCH", path, `{"match":{"provider":"openlibrary","work_id":"OL20W","edition_id":"OL100M"}}`, nil), 400, "invalid_request")
+	assertProblem(t, f.call("PATCH", path, `{"match":{"provider":"openlibrary","work_id":"OL20W","edition_id":"OL503M"},"title":"Do not save"}`, nil), 503, "metadata_unavailable")
+	require.Equal(t, live, decodeWeb[Document](t, f.call("GET", path, nil, nil)))
 	ol := DocumentMatch{Provider: Openlibrary, WorkId: "OL20W"}
 	patch(`{"match":{"provider":"openlibrary","work_id":"OL20W"}}`, hc, ol)
 	ol.WorkId = "OL21W"
@@ -214,7 +232,7 @@ func TestWebDocumentMatch(t *testing.T) {
 	// Plain edits and detail reads require no live provider connection.
 	f.api.openLibraryCatalog = nil
 	f.api.hardcoverCatalog = nil
-	require.NoError(t, f.db.Queries.SetMetadataProvider(t.Context(), "hardcover"))
+	setProvider(Hardcover)
 	patch(`{"author":"Edited Author"}`, hc, ol)
 	require.Equal(t, 404, f.call("POST", path+"/identify", `{}`, nil).status)
 }

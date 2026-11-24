@@ -15,7 +15,7 @@ test('Metadata provider defaults to Open Library and explains missing Hardcover 
     await expect(openLibrary).toBeChecked();
     await expect(hardcover).toBeDisabled();
     await expect(hardcover).toHaveAccessibleDescription('Set HARDCOVER_CATALOG_TOKEN and restart the server to enable Hardcover.');
-    db.prepare("INSERT INTO metadata_provider (id, provider) VALUES (1, 'hardcover')").run();
+    db.prepare("INSERT INTO settings (name, value) VALUES ('metadata_provider', 'hardcover')").run();
     await page.reload();
     await expect(page.getByText(/Open Library is active because .* no longer has a catalog token/)).toBeVisible();
     await expect(hardcover).toBeChecked();

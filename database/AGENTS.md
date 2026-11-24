@@ -1,6 +1,7 @@
 # SQLite and migrations
 
 - Edit SQL inputs listed in `sqlc.yaml`, then run `sqlc generate` from the repo root. `schema.sql` bootstraps a database; Goose migrations upgrade persisted data. Keep the reading-writer triggers and the forward-only ledger migrations: older writers cannot maintain heads and receipts.
+- Store scalar instance preferences in `settings` (one row per name); use the generated `UpdateSettings` upsert. Keep deployment secrets out of the database.
 - Startup upgrades and staged restores share the Goose migration runner. Test upgrades of older releases using database fixtures, not a separate registry of historical schemas. Restore migrations must not trust filesystem paths carried in a backup.
 - Keep device identity account-scoped: `(user_id, id)`. Preserve historical activity, resume positions and sync cursors when changing keys. `reading_heads` is the current position; per-device progress and statistics are not alternate authorities.
 - Store book placement as a root ID plus a relative path. Library is managed; source files may be referenced in place. Normalize legacy `.` components without accepting traversal. Backup mounts are not local permissions.

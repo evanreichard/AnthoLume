@@ -1,9 +1,5 @@
 -- name: GetMetadataProvider :one
-SELECT CAST(COALESCE((SELECT provider FROM metadata_provider WHERE id = 1), 'openlibrary') AS TEXT) AS provider;
-
--- name: SetMetadataProvider :exec
-INSERT INTO metadata_provider (id, provider) VALUES (1, ?)
-ON CONFLICT(id) DO UPDATE SET provider = excluded.provider;
+SELECT CAST(COALESCE((SELECT value FROM settings WHERE name = 'metadata_provider'), 'openlibrary') AS TEXT) AS provider;
 
 -- name: RemoveOtherDocumentIdentifiers :exec
 DELETE FROM document_identifiers

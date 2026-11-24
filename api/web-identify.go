@@ -117,8 +117,7 @@ func (api *API) resolveMetadataMatch(ctx context.Context, ref MetadataMatchRefer
 }
 
 // Confirmed Namespaces - The legacy openlibrary namespace may contain works, editions, or unclassified values.
-// Keep it separate, and retain hardcover for links already saved by the first version of the provider.
-var workNamespaces = map[MetadataProvider]string{Openlibrary: "openlibrary_work", Hardcover: "hardcover"}
+var workNamespaces = map[MetadataProvider]string{Openlibrary: "openlibrary_work", Hardcover: "hardcover_book"}
 
 func documentMatches(ctx context.Context, queries *database.Queries, id string) (*[]DocumentMatch, error) {
 	rows, err := queries.ListDocumentIdentifiers(ctx, id)

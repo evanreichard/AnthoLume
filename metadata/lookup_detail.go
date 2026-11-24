@@ -63,7 +63,10 @@ func resolveOpenLibrary(ctx context.Context, client *http.Client, base, work, ed
 		path = "/isbn/" + isbn + ".json"
 	}
 	if err := readLookupRecord(ctx, client, base, path, &ed); err != nil {
-		return out, nil
+		if errors.Is(err, ErrInvalidLookupMatch) {
+			return out, nil
+		}
+		return out, err
 	}
 	id := strings.TrimPrefix(ed.Key, "/books/")
 	if !editionID.MatchString(id) || isbn == "" && id != edition {
@@ -141,6 +144,9 @@ func readLookupRecord(ctx context.Context, client *http.Client, base, path strin
 			continue
 		}
 		defer res.Body.Close()
+		if res.StatusCode == http.StatusNotFound {
+			return ErrInvalidLookupMatch
+		}
 		if res.StatusCode != http.StatusOK {
 			return fmt.Errorf("Open Library returned HTTP %d", res.StatusCode)
 		}
