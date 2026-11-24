@@ -219,7 +219,7 @@
 .matchFieldLabel { color: var(--muted); font-size: .8125rem; font-weight: 650; }
 .matchValue { grid-column: 1 / -1; white-space: pre-wrap; overflow-wrap: anywhere; }
 .matchIndicator { display: grid; place-items: center; inline-size: 16px; block-size: 16px; color: var(--accent); }
-.matchCoverCard { position: relative; display: block; padding: 0; overflow: hidden; }
+.matchCoverCard { position: relative; display: block; min-block-size: 104px; padding: 0; overflow: hidden; }
 .matchCoverCard .matchIndicator { position: absolute; inset: 4px 4px auto auto; z-index: 1; }
 .matchCoverCard[aria-pressed='true'] .matchIndicator { border-radius: 50%; background: var(--surface); }
 .matchCoverCard:focus-visible { z-index: 1; }

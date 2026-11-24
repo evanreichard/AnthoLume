@@ -32,7 +32,7 @@ type API struct {
 	httpServer         *http.Server
 	reading            *reading.Store
 	hardcoverAccounts  hardcoverFlow
-	hardcoverCatalog   catalogProvider
+	hardcoverCatalog   hardcoverCatalogProvider
 	openLibraryCatalog catalogProvider
 	attempts           credentialLimiter
 	identitySlots      chan struct{}

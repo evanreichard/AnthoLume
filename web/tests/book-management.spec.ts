@@ -84,7 +84,11 @@ test('book editor previews metadata without saving, saves cover and fields, and 
     await route.fulfill({ json: { provider: 'openlibrary', id: 'OL1W', edition_id: 'OL2M', title: 'Looked-up title', author: '', description: 'Work synopsis from Open Library.', isbn10: '0765391198', isbn13: '9780765391193', cover_id: 42 } });
   });
   await page.route('**/api/v1/metadata/covers/42', route => route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(cover, 'base64') }));
-  await page.route('**/api/v1/metadata/covers/42?prefer_large=true', route => route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(largeCover, 'base64') }));
+  let largeCoverRequests = 0;
+  await page.route('**/api/v1/metadata/covers/42?prefer_large=true', route => {
+    largeCoverRequests++;
+    return route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(largeCover, 'base64') });
+  });
   await page.route('**/api/v1/documents/*', async route => {
     if (route.request().method() !== 'PATCH') return route.fallback();
     const { match, ...edits } = route.request().postDataJSON();
@@ -178,7 +182,7 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await dialog.getByRole('button', { name: /Looked-up title/ }).click();
   await expect(dialog.getByText('Work synopsis from Open Library.', { exact: true })).toBeVisible();
   await expect(dialog.getByRole('textbox', { name: 'Synopsis', exact: true })).toHaveCount(0);
-  const coverChoice = dialog.getByRole('button', { name: 'Edition Cover', exact: true });
+  const coverChoice = dialog.getByRole('button', { name: 'Cover', exact: true });
   await expect(coverChoice).toHaveAttribute('aria-pressed', 'true');
   await coverChoice.click();
   await expect(coverChoice).toHaveAttribute('aria-pressed', 'false');
@@ -193,7 +197,7 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await expect(page.getByRole('heading', { name: 'Disposable editor book', exact: true })).toBeVisible();
   await openMatch();
   const image = dialog.getByRole('img', { name: 'Cover for Looked-up title' });
-  await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(16);
+  await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(160);
   await expect(dialog.getByRole('button', { name: 'Author', exact: true })).toHaveAttribute('aria-pressed', 'false');
   const synopsis = dialog.getByRole('button', { name: 'Synopsis', exact: true });
   await expect(synopsis).toHaveAttribute('aria-pressed', 'false');
@@ -212,10 +216,12 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await expect(dialog.getByRole('button', { name: 'Link and Apply 4 Changes', exact: true })).toBeEnabled();
   await isbnChoice.click();
   await expect(coverChoice).toHaveAttribute('aria-pressed', 'true');
+  const largeCoverRequestsBeforeApply = largeCoverRequests;
   const saved = page.waitForRequest(req => req.method() === 'PATCH' && req.url().includes('/api/v1/documents/'));
   await dialog.getByRole('button', { name: 'Link and Apply 5 Changes', exact: true }).click();
   const body = (await saved).postDataJSON();
   expect(body.cover_base64).toBe(largeCover);
+  expect(largeCoverRequests).toBe(largeCoverRequestsBeforeApply);
   expect(body).not.toHaveProperty('author');
   await expect(dialog).toHaveCount(0);
   const appliedTitle = page.getByRole('heading', { name: 'Looked-up title', exact: true });
@@ -241,11 +247,27 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await expect(appliedTitle).toHaveCount(0);
 });
 
-test('Hardcover preview can link without edits or apply just the selected fields', async ({ page, server }) => {
+test('Hardcover reuses cover bytes for preview and save, and still links when artwork fails', async ({ page, server }) => {
   await register(page, server.origin, 'hardcover-catalog-reader');
-  const document = await (await page.request.get(`${server.origin}/api/v1/documents/book_001`)).json();
-  const work = { provider: 'hardcover', id: '42', title: 'Hardcover Title', author: 'Verified Author', description: 'Catalog synopsis' };
+  const originalDocument = await (await page.request.get(`${server.origin}/api/v1/documents/book_001`)).json();
+  const work = { provider: 'hardcover', id: '42', title: 'Hardcover Title', author: 'Verified Author', description: 'Catalog synopsis', cover_id: 42 };
   const edition = { ...work, edition_id: '91', isbn13: '9780765391193' };
+  const cover = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 60; canvas.height = 90;
+    return canvas.toDataURL('image/jpeg').split(',')[1]!;
+  });
+  let coverRequests = 0;
+  let coverUnavailable = false;
+  await page.route(/\/api\/v1\/metadata\/covers\/42(?:\?|$)/, route => {
+    coverRequests++;
+    const query = new URL(route.request().url()).searchParams;
+    expect(query.get('provider')).toBe('hardcover');
+    expect(query.has('prefer_large')).toBe(false);
+    expect(route.request().headers()['x-antholume-account']).toBeTruthy();
+    if (coverUnavailable) return route.fulfill({ status: 503 });
+    return route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(cover, 'base64') });
+  });
   const confirmed: unknown[] = [];
   await page.route('**/api/v1/metadata/search?*', route => {
     const q = new URL(route.request().url()).searchParams.get('q');
@@ -263,7 +285,7 @@ test('Hardcover preview can link without edits or apply just the selected fields
     }
     return route.fulfill({ json: work });
   });
-  let current = document;
+  let current = { ...originalDocument, cover_available: true };
   await page.route('**/api/v1/documents/book_001', route => {
     if (route.request().method() === 'PATCH') {
       const body = route.request().postDataJSON();
@@ -276,17 +298,31 @@ test('Hardcover preview can link without edits or apply just the selected fields
   });
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Identify Book' });
-  const preview = async (query: string) => {
+  const preview = async (query: string, expectCover = true) => {
     await page.getByRole('button', { name: 'More', exact: true }).click();
     await page.getByRole('button', { name: 'Identify', exact: true }).click();
     await dialog.getByRole('searchbox').fill(query);
     await dialog.getByRole('button', { name: 'Search', exact: true }).click();
-    await dialog.getByRole('button', { name: /Hardcover Title.*Verified Author/ }).click();
+    const result = dialog.getByRole('button', { name: /Hardcover Title.*Verified Author/ });
+    const thumbnail = result.locator('img');
+    if (expectCover) await expect.poll(() => thumbnail.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(60);
+    await result.click();
     await expect(dialog.getByRole('region', { name: 'Match preview' })).toBeVisible();
     await expect(dialog.getByText('Catalog synopsis')).toBeVisible();
     await expect(dialog.getByRole('radio')).toHaveCount(0);
+    await expect(dialog.getByText('Link this book with or without applying metadata changes.')).toHaveCount(0);
+    await expect(dialog.getByText('No edition verified.', { exact: false })).toHaveCount(0);
+    await expect(dialog.getByText(/^(Book|Edition) Cover$/)).toHaveCount(0);
+    const choice = dialog.getByRole('button', { name: 'Cover', exact: true });
+    if (expectCover) {
+      await expect(choice).toBeEnabled();
+      await expect(choice).toHaveAttribute('aria-pressed', 'false');
+    } else {
+      await expect(choice).toHaveCount(0);
+    }
   };
   await preview('Verified Author');
+  expect(coverRequests).toBe(1);
   expect(confirmed).toEqual([]);
   const link = dialog.getByRole('button', { name: 'Link Book', exact: true });
   for (const width of [320, 390, 1280]) {
@@ -301,8 +337,19 @@ test('Hardcover preview can link without edits or apply just the selected fields
   await preview('978-0765391193');
   await expect(dialog.getByText(/ISBN match/)).toBeVisible();
   await dialog.getByRole('button', { name: 'Title', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Link and Apply 2 Changes' }).click();
+  await dialog.getByRole('button', { name: 'Cover', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Link and Apply 3 Changes' }).click();
   await expect(dialog).toHaveCount(0);
-  expect(confirmed[1]).toEqual({ match: { provider: 'hardcover', work_id: '42', edition_id: '91', isbn: '9780765391193' }, isbn13: edition.isbn13, title: work.title });
+  expect(coverRequests).toBe(2);
+  expect(confirmed[1]).toEqual({ match: { provider: 'hardcover', work_id: '42', edition_id: '91', isbn: '9780765391193' }, isbn13: edition.isbn13, title: work.title, cover_base64: cover });
   await expect(page.getByRole('heading', { name: work.title, exact: true })).toBeVisible();
+
+  coverUnavailable = true;
+  current = { ...current, cover_available: false };
+  await preview('Verified Author', false);
+  await dialog.getByRole('button', { name: 'Synopsis', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Link and Apply 1 Change', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(coverRequests).toBe(3);
+  expect(confirmed[2]).toEqual({ match: { provider: 'hardcover', work_id: '42' }, description: work.description });
 });

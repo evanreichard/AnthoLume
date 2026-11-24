@@ -7,6 +7,13 @@ import { InvalidResponse, isMakeLibraryPlan, isAdminAutoImport, isAdminRestore, 
 
 type S = components['schemas'];
 
+export function metadataCoverURL(provider: S['MetadataProvider'], id: number, preferLarge = false) {
+  const query = new URLSearchParams();
+  if (provider !== 'openlibrary') query.set('provider', provider);
+  if (preferLarge) query.set('prefer_large', 'true');
+  return `/api/v1/metadata/covers/${id}${query.size ? `?${query}` : ''}`;
+}
+
 function isHardcoverConnect(value: unknown): value is S['HardcoverConnect'] {
   if (!checkHardcoverConnect(value)) return false;
   try {
@@ -132,7 +139,33 @@ export function createAPI(gate: SessionGate) {
     }), isDocument, 200, account),
     editDocument: (account: Account, id: string, body: S['DocumentEdit'], signal: AbortSignal) => consume(client => client.PATCH('/api/v1/documents/{id}', { params: path(id), body, signal, parseAs: 'stream' }), isDocument, 200, account),
     deleteDocument: (account: Account, id: string, signal: AbortSignal) => consume(client => client.DELETE('/api/v1/documents/{id}', { params: path(id), signal, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
-    metadataCover: (account: Account, id: number, signal: AbortSignal) => binary(account, `/api/v1/metadata/covers/${id}?prefer_large=true`, signal),
+    metadataCover: async (account: Account, provider: S['MetadataProvider'], id: number, signal: AbortSignal) => {
+      const epoch = gate.epoch();
+      const response = await binary(account, metadataCoverURL(provider, id, provider === 'openlibrary'), signal);
+      if (!response.body) return null;
+      if (!response.ok || response.redirected || response.headers.get('content-type')?.split(';')[0].trim() !== 'image/jpeg') {
+        void response.body.cancel().catch(() => {});
+        return null;
+      }
+      const reader = response.body.getReader();
+      const chunks: BlobPart[] = [];
+      let size = 0;
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > 2 * 1024 * 1024) {
+            void reader.cancel().catch(() => {});
+            return null;
+          }
+          chunks.push(value);
+        }
+      } finally { reader.releaseLock(); }
+      signal.throwIfAborted();
+      gate.assert(account, epoch);
+      return size ? new Blob(chunks, { type: 'image/jpeg' }) : null;
+    },
     previewMetadataMatch: (account: Account, query: S['MetadataMatchReference'], signal: AbortSignal) => consume(client => client.GET('/api/v1/metadata/match', { params: { query }, signal, parseAs: 'stream' }), isMetadataMatch, 200, account),
     lookupMetadata: (account: Account, q: string, signal: AbortSignal) => consume(client => client.GET('/api/v1/metadata/search', { params: { query: { q } }, signal, parseAs: 'stream' }), isMetadataMatches, 200, account),
     document: (account: Account, id: string, signal: AbortSignal) => consume(client => client.GET('/api/v1/documents/{id}', { params: path(id), signal, parseAs: 'stream' }), isDocument, 200, account),

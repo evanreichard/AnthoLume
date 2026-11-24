@@ -54,6 +54,8 @@ func (c *Client) query(ctx context.Context, token, query string, vars any, resul
 	return graphqlQuery(ctx, c.http, c.graphql, token, query, vars, result)
 }
 
+const hardcoverUserAgent = "AnthoLume (https://github.com/evanreichard/AnthoLume)"
+
 func graphqlQuery(ctx context.Context, client *http.Client, endpoint, token, query string, vars any, result any) error {
 	body, err := json.Marshal(struct {
 		Query     string `json:"query"`
@@ -68,7 +70,7 @@ func graphqlQuery(ctx context.Context, client *http.Client, endpoint, token, que
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("User-Agent", "AnthoLume (https://github.com/evanreichard/AnthoLume)")
+	req.Header.Set("User-Agent", hardcoverUserAgent)
 	var response struct {
 		Data   json.RawMessage   `json:"data"`
 		Errors []json.RawMessage `json:"errors"`

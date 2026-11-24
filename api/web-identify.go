@@ -15,6 +15,11 @@ type catalogProvider interface {
 	Resolve(ctx context.Context, work, edition, isbn string) (metadata.LookupMatch, error)
 }
 
+type hardcoverCatalogProvider interface {
+	catalogProvider
+	Cover(context.Context, int64) ([]byte, error)
+}
+
 func (api *API) catalogFor(provider MetadataProvider) (catalogProvider, error) {
 	switch provider {
 	case Openlibrary:

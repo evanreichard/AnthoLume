@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Button } from '../Controls';
 import { Icon } from '../Icon';
+import { metadataCoverURL } from '../api/client';
 import type { components } from '../api/schema.gen';
 import type { BookRef } from '../reading';
 import { session } from '../session';
@@ -13,7 +14,7 @@ type Match = components['schemas']['MetadataMatch'];
 type Draft = ReturnType<typeof bookMetadataDraft>;
 type Field = keyof Draft | 'cover';
 const labels: Record<keyof Draft, string> = { title: 'Title', author: 'Author', description: 'Synopsis', isbn10: 'ISBN-10', isbn13: 'ISBN-13' };
-const coverURL = (id: number) => `/api/v1/metadata/covers/${id}`;
+
 
 function availableFields(match: Match) {
   return (Object.keys(labels) as (keyof Draft)[]).filter(key => {
@@ -25,10 +26,30 @@ function availableFields(match: Match) {
   });
 }
 
-function ResultCover({ id }: { id?: number }) {
+function useCoverImage(blob: Promise<Blob | null> | undefined) {
+  const [loaded, setLoaded] = useState<{ source: Promise<Blob | null>; image: { blob: Blob; url: string } | null }>();
+  useEffect(() => {
+    setLoaded(undefined);
+    if (!blob) return;
+    let active = true;
+    let url: string | undefined;
+    void blob.then(data => {
+      if (!active) return;
+      if (!data) { setLoaded({ source: blob, image: null }); return; }
+      url = URL.createObjectURL(data);
+      setLoaded({ source: blob, image: { blob: data, url } });
+    });
+    return () => { active = false; if (url) URL.revokeObjectURL(url); };
+  }, [blob]);
+  return loaded?.source === blob ? loaded?.image : undefined;
+}
+
+function ResultCover({ url, blob }: { url?: string; blob?: Promise<Blob | null> }) {
+  const image = useCoverImage(blob);
   const [missing, setMissing] = useState(false);
+  const src = image?.url ?? url;
   return <span className={styles.metadataResultCover} aria-hidden="true">
-    {id && !missing ? <img src={coverURL(id)} alt="" loading="lazy" onError={() => setMissing(true)} /> : <Icon name="book" size={16} />}
+    {src && !missing ? <img src={src} alt="" loading="lazy" onError={() => setMissing(true)} /> : <Icon name="book" size={16} />}
   </span>;
 }
 
@@ -44,6 +65,10 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
   const [selected, setSelected] = useState<Field[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [cover, setCover] = useState<'loading' | 'ready' | 'missing'>('loading');
+  const [previewBlob, setPreviewBlob] = useState<Promise<Blob | null>>();
+  const previewImage = useCoverImage(previewBlob);
+  const previewDownload = useRef<AbortController | null>(null);
+  const searchCovers = useRef<{ controller: AbortController; blobs: Map<number, Promise<Blob | null>> } | null>(null);
   const [busy, setBusy] = useState<'search' | 'preview' | 'apply' | null>(null);
   const [error, setError] = useState<unknown>(null);
   const request = useRef<AbortController | null>(null);
@@ -53,7 +78,11 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
   const heading = useRef<HTMLFieldSetElement>(null);
   const resultButtons = useRef(new Map<string, HTMLButtonElement>());
   const returnTo = useRef<string | null>(null);
-  useEffect(() => () => request.current?.abort(), []);
+  useEffect(() => () => {
+    request.current?.abort();
+    previewDownload.current?.abort();
+    searchCovers.current?.controller.abort();
+  }, []);
   useEffect(() => {
     const target = previewLoading ? loadingSection.current : match ? heading.current : returnTo.current ? resultButtons.current.get(returnTo.current) : null;
     target?.focus();
@@ -74,6 +103,9 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
     }
   }
 
+  function downloadCover(provider: Match['provider'], id: number, signal: AbortSignal) {
+    return session.api.metadataCover(refId.account, provider, id, AbortSignal.any([signal, AbortSignal.timeout(12_000)])).catch(() => null);
+  }
   function preview(result: Match) {
     returnTo.current = result.id;
     void run('preview', async signal => {
@@ -82,6 +114,12 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
       const proposed = { ...detail, author: detail.author || result.author, year: detail.year ?? result.year };
       setExpanded(false);
       setCover('loading');
+      if (proposed.cover_id) {
+        const controller = new AbortController();
+        previewDownload.current = controller;
+        const shared = proposed.provider === 'hardcover' ? searchCovers.current?.blobs.get(proposed.cover_id) : undefined;
+        setPreviewBlob(shared ?? downloadCover(proposed.provider, proposed.cover_id, controller.signal));
+      }
       setSelected(availableFields(proposed).filter(key => !original[key].trim()));
       setMatch(proposed);
     });
@@ -97,13 +135,7 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
     void run('apply', async signal => {
       const changes: Partial<Draft> = {};
       for (const field of selected) if (field !== 'cover') changes[field] = match[field]?.trim();
-      let image: Blob | undefined;
-      if (selected.includes('cover') && match.cover_id && cover === 'ready') {
-        const response = await session.api.metadataCover(refId.account, match.cover_id, signal);
-        if (!response.ok || response.headers.get('Content-Type') !== 'image/jpeg') throw new Error('This cover is unavailable. Try again or deselect “Edition Cover”.');
-        image = await response.blob();
-        if (image.size > 2 * 1024 * 1024) throw new Error('This cover is larger than 2 MiB. Deselect “Edition Cover” to apply the other fields.');
-      }
+      const image = selected.includes('cover') && cover === 'ready' ? previewImage?.blob : undefined;
       const cover_base64 = image && await encodeBookCover(image);
       if (signal.aborted) return;
       const updated = await session.api.editDocument(refId.account, refId.documentId, {
@@ -131,8 +163,8 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
     </div>;
   }
   const identityFields = fields.filter(field => field === 'title' || field === 'author');
-  const showCover = !!match?.cover_id && cover !== 'missing';
-  const awaitingDefaultCover = showCover && !document.cover_available && cover === 'loading';
+  const showCover = !!previewImage && cover !== 'missing';
+  const awaitingDefaultCover = !!match?.cover_id && previewImage !== null && !document.cover_available && cover === 'loading';
   const canApply = !!match && !awaitingDefaultCover;
   const applyLabel = selected.length ? `Link and Apply ${selected.length} ${selected.length === 1 ? 'Change' : 'Changes'}` : 'Link Book';
   function backToResults() {
@@ -141,6 +173,8 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
       request.current = null;
       setBusy(null);
     }
+    previewDownload.current?.abort();
+    setPreviewBlob(undefined);
     setMatch(null);
     setError(null);
   }
@@ -167,10 +201,22 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
     </section> : !match ? <>
       <form className={styles.lookupSearch} onSubmit={event => {
         event.preventDefault(); setMatches(null);
+        searchCovers.current?.controller.abort();
+        searchCovers.current = null;
         void run('search', async signal => {
           const normalized = query.toUpperCase().replace(/[\s-]/g, '');
           const results = await session.api.lookupMetadata(refId.account, query.trim(), signal);
-          if (!signal.aborted) { setMatches(results); setISBN(/^(?:[0-9]{13}|[0-9]{9}[0-9X])$/.test(normalized) ? normalized : undefined); }
+          if (signal.aborted) return;
+          const controller = new AbortController();
+          const blobs = new Map<number, Promise<Blob | null>>();
+          for (const result of results.slice(0, 8)) {
+            if (result.provider === 'hardcover' && result.cover_id && !blobs.has(result.cover_id)) {
+              blobs.set(result.cover_id, downloadCover(result.provider, result.cover_id, controller.signal));
+            }
+          }
+          searchCovers.current = { controller, blobs };
+          setMatches(results);
+          setISBN(/^(?:[0-9]{13}|[0-9]{9}[0-9X])$/.test(normalized) ? normalized : undefined);
         });
       }}>
         <input aria-label="Title, author, or ISBN" placeholder="Title, author, or ISBN" type="search" value={query} onChange={event => setQuery(event.target.value)} minLength={2} maxLength={240} required />
@@ -182,20 +228,18 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
       <span role="status" className={styles.srOnly}>{busy === 'search' ? 'Searching…' : ''}</span>
       {matches && !matches.length && <p role="status">No matches. Try a different title, author, or ISBN.</p>}
       {!!matches?.length && <div className={styles.metadataResultsSection}><ul className={styles.metadataResults}>{matches.map(item => <li key={item.id}><button ref={button => { if (button) resultButtons.current.set(item.id, button); else resultButtons.current.delete(item.id); }} disabled={!!busy} onClick={() => preview(item)}>
-        <ResultCover key={item.cover_id} id={item.cover_id} />
+        <ResultCover key={`${item.provider}:${item.cover_id}`} url={item.provider === 'openlibrary' && item.cover_id ? metadataCoverURL(item.provider, item.cover_id) : undefined}
+          blob={item.provider === 'hardcover' && item.cover_id ? searchCovers.current?.blobs.get(item.cover_id) : undefined} />
         <div className={styles.metadataResultText}><strong title={item.title}>{item.title}</strong><span>{[item.author, item.year].filter(Boolean).join(' · ')}</span></div>
       </button></li>)}</ul></div>}
     </> : <section aria-label="Match preview">
-      <p className={styles.lookupHint}>Link this book with or without applying metadata changes.</p>
-      {!match.edition_id && <p className={styles.lookupHint}>No edition verified. Search by ISBN to find a specific edition.</p>}
       {!match.description && <p className={styles.lookupHint}>No synopsis available from this source.</p>}
-      {match.cover_id && cover === 'missing' && <p className={styles.lookupHint}>The edition cover is unavailable.</p>}
       <form id={formId} className={styles.form} onSubmit={event => { event.preventDefault(); apply(); }}>
         <fieldset ref={heading} tabIndex={-1} aria-label="Suggested metadata" className={styles.matchFields} disabled={busy === 'apply'}>
           <div className={styles.matchIdentity} data-cover={showCover || undefined}>
-            {showCover && <button type="button" className={`${styles.matchCard} ${styles.matchCoverCard}`} aria-label="Edition Cover" aria-pressed={selected.includes('cover')} disabled={cover !== 'ready'} onClick={() => toggle('cover')}>
+            {showCover && <button type="button" className={`${styles.matchCard} ${styles.matchCoverCard}`} aria-label="Cover" aria-pressed={selected.includes('cover')} disabled={cover !== 'ready'} onClick={() => toggle('cover')}>
               {indicator('cover')}
-              <img src={coverURL(match.cover_id!)} className={styles.metadataPreview} alt={`Cover for ${match.title}`} onLoad={() => { setCover('ready'); if (awaitingDefaultCover) choose('cover', true); }} onError={() => { setCover('missing'); choose('cover', false); }} />
+              <img src={previewImage.url} className={styles.metadataPreview} alt={`Cover for ${match.title}`} onLoad={() => { setCover('ready'); if (!document.cover_available) choose('cover', true); }} onError={() => { setCover('missing'); choose('cover', false); }} />
             </button>}
             <div className={styles.matchIdentityText}>{identityFields.map(fieldCard)}</div>
           </div>

@@ -207,10 +207,11 @@ paths:
       operationId: getMetadataCover
       parameters:
         - {name: cover_id, in: path, required: true, schema: {type: integer, format: int64, minimum: 1, maximum: 9999999999}}
-        - {name: prefer_large, in: query, description: Try the large cover before falling back to medium., schema: {type: boolean, default: false}}
+        - {name: provider, in: query, description: Cover ID namespace. Defaults to Open Library., schema: {$ref: '#/components/schemas/MetadataProvider'}}
+        - {name: prefer_large, in: query, description: For Open Library try the large cover before medium., schema: {type: boolean, default: false}}
       responses:
         '200':
-          description: Open Library edition cover
+          description: Cover artwork from the selected catalog provider
           content:
             image/jpeg:
               schema: {type: string, format: binary}

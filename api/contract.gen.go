@@ -1194,7 +1194,10 @@ type SubmitProgressParams struct {
 
 // GetMetadataCoverParams defines parameters for GetMetadataCover.
 type GetMetadataCoverParams struct {
-	// PreferLarge Try the large cover before falling back to medium.
+	// Provider Cover ID namespace. Defaults to Open Library.
+	Provider *MetadataProvider `form:"provider,omitempty" json:"provider,omitempty"`
+
+	// PreferLarge For Open Library try the large cover before medium.
 	PreferLarge *bool `form:"prefer_large,omitempty" json:"prefer_large,omitempty"`
 }
 
@@ -3667,6 +3670,14 @@ func (siw *ServerInterfaceWrapper) GetMetadataCover(c *gin.Context) {
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetMetadataCoverParams
+
+	// ------------- Optional query parameter "provider" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "provider", c.Request.URL.Query(), &params.Provider, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider: %w", err), http.StatusBadRequest)
+		return
+	}
 
 	// ------------- Optional query parameter "prefer_large" -------------
 

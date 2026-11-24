@@ -47,7 +47,7 @@ func TestCatalogTextSearch(t *testing.T) {
 			c := testCatalog(t, func(w http.ResponseWriter, r catalogRequest) {
 				assert.Contains(t, r.Query, `search(query: $q, query_type: "Book", fields: "title,author_names,alternative_titles"`)
 				assert.Equal(t, text, r.Variables["q"])
-				fmt.Fprint(w, `{"data":{"search":{"error":null,"results":{"found":1,"hits":[{"document":{"id":"42","title":"Project Hail Mary","author_names":["Andy Weir"],"release_year":2021}}]}}}}`)
+				fmt.Fprint(w, `{"data":{"search":{"error":null,"results":{"found":1,"hits":[{"document":{"id":"42","title":"Project Hail Mary","author_names":["Andy Weir"],"release_year":2021,"image":{"id":12345}}}]}}}}`)
 			})
 			matches, err := c.Lookup(t.Context(), text)
 			require.NoError(t, err)
@@ -55,6 +55,8 @@ func TestCatalogTextSearch(t *testing.T) {
 			require.Equal(t, "42", matches[0].ID)
 			require.Equal(t, "Andy Weir", matches[0].Author)
 			require.Nil(t, matches[0].EditionID)
+			require.NotNil(t, matches[0].CoverID)
+			require.EqualValues(t, 12345, *matches[0].CoverID)
 		})
 	}
 }

@@ -17,12 +17,16 @@ const graphqlEndpoint = "https://api.hardcover.app/v1/graphql"
 type Catalog struct {
 	token, endpoint string
 	http            *http.Client
+	assets          *http.Client
 }
 
 func NewCatalog(token string) *Catalog {
 	return &Catalog{
 		token: token, endpoint: graphqlEndpoint,
 		http: &http.Client{Timeout: requestLimit, CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}},
+		assets: &http.Client{Timeout: requestLimit, CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}},
 	}
@@ -33,27 +37,41 @@ const catalogSearch = `query AnthoLumeCatalogSearch($q: String!) {
   search(query: $q, query_type: "Book", fields: "title,author_names,alternative_titles", weights: "5,3,1", typos: "2,2,2", per_page: 8) { error results }
 }`
 
-const catalogBookFields = `id title description release_year contributions(where: {contribution: {_eq: "Author"}}, limit: 20) { author { name } }`
+const catalogBookFields = `id title description release_year image { id } contributions(where: {contribution: {_eq: "Author"}}, limit: 20) { author { name } }`
 const catalogWork = `query AnthoLumeCatalogWork($work: Int!) {
   books(where: {id: {_eq: $work}}, limit: 1) { ` + catalogBookFields + ` }
 }`
 
-const catalogEditionFields = `id isbn_10 isbn_13 release_date publisher { name } book { ` + catalogBookFields + ` }`
+const catalogEditionFields = `id isbn_10 isbn_13 release_date image { id } publisher { name } book { ` + catalogBookFields + ` }`
 const catalogEditions = `query AnthoLumeCatalogEditions($where: editions_bool_exp!) {
   editions(where: $where, order_by: {id: asc}, limit: 8) { ` + catalogEditionFields + ` }
 }`
 
+type catalogImage struct {
+	ID int64 `json:"id"`
+}
+
+const maxCatalogImageID int64 = 9999999999
+
+func (image catalogImage) cover(m *metadata.LookupMatch) {
+	if image.ID > 0 && image.ID <= maxCatalogImageID {
+		m.CoverID = &image.ID
+	}
+}
+
 type catalogBook struct {
-	ID            int    `json:"id"`
-	Title         string `json:"title"`
-	Description   string `json:"description"`
-	Year          *int   `json:"release_year"`
+	Image         catalogImage `json:"image"`
+	ID            int          `json:"id"`
+	Title         string       `json:"title"`
+	Description   string       `json:"description"`
+	Year          *int         `json:"release_year"`
 	Contributions []struct {
 		Author struct{ Name string } `json:"author"`
 	} `json:"contributions"`
 }
 
 type catalogEdition struct {
+	Image     catalogImage          `json:"image"`
 	ID        int                   `json:"id"`
 	ISBN10    string                `json:"isbn_10"`
 	ISBN13    string                `json:"isbn_13"`
@@ -122,10 +140,11 @@ func (c *Catalog) Lookup(ctx context.Context, query string) ([]metadata.LookupMa
 			Results struct {
 				Hits []struct {
 					Document struct {
-						ID      string   `json:"id"`
-						Title   string   `json:"title"`
-						Authors []string `json:"author_names"`
-						Year    *int     `json:"release_year"`
+						ID      string       `json:"id"`
+						Title   string       `json:"title"`
+						Authors []string     `json:"author_names"`
+						Year    *int         `json:"release_year"`
+						Image   catalogImage `json:"image"`
 					} `json:"document"`
 				} `json:"hits"`
 			} `json:"results"`
@@ -137,7 +156,9 @@ func (c *Catalog) Lookup(ctx context.Context, query string) ([]metadata.LookupMa
 	for _, hit := range data.Search.Results.Hits {
 		doc := hit.Document
 		if _, ok := catalogID(doc.ID); ok {
-			add(metadata.LookupMatch{ID: doc.ID, Title: catalogText(doc.Title, 512), Author: catalogText(strings.Join(doc.Authors, ", "), 512), Year: doc.Year})
+			m := metadata.LookupMatch{ID: doc.ID, Title: catalogText(doc.Title, 512), Author: catalogText(strings.Join(doc.Authors, ", "), 512), Year: doc.Year}
+			doc.Image.cover(&m)
+			add(m)
 		}
 	}
 	return out, nil
@@ -212,6 +233,7 @@ func (e catalogEdition) matchesISBN(isbn string) bool {
 
 func (e catalogEdition) match() metadata.LookupMatch {
 	m := e.Book.match()
+	e.Image.cover(&m)
 	id := strconv.Itoa(e.ID)
 	m.EditionID = &id
 	m.Publisher = catalogOptional(e.Publisher.Name, 512)
@@ -232,10 +254,12 @@ func (b catalogBook) match() metadata.LookupMatch {
 			names = append(names, name)
 		}
 	}
-	return metadata.LookupMatch{
+	m := metadata.LookupMatch{
 		ID: strconv.Itoa(b.ID), Title: catalogText(b.Title, 512), Author: catalogText(strings.Join(names, ", "), 512),
 		Description: catalogOptional(b.Description, 16000), Year: b.Year,
 	}
+	b.Image.cover(&m)
+	return m
 }
 
 func catalogText(s string, limit int) string {

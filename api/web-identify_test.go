@@ -98,6 +98,13 @@ func TestWebMetadataProviderSelectionAndTokenRemoval(t *testing.T) {
 
 type identifyCatalogFixture struct{}
 
+func (identifyCatalogFixture) Cover(_ context.Context, id int64) ([]byte, error) {
+	if id == 123 {
+		return []byte("fixture cover"), nil
+	}
+	return nil, metadata.ErrLookupCoverMissing
+}
+
 func (identifyCatalogFixture) Lookup(_ context.Context, q string) ([]metadata.LookupMatch, error) {
 	switch q {
 	case "Hardcover Author", "9780765391193":
@@ -148,6 +155,8 @@ func TestWebDocumentMatch(t *testing.T) {
 	const path = "/api/v1/documents/book"
 	const preview = "/api/v1/metadata/match?provider=hardcover&work_id=42&edition_id=99&isbn=9780765391193"
 	const body = `{"match":{"provider":"hardcover","work_id":"42","edition_id":"99","isbn":"9780765391193"}}`
+	const coverPath = "/api/v1/metadata/covers/123?provider=hardcover"
+	assertProblem(t, f.call("GET", coverPath, nil, nil), 401, "unauthenticated")
 	assertProblem(t, f.call("GET", preview, nil, nil), 401, "unauthenticated")
 	assertProblem(t, f.call("PATCH", path, body, nil), 401, "unauthenticated")
 	f.register("member")
@@ -157,7 +166,12 @@ func TestWebDocumentMatch(t *testing.T) {
 	require.NotNil(t, before.Matches)
 	require.Empty(t, *before.Matches)
 	assertProblem(t, f.call("PATCH", path, body, nil), 409, "metadata_provider_changed")
+	assertProblem(t, f.call("GET", coverPath, nil, nil), 409, "metadata_provider_changed")
 	setProvider(Hardcover)
+	cover := f.call("GET", coverPath, nil, nil)
+	require.Equal(t, 200, cover.status)
+	require.Equal(t, "fixture cover", string(cover.body))
+	assertProblem(t, f.call("GET", "/api/v1/metadata/covers/1?provider=hardcover", nil, nil), 404, "not_found")
 	for _, query := range []string{"Hardcover+Author", "9780765391193"} {
 		r := f.call("GET", "/api/v1/metadata/search?q="+query, nil, nil)
 		require.Equal(t, 200, r.status, string(r.body))

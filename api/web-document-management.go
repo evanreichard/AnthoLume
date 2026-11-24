@@ -157,7 +157,27 @@ func (s *webAPI) DeleteDocument(ctx context.Context, r DeleteDocumentRequestObje
 }
 
 func (s *webAPI) GetMetadataCover(ctx context.Context, r GetMetadataCoverRequestObject) (GetMetadataCoverResponseObject, error) {
-	raw, err := metadata.LookupOpenLibraryCover(requestContext(ctx), r.CoverId, r.Params.PreferLarge != nil && *r.Params.PreferLarge)
+	reqCtx := requestContext(ctx)
+	provider := Openlibrary
+	if r.Params.Provider != nil {
+		provider = *r.Params.Provider
+	}
+	if err := s.api.checkMetadataProvider(reqCtx, s.api.db.Queries, provider); err != nil {
+		return nil, err
+	}
+	var raw []byte
+	var err error
+	switch provider {
+	case Hardcover:
+		if s.api.hardcoverCatalog == nil {
+			return nil, &reading.Failure{Status: 503, Code: "metadata_unavailable"}
+		}
+		raw, err = s.api.hardcoverCatalog.Cover(reqCtx, r.CoverId)
+	case Openlibrary:
+		raw, err = metadata.LookupOpenLibraryCover(reqCtx, r.CoverId, r.Params.PreferLarge != nil && *r.Params.PreferLarge)
+	default:
+		return nil, &reading.Failure{Status: 400, Code: "invalid_request"}
+	}
 	if errors.Is(err, metadata.ErrLookupCoverMissing) {
 		return nil, &reading.Failure{Status: 404, Code: "not_found"}
 	}

@@ -1542,7 +1542,9 @@ export interface operations {
     getMetadataCover: {
         parameters: {
             query?: {
-                /** @description Try the large cover before falling back to medium. */
+                /** @description Cover ID namespace. Defaults to Open Library. */
+                provider?: components["schemas"]["MetadataProvider"];
+                /** @description For Open Library try the large cover before medium. */
                 prefer_large?: boolean;
             };
             header?: never;
@@ -1553,7 +1555,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Open Library edition cover */
+            /** @description Cover artwork from the selected catalog provider */
             200: {
                 headers: {
                     [name: string]: unknown;
