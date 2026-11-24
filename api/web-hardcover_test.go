@@ -20,19 +20,19 @@ const hardcoverPath = "/api/v1/me/hardcover"
 
 type mockHardcover struct {
 	mu                    sync.Mutex
-	links                 map[string]string
+	links                 map[hardcover.Account]string
 	verifier              string
 	exchanges             int
 	connectErr, statusErr error
 	disconnectErr         error
 	beforeConnect         func()
-	storeLink             func(context.Context, string) error
+	storeLink             func(context.Context, hardcover.Account) error
 	revokeStored          func(context.Context, string, []byte)
 }
 
 func hardcoverFixture(t *testing.T, m *mockHardcover) *webFixture {
 	f := newWebFixture(t)
-	m.links = make(map[string]string)
+	m.links = make(map[hardcover.Account]string)
 	f.api.hardcover.client = m
 	f.register("alice")
 	return f
@@ -45,7 +45,7 @@ func (m *mockHardcover) AuthorizeURL(state, verifier string) string {
 	return "https://hardcover.app/oauth2/authorize?state=" + state
 }
 
-func (m *mockHardcover) Connect(ctx context.Context, account, code, verifier string) error {
+func (m *mockHardcover) Connect(ctx context.Context, account hardcover.Account, code, verifier string) error {
 	if m.beforeConnect != nil {
 		m.beforeConnect()
 	}
@@ -67,7 +67,7 @@ func (m *mockHardcover) Connect(ctx context.Context, account, code, verifier str
 	return nil
 }
 
-func (m *mockHardcover) Status(account string) (string, error) {
+func (m *mockHardcover) Status(account hardcover.Account) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if username := m.links[account]; username != "" {
@@ -76,7 +76,7 @@ func (m *mockHardcover) Status(account string) (string, error) {
 	return "", hardcover.ErrNotConnected
 }
 
-func (m *mockHardcover) Shelf(_ context.Context, account string, offset int) (hardcover.Shelf, error) {
+func (m *mockHardcover) Shelf(_ context.Context, account hardcover.Account, offset int) (hardcover.Shelf, error) {
 	if _, err := m.Status(account); err != nil || offset != 0 {
 		return hardcover.Shelf{}, err
 	}
@@ -84,7 +84,7 @@ func (m *mockHardcover) Shelf(_ context.Context, account string, offset int) (ha
 	return hardcover.Shelf{Books: []hardcover.Book{{ID: "41", Title: "Book", Author: "Author"}}, NextOffset: &next}, nil
 }
 
-func (m *mockHardcover) Disconnect(ctx context.Context, account string) error {
+func (m *mockHardcover) Disconnect(ctx context.Context, account hardcover.Account) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if err := ctx.Err(); err != nil {

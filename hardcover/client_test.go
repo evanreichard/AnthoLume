@@ -24,8 +24,11 @@ const (
 	fixtureSecret = "fixture-secret"
 	callback      = "https://books.example.org/oauth/hardcover/callback"
 	verifier      = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-	account       = "generation:account-a"
-	otherAccount  = "generation:account-b"
+)
+
+var (
+	account      = Account{ID: "account-a", Generation: "generation"}
+	otherAccount = Account{ID: "account-b", Generation: "generation"}
 )
 
 type providerFixture struct {
@@ -185,9 +188,9 @@ func TestOAuthConsentAndPrivateShelf(t *testing.T) {
 	_, err = db.Exec(`INSERT INTO hardcover_links VALUES ('copied', ?)`, contents)
 	require.NoError(t, err)
 	c = open()
-	_, err = c.Status("generation:copied")
+	_, err = c.Status(Account{ID: "copied", Generation: account.Generation})
 	require.ErrorIs(t, err, errStorage)
-	_, err = c.Status("other-generation:account-a")
+	_, err = c.Status(Account{ID: account.ID, Generation: "other-generation"})
 	require.ErrorIs(t, err, ErrNotConnected)
 	first, err := c.Shelf(ctx, account, 0)
 	require.NoError(t, err)

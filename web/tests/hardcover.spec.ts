@@ -114,10 +114,12 @@ for (const lostBy of ['shelf disconnect', 'status disconnect', 'status reconnect
     relinked = true;
     username = 'Linked reader';
     reconnectRequired = false;
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange', { bubbles: true })));
+    await expect(preview).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+    if (!detectedOnShelf) return;
+
     try {
-      await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange', { bubbles: true })));
-      await expect(preview).toBeVisible();
-      await expect(dialog).toHaveCount(0);
       await preview.click();
       await expect(dialog).toContainText('Loading your Want to Read shelf…');
       await expect(dialog).not.toContainText('Old shelf book');

@@ -2,11 +2,11 @@ package api
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"reichard.io/antholume/hardcover"
 )
 
 const deleteHardcoverReader = "/api/v1/admin/users/bob"
@@ -18,9 +18,8 @@ func hardcoverReader(f *webFixture) (*webFixture, string) {
 }
 
 func linkHardcoverMock(f *webFixture, m *mockHardcover) {
-	m.storeLink = func(ctx context.Context, account string) error {
-		_, id, _ := strings.Cut(account, ":")
-		_, err := f.db.DB.ExecContext(ctx, `INSERT INTO hardcover_links(account_id, credential) VALUES (?, ?) ON CONFLICT(account_id) DO NOTHING`, id, []byte("encrypted credential"))
+	m.storeLink = func(ctx context.Context, account hardcover.Account) error {
+		_, err := f.db.DB.ExecContext(ctx, `INSERT INTO hardcover_links(account_id, credential) VALUES (?, ?) ON CONFLICT(account_id) DO NOTHING`, account.ID, []byte("encrypted credential"))
 		return err
 	}
 }

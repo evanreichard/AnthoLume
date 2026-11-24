@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"strings"
 	"time"
 
 	"reichard.io/antholume/database"
@@ -33,14 +32,9 @@ type credentialStore struct {
 	cipher.AEAD
 }
 
-type accountRef struct{ generation, id string }
-
-func parseAccount(account string) (accountRef, error) {
-	generation, id, ok := strings.Cut(account, ":")
-	if !ok || generation == "" || id == "" {
-		return accountRef{}, ErrInvalidInput
-	}
-	return accountRef{generation, id}, nil
+type Account struct {
+	ID         string
+	Generation string
 }
 
 func newCredentialStore(db *sql.DB, key []byte) (credentialStore, error) {
@@ -55,9 +49,9 @@ func newCredentialStore(db *sql.DB, key []byte) (credentialStore, error) {
 	return credentialStore{database.New(db), aead}, err
 }
 
-func (s credentialStore) load(ctx context.Context, account accountRef) (credential, []byte, error) {
+func (s credentialStore) load(ctx context.Context, account Account) (credential, []byte, error) {
 	blob, err := s.queries.GetHardcoverCredential(ctx, database.GetHardcoverCredentialParams{
-		AccountID: account.id, Generation: account.generation,
+		AccountID: account.ID, Generation: account.Generation,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return credential{}, nil, ErrNotConnected
@@ -68,7 +62,7 @@ func (s credentialStore) load(ctx context.Context, account accountRef) (credenti
 	if blob == nil {
 		return credential{}, nil, nil
 	}
-	link, err := s.decode(account.id, blob)
+	link, err := s.decode(account.ID, blob)
 	return link, blob, err
 }
 
@@ -86,21 +80,21 @@ func (s credentialStore) decode(id string, blob []byte) (credential, error) {
 }
 
 // Compare and Swap - Keep only the writer that read the current credential and generation, even across processes.
-func (s credentialStore) save(ctx context.Context, account accountRef, old []byte, link credential) ([]byte, error) {
+func (s credentialStore) save(ctx context.Context, account Account, old []byte, link credential) ([]byte, error) {
 	plain, err := json.Marshal(link)
 	if err != nil {
 		return nil, errStorage
 	}
 	defer clear(plain)
-	blob := s.Seal(nil, nil, plain, []byte(account.id))
+	blob := s.Seal(nil, nil, plain, []byte(account.ID))
 	var count int64
 	if old == nil {
 		count, err = s.queries.InsertHardcoverCredential(ctx, database.InsertHardcoverCredentialParams{
-			AccountID: account.id, Generation: account.generation, Credential: blob,
+			AccountID: account.ID, Generation: account.Generation, Credential: blob,
 		})
 	} else {
 		count, err = s.queries.ReplaceHardcoverCredential(ctx, database.ReplaceHardcoverCredentialParams{
-			AccountID: account.id, Generation: account.generation, Credential: blob, Previous: old,
+			AccountID: account.ID, Generation: account.Generation, Credential: blob, Previous: old,
 		})
 	}
 	if err != nil {
@@ -112,9 +106,9 @@ func (s credentialStore) save(ctx context.Context, account accountRef, old []byt
 	return blob, nil
 }
 
-func (s credentialStore) remove(ctx context.Context, account accountRef) ([]byte, error) {
+func (s credentialStore) remove(ctx context.Context, account Account) ([]byte, error) {
 	blob, err := s.queries.RemoveHardcoverCredential(ctx, database.RemoveHardcoverCredentialParams{
-		AccountID: account.id, Generation: account.generation,
+		AccountID: account.ID, Generation: account.Generation,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, errStorage

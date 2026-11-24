@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"reichard.io/antholume/database"
+	"reichard.io/antholume/hardcover"
 )
 
 func adminFailure(status int, code string) error { return &webFailure{status: status, code: code} }
@@ -183,7 +184,7 @@ func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestOb
 		return nil, err
 	}
 	f := &s.api.hardcover
-	f.cancel(hardcoverAccountKey(authData{AccountID: deleted.AccountID, Generation: deleted.Generation}))
+	f.cancel(hardcover.Account{ID: deleted.AccountID, Generation: deleted.Generation})
 	if f.client != nil && deleted.Credential != nil {
 		f.client.RevokeStored(requestContext(ctx), deleted.AccountID, deleted.Credential)
 	}

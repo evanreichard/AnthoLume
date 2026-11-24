@@ -90,15 +90,11 @@ func (c *Client) AuthorizeURL(state, verifier string) string {
 
 var pkceVerifier = regexp.MustCompile(`^[A-Za-z0-9._~-]{43,128}$`)
 
-func (c *Client) Connect(ctx context.Context, account, code, verifier string) error {
+func (c *Client) Connect(ctx context.Context, account Account, code, verifier string) error {
 	if code == "" || !pkceVerifier.MatchString(verifier) {
 		return ErrInvalidInput
 	}
-	ref, err := parseAccount(account)
-	if err != nil {
-		return err
-	}
-	previous, blob, err := c.store.load(ctx, ref)
+	previous, blob, err := c.store.load(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -114,35 +110,31 @@ func (c *Client) Connect(ctx context.Context, account, code, verifier string) er
 		} `json:"me"`
 	}
 	if err := c.query(ctx, link.Access, `query AnthoLumeProfile { me { id username } }`, nil, &profile); err != nil {
-		c.revokeUnused(ctx, ref, link, previous)
+		c.revokeUnused(ctx, account, link, previous)
 		return err
 	}
 	if len(profile.Me) != 1 || profile.Me[0].ID < 1 || strings.TrimSpace(profile.Me[0].Username) == "" {
-		c.revokeUnused(ctx, ref, link, previous)
+		c.revokeUnused(ctx, account, link, previous)
 		return ErrProvider
 	}
 	link.UserID, link.Username = profile.Me[0].ID, profile.Me[0].Username
 	if previous.UserID != 0 && previous.UserID != link.UserID {
-		c.revokeUnused(ctx, ref, link, previous)
+		c.revokeUnused(ctx, account, link, previous)
 		return ErrIdentity
 	}
-	if _, err := c.store.save(ctx, ref, blob, link); err != nil {
-		c.revokeUnused(ctx, ref, link, previous)
+	if _, err := c.store.save(ctx, account, blob, link); err != nil {
+		c.revokeUnused(ctx, account, link, previous)
 		return err
 	}
-	c.revokeUnused(ctx, ref, previous, link)
+	c.revokeUnused(ctx, account, previous, link)
 	return nil
 }
 
-func (c *Client) Status(account string) (string, error) {
-	ref, err := parseAccount(account)
-	if err != nil {
-		return "", err
-	}
+func (c *Client) Status(account Account) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), requestLimit)
 	defer cancel()
-	defer c.lockReads(ref)()
-	link, blob, err := c.store.load(ctx, ref)
+	defer c.lockReads(account.ID)()
+	link, blob, err := c.store.load(ctx, account)
 	if err != nil {
 		return "", err
 	}
@@ -155,16 +147,12 @@ func (c *Client) Status(account string) (string, error) {
 	return link.Username, nil
 }
 
-func (c *Client) Disconnect(ctx context.Context, account string) error {
-	ref, err := parseAccount(account)
+func (c *Client) Disconnect(ctx context.Context, account Account) error {
+	blob, err := c.store.remove(ctx, account)
 	if err != nil {
 		return err
 	}
-	blob, err := c.store.remove(ctx, ref)
-	if err != nil {
-		return err
-	}
-	c.RevokeStored(ctx, ref.id, blob)
+	c.RevokeStored(ctx, account.ID, blob)
 	return nil
 }
 
@@ -191,16 +179,12 @@ const shelfQuery = `query AnthoLumeWantToRead($user: Int!, $offset: Int!, $limit
   }
 }`
 
-func (c *Client) Shelf(ctx context.Context, account string, offset int) (Shelf, error) {
+func (c *Client) Shelf(ctx context.Context, account Account, offset int) (Shelf, error) {
 	if offset < 0 || offset > maxOffset {
 		return Shelf{}, ErrInvalidInput
 	}
-	ref, err := parseAccount(account)
-	if err != nil {
-		return Shelf{}, err
-	}
-	defer c.lockReads(ref)()
-	link, blob, err := c.store.load(ctx, ref)
+	defer c.lockReads(account.ID)()
+	link, blob, err := c.store.load(ctx, account)
 	if err != nil {
 		return Shelf{}, err
 	}
@@ -216,7 +200,7 @@ func (c *Client) Shelf(ctx context.Context, account string, offset int) (Shelf, 
 			return page, err
 		}
 	}
-	link, blob, err = c.refresh(ctx, ref, blob, link)
+	link, blob, err = c.refresh(ctx, account, blob, link)
 	if err != nil {
 		return Shelf{}, err
 	}
@@ -224,7 +208,7 @@ func (c *Client) Shelf(ctx context.Context, account string, offset int) (Shelf, 
 	if errors.Is(err, ErrReconnect) {
 		// Rejected After Refresh - Don't repeat rotation when the provider rejects a replacement access token.
 		link.Refresh = ""
-		if _, err := c.store.save(ctx, ref, blob, link); err != nil {
+		if _, err := c.store.save(ctx, account, blob, link); err != nil {
 			return Shelf{}, err
 		}
 		return Shelf{}, ErrReconnect
@@ -272,7 +256,7 @@ func (c *Client) readPage(ctx context.Context, link credential, offset int) (She
 	return result, nil
 }
 
-func (c *Client) refresh(ctx context.Context, account accountRef, blob []byte, old credential) (credential, []byte, error) {
+func (c *Client) refresh(ctx context.Context, account Account, blob []byte, old credential) (credential, []byte, error) {
 	if err := ctx.Err(); err != nil {
 		return credential{}, nil, err
 	}
@@ -302,7 +286,7 @@ func (c *Client) refresh(ctx context.Context, account accountRef, blob []byte, o
 	return next, blob, err
 }
 
-func (c *Client) revokeUnused(ctx context.Context, account accountRef, unused, keep credential) {
+func (c *Client) revokeUnused(ctx context.Context, account Account, unused, keep credential) {
 	if unused.Access == "" || unused.sharesToken(keep) {
 		return
 	}
@@ -313,7 +297,7 @@ func (c *Client) revokeUnused(ctx context.Context, account accountRef, unused, k
 	if err != nil {
 		return
 	}
-	account.generation = generation
+	account.Generation = generation
 	current, _, err := c.store.load(ctx, account)
 	if (err != nil && !errors.Is(err, ErrNotConnected)) || unused.sharesToken(current) {
 		return
@@ -322,8 +306,8 @@ func (c *Client) revokeUnused(ctx context.Context, account accountRef, unused, k
 }
 
 // In-Process Reads - Concurrent shelf reads should not see their own pending rotation as a broken link.
-func (c *Client) lockReads(account accountRef) func() {
-	lock := &c.reads[sha256.Sum256([]byte(account.id))[0]%32]
+func (c *Client) lockReads(accountID string) func() {
+	lock := &c.reads[sha256.Sum256([]byte(accountID))[0]%32]
 	lock.Lock()
 	return lock.Unlock
 }

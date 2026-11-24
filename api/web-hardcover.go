@@ -31,15 +31,15 @@ const (
 
 type hardcoverProvider interface {
 	AuthorizeURL(state, verifier string) string
-	Connect(ctx context.Context, account, code, verifier string) error
-	Status(account string) (string, error)
-	Shelf(ctx context.Context, account string, offset int) (hardcover.Shelf, error)
-	Disconnect(ctx context.Context, account string) error
+	Connect(ctx context.Context, account hardcover.Account, code, verifier string) error
+	Status(account hardcover.Account) (string, error)
+	Shelf(ctx context.Context, account hardcover.Account, offset int) (hardcover.Shelf, error)
+	Disconnect(ctx context.Context, account hardcover.Account) error
 	RevokeStored(ctx context.Context, accountID string, encrypted []byte)
 }
 
 type hardcoverAttempt struct {
-	account  string
+	account  hardcover.Account
 	session  string
 	verifier string
 	expires  time.Time
@@ -72,17 +72,17 @@ func (api *API) configureHardcover() error {
 	return nil
 }
 
-func hardcoverAccountKey(user authData) string {
-	return user.Generation + ":" + user.AccountID
+func hardcoverAccount(user authData) hardcover.Account {
+	return hardcover.Account{ID: user.AccountID, Generation: user.Generation}
 }
 
-func (f *hardcoverFlow) lockAccount(account string) func() {
-	lock := &f.accounts[sha256.Sum256([]byte(account))[0]%64]
+func (f *hardcoverFlow) lockAccount(account hardcover.Account) func() {
+	lock := &f.accounts[sha256.Sum256([]byte(account.ID))[0]%64]
 	lock.Lock()
 	return lock.Unlock
 }
 
-func (f *hardcoverFlow) start(account, session, verifier, state string, now time.Time) bool {
+func (f *hardcoverFlow) start(account hardcover.Account, session, verifier, state string, now time.Time) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for key, attempt := range f.attempts {
@@ -100,7 +100,7 @@ func (f *hardcoverFlow) start(account, session, verifier, state string, now time
 	return true
 }
 
-func (f *hardcoverFlow) cancel(account string) {
+func (f *hardcoverFlow) cancel(account hardcover.Account) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for state, attempt := range f.attempts {
@@ -117,7 +117,7 @@ func (f *hardcoverFlow) live(state string, now time.Time) bool {
 	return ok && now.Before(attempt.expires)
 }
 
-func (f *hardcoverFlow) take(account, session, state string, now time.Time) (string, bool) {
+func (f *hardcoverFlow) take(account hardcover.Account, session, state string, now time.Time) (string, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	attempt, ok := f.attempts[state]
@@ -134,7 +134,7 @@ func (s *webAPI) GetHardcover(ctx context.Context, _ GetHardcoverRequestObject) 
 		return GetHardcover200JSONResponse{}, nil
 	}
 	status := GetHardcover200JSONResponse{Enabled: true}
-	username, err := client.Status(hardcoverAccountKey(webUser(ctx)))
+	username, err := client.Status(hardcoverAccount(webUser(ctx)))
 	if err != nil && !errors.Is(err, hardcover.ErrNotConnected) && !errors.Is(err, hardcover.ErrReconnect) {
 		return nil, hardcoverError(err)
 	}
@@ -157,7 +157,7 @@ func (s *webAPI) ConnectHardcover(ctx context.Context, _ ConnectHardcoverRequest
 		return nil, err
 	}
 	verifier := oauth2.GenerateVerifier()
-	account := hardcoverAccountKey(webUser(ctx))
+	account := hardcoverAccount(webUser(ctx))
 	defer f.lockAccount(account)()
 	if !f.start(account, session, verifier, state, time.Now()) {
 		return nil, &webFailure{status: 429, code: "rate_limited"}
@@ -170,7 +170,7 @@ func (s *webAPI) DisconnectHardcover(ctx context.Context, _ DisconnectHardcoverR
 	if f.client == nil {
 		return nil, &webFailure{status: 404, code: "hardcover_disabled"}
 	}
-	account := hardcoverAccountKey(webUser(ctx))
+	account := hardcoverAccount(webUser(ctx))
 	defer f.lockAccount(account)()
 	f.cancel(account)
 	call, cancel := context.WithTimeout(requestContext(ctx), hardcoverCallTimeout)
@@ -192,7 +192,7 @@ func (s *webAPI) GetHardcoverShelf(ctx context.Context, r GetHardcoverShelfReque
 	}
 	call, cancel := context.WithTimeout(requestContext(ctx), hardcoverCallTimeout)
 	defer cancel()
-	page, err := client.Shelf(call, hardcoverAccountKey(webUser(ctx)), offset)
+	page, err := client.Shelf(call, hardcoverAccount(webUser(ctx)), offset)
 	if err != nil {
 		return nil, hardcoverError(err)
 	}
@@ -297,7 +297,7 @@ func (api *API) finishHardcoverCallback(c *gin.Context) {
 		c.Status(http.StatusForbidden)
 		return
 	}
-	account := hardcoverAccountKey(user)
+	account := hardcoverAccount(user)
 	defer f.lockAccount(account)()
 	verifier, ok := f.take(account, csrf, state, time.Now())
 	if !ok {
