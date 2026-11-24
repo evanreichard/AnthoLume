@@ -24,9 +24,6 @@ func (api *API) metadataProviderChoice(selected MetadataProvider) AdminMetadataP
 }
 
 func (s *webAPI) GetAdminMetadataProvider(ctx context.Context, _ GetAdminMetadataProviderRequestObject) (GetAdminMetadataProviderResponseObject, error) {
-	if !webUser(ctx).IsAdmin {
-		return nil, adminFailure(403, "forbidden")
-	}
 	state, err := s.api.metadataProviderStatus(requestContext(ctx), s.api.db.Queries)
 	if err != nil {
 		return nil, err
@@ -35,6 +32,9 @@ func (s *webAPI) GetAdminMetadataProvider(ctx context.Context, _ GetAdminMetadat
 }
 
 func (s *webAPI) SetAdminMetadataProvider(ctx context.Context, r SetAdminMetadataProviderRequestObject) (SetAdminMetadataProviderResponseObject, error) {
+	if s.api.cfg.DemoMode {
+		return nil, adminFailure(403, "forbidden")
+	}
 	choice := r.Body.Provider
 	if err := s.adminTransaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
 		if choice == Hardcover && s.api.hardcoverCatalog == nil {

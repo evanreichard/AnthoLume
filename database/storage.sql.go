@@ -101,22 +101,6 @@ func (q *Queries) GetMakeLibraryCounts(ctx context.Context, rootID *string) (Get
 	return i, err
 }
 
-const getStorageAdminByAuthHash = `-- name: GetStorageAdminByAuthHash :one
-SELECT admin FROM users WHERE id = ? AND auth_hash = ?
-`
-
-type GetStorageAdminByAuthHashParams struct {
-	ID       string  `json:"id"`
-	AuthHash *string `json:"auth_hash"`
-}
-
-func (q *Queries) GetStorageAdminByAuthHash(ctx context.Context, arg GetStorageAdminByAuthHashParams) (bool, error) {
-	row := q.db.QueryRowContext(ctx, getStorageAdminByAuthHash, arg.ID, arg.AuthHash)
-	var admin bool
-	err := row.Scan(&admin)
-	return admin, err
-}
-
 const getStorageRoot = `-- name: GetStorageRoot :one
 SELECT id, label, path, managed, legacy_path
 FROM storage_roots WHERE id = ?

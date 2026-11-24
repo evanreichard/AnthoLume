@@ -13,18 +13,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStorageRootSaveRechecksDemotedAdmin(t *testing.T) {
+func TestStorageRootSaveRejectsDemotedAdminOnNextRequest(t *testing.T) {
 	f := newWebFixture(t)
 	f.register("owner")
-	user, err := f.db.Queries.GetUser(context.Background(), "owner")
-	require.NoError(t, err)
-	ctx := context.WithValue(context.Background(), webPrincipalKey{}, authData{UserName: user.ID, AuthHash: *user.AuthHash, IsAdmin: true})
+	const path = "/api/v1/admin/storage-roots"
+	require.Equal(t, 200, f.call("GET", path, nil, nil).status)
 	f.exec(`UPDATE users SET admin=0 WHERE id='owner'`)
-	_, err = (&webAPI{api: f.api}).SaveAdminStorageRoot(ctx, SaveAdminStorageRootRequestObject{Body: &AdminStorageRootInput{Id: "new-source", Label: "New", Path: t.TempDir()}})
-	var failure *webFailure
-	require.ErrorAs(t, err, &failure)
-	require.Equal(t, 403, failure.status)
-	_, err = f.api.storageRoot(context.Background(), "new-source")
+	root := AdminStorageRootInput{Id: "new-source", Label: "New", Path: t.TempDir()}
+	assertProblem(t, f.call("PUT", path, root, nil), 403, "forbidden")
+	_, err := f.api.storageRoot(t.Context(), root.Id)
 	require.ErrorIs(t, err, sql.ErrNoRows)
 }
 

@@ -56,7 +56,7 @@ func (api *API) autoImportSource(ctx context.Context, id string) (AdminStorageRo
 }
 
 func (s *webAPI) ListAdminAutoImports(ctx context.Context, _ ListAdminAutoImportsRequestObject) (ListAdminAutoImportsResponseObject, error) {
-	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
+	if s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
 	rules, err := s.api.autoImportRules(requestContext(ctx), false)
@@ -64,7 +64,7 @@ func (s *webAPI) ListAdminAutoImports(ctx context.Context, _ ListAdminAutoImport
 }
 
 func (s *webAPI) SaveAdminAutoImport(ctx context.Context, r SaveAdminAutoImportRequestObject) (SaveAdminAutoImportResponseObject, error) {
-	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
+	if s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
 	if r.Body == nil {
@@ -163,7 +163,7 @@ func autoImportMutation(n int64, err error, code string, status int) error {
 }
 
 func (s *webAPI) QueueAdminAutoImport(ctx context.Context, r QueueAdminAutoImportRequestObject) (QueueAdminAutoImportResponseObject, error) {
-	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
+	if s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
 	next := jobTime(time.Now())
@@ -178,7 +178,7 @@ func (s *webAPI) QueueAdminAutoImport(ctx context.Context, r QueueAdminAutoImpor
 }
 
 func (s *webAPI) DeleteAdminAutoImport(ctx context.Context, r DeleteAdminAutoImportRequestObject) (DeleteAdminAutoImportResponseObject, error) {
-	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
+	if s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
 	n, err := s.api.db.Queries.DeleteAutoImportRule(requestContext(ctx), r.Params.Id)

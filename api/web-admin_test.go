@@ -5,10 +5,40 @@ import (
 	"net/http/cookiejar"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestAdminRoutesRequireAdminBeforeInputValidation(t *testing.T) {
+	f := newWebFixture(t)
+	spec, err := loadOpenAPISpec()
+	require.NoError(t, err)
+	parameter := regexp.MustCompile(`\{[^{}]+\}`)
+	check := func(status int, code string) {
+		t.Helper()
+		routes := 0
+		for pattern, item := range spec.Paths.Map() {
+			if !strings.HasPrefix(pattern, "/api/v1/admin/") {
+				continue
+			}
+			path := parameter.ReplaceAllString(pattern, "example")
+			for method := range item.Operations() {
+				routes++
+				t.Run(code+"/"+method+" "+pattern, func(t *testing.T) {
+					assertProblem(t, f.call(method, path, nil, nil), status, code)
+				})
+			}
+		}
+		require.NotZero(t, routes)
+	}
+	check(http.StatusUnauthorized, "unauthenticated")
+	f.register("member")
+	f.exec(`UPDATE users SET admin=0 WHERE id='member'`)
+	check(http.StatusForbidden, "forbidden")
+}
 
 func TestAdminUsersRequireCurrentRoleAndDeleteWithoutAutomaticBackup(t *testing.T) {
 	f := newWebFixture(t)

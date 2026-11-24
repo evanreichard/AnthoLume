@@ -154,9 +154,6 @@ func parseLogEntry(line []byte) (AdminLog, bool) {
 }
 
 func (s *webAPI) ListAdminLogs(ctx context.Context, req ListAdminLogsRequestObject) (ListAdminLogsResponseObject, error) {
-	if !webUser(ctx).IsAdmin {
-		return nil, adminFailure(403, "forbidden")
-	}
 	ctx = requestContext(ctx)
 	var cursor logCursor
 	if req.Params.Cursor != nil {

@@ -184,7 +184,7 @@ func (api *API) adminBackupDir() string { return filepath.Join(api.cfg.ConfigPat
 func (s *webAPI) StageAdminRestore(ctx context.Context, r StageAdminRestoreRequestObject) (StageAdminRestoreResponseObject, error) {
 	principal := webUser(ctx)
 	api := s.api
-	if !principal.IsAdmin || api.cfg.DemoMode {
+	if api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
 	if !api.restoreStage.TryLock() {
@@ -433,7 +433,7 @@ func syncRestoreDirectory(root *os.Root, name string) error {
 func (s *webAPI) ApplyAdminRestore(ctx context.Context, r ApplyAdminRestoreRequestObject) (ApplyAdminRestoreResponseObject, error) {
 	principal := webUser(ctx)
 	api := s.api
-	if !principal.IsAdmin || api.cfg.DemoMode {
+	if api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
 	if r.Body == nil || !adminJobID.MatchString(r.Body.Token) {
@@ -460,10 +460,6 @@ func (s *webAPI) ApplyAdminRestore(ctx context.Context, r ApplyAdminRestoreReque
 		return nil, adminFailure(404, "restore_expired")
 	}
 	req := requestContext(ctx)
-	admin, err := api.db.Queries.GetStorageAdminByAuthHash(req, database.GetStorageAdminByAuthHashParams{ID: principal.UserName, AuthHash: &principal.AuthHash})
-	if err != nil || !admin {
-		return nil, adminFailure(403, "forbidden")
-	}
 	active, err := api.db.Queries.HasRunningStorageJobs(req, jobTime(time.Now()))
 	if err != nil {
 		return nil, err

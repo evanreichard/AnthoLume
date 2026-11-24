@@ -76,7 +76,7 @@ func foldersOverlap(a, b string) bool {
 }
 
 func (s *webAPI) PreviewMakeLibrary(ctx context.Context, r PreviewMakeLibraryRequestObject) (PreviewMakeLibraryResponseObject, error) {
-	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
+	if s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
 	proposed := ""
@@ -92,7 +92,7 @@ func (s *webAPI) PreviewMakeLibrary(ctx context.Context, r PreviewMakeLibraryReq
 
 func (s *webAPI) MakeLibrary(ctx context.Context, r MakeLibraryRequestObject) (MakeLibraryResponseObject, error) {
 	api := s.api
-	if !webUser(ctx).IsAdmin || api.cfg.DemoMode {
+	if api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
 	if r.Body == nil {

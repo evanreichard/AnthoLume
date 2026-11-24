@@ -252,7 +252,7 @@ func (api *API) importFolder(ctx context.Context, rootID string) (*os.Root, []st
 }
 
 func (s *webAPI) PreviewAdminImport(ctx context.Context, r PreviewAdminImportRequestObject) (PreviewAdminImportResponseObject, error) {
-	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
+	if s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
 	source := importsRoot
@@ -415,9 +415,6 @@ func (api *API) importBooks(ctx context.Context, sourceID string, reference, rel
 }
 
 func (s *webAPI) ListAdminImportResults(ctx context.Context, r ListAdminImportResultsRequestObject) (ListAdminImportResultsResponseObject, error) {
-	if !webUser(ctx).IsAdmin {
-		return nil, adminFailure(403, "forbidden")
-	}
 	if !adminJobID.MatchString(r.Params.Job) {
 		return nil, adminFailure(400, "invalid_request")
 	}

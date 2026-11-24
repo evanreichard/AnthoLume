@@ -12,9 +12,6 @@ LEFT JOIN (
 ) AS book_counts ON book_counts.root_id = storage_roots.id
 ORDER BY id <> 'library', label, id;
 
--- name: GetStorageAdminByAuthHash :one
-SELECT admin FROM users WHERE id = ? AND auth_hash = ?;
-
 -- name: UpsertStorageRoot :exec
 INSERT INTO storage_roots (id, label, path, managed) VALUES (?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET label = excluded.label, path = excluded.path, legacy_path = NULL;

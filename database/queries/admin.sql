@@ -1,6 +1,3 @@
--- name: GetAdminSessionRole :one
-SELECT admin FROM users WHERE id = sqlc.arg(id) AND auth_hash = sqlc.arg(auth_hash);
-
 -- name: ListAdminUsers :many
 SELECT id, admin FROM users WHERE id > sqlc.arg(after_id) ORDER BY id LIMIT 51;
 

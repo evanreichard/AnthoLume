@@ -14,7 +14,7 @@ import (
 
 func (s *webAPI) RepairAdminBackupPath(ctx context.Context, r RepairAdminBackupPathRequestObject) (RepairAdminBackupPathResponseObject, error) {
 	api := s.api
-	if !webUser(ctx).IsAdmin || api.cfg.DemoMode {
+	if api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
 	if r.Body == nil {

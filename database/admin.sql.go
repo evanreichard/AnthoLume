@@ -169,22 +169,6 @@ func (q *Queries) FinishAdminJob(ctx context.Context, arg FinishAdminJobParams) 
 	return err
 }
 
-const getAdminSessionRole = `-- name: GetAdminSessionRole :one
-SELECT admin FROM users WHERE id = ?1 AND auth_hash = ?2
-`
-
-type GetAdminSessionRoleParams struct {
-	ID       string  `json:"id"`
-	AuthHash *string `json:"auth_hash"`
-}
-
-func (q *Queries) GetAdminSessionRole(ctx context.Context, arg GetAdminSessionRoleParams) (bool, error) {
-	row := q.db.QueryRowContext(ctx, getAdminSessionRole, arg.ID, arg.AuthHash)
-	var admin bool
-	err := row.Scan(&admin)
-	return admin, err
-}
-
 const getEnabledAutoImportRule = `-- name: GetEnabledAutoImportRule :one
 SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status, books_added, source_total, last_scan_trigger, next_scan_trigger
 FROM auto_import_rules

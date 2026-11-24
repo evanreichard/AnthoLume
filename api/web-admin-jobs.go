@@ -67,9 +67,6 @@ func adminJobResponse(id, kind, status, startedAt string, finishedAt *string) Ad
 }
 
 func (s *webAPI) ListAdminJobs(ctx context.Context, r ListAdminJobsRequestObject) (ListAdminJobsResponseObject, error) {
-	if !webUser(ctx).IsAdmin {
-		return nil, adminFailure(403, "forbidden")
-	}
 	kind := ""
 	if r.Params.Kind != nil {
 		kind = string(*r.Params.Kind)
@@ -92,7 +89,7 @@ func (s *webAPI) ListAdminJobs(ctx context.Context, r ListAdminJobsRequestObject
 }
 
 func (s *webAPI) StartAdminJob(ctx context.Context, r StartAdminJobRequestObject) (StartAdminJobResponseObject, error) {
-	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
+	if s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
 	if r.Body == nil || (r.Body.Kind != "statistics" && r.Body.Kind != "database_check" && r.Body.Kind != "import") {

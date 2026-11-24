@@ -14,31 +14,13 @@ import (
 
 func adminFailure(status int, code string) error { return &webFailure{status: status, code: code} }
 
-func requireAdmin(ctx context.Context, q *database.Queries, principal authData) error {
-	admin, err := q.GetAdminSessionRole(ctx, database.GetAdminSessionRoleParams{
-		ID:       principal.UserName,
-		AuthHash: &principal.AuthHash,
-	})
-	if errors.Is(err, sql.ErrNoRows) || (err == nil && !admin) {
-		return adminFailure(403, "forbidden")
-	}
-	return err
-}
-
 func (s *webAPI) adminTransaction(ctx context.Context, action func(context.Context, *sql.Tx) error) error {
-	principal := webUser(ctx)
-	if !principal.IsAdmin || s.api.cfg.DemoMode {
-		return adminFailure(403, "forbidden")
-	}
 	ctx = requestContext(ctx)
 	tx, err := s.api.db.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if err := requireAdmin(ctx, s.api.db.Queries.WithTx(tx), principal); err != nil {
-		return err
-	}
 	if err := action(ctx, tx); err != nil {
 		return err
 	}
@@ -46,9 +28,6 @@ func (s *webAPI) adminTransaction(ctx context.Context, action func(context.Conte
 }
 
 func (s *webAPI) ListAdminUsers(ctx context.Context, r ListAdminUsersRequestObject) (ListAdminUsersResponseObject, error) {
-	if !webUser(ctx).IsAdmin {
-		return nil, adminFailure(403, "forbidden")
-	}
 	after := ""
 	if r.Params.After != nil {
 		after = *r.Params.After
@@ -65,9 +44,6 @@ func (s *webAPI) ListAdminUsers(ctx context.Context, r ListAdminUsersRequestObje
 }
 
 func (s *webAPI) adminPassword(ctx context.Context, raw string) (string, string, error) {
-	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
-		return "", "", adminFailure(403, "forbidden")
-	}
 	raw = strings.TrimSpace(raw)
 	if raw == "" || len(raw) > 256 {
 		return "", "", adminFailure(400, "invalid_password")
@@ -84,7 +60,7 @@ func (s *webAPI) adminPassword(ctx context.Context, raw string) (string, string,
 }
 
 func (s *webAPI) CreateAdminUser(ctx context.Context, r CreateAdminUserRequestObject) (CreateAdminUserResponseObject, error) {
-	if !webUser(ctx).IsAdmin || s.api.cfg.DemoMode {
+	if s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
 	id := strings.TrimSpace(r.Body.Username)
@@ -112,7 +88,7 @@ func (s *webAPI) CreateAdminUser(ctx context.Context, r CreateAdminUserRequestOb
 
 func (s *webAPI) UpdateAdminUser(ctx context.Context, r UpdateAdminUserRequestObject) (UpdateAdminUserResponseObject, error) {
 	principal := webUser(ctx)
-	if !principal.IsAdmin || s.api.cfg.DemoMode {
+	if s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
 	if r.Id == principal.UserName {
@@ -148,7 +124,7 @@ func (s *webAPI) UpdateAdminUser(ctx context.Context, r UpdateAdminUserRequestOb
 
 func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestObject) (DeleteAdminUserResponseObject, error) {
 	principal := webUser(ctx)
-	if !principal.IsAdmin || s.api.cfg.DemoMode {
+	if s.api.cfg.DemoMode {
 		return nil, adminFailure(403, "forbidden")
 	}
 	if r.Id == principal.UserName {
@@ -235,8 +211,5 @@ func syncAdminDirectory(path string) error {
 }
 
 func (s *webAPI) GetAdminSystem(ctx context.Context, _ GetAdminSystemRequestObject) (GetAdminSystemResponseObject, error) {
-	if !webUser(ctx).IsAdmin {
-		return nil, adminFailure(403, "forbidden")
-	}
 	return GetAdminSystem200JSONResponse{Version: s.api.cfg.Version}, nil
 }
