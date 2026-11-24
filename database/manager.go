@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -151,39 +150,6 @@ func (dbm *DBManager) BackupSnapshot(ctx context.Context, dest string) error {
 	}
 	defer source.Close()
 	_, err = source.ExecContext(ctx, `VACUUM INTO ?`, dest)
-	return err
-}
-
-// PortableBackupSnapshot compacts a private copy after deleting deployment-local links.
-func (dbm *DBManager) PortableBackupSnapshot(ctx context.Context, dest string) error {
-	dir, err := os.MkdirTemp(filepath.Dir(dest), ".redact-")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(dir)
-	name := filepath.Join(dir, "snapshot.db")
-	if err := dbm.BackupSnapshot(ctx, name); err != nil {
-		return err
-	}
-	uri := (&url.URL{Scheme: "file", Path: name, RawQuery: "mode=rw&_pragma=journal_mode(DELETE)"}).String()
-	snapshot, err := sql.Open("sqlite", uri)
-	if err != nil {
-		return err
-	}
-	defer snapshot.Close()
-	result, err := snapshot.ExecContext(ctx, `DELETE FROM hardcover_links`)
-	if err != nil {
-		return err
-	}
-	deleted, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if deleted == 0 {
-		return os.Rename(name, dest)
-	}
-	// Rebuild From Live Rows - Deletion alone can leave ciphertext on SQLite's free pages.
-	_, err = snapshot.ExecContext(ctx, `VACUUM INTO ?`, dest)
 	return err
 }
 

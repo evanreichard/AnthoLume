@@ -204,7 +204,7 @@ func (api *API) revokeDeletedHardcoverLink(ctx context.Context, account string, 
 }
 
 func (api *API) writeVerifiedSnapshot(ctx context.Context, filename string) error {
-	if err := api.db.PortableBackupSnapshot(ctx, filename); err != nil {
+	if err := api.db.BackupSnapshot(ctx, filename); err != nil {
 		return err
 	}
 	uri := (&url.URL{Scheme: "file", Path: filename, RawQuery: "mode=ro"}).String()
