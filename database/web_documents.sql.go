@@ -98,7 +98,7 @@ WITH selection AS (
                     AND NULLIF(h.position, '') IS NOT NULL
             )))
 )
-SELECT d.id, d.md5, d.basepath, d.filepath, d.coverfile, d.title, d.author, d.series, d.series_index, d.lang, d.description, d.words, d.gbid, d.olid, d.isbn10, d.isbn13, d.synced, d.deleted, d.updated_at, d.created_at, d.storage_root_id, r.path AS root_path,
+SELECT d.id, d.md5, d.basepath, d.filepath, d.coverfile, d.title, d.author, d.series, d.series_index, d.lang, d.description, d.words, d.isbn10, d.isbn13, d.synced, d.deleted, d.updated_at, d.created_at, d.storage_root_id, r.path AS root_path,
     CAST(COALESCE(added_at, '') AS TEXT) AS added_at,
     CAST(COALESCE(last_read_at, '') AS TEXT) AS last_read_at,
     resume_fraction
@@ -160,8 +160,6 @@ func (q *Queries) ListWebDocuments(ctx context.Context, arg ListWebDocumentsPara
 			&i.Document.Lang,
 			&i.Document.Description,
 			&i.Document.Words,
-			&i.Document.Gbid,
-			&i.Document.Olid,
 			&i.Document.Isbn10,
 			&i.Document.Isbn13,
 			&i.Document.Synced,

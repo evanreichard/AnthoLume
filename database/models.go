@@ -77,8 +77,6 @@ type Document struct {
 	Lang          *string `json:"lang"`
 	Description   *string `json:"description"`
 	Words         *int64  `json:"words"`
-	Gbid          *string `json:"gbid"`
-	Olid          *string `json:"-"`
 	Isbn10        *string `json:"isbn10"`
 	Isbn13        *string `json:"isbn13"`
 	Synced        bool    `json:"-"`
@@ -86,6 +84,12 @@ type Document struct {
 	UpdatedAt     string  `json:"updated_at"`
 	CreatedAt     string  `json:"created_at"`
 	StorageRootID *string `json:"storage_root_id"`
+}
+
+type DocumentIdentifier struct {
+	DocumentID string `json:"document_id"`
+	Namespace  string `json:"namespace"`
+	Value      string `json:"value"`
 }
 
 type DocumentProgress struct {

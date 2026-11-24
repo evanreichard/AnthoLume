@@ -96,12 +96,10 @@ INSERT INTO documents (
     lang,
     description,
     words,
-    olid,
-    gbid,
     isbn10,
     isbn13
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT DO UPDATE
 SET
     md5 =           COALESCE(excluded.md5, md5),
@@ -115,8 +113,6 @@ SET
     lang =          COALESCE(excluded.lang, lang),
     description =   COALESCE(excluded.description, description),
     words =         COALESCE(excluded.words, words),
-    olid =          COALESCE(excluded.olid, olid),
-    gbid =          COALESCE(excluded.gbid, gbid),
     isbn10 =        COALESCE(excluded.isbn10, isbn10),
     isbn13 =        COALESCE(excluded.isbn13, isbn13)
 RETURNING *;

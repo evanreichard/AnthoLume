@@ -18,7 +18,8 @@ func TestStoragePathStartupRepairAndBackup(t *testing.T) {
 	book, err := os.ReadFile("../_test_files/alice.epub")
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(f.cfg.DataPath, "documents", "book.epub"), book, 0600))
-	f.exec(`UPDATE users SET admin=1 WHERE id='owner'; INSERT INTO documents(id,filepath,storage_root_id,deleted) VALUES ('legacy','./book.epub','library',FALSE),('unsafe','./../book.epub','library',TRUE); DROP TABLE auto_import_rules; DELETE FROM goose_db_version WHERE version_id>=20261126000000`)
+	f.exec(`UPDATE users SET admin=1 WHERE id='owner'; INSERT INTO documents(id,filepath,storage_root_id,deleted) VALUES ('legacy','./book.epub','library',FALSE),('unsafe','./../book.epub','library',TRUE); DROP TABLE auto_import_rules`)
+	f.rewindReactMigrations()
 	require.NoError(t, f.db.Reload(context.Background()))
 	var name string
 	require.NoError(t, f.db.DB.QueryRow(`SELECT filepath FROM documents WHERE id='legacy'`).Scan(&name))

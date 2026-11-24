@@ -181,8 +181,8 @@ func TestKOSyncDevicesMigrationReopenAndDeletion(t *testing.T) {
 	f.readingSetup()
 	f.exec(`INSERT INTO devices(id,user_id,device_name) VALUES('historical','alice','Only currently known name');
  INSERT INTO reading_heads(user_id,document_id,revision,position,fraction,device_id,updated_at) VALUES('alice','book_a',7,'untouched past',0.12,'historical','2001-02-03T04:05:06Z');
- DROP TABLE auto_import_rules;
- DELETE FROM goose_db_version WHERE version_id>=20261126000000`)
+ DROP TABLE auto_import_rules`)
+	f.rewindReactMigrations()
 	reopen := func() {
 		t.Helper()
 		f.server.Close()

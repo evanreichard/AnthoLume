@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS documents (
     description TEXT,
     words INTEGER,
 
+    -- Bootstrap Shape - Migration 20261126000004 moves these into document_identifiers on both new and existing databases.
     gbid TEXT,
     olid TEXT,
     isbn10 TEXT,

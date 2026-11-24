@@ -12,6 +12,7 @@ sql:
       - database/migrations/schema/reading_schema.sql
       - database/migrations/schema/scoped_device_schema.sql
       - database/migrations/20261126000002_hardcover_links.sql
+      - database/migrations/schema/document_identifiers.sql
     queries:
       - database/query.sql
       - database/queries
@@ -67,14 +68,6 @@ sql:
             go_type:
               type: "int64"
               pointer: true
-          - column: "documents.olid"
-            go_type:
-              type: "string"
-              pointer: true
-          - column: "documents.gbid"
-            go_type:
-              type: "string"
-              pointer: true
           - column: "documents.isbn10"
             go_type:
               type: "string"
@@ -122,8 +115,6 @@ sql:
 
           # Do not generate JSON
           - column: "documents.synced"
-            go_struct_tag: 'json:"-"'
-          - column: "documents.olid"
             go_struct_tag: 'json:"-"'
           - column: "documents.deleted"
             go_struct_tag: 'json:"-"'

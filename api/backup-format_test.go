@@ -178,8 +178,8 @@ func TestRestoreUpgradedFullBackupOnFreshInstance(t *testing.T) {
  ALTER TABLE documents ADD COLUMN basepath TEXT;
  DROP TABLE auto_import_rules;
  DROP TABLE storage_roots;
- DELETE FROM goose_db_version WHERE version_id>=20261126000000;
  INSERT INTO documents(id,title,filepath,basepath) VALUES('legacy','Legacy book','book.epub',?)`, library)
+	source.rewindReactMigrations()
 	require.NoError(t, source.db.Reload(context.Background()))
 	dir := filepath.Join(t.TempDir(), "export")
 	require.NoError(t, source.api.createFullBackup(context.Background(), dir))

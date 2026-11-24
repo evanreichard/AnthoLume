@@ -146,6 +146,14 @@ func (f *webFixture) exec(query string, args ...any) {
 	_, err := f.db.DB.Exec(query, args...)
 	require.NoError(f.t, err)
 }
+func (f *webFixture) rewindReactMigrations() {
+	f.t.Helper()
+	// Goose rejects gaps, so restore the legacy identifier columns before marking all later migrations pending.
+	f.exec(`DROP TABLE document_identifiers;
+ ALTER TABLE documents ADD COLUMN gbid TEXT;
+ ALTER TABLE documents ADD COLUMN olid TEXT;
+ DELETE FROM goose_db_version WHERE version_id>=20261126000000`)
+}
 func (f *webFixture) count(table string) int {
 	f.t.Helper()
 	var n int

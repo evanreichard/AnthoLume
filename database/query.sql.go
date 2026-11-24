@@ -79,7 +79,7 @@ func (q *Queries) GetDeletedDocuments(ctx context.Context, documentIds []string)
 }
 
 const getDocument = `-- name: GetDocument :one
-SELECT id, md5, basepath, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at, storage_root_id FROM documents
+SELECT id, md5, basepath, filepath, coverfile, title, author, series, series_index, lang, description, words, isbn10, isbn13, synced, deleted, updated_at, created_at, storage_root_id FROM documents
 WHERE id = ?1 LIMIT 1
 `
 
@@ -99,8 +99,6 @@ func (q *Queries) GetDocument(ctx context.Context, documentID string) (Document,
 		&i.Lang,
 		&i.Description,
 		&i.Words,
-		&i.Gbid,
-		&i.Olid,
 		&i.Isbn10,
 		&i.Isbn13,
 		&i.Synced,
@@ -133,7 +131,7 @@ func (q *Queries) GetLastActivity(ctx context.Context, arg GetLastActivityParams
 }
 
 const getMissingDocuments = `-- name: GetMissingDocuments :many
-SELECT documents.id, documents.md5, documents.basepath, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.words, documents.gbid, documents.olid, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at, documents.storage_root_id FROM documents
+SELECT documents.id, documents.md5, documents.basepath, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.words, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at, documents.storage_root_id FROM documents
 WHERE
     documents.filepath IS NOT NULL
     AND documents.deleted = false
@@ -172,8 +170,6 @@ func (q *Queries) GetMissingDocuments(ctx context.Context, documentIds []string)
 			&i.Lang,
 			&i.Description,
 			&i.Words,
-			&i.Gbid,
-			&i.Olid,
 			&i.Isbn10,
 			&i.Isbn13,
 			&i.Synced,
@@ -401,12 +397,10 @@ INSERT INTO documents (
     lang,
     description,
     words,
-    olid,
-    gbid,
     isbn10,
     isbn13
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT DO UPDATE
 SET
     md5 =           COALESCE(excluded.md5, md5),
@@ -420,11 +414,9 @@ SET
     lang =          COALESCE(excluded.lang, lang),
     description =   COALESCE(excluded.description, description),
     words =         COALESCE(excluded.words, words),
-    olid =          COALESCE(excluded.olid, olid),
-    gbid =          COALESCE(excluded.gbid, gbid),
     isbn10 =        COALESCE(excluded.isbn10, isbn10),
     isbn13 =        COALESCE(excluded.isbn13, isbn13)
-RETURNING id, md5, basepath, filepath, coverfile, title, author, series, series_index, lang, description, words, gbid, olid, isbn10, isbn13, synced, deleted, updated_at, created_at, storage_root_id
+RETURNING id, md5, basepath, filepath, coverfile, title, author, series, series_index, lang, description, words, isbn10, isbn13, synced, deleted, updated_at, created_at, storage_root_id
 `
 
 type UpsertDocumentParams struct {
@@ -440,8 +432,6 @@ type UpsertDocumentParams struct {
 	Lang          *string `json:"lang"`
 	Description   *string `json:"description"`
 	Words         *int64  `json:"words"`
-	Olid          *string `json:"-"`
-	Gbid          *string `json:"gbid"`
 	Isbn10        *string `json:"isbn10"`
 	Isbn13        *string `json:"isbn13"`
 }
@@ -460,8 +450,6 @@ func (q *Queries) UpsertDocument(ctx context.Context, arg UpsertDocumentParams) 
 		arg.Lang,
 		arg.Description,
 		arg.Words,
-		arg.Olid,
-		arg.Gbid,
 		arg.Isbn10,
 		arg.Isbn13,
 	)
@@ -479,8 +467,6 @@ func (q *Queries) UpsertDocument(ctx context.Context, arg UpsertDocumentParams) 
 		&i.Lang,
 		&i.Description,
 		&i.Words,
-		&i.Gbid,
-		&i.Olid,
 		&i.Isbn10,
 		&i.Isbn13,
 		&i.Synced,
