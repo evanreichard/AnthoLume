@@ -2,15 +2,16 @@ package hardcover
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"errors"
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/oauth2"
 )
 
 var (
@@ -23,19 +24,16 @@ var (
 )
 
 const (
-	scope        = "read:me:content read:library"
 	pageSize     = 25
 	maxOffset    = 1<<31 - pageSize - 1 // GraphQL Int is signed 32-bit.
 	requestLimit = 10 * time.Second
 )
 
 type Client struct {
-	store                    credentialStore
-	id, secret, redirectURI  string
-	authorize, token, revoke string
-	graphql                  string
-	http                     *http.Client
-	now                      func() time.Time
+	store           credentialStore
+	oauth           oauth2.Config
+	revoke, graphql string
+	http            *http.Client
 }
 
 type Shelf struct {
@@ -64,46 +62,33 @@ func New(dir, clientID, clientSecret, redirectURI string) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		store: store, id: clientID, secret: clientSecret, redirectURI: redirectURI,
-		authorize: "https://hardcover.app/oauth2/authorize",
-		token:     "https://api.hardcover.app/oauth2/token",
-		revoke:    "https://api.hardcover.app/oauth2/revoke",
-		graphql:   "https://api.hardcover.app/v1/graphql",
+		store: store,
+		oauth: oauth2.Config{
+			ClientID: clientID, ClientSecret: clientSecret, RedirectURL: redirectURI,
+			Scopes:   []string{"read:me:content", "read:library"},
+			Endpoint: oauth2.Endpoint{AuthURL: "https://hardcover.app/oauth2/authorize", TokenURL: "https://api.hardcover.app/oauth2/token", AuthStyle: oauth2.AuthStyleInHeader},
+		},
+		revoke:  "https://api.hardcover.app/oauth2/revoke",
+		graphql: "https://api.hardcover.app/v1/graphql",
 		http: &http.Client{Timeout: requestLimit, CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}},
-		now: time.Now,
 	}, nil
 }
 
 // AuthorizeURL returns an empty string for invalid state or a malformed PKCE verifier.
 // Callers own creation, expiration, and validation of state and the verifier.
 func (c *Client) AuthorizeURL(state, verifier string) string {
-	if state == "" || !validVerifier(verifier) {
+	if state == "" || !pkceVerifier.MatchString(verifier) {
 		return ""
 	}
-	hash := sha256.Sum256([]byte(verifier))
-	return c.authorize + "?" + (url.Values{
-		"response_type": {"code"}, "client_id": {c.id}, "redirect_uri": {c.redirectURI},
-		"state": {state}, "scope": {scope}, "code_challenge_method": {"S256"},
-		"code_challenge": {base64.RawURLEncoding.EncodeToString(hash[:])},
-	}).Encode()
+	return c.oauth.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
 }
 
-func validVerifier(verifier string) bool {
-	if len(verifier) < 43 || len(verifier) > 128 {
-		return false
-	}
-	for _, r := range verifier {
-		if !('a' <= r && r <= 'z' || 'A' <= r && r <= 'Z' || '0' <= r && r <= '9' || strings.ContainsRune("-._~", r)) {
-			return false
-		}
-	}
-	return true
-}
+var pkceVerifier = regexp.MustCompile(`^[A-Za-z0-9._~-]{43,128}$`)
 
 func (c *Client) Connect(ctx context.Context, account, code, verifier string) error {
-	if code == "" || !validVerifier(verifier) {
+	if code == "" || !pkceVerifier.MatchString(verifier) {
 		return ErrInvalidInput
 	}
 	unlock, err := c.lock(ctx, account)
@@ -115,9 +100,8 @@ func (c *Client) Connect(ctx context.Context, account, code, verifier string) er
 	if err != nil && !errors.Is(err, ErrNotConnected) {
 		return err
 	}
-	link, err := c.exchange(ctx, url.Values{
-		"grant_type": {"authorization_code"}, "code": {code}, "code_verifier": {verifier}, "redirect_uri": {c.redirectURI},
-	})
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.http)
+	link, err := hardcoverCredential(c.oauth.Exchange(ctx, code, oauth2.VerifierOption(verifier)))
 	if err != nil {
 		return err
 	}
@@ -129,7 +113,7 @@ func (c *Client) Connect(ctx context.Context, account, code, verifier string) er
 	}
 	if err := c.query(ctx, link.Access, `query AnthoLumeProfile { me { id username } }`, nil, &profile); err != nil {
 		_ = c.revokeToken(ctx, link)
-		return publicProviderError(err)
+		return err
 	}
 	if len(profile.Me) != 1 || profile.Me[0].ID < 1 || strings.TrimSpace(profile.Me[0].Username) == "" {
 		_ = c.revokeToken(ctx, link)
@@ -202,29 +186,25 @@ func (c *Client) Shelf(ctx context.Context, account string, offset int) (Shelf, 
 	if link.Refresh == "" {
 		return Shelf{}, ErrReconnect
 	}
-	refreshed := !c.now().Add(30 * time.Second).Before(link.ExpiresAt)
-	if refreshed {
-		link, err = c.refresh(ctx, account, link)
-		if err != nil {
-			return Shelf{}, err
+	if time.Until(link.ExpiresAt) > 30*time.Second {
+		page, err := c.readPage(ctx, link, offset)
+		if !errors.Is(err, ErrReconnect) {
+			return page, err
 		}
 	}
-	result, err := c.readPage(ctx, link, offset)
-	if errors.Is(err, errUnauthorized) && !refreshed {
-		link, err = c.refresh(ctx, account, link)
-		if err != nil {
-			return Shelf{}, err
-		}
-		result, err = c.readPage(ctx, link, offset)
+	link, err = c.refresh(ctx, account, link)
+	if err != nil {
+		return Shelf{}, err
 	}
-	if errors.Is(err, errUnauthorized) {
+	page, err := c.readPage(ctx, link, offset)
+	if errors.Is(err, ErrReconnect) {
 		// Rejected After Refresh - Don't repeat rotation when the provider rejects a replacement access token.
 		if err := c.markReconnect(account, link); err != nil {
 			return Shelf{}, err
 		}
 		return Shelf{}, ErrReconnect
 	}
-	return result, err
+	return page, err
 }
 
 func (c *Client) readPage(ctx context.Context, link credential, offset int) (Shelf, error) {
@@ -276,7 +256,11 @@ func (c *Client) refresh(ctx context.Context, account string, old credential) (c
 	if err := c.markReconnect(account, old); err != nil {
 		return credential{}, err
 	}
-	next, err := c.exchange(ctx, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {refreshToken}})
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.http)
+	// Single Rotation - Supply only the refresh token so TokenSource makes one exchange, even after an early access-token rejection.
+	source := c.oauth.TokenSource(ctx, &oauth2.Token{RefreshToken: refreshToken})
+	next, err := hardcoverCredential(source.Token())
+	// Hardcover rotates on every use; oauth2 otherwise retains the spent token when the response omits its replacement.
 	if err != nil || next.Refresh == refreshToken {
 		return credential{}, ErrReconnect
 	}

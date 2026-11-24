@@ -191,9 +191,7 @@ func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestOb
 
 func (api *API) cleanupDeletedHardcoverAccount(ctx context.Context, account string) {
 	f := &api.hardcover
-	lock := f.accountLock(account)
-	lock.Lock()
-	defer lock.Unlock()
+	defer f.lockAccount(account)()
 	// Committed Deletion - An in-flight callback must finish before removal; waiting callbacks lose their pending state.
 	f.cancel(account)
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), hardcoverCallTimeout)

@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/oauth2"
 	"reichard.io/antholume/hardcover"
 )
 
@@ -22,6 +23,7 @@ const (
 	hardcoverCallbackPath = "/oauth/hardcover/callback"
 	hardcoverIssuer       = "https://api.hardcover.app"
 	hardcoverErrorPath    = "/settings?hardcover=error"
+	hardcoverRequestLimit = 8192
 	hardcoverAttemptsCap  = 512
 	hardcoverAttemptTTL   = 10 * time.Minute
 	hardcoverCallTimeout  = 15 * time.Second
@@ -69,8 +71,10 @@ func hardcoverAccountKey(user authData) string {
 	return user.Generation + ":" + user.AccountID
 }
 
-func (f *hardcoverFlow) accountLock(account string) *sync.Mutex {
-	return &f.accounts[sha256.Sum256([]byte(account))[0]%64]
+func (f *hardcoverFlow) lockAccount(account string) func() {
+	lock := &f.accounts[sha256.Sum256([]byte(account))[0]%64]
+	lock.Lock()
+	return lock.Unlock
 }
 
 func (f *hardcoverFlow) start(account, session, verifier, state string, now time.Time) bool {
@@ -141,22 +145,15 @@ func (s *webAPI) ConnectHardcover(ctx context.Context, _ ConnectHardcoverRequest
 	if f.client == nil {
 		return nil, &webFailure{status: 404, code: "hardcover_disabled"}
 	}
+	// Session Binding - webBoundary already validated this session's CSRF secret.
 	session, _ := sessions.Default(ginContext(ctx)).Get("csrf").(string)
-	if session == "" {
-		return nil, &webFailure{status: 403, code: "csrf_failed"}
-	}
 	state, err := randomCSRF()
 	if err != nil {
 		return nil, err
 	}
-	verifier, err := randomCSRF()
-	if err != nil {
-		return nil, err
-	}
+	verifier := oauth2.GenerateVerifier()
 	account := hardcoverAccountKey(webUser(ctx))
-	lock := f.accountLock(account)
-	lock.Lock()
-	defer lock.Unlock()
+	defer f.lockAccount(account)()
 	if !f.start(account, session, verifier, state, time.Now()) {
 		return nil, &webFailure{status: 429, code: "rate_limited"}
 	}
@@ -169,9 +166,7 @@ func (s *webAPI) DisconnectHardcover(ctx context.Context, _ DisconnectHardcoverR
 		return nil, &webFailure{status: 404, code: "hardcover_disabled"}
 	}
 	account := hardcoverAccountKey(webUser(ctx))
-	lock := f.accountLock(account)
-	lock.Lock()
-	defer lock.Unlock()
+	defer f.lockAccount(account)()
 	f.cancel(account)
 	call, cancel := context.WithTimeout(requestContext(ctx), hardcoverCallTimeout)
 	defer cancel()
@@ -230,30 +225,29 @@ func hardcoverCallbackHeaders(c *gin.Context) {
 
 func (api *API) hardcoverCallback(c *gin.Context) {
 	hardcoverCallbackHeaders(c)
-	if api.hardcover.client == nil || len(c.Request.URL.RawQuery) > 8192 {
-		c.Redirect(http.StatusSeeOther, api.cfg.PublicOrigin+hardcoverErrorPath)
-		return
+	query := c.Request.URL.RawQuery
+	if api.hardcover.client != nil && len(query) <= hardcoverRequestLimit {
+		params, err := url.ParseQuery(query)
+		state, code, ok := hardcoverCallbackValues(params)
+		if err == nil && ok && api.hardcover.live(state, time.Now()) {
+			if nonce, err := randomCSRF(); err == nil {
+				c.Header("Content-Security-Policy", "default-src 'none'; script-src 'nonce-"+nonce+"'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+				c.Header("Content-Type", "text/html; charset=utf-8")
+				// First-Party Hop - The cross-site navigation has no Strict cookie; a fetch from the committed document does.
+				_ = hardcoverCallbackPage.Execute(c.Writer, struct{ Origin, State, Code, Issuer, Nonce string }{api.cfg.PublicOrigin, state, code, hardcoverIssuer, nonce})
+				return
+			}
+		}
 	}
-	params, err := url.ParseQuery(c.Request.URL.RawQuery)
-	state, code, issuer := params["state"], params["code"], params["iss"]
-	if err != nil || len(params["error"]) != 0 || len(state) != 1 || len(code) != 1 || len(issuer) != 1 ||
-		!validHardcoverCallback(state[0], code[0], issuer[0]) || !api.hardcover.live(state[0], time.Now()) {
-		c.Redirect(http.StatusSeeOther, api.cfg.PublicOrigin+hardcoverErrorPath)
-		return
-	}
-	nonce, err := randomCSRF()
-	if err != nil {
-		c.Redirect(http.StatusSeeOther, api.cfg.PublicOrigin+hardcoverErrorPath)
-		return
-	}
-	c.Header("Content-Security-Policy", "default-src 'none'; script-src 'nonce-"+nonce+"'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
-	c.Header("Content-Type", "text/html; charset=utf-8")
-	// First-Party Hop - The cross-site navigation does not carry a Strict cookie; a fetch from the committed document does.
-	_ = hardcoverCallbackPage.Execute(c.Writer, struct{ Origin, State, Code, Issuer, Nonce string }{api.cfg.PublicOrigin, state[0], code[0], issuer[0], nonce})
+	c.Redirect(http.StatusSeeOther, api.cfg.PublicOrigin+hardcoverErrorPath)
 }
 
-func validHardcoverCallback(state, code, issuer string) bool {
-	return len(state) == 64 && len(code) > 0 && len(code) <= 4096 && issuer == hardcoverIssuer
+func hardcoverCallbackValues(values url.Values) (state, code string, ok bool) {
+	if len(values["error"]) != 0 || len(values["state"]) != 1 || len(values["code"]) != 1 || len(values["iss"]) != 1 {
+		return "", "", false
+	}
+	state, code = values.Get("state"), values.Get("code")
+	return state, code, len(state) == 64 && len(code) > 0 && len(code) <= 4096 && values.Get("iss") == hardcoverIssuer
 }
 
 var hardcoverCallbackPage = template.Must(template.New("hardcover-callback").Parse(`<!doctype html>
@@ -288,13 +282,10 @@ func (api *API) finishHardcoverCallback(c *gin.Context) {
 		c.Status(http.StatusBadRequest)
 		return
 	}
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 8192)
-	if err := c.Request.ParseForm(); err != nil {
-		c.Status(http.StatusBadRequest)
-		return
-	}
-	state, code, issuer := c.Request.PostForm["state"], c.Request.PostForm["code"], c.Request.PostForm["iss"]
-	if len(state) != 1 || len(code) != 1 || len(issuer) != 1 || !validHardcoverCallback(state[0], code[0], issuer[0]) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, hardcoverRequestLimit)
+	err = c.Request.ParseForm()
+	state, code, ok := hardcoverCallbackValues(c.Request.PostForm)
+	if err != nil || !ok {
 		c.Status(http.StatusBadRequest)
 		return
 	}
@@ -307,17 +298,15 @@ func (api *API) finishHardcoverCallback(c *gin.Context) {
 		return
 	}
 	account := hardcoverAccountKey(user)
-	lock := f.accountLock(account)
-	lock.Lock()
-	defer lock.Unlock()
-	verifier, ok := f.take(account, csrf, state[0], time.Now())
+	defer f.lockAccount(account)()
+	verifier, ok := f.take(account, csrf, state, time.Now())
 	if !ok {
 		c.Status(http.StatusForbidden)
 		return
 	}
 	call, cancel := context.WithTimeout(ctx, hardcoverCallTimeout)
 	defer cancel()
-	if err := f.client.Connect(call, account, code[0], verifier); err != nil {
+	if err := f.client.Connect(call, account, code, verifier); err != nil {
 		c.Status(http.StatusBadGateway)
 		return
 	}

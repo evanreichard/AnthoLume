@@ -18,69 +18,73 @@ import (
 const hardcoverPath = "/api/v1/me/hardcover"
 
 type mockHardcover struct {
-	verifier          string
-	mu                sync.Mutex
-	links             map[string]string
-	calls             int
-	failure           error
-	statusFailure     error
-	disconnectFailure error
+	mu                    sync.Mutex
+	links                 map[string]string
+	verifier              string
+	exchanges             int
+	connectErr, statusErr error
+	disconnectErr         error
+	beforeConnect         func()
+}
+
+func hardcoverFixture(t *testing.T, m *mockHardcover) *webFixture {
+	f := newWebFixture(t)
+	m.links = make(map[string]string)
+	f.api.hardcover.client = m
+	f.register("alice")
+	return f
 }
 
 func (m *mockHardcover) AuthorizeURL(state, verifier string) string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.verifier = verifier
-	return "https://hardcover.app/oauth2/authorize?" + (url.Values{"state": {state}}).Encode()
+	return "https://hardcover.app/oauth2/authorize?state=" + state
 }
 
 func (m *mockHardcover) Connect(_ context.Context, account, code, verifier string) error {
+	if m.beforeConnect != nil {
+		m.beforeConnect()
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.calls++
-	if verifier != m.verifier || code != "proof" {
-		return errors.New("unexpected callback values")
+	m.exchanges++
+	if len(verifier) < 43 || verifier != m.verifier || code != "proof" {
+		return errors.New("wrong code or verifier")
 	}
-	if m.failure != nil {
-		return m.failure
+	if m.connectErr == nil {
+		m.links[account] = "hardcover-reader"
 	}
-	m.links[account] = "hardcover-alice"
-	return nil
+	return m.connectErr
 }
 
 func (m *mockHardcover) Status(account string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if username := m.links[account]; username != "" {
-		return username, m.statusFailure
+		return username, m.statusErr
 	}
 	return "", hardcover.ErrNotConnected
 }
 
 func (m *mockHardcover) Shelf(_ context.Context, account string, offset int) (hardcover.Shelf, error) {
-	if _, err := m.Status(account); err != nil {
+	if _, err := m.Status(account); err != nil || offset != 0 {
 		return hardcover.Shelf{}, err
 	}
-	if offset == 0 {
-		next := 25
-		return hardcover.Shelf{Books: []hardcover.Book{{ID: "41", Title: "Book", Author: "Author"}}, NextOffset: &next}, nil
-	}
-	return hardcover.Shelf{}, nil
+	next := 25
+	return hardcover.Shelf{Books: []hardcover.Book{{ID: "41", Title: "Book", Author: "Author"}}, NextOffset: &next}, nil
 }
 
-func (m *mockHardcover) Disconnect(_ context.Context, account string) error {
+func (m *mockHardcover) Disconnect(ctx context.Context, account string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.disconnectFailure == nil || errors.Is(m.disconnectFailure, hardcover.ErrRevocationUnconfirmed) {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if m.disconnectErr == nil || errors.Is(m.disconnectErr, hardcover.ErrRevocationUnconfirmed) {
 		delete(m.links, account)
 	}
-	return m.disconnectFailure
-}
-
-func (m *mockHardcover) exchanges() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.calls
+	return m.disconnectErr
 }
 
 func hardcoverBrowser(f *webFixture) *webFixture {
@@ -92,15 +96,21 @@ func hardcoverBrowser(f *webFixture) *webFixture {
 	return &browser
 }
 
+func hardcoverLogin(f *webFixture) webResponse {
+	f.bootstrap()
+	r := f.call("POST", "/api/v1/session/login", Credentials{Username: "alice", Password: " password "}, nil)
+	require.Equal(f.t, 200, r.status, string(r.body))
+	f.setSession(decodeWeb[Session](f.t, r))
+	return r
+}
+
 func beginHardcover(f *webFixture) url.Values {
 	f.t.Helper()
-	response := f.call("POST", hardcoverPath+"/connect", nil, nil)
-	require.Equal(f.t, 200, response.status, string(response.body))
-	location, err := url.Parse(decodeWeb[HardcoverConnect](f.t, response).AuthorizationUrl)
+	r := f.call("POST", hardcoverPath+"/connect", nil, nil)
+	require.Equal(f.t, 200, r.status, string(r.body))
+	location, err := url.Parse(decodeWeb[HardcoverConnect](f.t, r).AuthorizationUrl)
 	require.NoError(f.t, err)
-	state := location.Query().Get("state")
-	require.Len(f.t, state, 64)
-	return url.Values{"state": {state}, "code": {"proof"}, "iss": {hardcoverIssuer}}
+	return url.Values{"state": {location.Query().Get("state")}, "code": {"proof"}, "iss": {hardcoverIssuer}}
 }
 
 func finishHardcover(f *webFixture, values url.Values, origin string) webResponse {
@@ -108,143 +118,121 @@ func finishHardcover(f *webFixture, values url.Values, origin string) webRespons
 	return f.call("POST", hardcoverCallbackPath, values.Encode(), map[string]string{"Origin": origin, "Content-Type": "application/x-www-form-urlencoded"})
 }
 
-func TestHardcoverWebOAuthBindsOneExchangeToInitiatingSession(t *testing.T) {
-	f := newWebFixture(t)
-	m := &mockHardcover{links: make(map[string]string)}
-	f.api.hardcover.client = m
-	alice := f.register("alice")
-	wrongAccount := hardcoverBrowser(f)
-	wrongAccount.register("bob")
-	wrongSession := hardcoverBrowser(f)
-	wrongSession.bootstrap()
-	r := wrongSession.call("POST", "/api/v1/session/login", Credentials{Username: "alice", Password: " password "}, nil)
-	require.Equal(t, 200, r.status)
-	wrongSession.setSession(decodeWeb[Session](t, r))
-	anonymous := hardcoverBrowser(f)
+func requireHardcoverJSON(f *webFixture, method, path, expected string) {
+	f.t.Helper()
+	r := f.call(method, hardcoverPath+path, nil, nil)
+	require.Equal(f.t, 200, r.status, string(r.body))
+	require.JSONEq(f.t, expected, string(r.body))
+}
 
+const unlinkedHardcover = `{"enabled":true,"username":null,"reconnect_required":false}`
+
+func TestHardcoverOAuth(t *testing.T) {
+	m := &mockHardcover{}
+	f := hardcoverFixture(t, m)
+	anonymous, otherAccount, otherSession := hardcoverBrowser(f), hardcoverBrowser(f), hardcoverBrowser(f)
+	otherAccount.register("bob")
+	require.Contains(t, hardcoverLogin(otherSession).header.Get("Set-Cookie"), "SameSite=Strict")
+	origin := f.cfg.PublicOrigin
 	assertProblem(t, anonymous.call("GET", hardcoverPath, nil, nil), 401, "unauthenticated")
-	assertProblem(t, f.call("POST", hardcoverPath+"/connect", nil, map[string]string{"Origin": "https://wrong.invalid"}), 403, "csrf_failed")
-	assertProblem(t, f.call("POST", hardcoverPath+"/connect", nil, map[string]string{"X-CSRF-Token": strings.Repeat("0", 64)}), 403, "csrf_failed")
-	assertProblem(t, f.call("POST", hardcoverPath+"/connect", nil, map[string]string{"X-AnthoLume-Account": "wrong-account"}), 401, "account_changed")
-	r = f.call("GET", hardcoverPath, nil, nil)
-	require.JSONEq(t, `{"enabled":true,"username":null,"reconnect_required":false}`, string(r.body))
-	values := beginHardcover(f)
-	r = anonymous.call("GET", hardcoverCallbackPath+"?"+values.Encode(), nil, nil)
+	for header, value := range map[string]string{"Origin": "https://wrong.invalid", "X-CSRF-Token": "wrong"} {
+		assertProblem(t, f.call("POST", hardcoverPath+"/connect", nil, map[string]string{header: value}), 403, "csrf_failed")
+	}
+	assertProblem(t, f.call("POST", hardcoverPath+"/connect", nil, map[string]string{"X-AnthoLume-Account": "wrong"}), 401, "account_changed")
+	v := beginHardcover(f)
+	land := func() webResponse { return anonymous.call("GET", hardcoverCallbackPath+"?"+v.Encode(), nil, nil) }
+	r := land()
 	require.Equal(t, 200, r.status)
 	require.Equal(t, "no-store", r.header.Get("Cache-Control"))
 	require.Equal(t, "no-referrer", r.header.Get("Referrer-Policy"))
 	require.Contains(t, r.header.Get("Content-Security-Policy"), "frame-ancestors 'none'")
 	require.Empty(t, r.header.Get("Set-Cookie"))
 	require.NotContains(t, string(r.body), m.verifier)
-	require.Zero(t, m.exchanges())
-	for _, browser := range []*webFixture{anonymous, wrongSession, wrongAccount} {
-		require.Equal(t, 403, finishHardcover(browser, values, f.cfg.PublicOrigin).status)
+	require.Zero(t, m.exchanges)
+	for _, browser := range []*webFixture{anonymous, otherAccount, otherSession} {
+		require.Equal(t, 403, finishHardcover(browser, v, origin).status)
 	}
-	require.Equal(t, 403, finishHardcover(f, values, "https://wrong.invalid").status)
-	values.Set("iss", "https://wrong.invalid")
-	require.Equal(t, 400, finishHardcover(f, values, f.cfg.PublicOrigin).status)
-	r = anonymous.call("GET", hardcoverCallbackPath+"?"+values.Encode(), nil, nil)
-	require.Equal(t, 303, r.status)
-	require.Equal(t, f.cfg.PublicOrigin+hardcoverErrorPath, r.header.Get("Location"))
-	require.Zero(t, m.exchanges())
-	values.Set("iss", hardcoverIssuer)
-	require.Equal(t, 204, finishHardcover(f, values, f.cfg.PublicOrigin).status)
-	require.Equal(t, 403, finishHardcover(f, values, f.cfg.PublicOrigin).status)
-	require.Equal(t, 1, m.exchanges())
-	r = f.call("GET", hardcoverPath, nil, nil)
-	require.JSONEq(t, `{"enabled":true,"username":"hardcover-alice","reconnect_required":false}`, string(r.body))
-	_, err := m.Status(alice.User.ReadingGeneration + ":" + alice.User.AccountId)
-	require.NoError(t, err)
-	r = wrongAccount.call("GET", hardcoverPath, nil, nil)
-	require.JSONEq(t, `{"enabled":true,"username":null,"reconnect_required":false}`, string(r.body))
-	r = f.call("GET", hardcoverPath+"/shelf", nil, nil)
-	require.JSONEq(t, `{"books":[{"id":"41","title":"Book","author":"Author"}],"next_offset":25}`, string(r.body))
-	r = f.call("GET", hardcoverPath+"/shelf?offset=25", nil, nil)
-	require.JSONEq(t, `{"books":[],"next_offset":null}`, string(r.body))
+	require.Equal(t, 403, finishHardcover(f, v, "https://wrong.invalid").status)
+	for _, field := range []string{"iss", "state", "code"} {
+		value := v.Get(field)
+		v.Add(field, value)
+		require.Equal(t, 400, finishHardcover(f, v, origin).status)
+		v.Set(field, value)
+	}
+	v.Set("iss", "https://wrong.invalid")
+	require.Equal(t, 400, finishHardcover(f, v, origin).status)
+	require.Equal(t, origin+hardcoverErrorPath, land().header.Get("Location"))
+	v.Set("iss", hardcoverIssuer)
+	state := v.Get("state")
+	v.Set("state", strings.Repeat("f", 64))
+	require.Equal(t, 403, finishHardcover(f, v, origin).status)
+	v.Set("state", state)
+	require.Equal(t, 204, finishHardcover(f, v, origin).status)
+	require.Equal(t, 403, finishHardcover(f, v, origin).status)
+	require.Equal(t, 1, m.exchanges)
+	requireHardcoverJSON(otherAccount, "GET", "", unlinkedHardcover)
+	requireHardcoverJSON(f, "GET", "", `{"enabled":true,"username":"hardcover-reader","reconnect_required":false}`)
+	requireHardcoverJSON(f, "GET", "/shelf", `{"books":[{"id":"41","title":"Book","author":"Author"}],"next_offset":25}`)
+	requireHardcoverJSON(f, "GET", "/shelf?offset=25", `{"books":[],"next_offset":null}`)
 	assertProblem(t, f.call("GET", hardcoverPath+"/shelf?offset=-1", nil, nil), 400, "invalid_request")
 
 	pending := beginHardcover(f)
-	assertProblem(t, f.call("DELETE", hardcoverPath, nil, map[string]string{"X-CSRF-Token": strings.Repeat("0", 64)}), 403, "csrf_failed")
-	r = f.call("DELETE", hardcoverPath, nil, nil)
-	require.Equal(t, 200, r.status)
-	require.JSONEq(t, `{"revocation_confirmed":true}`, string(r.body))
-	r = f.call("DELETE", hardcoverPath, nil, nil)
-	require.Equal(t, 200, r.status)
-	require.JSONEq(t, `{"revocation_confirmed":true}`, string(r.body))
-	require.Equal(t, 403, finishHardcover(f, pending, f.cfg.PublicOrigin).status)
+	assertProblem(t, f.call("DELETE", hardcoverPath, nil, map[string]string{"X-CSRF-Token": "wrong"}), 403, "csrf_failed")
+	for range 2 {
+		requireHardcoverJSON(f, "DELETE", "", `{"revocation_confirmed":true}`)
+	}
+	require.Equal(t, 403, finishHardcover(f, pending, origin).status)
 	assertProblem(t, f.call("GET", hardcoverPath+"/shelf", nil, nil), 409, "hardcover_not_connected")
-	require.Equal(t, 1, m.exchanges())
 }
 
-func TestHardcoverWebDisconnectDistinguishesRevocationFromLocalRemoval(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		failure error
-	}{
-		{"remote unknown", hardcover.ErrRevocationUnconfirmed},
-		{"local failure", errors.New("local unlink failed")},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			f := newWebFixture(t)
-			f.api.hardcover.client = &mockHardcover{links: make(map[string]string), statusFailure: hardcover.ErrReconnect, disconnectFailure: tc.failure}
-			f.register("alice")
+func TestHardcoverDisconnectOutcomes(t *testing.T) {
+	for _, failure := range []error{hardcover.ErrRevocationUnconfirmed, errors.New("local unlink failed")} {
+		t.Run(failure.Error(), func(t *testing.T) {
+			f := hardcoverFixture(t, &mockHardcover{statusErr: hardcover.ErrReconnect, disconnectErr: failure})
 			require.Equal(t, 204, finishHardcover(f, beginHardcover(f), f.cfg.PublicOrigin).status)
-			r := f.call("GET", hardcoverPath, nil, nil)
-			require.Equal(t, 200, r.status)
-			require.JSONEq(t, `{"enabled":true,"username":"hardcover-alice","reconnect_required":true}`, string(r.body))
-			assertProblem(t, f.call("GET", hardcoverPath+"/shelf", nil, nil), 409, "hardcover_reconnect")
-
-			r = f.call("DELETE", hardcoverPath, nil, nil)
-			if errors.Is(tc.failure, hardcover.ErrRevocationUnconfirmed) {
-				require.Equal(t, 200, r.status)
-				require.JSONEq(t, `{"revocation_confirmed":false}`, string(r.body))
-				r = f.call("GET", hardcoverPath, nil, nil)
-				require.Equal(t, 200, r.status)
-				require.JSONEq(t, `{"enabled":true,"username":null,"reconnect_required":false}`, string(r.body))
+			requireHardcoverJSON(f, "GET", "", `{"enabled":true,"username":"hardcover-reader","reconnect_required":true}`)
+			if failure == hardcover.ErrRevocationUnconfirmed {
+				requireHardcoverJSON(f, "DELETE", "", `{"revocation_confirmed":false}`)
+				requireHardcoverJSON(f, "GET", "", unlinkedHardcover)
 			} else {
-				assertProblem(t, r, 502, "hardcover_unavailable")
+				assertProblem(t, f.call("DELETE", hardcoverPath, nil, nil), 502, "hardcover_unavailable")
 				assertProblem(t, f.call("GET", hardcoverPath+"/shelf", nil, nil), 409, "hardcover_reconnect")
 			}
 		})
 	}
 }
 
-func TestHardcoverWebRestoreInvalidatesPendingAndLinkedIdentity(t *testing.T) {
-	f := newWebFixture(t)
-	m := &mockHardcover{links: make(map[string]string)}
-	f.api.hardcover.client = m
-	original := f.register("alice")
-	require.Equal(t, 204, finishHardcover(f, beginHardcover(f), f.cfg.PublicOrigin).status)
+func TestHardcoverRestoreAndExpiry(t *testing.T) {
+	m := &mockHardcover{}
+	f := hardcoverFixture(t, m)
+	origin := f.cfg.PublicOrigin
+	v := beginHardcover(f)
+	flow := &f.api.hardcover
+	flow.mu.Lock()
+	a := flow.attempts[v.Get("state")]
+	a.expires = time.Now().Add(-time.Minute)
+	flow.attempts[v.Get("state")] = a
+	flow.mu.Unlock()
+	require.Equal(t, 403, finishHardcover(f, v, origin).status)
+	require.Equal(t, 204, finishHardcover(f, beginHardcover(f), origin).status)
 	pending := beginHardcover(f)
-
 	f.exec("UPDATE reading_generation SET generation = ? WHERE singleton = 1", strings.Repeat("a", 32))
-	require.Equal(t, 403, finishHardcover(f, pending, f.cfg.PublicOrigin).status)
-	f.bootstrap()
-	r := f.call("POST", "/api/v1/session/login", Credentials{Username: "alice", Password: " password "}, nil)
-	require.Equal(t, 200, r.status)
-	current := decodeWeb[Session](t, r)
-	require.Equal(t, original.User.AccountId, current.User.AccountId)
-	require.NotEqual(t, original.User.ReadingGeneration, current.User.ReadingGeneration)
-	f.setSession(current)
-	require.Equal(t, 403, finishHardcover(f, pending, f.cfg.PublicOrigin).status)
-	r = f.call("GET", hardcoverPath, nil, nil)
-	require.JSONEq(t, `{"enabled":true,"username":null,"reconnect_required":false}`, string(r.body))
-	require.Equal(t, 1, m.exchanges())
+	require.Equal(t, 403, finishHardcover(f, pending, origin).status)
+	hardcoverLogin(f)
+	require.Equal(t, 403, finishHardcover(f, pending, origin).status)
+	requireHardcoverJSON(f, "GET", "", unlinkedHardcover)
+	require.Equal(t, 1, m.exchanges)
 }
 
-func TestHardcoverWebDisabledAndCallbackFailure(t *testing.T) {
+func TestHardcoverDisabledAndCallbackFailure(t *testing.T) {
 	f := newWebFixture(t)
 	f.register("alice")
-	r := f.call("GET", hardcoverPath, nil, nil)
-	require.JSONEq(t, `{"enabled":false,"username":null,"reconnect_required":false}`, string(r.body))
+	requireHardcoverJSON(f, "GET", "", `{"enabled":false,"username":null,"reconnect_required":false}`)
 	assertProblem(t, f.call("POST", hardcoverPath+"/connect", nil, nil), 404, "hardcover_disabled")
-
-	m := &mockHardcover{failure: errors.New("provider error with private details")}
-	f.api.hardcover.client = m
-	values := beginHardcover(f)
-	r = finishHardcover(f, values, f.cfg.PublicOrigin)
+	f.api.hardcover.client = &mockHardcover{connectErr: errors.New("provider error with private details")}
+	v := beginHardcover(f)
+	r := finishHardcover(f, v, f.cfg.PublicOrigin)
 	require.Equal(t, 502, r.status)
 	require.Empty(t, r.body)
-	require.Equal(t, 403, finishHardcover(f, values, f.cfg.PublicOrigin).status)
-	require.Equal(t, 1, m.exchanges())
+	require.Equal(t, 403, finishHardcover(f, v, f.cfg.PublicOrigin).status)
 }

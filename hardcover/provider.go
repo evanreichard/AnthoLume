@@ -9,46 +9,30 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"golang.org/x/oauth2"
 )
 
 const responseLimit = 1 << 20
 
-var errUnauthorized = errors.New("hardcover: provider rejected authorization")
-
-func publicProviderError(err error) error {
-	if errors.Is(err, errUnauthorized) {
-		return ErrReconnect
-	}
-	return err
-}
-
-func (c *Client) exchange(ctx context.Context, values url.Values) (credential, error) {
-	var tokens struct {
-		Access  string `json:"access_token"`
-		Refresh string `json:"refresh_token"`
-		Expires int64  `json:"expires_in"`
-		Type    string `json:"token_type"`
-	}
-	if err := c.form(ctx, c.token, values, &tokens); err != nil {
-		return credential{}, publicProviderError(err)
-	}
-	if !validToken(tokens.Access) || !validToken(tokens.Refresh) || tokens.Expires < 1 || tokens.Expires > 366*24*60*60 ||
-		(tokens.Type != "" && !strings.EqualFold(tokens.Type, "Bearer")) {
+func hardcoverCredential(token *oauth2.Token, err error) (credential, error) {
+	if err != nil {
+		// Redact Provider Errors - RetrieveError may include the raw token endpoint response.
+		var denied *oauth2.RetrieveError
+		if errors.As(err, &denied) && denied.Response.StatusCode == http.StatusUnauthorized {
+			return credential{}, ErrReconnect
+		}
 		return credential{}, ErrProvider
 	}
-	return credential{Access: tokens.Access, Refresh: tokens.Refresh, ExpiresAt: c.now().Add(time.Duration(tokens.Expires) * time.Second)}, nil
+	ttl := time.Until(token.Expiry)
+	if !validToken(token.AccessToken) || !validToken(token.RefreshToken) || ttl <= 0 || ttl > 366*24*time.Hour || token.Type() != "Bearer" {
+		return credential{}, ErrProvider
+	}
+	return credential{Access: token.AccessToken, Refresh: token.RefreshToken, ExpiresAt: token.Expiry}, nil
 }
 
 func validToken(s string) bool {
-	if len(s) == 0 || len(s) > 8192 {
-		return false
-	}
-	for i := range len(s) {
-		if s[i] <= 0x20 || s[i] > 0x7e {
-			return false
-		}
-	}
-	return true
+	return len(s) > 0 && len(s) <= 8192 && !strings.ContainsFunc(s, func(r rune) bool { return r <= ' ' || r > '~' })
 }
 
 func (c *Client) revokeToken(ctx context.Context, link credential) error {
@@ -56,21 +40,14 @@ func (c *Client) revokeToken(ctx context.Context, link credential) error {
 	if token == "" {
 		token, hint = link.Access, "access_token"
 	}
-	err := c.form(ctx, c.revoke, url.Values{"token": {token}, "token_type_hint": {hint}}, nil)
-	if errors.Is(err, errUnauthorized) {
-		return ErrProvider
-	}
-	return err
-}
-
-func (c *Client) form(ctx context.Context, endpoint string, data url.Values, result any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(data.Encode()))
+	data := url.Values{"token": {token}, "token_type_hint": {hint}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.revoke, strings.NewReader(data.Encode()))
 	if err != nil {
 		return ErrProvider
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.SetBasicAuth(c.id, c.secret)
-	return c.send(req, result)
+	req.SetBasicAuth(c.oauth.ClientID, c.oauth.ClientSecret)
+	return c.send(req, nil)
 }
 
 func (c *Client) query(ctx context.Context, token, query string, vars map[string]int64, result any) error {
@@ -103,27 +80,23 @@ func (c *Client) query(ctx context.Context, token, query string, vars map[string
 func (c *Client) send(req *http.Request, result any) error {
 	req.Header.Set("Accept", "application/json")
 	resp, err := c.http.Do(req)
-	if err != nil {
-		if req.Context().Err() != nil {
-			return req.Context().Err()
-		}
-		return ErrProvider
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusUnauthorized {
-		return errUnauthorized
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return ErrProvider
-	}
-	if result != nil {
-		body, err := io.ReadAll(io.LimitReader(resp.Body, responseLimit+1))
-		if err != nil || len(body) > responseLimit || json.Unmarshal(body, result) != nil {
-			if req.Context().Err() != nil {
-				return req.Context().Err()
+	if err == nil {
+		defer resp.Body.Close()
+		switch {
+		case resp.StatusCode == http.StatusUnauthorized:
+			return ErrReconnect
+		case resp.StatusCode >= 200 && resp.StatusCode < 300:
+			if result == nil {
+				return nil
 			}
-			return ErrProvider
+			body, err := io.ReadAll(io.LimitReader(resp.Body, responseLimit+1))
+			if err == nil && len(body) <= responseLimit && json.Unmarshal(body, result) == nil {
+				return nil
+			}
 		}
 	}
-	return nil
+	if err := req.Context().Err(); err != nil {
+		return err
+	}
+	return ErrProvider
 }
