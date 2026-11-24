@@ -29,7 +29,7 @@ export class ReadingHTTPError extends Error {
 export interface ReadingSnapshot {
   deviceCopies?: ReadonlyMap<string, 'cached' | 'saved'>;
   offlineRecords?: readonly OfflineRecord[];
-  ready: boolean; resumeAccount: Account | null; books: readonly StoredBook[]; sync: SyncStatus; pendingCount: number; notice: string | null;
+  ready: boolean; resumeAccount: Account | null; books: readonly StoredBook[]; sync: SyncStatus; pendingCount: number; notice: { id: string; message: string } | null;
   downloads: readonly { ref: BookRef; receivedBytes: number; totalBytes: number | null; preparing?: boolean }[];
   workerError: string | null; error: string | null;
 }

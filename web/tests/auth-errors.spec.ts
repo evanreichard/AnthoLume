@@ -1,5 +1,34 @@
 import { test, expect, register } from './fixtures';
 
+test('sign-in works without a recovery banner when feature discovery fails', async ({ page, server }) => {
+  await register(page, server.origin, 'capabilities-reader');
+  await page.context().clearCookies();
+  await page.route('**/api/v1/capabilities', route => route.fulfill({ status: 503 }));
+  const failed = page.waitForResponse(response => response.url().endsWith('/api/v1/capabilities') && response.status() === 503);
+  await page.goto(`${server.origin}/login`);
+  await failed;
+  await page.getByLabel('Username', { exact: true }).fill('capabilities-reader');
+  await page.getByLabel('Password', { exact: true }).fill('synthetic-public-password');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Create an account' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Sign In', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
+});
+
+test('a failed signed-in feature check shows a dismissible toast, not session recovery', async ({ page, server }, testInfo) => {
+  await register(page, server.origin, 'capability-toast-reader');
+  await page.route('**/api/v1/capabilities', route => route.fulfill({ status: 503 }));
+  await page.reload();
+  const toast = page.locator('[data-snackbar]');
+  await expect(toast.getByRole('status')).toContainText('Couldn’t check which features are available');
+  await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('capabilities-toast.png') });
+  await toast.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(toast).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
+});
+
 test('a wrong password shows one form error and lets the reader retry', async ({ page, server }) => {
   await register(page, server.origin, 'auth-error-reader');
   await page.context().clearCookies();

@@ -84,17 +84,22 @@ test('the Library defaults to Last Read and features the last shared checkpoint 
 
 test('Add book uploads to the shared library and Recently Added includes it on page one', async ({ page, browser, server }) => {
   await register(page, server.origin, 'upload-reader');
+  await page.goto(`${server.origin}/library?q=ZZ&sort=added`);
   await page.getByRole('button', { name: 'Add Book', exact: true }).click();
   await page.getByLabel('Choose EPUB to upload').setInputFiles({
     name: 'upload.epub', mimeType: 'application/epub+zip', buffer: await epub('ZZ Shared Upload'),
   });
-  await expect(page.getByText('Book is in the shared library.', { exact: false })).toBeVisible();
-  const detail = page.getByRole('link', { name: 'Open book', exact: true });
-  await expect(detail).toHaveAttribute('href', /\/books\/server\?/);
-  await detail.click();
+  await expect(page.getByRole('dialog', { name: 'Add Book' })).toHaveCount(0);
+  await expect(page).toHaveURL(`${server.origin}/library?q=ZZ&sort=added`);
+  const notice = page.locator('[data-snackbar]');
+  await expect(notice.getByRole('status')).toHaveText('Book added to the library');
+  await notice.getByRole('button', { name: 'Open', exact: true }).click();
+  await expect(page).toHaveURL(/\/books\/server\?/);
   await expect(page.getByRole('heading', { name: 'ZZ Shared Upload', exact: true })).toBeVisible();
   const read = page.getByRole('link', { name: 'Read', exact: true });
   await expect(read).toBeVisible();
+  await page.getByRole('main').getByRole('link', { name: 'Library', exact: true }).click();
+  await expect(page).toHaveURL(`${server.origin}/library?q=ZZ&sort=added`);
   const other = await browser.newPage();
   try {
     await register(other, server.origin, 'other-upload-reader');

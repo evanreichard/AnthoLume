@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { Link, useLocation, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useReading } from '../reading';
 import { bookKey, bookPath, combineBooks, parseSort, sortBooks, sortOptions, type LibrarySort } from '../library';
 import { queryClient, session, useSession } from '../session';
@@ -12,12 +12,15 @@ import { RecentBooks } from '../RecentBooks';
 import { OfflineStatusBar } from '../OfflineStatusBar';
 import { BookDownloadActions } from '../BookDownloadActions';
 import { Button } from '../Controls';
+import { sameAccount } from '../api/client';
+import { useSnackbar } from '../Snackbar';
 
 export function Library() {
   const { access, profiles } = useSession();
   const reading = useReading();
   const [params, setParams] = useSearchParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const heading = useRef<HTMLHeadingElement>(null);
   const focusedLocation = useRef<string | null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -34,7 +37,8 @@ export function Library() {
   const [input, setInput] = useState(q);
   const [error, setError] = useState<unknown>(null);
   const [importing, setImporting] = useState(false);
-  const [newBook, setNewBook] = useState<string | null>(null);
+  const uploadScope = access.kind === 'authenticated' ? JSON.stringify(access.account) : undefined;
+  const uploadNotice = useSnackbar(uploadScope);
   const [importNotice, setImportNotice] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
   const importController = useRef<AbortController | null>(null);
@@ -45,7 +49,7 @@ export function Library() {
       focusedLocation.current = location.key;
     }
   }, [location.key, location.state, reading.ready]);
-  useEffect(() => () => importController.current?.abort(), []);
+  useLayoutEffect(() => () => importController.current?.abort(), [dialog, uploadScope]);
   const sharedEnabled = access.kind === 'authenticated';
   const documents = useInfiniteQuery({
     queryKey: ['documents', account, q, sort],
@@ -95,14 +99,17 @@ export function Library() {
     setParams(next, { preventScrollReset: true, replace: !!dialog && key !== 'dialog', state: dialog || key === 'dialog' ? { libraryDialog: true } : null });
   };
   const open = (name: string) => update('dialog', name);
+  const closeDialog = () => {
+    const next = new URLSearchParams(params);
+    next.delete('dialog');
+    setParams(next, { replace: true, preventScrollReset: true });
+  };
   const close = () => {
     if (importing) {
       setImportNotice('Upload cancelled. Check the Library in case it already reached the server.');
       importController.current?.abort();
     }
-    const next = new URLSearchParams(params);
-    next.delete('dialog');
-    setParams(next, { replace: true, preventScrollReset: true });
+    closeDialog();
   };
   function applySort(value: LibrarySort) {
     const next = new URLSearchParams(params);
@@ -118,17 +125,28 @@ export function Library() {
   }
   async function importFile(event: FormEvent<HTMLInputElement>) {
     const selected = event.currentTarget.files?.[0];
-    if (!selected || access.kind !== 'authenticated') return;
+    if (!selected || access.kind !== 'authenticated' || importController.current) return;
+    const uploadAccount = access.account;
+    const stillSignedIn = () => {
+      const current = session.getSnapshot().access;
+      return current.kind === 'authenticated' && sameAccount(current.account, uploadAccount);
+    };
+    uploadNotice.dismiss();
     setImporting(true);
     setError(null); setImportNotice(null);
     const controller = new AbortController();
     importController.current = controller;
     try {
       if (selected.size > 64 * 1024 * 1024) throw new Error('Uploads are limited to 64 MiB.');
-      const document = await session.api.uploadDocument(access.account, selected, controller.signal);
-      void queryClient.invalidateQueries({ queryKey: ['documents', access.account] });
-      if (!controller.signal.aborted) setNewBook(bookPath({ kind: 'server', account: access.account, documentId: document.id }));
-    } catch (failure) { if (!controller.signal.aborted) setError(failure); }
+      const document = await session.api.uploadDocument(uploadAccount, selected, controller.signal);
+      void queryClient.invalidateQueries({ queryKey: ['documents', uploadAccount] });
+      if (controller.signal.aborted || !stillSignedIn()) return;
+      const path = bookPath({ kind: 'server', account: uploadAccount, documentId: document.id });
+      closeDialog();
+      uploadNotice.show({ message: 'Book added to the library', action: {
+        label: 'Open', onClick: () => { if (stillSignedIn()) void navigate(path, { state: bookLinkState }); },
+      } });
+    } catch (failure) { if (!controller.signal.aborted && stillSignedIn()) setError(failure); }
     finally {
       setImporting(false);
       importController.current = null;
@@ -147,7 +165,7 @@ export function Library() {
         <label><span className={styles.srOnly}>Search title or author</span><input ref={searchInput} type="search" value={input} maxLength={256} placeholder="Title or author" onChange={(event) => setInput(event.target.value)} /></label>
         {(input || q) && <button type="button" className={styles.searchClear} aria-label="Clear Search" onClick={clearSearch}>×</button>}
       </div>
-      {!offline && <button type="button" className={styles.icon} aria-label="Add Book" disabled={access.kind !== 'authenticated'} onClick={() => { setNewBook(null); setError(null); open('add'); }}><Icon name="add" /></button>}
+      {!offline && <button type="button" className={styles.icon} aria-label="Add Book" disabled={access.kind !== 'authenticated'} onClick={() => { setError(null); open('add'); }}><Icon name="add" /></button>}
       <button type="button" className={styles.icon} aria-label="Sort Books" aria-haspopup="dialog" aria-expanded={dialog === 'sort'} onClick={() => open('sort')}><Icon name="sort" /></button>
     </form>
     <div className={styles.divider} />
@@ -174,7 +192,6 @@ export function Library() {
       <p>Upload an EPUB to the shared library (up to 64 MiB).</p>
       <input ref={file} type="file" accept=".epub,application/epub+zip" aria-label="Choose EPUB to upload" disabled={importing || access.kind !== 'authenticated'} onChange={importFile} />
       {importing && <p role="status">Uploading to the shared library…</p>}
-      {newBook && <p role="status">Book is in the shared library. <Link to={newBook} state={bookLinkState}>Open book</Link></p>}
       <ErrorNotice error={error} />
       <Button onClick={close}>{importing ? 'Cancel Upload' : 'Done'}</Button>
     </div></Dialog>}

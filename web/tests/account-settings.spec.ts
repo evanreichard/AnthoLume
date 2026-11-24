@@ -60,6 +60,13 @@ test('Settings updates timezone, manages devices and rotates the current passwor
   await expect(devices.getByRole('button', { name: 'Manage Original reader' })).toBeVisible();
   const modal = page.getByRole('dialog');
   const save = modal.getByRole('button', { name: 'Save Changes' });
+  const toast = page.locator('[data-snackbar]');
+  async function expectConfirmation(message: string) {
+    await expect(modal).toHaveCount(0);
+    await expect(toast.getByRole('status')).toHaveText(message);
+    await toast.getByRole('button', { name: 'Dismiss', exact: true }).click();
+    await expect(toast).toHaveCount(0);
+  }
   await timezone.click();
   await expect(modal).toHaveAccessibleName('Change Locale');
   await expect(modal.getByRole('searchbox')).toHaveCount(0);
@@ -68,7 +75,7 @@ test('Settings updates timezone, manages devices and rotates the current passwor
   await expect(picker.getByRole('option', { name: 'New York · America' })).toHaveCount(1);
   await picker.selectOption({ label: 'Tokyo · Asia' });
   await save.click();
-  await expect(page.getByText('Timezone updated.')).toBeVisible();
+  await expectConfirmation('Timezone updated.');
   await expect(timezone).toHaveAccessibleDescription('Tokyo');
   await page.getByRole('button', { name: 'Manage Original reader' }).getByText('Original reader', { exact: true }).click();
   await expect(modal).toHaveAccessibleName('Manage Device');
@@ -82,6 +89,7 @@ test('Settings updates timezone, manages devices and rotates the current passwor
   await expect(modal).toHaveAccessibleName('Manage Device');
   await expect(modal.getByLabel('Name', { exact: true })).toHaveValue('Bedside reader');
   await modal.getByRole('button', { name: 'Save', exact: true }).click();
+  await expectConfirmation('Device settings updated.');
   const bedside = devices.getByRole('button', { name: 'Manage Bedside reader' });
   await expect(bedside).not.toContainText('Archived');
   await bedside.click();
@@ -89,19 +97,25 @@ test('Settings updates timezone, manages devices and rotates the current passwor
   await expect(modal).toHaveAccessibleName('Archive Device?');
   await expect(bedside).not.toContainText('Archived');
   await archive.click();
+  await expectConfirmation('Device archived.');
   await expect(bedside).toContainText('Archived');
   await password.click();
   await modal.getByLabel('Current password').fill('synthetic-public-password');
   await modal.getByLabel('New password', { exact: true }).fill('synthetic-replacement-password');
+  await modal.getByLabel('Confirm new password').fill('different-password');
+  await save.click();
+  await expect(modal.getByRole('alert')).toHaveText('New passwords do not match.');
+  await expect(toast).toHaveCount(0);
   await modal.getByLabel('Confirm new password').fill('synthetic-replacement-password');
   await save.click();
-  await expect(page.getByText('Password changed. Other sessions were signed out.')).toBeVisible();
+  await expectConfirmation('Password changed. Other sessions were signed out.');
   await page.getByRole('button', { name: 'Manage Bedside reader' }).click();
   const unarchive = modal.getByRole('button', { name: 'Unarchive', exact: true });
   await unarchive.click();
   await expect(modal).toHaveAccessibleName('Unarchive Device?');
   await unarchive.click();
-  await expect(modal).toHaveCount(0);
+  await expectConfirmation('Device unarchived.');
+  await expect(bedside).toContainText('Synced');
   await page.reload();
   await expect(timezone).toHaveAccessibleDescription('Tokyo');
   await timezone.click();

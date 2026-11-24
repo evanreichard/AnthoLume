@@ -10,11 +10,11 @@ type S = components['schemas'];
 const sessionAccount = (user: NonNullable<S['Session']['user']>): Account => ({ origin: apiOrigin, userId: user.account_id, readingGeneration: user.reading_generation });
 const logoutKey = 'antholume:logout-pending';
 export const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000, gcTime: 300_000 } } });
-type Snapshot = { profiles: OfflineProfile[]; session: S['Session'] | null; capabilities: S['Capabilities'] | null; access: ReadingAccess; error: string | null; busy: boolean };
+type Snapshot = { profiles: OfflineProfile[]; session: S['Session'] | null; capabilities: S['Capabilities'] | null; capabilitiesUnavailable: boolean; access: ReadingAccess; error: string | null; busy: boolean };
 const message = (error: unknown) => error instanceof Error ? error.message : 'Could not contact the server.';
 
 class SessionCoordinator {
-  private snapshot: Snapshot = { profiles: [], session: null, capabilities: null, access: { kind: 'loading' }, error: null, busy: false };
+  private snapshot: Snapshot = { profiles: [], session: null, capabilities: null, capabilitiesUnavailable: false, access: { kind: 'loading' }, error: null, busy: false };
   private listeners = new Set<() => void>();
   private generation = 0;
   private refresh: AbortController | null = null;
@@ -71,7 +71,7 @@ class SessionCoordinator {
       void queryClient.cancelQueries();
       queryClient.clear();
     }
-    this.snapshot = { ...this.snapshot, ...value };
+    this.snapshot = { ...this.snapshot, ...(fence && { capabilitiesUnavailable: false }), ...value };
     clearTimeout(this.reconnect);
     if (['offline', 'picker'].includes(this.snapshot.access.kind)) this.retryOffline();
     this.listeners.forEach((listener) => listener());
@@ -129,9 +129,9 @@ class SessionCoordinator {
     const epoch = this.generation;
     try {
       const capabilities = await this.api.capabilities(AbortSignal.timeout(10_000));
-      if (epoch === this.generation) this.publish({ capabilities });
+      if (epoch === this.generation) this.publish({ capabilities, capabilitiesUnavailable: false });
     } catch {
-      if (epoch === this.generation) this.publish({ capabilities: null, error: 'Server feature discovery is unavailable. Existing books remain usable.' });
+      if (epoch === this.generation) this.publish({ capabilities: null, capabilitiesUnavailable: this.snapshot.access.kind === 'authenticated' });
     }
   }
   async checkSession() {

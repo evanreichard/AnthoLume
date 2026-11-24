@@ -1,4 +1,4 @@
-import { accountKey, ReadingHTTPError, type Account, type ReadingBridge, type SyncStatus } from './types';
+import { accountKey, ReadingHTTPError, type Account, type ReadingBridge, type ReadingSnapshot, type SyncStatus } from './types';
 import { Repository } from './repository';
 import { validDevice, validProblem, validState } from './protocol';
 
@@ -6,7 +6,7 @@ export class Replay {
   private running: Promise<void> | null = null;
   private abort?: AbortController;
   status: SyncStatus = 'idle';
-  notice: string | null = null;
+  notice: ReadingSnapshot['notice'] = null;
   constructor(private repo: Repository, private bridge: ReadingBridge, private changed: () => void, private expired: (account: Account) => void) {}
   stop() { this.abort?.abort(); this.notice = null; this.status = 'idle'; }
   run(account: Account): Promise<void> {
@@ -48,7 +48,9 @@ export class Replay {
           const state = await this.bridge.getState(account, event.payload.document_id, AbortSignal.any([controller.signal, AbortSignal.timeout(3000)]));
           await current();
           if (!validState(state, event.payload.document_id) || BigInt(state.revision) < BigInt(delivery.body.current_revision)) throw new Error('Invalid server position');
-          if (await this.repo.acceptServer(access, event, state)) this.notice = 'Resume position changed on another device. Choose where to resume the next time you open this book.';
+          if (await this.repo.acceptServer(access, event, state) && !controller.signal.aborted) {
+            this.notice = { id: event.id, message: 'Resume position changed on another device. Choose where to resume when you reopen this book.' };
+          }
           continue;
         }
         const { code } = delivery.body;

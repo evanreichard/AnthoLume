@@ -20,7 +20,10 @@ test(`resume conflict: ${choice} opens without publishing progress`, async ({ pa
   await expect(page.locator('footer')).toContainText('2 /');
   await page.keyboard.press('c');
   await page.getByRole('button', { name: 'Library', exact: true }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Resume position changed on another device.' })).toBeVisible();
+  const toast = page.locator('[data-snackbar]');
+  await expect(toast.getByRole('status')).toContainText('Resume position changed on another device.');
+  await toast.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(toast).toHaveCount(0);
   const effects = serverEffects(server.data, user);
   await page.setViewportSize({ width: 320, height: 844 });
   const openConflict = async () => {

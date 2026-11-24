@@ -11,6 +11,7 @@ import { AdminImport } from './AdminImport';
 import { AdminMaintenance } from './AdminMaintenance';
 import { AdminMetadata } from './AdminMetadata';
 import { SkeletonRows } from '../Skeleton';
+import { useSnackbar } from '../Snackbar';
 import { StorageRoots, storageRootsKey } from './AdminStorage';
 import styles from '../App.module.css';
 
@@ -81,30 +82,32 @@ function UserList({ account, username }: AdminContext) {
   const [action, setAction] = useState<UserAction | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const [notice, setNotice] = useState('');
-  function select(value: UserAction) { setError(null); setNotice(''); setAction(value); }
+  const { show } = useSnackbar(JSON.stringify(account));
+  function select(value: UserAction) { setError(null); setAction(value); }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!action || busy) return;
     const data = new FormData(event.currentTarget);
     setBusy(true); setError(null);
     try {
+      let message: string;
       if (action.kind === 'create') {
         const created = await session.api.createAdminUser(account, { username: String(data.get('username')), password: String(data.get('password')), is_admin: data.get('role') === 'administrator' });
-        setNotice(`Created ${created.id}.`);
+        message = `Created ${created.id}.`;
       } else if (action.kind === 'edit') {
         const password = String(data.get('password'));
         const admin = data.get('role') === 'administrator';
         if (!password && admin === action.user.is_admin) { setAction(null); return; }
         await session.api.updateAdminUser(account, action.user.id, { ...(password ? { password } : {}), ...(admin !== action.user.is_admin ? { is_admin: admin } : {}) });
-        setNotice(`Updated ${action.user.id}.`);
+        message = `Updated ${action.user.id}.`;
       } else {
         if (String(data.get('confirm')) !== action.user.id) throw new Error('Enter the exact username to confirm.');
         await session.api.deleteAdminUser(account, action.user.id);
-        setNotice(`Deleted ${action.user.id}.`);
+        message = `Deleted ${action.user.id}.`;
       }
       setAction(null);
       await client.invalidateQueries({ queryKey });
+      show({ message });
     } catch (failure) {
       const code = failure instanceof ReadingHTTPError ? failure.problem.code : '';
       setError(code === 'user_conflict' ? new Error('That username already exists.') : code === 'current_admin' ? new Error('You cannot change your own account here.') : failure);
@@ -114,7 +117,6 @@ function UserList({ account, username }: AdminContext) {
   return <Card density="compact" aria-labelledby="admin-users-heading">
     <CardHeader id="admin-users-heading" title={<>Users {accounts && <span className={styles.settingsCount}>{accounts.length}{users.hasNextPage ? '+' : ''}</span>}</>}
       action={<AddPill label="Add User" onClick={() => select({ kind: 'create' })} />} />
-    {notice && <p role="status">{notice}</p>}
     <ErrorNotice error={users.error} />
     {users.isPending && <SkeletonRows label="Loading users…" />}
     {accounts && <ul className={styles.userList}>{accounts.map(user => {

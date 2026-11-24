@@ -9,6 +9,7 @@ import { Dialog, ErrorNotice } from '../ui';
 import { ActionRow, ActionRows, Card, CardHeader, Pager, Button, Dropdown } from '../Controls';
 import styles from '../App.module.css';
 import { SkeletonRows } from '../Skeleton';
+import { useSnackbar } from '../Snackbar';
 import { HardcoverSettings } from './HardcoverSettings';
 
 type Device = components['schemas']['ManagedDevice'];
@@ -105,7 +106,7 @@ function ReaderCacheSettings() {
 
 export function AccountSettings({ account, username, timezone, syncStatus, syncDetails, onSignOut }: { account: Account; username: string; timezone: string; syncStatus: string; syncDetails: ReactNode; onSignOut(): void }) {
   const [modal, setModal] = useState<'timezone' | 'password' | Device | null>(null);
-  const [feedback, setFeedback] = useState('');
+  const { show } = useSnackbar(JSON.stringify(account));
   const close = () => setModal(null);
   const [devicePage, setDevicePage] = useState(0);
   const [params, setParams] = useSearchParams();
@@ -148,7 +149,6 @@ export function AccountSettings({ account, username, timezone, syncStatus, syncD
         <ActionRow divider label="Sync" value={syncStatus} aria-expanded={showSync} aria-controls="account-sync-details" onClick={toggleSync} />
         <div id="account-sync-details" hidden={!showSync}>{syncDetails}</div>
       </ActionRows>
-      {feedback && <p className={styles.settingsCardFeedback} role="status">{feedback}</p>}
     </Card>
     <div className={styles.settingsStack}>
     <HardcoverSettings account={account} />
@@ -166,7 +166,7 @@ export function AccountSettings({ account, username, timezone, syncStatus, syncD
     {modal === 'timezone' && <Dialog title="Change Locale" onClose={close}><SettingsForm onClose={close} action={async data => {
       try { await session.updateTimezone(account, String(data.get('timezone'))); }
       catch (err) { if (err instanceof ReadingHTTPError && err.problem.code === 'invalid_timezone') throw new Error('Choose a time zone supported by this server.'); throw err; }
-      setFeedback('Timezone updated.');
+      show({ message: 'Timezone updated.' });
     }}>
       <TimeZonePicker current={timezone} />
     </SettingsForm></Dialog>}
@@ -175,7 +175,7 @@ export function AccountSettings({ account, username, timezone, syncStatus, syncD
       if (newPassword !== data.get('confirm')) throw new Error('New passwords do not match.');
       try { await session.changePassword(account, { current_password: String(data.get('current')), new_password: newPassword }); }
       catch (err) { if (err instanceof ReadingHTTPError && err.problem.code === 'incorrect_password') throw new Error('Current password is incorrect.'); throw err; }
-      setFeedback('Password changed. Other sessions were signed out.');
+      show({ message: 'Password changed. Other sessions were signed out.' });
     }}>
       <p>Changing your password signs out other sessions.</p>
       <label>Current password<input name="current" type="password" autoComplete="current-password" required maxLength={256} /></label>
@@ -186,7 +186,7 @@ export function AccountSettings({ account, username, timezone, syncStatus, syncD
       update={async (changes, message) => {
         const saved = await session.api.updateDevice(account, modal.id, changes);
         client.setQueryData<Device[]>(['managed-devices', account], old => old?.map(device => device.id === saved.id ? saved : device));
-        setFeedback(message);
+        show({ message });
       }} />}
   </>;
 }

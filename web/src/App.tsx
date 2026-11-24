@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, ScrollRestoration, useLocation, useNavigate, useRouteError } from 'react-router';
 import type { RouteObject } from 'react-router';
@@ -18,7 +18,7 @@ import { Icon } from './Icon';
 import { Brand } from './Brand';
 import { OfflinePicker, OfflineReview } from './OfflineReading';
 import { WorkerRecovery } from './WorkerRecovery';
-import { SnackbarProvider } from './Snackbar';
+import { SnackbarProvider, useSnackbar } from './Snackbar';
 import { authPath, legacyDocument, retirementDestination } from './retirement';
 import styles from './App.module.css';
 
@@ -72,6 +72,30 @@ function ProtectedApp() {
   return access.kind === 'authenticated' ? <Outlet /> : null;
 }
 
+function CapabilityNotice() {
+  const { capabilitiesUnavailable } = useSession();
+  const { show, dismiss } = useSnackbar();
+  useEffect(() => {
+    if (capabilitiesUnavailable) show({ message: 'Couldn’t check which features are available. You can still read your books.' });
+    return dismiss;
+  }, [capabilitiesUnavailable, show, dismiss]);
+  return null;
+}
+
+function SyncNotice({ reader }: { reader: boolean }) {
+  const { notice } = useReading();
+  const { show, dismiss } = useSnackbar();
+  const lastShown = useRef<string | null>(null);
+  useEffect(() => {
+    if (!reader && notice && notice.id !== lastShown.current) {
+      lastShown.current = notice.id;
+      show({ message: notice.message });
+    }
+    return dismiss;
+  }, [reader, notice, show, dismiss]);
+  return null;
+}
+
 function Shell() {
   const reading = useReading();
   const location = useLocation();
@@ -83,6 +107,10 @@ function Shell() {
   }, [location.pathname, reader, showShell]);
   if (!showShell) return <Outlet />;
   return <SnackbarProvider><div className={`${styles.shell} ${reader ? styles.readerShell : ''}`}>
+      {access.kind === 'authenticated' && <>
+        <CapabilityNotice key={'capabilities:' + JSON.stringify(access.account)} />
+        <SyncNotice key={'sync:' + JSON.stringify(access.account)} reader={reader} />
+      </>}
       <a className={styles.skip} href="#content">Skip to content</a>
       {access.kind !== 'offline' && <aside className={styles.rail}>
         <Link to="/library" className={styles.brand}><Brand /></Link>
@@ -96,7 +124,6 @@ function Shell() {
       <main id="content" className={styles.main}>
         <div className={reader ? styles.readerReview : undefined}>
           {reading.error && !reader && <ErrorNotice error={reading.error} />}
-          {reading.notice && !reader && <p role="status" className={styles.notice}>{reading.notice}</p>}
           {access.kind === 'authenticated' && reading.ready && <OfflineReview key={JSON.stringify(access.account)} account={access.account} />}
           {!reader && <WorkerRecovery />}
         </div>

@@ -377,6 +377,13 @@ test('administrators manage users while members cannot open Administration', asy
   await expect(page.getByRole('heading', { name: 'Administration', level: 1 })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
   await sections.getByRole('link', { name: 'Users' }).click();
+  const toast = page.locator('[data-snackbar]');
+  async function expectConfirmation(message: string) {
+    await expect(dialog).toHaveCount(0);
+    await expect(toast.getByRole('status')).toHaveText(message);
+    await toast.getByRole('button', { name: 'Dismiss', exact: true }).click();
+    await expect(toast).toHaveCount(0);
+  }
   const createUser = page.getByRole('button', { name: 'Add User', exact: true });
   const target = await createUser.boundingBox();
   expect(target?.width).toBeGreaterThanOrEqual(44);
@@ -388,7 +395,8 @@ test('administrators manage users while members cannot open Administration', asy
   await dialog.getByLabel('Username').fill('admin-test-member');
   await dialog.getByLabel('Password').fill('synthetic-public-password');
   await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Created admin-test-member.' })).toBeVisible();
+  await expectConfirmation('Created admin-test-member.');
+  await expect(page.getByRole('button', { name: 'Manage admin-test-member' })).toContainText('Member');
   await expect(page.getByRole('heading', { name: /Users\s*\d/ })).toBeVisible();
 
   const member = await browser.newContext();
@@ -412,8 +420,7 @@ test('administrators manage users while members cannot open Administration', asy
   await page.keyboard.press('ArrowDown');
   await expect(adminRole).toBeChecked();
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Updated admin-test-member.' })).toBeVisible();
-  await expect(dialog).toHaveCount(0);
+  await expectConfirmation('Updated admin-test-member.');
   const manage = page.getByRole('button', { name: 'Manage admin-test-member' });
   await expect(manage).toContainText('Administrator');
   for (const [width, height, colorScheme] of [[320, 800, 'dark'], [390, 844, 'dark'], [1440, 900, 'light']] as const) {
@@ -434,9 +441,10 @@ test('administrators manage users while members cannot open Administration', asy
   await dialog.getByLabel(/Type .* to confirm/).fill('wrong');
   await dialog.getByRole('button', { name: 'Delete User' }).click();
   await expect(dialog.getByRole('alert')).toHaveText('Enter the exact username to confirm.');
+  await expect(toast).toHaveCount(0);
   await dialog.getByLabel(/Type .* to confirm/).fill('admin-test-member');
   await dialog.getByRole('button', { name: 'Delete User' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Deleted admin-test-member.' })).toBeVisible();
+  await expectConfirmation('Deleted admin-test-member.');
   await expect(page.getByRole('button', { name: 'Manage admin-test-member' })).toHaveCount(0);
 
   await mkdir(`${server.data}/logs`, { recursive: true });

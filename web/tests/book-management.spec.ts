@@ -8,7 +8,7 @@ test('book details show file information and download the original EPUB', async 
   const original = await epub('Downloadable edition');
   await page.getByRole('button', { name: 'Add Book', exact: true }).click();
   await page.getByLabel('Choose EPUB to upload').setInputFiles({ name: 'original.epub', mimeType: 'application/epub+zip', buffer: original });
-  await page.getByRole('link', { name: 'Open book', exact: true }).click();
+  await page.locator('[data-snackbar]').getByRole('button', { name: 'Open', exact: true }).click();
   await page.setViewportSize({ width: 320, height: 844 });
   const details = page.getByRole('region', { name: 'Book details' });
   const author = details.getByRole('term').filter({ hasText: /^Author$/ });
@@ -64,7 +64,7 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await register(page, server.origin, 'book-editor');
   await page.getByRole('button', { name: 'Add Book', exact: true }).click();
   await page.getByLabel('Choose EPUB to upload').setInputFiles({ name: 'editor.epub', mimeType: 'application/epub+zip', buffer: await epub('Disposable editor book') });
-  await page.getByRole('link', { name: 'Open book', exact: true }).click();
+  await page.locator('[data-snackbar]').getByRole('button', { name: 'Open', exact: true }).click();
   const more = page.getByRole('button', { name: 'More', exact: true });
   const edit = page.getByRole('button', { name: 'Edit', exact: true });
   const remove = page.getByRole('button', { name: 'Delete', exact: true });
