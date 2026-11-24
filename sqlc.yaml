@@ -13,6 +13,7 @@ sql:
       - database/migrations/schema/scoped_device_schema.sql
       - database/migrations/20261126000002_hardcover_links.sql
       - database/migrations/schema/document_identifiers.sql
+      - database/migrations/20261126000005_unique_settings_names.sql
     queries:
       - database/query.sql
       - database/queries

@@ -149,7 +149,7 @@ paths:
       operationId: getDocument
       responses:
         '200':
-          description: Live document
+          description: Live document with all confirmed matches
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Document'}
@@ -164,7 +164,7 @@ paths:
             schema: {$ref: '#/components/schemas/DocumentEdit'}
       responses:
         '200':
-          description: Saved book
+          description: Saved book with all confirmed matches
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Document'}
@@ -191,8 +191,9 @@ paths:
     get:
       operationId: previewMetadataMatch
       parameters:
-        - {name: work_id, in: query, required: true, schema: {type: string, pattern: '^OL[0-9]{1,15}W$'}}
-        - {name: edition_id, in: query, schema: {type: string, pattern: '^OL[0-9]{1,15}M$'}}
+        - {name: provider, in: query, required: true, schema: {$ref: '#/components/schemas/MetadataProvider'}}
+        - {name: work_id, in: query, required: true, schema: {$ref: '#/components/schemas/MetadataWorkID'}}
+        - {name: edition_id, in: query, schema: {$ref: '#/components/schemas/MetadataEditionID'}}
         - {name: isbn, in: query, schema: {type: string, pattern: '^([0-9]{13}|[0-9]{9}[0-9X])$'}}
       responses:
         '200':
@@ -647,6 +648,31 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AdminStorageDirectories'}
         default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/metadata-provider:
+    get:
+      operationId: getAdminMetadataProvider
+      responses:
+        '200':
+          description: Selected and effective provider and Hardcover availability
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminMetadataProvider'}
+        default: {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: setAdminMetadataProvider
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MetadataProviderChoice'}
+      responses:
+        '200':
+          description: Saved metadata provider choice
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminMetadataProvider'}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/admin/auto-import:
     get:
       operationId: listAdminAutoImports
@@ -1044,6 +1070,10 @@ components:
         storage_root_id: {type: string, description: Storage root ID shown only to administrators on single-book details}
         relative_file_path: {type: string, description: Path within the storage root shown only to administrators on single-book details}
         reading_stats: {$ref: '#/components/schemas/BookReadingStats'}
+        matches:
+          description: Confirmed work links. Always present on document detail GET and PATCH responses, empty when unlinked. Omitted on lists.
+          type: array
+          items: {$ref: '#/components/schemas/DocumentMatch'}
         added_at: {type: string, format: date-time, x-go-type: string}
         last_read_at: {type: string, format: date-time, x-go-type: string}
         resume_fraction: {type: number, format: double, minimum: 0, maximum: 1}
@@ -1129,8 +1159,10 @@ components:
     DocumentEdit:
       type: object
       additionalProperties: false
-      required: [title, author, description, isbn10, isbn13]
+      description: Omitted fields are unchanged. Supply an empty string to clear author, description, or ISBN. Title cannot be cleared.
+      minProperties: 1
       properties:
+        match: {$ref: '#/components/schemas/MetadataMatchReference'}
         title: {type: string, minLength: 1, maxLength: 512}
         author: {type: string, maxLength: 512}
         description: {type: string, maxLength: 16000}
@@ -1138,16 +1170,50 @@ components:
         isbn13: {type: string, pattern: '^([0-9]{13})?$'}
         cover_base64: {type: string, maxLength: 2796204, minLength: 4}
         remove_cover: {type: boolean}
+    MetadataProvider: {type: string, enum: [openlibrary, hardcover]}
+    MetadataProviderChoice:
+      type: object
+      additionalProperties: false
+      required: [provider]
+      properties:
+        provider: {$ref: '#/components/schemas/MetadataProvider'}
+    AdminMetadataProvider:
+      type: object
+      additionalProperties: false
+      required: [selected, effective, hardcover_available]
+      properties:
+        selected: {$ref: '#/components/schemas/MetadataProvider'}
+        effective: {$ref: '#/components/schemas/MetadataProvider'}
+        hardcover_available: {type: boolean}
+    MetadataWorkID: {type: string, minLength: 1, maxLength: 64}
+    MetadataEditionID: {type: string, minLength: 1, maxLength: 64}
+    DocumentMatch:
+      type: object
+      additionalProperties: false
+      required: [provider, work_id]
+      properties:
+        provider: {$ref: '#/components/schemas/MetadataProvider'}
+        work_id: {$ref: '#/components/schemas/MetadataWorkID'}
+    MetadataMatchReference:
+      type: object
+      additionalProperties: false
+      required: [provider, work_id]
+      properties:
+        provider: {$ref: '#/components/schemas/MetadataProvider'}
+        work_id: {$ref: '#/components/schemas/MetadataWorkID'}
+        edition_id: {$ref: '#/components/schemas/MetadataEditionID'}
+        isbn: {type: string, pattern: '^([0-9]{13}|[0-9]{9}[0-9X])$'}
     MetadataMatch:
       type: object
       additionalProperties: false
-      required: [id, title, author]
+      required: [provider, id, title, author]
       properties:
-        id: {type: string}
+        provider: {$ref: '#/components/schemas/MetadataProvider'}
+        id: {$ref: '#/components/schemas/MetadataWorkID'}
         title: {type: string}
         author: {type: string}
         year: {type: integer}
-        edition_id: {type: string, pattern: '^OL[0-9]{1,15}M$'}
+        edition_id: {$ref: '#/components/schemas/MetadataEditionID'}
         publisher: {type: string}
         published: {type: string}
         cover_id: {type: integer, format: int64, minimum: 1, maximum: 9999999999}

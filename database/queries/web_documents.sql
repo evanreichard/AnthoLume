@@ -141,10 +141,10 @@ LIMIT 20;
 
 -- name: UpdateWebDocumentMetadata :execrows
 UPDATE documents
-SET title = CAST(sqlc.arg(title) AS TEXT),
-    author = NULLIF(CAST(sqlc.arg(author) AS TEXT), ''),
-    description = NULLIF(CAST(sqlc.arg(description) AS TEXT), ''),
-    isbn10 = NULLIF(CAST(sqlc.arg(isbn10) AS TEXT), ''),
-    isbn13 = NULLIF(CAST(sqlc.arg(isbn13) AS TEXT), ''),
+SET title = COALESCE(CAST(sqlc.narg(title) AS TEXT), title),
+    author = CASE WHEN CAST(sqlc.narg(author) AS TEXT) IS NULL THEN author ELSE NULLIF(CAST(sqlc.narg(author) AS TEXT), '') END,
+    description = CASE WHEN CAST(sqlc.narg(description) AS TEXT) IS NULL THEN description ELSE NULLIF(CAST(sqlc.narg(description) AS TEXT), '') END,
+    isbn10 = CASE WHEN CAST(sqlc.narg(isbn10) AS TEXT) IS NULL THEN isbn10 ELSE NULLIF(CAST(sqlc.narg(isbn10) AS TEXT), '') END,
+    isbn13 = CASE WHEN CAST(sqlc.narg(isbn13) AS TEXT) IS NULL THEN isbn13 ELSE NULLIF(CAST(sqlc.narg(isbn13) AS TEXT), '') END,
     coverfile = COALESCE(sqlc.narg(coverfile), coverfile)
 WHERE id = sqlc.arg(id) AND deleted = 0;

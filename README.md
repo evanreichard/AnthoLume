@@ -46,7 +46,11 @@ Set `PUBLIC_ORIGIN` to the exact browser origin, with no trailing slash. Explici
 
 Optional Hardcover integration: register a [server-side OAuth app](https://hardcover.app/account/developer-apps/new) with redirect URI `{PUBLIC_ORIGIN}/oauth/hardcover/callback` and scopes `read:me:content` and `read:library`. Set `HARDCOVER_CLIENT_ID`, `HARDCOVER_CLIENT_SECRET`, and `HARDCOVER_TOKEN_KEY` on the server. Generate the token key **once** with `openssl rand -base64 32` and keep it in your deployment’s secret store, separate from the OAuth client secret. It encrypts reader tokens in SQLite. Keep it stable across restarts; changing it makes existing tokens unreadable.
 
-Readers can choose **Settings → Connect Hardcover** to preview their Want to Read shelf. This does not request downloads or change reading status. Deleting a reader deletes their local link. Database and archive backups omit Hardcover links because refresh tokens rotate. After restoring a backup, readers reconnect in Settings.
+Readers can choose **Settings → Connect Hardcover** to preview their Want to Read shelf. This does not request downloads or change reading status. Deleting a reader deletes their local link. Database and archive backups omit reader OAuth links because refresh tokens rotate. After restoring a backup, readers reconnect in Settings.
+
+**Identify Book** uses Open Library by default. To use the Hardcover catalog instead, create a [Hardcover API token](https://hardcover.app/account/api) with `read:catalog` access. Set the raw token as `HARDCOVER_CATALOG_TOKEN` in the server environment, restart, then select **Hardcover** under **Settings → Administration → Library → Metadata provider**. This applies to the entire instance and does not require reader OAuth. Backups contain the provider choice and confirmed work links, not the catalog token. If you remove the token and restart, Open Library becomes active until you restore the token or change the choice. An expired token or failed Hardcover request reports an error instead of switching providers. With Docker Compose, supply the token in the deployment environment and recreate the container after changing it.
+
+In **Identify Book**, previewing a result saves nothing. **Link Book** confirms the provider’s work ID without changing your metadata; **Link and Apply** also saves the selected fields. Switching providers does not remove existing links: a library book can have a confirmed Open Library match and a confirmed Hardcover match.
 
 ```bash
 # Make Data Directory
@@ -88,6 +92,7 @@ Backups download on demand and the server does not retain a copy. Before restori
 | REGISTRATION_ENABLED | false         | Whether to allow registration (applies to both WebApp & KOSync API)        |
 | COOKIE_AUTH_KEY      | <EMPTY>       | Optional secret cookie authentication key (auto generated if not provided) |
 | COOKIE_ENC_KEY       | <EMPTY>       | Optional secret cookie encryption key (16 or 32 bytes)                     |
+| HARDCOVER_CATALOG_TOKEN | <EMPTY>    | Optional server-only Hardcover catalog API token; enables the admin choice |
 
 ## Security
 

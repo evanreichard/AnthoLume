@@ -19,6 +19,7 @@ export {
   checkAdminUser as isAdminUser,
   checkListAdminUsers200 as isAdminUsers,
   checkAdminSystem as isAdminSystem,
+  checkAdminMetadataProvider as isAdminMetadataProvider,
   checkAdminRestore as isAdminRestore,
   checkAdminBackupPreview as isBackupPreview,
   checkListAdminAutoImports200 as isAdminAutoImport,

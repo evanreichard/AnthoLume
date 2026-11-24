@@ -72,7 +72,7 @@ func New(db *sql.DB, key []byte, clientID, clientSecret, redirectURI string) (*C
 			Endpoint: oauth2.Endpoint{AuthURL: "https://hardcover.app/oauth2/authorize", TokenURL: "https://api.hardcover.app/oauth2/token", AuthStyle: oauth2.AuthStyleInHeader},
 		},
 		revoke:  "https://api.hardcover.app/oauth2/revoke",
-		graphql: "https://api.hardcover.app/v1/graphql",
+		graphql: graphqlEndpoint,
 		http: &http.Client{Timeout: requestLimit, CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}},

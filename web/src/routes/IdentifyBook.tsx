@@ -77,9 +77,9 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
   function preview(result: Match) {
     returnTo.current = result.id;
     void run('preview', async signal => {
-      const detail = await session.api.previewMetadataMatch(refId.account, { work_id: result.id, edition_id: result.edition_id, isbn }, signal);
+      const detail = await session.api.previewMetadataMatch(refId.account, { provider: result.provider, work_id: result.id, edition_id: result.edition_id, isbn }, signal);
       if (signal.aborted) return;
-      const proposed = { ...detail, author: result.author, year: result.year };
+      const proposed = { ...detail, author: detail.author || result.author, year: detail.year ?? result.year };
       setExpanded(false);
       setCover('loading');
       setSelected(availableFields(proposed).filter(key => !original[key].trim()));
@@ -93,10 +93,10 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
     setSelected(fields => fields.includes(field) ? fields.filter(key => key !== field) : [...fields, field]);
   }
   function apply() {
-    if (!match || !selected.length || !validTitle || awaitingDefaultCover) return;
+    if (!match || !canApply) return;
     void run('apply', async signal => {
-      const next = bookMetadataDraft(document);
-      for (const field of selected) if (field !== 'cover') next[field] = match[field] ?? '';
+      const changes: Partial<Draft> = {};
+      for (const field of selected) if (field !== 'cover') changes[field] = match[field]?.trim();
       let image: Blob | undefined;
       if (selected.includes('cover') && match.cover_id && cover === 'ready') {
         const response = await session.api.metadataCover(refId.account, match.cover_id, signal);
@@ -106,13 +106,15 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
       }
       const cover_base64 = image && await encodeBookCover(image);
       if (signal.aborted) return;
-      const updated = await session.api.editDocument(refId.account, refId.documentId, { ...next, title: next.title.trim(), ...(cover_base64 ? { cover_base64 } : {}) }, signal);
+      const updated = await session.api.editDocument(refId.account, refId.documentId, {
+        ...changes, cover_base64,
+        match: { provider: match.provider, work_id: match.id, ...(match.edition_id ? { edition_id: match.edition_id, isbn } : {}) },
+      }, signal);
       if (!signal.aborted) await onSaved(updated, image);
     });
   }
 
   const fields = match ? availableFields(match) : [];
-  const validTitle = (selected.includes('title') ? match?.title : original.title)?.trim();
   function indicator(field: Field) {
     return <span className={styles.matchIndicator} aria-hidden="true">{selected.includes(field) && <Icon name="check" size={12} />}</span>;
   }
@@ -131,6 +133,8 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
   const identityFields = fields.filter(field => field === 'title' || field === 'author');
   const showCover = !!match?.cover_id && cover !== 'missing';
   const awaitingDefaultCover = showCover && !document.cover_available && cover === 'loading';
+  const canApply = !!match && !awaitingDefaultCover;
+  const applyLabel = selected.length ? `Link and Apply ${selected.length} ${selected.length === 1 ? 'Change' : 'Changes'}` : 'Link Book';
   function backToResults() {
     if (previewLoading) {
       request.current?.abort();
@@ -144,7 +148,7 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
   return <Dialog title="Identify Book" placement="mobile-sheet" layout={showPreview ? 'scroll-body' : 'content'} onClose={close}
     titleLeading={showPreview && <button type="button" className={styles.icon} aria-label="Back to Results" disabled={busy === 'apply'} onClick={backToResults}><Icon name="back" size={18} /></button>}
     footer={showPreview ? <>
-    <Button type="submit" form={formId} tone="primary" disabled={!!busy || !selected.length || !validTitle || awaitingDefaultCover}>{busy === 'apply' ? 'Applying…' : match && selected.length ? `Apply ${selected.length} ${selected.length === 1 ? 'Change' : 'Changes'}` : 'Apply Changes'}</Button>
+    <Button type="submit" form={formId} tone="primary" disabled={!!busy || !canApply}>{busy === 'apply' ? 'Linking…' : applyLabel}</Button>
     <Button disabled={busy === 'apply'} onClick={onClose}>Cancel</Button>
   </> : undefined}>
     {previewLoading ? <section ref={loadingSection} tabIndex={-1} aria-label="Match preview" className={styles.matchLoading}>
@@ -176,14 +180,15 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
       </form>
       <ErrorNotice error={error} />
       <span role="status" className={styles.srOnly}>{busy === 'search' ? 'Searching…' : ''}</span>
-      {matches && !matches.length && <p role="status">No matches. Try a different title or ISBN.</p>}
+      {matches && !matches.length && <p role="status">No matches. Try a different title, author, or ISBN.</p>}
       {!!matches?.length && <div className={styles.metadataResultsSection}><ul className={styles.metadataResults}>{matches.map(item => <li key={item.id}><button ref={button => { if (button) resultButtons.current.set(item.id, button); else resultButtons.current.delete(item.id); }} disabled={!!busy} onClick={() => preview(item)}>
         <ResultCover key={item.cover_id} id={item.cover_id} />
         <div className={styles.metadataResultText}><strong title={item.title}>{item.title}</strong><span>{[item.author, item.year].filter(Boolean).join(' · ')}</span></div>
       </button></li>)}</ul></div>}
     </> : <section aria-label="Match preview">
+      <p className={styles.lookupHint}>Link this book with or without applying metadata changes.</p>
       {!match.edition_id && <p className={styles.lookupHint}>No edition verified. Search by ISBN to find a specific edition.</p>}
-      {!match.description && <p className={styles.lookupHint}>No synopsis available from Open Library.</p>}
+      {!match.description && <p className={styles.lookupHint}>No synopsis available from this source.</p>}
       {match.cover_id && cover === 'missing' && <p className={styles.lookupHint}>The edition cover is unavailable.</p>}
       <form id={formId} className={styles.form} onSubmit={event => { event.preventDefault(); apply(); }}>
         <fieldset ref={heading} tabIndex={-1} aria-label="Suggested metadata" className={styles.matchFields} disabled={busy === 'apply'}>

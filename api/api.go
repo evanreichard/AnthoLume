@@ -19,25 +19,29 @@ import (
 	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/config"
 	"reichard.io/antholume/database"
+	"reichard.io/antholume/hardcover"
+	"reichard.io/antholume/metadata"
 	"reichard.io/antholume/reading"
 	"reichard.io/antholume/utils"
 )
 
 type API struct {
-	db             *database.DBManager
-	cfg            *config.Config
-	assets         fs.FS
-	httpServer     *http.Server
-	reading        *reading.Store
-	hardcover      hardcoverFlow
-	attempts       credentialLimiter
-	identitySlots  chan struct{}
-	restoreGate    sync.RWMutex
-	libraryWrite   sync.Mutex
-	webUploadSlots chan struct{}
-	backupExport   sync.Mutex
-	restoreStage   sync.Mutex
-	adminJobs      adminJobLifecycle
+	db                 *database.DBManager
+	cfg                *config.Config
+	assets             fs.FS
+	httpServer         *http.Server
+	reading            *reading.Store
+	hardcoverAccounts  hardcoverFlow
+	hardcoverCatalog   catalogProvider
+	openLibraryCatalog catalogProvider
+	attempts           credentialLimiter
+	identitySlots      chan struct{}
+	restoreGate        sync.RWMutex
+	libraryWrite       sync.Mutex
+	webUploadSlots     chan struct{}
+	backupExport       sync.Mutex
+	restoreStage       sync.Mutex
+	adminJobs          adminJobLifecycle
 }
 
 var htmlPolicy = bluemonday.StrictPolicy()
@@ -55,14 +59,18 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 		return nil, err
 	}
 	api := &API{
-		db:             db,
-		cfg:            c,
-		assets:         assets,
-		reading:        &reading.Store{DB: db.DB},
-		identitySlots:  make(chan struct{}, 4),
-		webUploadSlots: make(chan struct{}, 2),
+		db:                 db,
+		cfg:                c,
+		assets:             assets,
+		reading:            &reading.Store{DB: db.DB},
+		openLibraryCatalog: metadata.OpenLibraryCatalog{},
+		identitySlots:      make(chan struct{}, 4),
+		webUploadSlots:     make(chan struct{}, 2),
 	}
 
+	if token := c.HardcoverCatalogToken(); token != "" {
+		api.hardcoverCatalog = hardcover.NewCatalog(token)
+	}
 	if err := api.configureHardcover(); err != nil {
 		return nil, err
 	}

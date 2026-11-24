@@ -59,7 +59,7 @@ func TestFullBackupRejectsConcurrentLibraryWriteWithoutBlockingReadingOrSync(t *
 	require.Equal(t, book, file.body)
 	response := f.call("POST", "/api/v1/me/reading-progress", progressPayload("0", .25), nil)
 	require.Equal(t, 200, response.status, string(response.body))
-	assertProblem(t, f.call("PATCH", "/api/v1/documents/book_a", DocumentEdit{Title: "changed"}, nil), 409, "server_busy")
+	assertProblem(t, f.call("PATCH", "/api/v1/documents/book_a", map[string]string{"title": "changed"}, nil), 409, "server_busy")
 }
 
 func TestStartupRestoreInstallsLibraryOnlyIntoFreshInstance(t *testing.T) {

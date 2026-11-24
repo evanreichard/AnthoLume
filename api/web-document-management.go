@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"image"
@@ -22,17 +23,29 @@ func (s *webAPI) EditDocument(ctx context.Context, r EditDocumentRequestObject) 
 	if api.cfg.DemoMode {
 		return nil, &reading.Failure{Status: 403, Code: "forbidden"}
 	}
-	if !api.libraryWrite.TryLock() {
-		return nil, adminFailure(409, "server_busy")
-	}
-	defer api.libraryWrite.Unlock()
 	ctx = requestContext(ctx)
 	b := r.Body
 	remove := b.RemoveCover != nil && *b.RemoveCover
 	invalid := &reading.Failure{Status: 400, Code: "invalid_request"}
-	if strings.TrimSpace(b.Title) == "" || remove && b.CoverBase64 != nil {
+	if b.Title != nil && strings.TrimSpace(*b.Title) == "" || remove && b.CoverBase64 != nil {
 		return nil, invalid
 	}
+	var workID string
+	if ref := b.Match; ref != nil {
+		match, err := api.resolveMetadataMatch(ctx, *ref)
+		if err != nil {
+			return nil, err
+		}
+		if ref.EditionId != nil && matchParam(match.EditionID) != *ref.EditionId ||
+			ref.Isbn != nil && *ref.Isbn != matchParam(match.ISBN10) && *ref.Isbn != matchParam(match.ISBN13) {
+			return nil, invalid
+		}
+		workID = match.ID
+	}
+	if !api.libraryWrite.TryLock() {
+		return nil, adminFailure(409, "server_busy")
+	}
+	defer api.libraryWrite.Unlock()
 	var cover *string
 	var staged string
 	committed := false
@@ -85,17 +98,36 @@ func (s *webAPI) EditDocument(ctx context.Context, r EditDocumentRequestObject) 
 	}
 	defer tx.Rollback()
 	queries := database.New(tx)
-	n, err := queries.UpdateWebDocumentMetadata(ctx, database.UpdateWebDocumentMetadataParams{
-		ID: r.Id, Title: strings.TrimSpace(b.Title), Author: strings.TrimSpace(b.Author),
-		Description: strings.TrimSpace(b.Description), Isbn10: b.Isbn10, Isbn13: b.Isbn13, Coverfile: cover,
-	})
+	if b.Match != nil {
+		if err := api.checkMetadataProvider(ctx, queries, b.Match.Provider); err != nil {
+			return nil, err
+		}
+	}
+	if b.Title != nil || b.Author != nil || b.Description != nil || b.Isbn10 != nil || b.Isbn13 != nil || cover != nil {
+		if _, err := queries.UpdateWebDocumentMetadata(ctx, database.UpdateWebDocumentMetadataParams{
+			ID: r.Id, Title: trimOptional(b.Title), Author: trimOptional(b.Author),
+			Description: trimOptional(b.Description), Isbn10: b.Isbn10, Isbn13: b.Isbn13, Coverfile: cover,
+		}); err != nil {
+			return nil, err
+		}
+	}
+	doc, err := queries.GetDocument(ctx, r.Id)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && doc.Deleted {
+		return nil, &reading.Failure{Status: 404, Code: "not_found"}
+	}
 	if err != nil {
 		return nil, err
 	}
-	if n == 0 {
-		return nil, &reading.Failure{Status: 404, Code: "not_found"}
+	if b.Match != nil {
+		namespace := workNamespaces[b.Match.Provider]
+		if err := queries.RemoveOtherDocumentIdentifiers(ctx, database.RemoveOtherDocumentIdentifiersParams{DocumentID: r.Id, Namespace: namespace, Value: workID}); err != nil {
+			return nil, err
+		}
+		if err := queries.LinkDocumentIdentifier(ctx, database.LinkDocumentIdentifierParams{DocumentID: r.Id, Namespace: namespace, Value: workID}); err != nil {
+			return nil, err
+		}
 	}
-	doc, err := queries.GetDocument(ctx, r.Id)
+	matches, err := documentMatches(ctx, queries, r.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +135,17 @@ func (s *webAPI) EditDocument(ctx context.Context, r EditDocumentRequestObject) 
 		return nil, err
 	}
 	committed = true
-	return EditDocument200JSONResponse(api.documentDTO(doc)), nil
+	result := api.documentDTO(doc)
+	result.Matches = matches
+	return EditDocument200JSONResponse(result), nil
+}
+
+func trimOptional(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	return &trimmed
 }
 
 func (s *webAPI) DeleteDocument(ctx context.Context, r DeleteDocumentRequestObject) (DeleteDocumentResponseObject, error) {
@@ -130,47 +172,4 @@ func (s *webAPI) GetMetadataCover(ctx context.Context, r GetMetadataCoverRequest
 	}
 	setCoverResponseHeaders(ginContext(ctx).Writer)
 	return GetMetadataCover200ImagejpegResponse{Body: bytes.NewReader(raw), ContentLength: int64(len(raw))}, nil
-}
-
-func (s *webAPI) LookupMetadata(ctx context.Context, r LookupMetadataRequestObject) (LookupMetadataResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, &reading.Failure{Status: 403, Code: "forbidden"}
-	}
-	q := strings.TrimSpace(r.Params.Q)
-	if len([]rune(q)) < 2 {
-		return nil, &reading.Failure{Status: 400, Code: "invalid_request"}
-	}
-	matches, err := metadata.LookupOpenLibrary(requestContext(ctx), q)
-	if err != nil {
-		return nil, &reading.Failure{Status: 503, Code: "metadata_unavailable"}
-	}
-	out := make([]MetadataMatch, 0, len(matches))
-	for _, m := range matches {
-		out = append(out, metadataMatch(m))
-	}
-	return LookupMetadata200JSONResponse(out), nil
-}
-
-func metadataMatch(m metadata.LookupMatch) MetadataMatch {
-	return MetadataMatch{Id: m.ID, Title: m.Title, Author: m.Author, Year: m.Year, EditionId: m.EditionID, Publisher: m.Publisher, Published: m.Published, CoverId: m.CoverID, Description: m.Description, Isbn10: m.ISBN10, Isbn13: m.ISBN13}
-}
-
-func (s *webAPI) PreviewMetadataMatch(ctx context.Context, r PreviewMetadataMatchRequestObject) (PreviewMetadataMatchResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, &reading.Failure{Status: 403, Code: "forbidden"}
-	}
-	value := func(p *string) string {
-		if p == nil {
-			return ""
-		}
-		return *p
-	}
-	m, err := metadata.ResolveOpenLibrary(requestContext(ctx), r.Params.WorkId, value(r.Params.EditionId), value(r.Params.Isbn))
-	if errors.Is(err, metadata.ErrInvalidLookupMatch) {
-		return nil, &reading.Failure{Status: 400, Code: "invalid_request"}
-	}
-	if err != nil {
-		return nil, &reading.Failure{Status: 503, Code: "metadata_unavailable"}
-	}
-	return PreviewMetadataMatch200JSONResponse(metadataMatch(m)), nil
 }

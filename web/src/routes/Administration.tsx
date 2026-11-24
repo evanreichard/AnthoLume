@@ -9,6 +9,7 @@ import { ActionRow, AddPill, Card, CardHeader, RadioChoices, SectionTabs, Button
 import { AdminBackups } from './AdminBackups';
 import { AdminImport } from './AdminImport';
 import { AdminMaintenance } from './AdminMaintenance';
+import { AdminMetadata } from './AdminMetadata';
 import { SkeletonRows } from '../Skeleton';
 import { StorageRoots, storageRootsKey } from './AdminStorage';
 import styles from '../App.module.css';
@@ -47,6 +48,7 @@ export function AdminLibrary() {
   return <div className={styles.settingsLayout}>
     {!context.readOnly && <StorageRoots account={context.account} roots={roots} error={query.error} />}
     <AdminImport {...context} roots={roots} />
+    <AdminMetadata {...context} />
     <AdminBackups {...context} />
   </div>;
 }

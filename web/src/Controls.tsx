@@ -23,7 +23,7 @@ export function SegmentedControl<T extends string>({ label, options, value, onCh
   </div>;
 }
 
-type RadioChoice<T> = { value: T; label: string; description?: string; status?: string };
+type RadioChoice<T> = { value: T; label: string; description?: string; status?: string; disabled?: boolean };
 type RadioChoiceSelection<T> = { value: T; onChange: (value: T) => void; defaultValue?: never }
   | { defaultValue: T; value?: never; onChange?: never };
 
@@ -41,7 +41,7 @@ export function RadioChoices<T extends string>({ legend, name, options, value, d
         <input type="radio" name={name ?? id} value={option.value}
           checked={value === undefined ? undefined : value === option.value}
           defaultChecked={defaultValue === undefined ? undefined : defaultValue === option.value}
-          aria-label={option.label} aria-describedby={descriptionId}
+          aria-label={option.label} aria-describedby={descriptionId} disabled={option.disabled}
           onChange={onChange ? () => onChange(option.value) : undefined} />
         <span className={styles.radioCopy}>
           <span>{option.label}</span>

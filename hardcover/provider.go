@@ -47,28 +47,33 @@ func (c *Client) revokeToken(ctx context.Context, link credential) error {
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(c.oauth.ClientID, c.oauth.ClientSecret)
-	return c.send(req, nil)
+	return send(c.http, req, nil)
 }
 
-func (c *Client) query(ctx context.Context, token, query string, vars map[string]int64, result any) error {
+func (c *Client) query(ctx context.Context, token, query string, vars any, result any) error {
+	return graphqlQuery(ctx, c.http, c.graphql, token, query, vars, result)
+}
+
+func graphqlQuery(ctx context.Context, client *http.Client, endpoint, token, query string, vars any, result any) error {
 	body, err := json.Marshal(struct {
-		Query     string           `json:"query"`
-		Variables map[string]int64 `json:"variables,omitempty"`
+		Query     string `json:"query"`
+		Variables any    `json:"variables,omitempty"`
 	}{query, vars})
 	if err != nil {
 		return ErrProvider
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.graphql, strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(string(body)))
 	if err != nil {
 		return ErrProvider
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("User-Agent", "AnthoLume (https://github.com/evanreichard/AnthoLume)")
 	var response struct {
 		Data   json.RawMessage   `json:"data"`
 		Errors []json.RawMessage `json:"errors"`
 	}
-	if err := c.send(req, &response); err != nil {
+	if err := send(client, req, &response); err != nil {
 		return err
 	}
 	if len(response.Errors) != 0 || len(response.Data) == 0 || string(response.Data) == "null" || json.Unmarshal(response.Data, result) != nil {
@@ -77,9 +82,9 @@ func (c *Client) query(ctx context.Context, token, query string, vars map[string
 	return nil
 }
 
-func (c *Client) send(req *http.Request, result any) error {
+func send(client *http.Client, req *http.Request, result any) error {
 	req.Header.Set("Accept", "application/json")
-	resp, err := c.http.Do(req)
+	resp, err := client.Do(req)
 	if err == nil {
 		defer resp.Body.Close()
 		switch {

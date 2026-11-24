@@ -603,6 +603,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/metadata-provider": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAdminMetadataProvider"];
+        put: operations["setAdminMetadataProvider"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/auto-import": {
         parameters: {
             query?: never;
@@ -875,6 +891,8 @@ export interface components {
             /** @description Path within the storage root shown only to administrators on single-book details */
             relative_file_path?: string;
             reading_stats?: components["schemas"]["BookReadingStats"];
+            /** @description Confirmed work links. Always present on document detail GET and PATCH responses, empty when unlinked. Omitted on lists. */
+            matches?: components["schemas"]["DocumentMatch"][];
             /** Format: date-time */
             added_at?: string;
             /** Format: date-time */
@@ -949,21 +967,46 @@ export interface components {
             /** Format: int64 */
             value: number;
         };
+        /** @description Omitted fields are unchanged. Supply an empty string to clear author, description, or ISBN. Title cannot be cleared. */
         DocumentEdit: {
-            title: string;
-            author: string;
-            description: string;
-            isbn10: string;
-            isbn13: string;
+            match?: components["schemas"]["MetadataMatchReference"];
+            title?: string;
+            author?: string;
+            description?: string;
+            isbn10?: string;
+            isbn13?: string;
             cover_base64?: string;
             remove_cover?: boolean;
         };
+        /** @enum {string} */
+        MetadataProvider: "openlibrary" | "hardcover";
+        MetadataProviderChoice: {
+            provider: components["schemas"]["MetadataProvider"];
+        };
+        AdminMetadataProvider: {
+            selected: components["schemas"]["MetadataProvider"];
+            effective: components["schemas"]["MetadataProvider"];
+            hardcover_available: boolean;
+        };
+        MetadataWorkID: string;
+        MetadataEditionID: string;
+        DocumentMatch: {
+            provider: components["schemas"]["MetadataProvider"];
+            work_id: components["schemas"]["MetadataWorkID"];
+        };
+        MetadataMatchReference: {
+            provider: components["schemas"]["MetadataProvider"];
+            work_id: components["schemas"]["MetadataWorkID"];
+            edition_id?: components["schemas"]["MetadataEditionID"];
+            isbn?: string;
+        };
         MetadataMatch: {
-            id: string;
+            provider: components["schemas"]["MetadataProvider"];
+            id: components["schemas"]["MetadataWorkID"];
             title: string;
             author: string;
             year?: number;
-            edition_id?: string;
+            edition_id?: components["schemas"]["MetadataEditionID"];
             publisher?: string;
             published?: string;
             /** Format: int64 */
@@ -1378,7 +1421,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Live document */
+            /** @description Live document with all confirmed matches */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1436,7 +1479,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Saved book */
+            /** @description Saved book with all confirmed matches */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1474,8 +1517,9 @@ export interface operations {
     previewMetadataMatch: {
         parameters: {
             query: {
-                work_id: string;
-                edition_id?: string;
+                provider: components["schemas"]["MetadataProvider"];
+                work_id: components["schemas"]["MetadataWorkID"];
+                edition_id?: components["schemas"]["MetadataEditionID"];
                 isbn?: string;
             };
             header?: never;
@@ -2377,6 +2421,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminStorageDirectories"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getAdminMetadataProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Selected and effective provider and Hardcover availability */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminMetadataProvider"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    setAdminMetadataProvider: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MetadataProviderChoice"];
+            };
+        };
+        responses: {
+            /** @description Saved metadata provider choice */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminMetadataProvider"];
                 };
             };
             default: components["responses"]["Problem"];
