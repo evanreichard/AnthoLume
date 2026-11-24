@@ -857,7 +857,6 @@ export interface components {
         Capabilities: {
             registration_enabled: boolean;
             search_enabled: boolean;
-            demo_mode: boolean;
         };
         SessionUser: {
             id: components["schemas"]["ID"];

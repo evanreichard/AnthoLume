@@ -18,8 +18,8 @@ describe('consumed HTTP DTO validation', () => {
     }
     expect(isSession({ ...user, expires_at: '2026-02-31T01:02:03Z' })).toBe(false);
     expect(isSession({ ...anonymous, permissions: [] })).toBe(false);
-    expect(isCapabilities({ registration_enabled: false, search_enabled: true, demo_mode: false })).toBe(true);
-    expect(isCapabilities({ registration_enabled: false, search_enabled: true, demo_mode: 0 })).toBe(false);
+    expect(isCapabilities({ registration_enabled: false, search_enabled: true })).toBe(true);
+    expect(isCapabilities({ registration_enabled: false, search_enabled: 0 })).toBe(false);
   });
   it('accepts untrusted description as text but validates closed document/page structure', () => {
     expect(isDocument(document)).toBe(true);

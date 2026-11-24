@@ -15,7 +15,7 @@ const kinds = Object.keys(tasks) as Kind[];
 const labels = { running: 'Running', succeeded: 'Completed', failed: 'Failed', interrupted: 'Interrupted' };
 const date = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
-export function AdminMaintenance({ account, readOnly }: { account: Account; readOnly: boolean }) {
+export function AdminMaintenance({ account }: { account: Account }) {
   const client = useQueryClient();
   const key = (kind: Kind) => ['admin-jobs', account, kind] as const;
   const histories = useQueries({ queries: kinds.map(kind => ({
@@ -49,7 +49,7 @@ export function AdminMaintenance({ account, readOnly }: { account: Account; read
             <strong>{tasks[kind]}</strong>
             <p role="status">{running ? 'Running…' : latest ? <>Last ran on <time dateTime={latest.started_at}>{date.format(new Date(latest.started_at))}</time> · {labels[latest.status]}</> : result.isPending ? 'Loading…' : result.isError ? 'Run history unavailable' : 'Never run'}</p>
           </div>
-          {!readOnly && <Button size="slim" aria-label={tasks[kind]} disabled={active || result.isPending} onClick={() => void start(kind)}>Run</Button>}
+          <Button size="slim" aria-label={tasks[kind]} disabled={active || result.isPending} onClick={() => void start(kind)}>Run</Button>
         </div>;
       })}
     </div>

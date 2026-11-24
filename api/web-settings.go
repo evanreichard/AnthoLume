@@ -14,9 +14,6 @@ import (
 )
 
 func (s *webAPI) UpdatePreferences(ctx context.Context, r UpdatePreferencesRequestObject) (UpdatePreferencesResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, &reading.Failure{Status: 403, Code: "forbidden"}
-	}
 	zone := strings.TrimSpace(r.Body.Timezone)
 	if _, err := time.LoadLocation(zone); err != nil || zone == "" || zone == "Local" {
 		return nil, &reading.Failure{Status: 400, Code: "invalid_timezone"}
@@ -37,9 +34,6 @@ func (s *webAPI) UpdatePreferences(ctx context.Context, r UpdatePreferencesReque
 
 func (s *webAPI) ChangePassword(ctx context.Context, r ChangePasswordRequestObject) (ChangePasswordResponseObject, error) {
 	api := s.api
-	if api.cfg.DemoMode {
-		return nil, &reading.Failure{Status: 403, Code: "forbidden"}
-	}
 	if !api.attempts.allow(ginContext(ctx).ClientIP()) {
 		return nil, &reading.Failure{Status: 429, Code: "rate_limited"}
 	}
@@ -108,9 +102,6 @@ func (s *webAPI) ListManagedDevices(ctx context.Context, _ ListManagedDevicesReq
 }
 
 func (s *webAPI) UpdateDevicePreferences(ctx context.Context, r UpdateDevicePreferencesRequestObject) (UpdateDevicePreferencesResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, &reading.Failure{Status: 403, Code: "forbidden"}
-	}
 	user := webUser(ctx).UserName
 	request := requestContext(ctx)
 	tx, err := s.api.db.DB.BeginTx(request, nil)

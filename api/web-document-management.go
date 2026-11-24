@@ -20,9 +20,6 @@ import (
 
 func (s *webAPI) EditDocument(ctx context.Context, r EditDocumentRequestObject) (EditDocumentResponseObject, error) {
 	api := s.api
-	if api.cfg.DemoMode {
-		return nil, &reading.Failure{Status: 403, Code: "forbidden"}
-	}
 	ctx = requestContext(ctx)
 	b := r.Body
 	remove := b.RemoveCover != nil && *b.RemoveCover
@@ -149,9 +146,6 @@ func trimOptional(value *string) *string {
 }
 
 func (s *webAPI) DeleteDocument(ctx context.Context, r DeleteDocumentRequestObject) (DeleteDocumentResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, &reading.Failure{Status: 403, Code: "forbidden"}
-	}
 	n, err := s.api.db.Queries.DeleteDocument(requestContext(ctx), r.Id)
 	if err != nil {
 		return nil, err

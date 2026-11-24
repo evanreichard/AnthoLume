@@ -60,9 +60,6 @@ func (s *webAPI) adminPassword(ctx context.Context, raw string) (string, string,
 }
 
 func (s *webAPI) CreateAdminUser(ctx context.Context, r CreateAdminUserRequestObject) (CreateAdminUserResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	id := strings.TrimSpace(r.Body.Username)
 	if id == "" || strings.ContainsAny(id, "/\\\x00\r\n\t") || id == "." || id == ".." {
 		return nil, adminFailure(400, "invalid_request")
@@ -88,9 +85,6 @@ func (s *webAPI) CreateAdminUser(ctx context.Context, r CreateAdminUserRequestOb
 
 func (s *webAPI) UpdateAdminUser(ctx context.Context, r UpdateAdminUserRequestObject) (UpdateAdminUserResponseObject, error) {
 	principal := webUser(ctx)
-	if s.api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	if r.Id == principal.UserName {
 		return nil, adminFailure(409, "current_admin")
 	}
@@ -124,9 +118,6 @@ func (s *webAPI) UpdateAdminUser(ctx context.Context, r UpdateAdminUserRequestOb
 
 func (s *webAPI) DeleteAdminUser(ctx context.Context, r DeleteAdminUserRequestObject) (DeleteAdminUserResponseObject, error) {
 	principal := webUser(ctx)
-	if s.api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	if r.Id == principal.UserName {
 		return nil, adminFailure(409, "current_admin")
 	}

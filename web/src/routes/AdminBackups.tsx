@@ -26,12 +26,12 @@ function safeRelativePath(path: string) {
     && path.split('/').every(part => part !== '' && part !== '.' && part !== '..');
 }
 
-export function AdminBackups({ account, readOnly }: { account: Account; readOnly: boolean }) {
+export function AdminBackups({ account }: { account: Account }) {
   const [dialog, setDialog] = useState<'create' | 'restore' | null>(null);
   const close = () => setDialog(null);
 
   return <Card density="compact" aria-labelledby="database-backup">
-    <CardHeader id="database-backup" title="Backup & Restore" action={!readOnly && <JoinedActions label="Backup actions" size="slim">
+    <CardHeader id="database-backup" title="Backup & Restore" action={<JoinedActions label="Backup actions" size="slim">
       <JoinedAction aria-label="Create Backup" title="Create Backup" onClick={() => setDialog('create')}><Icon name="download" size={16} /></JoinedAction>
       <JoinedAction aria-label="Restore Backup" title="Restore Backup" onClick={() => setDialog('restore')}><Icon name="upload" size={16} /></JoinedAction>
     </JoinedActions>} />

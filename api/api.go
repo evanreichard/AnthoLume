@@ -212,16 +212,9 @@ func (api *API) registerKOAPIRoutes(apiGroup *gin.RouterGroup) {
 	koGroup.POST("/users/create", api.koAuthRegister)
 	koGroup.PUT("/syncs/progress", api.authKOMiddleware, api.koSetProgress)
 
-	// Demo mode enabled configuration
-	if api.cfg.DemoMode {
-		koGroup.POST("/documents", api.authKOMiddleware, api.koDemoModeJSONError)
-		koGroup.POST("/syncs/documents", api.authKOMiddleware, api.koDemoModeJSONError)
-		koGroup.PUT("/documents/:document/file", api.authKOMiddleware, api.koDemoModeJSONError)
-	} else {
-		koGroup.POST("/documents", api.authKOMiddleware, api.koAddDocuments)
-		koGroup.POST("/syncs/documents", api.authKOMiddleware, api.koCheckDocumentsSync)
-		koGroup.PUT("/documents/:document/file", api.authKOMiddleware, api.koUploadExistingDocument)
-	}
+	koGroup.POST("/documents", api.authKOMiddleware, api.koAddDocuments)
+	koGroup.POST("/syncs/documents", api.authKOMiddleware, api.koCheckDocumentsSync)
+	koGroup.PUT("/documents/:document/file", api.authKOMiddleware, api.koUploadExistingDocument)
 }
 
 func (api *API) registerOPDSRoutes(apiGroup *gin.RouterGroup) {

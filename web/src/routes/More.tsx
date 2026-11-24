@@ -8,7 +8,7 @@ import { AccountSettings } from './AccountSettings';
 import styles from '../App.module.css';
 
 export function Settings() {
-  const { session: current, capabilities, access } = useSession();
+  const { session: current, access } = useSession();
   const { pendingCount, sync } = useReading();
   const [logout, setLogout] = useState(false);
   const navigate = useNavigate();
@@ -16,7 +16,7 @@ export function Settings() {
   return <>
     <PageHeader title="Settings" mobileBrand actions={canAdminister && <ButtonLink to="/admin">Administration</ButtonLink>} />
     <div className={styles.settingsLayout}>
-    {access.kind === 'authenticated' && current?.user && <AccountSettings key={JSON.stringify(access.account)} account={access.account} username={current.user.id} timezone={current.user.timezone} readOnly={!capabilities || capabilities.demo_mode}
+    {access.kind === 'authenticated' && current?.user && <AccountSettings key={JSON.stringify(access.account)} account={access.account} username={current.user.id} timezone={current.user.timezone}
       syncStatus={sync === 'idle' && pendingCount ? `${pendingCount} pending` : syncLabels[sync]} syncDetails={<SyncDetails />}
       onSignOut={() => setLogout(true)} />}
     </div>

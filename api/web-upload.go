@@ -28,9 +28,6 @@ func documentUploadStatus(err error) int {
 func (s *webAPI) UploadDocument(ctx context.Context, r UploadDocumentRequestObject) (UploadDocumentResponseObject, error) {
 	api := s.api
 	ctx = requestContext(ctx)
-	if api.cfg.DemoMode {
-		return nil, &reading.Failure{Status: http.StatusForbidden, Code: "forbidden"}
-	}
 	select {
 	case api.webUploadSlots <- struct{}{}:
 		defer func() { <-api.webUploadSlots }()

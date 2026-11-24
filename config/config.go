@@ -29,7 +29,6 @@ type Config struct {
 
 	// Miscellaneous Settings
 	RegistrationEnabled bool
-	DemoMode            bool
 	LogLevel            string
 
 	// Cookie Settings
@@ -71,7 +70,6 @@ func Load() (*Config, error) {
 		DBType:                trimLowerString(getEnv("DATABASE_TYPE", "SQLite")),
 		DBName:                trimLowerString(getEnv("DATABASE_NAME", "antholume")),
 		RegistrationEnabled:   trimLowerString(getEnv("REGISTRATION_ENABLED", "false")) == "true",
-		DemoMode:              trimLowerString(getEnv("DEMO_MODE", "false")) == "true",
 		CookieAuthKey:         trimLowerString(getEnv("COOKIE_AUTH_KEY", "")),
 		CookieEncKey:          trimLowerString(getEnv("COOKIE_ENC_KEY", "")),
 		LogLevel:              trimLowerString(getEnv("LOG_LEVEL", "info")),

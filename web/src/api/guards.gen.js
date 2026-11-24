@@ -383,12 +383,10 @@ const ref30 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("registration_enabled" in data && hasOwn(data, "registration_enabled"))) return false
   if (!("search_enabled" in data && hasOwn(data, "search_enabled"))) return false
-  if (!("demo_mode" in data && hasOwn(data, "demo_mode"))) return false
   if (!(typeof data.registration_enabled === "boolean")) return false
   if (!(typeof data.search_enabled === "boolean")) return false
-  if (!(typeof data.demo_mode === "boolean")) return false
   for (const key11 of Object.keys(data)) {
-    if (key11 !== "registration_enabled" && key11 !== "search_enabled" && key11 !== "demo_mode") return false
+    if (key11 !== "registration_enabled" && key11 !== "search_enabled") return false
   }
   return true
 };

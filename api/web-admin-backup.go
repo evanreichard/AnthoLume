@@ -127,9 +127,6 @@ func (api *API) previewBookList(ctx context.Context) (backupBookList, error) {
 }
 
 func (s *webAPI) PreviewAdminBackup(ctx context.Context, _ PreviewAdminBackupRequestObject) (PreviewAdminBackupResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	ctx = requestContext(ctx)
 	books, err := s.api.previewBookList(ctx)
 	if err != nil {
@@ -144,9 +141,6 @@ func (s *webAPI) PreviewAdminBackup(ctx context.Context, _ PreviewAdminBackupReq
 
 func (s *webAPI) DownloadAdminBackup(ctx context.Context, r DownloadAdminBackupRequestObject) (DownloadAdminBackupResponseObject, error) {
 	user := webUser(ctx)
-	if s.api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	// Native Downloads - Browser links cannot send the expected account headers.
 	if r.Params.Account != nil || r.Params.Generation != nil {
 		if r.Params.Account == nil || *r.Params.Account != user.AccountID {

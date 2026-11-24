@@ -533,7 +533,6 @@ type BookReadingStats struct {
 
 // Capabilities defines model for Capabilities.
 type Capabilities struct {
-	DemoMode            bool `json:"demo_mode"`
 	RegistrationEnabled bool `json:"registration_enabled"`
 	SearchEnabled       bool `json:"search_enabled"`
 }

@@ -446,10 +446,6 @@ func (api *API) koUploadExistingDocument(c *gin.Context) {
 	koJSON(c, http.StatusOK, gin.H{"status": "ok"})
 }
 
-func (api *API) koDemoModeJSONError(c *gin.Context) {
-	apiErrorPage(c, http.StatusUnauthorized, "Not Allowed in Demo Mode")
-}
-
 func apiErrorPage(c *gin.Context, errorCode int, errorMessage string) {
 	setRetryAfter(c.Writer, errorCode)
 	c.AbortWithStatusJSON(errorCode, gin.H{"error": errorMessage})

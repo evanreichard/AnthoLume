@@ -54,7 +54,7 @@ type hardcoverFlow struct {
 
 func (api *API) configureHardcover() error {
 	id, secret := api.cfg.HardcoverClientID, api.cfg.HardcoverClientSecret
-	if api.cfg.DemoMode || (id == "" && secret == "") {
+	if id == "" && secret == "" {
 		return nil
 	}
 	if id == "" || secret == "" {

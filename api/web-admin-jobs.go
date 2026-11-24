@@ -89,9 +89,6 @@ func (s *webAPI) ListAdminJobs(ctx context.Context, r ListAdminJobsRequestObject
 }
 
 func (s *webAPI) StartAdminJob(ctx context.Context, r StartAdminJobRequestObject) (StartAdminJobResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	if r.Body == nil || (r.Body.Kind != "statistics" && r.Body.Kind != "database_check" && r.Body.Kind != "import") {
 		return nil, adminFailure(400, "invalid_request")
 	}

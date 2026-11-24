@@ -56,17 +56,11 @@ func (api *API) autoImportSource(ctx context.Context, id string) (AdminStorageRo
 }
 
 func (s *webAPI) ListAdminAutoImports(ctx context.Context, _ ListAdminAutoImportsRequestObject) (ListAdminAutoImportsResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	rules, err := s.api.autoImportRules(requestContext(ctx), false)
 	return ListAdminAutoImports200JSONResponse(rules), err
 }
 
 func (s *webAPI) SaveAdminAutoImport(ctx context.Context, r SaveAdminAutoImportRequestObject) (SaveAdminAutoImportResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	if r.Body == nil {
 		return nil, adminFailure(400, "invalid_request")
 	}
@@ -163,9 +157,6 @@ func autoImportMutation(n int64, err error, code string, status int) error {
 }
 
 func (s *webAPI) QueueAdminAutoImport(ctx context.Context, r QueueAdminAutoImportRequestObject) (QueueAdminAutoImportResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	next := jobTime(time.Now())
 	n, err := s.api.db.Queries.QueueAutoImportRule(requestContext(ctx), database.QueueAutoImportRuleParams{
 		ID:       r.Params.Id,
@@ -178,9 +169,6 @@ func (s *webAPI) QueueAdminAutoImport(ctx context.Context, r QueueAdminAutoImpor
 }
 
 func (s *webAPI) DeleteAdminAutoImport(ctx context.Context, r DeleteAdminAutoImportRequestObject) (DeleteAdminAutoImportResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	n, err := s.api.db.Queries.DeleteAutoImportRule(requestContext(ctx), r.Params.Id)
 	if err := autoImportMutation(n, err, "auto_import_not_found", 404); err != nil {
 		return nil, err
@@ -331,9 +319,6 @@ func (api *API) runAutoImport(ctx context.Context, id string, changed bool, cach
 
 // RunAutoImports owns one watcher and one scan loop for the server lifetime.
 func (api *API) RunAutoImports(ctx context.Context) {
-	if api.cfg.DemoMode {
-		return
-	}
 	watcher, err := fsnotify.NewWatcher()
 	var events <-chan fsnotify.Event
 	var watchErrors <-chan error

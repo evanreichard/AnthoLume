@@ -52,19 +52,19 @@ function ImportFields({ roots, value, onChange, busy }: { roots: StorageRoot[]; 
   </>;
 }
 
-export function AdminImport({ account, roots, readOnly }: Context & { readOnly: boolean }) {
+export function AdminImport({ account, roots }: Context) {
   const [editor, setEditor] = useState<'manual' | 'new' | Rule | null>(null);
-  const rules = useQuery({ queryKey: ruleKey(account), enabled: !readOnly, queryFn: ({ signal }) => session.api.adminAutoImports(account, signal), refetchInterval: 3000 });
+  const rules = useQuery({ queryKey: ruleKey(account), queryFn: ({ signal }) => session.api.adminAutoImports(account, signal), refetchInterval: 3000 });
   const jobs = useQuery({ queryKey: jobsKey(account), queryFn: ({ signal }) => session.api.adminJobs(account, 'import', signal), refetchInterval: query => query.state.data?.[0]?.status === 'running' ? 1000 : false });
   const latest = jobs.data?.[0];
   const results = useQuery({ queryKey: ['admin-import-results', account, latest?.id], enabled: latest?.status === 'succeeded', queryFn: ({ signal }) => session.api.adminImportResults(account, latest!.id, signal) });
   return <Card density="compact" aria-labelledby="admin-import-heading">
-    <CardHeader id="admin-import-heading" title="Import" action={!readOnly && <JoinedActions label="Import actions" size="slim">
+    <CardHeader id="admin-import-heading" title="Import" action={<JoinedActions label="Import actions" size="slim">
       <JoinedAction onClick={() => setEditor('manual')}>Manual</JoinedAction>
       <JoinedAction onClick={() => setEditor('new')}>Auto</JoinedAction>
     </JoinedActions>} />
     <ErrorNotice error={rules.error || jobs.error || results.error} />
-    {!readOnly && rules.isPending && <SkeletonRows label="Loading import rules…" />}
+    {rules.isPending && <SkeletonRows label="Loading import rules…" />}
     {rules.data?.length === 0 && <p>No auto-import rules yet.</p>}
     {rules.data?.map(rule => {
       const source = roots.find(root => root.id === rule.settings.root_id)?.label ?? rule.settings.root_id;

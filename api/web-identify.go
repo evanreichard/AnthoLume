@@ -30,9 +30,6 @@ func (api *API) catalogFor(provider MetadataProvider) (catalogProvider, error) {
 }
 
 func (s *webAPI) LookupMetadata(ctx context.Context, r LookupMetadataRequestObject) (LookupMetadataResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, &reading.Failure{Status: 403, Code: "forbidden"}
-	}
 	q := strings.TrimSpace(r.Params.Q)
 	if len([]rune(q)) < 2 {
 		return nil, &reading.Failure{Status: 400, Code: "invalid_request"}
@@ -69,9 +66,6 @@ func metadataLookupFailure(err error) error {
 }
 
 func (s *webAPI) PreviewMetadataMatch(ctx context.Context, r PreviewMetadataMatchRequestObject) (PreviewMetadataMatchResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, &reading.Failure{Status: 403, Code: "forbidden"}
-	}
 	ref := MetadataMatchReference{Provider: r.Params.Provider, WorkId: r.Params.WorkId, EditionId: r.Params.EditionId, Isbn: r.Params.Isbn}
 	m, err := s.api.resolveMetadataMatch(requestContext(ctx), ref)
 	if err != nil {

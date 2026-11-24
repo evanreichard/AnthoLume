@@ -184,9 +184,6 @@ func (api *API) adminBackupDir() string { return filepath.Join(api.cfg.ConfigPat
 func (s *webAPI) StageAdminRestore(ctx context.Context, r StageAdminRestoreRequestObject) (StageAdminRestoreResponseObject, error) {
 	principal := webUser(ctx)
 	api := s.api
-	if api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	if !api.restoreStage.TryLock() {
 		return nil, adminFailure(409, "restore_busy")
 	}
@@ -433,9 +430,6 @@ func syncRestoreDirectory(root *os.Root, name string) error {
 func (s *webAPI) ApplyAdminRestore(ctx context.Context, r ApplyAdminRestoreRequestObject) (ApplyAdminRestoreResponseObject, error) {
 	principal := webUser(ctx)
 	api := s.api
-	if api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	if r.Body == nil || !adminJobID.MatchString(r.Body.Token) {
 		return nil, adminFailure(400, "invalid_request")
 	}

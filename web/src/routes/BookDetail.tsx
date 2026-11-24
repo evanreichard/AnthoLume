@@ -33,7 +33,7 @@ export function BookDetail() {
 function BookDetailContent() {
   const ref = useBookRef();
   const reading = useReading();
-  const { access, capabilities } = useSession();
+  const { access } = useSession();
   const menuId = useId();
   const menu = useRef<HTMLDivElement>(null);
   const more = useRef<HTMLButtonElement>(null);
@@ -114,7 +114,7 @@ function BookDetailContent() {
   const edition = (book.title || 'Untitled').match(/^(.+?)\s+\/\s+(.+)$/);
   const title = edition?.[1] ?? (book.title || 'Untitled');
   const format = metadata?.media_type === 'application/epub+zip' ? 'EPUB' : null;
-  const canManage = ref.kind === 'server' && access.kind === 'authenticated' && !!document.data && !!capabilities && !capabilities.demo_mode;
+  const canManage = ref.kind === 'server' && access.kind === 'authenticated' && !!document.data;
   const saved = download.copy === 'saved';
   const removeCopy = saved || (!!download.copy && fileUnavailable);
   const deviceLabel = saved ? 'Saved' : removeCopy ? 'Remove' : download.busy ? 'Saving' : 'Save';

@@ -14,7 +14,7 @@ import { BookDownloadActions } from '../BookDownloadActions';
 import { Button } from '../Controls';
 
 export function Library() {
-  const { access, capabilities, profiles } = useSession();
+  const { access, profiles } = useSession();
   const reading = useReading();
   const [params, setParams] = useSearchParams();
   const location = useLocation();
@@ -147,7 +147,7 @@ export function Library() {
         <label><span className={styles.srOnly}>Search title or author</span><input ref={searchInput} type="search" value={input} maxLength={256} placeholder="Title or author" onChange={(event) => setInput(event.target.value)} /></label>
         {(input || q) && <button type="button" className={styles.searchClear} aria-label="Clear Search" onClick={clearSearch}>×</button>}
       </div>
-      {!offline && <button type="button" className={styles.icon} aria-label="Add Book" disabled={access.kind !== 'authenticated' || !!capabilities?.demo_mode} onClick={() => { setNewBook(null); setError(null); open('add'); }}><Icon name="add" /></button>}
+      {!offline && <button type="button" className={styles.icon} aria-label="Add Book" disabled={access.kind !== 'authenticated'} onClick={() => { setNewBook(null); setError(null); open('add'); }}><Icon name="add" /></button>}
       <button type="button" className={styles.icon} aria-label="Sort Books" aria-haspopup="dialog" aria-expanded={dialog === 'sort'} onClick={() => open('sort')}><Icon name="sort" /></button>
     </form>
     <div className={styles.divider} />
@@ -172,7 +172,7 @@ export function Library() {
     </div></Dialog>}
     {dialog === 'add' && <Dialog title="Add Book" onClose={close}><div className={styles.form}>
       <p>Upload an EPUB to the shared library (up to 64 MiB).</p>
-      <input ref={file} type="file" accept=".epub,application/epub+zip" aria-label="Choose EPUB to upload" disabled={importing || access.kind !== 'authenticated' || !!capabilities?.demo_mode} onChange={importFile} />
+      <input ref={file} type="file" accept=".epub,application/epub+zip" aria-label="Choose EPUB to upload" disabled={importing || access.kind !== 'authenticated'} onChange={importFile} />
       {importing && <p role="status">Uploading to the shared library…</p>}
       {newBook && <p role="status">Book is in the shared library. <Link to={newBook} state={bookLinkState}>Open book</Link></p>}
       <ErrorNotice error={error} />

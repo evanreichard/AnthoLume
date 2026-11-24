@@ -252,9 +252,6 @@ func (api *API) importFolder(ctx context.Context, rootID string) (*os.Root, []st
 }
 
 func (s *webAPI) PreviewAdminImport(ctx context.Context, r PreviewAdminImportRequestObject) (PreviewAdminImportResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	source := importsRoot
 	if r.Params.RootId != nil {
 		source = *r.Params.RootId

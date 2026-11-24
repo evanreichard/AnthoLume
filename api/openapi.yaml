@@ -1022,11 +1022,10 @@ components:
     Capabilities:
       type: object
       additionalProperties: false
-      required: [registration_enabled, search_enabled, demo_mode]
+      required: [registration_enabled, search_enabled]
       properties:
         registration_enabled: {type: boolean}
         search_enabled: {type: boolean}
-        demo_mode: {type: boolean}
     SessionUser:
       type: object
       nullable: true

@@ -103,7 +103,7 @@ function ReaderCacheSettings() {
   </Card>;
 }
 
-export function AccountSettings({ account, username, timezone, readOnly, syncStatus, syncDetails, onSignOut }: { account: Account; username: string; timezone: string; readOnly: boolean; syncStatus: string; syncDetails: ReactNode; onSignOut(): void }) {
+export function AccountSettings({ account, username, timezone, syncStatus, syncDetails, onSignOut }: { account: Account; username: string; timezone: string; syncStatus: string; syncDetails: ReactNode; onSignOut(): void }) {
   const [modal, setModal] = useState<'timezone' | 'password' | Device | null>(null);
   const [feedback, setFeedback] = useState('');
   const close = () => setModal(null);
@@ -132,7 +132,7 @@ export function AccountSettings({ account, username, timezone, readOnly, syncSta
   const deviceRows = (list: Device[]) => <ul className={styles.deviceList}>{list.map(device => {
     const name = device.label || device.name;
     return <li key={device.id}><ActionRow
-      aria-label={`Manage ${name}`} disabled={readOnly} onClick={() => setModal(device)}
+      aria-label={`Manage ${name}`} onClick={() => setModal(device)}
       leading={<span className={styles.deviceGlyph}><Icon name="device" size={17} /></span>}
       label={<span className={styles.deviceCopy}><strong>{name}</strong><time dateTime={device.last_synced}>{device.archived ? 'Archived · ' : 'Synced '}{format(device.last_synced)}</time></span>}
     /></li>;
@@ -143,15 +143,15 @@ export function AccountSettings({ account, username, timezone, readOnly, syncSta
         <span>{username}</span><span className={styles.accountAvatar} aria-hidden="true"><Icon name="user" size={16} /></span>
       </span>} />
       <ActionRows>
-        <ActionRow divider label="Locale" value={timezoneLabel} disabled={readOnly} onClick={() => setModal('timezone')} />
-        <ActionRow divider label="Password" disabled={readOnly} onClick={() => setModal('password')} />
+        <ActionRow divider label="Locale" value={timezoneLabel} onClick={() => setModal('timezone')} />
+        <ActionRow divider label="Password" onClick={() => setModal('password')} />
         <ActionRow divider label="Sync" value={syncStatus} aria-expanded={showSync} aria-controls="account-sync-details" onClick={toggleSync} />
         <div id="account-sync-details" hidden={!showSync}>{syncDetails}</div>
       </ActionRows>
       {feedback && <p className={styles.settingsCardFeedback} role="status">{feedback}</p>}
     </Card>
     <div className={styles.settingsStack}>
-    {!readOnly && <HardcoverSettings account={account} />}
+    <HardcoverSettings account={account} />
     <Card aria-labelledby="devices-heading" density="compact">
       <CardHeader id="devices-heading" title="Devices" />
       <ErrorNotice error={devices.error} />

@@ -169,7 +169,7 @@ async function run() {
     const exited = launch(binary, ['serve'], {
       ...process.env, GIN_MODE: 'release', CONFIG_PATH: root, DATA_PATH: root,
       LISTEN_HOST: '127.0.0.1', LISTEN_PORT: String(goPort), PUBLIC_ORIGIN: target,
-      DATABASE_TYPE: 'sqlite', DATABASE_NAME: 'antholume', REGISTRATION_ENABLED: 'true', DEMO_MODE: 'false',
+      DATABASE_TYPE: 'sqlite', DATABASE_NAME: 'antholume', REGISTRATION_ENABLED: 'true',
       COOKIE_AUTH_KEY: cookieKey, COOKIE_ENC_KEY: '',
     }).then(result => `Go backend exited (${result})`);
     const cancelStartup = new AbortController();

@@ -77,9 +77,6 @@ func openStoredFile(base, name string) (*os.File, error) {
 }
 
 func (s *webAPI) ListAdminStorageRoots(ctx context.Context, _ ListAdminStorageRootsRequestObject) (ListAdminStorageRootsResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	rows, err := s.api.db.Queries.ListStorageRootsWithBookCounts(requestContext(ctx))
 	if err != nil {
 		return nil, err
@@ -103,9 +100,6 @@ func (s *webAPI) ListAdminStorageRoots(ctx context.Context, _ ListAdminStorageRo
 
 func (s *webAPI) SaveAdminStorageRoot(ctx context.Context, r SaveAdminStorageRootRequestObject) (SaveAdminStorageRootResponseObject, error) {
 	api := s.api
-	if api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	if r.Body == nil {
 		return nil, adminFailure(400, "invalid_request")
 	}
@@ -173,9 +167,6 @@ func (api *API) openImportSource(ctx context.Context, rootID string) (*os.Root, 
 }
 
 func (s *webAPI) BrowseAdminStorageDirectories(ctx context.Context, r BrowseAdminStorageDirectoriesRequestObject) (BrowseAdminStorageDirectoriesResponseObject, error) {
-	if s.api.cfg.DemoMode {
-		return nil, adminFailure(403, "forbidden")
-	}
 	ctx = requestContext(ctx)
 	path := string(filepath.Separator)
 	if r.Params.Path != nil {

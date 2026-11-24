@@ -18,7 +18,7 @@ type User = components['schemas']['AdminUser'];
 type UserAction = { kind: 'create' } | { kind: 'edit' | 'delete'; user: User };
 
 const tabs = [['library', 'Library'], ['users', 'Users'], ['system', 'System'], ['logs', 'Logs']] as const;
-type AdminContext = { account: Account; username: string; readOnly: boolean };
+type AdminContext = { account: Account; username: string };
 
 export function AdminSectionTabs() {
   return <SectionTabs label="Administration sections" items={tabs.map(([path, label]) => ({ to: `/admin/${path}`, label }))} />;
@@ -26,9 +26,9 @@ export function AdminSectionTabs() {
 
 export function Administration() {
   const logs = useMatch('/admin/logs');
-  const { access, session: current, capabilities } = useSession();
+  const { access, session: current } = useSession();
   const context: AdminContext | null = access.kind === 'authenticated' && current?.user?.is_admin
-    ? { account: access.account, username: current.user.id, readOnly: !capabilities || capabilities.demo_mode }
+    ? { account: access.account, username: current.user.id }
     : null;
   return <>
     <PageHeader title="Administration" />
@@ -42,20 +42,20 @@ export function Administration() {
 }
 
 export function AdminLibrary() {
-  const context = useOutletContext<AdminContext>();
-  const query = useQuery({ queryKey: storageRootsKey(context.account), enabled: !context.readOnly, queryFn: ({ signal }) => session.api.adminStorageRoots(context.account, signal) });
+  const { account } = useOutletContext<AdminContext>();
+  const query = useQuery({ queryKey: storageRootsKey(account), queryFn: ({ signal }) => session.api.adminStorageRoots(account, signal) });
   const roots = query.data ?? [];
   return <div className={styles.settingsLayout}>
-    {!context.readOnly && <StorageRoots account={context.account} roots={roots} error={query.error} />}
-    <AdminImport {...context} roots={roots} />
-    <AdminMetadata {...context} />
-    <AdminBackups {...context} />
+    <StorageRoots account={account} roots={roots} error={query.error} />
+    <AdminImport account={account} roots={roots} />
+    <AdminMetadata account={account} />
+    <AdminBackups account={account} />
   </div>;
 }
 
 export function AdminSystem() {
-  const { account, readOnly } = useOutletContext<AdminContext>();
-  return <div className={styles.settingsLayout}><SystemDetails account={account} /><AdminMaintenance account={account} readOnly={readOnly} /></div>;
+  const { account } = useOutletContext<AdminContext>();
+  return <div className={styles.settingsLayout}><SystemDetails account={account} /><AdminMaintenance account={account} /></div>;
 }
 
 function SystemDetails({ account }: { account: Account }) {
@@ -73,7 +73,7 @@ export function AdminUsers() {
   return <UserList key={context.account.userId} {...context} />;
 }
 
-function UserList({ account, username, readOnly }: AdminContext) {
+function UserList({ account, username }: AdminContext) {
   const formId = useId();
   const client = useQueryClient();
   const queryKey = ['admin-users', account] as const;
@@ -85,7 +85,7 @@ function UserList({ account, username, readOnly }: AdminContext) {
   function select(value: UserAction) { setError(null); setNotice(''); setAction(value); }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!action || busy || readOnly) return;
+    if (!action || busy) return;
     const data = new FormData(event.currentTarget);
     setBusy(true); setError(null);
     try {
@@ -113,9 +113,8 @@ function UserList({ account, username, readOnly }: AdminContext) {
   const accounts = users.data?.pages.flatMap(page => page.slice(0, 50));
   return <Card density="compact" aria-labelledby="admin-users-heading">
     <CardHeader id="admin-users-heading" title={<>Users {accounts && <span className={styles.settingsCount}>{accounts.length}{users.hasNextPage ? '+' : ''}</span>}</>}
-      action={<AddPill label="Add User" disabled={readOnly} onClick={() => select({ kind: 'create' })} />} />
+      action={<AddPill label="Add User" onClick={() => select({ kind: 'create' })} />} />
     {notice && <p role="status">{notice}</p>}
-    {readOnly && <p>Account changes are unavailable in this deployment.</p>}
     <ErrorNotice error={users.error} />
     {users.isPending && <SkeletonRows label="Loading users…" />}
     {accounts && <ul className={styles.userList}>{accounts.map(user => {
@@ -124,7 +123,7 @@ function UserList({ account, username, readOnly }: AdminContext) {
         <span><strong>{user.id}</strong>{own && <small className={styles.userSelf}>You</small>}</span>
         <small>{user.is_admin ? 'Administrator' : 'Member'}</small>
       </span>;
-      return <li key={user.id}>{own || readOnly
+      return <li key={user.id}>{own
         ? <div className={styles.userRow}>{identity}</div>
         : <ActionRow label={identity} aria-label={`Manage ${user.id}`} onClick={() => select({ kind: 'edit', user })} />}</li>;
     })}</ul>}
