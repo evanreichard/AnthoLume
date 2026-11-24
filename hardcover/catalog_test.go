@@ -85,9 +85,15 @@ func TestCatalogExactISBNAndWorkResolution(t *testing.T) {
 					assert.Equal(t, map[string]any{tc.field: catalogEqual(tc.isbn)}, where)
 					fmt.Fprint(w, `{"data":{"editions":[`+otherEditionRow+`,`+editionRow+`]}}`)
 				} else {
-					assert.Len(t, where, 3)
 					assert.Contains(t, where, "book_id")
-					assert.Contains(t, where, "id")
+					if len(where) == 2 {
+						_, byID := where["id"]
+						_, byISBN := where[tc.field]
+						assert.NotEqual(t, byID, byISBN)
+					} else {
+						assert.Len(t, where, 3)
+						assert.Contains(t, where, "id")
+					}
 					// The adapter must reject a wrong ID, parent or ISBN even if upstream returns a row.
 					fmt.Fprint(w, `{"data":{"editions":[`+editionRow+`]}}`)
 				}
@@ -105,7 +111,12 @@ func TestCatalogExactISBNAndWorkResolution(t *testing.T) {
 			require.Equal(t, m, preview)
 			require.Equal(t, "Edition Publisher", *preview.Publisher)
 			require.Equal(t, "Work synopsis", *preview.Description)
-			for _, ids := range [][3]string{{"123", "99", tc.isbn}, {"42", "100", tc.isbn}, {"42", "99", "9780804429993"}, {"42", "99", ""}, {"42", "", tc.isbn}} {
+			for _, optional := range [][2]string{{"99", ""}, {"", tc.isbn}} {
+				resolved, err := c.Resolve(t.Context(), "42", optional[0], optional[1])
+				require.NoError(t, err)
+				require.Equal(t, preview, resolved)
+			}
+			for _, ids := range [][3]string{{"123", "99", tc.isbn}, {"42", "100", tc.isbn}, {"42", "99", "9780804429993"}} {
 				_, err := c.Resolve(t.Context(), ids[0], ids[1], ids[2])
 				require.ErrorIs(t, err, metadata.ErrInvalidLookupMatch)
 			}

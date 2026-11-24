@@ -81,7 +81,7 @@ func TestWebMetadataProviderSelectionAndTokenRemoval(t *testing.T) {
 
 	restart("")
 	check(Hardcover, Openlibrary, false)
-	assertProblem(t, f.call("GET", "/api/v1/metadata/match?work_id=42", nil, nil), 409, "metadata_provider_changed")
+	assertProblem(t, f.call("GET", "/api/v1/metadata/match?provider=hardcover&work_id=42", nil, nil), 409, "metadata_provider_changed")
 	require.Equal(t, 200, f.call("PUT", adminMetadataPath, MetadataProviderChoice{Provider: Openlibrary}, nil).status)
 	check(Openlibrary, Openlibrary, false)
 	f.server.Close()
@@ -100,7 +100,7 @@ func (identifyCatalogFixture) Lookup(_ context.Context, q string) ([]metadata.Lo
 }
 
 func (identifyCatalogFixture) Resolve(_ context.Context, work, edition, isbn string) (metadata.LookupMatch, error) {
-	if work != "42" || (edition != "" || isbn != "") && (edition != "99" || isbn != "9780765391193") {
+	if (work != "42" && work != "43") || (edition != "" || isbn != "") && (edition != "99" || isbn != "9780765391193") {
 		return metadata.LookupMatch{}, metadata.ErrInvalidLookupMatch
 	}
 	m := metadata.LookupMatch{ID: work, Title: "Verified Title", Author: "Verified Author"}
@@ -110,18 +110,29 @@ func (identifyCatalogFixture) Resolve(_ context.Context, work, edition, isbn str
 	return m, nil
 }
 
-func TestWebIdentifyHardcoverPreviewConfirmationAndLinkOnly(t *testing.T) {
+func TestWebDocumentMatch(t *testing.T) {
 	f := newWebFixture(t)
 	f.api.catalog = identifyCatalogFixture{}
-	const identify = "/api/v1/documents/book/identify"
-	const preview = "/api/v1/metadata/match?work_id=42&edition_id=99&isbn=9780765391193"
-	const body = `{"work_id":"42","edition_id":"99","isbn":"9780765391193","fields":[]}`
+	f.api.openLibrary = func(_ context.Context, work, _, _ string) (metadata.LookupMatch, error) {
+		switch work {
+		case "OL20W", "OL21W":
+			return metadata.LookupMatch{ID: work, Title: "Open Library Title"}, nil
+		default:
+			return metadata.LookupMatch{}, metadata.ErrInvalidLookupMatch
+		}
+	}
+	const path = "/api/v1/documents/book"
+	const preview = "/api/v1/metadata/match?provider=hardcover&work_id=42&edition_id=99&isbn=9780765391193"
+	const body = `{"match":{"provider":"hardcover","work_id":"42","edition_id":"99","isbn":"9780765391193"}}`
 	assertProblem(t, f.call("GET", preview, nil, nil), 401, "unauthenticated")
-	assertProblem(t, f.call("POST", identify, body, nil), 401, "unauthenticated")
+	assertProblem(t, f.call("PATCH", path, body, nil), 401, "unauthenticated")
 	f.register("member")
 	f.exec(`INSERT INTO documents(id,title,author,description,isbn13) VALUES('book','Original Title','Original Author',' Original description ', '9780804429573')`)
-	f.exec(`INSERT INTO document_identifiers VALUES ('book','openlibrary','OL3W')`)
-	assertProblem(t, f.call("POST", identify, body, nil), 409, "metadata_provider_changed")
+	f.exec(`INSERT INTO document_identifiers VALUES ('book','openlibrary','OL3W'), ('book','openlibrary','OL2M'), ('book','openlibrary','unknown'), ('book','openlibrary_edition','OL5M')`)
+	before := decodeWeb[Document](t, f.call("GET", path, nil, nil))
+	require.NotNil(t, before.Matches)
+	require.Empty(t, *before.Matches)
+	assertProblem(t, f.call("PATCH", path, body, nil), 409, "metadata_provider_changed")
 	require.NoError(t, f.db.Queries.SetMetadataProvider(t.Context(), "hardcover"))
 	for _, query := range []string{"Hardcover+Author", "9780765391193"} {
 		r := f.call("GET", "/api/v1/metadata/search?q="+query, nil, nil)
@@ -134,39 +145,62 @@ func TestWebIdentifyHardcoverPreviewConfirmationAndLinkOnly(t *testing.T) {
 	providerErr := f.call("GET", "/api/v1/metadata/search?q=fail", nil, nil)
 	assertProblem(t, providerErr, 503, "metadata_unavailable")
 	require.NotContains(t, string(providerErr.body), "synthetic-private-provider-error")
-	assertProblem(t, f.call("GET", "/api/v1/metadata/match?work_id=OL1W", nil, nil), 409, "metadata_provider_changed")
-	assertProblem(t, f.call("GET", "/api/v1/metadata/match?work_id=42&edition_id=97&isbn=9780765391193", nil, nil), 400, "invalid_request")
-	before := decodeWeb[Document](t, f.call("GET", "/api/v1/documents/book", nil, nil))
+	assertProblem(t, f.call("GET", "/api/v1/metadata/match?work_id=42", nil, nil), 400, "invalid_request")
+	assertProblem(t, f.call("GET", "/api/v1/metadata/match?provider=openlibrary&work_id=OL1W", nil, nil), 409, "metadata_provider_changed")
+	assertProblem(t, f.call("GET", "/api/v1/metadata/match?provider=hardcover&work_id=42&edition_id=97&isbn=9780765391193", nil, nil), 400, "invalid_request")
 	r := f.call("GET", preview, nil, nil)
 	require.Equal(t, 200, r.status, string(r.body))
 	m := decodeWeb[MetadataMatch](t, r)
 	require.Equal(t, "42", m.Id)
 	require.Equal(t, "99", *m.EditionId)
 	require.Equal(t, "9780765391193", *m.Isbn13)
-	assertProblem(t, f.call("POST", identify, `{"work_id":"99","fields":[]}`, nil), 400, "invalid_request")
-	assertProblem(t, f.call("POST", identify, `{"work_id":"42","fields":["isbn13"]}`, nil), 400, "invalid_request")
-	assertProblem(t, f.call("POST", identify, body, map[string]string{"Origin": "https://elsewhere.invalid"}), 403, "csrf_failed")
-	assertProblem(t, f.call("POST", "/api/v1/documents/missing/identify", body, nil), 404, "not_found")
-	require.Equal(t, before, decodeWeb[Document](t, f.call("GET", "/api/v1/documents/book", nil, nil)))
-	require.Equal(t, 1, f.count("document_identifiers"))
+	assertProblem(t, f.call("PATCH", path, `{"match":{"provider":"hardcover","work_id":"99"},"title":"Do not save"}`, nil), 400, "invalid_request")
+	assertProblem(t, f.call("PATCH", path, body, map[string]string{"Origin": "https://elsewhere.invalid"}), 403, "csrf_failed")
+	assertProblem(t, f.call("PATCH", "/api/v1/documents/missing", body, nil), 404, "not_found")
+	require.Equal(t, before, decodeWeb[Document](t, f.call("GET", path, nil, nil)))
+	require.Equal(t, 4, f.count("document_identifiers"))
 
-	r = f.call("POST", identify, body, nil)
-	require.Equal(t, 200, r.status, string(r.body))
-	after := decodeWeb[Document](t, r)
+	patch := func(body string, expected ...DocumentMatch) Document {
+		t.Helper()
+		r := f.call("PATCH", path, body, nil)
+		require.Equal(t, 200, r.status, string(r.body))
+		saved := decodeWeb[Document](t, r)
+		require.NotNil(t, saved.Matches)
+		require.Equal(t, expected, *saved.Matches)
+		require.Equal(t, saved.Matches, decodeWeb[Document](t, f.call("GET", path, nil, nil)).Matches)
+		return saved
+	}
+	hc := DocumentMatch{Provider: Hardcover, WorkId: "42"}
+	after := patch(body, hc)
 	require.Equal(t, before.Title, after.Title)
 	require.Equal(t, before.Author, after.Author)
 	require.Equal(t, before.Description, after.Description)
 	require.Equal(t, before.Isbn13, after.Isbn13)
-	var linked string
-	require.NoError(t, f.db.DB.QueryRow(`SELECT value FROM document_identifiers WHERE document_id='book' AND namespace='hardcover'`).Scan(&linked))
-	require.Equal(t, "42", linked)
 
-	r = f.call("POST", identify, `{"work_id":"42","edition_id":"99","isbn":"9780765391193","fields":["title","isbn13"]}`, nil)
-	require.Equal(t, 200, r.status, string(r.body))
-	after = decodeWeb[Document](t, r)
-	require.Equal(t, "Verified Title", *after.Title)
-	require.Equal(t, "9780765391193", *after.Isbn13)
+	// An identifier write failure must roll back the metadata edit and keep the old match.
+	f.exec(`CREATE TRIGGER reject_link BEFORE INSERT ON document_identifiers WHEN NEW.value='43' BEGIN SELECT RAISE(ABORT, 'test'); END;`)
+	rejected := f.call("PATCH", path, `{"match":{"provider":"hardcover","work_id":"43"},"title":"Do not save"}`, nil)
+	require.Equal(t, 500, rejected.status, string(rejected.body))
+	live := decodeWeb[Document](t, f.call("GET", path, nil, nil))
+	require.Equal(t, after.Title, live.Title)
+	require.Equal(t, after.Matches, live.Matches)
+	f.exec(`DROP TRIGGER reject_link`)
+
+	require.NoError(t, f.db.Queries.SetMetadataProvider(t.Context(), "openlibrary"))
+	assertProblem(t, f.call("PATCH", path, `{"match":{"provider":"openlibrary","work_id":"OL20W","edition_id":"OL100M"}}`, nil), 400, "invalid_request")
+	ol := DocumentMatch{Provider: Openlibrary, WorkId: "OL20W"}
+	patch(`{"match":{"provider":"openlibrary","work_id":"OL20W"}}`, hc, ol)
+	ol.WorkId = "OL21W"
+	after = patch(`{"match":{"provider":"openlibrary","work_id":"OL21W"},"title":"Selected Title"}`, hc, ol)
+	require.Equal(t, "Selected Title", *after.Title)
 	require.Equal(t, before.Author, after.Author)
-	require.Equal(t, before.Description, after.Description)
-	require.Equal(t, 2, f.count("document_identifiers"))
+	require.Equal(t, before.Isbn13, after.Isbn13)
+	require.Equal(t, 6, f.count("document_identifiers"))
+
+	// Plain edits and detail reads require no live provider connection.
+	f.api.openLibrary = nil
+	f.api.catalog = nil
+	require.NoError(t, f.db.Queries.SetMetadataProvider(t.Context(), "hardcover"))
+	patch(`{"author":"Edited Author"}`, hc, ol)
+	require.Equal(t, 404, f.call("POST", path+"/identify", `{}`, nil).status)
 }

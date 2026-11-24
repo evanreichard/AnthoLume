@@ -253,7 +253,12 @@ func (s *webAPI) GetDocument(ctx context.Context, r GetDocumentRequestObject) (G
 	if stats.WordCount != nil && *stats.WordCount < 0 {
 		stats.WordCount = nil
 	}
+	matches, err := documentMatches(requestContext(ctx), s.api.db.Queries, r.Id)
+	if err != nil {
+		return nil, err
+	}
 	result := s.api.documentDTO(d)
+	result.Matches = matches
 	result.ReadingStats = &stats
 	if webUser(ctx).IsAdmin && d.Filepath != nil {
 		rootID := libraryRoot

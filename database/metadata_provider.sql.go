@@ -9,37 +9,6 @@ import (
 	"context"
 )
 
-const applyIdentifiedMetadata = `-- name: ApplyIdentifiedMetadata :exec
-UPDATE documents
-SET title = COALESCE(?1, title),
-    author = COALESCE(?2, author),
-    description = COALESCE(?3, description),
-    isbn10 = COALESCE(?4, isbn10),
-    isbn13 = COALESCE(?5, isbn13)
-WHERE id = ?6 AND deleted = 0
-`
-
-type ApplyIdentifiedMetadataParams struct {
-	Title       *string `json:"title"`
-	Author      *string `json:"author"`
-	Description *string `json:"description"`
-	Isbn10      *string `json:"isbn10"`
-	Isbn13      *string `json:"isbn13"`
-	ID          string  `json:"id"`
-}
-
-func (q *Queries) ApplyIdentifiedMetadata(ctx context.Context, arg ApplyIdentifiedMetadataParams) error {
-	_, err := q.db.ExecContext(ctx, applyIdentifiedMetadata,
-		arg.Title,
-		arg.Author,
-		arg.Description,
-		arg.Isbn10,
-		arg.Isbn13,
-		arg.ID,
-	)
-	return err
-}
-
 const getMetadataProvider = `-- name: GetMetadataProvider :one
 SELECT CAST(COALESCE((SELECT provider FROM metadata_provider WHERE id = 1), 'openlibrary') AS TEXT) AS provider
 `
@@ -51,33 +20,68 @@ func (q *Queries) GetMetadataProvider(ctx context.Context) (string, error) {
 	return provider, err
 }
 
-const linkHardcoverIdentifier = `-- name: LinkHardcoverIdentifier :exec
+const linkDocumentIdentifier = `-- name: LinkDocumentIdentifier :exec
 INSERT INTO document_identifiers (document_id, namespace, value)
-VALUES (?, 'hardcover', ?) ON CONFLICT DO NOTHING
+VALUES (?, ?, ?) ON CONFLICT DO NOTHING
 `
 
-type LinkHardcoverIdentifierParams struct {
+type LinkDocumentIdentifierParams struct {
 	DocumentID string `json:"document_id"`
+	Namespace  string `json:"namespace"`
 	Value      string `json:"value"`
 }
 
-func (q *Queries) LinkHardcoverIdentifier(ctx context.Context, arg LinkHardcoverIdentifierParams) error {
-	_, err := q.db.ExecContext(ctx, linkHardcoverIdentifier, arg.DocumentID, arg.Value)
+func (q *Queries) LinkDocumentIdentifier(ctx context.Context, arg LinkDocumentIdentifierParams) error {
+	_, err := q.db.ExecContext(ctx, linkDocumentIdentifier, arg.DocumentID, arg.Namespace, arg.Value)
 	return err
 }
 
-const removeOtherHardcoverIdentifiers = `-- name: RemoveOtherHardcoverIdentifiers :exec
-DELETE FROM document_identifiers
-WHERE document_id = ? AND namespace = 'hardcover' AND value <> ?
+const listDocumentIdentifiers = `-- name: ListDocumentIdentifiers :many
+SELECT namespace, value FROM document_identifiers
+WHERE document_id = ? ORDER BY namespace, value
 `
 
-type RemoveOtherHardcoverIdentifiersParams struct {
+type ListDocumentIdentifiersRow struct {
+	Namespace string `json:"namespace"`
+	Value     string `json:"value"`
+}
+
+func (q *Queries) ListDocumentIdentifiers(ctx context.Context, documentID string) ([]ListDocumentIdentifiersRow, error) {
+	rows, err := q.db.QueryContext(ctx, listDocumentIdentifiers, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDocumentIdentifiersRow
+	for rows.Next() {
+		var i ListDocumentIdentifiersRow
+		if err := rows.Scan(&i.Namespace, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const removeOtherDocumentIdentifiers = `-- name: RemoveOtherDocumentIdentifiers :exec
+DELETE FROM document_identifiers
+WHERE document_id = ? AND namespace = ? AND value <> ?
+`
+
+type RemoveOtherDocumentIdentifiersParams struct {
 	DocumentID string `json:"document_id"`
+	Namespace  string `json:"namespace"`
 	Value      string `json:"value"`
 }
 
-func (q *Queries) RemoveOtherHardcoverIdentifiers(ctx context.Context, arg RemoveOtherHardcoverIdentifiersParams) error {
-	_, err := q.db.ExecContext(ctx, removeOtherHardcoverIdentifiers, arg.DocumentID, arg.Value)
+func (q *Queries) RemoveOtherDocumentIdentifiers(ctx context.Context, arg RemoveOtherDocumentIdentifiersParams) error {
+	_, err := q.db.ExecContext(ctx, removeOtherDocumentIdentifiers, arg.DocumentID, arg.Namespace, arg.Value)
 	return err
 }
 

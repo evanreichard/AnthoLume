@@ -161,24 +161,6 @@ export interface paths {
         patch: operations["editDocument"];
         trace?: never;
     };
-    "/api/v1/documents/{id}/identify": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["ID"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["confirmHardcoverMatch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/metadata/search": {
         parameters: {
             query?: never;
@@ -909,6 +891,8 @@ export interface components {
             /** @description Path within the storage root shown only to administrators on single-book details */
             relative_file_path?: string;
             reading_stats?: components["schemas"]["BookReadingStats"];
+            /** @description Confirmed work links. Always present on document detail GET and PATCH responses, empty when unlinked. Omitted on lists. */
+            matches?: components["schemas"]["DocumentMatch"][];
             /** Format: date-time */
             added_at?: string;
             /** Format: date-time */
@@ -983,12 +967,14 @@ export interface components {
             /** Format: int64 */
             value: number;
         };
+        /** @description Omitted fields are unchanged. Supply an empty string to clear author, description, or ISBN. Title cannot be cleared. */
         DocumentEdit: {
-            title: string;
-            author: string;
-            description: string;
-            isbn10: string;
-            isbn13: string;
+            match?: components["schemas"]["MetadataMatchReference"];
+            title?: string;
+            author?: string;
+            description?: string;
+            isbn10?: string;
+            isbn13?: string;
             cover_base64?: string;
             remove_cover?: boolean;
         };
@@ -1002,15 +988,17 @@ export interface components {
             effective: components["schemas"]["MetadataProvider"];
             hardcover_available: boolean;
         };
-        HardcoverCatalogID: string;
         MetadataWorkID: string;
         MetadataEditionID: string;
-        HardcoverConfirmation: {
-            work_id: components["schemas"]["HardcoverCatalogID"];
-            edition_id?: components["schemas"]["HardcoverCatalogID"];
+        DocumentMatch: {
+            provider: components["schemas"]["MetadataProvider"];
+            work_id: components["schemas"]["MetadataWorkID"];
+        };
+        MetadataMatchReference: {
+            provider: components["schemas"]["MetadataProvider"];
+            work_id: components["schemas"]["MetadataWorkID"];
+            edition_id?: components["schemas"]["MetadataEditionID"];
             isbn?: string;
-            /** @description Metadata fields to copy from the verified match. An empty array only links the work. */
-            fields: ("title" | "author" | "description" | "isbn10" | "isbn13")[];
         };
         MetadataMatch: {
             provider: components["schemas"]["MetadataProvider"];
@@ -1433,7 +1421,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Live document */
+            /** @description Live document with all confirmed matches */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1491,39 +1479,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Saved book */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Document"];
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    confirmHardcoverMatch: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
-                Origin?: components["parameters"]["Origin"];
-                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
-                "X-CSRF-Token"?: components["parameters"]["CSRF"];
-            };
-            path: {
-                id: components["parameters"]["ID"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["HardcoverConfirmation"];
-            };
-        };
-        responses: {
-            /** @description Book linked to a verified Hardcover work, with selected fields applied */
+            /** @description Saved book with all confirmed matches */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1561,6 +1517,7 @@ export interface operations {
     previewMetadataMatch: {
         parameters: {
             query: {
+                provider: components["schemas"]["MetadataProvider"];
                 work_id: components["schemas"]["MetadataWorkID"];
                 edition_id?: components["schemas"]["MetadataEditionID"];
                 isbn?: string;

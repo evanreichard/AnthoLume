@@ -20,6 +20,7 @@ import (
 	"reichard.io/antholume/config"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/hardcover"
+	"reichard.io/antholume/metadata"
 	"reichard.io/antholume/reading"
 	"reichard.io/antholume/utils"
 )
@@ -32,6 +33,7 @@ type API struct {
 	reading        *reading.Store
 	hardcover      hardcoverFlow
 	catalog        hardcoverCatalog
+	openLibrary    metadataResolver
 	attempts       credentialLimiter
 	identitySlots  chan struct{}
 	restoreGate    sync.RWMutex
@@ -61,6 +63,7 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 		cfg:            c,
 		assets:         assets,
 		reading:        &reading.Store{DB: db.DB},
+		openLibrary:    metadata.ResolveOpenLibrary,
 		identitySlots:  make(chan struct{}, 4),
 		webUploadSlots: make(chan struct{}, 2),
 	}

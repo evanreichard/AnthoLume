@@ -15,7 +15,8 @@ func TestWebDocumentManagement(t *testing.T) {
 	f.register("editor")
 	f.exec(`INSERT INTO documents(id,title) VALUES('editable','Original')`)
 	path := "/api/v1/documents/editable"
-	edit := DocumentEdit{Title: "Edited", Author: "New author", Description: "<b>Plain text</b>", Isbn13: "9780765391193"}
+	title, author, description, isbn := "Edited", "New author", "<b>Plain text</b>", "9780765391193"
+	edit := DocumentEdit{Title: &title, Author: &author, Description: &description, Isbn13: &isbn}
 	assertProblem(t, f.call("PATCH", path, edit, map[string]string{"Origin": "https://wrong.invalid"}), 403, "csrf_failed")
 	assertProblem(t, f.call("PATCH", "/api/v1/documents/missing", edit, nil), 404, "not_found")
 	var img bytes.Buffer
@@ -30,8 +31,19 @@ func TestWebDocumentManagement(t *testing.T) {
 	require.Equal(t, 200, r.status, string(r.body))
 	doc := decodeWeb[Document](t, r)
 	require.Equal(t, "Edited", *doc.Title)
-	require.Equal(t, edit.Description, *doc.Description)
-	require.Equal(t, edit.Isbn13, *doc.Isbn13)
+	require.Equal(t, description, *doc.Description)
+	require.Equal(t, isbn, *doc.Isbn13)
+	require.NotNil(t, doc.Matches)
+	require.Empty(t, *doc.Matches)
+	assertProblem(t, f.call("PATCH", path, `{"title":" "}`, nil), 400, "invalid_request")
+	assertProblem(t, f.call("PATCH", path, `{"author":null}`, nil), 400, "invalid_request")
+	r = f.call("PATCH", path, `{"author":"","isbn13":""}`, nil)
+	require.Equal(t, 200, r.status, string(r.body))
+	doc = decodeWeb[Document](t, r)
+	require.Nil(t, doc.Author)
+	require.Nil(t, doc.Isbn13)
+	require.Equal(t, description, *doc.Description)
+	require.Equal(t, title, *doc.Title)
 	r = f.call("GET", path+"/cover", nil, nil)
 	require.Equal(t, 200, r.status)
 	require.Equal(t, img.Bytes(), r.body)

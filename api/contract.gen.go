@@ -186,33 +186,6 @@ func (e AutoImportScanTrigger) Valid() bool {
 	}
 }
 
-// Defines values for HardcoverConfirmationFields.
-const (
-	HardcoverConfirmationFieldsAuthor      HardcoverConfirmationFields = "author"
-	HardcoverConfirmationFieldsDescription HardcoverConfirmationFields = "description"
-	HardcoverConfirmationFieldsIsbn10      HardcoverConfirmationFields = "isbn10"
-	HardcoverConfirmationFieldsIsbn13      HardcoverConfirmationFields = "isbn13"
-	HardcoverConfirmationFieldsTitle       HardcoverConfirmationFields = "title"
-)
-
-// Valid indicates whether the value is a known member of the HardcoverConfirmationFields enum.
-func (e HardcoverConfirmationFields) Valid() bool {
-	switch e {
-	case HardcoverConfirmationFieldsAuthor:
-		return true
-	case HardcoverConfirmationFieldsDescription:
-		return true
-	case HardcoverConfirmationFieldsIsbn10:
-		return true
-	case HardcoverConfirmationFieldsIsbn13:
-		return true
-	case HardcoverConfirmationFieldsTitle:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for MetadataProvider.
 const (
 	Hardcover   MetadataProvider = "hardcover"
@@ -596,7 +569,10 @@ type Document struct {
 	Isbn13         *string `json:"isbn13,omitempty"`
 	Lang           *string `json:"lang"`
 	LastReadAt     *string `json:"last_read_at,omitempty"`
-	MediaType      *string `json:"media_type"`
+
+	// Matches Confirmed work links. Always present on document detail GET and PATCH responses, empty when unlinked. Omitted on lists.
+	Matches   *[]DocumentMatch `json:"matches,omitempty"`
+	MediaType *string          `json:"media_type"`
 
 	// ReadingStats Account-scoped statistics returned on the book detail endpoint.
 	ReadingStats *BookReadingStats `json:"reading_stats,omitempty"`
@@ -611,15 +587,22 @@ type Document struct {
 	Title         *string `json:"title"`
 }
 
-// DocumentEdit defines model for DocumentEdit.
+// DocumentEdit Omitted fields are unchanged. Supply an empty string to clear author, description, or ISBN. Title cannot be cleared.
 type DocumentEdit struct {
-	Author      string  `json:"author"`
-	CoverBase64 *string `json:"cover_base64,omitempty"`
-	Description string  `json:"description"`
-	Isbn10      string  `json:"isbn10"`
-	Isbn13      string  `json:"isbn13"`
-	RemoveCover *bool   `json:"remove_cover,omitempty"`
-	Title       string  `json:"title"`
+	Author      *string                 `json:"author,omitempty"`
+	CoverBase64 *string                 `json:"cover_base64,omitempty"`
+	Description *string                 `json:"description,omitempty"`
+	Isbn10      *string                 `json:"isbn10,omitempty"`
+	Isbn13      *string                 `json:"isbn13,omitempty"`
+	Match       *MetadataMatchReference `json:"match,omitempty"`
+	RemoveCover *bool                   `json:"remove_cover,omitempty"`
+	Title       *string                 `json:"title,omitempty"`
+}
+
+// DocumentMatch defines model for DocumentMatch.
+type DocumentMatch struct {
+	Provider MetadataProvider `json:"provider"`
+	WorkId   MetadataWorkID   `json:"work_id"`
 }
 
 // DocumentPage defines model for DocumentPage.
@@ -640,22 +623,6 @@ type HardcoverBook struct {
 	Id     string `json:"id"`
 	Title  string `json:"title"`
 }
-
-// HardcoverCatalogID defines model for HardcoverCatalogID.
-type HardcoverCatalogID = string
-
-// HardcoverConfirmation defines model for HardcoverConfirmation.
-type HardcoverConfirmation struct {
-	EditionId *HardcoverCatalogID `json:"edition_id,omitempty"`
-
-	// Fields Metadata fields to copy from the verified match. An empty array only links the work.
-	Fields []HardcoverConfirmationFields `json:"fields"`
-	Isbn   *string                       `json:"isbn,omitempty"`
-	WorkId HardcoverCatalogID            `json:"work_id"`
-}
-
-// HardcoverConfirmationFields defines model for HardcoverConfirmation.Fields.
-type HardcoverConfirmationFields string
 
 // HardcoverConnect defines model for HardcoverConnect.
 type HardcoverConnect struct {
@@ -789,6 +756,14 @@ type MetadataMatch struct {
 	Publisher   *string            `json:"publisher,omitempty"`
 	Title       string             `json:"title"`
 	Year        *int               `json:"year,omitempty"`
+}
+
+// MetadataMatchReference defines model for MetadataMatchReference.
+type MetadataMatchReference struct {
+	EditionId *MetadataEditionID `json:"edition_id,omitempty"`
+	Isbn      *string            `json:"isbn,omitempty"`
+	Provider  MetadataProvider   `json:"provider"`
+	WorkId    MetadataWorkID     `json:"work_id"`
 }
 
 // MetadataProvider defines model for MetadataProvider.
@@ -1114,15 +1089,6 @@ type EditDocumentParams struct {
 	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
 }
 
-// ConfirmHardcoverMatchParams defines parameters for ConfirmHardcoverMatch.
-type ConfirmHardcoverMatchParams struct {
-	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
-	Origin *Origin `json:"Origin,omitempty"`
-
-	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
-	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
-}
-
 // ListInsightRankingsParams defines parameters for ListInsightRankings.
 type ListInsightRankingsParams struct {
 	// Period Rolling window through now: week is 7 days, month is 30 days, year is 365 days.
@@ -1235,6 +1201,7 @@ type GetMetadataCoverParams struct {
 
 // PreviewMetadataMatchParams defines parameters for PreviewMetadataMatch.
 type PreviewMetadataMatchParams struct {
+	Provider  MetadataProvider   `form:"provider" json:"provider"`
 	WorkId    MetadataWorkID     `form:"work_id" json:"work_id"`
 	EditionId *MetadataEditionID `form:"edition_id,omitempty" json:"edition_id,omitempty"`
 	Isbn      *string            `form:"isbn,omitempty" json:"isbn,omitempty"`
@@ -1307,9 +1274,6 @@ type UpdateAdminUserJSONRequestBody = AdminUserUpdate
 
 // EditDocumentJSONRequestBody defines body for EditDocument for application/json ContentType.
 type EditDocumentJSONRequestBody = DocumentEdit
-
-// ConfirmHardcoverMatchJSONRequestBody defines body for ConfirmHardcoverMatch for application/json ContentType.
-type ConfirmHardcoverMatchJSONRequestBody = HardcoverConfirmation
 
 // SubmitActivityJSONRequestBody defines body for SubmitActivity for application/json ContentType.
 type SubmitActivityJSONRequestBody = ActivityEvent
@@ -1442,9 +1406,6 @@ type ServerInterface interface {
 
 	// (GET /api/v1/documents/{id}/file)
 	DownloadDocument(c *gin.Context, id ID)
-
-	// (POST /api/v1/documents/{id}/identify)
-	ConfirmHardcoverMatch(c *gin.Context, id ID, params ConfirmHardcoverMatchParams)
 
 	// (GET /api/v1/insights/rankings)
 	ListInsightRankings(c *gin.Context, params ListInsightRankingsParams)
@@ -2997,74 +2958,6 @@ func (siw *ServerInterfaceWrapper) DownloadDocument(c *gin.Context) {
 	siw.Handler.DownloadDocument(c, id)
 }
 
-// ConfirmHardcoverMatch operation middleware
-func (siw *ServerInterfaceWrapper) ConfirmHardcoverMatch(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id ID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ConfirmHardcoverMatchParams
-
-	headers := c.Request.Header
-
-	// ------------- Optional header parameter "Origin" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
-		var Origin Origin
-		n := len(valueList)
-		if n != 1 {
-			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
-			return
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
-		if err != nil {
-			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
-			return
-		}
-
-		params.Origin = &Origin
-
-	}
-
-	// ------------- Optional header parameter "X-CSRF-Token" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
-		var XCSRFToken CSRF
-		n := len(valueList)
-		if n != 1 {
-			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
-			return
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
-		if err != nil {
-			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
-			return
-		}
-
-		params.XCSRFToken = &XCSRFToken
-
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ConfirmHardcoverMatch(c, id, params)
-}
-
 // ListInsightRankings operation middleware
 func (siw *ServerInterfaceWrapper) ListInsightRankings(c *gin.Context) {
 
@@ -3803,6 +3696,14 @@ func (siw *ServerInterfaceWrapper) PreviewMetadataMatch(c *gin.Context) {
 	// Parameter object where we will unmarshal all parameters from the context
 	var params PreviewMetadataMatchParams
 
+	// ------------- Required query parameter "provider" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "provider", c.Request.URL.Query(), &params.Provider, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	// ------------- Required query parameter "work_id" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, true, "work_id", c.Request.URL.Query(), &params.WorkId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
@@ -4095,7 +3996,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/api/v1/documents/:id", wrapper.DeleteDocument)
 	router.GET(options.BaseURL+"/api/v1/documents/:id", wrapper.GetDocument)
 	router.PATCH(options.BaseURL+"/api/v1/documents/:id", wrapper.EditDocument)
-	router.POST(options.BaseURL+"/api/v1/documents/:id/identify", wrapper.ConfirmHardcoverMatch)
 	router.GET(options.BaseURL+"/api/v1/metadata/search", wrapper.LookupMetadata)
 	router.GET(options.BaseURL+"/api/v1/metadata/match", wrapper.PreviewMetadataMatch)
 	router.GET(options.BaseURL+"/api/v1/metadata/covers/:cover_id", wrapper.GetMetadataCover)
@@ -5655,51 +5555,6 @@ func (response DownloadDocumentdefaultApplicationProblemPlusJSONResponse) VisitD
 	return err
 }
 
-type ConfirmHardcoverMatchRequestObject struct {
-	Id     ID `json:"id"`
-	Params ConfirmHardcoverMatchParams
-	Body   *ConfirmHardcoverMatchJSONRequestBody
-}
-
-type ConfirmHardcoverMatchResponseObject interface {
-	VisitConfirmHardcoverMatchResponse(w http.ResponseWriter) error
-}
-
-type ConfirmHardcoverMatch200JSONResponse Document
-
-func (response ConfirmHardcoverMatch200JSONResponse) VisitConfirmHardcoverMatchResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ConfirmHardcoverMatchdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	Headers    ProblemResponseHeaders
-	StatusCode int
-}
-
-func (response ConfirmHardcoverMatchdefaultApplicationProblemPlusJSONResponse) VisitConfirmHardcoverMatchResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	if response.Headers.RetryAfter != nil {
-		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
-	}
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type ListInsightRankingsRequestObject struct {
 	Params ListInsightRankingsParams
 }
@@ -6800,9 +6655,6 @@ type StrictServerInterface interface {
 
 	// (GET /api/v1/documents/{id}/file)
 	DownloadDocument(ctx context.Context, request DownloadDocumentRequestObject) (DownloadDocumentResponseObject, error)
-
-	// (POST /api/v1/documents/{id}/identify)
-	ConfirmHardcoverMatch(ctx context.Context, request ConfirmHardcoverMatchRequestObject) (ConfirmHardcoverMatchResponseObject, error)
 
 	// (GET /api/v1/insights/rankings)
 	ListInsightRankings(ctx context.Context, request ListInsightRankingsRequestObject) (ListInsightRankingsResponseObject, error)
@@ -8002,51 +7854,6 @@ func (sh *strictHandler) DownloadDocument(ctx *gin.Context, id ID) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(DownloadDocumentResponseObject); ok {
 		if err := validResponse.VisitDownloadDocumentResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ConfirmHardcoverMatch operation middleware
-func (sh *strictHandler) ConfirmHardcoverMatch(ctx *gin.Context, id ID, params ConfirmHardcoverMatchParams) {
-	var request ConfirmHardcoverMatchRequestObject
-
-	request.Id = id
-	request.Params = params
-
-	var body ConfirmHardcoverMatchJSONRequestBody
-	var err error
-	// A request validator built on kin-openapi's openapi3filter with
-	// KeepValidatedValue leaves the value it validated on the body. Bind
-	// that value, matching member names exactly, so the handler receives
-	// what was validated instead of a second, case-insensitive decode.
-	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
-		err = ctx.ShouldBindJSON(&body)
-	} else if binding.Validator != nil {
-		// ShouldBindJSON runs the struct validator after decoding; keep that.
-		err = binding.Validator.ValidateStruct(&body)
-	}
-	if err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.ConfirmHardcoverMatch(ctx, request.(ConfirmHardcoverMatchRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ConfirmHardcoverMatch")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(ConfirmHardcoverMatchResponseObject); ok {
-		if err := validResponse.VisitConfirmHardcoverMatchResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {

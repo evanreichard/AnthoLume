@@ -444,21 +444,21 @@ func (q *Queries) ListWebInsightRankings(ctx context.Context, arg ListWebInsight
 
 const updateWebDocumentMetadata = `-- name: UpdateWebDocumentMetadata :execrows
 UPDATE documents
-SET title = CAST(?1 AS TEXT),
-    author = NULLIF(CAST(?2 AS TEXT), ''),
-    description = NULLIF(CAST(?3 AS TEXT), ''),
-    isbn10 = NULLIF(CAST(?4 AS TEXT), ''),
-    isbn13 = NULLIF(CAST(?5 AS TEXT), ''),
+SET title = COALESCE(CAST(?1 AS TEXT), title),
+    author = CASE WHEN CAST(?2 AS TEXT) IS NULL THEN author ELSE NULLIF(CAST(?2 AS TEXT), '') END,
+    description = CASE WHEN CAST(?3 AS TEXT) IS NULL THEN description ELSE NULLIF(CAST(?3 AS TEXT), '') END,
+    isbn10 = CASE WHEN CAST(?4 AS TEXT) IS NULL THEN isbn10 ELSE NULLIF(CAST(?4 AS TEXT), '') END,
+    isbn13 = CASE WHEN CAST(?5 AS TEXT) IS NULL THEN isbn13 ELSE NULLIF(CAST(?5 AS TEXT), '') END,
     coverfile = COALESCE(?6, coverfile)
 WHERE id = ?7 AND deleted = 0
 `
 
 type UpdateWebDocumentMetadataParams struct {
-	Title       string  `json:"title"`
-	Author      string  `json:"author"`
-	Description string  `json:"description"`
-	Isbn10      string  `json:"isbn10"`
-	Isbn13      string  `json:"isbn13"`
+	Title       *string `json:"title"`
+	Author      *string `json:"author"`
+	Description *string `json:"description"`
+	Isbn10      *string `json:"isbn10"`
+	Isbn13      *string `json:"isbn13"`
 	Coverfile   *string `json:"coverfile"`
 	ID          string  `json:"id"`
 }

@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"strings"
 
@@ -10,6 +9,8 @@ import (
 	"reichard.io/antholume/metadata"
 	"reichard.io/antholume/reading"
 )
+
+type metadataResolver func(ctx context.Context, work, edition, isbn string) (metadata.LookupMatch, error)
 
 type hardcoverCatalog interface {
 	Lookup(context.Context, string) ([]metadata.LookupMatch, error)
@@ -59,27 +60,12 @@ func (s *webAPI) PreviewMetadataMatch(ctx context.Context, r PreviewMetadataMatc
 	if s.api.cfg.DemoMode {
 		return nil, &reading.Failure{Status: 403, Code: "forbidden"}
 	}
-	ctx = requestContext(ctx)
-	state, err := s.api.metadataProviderStatus(ctx, s.api.db.Queries)
+	ref := MetadataMatchReference{Provider: r.Params.Provider, WorkId: r.Params.WorkId, EditionId: r.Params.EditionId, Isbn: r.Params.Isbn}
+	m, err := s.api.resolveMetadataMatch(requestContext(ctx), ref)
 	if err != nil {
 		return nil, err
 	}
-	provider := Hardcover
-	if strings.HasPrefix(r.Params.WorkId, "OL") {
-		provider = Openlibrary
-	}
-	if state.Effective != provider {
-		return nil, &reading.Failure{Status: 409, Code: "metadata_provider_changed"}
-	}
-	resolve := metadata.ResolveOpenLibrary
-	if provider == Hardcover {
-		resolve = s.api.catalog.Resolve
-	}
-	m, err := resolve(ctx, r.Params.WorkId, matchParam(r.Params.EditionId), matchParam(r.Params.Isbn))
-	if err != nil {
-		return nil, metadataLookupFailure(err)
-	}
-	return PreviewMetadataMatch200JSONResponse(metadataMatch(provider, m)), nil
+	return PreviewMetadataMatch200JSONResponse(metadataMatch(ref.Provider, m)), nil
 }
 
 func matchParam(value *string) string {
@@ -89,85 +75,52 @@ func matchParam(value *string) string {
 	return *value
 }
 
-func (s *webAPI) ConfirmHardcoverMatch(ctx context.Context, r ConfirmHardcoverMatchRequestObject) (ConfirmHardcoverMatchResponseObject, error) {
-	api := s.api
-	if api.cfg.DemoMode {
-		return nil, &reading.Failure{Status: 403, Code: "forbidden"}
+func (api *API) checkMetadataProvider(ctx context.Context, queries *database.Queries, provider MetadataProvider) error {
+	state, err := api.metadataProviderStatus(ctx, queries)
+	if err != nil {
+		return err
 	}
-	ctx = requestContext(ctx)
-	state, err := api.metadataProviderStatus(ctx, api.db.Queries)
+	if state.Effective != provider {
+		return &reading.Failure{Status: 409, Code: "metadata_provider_changed"}
+	}
+	return nil
+}
+
+func (api *API) resolveMetadataMatch(ctx context.Context, ref MetadataMatchReference) (metadata.LookupMatch, error) {
+	if err := api.checkMetadataProvider(ctx, api.db.Queries, ref.Provider); err != nil {
+		return metadata.LookupMatch{}, err
+	}
+	resolve := api.openLibrary
+	if ref.Provider == Hardcover {
+		resolve = api.catalog.Resolve
+	}
+	m, err := resolve(ctx, ref.WorkId, matchParam(ref.EditionId), matchParam(ref.Isbn))
+	if err != nil {
+		return metadata.LookupMatch{}, metadataLookupFailure(err)
+	}
+	if m.ID != ref.WorkId {
+		return metadata.LookupMatch{}, metadataLookupFailure(metadata.ErrInvalidLookupMatch)
+	}
+	return m, nil
+}
+
+// Confirmed Namespaces - The legacy openlibrary namespace may contain works, editions, or unclassified values.
+// Keep it separate, and retain hardcover for links already saved by the first version of the provider.
+var workNamespaces = map[MetadataProvider]string{Openlibrary: "openlibrary_work", Hardcover: "hardcover"}
+
+func documentMatches(ctx context.Context, queries *database.Queries, id string) (*[]DocumentMatch, error) {
+	rows, err := queries.ListDocumentIdentifiers(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	providerChanged := &reading.Failure{Status: 409, Code: "metadata_provider_changed"}
-	if state.Effective != Hardcover {
-		return nil, providerChanged
-	}
-	b := r.Body
-	m, err := api.catalog.Resolve(ctx, b.WorkId, matchParam(b.EditionId), matchParam(b.Isbn))
-	if err != nil {
-		return nil, metadataLookupFailure(err)
-	}
-	fields := database.ApplyIdentifiedMetadataParams{ID: r.Id}
-	for _, field := range b.Fields {
-		var value *string
-		switch field {
-		case HardcoverConfirmationFieldsTitle:
-			value, fields.Title = &m.Title, &m.Title
-		case HardcoverConfirmationFieldsAuthor:
-			value, fields.Author = &m.Author, &m.Author
-		case HardcoverConfirmationFieldsDescription:
-			value, fields.Description = m.Description, m.Description
-		case HardcoverConfirmationFieldsIsbn10:
-			value, fields.Isbn10 = m.ISBN10, m.ISBN10
-		case HardcoverConfirmationFieldsIsbn13:
-			value, fields.Isbn13 = m.ISBN13, m.ISBN13
-		}
-		if value == nil || strings.TrimSpace(*value) == "" {
-			return nil, &reading.Failure{Status: 400, Code: "invalid_request"}
-		}
-	}
-	if !api.libraryWrite.TryLock() {
-		return nil, adminFailure(409, "server_busy")
-	}
-	defer api.libraryWrite.Unlock()
-	tx, err := api.db.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	queries := api.db.Queries.WithTx(tx)
-	state, err = api.metadataProviderStatus(ctx, queries)
-	if err != nil {
-		return nil, err
-	}
-	if state.Effective != Hardcover {
-		return nil, providerChanged
-	}
-	doc, err := queries.GetDocument(ctx, r.Id)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && doc.Deleted {
-		return nil, &reading.Failure{Status: 404, Code: "not_found"}
-	}
-	if err != nil {
-		return nil, err
-	}
-	if err = queries.RemoveOtherHardcoverIdentifiers(ctx, database.RemoveOtherHardcoverIdentifiersParams{DocumentID: r.Id, Value: m.ID}); err != nil {
-		return nil, err
-	}
-	if err = queries.LinkHardcoverIdentifier(ctx, database.LinkHardcoverIdentifierParams{DocumentID: r.Id, Value: m.ID}); err != nil {
-		return nil, err
-	}
-	if len(b.Fields) > 0 {
-		if err = queries.ApplyIdentifiedMetadata(ctx, fields); err != nil {
-			return nil, err
-		}
-		doc, err = queries.GetDocument(ctx, r.Id)
-		if err != nil {
-			return nil, err
+	matches := make([]DocumentMatch, 0, len(rows))
+	for _, row := range rows {
+		for provider, namespace := range workNamespaces {
+			if row.Namespace == namespace {
+				matches = append(matches, DocumentMatch{Provider: provider, WorkId: row.Value})
+				break
+			}
 		}
 	}
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
-	return ConfirmHardcoverMatch200JSONResponse(api.documentDTO(doc)), nil
+	return &matches, nil
 }

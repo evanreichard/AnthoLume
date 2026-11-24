@@ -145,10 +145,10 @@ func (c *Catalog) Lookup(ctx context.Context, query string) ([]metadata.LookupMa
 
 func (c *Catalog) Resolve(ctx context.Context, work, edition, isbn string) (metadata.LookupMatch, error) {
 	workID, ok := catalogID(work)
-	if !ok || (edition == "") != (isbn == "") {
+	if !ok {
 		return metadata.LookupMatch{}, metadata.ErrInvalidLookupMatch
 	}
-	if edition == "" {
+	if edition == "" && isbn == "" {
 		var data struct {
 			Books []catalogBook `json:"books"`
 		}
@@ -160,14 +160,29 @@ func (c *Catalog) Resolve(ctx context.Context, work, edition, isbn string) (meta
 				return m, nil
 			}
 		}
-	} else if editionID, valid := catalogID(edition); valid && catalogISBNField(isbn) != "" {
-		editions, err := c.editions(ctx, map[string]any{
-			"id": catalogEqual(editionID), "book_id": catalogEqual(workID), catalogISBNField(isbn): catalogEqual(isbn),
-		})
+	} else {
+		where := map[string]any{"book_id": catalogEqual(workID)}
+		var editionID int
+		if edition != "" {
+			editionID, ok = catalogID(edition)
+			if !ok {
+				return metadata.LookupMatch{}, metadata.ErrInvalidLookupMatch
+			}
+			where["id"] = catalogEqual(editionID)
+		}
+		if isbn != "" {
+			field := catalogISBNField(isbn)
+			if field == "" {
+				return metadata.LookupMatch{}, metadata.ErrInvalidLookupMatch
+			}
+			where[field] = catalogEqual(isbn)
+		}
+		editions, err := c.editions(ctx, where)
 		if err != nil {
 			return metadata.LookupMatch{}, err
 		}
-		if len(editions) == 1 && editions[0].ID == editionID && editions[0].Book.ID == workID && editions[0].matchesISBN(isbn) {
+		if len(editions) == 1 && editions[0].ID > 0 && (editionID == 0 || editions[0].ID == editionID) &&
+			editions[0].Book.ID == workID && (isbn == "" || editions[0].matchesISBN(isbn)) {
 			if m := editions[0].match(); m.Title != "" {
 				return m, nil
 			}

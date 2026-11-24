@@ -50,6 +50,8 @@ Readers can choose **Settings → Connect Hardcover** to preview their Want to R
 
 **Identify Book** uses Open Library by default. To use the Hardcover catalog instead, create a [Hardcover API token](https://hardcover.app/account/api) with `read:catalog` access. Set the raw token as `HARDCOVER_CATALOG_TOKEN` in the server environment, restart, then select **Hardcover** under **Settings → Administration → Library → Metadata provider**. This applies to the entire instance and does not require reader OAuth. Backups contain the provider choice and confirmed work links, not the catalog token. If you remove the token and restart, Open Library becomes active until you restore the token or change the choice. An expired token or failed Hardcover request reports an error instead of switching providers. With Docker Compose, supply the token in the deployment environment and recreate the container after changing it.
 
+In **Identify Book**, previewing a result saves nothing. **Link Book** confirms the provider’s work ID without changing your metadata; **Link and Apply** also saves the selected fields. Switching providers does not remove existing links: a library book can have a confirmed Open Library match and a confirmed Hardcover match.
+
 ```bash
 # Make Data Directory
 mkdir -p antholume_data

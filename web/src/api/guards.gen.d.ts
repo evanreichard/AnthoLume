@@ -19,9 +19,10 @@ export declare function checkHardcoverBook(value: unknown): value is components[
 export declare function checkDocumentPage(value: unknown): value is components['schemas']['DocumentPage'];
 export declare function checkDocument(value: unknown): value is components['schemas']['Document'];
 export declare function checkBookReadingStats(value: unknown): value is components['schemas']['BookReadingStats'];
-export declare function checkMetadataMatch(value: unknown): value is components['schemas']['MetadataMatch'];
+export declare function checkDocumentMatch(value: unknown): value is components['schemas']['DocumentMatch'];
 export declare function checkMetadataProvider(value: unknown): value is components['schemas']['MetadataProvider'];
 export declare function checkMetadataWorkID(value: unknown): value is components['schemas']['MetadataWorkID'];
+export declare function checkMetadataMatch(value: unknown): value is components['schemas']['MetadataMatch'];
 export declare function checkMetadataEditionID(value: unknown): value is components['schemas']['MetadataEditionID'];
 export declare function checkManagedDevice(value: unknown): value is components['schemas']['ManagedDevice'];
 export declare function checkDevice(value: unknown): value is components['schemas']['Device'];
