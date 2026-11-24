@@ -28,12 +28,12 @@ export function AdminMetadata({ account }: { account: Account }) {
     } catch (failure) { setError(failure); }
     finally { setSaving(false); }
   }
-  return <Card aria-labelledby="admin-metadata-heading">
-    <CardHeader id="admin-metadata-heading" title="Book Identification" />
+  return <Card density="compact" aria-labelledby="admin-metadata-heading">
+    <CardHeader id="admin-metadata-heading" title="Metadata Provider" />
     <ErrorNotice error={error ?? query.error} />
     {query.isPending && <SkeletonRows label="Loading metadata provider…" count={1} secondary={false} />}
     {current && <>
-      <RadioChoices<Provider> legend="Metadata provider" value={current.selected} onChange={choose} options={[
+      <RadioChoices<Provider> labelledBy="admin-metadata-heading" value={current.selected} onChange={choose} options={[
         { value: 'openlibrary', label: 'Open Library', description: 'Default provider for Identify Book.', disabled: saving },
         { value: 'hardcover', label: 'Hardcover', description: current.hardcover_available ? 'Use the Hardcover catalog for all readers.' : tokenHint, disabled: saving || !current.hardcover_available },
       ]} />

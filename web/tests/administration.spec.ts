@@ -9,7 +9,8 @@ test('Metadata provider defaults to Open Library and explains missing Hardcover 
   try {
     db.prepare('UPDATE users SET admin=1 WHERE id=?').run('metadata-owner');
     await page.goto(`${server.origin}/admin/library`);
-    const providers = page.getByRole('group', { name: 'Metadata provider' });
+    const providers = page.getByRole('group', { name: 'Metadata Provider', exact: true });
+    await expect(page.getByText(/^metadata provider$/i)).toHaveCount(1);
     const openLibrary = providers.getByRole('radio', { name: 'Open Library' });
     const hardcover = providers.getByRole('radio', { name: 'Hardcover' });
     await expect(openLibrary).toBeChecked();
@@ -22,6 +23,8 @@ test('Metadata provider defaults to Open Library and explains missing Hardcover 
     await expect(hardcover).toBeDisabled();
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
+      const reference = page.getByRole('heading', { name: 'Storage Roots', exact: true });
+      await expect(page.getByRole('heading', { name: 'Metadata Provider', exact: true })).toHaveCSS('font-size', await reference.evaluate(node => getComputedStyle(node).fontSize));
       await openLibrary.click({ trial: true });
     }
     await openLibrary.click();

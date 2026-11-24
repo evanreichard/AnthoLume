@@ -27,14 +27,15 @@ type RadioChoice<T> = { value: T; label: string; description?: string; status?: 
 type RadioChoiceSelection<T> = { value: T; onChange: (value: T) => void; defaultValue?: never }
   | { defaultValue: T; value?: never; onChange?: never };
 
-export function RadioChoices<T extends string>({ legend, name, options, value, defaultValue, onChange }: {
-  legend: string;
+export function RadioChoices<T extends string>({ legend, labelledBy, name, options, value, defaultValue, onChange }: (
+  { legend: string; labelledBy?: never } | { legend?: never; labelledBy: string }
+) & {
   name?: string;
   options: readonly RadioChoice<T>[];
 } & RadioChoiceSelection<T>) {
   const id = useId();
-  return <fieldset className={styles.radioChoices}>
-    <legend>{legend}</legend>
+  return <fieldset className={styles.radioChoices} aria-labelledby={labelledBy}>
+    {legend && <legend>{legend}</legend>}
     {options.map(option => {
       const descriptionId = option.description ? `${id}-${option.value}` : undefined;
       return <label className={styles.radioChoice} key={option.value}>
