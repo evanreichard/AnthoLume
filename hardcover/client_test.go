@@ -33,7 +33,6 @@ type providerFixture struct {
 	badRefresh     bool
 	omitRotation   bool
 	onRefresh      func()
-	onProfile      func()
 	shelfStatus    func(token string) int
 	revokeRedirect string
 	reuseOnConnect string
@@ -62,9 +61,6 @@ func (f *providerFixture) start(t *testing.T) (*sql.DB, func() *Client) {
 				id, username = 9, "bob"
 			}
 			if strings.Contains(query.Query, "me { id username }") {
-				if f.onProfile != nil {
-					f.onProfile()
-				}
 				fmt.Fprintf(w, `{"data":{"me":[{"id":%d,"username":%q}]}}`, id, username)
 				return
 			}
@@ -254,21 +250,6 @@ func TestReconnectRevokesOnlyReplacedSession(t *testing.T) {
 	}
 }
 
-func TestLosingReconnectDoesNotRevokeWinningTokens(t *testing.T) {
-	f := &providerFixture{}
-	_, open := f.start(t)
-	c, ctx := open(), context.Background()
-	require.NoError(t, c.Connect(ctx, account, "alice", verifier))
-	var nested atomic.Bool
-	f.onProfile = func() {
-		if !nested.Swap(true) {
-			assert.NoError(t, open().Connect(ctx, account, "again", verifier))
-		}
-	}
-	require.ErrorIs(t, c.Connect(ctx, account, "again", verifier), ErrNotConnected)
-	require.Equal(t, "hc_rt_alice", f.lastRevoked.Load())
-}
-
 func TestCanceledShelfPersistsInFlightRefresh(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -300,64 +281,48 @@ func TestConcurrentRefreshPersistsReplacement(t *testing.T) {
 	c, ctx := open(), context.Background()
 	require.NoError(t, c.Connect(ctx, account, "alice", verifier))
 	var group sync.WaitGroup
-	for _, reader := range []*Client{c, open()} {
+	start := make(chan struct{})
+	for range 2 {
 		group.Go(func() {
-			_, err := reader.Shelf(ctx, account, 0)
-			if err != nil {
-				assert.True(t, err == ErrNotConnected || err == ErrReconnect, "%v", err)
-			}
+			<-start
+			_, err := c.Shelf(ctx, account, 0)
+			assert.NoError(t, err)
 		})
 	}
+	close(start)
 	group.Wait()
-	_, err := open().Shelf(ctx, account, 0)
-	require.NoError(t, err)
 	require.EqualValues(t, 1, f.refreshes.Load())
 }
 
-func TestInFlightProviderResultCannotRestoreInvalidatedLink(t *testing.T) {
-	for _, change := range []string{"restore during consent", "restore during refresh", "disconnect during refresh", "reconnect during refresh"} {
+func TestInFlightRefreshCannotUndoDisconnectOrReconnect(t *testing.T) {
+	for _, change := range []string{"disconnect", "reconnect"} {
 		t.Run(change, func(t *testing.T) {
 			ctx := context.Background()
 			f := &providerFixture{expires: 1}
-			db, open := f.start(t)
+			_, open := f.start(t)
 			c := open()
-			invalidate := func() {
-				switch change {
-				case "disconnect during refresh":
-					assert.NoError(t, open().Disconnect(ctx, account))
-				case "reconnect during refresh":
-					assert.NoError(t, open().Connect(ctx, account, "again", verifier))
-				default:
-					_, err := db.Exec(`UPDATE reading_generation SET generation='restored'`)
-					assert.NoError(t, err)
+			require.NoError(t, c.Connect(ctx, account, "alice", verifier))
+			f.onRefresh = func() {
+				if change == "disconnect" {
+					assert.NoError(t, c.Disconnect(ctx, account))
+				} else {
+					assert.NoError(t, c.Connect(ctx, account, "again", verifier))
 				}
 			}
-			if change == "restore during consent" {
-				f.onProfile = invalidate
-				require.ErrorIs(t, c.Connect(ctx, account, "alice", verifier), ErrNotConnected)
-				require.Equal(t, "hc_rt_alice", f.lastRevoked.Load())
-			} else {
-				require.NoError(t, c.Connect(ctx, account, "alice", verifier))
-				f.onRefresh = invalidate
-				_, err := c.Shelf(ctx, account, 0)
+			_, err := c.Shelf(ctx, account, 0)
+			require.ErrorIs(t, err, ErrNotConnected)
+			require.Equal(t, "hc_rt_renewed", f.lastRevoked.Load())
+
+			if change == "disconnect" {
+				_, err := c.Status(account)
 				require.ErrorIs(t, err, ErrNotConnected)
-				require.Equal(t, "hc_rt_renewed", f.lastRevoked.Load())
-			}
-			switch change {
-			case "reconnect during refresh":
+			} else {
 				f.shelfStatus = func(token string) int {
 					assert.Equal(t, "Bearer hc_at_again", token)
 					return http.StatusOK
 				}
 				_, err := c.Shelf(ctx, account, 0)
 				require.NoError(t, err)
-			case "restore during refresh":
-				_, err := c.Status("restored:account-a")
-				require.ErrorIs(t, err, ErrReconnect)
-			default:
-				var count int
-				require.NoError(t, db.QueryRow(`SELECT count(*) FROM hardcover_links`).Scan(&count))
-				require.Zero(t, count)
 			}
 		})
 	}

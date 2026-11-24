@@ -13,7 +13,11 @@ import (
 )
 
 func TestRestoreMigratesPreReactBackup(t *testing.T) {
-	original, err := os.ReadFile(filepath.Join("testdata", "pre-react.db"))
+	name, source := copyPreReactBackup(t)
+	_, err := source.Exec(`CREATE TABLE custom_metadata (note TEXT); INSERT INTO custom_metadata VALUES ('keep me')`)
+	require.NoError(t, err)
+	require.NoError(t, source.Close())
+	original, err := os.ReadFile(name)
 	require.NoError(t, err)
 	for _, tc := range []struct {
 		name, dbMember string
@@ -45,6 +49,9 @@ func TestRestoreMigratesPreReactBackup(t *testing.T) {
 			var position, path, root string
 			require.NoError(t, f.db.DB.QueryRow(`SELECT h.position,d.filepath,d.storage_root_id FROM reading_heads h JOIN documents d ON d.id=h.document_id WHERE h.user_id='old-owner'`).Scan(&position, &path, &root))
 			require.Equal(t, "old position", position)
+			var note string
+			require.NoError(t, f.db.DB.QueryRow(`SELECT note FROM custom_metadata`).Scan(&note))
+			require.Equal(t, "keep me", note)
 			if tc.full {
 				require.Equal(t, libraryRoot, root)
 				require.Equal(t, "old.epub", path)
@@ -59,41 +66,6 @@ func TestRestoreMigratesPreReactBackup(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestRestoreCustomDatabaseMember(t *testing.T) {
-	f := newWebFixture(t)
-	f.register("owner")
-	name := filepath.Join(t.TempDir(), adminBackupName)
-	require.NoError(t, f.api.writeVerifiedSnapshot(context.Background(), name))
-	current, err := os.ReadFile(name)
-	require.NoError(t, err)
-	payload := zipStoragePaths(t, "custom.db", current, nil, nil)
-	response := f.call("POST", "/api/v1/admin/restore", string(payload), map[string]string{"Content-Type": "application/octet-stream"})
-	require.Equal(t, 200, response.status, string(response.body))
-	candidate := decodeWeb[AdminRestore](t, response)
-	applied := f.call("PATCH", "/api/v1/admin/restore", AdminRestoreApply{Token: candidate.Token}, nil)
-	require.Equal(t, 204, applied.status, string(applied.body))
-}
-
-func TestRestoreMigrationsPreserveExtraSchema(t *testing.T) {
-	name, source := copyPreReactBackup(t)
-	_, err := source.Exec(`CREATE TABLE custom_metadata (note TEXT); INSERT INTO custom_metadata VALUES ('keep me')`)
-	require.NoError(t, err)
-	require.NoError(t, source.Close())
-	payload, err := os.ReadFile(name)
-	require.NoError(t, err)
-
-	f := newWebFixture(t)
-	f.register("destination-owner")
-	response := f.call("POST", "/api/v1/admin/restore", string(payload), map[string]string{"Content-Type": "application/octet-stream"})
-	require.Equal(t, 200, response.status, string(response.body))
-	candidate := decodeWeb[AdminRestore](t, response)
-	applied := f.call("PATCH", "/api/v1/admin/restore", AdminRestoreApply{Token: candidate.Token}, nil)
-	require.Equal(t, 204, applied.status, string(applied.body))
-	var note string
-	require.NoError(t, f.db.DB.QueryRow(`SELECT note FROM custom_metadata`).Scan(&note))
-	require.Equal(t, "keep me", note)
 }
 
 func TestRestoreRejectsFailedMigrationAndNewerVersion(t *testing.T) {

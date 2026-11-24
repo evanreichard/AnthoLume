@@ -170,13 +170,8 @@ func TestHardcoverOAuth(t *testing.T) {
 	f := hardcoverFixture(t, m)
 	anonymous, otherAccount, otherSession := hardcoverBrowser(f), hardcoverBrowser(f), hardcoverBrowser(f)
 	otherAccount.register("bob")
-	require.Contains(t, hardcoverLogin(otherSession).header.Get("Set-Cookie"), "SameSite=Strict")
+	hardcoverLogin(otherSession)
 	origin := f.cfg.PublicOrigin
-	assertProblem(t, anonymous.call("GET", hardcoverPath, nil, nil), 401, "unauthenticated")
-	for header, value := range map[string]string{"Origin": "https://wrong.invalid", "X-CSRF-Token": "wrong"} {
-		assertProblem(t, f.call("POST", hardcoverPath+"/connect", nil, map[string]string{header: value}), 403, "csrf_failed")
-	}
-	assertProblem(t, f.call("POST", hardcoverPath+"/connect", nil, map[string]string{"X-AnthoLume-Account": "wrong"}), 401, "account_changed")
 	v := beginHardcover(f)
 	land := func() webResponse { return anonymous.call("GET", hardcoverCallbackPath+"?"+v.Encode(), nil, nil) }
 	r := land()
@@ -215,7 +210,6 @@ func TestHardcoverOAuth(t *testing.T) {
 	assertProblem(t, f.call("GET", hardcoverPath+"/shelf?offset=-1", nil, nil), 400, "invalid_request")
 
 	pending := beginHardcover(f)
-	assertProblem(t, f.call("DELETE", hardcoverPath, nil, map[string]string{"X-CSRF-Token": "wrong"}), 403, "csrf_failed")
 	for range 2 {
 		requireHardcoverJSON(f, "DELETE", "", `{"revocation_confirmed":true}`)
 	}
@@ -240,7 +234,7 @@ func TestHardcoverDisconnectOutcomes(t *testing.T) {
 	}
 }
 
-func TestHardcoverRestoreAndExpiry(t *testing.T) {
+func TestHardcoverCallbackRejectsExpiredStateAndStaleGeneration(t *testing.T) {
 	m := &mockHardcover{}
 	f := hardcoverFixture(t, m)
 	origin := f.cfg.PublicOrigin

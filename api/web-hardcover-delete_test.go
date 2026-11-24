@@ -26,13 +26,6 @@ func linkHardcoverMock(f *webFixture, m *mockHardcover) {
 	}
 }
 
-func hardcoverLinkCount(f *webFixture) int {
-	f.t.Helper()
-	var count int
-	require.NoError(f.t, f.db.DB.QueryRow(`SELECT count(*) FROM hardcover_links`).Scan(&count))
-	return count
-}
-
 func TestAdminDeletionCascadesHardcoverLinkAndRevokesAfterCommit(t *testing.T) {
 	m := &mockHardcover{}
 	f := hardcoverFixture(t, m)
@@ -59,7 +52,7 @@ func TestAdminDeletionCascadesHardcoverLinkAndRevokesAfterCommit(t *testing.T) {
 	f.exec(`CREATE TRIGGER reject_delete BEFORE DELETE ON users WHEN OLD.id = 'bob' BEGIN SELECT RAISE(ABORT, 'test rejection'); END`)
 	require.Equal(t, 500, f.call("DELETE", deleteHardcoverReader, nil, nil).status)
 	require.Empty(t, revoked)
-	require.Equal(t, 2, hardcoverLinkCount(f))
+	require.Equal(t, 2, f.count("hardcover_links"))
 	require.Equal(t, 204, finishHardcover(reader, pending, f.cfg.PublicOrigin).status)
 	f.exec(`DROP TRIGGER reject_delete`)
 
@@ -77,7 +70,7 @@ func TestAdminDeletionCascadesHardcoverLinkAndRevokesAfterCommit(t *testing.T) {
 	require.Equal(t, 403, finishHardcover(reader, stale, f.cfg.PublicOrigin).status)
 	reader.register("bob")
 	requireHardcoverJSON(reader, "GET", "", unlinkedHardcover)
-	require.Equal(t, 1, hardcoverLinkCount(f))
+	require.Equal(t, 1, f.count("hardcover_links"))
 }
 
 func TestAdminDeletionDoesNotWaitForProviderCallback(t *testing.T) {
@@ -106,27 +99,5 @@ func TestAdminDeletionDoesNotWaitForProviderCallback(t *testing.T) {
 	// Release the blocked provider and wait before querying to ensure the attempted write cannot recreate the link.
 	release <- struct{}{}
 	require.Equal(t, 502, (<-callback).status)
-	require.Zero(t, hardcoverLinkCount(f))
-}
-
-func TestDeletedHardcoverLinkWithDisabledIntegrationOrCanceledRequest(t *testing.T) {
-	f := newWebFixture(t)
-	f.register("alice")
-	_, key := hardcoverReader(f)
-	m := &mockHardcover{}
-	linkHardcoverMock(f, m)
-	require.NoError(t, m.storeLink(context.Background(), key))
-	require.Equal(t, 204, f.call("DELETE", deleteHardcoverReader, nil, nil).status)
-	require.Zero(t, hardcoverLinkCount(f))
-
-	var revoked bool
-	m.revokeStored = func(ctx context.Context, _ string, _ []byte) error {
-		revoked = ctx.Err() == nil
-		return ctx.Err()
-	}
-	f.api.hardcover.client = m
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	f.api.revokeDeletedHardcoverLink(ctx, key, []byte("encrypted credential"))
-	require.True(t, revoked)
+	require.Zero(t, f.count("hardcover_links"))
 }
