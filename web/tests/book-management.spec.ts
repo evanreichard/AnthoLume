@@ -102,6 +102,15 @@ test('book details show file information and download the original EPUB', async 
   expect(download.suggestedFilename()).toMatch(/\.epub$/i);
   expect(await readFile((await download.path())!)).toEqual(original);
   await expect(exportFile).toBeHidden();
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    await more.click();
+    await info.click();
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(more).toBeFocused();
+  }
 });
 
 test('Identify centers empty and retryable failure states within the review body', async ({ page, server }) => {

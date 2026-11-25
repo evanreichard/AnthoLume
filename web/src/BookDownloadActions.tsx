@@ -5,6 +5,7 @@ import { Dialog, ErrorNotice } from './ui';
 import { Icon } from './Icon';
 import { bookKey } from './library';
 import { useSnackbar } from './Snackbar';
+import { useActionPanel } from './useActionPanel';
 import styles from './OfflineReading.module.css';
 
 type ServerBook = Extract<BookRef, { kind: 'server' }>;
@@ -71,31 +72,29 @@ export function DownloadRemovalDialog({ download }: { download: ReturnType<typeo
 export function BookDownloadActions({ book, metadata, canSave = true }: { book: ServerBook; metadata: Metadata; canSave?: boolean }) {
   const download = useBookDownload(book, canSave);
   const menu = useRef<HTMLDetailsElement>(null);
+  const trigger = useRef<HTMLElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const actions = useActionPanel(open, trigger, panel, () => { if (menu.current) menu.current.open = false; });
   useEffect(() => {
     const details = menu.current;
-    const panel = details?.querySelector<HTMLElement>('[data-options]');
-    if (!open || !details || !panel) return;
+    const options = panel.current;
+    if (!open || !details || !options) return;
     function place() {
-      if (!details || !panel) return;
+      if (!details || !options) return;
       const right = details.getBoundingClientRect().right - 4;
-      panel.style.setProperty('--shift', `${Math.max(0, 8 + panel.offsetWidth - right)}px`);
+      options.style.setProperty('--shift', `${Math.max(0, 8 + options.offsetWidth - right)}px`);
     }
     place();
     window.addEventListener('resize', place);
     return () => window.removeEventListener('resize', place);
   }, [open]);
-  function closeMenu() {
-    if (!menu.current?.open) return;
-    menu.current.open = false;
-    menu.current.querySelector('summary')?.focus();
-  }
   return <>
-    <details ref={menu} onToggle={e => setOpen(e.currentTarget.open)} className={styles.bookOptions} name="offline-book-options" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); closeMenu(); } }}>
-      <summary aria-label={`Options for ${metadata.title ?? 'Untitled'}`} title="Book Options"><Icon name="more" size={20} /></summary>
-      <div data-options>
-        {canSave && download.copy !== 'saved' && <button type="button" disabled={download.disabled} onClick={() => { closeMenu(); download.save(metadata); }}><Icon name="download" size={17} />{download.busy ? 'Saving…' : 'Save to Device'}</button>}
-        {download.copy && <button type="button" disabled={download.disabled} onClick={() => { closeMenu(); download.askToRemove(); }}><Icon name="minus" size={17} />Remove from Device</button>}
+    <details ref={menu} onToggle={e => setOpen(e.currentTarget.open)} className={styles.bookOptions} name="offline-book-options" {...actions.events}>
+      <summary ref={trigger} aria-label={`Options for ${metadata.title ?? 'Untitled'}`} title="Book Options"><Icon name="more" size={20} /></summary>
+      <div ref={panel} className={styles.bookOptionsPanel}>
+        {canSave && download.copy !== 'saved' && <button type="button" disabled={download.disabled} onClick={() => { actions.dismiss(true); download.save(metadata); }}><Icon name="download" size={17} />{download.busy ? 'Saving…' : 'Save to Device'}</button>}
+        {download.copy && <button type="button" disabled={download.disabled} onClick={() => { actions.dismiss(true); download.askToRemove(); }}><Icon name="minus" size={17} />Remove from Device</button>}
       </div>
     </details>
     <DownloadRemovalDialog download={download} />

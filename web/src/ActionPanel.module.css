@@ -1,0 +1,4 @@
+.panel { position: absolute; border: 1px solid var(--line); background: var(--surface); }
+.panel > :is(button, a) { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: .875rem; text-align: start; text-decoration: none; }
+.panel > :is(button, a):is(:hover, :focus-visible) { background: var(--hero); }
+.panel > :is(button, a):focus-visible { outline-offset: -2px; }

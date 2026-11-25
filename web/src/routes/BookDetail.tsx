@@ -15,6 +15,7 @@ import { IdentifyBook } from './IdentifyBook';
 import { useBookRef } from './bookRef';
 import styles from '../App.module.css';
 import { BackPill, JoinedAction, JoinedActions, JoinedActionLink, Button } from '../Controls';
+import { useActionPanel } from '../useActionPanel';
 
 function duration(seconds: number) {
   if (!seconds) return '0 min';
@@ -41,15 +42,9 @@ function BookDetailContent() {
   const menu = useRef<HTMLDivElement>(null);
   const more = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const actions = useActionPanel(menuOpen, more, menu, () => setMenuOpen(false));
   useEffect(() => {
-    if (!menuOpen) return;
-    menu.current?.querySelector('button')?.focus({ preventScroll: true });
-    function dismiss(event: PointerEvent) {
-      const target = event.target;
-      if (target instanceof Node && !menu.current?.contains(target) && !more.current?.contains(target)) setMenuOpen(false);
-    }
-    window.addEventListener('pointerdown', dismiss);
-    return () => window.removeEventListener('pointerdown', dismiss);
+    if (menuOpen) menu.current?.querySelector('button')?.focus({ preventScroll: true });
   }, [menuOpen]);
   const navigate = useNavigate();
   const librarySearch = useLocation().state?.librarySearch;
@@ -121,20 +116,14 @@ function BookDetailContent() {
   const saved = download.copy === 'saved';
   const removeCopy = saved || (!!download.copy && fileUnavailable);
   const deviceLabel = saved ? 'Saved' : removeCopy ? 'Remove' : download.busy ? 'Saving' : 'Save';
-  function closeMenu() {
-    setMenuOpen(false);
-    more.current?.focus({ preventScroll: true });
-  }
   function openManagement(action: NonNullable<typeof management>) {
-    closeMenu();
+    actions.dismiss(true);
     if (action === 'delete') setDeleteError(null);
     setManagement(action);
   }
   return <article className={styles.bookPage}>
     <PageHeader leading={<BackPill to={library}>Library</BackPill>}
-      actions={<div className={styles.bookActions}
-        onBlur={event => { if (menuOpen && event.relatedTarget && event.relatedTarget !== more.current && !menu.current?.contains(event.relatedTarget)) setMenuOpen(false); }}
-        onKeyDown={event => { if (menuOpen && event.key === 'Escape') { event.preventDefault(); closeMenu(); } }}>
+      actions={<div className={styles.bookActions} {...actions.events}>
         <JoinedActions label="Book actions" className={styles.bookToolbar}>
           {(metadata?.file_available || download.copy) && <JoinedAction aria-label={deviceLabel} title={deviceLabel} aria-description={removeCopy ? 'Remove the offline copy from this device' : 'Save for offline reading'} aria-haspopup={removeCopy ? 'dialog' : undefined} aria-disabled={download.disabled || undefined} aria-busy={download.busy || undefined}
             onClick={event => {
@@ -143,11 +132,11 @@ function BookDetailContent() {
               else download.save(book);
             }}><Icon name={saved ? 'device-saved' : 'device'} size={20} /></JoinedAction>}
           <JoinedActionLink aria-label="Activity" title="Activity" to={`/insights/activity?${new URLSearchParams({ document: ref.documentId })}`}><Icon name="insights" size={18} /></JoinedActionLink>
-          <JoinedAction ref={more} aria-label="More" title="More" aria-expanded={menuOpen} aria-controls={menuId} onClick={() => { if (menuOpen) closeMenu(); else setMenuOpen(true); }}><Icon name="more" size={20} /></JoinedAction>
+          <JoinedAction ref={more} aria-label="More" title="More" aria-expanded={menuOpen} aria-controls={menuId} onClick={() => { if (menuOpen) actions.dismiss(true); else setMenuOpen(true); }}><Icon name="more" size={20} /></JoinedAction>
         </JoinedActions>
         <div ref={menu} id={menuId} className={styles.bookActionMenu} role="group" aria-label="More actions" hidden={!menuOpen}>
           <button type="button" aria-haspopup="dialog" onClick={() => openManagement('info')}><Icon name="info" size={18} />Info</button>
-          {metadata?.file_available && <Link reloadDocument download to={`/api/v1/documents/${encodeURIComponent(ref.documentId)}/file`} onClick={closeMenu}><Icon name="download" size={18} />Export</Link>}
+          {metadata?.file_available && <Link reloadDocument download to={`/api/v1/documents/${encodeURIComponent(ref.documentId)}/file`} onClick={() => actions.dismiss(true)}><Icon name="download" size={18} />Export</Link>}
           {canManage && <>
             <hr />
             <button type="button" aria-haspopup="dialog" onClick={() => openManagement('identify')}><Icon name="search" size={18} />Identify</button>

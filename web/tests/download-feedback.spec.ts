@@ -58,6 +58,56 @@ for (const surface of ['library', 'detail'] as const) {
   });
 }
 
+test('Library book options dismiss without stealing focus and restore it after Escape or a dialog', async ({ page, server }) => {
+  await register(page, server.origin, 'download-options');
+  const options = card(page).getByLabel('Options for Public book 01');
+  const other = page.getByLabel('Options for Public book 02');
+  const save = card(page).getByRole('button', { name: 'Save to Device', exact: true });
+  await page.setViewportSize({ width: 320, height: 844 });
+  await options.focus();
+  await page.keyboard.press('Enter');
+  await expect(save).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(save).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(save).toBeHidden();
+  await expect(options).toBeFocused();
+
+  await options.click();
+  await save.focus();
+  await page.keyboard.press('Tab');
+  await expect(save).toBeHidden();
+  await expect(options).not.toBeFocused();
+
+  await options.click();
+  const heading = page.getByRole('heading', { name: 'Library', exact: true });
+  await heading.evaluate(element => element.addEventListener('mousedown', event => event.preventDefault(), { once: true }));
+  await heading.click();
+  await expect(save).toBeHidden();
+
+  await options.click();
+  await other.evaluate(trigger => (trigger as HTMLElement).click());
+  await expect(save).toBeHidden();
+  await expect(other.locator('..').getByRole('button', { name: 'Save to Device', exact: true })).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await saveFromLibrary(page);
+  await expect(saved(page)).toBeVisible();
+  await options.click();
+  const remove = card(page).getByRole('button', { name: 'Remove from Device', exact: true });
+  await remove.focus();
+  await remove.evaluate(button => button.addEventListener('mousedown', event => {
+    event.preventDefault();
+    button.blur();
+  }, { once: true }));
+  await remove.click();
+  const dialog = page.getByRole('dialog', { name: 'Remove this download?' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(options).toBeFocused();
+  await expect(remove).toBeHidden();
+});
+
 test('leaving a book invalidates its Retry and aborts an in-flight save', async ({ page, server }) => {
   await register(page, server.origin, 'download-feedback-route');
   await bookHeading(page).click();

@@ -187,10 +187,7 @@
 .bookToolbar > button[aria-expanded='true'] { background: var(--hero); }
 .bookToolbar > button[aria-disabled='true'] { opacity: .55; cursor: default; }
 .bookToolbar > button[aria-busy='true'] { cursor: wait; }
-.bookActionMenu { position: absolute; z-index: 5; inset-inline-end: 0; inset-block-start: calc(100% + 6px); width: min(154px, calc(100vw - 24px)); max-height: min(280px, calc(100dvh - 80px)); overflow: auto; padding: 5px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: 0 6px 22px #332b2028; }
-.bookActionMenu > :is(button, a) { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: .875rem; text-decoration: none; }
-.bookActionMenu > :is(button, a):is(:hover, :focus-visible) { background: var(--hero); }
-.bookActionMenu > :is(button, a):focus-visible { outline-offset: -2px; }
+.bookActionMenu { composes: panel from './ActionPanel.module.css'; z-index: 5; inset-inline-end: 0; inset-block-start: calc(100% + 6px); width: min(154px, calc(100vw - 24px)); max-height: min(280px, calc(100dvh - 80px)); overflow: auto; padding: 5px; border-radius: 12px; box-shadow: 0 6px 22px #332b2028; }
 .bookActionMenu > .bookActionDelete { color: var(--danger); }
 .bookActionMenu > hr { width: auto; margin: 3px 6px; border-color: var(--line); }
 .bookOverview:has(> .bookFileWarning) > .bookHeroDetail { margin-bottom: 8px; }
