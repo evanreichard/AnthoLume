@@ -26,8 +26,11 @@ function duration(seconds: number) {
 }
 
 function languageName(language: string) {
-  try { return new Intl.DisplayNames(undefined, { type: 'language' }).of(language) ?? language; }
-  catch { return language; }
+  try {
+    return new Intl.DisplayNames(undefined, { type: 'language' }).of(language) ?? language;
+  } catch {
+    return language;
+  }
 }
 
 export function BookDetail() {
@@ -50,7 +53,9 @@ function BookDetailContent() {
   const navigate = useNavigate();
   const librarySearch = useLocation().state?.librarySearch;
   const library = typeof librarySearch === 'string' && librarySearch ? `/library?${librarySearch}` : '/library';
-  const [management, setManagement] = useState<'edit' | 'identify' | 'delete' | 'info' | { source: components['schemas']['DocumentMatch'] } | null>(null);
+  const [management, setManagement] = useState<
+    'edit' | 'identify' | 'delete' | 'info' | { source: components['schemas']['DocumentMatch'] } | null
+  >(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<unknown>(null);
   const deleteController = useRef<AbortController | null>(null);
@@ -74,12 +79,20 @@ function BookDetailContent() {
     },
   });
   const stored = ref ? reading.books.find((book) => bookKey(book.ref) === bookKey(ref)) : undefined;
-  const book = document.data && ref?.kind === 'server' ? combineBooks(stored ? [stored] : [], [document.data], ref.account).find(item => !!item.document) : undefined;
-  if (!ref || ref.kind !== 'server' || !book) return <>
-    <PageHeader leading={<BackPill to={library}>Library</BackPill>} />
-    <ErrorNotice error={document.error} />
-    <h1 ref={heading} tabIndex={-1}>{ref?.kind === 'server' && document.isPending ? 'Opening book…' : 'Book not available'}</h1>
-  </>;
+  const book =
+    document.data && ref?.kind === 'server'
+      ? combineBooks(stored ? [stored] : [], [document.data], ref.account).find((item) => !!item.document)
+      : undefined;
+  if (!ref || ref.kind !== 'server' || !book)
+    return (
+      <>
+        <PageHeader leading={<BackPill to={library}>Library</BackPill>} />
+        <ErrorNotice error={document.error} />
+        <h1 ref={heading} tabIndex={-1}>
+          {ref?.kind === 'server' && document.isPending ? 'Opening book…' : 'Book not available'}
+        </h1>
+      </>
+    );
   async function metadataSaved(updated: { title: string | null; author: string | null }, cover?: Blob | null) {
     if (ref?.kind === 'server') {
       await reading.updateDownloadMetadata(ref, { title: updated.title, author: updated.author }, cover);
@@ -89,8 +102,9 @@ function BookDetailContent() {
   }
   async function deleteSharedBook() {
     if (ref?.kind !== 'server' || deleting) return;
-    const controller = deleteController.current = new AbortController();
-    setDeleting(true); setDeleteError(null);
+    const controller = (deleteController.current = new AbortController());
+    setDeleting(true);
+    setDeleteError(null);
     try {
       await session.api.deleteDocument(ref.account, ref.documentId, controller.signal);
       void invalidateBook(queryClient, ref);
@@ -119,89 +133,308 @@ function BookDetailContent() {
     if (action === 'delete') setDeleteError(null);
     setManagement(action);
   }
-  return <article className={styles.bookPage}>
-    <PageHeader leading={<BackPill to={library}>Library</BackPill>}
-      actions={<div className={styles.bookActions} {...actions.events}>
-        <JoinedActions label="Book actions" className={styles.bookToolbar}>
-          {(metadata?.file_available || download.copy) && <JoinedAction aria-label={deviceLabel} title={deviceLabel} aria-description={removeCopy ? 'Remove the offline copy from this device' : 'Save for offline reading'} aria-haspopup={removeCopy ? 'dialog' : undefined} aria-disabled={download.disabled || undefined} aria-busy={download.busy || undefined}
-            onClick={event => {
-              if (download.disabled) return;
-              if (removeCopy) { event.currentTarget.focus(); download.askToRemove(); }
-              else download.save(book);
-            }}><Icon name={saved ? 'device-saved' : 'device'} size={20} /></JoinedAction>}
-          <JoinedActionLink aria-label="Activity" title="Activity" to={`/insights/activity?${new URLSearchParams({ document: ref.documentId })}`}><Icon name="insights" size={18} /></JoinedActionLink>
-          <JoinedAction ref={more} aria-label="More" title="More" aria-expanded={menuOpen} aria-controls={menuId} onClick={() => { if (menuOpen) actions.dismiss(true); else setMenuOpen(true); }}><Icon name="more" size={20} /></JoinedAction>
-        </JoinedActions>
-        <div ref={menu} id={menuId} className={styles.bookActionMenu} role="group" aria-label="More actions" hidden={!menuOpen}>
-          <button type="button" aria-haspopup="dialog" onClick={() => openManagement('info')}><Icon name="info" size={18} />Info</button>
-          {metadata?.file_available && <Link reloadDocument download to={`/api/v1/documents/${encodeURIComponent(ref.documentId)}/file`} onClick={() => actions.dismiss(true)}><Icon name="download" size={18} />Export</Link>}
-          {canManage && <>
-            <hr />
-            <button type="button" aria-haspopup="dialog" onClick={() => openManagement('identify')}><Icon name="search" size={18} />Identify</button>
-            <button type="button" aria-haspopup="dialog" onClick={() => openManagement('edit')}><Icon name="edit" size={18} />Edit</button>
-            <hr />
-            <button type="button" aria-haspopup="dialog" className={styles.bookActionDelete} onClick={() => openManagement('delete')}><Icon name="trash" size={18} />Delete</button>
-          </>}
-        </div>
-      </div>} />
-    <div className={styles.bookOverview}>
-      <BookHero variant="detail" book={{ ...book, title }} headingRef={heading} progress={started ? Math.round(fraction * 100) : null} series={metadata?.series} edition={edition?.[2]}
-        action={metadata?.file_available ? (started ? 'Resume' : 'Read') : null} />
-      {fileUnavailable && <div className={styles.bookFileWarning} role="status">
-        <Icon name="warning" size={18} />
-        <p><strong>{missingFileLabel}</strong> <span>The server can’t find or read this file.</span></p>
-      </div>}
-    </div>
-    <section className={`${styles.detailSection} ${styles.detailReading}`} aria-label="Reading progress">
-      <div className={styles.detailProgress}>
-        <span>{Math.round(fraction * 100)}%</span><span>{fraction >= 1 ? 'Finished' : started ? 'In progress' : 'Not started'}</span>
-        <progress aria-label="Reading progress" max={1} value={fraction} />
+  return (
+    <article className={styles.bookPage}>
+      <PageHeader
+        leading={<BackPill to={library}>Library</BackPill>}
+        actions={
+          <div className={styles.bookActions} {...actions.events}>
+            <JoinedActions label="Book actions" className={styles.bookToolbar}>
+              {(metadata?.file_available || download.copy) && (
+                <JoinedAction
+                  aria-label={deviceLabel}
+                  title={deviceLabel}
+                  aria-description={
+                    removeCopy ? 'Remove the offline copy from this device' : 'Save for offline reading'
+                  }
+                  aria-haspopup={removeCopy ? 'dialog' : undefined}
+                  aria-disabled={download.disabled || undefined}
+                  aria-busy={download.busy || undefined}
+                  onClick={(event) => {
+                    if (download.disabled) return;
+                    if (removeCopy) {
+                      event.currentTarget.focus();
+                      download.askToRemove();
+                    } else download.save(book);
+                  }}
+                >
+                  <Icon name={saved ? 'device-saved' : 'device'} size={20} />
+                </JoinedAction>
+              )}
+              <JoinedActionLink
+                aria-label="Activity"
+                title="Activity"
+                to={`/insights/activity?${new URLSearchParams({ document: ref.documentId })}`}
+              >
+                <Icon name="insights" size={18} />
+              </JoinedActionLink>
+              <JoinedAction
+                ref={more}
+                aria-label="More"
+                title="More"
+                aria-expanded={menuOpen}
+                aria-controls={menuId}
+                onClick={() => {
+                  if (menuOpen) actions.dismiss(true);
+                  else setMenuOpen(true);
+                }}
+              >
+                <Icon name="more" size={20} />
+              </JoinedAction>
+            </JoinedActions>
+            <div
+              ref={menu}
+              id={menuId}
+              className={styles.bookActionMenu}
+              role="group"
+              aria-label="More actions"
+              hidden={!menuOpen}
+            >
+              <button type="button" aria-haspopup="dialog" onClick={() => openManagement('info')}>
+                <Icon name="info" size={18} />
+                Info
+              </button>
+              {metadata?.file_available && (
+                <Link
+                  reloadDocument
+                  download
+                  to={`/api/v1/documents/${encodeURIComponent(ref.documentId)}/file`}
+                  onClick={() => actions.dismiss(true)}
+                >
+                  <Icon name="download" size={18} />
+                  Export
+                </Link>
+              )}
+              {canManage && (
+                <>
+                  <hr />
+                  <button type="button" aria-haspopup="dialog" onClick={() => openManagement('identify')}>
+                    <Icon name="search" size={18} />
+                    Identify
+                  </button>
+                  <button type="button" aria-haspopup="dialog" onClick={() => openManagement('edit')}>
+                    <Icon name="edit" size={18} />
+                    Edit
+                  </button>
+                  <hr />
+                  <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    className={styles.bookActionDelete}
+                    onClick={() => openManagement('delete')}
+                  >
+                    <Icon name="trash" size={18} />
+                    Delete
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        }
+      />
+      <div className={styles.bookOverview}>
+        <BookHero
+          variant="detail"
+          book={{ ...book, title }}
+          headingRef={heading}
+          progress={started ? Math.round(fraction * 100) : null}
+          series={metadata?.series}
+          edition={edition?.[2]}
+          action={metadata?.file_available ? (started ? 'Resume' : 'Read') : null}
+        />
+        {fileUnavailable && (
+          <div className={styles.bookFileWarning} role="status">
+            <Icon name="warning" size={18} />
+            <p>
+              <strong>{missingFileLabel}</strong> <span>The server can’t find or read this file.</span>
+            </p>
+          </div>
+        )}
       </div>
-      {stats && <dl className={styles.detailStats}>
-        <div><dt>Time read</dt><dd>{duration(stats.reading_seconds)}</dd></div>
-        <div><dt>Reading pace</dt><dd>{stats.words_per_minute ? `${stats.words_per_minute.toLocaleString()} wpm` : '—'}</dd></div>
-      </dl>}
-    </section>
-    <section className={`${styles.detailSection} ${styles.detailInfo}`} aria-label="Book details">
-      <dl className={styles.detailMeta}>
-        <div><dt>Author</dt><dd>{book.author || 'Unknown'}</dd></div>
-        {format && <div><dt>Format</dt><dd>{format}</dd></div>}
-        {stats?.word_count != null && stats.word_count > 0 && <div><dt>Length</dt><dd>{stats.word_count.toLocaleString()} words</dd></div>}
-        {!!metadata?.matches?.length && <div className={styles.detailSources}><dt>Sources</dt><dd>
-          {metadata.matches.map(source => <ReviewSourcePill key={source.provider} provider={source.provider} workId={source.work_id}
-            disabled={!canManage} onReview={() => setManagement({ source })} />)}
-        </dd></div>}
-        {metadata?.series && <div><dt>Series</dt><dd>{metadata.series}</dd></div>}
-        {metadata?.lang && <div><dt>Language</dt><dd>{languageName(metadata.lang)}</dd></div>}
-        {metadata?.isbn13 ? <div><dt>ISBN-13</dt><dd>{metadata.isbn13}</dd></div> : metadata?.isbn10 && <div><dt>ISBN-10</dt><dd>{metadata.isbn10}</dd></div>}
-        <div className={styles.detailSynopsis}><dt>Synopsis</dt><dd>{metadata?.description?.trim() || 'No synopsis available for this edition.'}</dd></div>
-      </dl>
-    </section>
-    {metadata && management === 'info' && <Dialog title="Book information" onClose={() => setManagement(null)} footer={<Button size="slim" onClick={() => setManagement(null)}>Close</Button>}>
-      <dl className={styles.bookFileDetails}>
-        <div><dt>Title</dt><dd>{book.title || 'Untitled'}</dd></div>
-        <div><dt>Author</dt><dd>{book.author || 'Unknown'}</dd></div>
-        <div><dt>Catalog ID</dt><dd><code>{metadata.id}</code></dd></div>
-        <div><dt>Format</dt><dd>{format ?? metadata.media_type ?? 'Unknown'}</dd></div>
-        <div><dt>File size</dt><dd>{metadata.file_size_bytes == null ? 'Unavailable' : `${metadata.file_size_bytes.toLocaleString()} bytes`}</dd></div>
-        {metadata.storage_root_id != null && <div><dt>Storage root</dt><dd><code>{metadata.storage_root_id}</code></dd></div>}
-        {metadata.relative_file_path != null && <div><dt>Path within storage root</dt><dd><code>{metadata.relative_file_path}</code></dd></div>}
-      </dl>
-      <p>The catalog ID is used for KOReader sync. For newly imported books, it is the KOReader partial MD5.</p>
-    </Dialog>}
-    {canManage && document.data && management === 'edit' &&
-      <BookEditor book={book} refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={metadataSaved} />}
-    {canManage && document.data && (management === 'identify' || (management && typeof management === 'object')) &&
-      <IdentifyBook refId={ref} document={document.data} source={management === 'identify' ? undefined : management.source}
-        onClose={() => setManagement(null)} onSaved={metadataSaved} />}
-    <DownloadRemovalDialog download={download} />
-    {canManage && management === 'delete' && <Dialog title="Delete from shared library?" dismissDisabled={deleting} onClose={() => setManagement(null)} footer={<>
-      <Button disabled={deleting} onClick={() => setManagement(null)}>Cancel</Button>
-      <Button tone="danger" disabled={deleting} onClick={() => void deleteSharedBook()}>{deleting ? 'Deleting…' : 'Delete'}</Button>
-    </>}>
-      <p>“{title}” will be removed from the shared library for everyone. The server keeps the original file and reading history. This does not remove downloads from other devices.</p>
-      <ErrorNotice error={deleteError} />
-    </Dialog>}
-    <ErrorNotice error={document.error} />
-  </article>;
+      <section className={`${styles.detailSection} ${styles.detailReading}`} aria-label="Reading progress">
+        <div className={styles.detailProgress}>
+          <span>{Math.round(fraction * 100)}%</span>
+          <span>{fraction >= 1 ? 'Finished' : started ? 'In progress' : 'Not started'}</span>
+          <progress aria-label="Reading progress" max={1} value={fraction} />
+        </div>
+        {stats && (
+          <dl className={styles.detailStats}>
+            <div>
+              <dt>Time read</dt>
+              <dd>{duration(stats.reading_seconds)}</dd>
+            </div>
+            <div>
+              <dt>Reading pace</dt>
+              <dd>{stats.words_per_minute ? `${stats.words_per_minute.toLocaleString()} wpm` : '—'}</dd>
+            </div>
+          </dl>
+        )}
+      </section>
+      <section className={`${styles.detailSection} ${styles.detailInfo}`} aria-label="Book details">
+        <dl className={styles.detailMeta}>
+          <div>
+            <dt>Author</dt>
+            <dd>{book.author || 'Unknown'}</dd>
+          </div>
+          {format && (
+            <div>
+              <dt>Format</dt>
+              <dd>{format}</dd>
+            </div>
+          )}
+          {stats?.word_count != null && stats.word_count > 0 && (
+            <div>
+              <dt>Length</dt>
+              <dd>{stats.word_count.toLocaleString()} words</dd>
+            </div>
+          )}
+          {!!metadata?.matches?.length && (
+            <div className={styles.detailSources}>
+              <dt>Sources</dt>
+              <dd>
+                {metadata.matches.map((source) => (
+                  <ReviewSourcePill
+                    key={source.provider}
+                    provider={source.provider}
+                    workId={source.work_id}
+                    disabled={!canManage}
+                    onReview={() => setManagement({ source })}
+                  />
+                ))}
+              </dd>
+            </div>
+          )}
+          {metadata?.series && (
+            <div>
+              <dt>Series</dt>
+              <dd>{metadata.series}</dd>
+            </div>
+          )}
+          {metadata?.lang && (
+            <div>
+              <dt>Language</dt>
+              <dd>{languageName(metadata.lang)}</dd>
+            </div>
+          )}
+          {metadata?.isbn13 ? (
+            <div>
+              <dt>ISBN-13</dt>
+              <dd>{metadata.isbn13}</dd>
+            </div>
+          ) : (
+            metadata?.isbn10 && (
+              <div>
+                <dt>ISBN-10</dt>
+                <dd>{metadata.isbn10}</dd>
+              </div>
+            )
+          )}
+          <div className={styles.detailSynopsis}>
+            <dt>Synopsis</dt>
+            <dd>{metadata?.description?.trim() || 'No synopsis available for this edition.'}</dd>
+          </div>
+        </dl>
+      </section>
+      {metadata && management === 'info' && (
+        <Dialog
+          title="Book information"
+          onClose={() => setManagement(null)}
+          footer={
+            <Button size="slim" onClick={() => setManagement(null)}>
+              Close
+            </Button>
+          }
+        >
+          <dl className={styles.bookFileDetails}>
+            <div>
+              <dt>Title</dt>
+              <dd>{book.title || 'Untitled'}</dd>
+            </div>
+            <div>
+              <dt>Author</dt>
+              <dd>{book.author || 'Unknown'}</dd>
+            </div>
+            <div>
+              <dt>Catalog ID</dt>
+              <dd>
+                <code>{metadata.id}</code>
+              </dd>
+            </div>
+            <div>
+              <dt>Format</dt>
+              <dd>{format ?? metadata.media_type ?? 'Unknown'}</dd>
+            </div>
+            <div>
+              <dt>File size</dt>
+              <dd>
+                {metadata.file_size_bytes == null
+                  ? 'Unavailable'
+                  : `${metadata.file_size_bytes.toLocaleString()} bytes`}
+              </dd>
+            </div>
+            {metadata.storage_root_id != null && (
+              <div>
+                <dt>Storage root</dt>
+                <dd>
+                  <code>{metadata.storage_root_id}</code>
+                </dd>
+              </div>
+            )}
+            {metadata.relative_file_path != null && (
+              <div>
+                <dt>Path within storage root</dt>
+                <dd>
+                  <code>{metadata.relative_file_path}</code>
+                </dd>
+              </div>
+            )}
+          </dl>
+          <p>The catalog ID is used for KOReader sync. For newly imported books, it is the KOReader partial MD5.</p>
+        </Dialog>
+      )}
+      {canManage && document.data && management === 'edit' && (
+        <BookEditor
+          book={book}
+          refId={ref}
+          document={document.data}
+          onClose={() => setManagement(null)}
+          onSaved={metadataSaved}
+        />
+      )}
+      {canManage && document.data && (management === 'identify' || (management && typeof management === 'object')) && (
+        <IdentifyBook
+          refId={ref}
+          document={document.data}
+          source={management === 'identify' ? undefined : management.source}
+          onClose={() => setManagement(null)}
+          onSaved={metadataSaved}
+        />
+      )}
+      <DownloadRemovalDialog download={download} />
+      {canManage && management === 'delete' && (
+        <Dialog
+          title="Delete from shared library?"
+          dismissDisabled={deleting}
+          onClose={() => setManagement(null)}
+          footer={
+            <>
+              <Button disabled={deleting} onClick={() => setManagement(null)}>
+                Cancel
+              </Button>
+              <Button tone="danger" disabled={deleting} onClick={() => void deleteSharedBook()}>
+                {deleting ? 'Deleting…' : 'Delete'}
+              </Button>
+            </>
+          }
+        >
+          <p>
+            “{title}” will be removed from the shared library for everyone. The server keeps the original file and
+            reading history. This does not remove downloads from other devices.
+          </p>
+          <ErrorNotice error={deleteError} />
+        </Dialog>
+      )}
+      <ErrorNotice error={document.error} />
+    </article>
+  );
 }

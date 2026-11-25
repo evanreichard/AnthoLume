@@ -15,8 +15,15 @@ import { GestureLayer, useParentGestures } from './GestureLayer';
 const defaults: Appearance = { size: 100, font: 'serif', theme: 'tan' };
 type ChromeAction = 'show' | 'toggle' | 'focus' | 'hide';
 const chromeIdleMs = 4000;
-const themeNames: Record<Appearance['theme'], string> = { light: 'Light', tan: 'Paper', blue: 'Mist', gray: 'Slate', black: 'Night' };
-const minTextSize = 50, maxTextSize = 200;
+const themeNames: Record<Appearance['theme'], string> = {
+  light: 'Light',
+  tan: 'Paper',
+  blue: 'Mist',
+  gray: 'Slate',
+  black: 'Night',
+};
+const minTextSize = 50,
+  maxTextSize = 200;
 const clampSize = (size: number) => Math.max(minTextSize, Math.min(maxTextSize, Math.round(size)));
 
 function resumeLabel(source: string, progress: number | null, savedAt?: string) {
@@ -24,33 +31,65 @@ function resumeLabel(source: string, progress: number | null, savedAt?: string) 
 }
 
 function Chevron({ right = false }: { right?: boolean }) {
-  return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={right ? 'm9 5 7 7-7 7' : 'm15 5-7 7 7 7'} /></svg>;
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={right ? 'm9 5 7 7-7 7' : 'm15 5-7 7 7 7'} />
+    </svg>
+  );
 }
 function PageEdge({ next, turn }: { next: boolean; turn: (forward: boolean) => void }) {
   const start = useRef<{ id: number; x: number; y: number } | null>(null);
   const handled = useRef(false);
-  return <button type="button" className={`${styles.pageEdge} ${next ? styles.edgeRight : styles.edgeLeft}`} aria-label={next ? 'Next Page at Edge' : 'Previous Page at Edge'}
-    onPointerDown={event => {
-      if (!event.isPrimary || event.button !== 0) return;
-      handled.current = false;
-      start.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }}
-    onPointerUp={event => {
-      const down = start.current;
-      if (down?.id !== event.pointerId) return;
-      start.current = null;
-      const dx = event.clientX - down.x, dy = event.clientY - down.y;
-      handled.current = Math.max(Math.abs(dx), Math.abs(dy)) > 12;
-      if (Math.abs(dx) >= 35 && Math.abs(dx) > Math.abs(dy)) turn(dx < 0);
-    }}
-    onPointerCancel={() => { start.current = null; handled.current = true; }}
-    onClick={event => { if (!handled.current || event.detail === 0) turn(next); }}>
-    <Chevron right={next} />
-  </button>;
+  return (
+    <button
+      type="button"
+      className={`${styles.pageEdge} ${next ? styles.edgeRight : styles.edgeLeft}`}
+      aria-label={next ? 'Next Page at Edge' : 'Previous Page at Edge'}
+      onPointerDown={(event) => {
+        if (!event.isPrimary || event.button !== 0) return;
+        handled.current = false;
+        start.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerUp={(event) => {
+        const down = start.current;
+        if (down?.id !== event.pointerId) return;
+        start.current = null;
+        const dx = event.clientX - down.x,
+          dy = event.clientY - down.y;
+        handled.current = Math.max(Math.abs(dx), Math.abs(dy)) > 12;
+        if (Math.abs(dx) >= 35 && Math.abs(dx) > Math.abs(dy)) turn(dx < 0);
+      }}
+      onPointerCancel={() => {
+        start.current = null;
+        handled.current = true;
+      }}
+      onClick={(event) => {
+        if (!handled.current || event.detail === 0) turn(next);
+      }}
+    >
+      <Chevron right={next} />
+    </button>
+  );
 }
 
-export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onReconnect, recoveryControl }: {
+export function ReaderScreen({
+  book,
+  onClose,
+  onBackToLibrary = onClose,
+  onReconnect,
+  recoveryControl,
+}: {
   book: BookRef;
   onClose: () => void;
   onBackToLibrary?: () => void;
@@ -63,43 +102,74 @@ export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onRecon
   const offline = access.kind === 'offline' && book.kind === 'server';
   const parentGestures = useParentGestures();
   const [selecting, setSelecting] = useState(false);
-  const host = useRef<HTMLDivElement>(null), controller = useRef<ReaderController | null>(null);
-  const [readerState, setReaderState] = useState<{ key: string; value: ReaderStatus }>({ key, value: { state: 'opening', message: 'Getting the reader ready…' } });
-  const status: ReaderStatus = readerState.key === key ? readerState.value : { state: 'opening', message: 'Getting the reader ready…' };
+  const host = useRef<HTMLDivElement>(null),
+    controller = useRef<ReaderController | null>(null);
+  const [readerState, setReaderState] = useState<{ key: string; value: ReaderStatus }>({
+    key,
+    value: { state: 'opening', message: 'Getting the reader ready…' },
+  });
+  const status: ReaderStatus =
+    readerState.key === key ? readerState.value : { state: 'opening', message: 'Getting the reader ready…' };
   const setStatus = (value: ReaderStatus) => setReaderState({ key, value });
-  const [panel, setPanel] = useState<'toc' | 'appearance' | 'hide'>('hide'), [storedAppearance, setAppearance] = useState<Appearance>();
+  const [panel, setPanel] = useState<'toc' | 'appearance' | 'hide'>('hide'),
+    [storedAppearance, setAppearance] = useState<Appearance>();
   const appearance = storedAppearance ?? defaults;
   const [chrome, setChrome] = useState({ visible: false, activity: 0 });
-  const [hovering, setHovering] = useState(false), [showHint, setShowHint] = useState(false);
+  const [hovering, setHovering] = useState(false),
+    [showHint, setShowHint] = useState(false);
   const [readerMode, setReaderMode] = useState<'account' | 'device'>('device');
-  const [hasOpened, setHasOpened] = useState(false), [showLoading, setShowLoading] = useState(false);
-  const top = useRef<HTMLElement>(null), bottom = useRef<HTMLElement>(null);
-  const keyboardReveal = useRef<HTMLButtonElement>(null), focusControls = useRef(false);
+  const [hasOpened, setHasOpened] = useState(false),
+    [showLoading, setShowLoading] = useState(false);
+  const top = useRef<HTMLElement>(null),
+    bottom = useRef<HTMLElement>(null);
+  const keyboardReveal = useRef<HTMLButtonElement>(null),
+    focusControls = useRef(false);
   const appearanceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const draggingSize = useRef(false);
-  const pinchBase = useRef<number | null>(null), pinchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pinchBase = useRef<number | null>(null),
+    pinchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [pinchSize, setPinchSize] = useState<number | null>(null);
   const pendingAppearance = useRef<Appearance | null>(null);
   const applyingAppearance = useRef<ReaderController | null>(null);
-  const [attempt, setAttempt] = useState(0), [explicitBeginning, setExplicitBeginning] = useState(false);
+  const [attempt, setAttempt] = useState(0),
+    [explicitBeginning, setExplicitBeginning] = useState(false);
   const [retryingOfflineOpen, setRetryingOfflineOpen] = useState(false);
   const retryConnection = useRef<symbol | null>(null);
   useLayoutEffect(() => {
     setRetryingOfflineOpen(false);
-    return () => { retryConnection.current = null; };
+    return () => {
+      retryConnection.current = null;
+    };
   }, [key]);
-  const [resumeChoice, setResumeChoice] = useState<{ key: string; device: string; server: string; choose: (device: boolean) => void } | null>(null);
-  const permitted = book.kind === 'local' || ((access.kind === 'authenticated' || access.kind === 'offline') && sameAccount(access.account, book.account));
-  const appearanceRef = useRef(appearance), appliedAppearance = useRef(defaults);
-  function refreshChrome() { setChrome(current => ({ ...current, activity: current.activity + 1 })); }
+  const [resumeChoice, setResumeChoice] = useState<{
+    key: string;
+    device: string;
+    server: string;
+    choose: (device: boolean) => void;
+  } | null>(null);
+  const permitted =
+    book.kind === 'local' ||
+    ((access.kind === 'authenticated' || access.kind === 'offline') && sameAccount(access.account, book.account));
+  const appearanceRef = useRef(appearance),
+    appliedAppearance = useRef(defaults);
+  function refreshChrome() {
+    setChrome((current) => ({ ...current, activity: current.activity + 1 }));
+  }
   function reveal(action: ChromeAction) {
     if (action === 'hide' || action === 'toggle') closePanel();
     if (action === 'hide') {
       setHovering(false);
-      if (keyboardReveal.current?.parentElement?.contains(document.activeElement) && document.activeElement?.matches(':focus-visible')) keyboardReveal.current.focus();
+      if (
+        keyboardReveal.current?.parentElement?.contains(document.activeElement) &&
+        document.activeElement?.matches(':focus-visible')
+      )
+        keyboardReveal.current.focus();
     }
     if (action === 'focus' || action === 'hide') focusControls.current = action === 'focus';
-    setChrome(current => ({ visible: action === 'toggle' ? !current.visible : action !== 'hide', activity: current.activity + 1 }));
+    setChrome((current) => ({
+      visible: action === 'toggle' ? !current.visible : action !== 'hide',
+      activity: current.activity + 1,
+    }));
     setShowHint(false);
   }
   useEffect(() => {
@@ -113,8 +183,13 @@ export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onRecon
   useEffect(() => {
     if (!chrome.visible || panel !== 'hide' || hovering) return;
     const timer = setTimeout(() => {
-      if (top.current?.querySelector(':focus-visible') || bottom.current?.querySelector(':focus-visible') || document.querySelector('dialog:modal')) return;
-      setChrome(current => ({ ...current, visible: false }));
+      if (
+        top.current?.querySelector(':focus-visible') ||
+        bottom.current?.querySelector(':focus-visible') ||
+        document.querySelector('dialog:modal')
+      )
+        return;
+      setChrome((current) => ({ ...current, visible: false }));
     }, chromeIdleMs);
     return () => clearTimeout(timer);
   }, [chrome, panel, hovering]);
@@ -125,12 +200,19 @@ export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onRecon
     try {
       if (localStorage.getItem(hintKey)) return;
       localStorage.setItem(hintKey, 'seen');
-    } catch { /* The hint still works without storage. */ }
+    } catch {
+      /* The hint still works without storage. */
+    }
     setShowHint(true);
     const timer = setTimeout(() => setShowHint(false), chromeIdleMs);
     return () => clearTimeout(timer);
   }, [hasOpened, permitted, offline]);
-  useEffect(() => { setExplicitBeginning(false); setChrome({ visible: false, activity: 0 }); setHovering(false); setSelecting(false); }, [key]);
+  useEffect(() => {
+    setExplicitBeginning(false);
+    setChrome({ visible: false, activity: 0 });
+    setHovering(false);
+    setSelecting(false);
+  }, [key]);
   useEffect(() => {
     setShowLoading(false);
     if (hasOpened || status.state !== 'opening' || !permitted) return;
@@ -141,45 +223,92 @@ export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onRecon
   // oxlint-disable react/exhaustive-deps -- Reader Lifetime - Reopen on book identity, not new book objects or handler closures.
   useEffect(() => {
     if (!runtime || !readerReady || !host.current || parentGestures === undefined) return;
-    let alive = true, resizeTimer: ReturnType<typeof setTimeout> | undefined;
+    let alive = true,
+      resizeTimer: ReturnType<typeof setTimeout> | undefined;
     setHasOpened(false);
     setStatus({ state: 'opening', message: 'Reading your preferences…' });
-    const abort = new AbortController(), wake = new ReaderWakeLock();
-    const prepareDeadline = () => setTimeout(() => {
-      const message = 'The book took too long to prepare. Check your connection and retry.';
-      abort.abort(new DOMException(message, 'TimeoutError'));
-      if (alive) setStatus({ state: 'error', failure: 'general', message });
-    }, 90_000);
-    let deadline = prepareDeadline(), ready = false;
+    const abort = new AbortController(),
+      wake = new ReaderWakeLock();
+    const prepareDeadline = () =>
+      setTimeout(() => {
+        const message = 'The book took too long to prepare. Check your connection and retry.';
+        abort.abort(new DOMException(message, 'TimeoutError'));
+        if (alive) setStatus({ state: 'error', failure: 'general', message });
+      }, 90_000);
+    let deadline = prepareDeadline(),
+      ready = false;
     let serverBook: Awaited<ReturnType<typeof runtime.openServerBook>> | undefined;
-    const instance = new ReaderController(host.current, next => {
-      if (!alive || abort.signal.aborted) return;
-      if (next.state === 'ready') { ready = true; setHasOpened(true); }
-      setStatus(next);
-    }, async (location, measured) => {
-      const checkpoint = { position: location.ko, fraction: location.fraction };
-      if (book.kind === 'local') return runtime.repo.saveLocal(book, checkpoint);
-      if (!serverBook) throw new Error('Reader not open');
-      await serverBook.save(checkpoint, measured && activityEvent(book.documentId, serverBook.deviceId, measured));
-    }, { localOnly: book.kind === 'local', parentGestures, interact: wake.interact, chrome: reveal, resizeText: resizeFromPinch,
-      cycleTheme: () => { const themes = Object.keys(palette) as Appearance['theme'][]; void changeAppearance({ ...appearanceRef.current, theme: themes[(themes.indexOf(appearanceRef.current.theme) + 1) % themes.length]! }); },
-    });
+    const instance = new ReaderController(
+      host.current,
+      (next) => {
+        if (!alive || abort.signal.aborted) return;
+        if (next.state === 'ready') {
+          ready = true;
+          setHasOpened(true);
+        }
+        setStatus(next);
+      },
+      async (location, measured) => {
+        const checkpoint = { position: location.ko, fraction: location.fraction };
+        if (book.kind === 'local') return runtime.repo.saveLocal(book, checkpoint);
+        if (!serverBook) throw new Error('Reader not open');
+        await serverBook.save(checkpoint, measured && activityEvent(book.documentId, serverBook.deviceId, measured));
+      },
+      {
+        localOnly: book.kind === 'local',
+        parentGestures,
+        interact: wake.interact,
+        chrome: reveal,
+        resizeText: resizeFromPinch,
+        cycleTheme: () => {
+          const themes = Object.keys(palette) as Appearance['theme'][];
+          void changeAppearance({
+            ...appearanceRef.current,
+            theme: themes[(themes.indexOf(appearanceRef.current.theme) + 1) % themes.length]!,
+          });
+        },
+      },
+    );
     controller.current = instance;
     let dimensions: { width: number; height: number } | undefined;
-    const observer = new ResizeObserver(entries => {
-      const rect = entries[0]?.contentRect; if (!rect) return;
-      const previous = dimensions; dimensions = { width: rect.width, height: rect.height };
-      if (!previous || Math.abs(previous.width - rect.width) < 1 && Math.abs(previous.height - rect.height) < 1) return;
-      clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (alive && controller.current === instance) { const current = appliedAppearance.current; void instance.reflow(current.size, current.font, current.theme); } }, 150);
+    const observer = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (!rect) return;
+      const previous = dimensions;
+      dimensions = { width: rect.width, height: rect.height };
+      if (!previous || (Math.abs(previous.width - rect.width) < 1 && Math.abs(previous.height - rect.height) < 1))
+        return;
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (alive && controller.current === instance) {
+          const current = appliedAppearance.current;
+          void instance.reflow(current.size, current.font, current.theme);
+        }
+      }, 150);
     });
     void (async () => {
       const pref = (await runtime.repo.db.meta.get('appearance'))?.value as Appearance | undefined;
       if (!alive) return;
-      const chosen = pref && Object.hasOwn(palette, pref.theme) && readerFontNames.includes(pref.font) && Number.isFinite(pref.size) && pref.size >= minTextSize && pref.size <= maxTextSize ? pref : defaults;
-      appliedAppearance.current = chosen; appearanceRef.current = chosen; setAppearance(chosen);
-      const reportStage = (message: string) => { if (alive && !abort.signal.aborted) setStatus({ state: 'opening', message }); };
+      const chosen =
+        pref &&
+        Object.hasOwn(palette, pref.theme) &&
+        readerFontNames.includes(pref.font) &&
+        Number.isFinite(pref.size) &&
+        pref.size >= minTextSize &&
+        pref.size <= maxTextSize
+          ? pref
+          : defaults;
+      appliedAppearance.current = chosen;
+      appearanceRef.current = chosen;
+      setAppearance(chosen);
+      const reportStage = (message: string) => {
+        if (alive && !abort.signal.aborted) setStatus({ state: 'opening', message });
+      };
       if (book.kind === 'local') reportStage('Opening stored copy…');
-      const opened = book.kind === 'server' ? (serverBook = await runtime.openServerBook(book, abort.signal, reportStage)) : await runtime.repo.open(book);
+      const opened =
+        book.kind === 'server'
+          ? (serverBook = await runtime.openServerBook(book, abort.signal, reportStage))
+          : await runtime.repo.open(book);
       if (!alive) return;
       setReaderMode(serverBook?.mode ?? 'device');
       const { checkpoint, resumeCandidate, lastReadAt } = opened.row;
@@ -189,11 +318,16 @@ export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onRecon
         const useDevice = await new Promise<boolean>((resolve, reject) => {
           const cancelled = () => reject(abort.signal.reason);
           abort.signal.addEventListener('abort', cancelled, { once: true });
-          setResumeChoice({ key, device: resumeLabel('This Device', resumeCandidate.fraction, resumeCandidate.savedAt), server: resumeLabel('Server', checkpoint.fraction, lastReadAt), choose: device => {
-            abort.signal.removeEventListener('abort', cancelled);
-            setResumeChoice(null);
-            resolve(device);
-          } });
+          setResumeChoice({
+            key,
+            device: resumeLabel('This Device', resumeCandidate.fraction, resumeCandidate.savedAt),
+            server: resumeLabel('Server', checkpoint.fraction, lastReadAt),
+            choose: (device) => {
+              abort.signal.removeEventListener('abort', cancelled);
+              setResumeChoice(null);
+              resolve(device);
+            },
+          });
         });
         abort.signal.throwIfAborted();
         if (useDevice) position = resumeCandidate.position;
@@ -203,25 +337,48 @@ export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onRecon
       if (!alive || !ready || abort.signal.aborted) return;
       if (!explicitBeginning && resumeCandidate) await runtime.repo.clearResumeCandidate(book, resumeCandidate);
       if (alive && host.current) observer.observe(host.current);
-    })().catch(error => {
-      if (alive && !abort.signal.aborted) setStatus({ state: 'error', failure: error instanceof NoOfflineCopyError ? 'no-offline-copy' : 'general', message: String(error) });
-    }).finally(() => clearTimeout(deadline));
+    })()
+      .catch((error) => {
+        if (alive && !abort.signal.aborted)
+          setStatus({
+            state: 'error',
+            failure: error instanceof NoOfflineCopyError ? 'no-offline-copy' : 'general',
+            message: String(error),
+          });
+      })
+      .finally(() => clearTimeout(deadline));
     return () => {
-      alive = false; clearTimeout(deadline); abort.abort(); setResumeChoice(null); observer.disconnect(); clearTimeout(resizeTimer); wake.dispose();
-      clearTimeout(appearanceTimer.current); appearanceTimer.current = undefined;
-      clearTimeout(pinchTimer.current); pinchBase.current = null;
-      pendingAppearance.current = null; draggingSize.current = false; controller.current = null;
+      alive = false;
+      clearTimeout(deadline);
+      abort.abort();
+      setResumeChoice(null);
+      observer.disconnect();
+      clearTimeout(resizeTimer);
+      wake.dispose();
+      clearTimeout(appearanceTimer.current);
+      appearanceTimer.current = undefined;
+      clearTimeout(pinchTimer.current);
+      pinchBase.current = null;
+      pendingAppearance.current = null;
+      draggingSize.current = false;
+      controller.current = null;
       void instance.dispose();
     };
   }, [runtime, readerReady, key, attempt, explicitBeginning, parentGestures]);
   // oxlint-enable react/exhaustive-deps
   async function applyAppearance() {
-    clearTimeout(appearanceTimer.current); appearanceTimer.current = undefined;
+    clearTimeout(appearanceTimer.current);
+    appearanceTimer.current = undefined;
     const instance = controller.current;
     if (!runtime || !instance || applyingAppearance.current === instance) return;
     applyingAppearance.current = instance;
     try {
-      while (controller.current === instance && pendingAppearance.current && !draggingSize.current && appearanceTimer.current === undefined) {
+      while (
+        controller.current === instance &&
+        pendingAppearance.current &&
+        !draggingSize.current &&
+        appearanceTimer.current === undefined
+      ) {
         const next = pendingAppearance.current;
         pendingAppearance.current = null;
         appliedAppearance.current = next;
@@ -229,22 +386,30 @@ export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onRecon
         await instance.reflow(next.size, next.font, next.theme);
       }
     } catch {
-      if (controller.current === instance) setStatus({ state: 'error', failure: 'general', message: 'Could not apply reading preferences. Please try again.' });
+      if (controller.current === instance)
+        setStatus({
+          state: 'error',
+          failure: 'general',
+          message: 'Could not apply reading preferences. Please try again.',
+        });
     } finally {
       if (applyingAppearance.current === instance) applyingAppearance.current = null;
     }
   }
   function changeAppearance(next: Appearance, debounce = false) {
-    setAppearance(next); appearanceRef.current = next; pendingAppearance.current = next;
-    clearTimeout(appearanceTimer.current); appearanceTimer.current = undefined;
+    setAppearance(next);
+    appearanceRef.current = next;
+    pendingAppearance.current = next;
+    clearTimeout(appearanceTimer.current);
+    appearanceTimer.current = undefined;
     if (draggingSize.current) return;
     if (debounce) appearanceTimer.current = setTimeout(() => void applyAppearance(), 150);
     else void applyAppearance();
   }
   function resizeFromPinch(scale: number, finished: boolean) {
     if (finished && pinchBase.current === null) return;
-    const base = pinchBase.current ??= appearanceRef.current.size;
-    const size = Math.abs(scale - 1) < .04 ? base : clampSize(base * scale);
+    const base = (pinchBase.current ??= appearanceRef.current.size);
+    const size = Math.abs(scale - 1) < 0.04 ? base : clampSize(base * scale);
     clearTimeout(pinchTimer.current);
     setPinchSize(size);
     if (finished) {
@@ -269,39 +434,55 @@ export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onRecon
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     const previous = meta?.content;
     const surfaces = [document.documentElement, document.body];
-    const backgrounds = surfaces.map(element => element.style.backgroundColor);
+    const backgrounds = surfaces.map((element) => element.style.backgroundColor);
     // Safari Chrome - Keep the document fallback and older theme-color behavior in sync with the edge paint.
     if (meta) meta.content = background;
-    surfaces.forEach(element => { element.style.backgroundColor = background; });
+    surfaces.forEach((element) => {
+      element.style.backgroundColor = background;
+    });
     return () => {
       if (meta && previous !== undefined) meta.content = previous;
-      surfaces.forEach((element, i) => { element.style.backgroundColor = backgrounds[i]!; });
+      surfaces.forEach((element, i) => {
+        element.style.backgroundColor = backgrounds[i]!;
+      });
     };
   }, [background, permitted, hasStoredAppearance]);
   const location = status.location;
-  const currentChapter = status.toc?.find(item => item.href.split('#')[0] === location?.chapter.split('#')[0]);
+  const currentChapter = status.toc?.find((item) => item.href.split('#')[0] === location?.chapter.split('#')[0]);
   const canTurn = permitted && status.state === 'ready';
-  const download = snapshot.downloads.find(item => refKey(item.ref) === key);
+  const download = snapshot.downloads.find((item) => refKey(item.ref) === key);
   const loadingMessage = !snapshot.ready ? 'Starting reader storage…' : status.message;
   const storageError = !hasOpened && !snapshot.ready ? snapshot.error : null;
   const failure = permitted && !storageError && status.state === 'error' ? status.failure : 'general';
   const noOfflineCopy = failure === 'no-offline-copy';
   const blocked = !permitted || !!storageError || status.state === 'error';
-  const failureMessage = !permitted ? 'Sign in to this account to open its books.'
-    : storageError ? `Could not start reader storage. ${storageError}`
-    : noOfflineCopy && attempt > 0 && offline ? 'Still offline. Try again when you reconnect.'
-    : noOfflineCopy ? 'This book isn’t saved on this device. Reconnect to open it.' : status.message;
+  const failureMessage = !permitted
+    ? 'Sign in to this account to open its books.'
+    : storageError
+      ? `Could not start reader storage. ${storageError}`
+      : noOfflineCopy && attempt > 0 && offline
+        ? 'Still offline. Try again when you reconnect.'
+        : noOfflineCopy
+          ? 'This book isn’t saved on this device. Reconnect to open it.'
+          : status.message;
   function retry(beginning = false) {
     setExplicitBeginning(beginning);
-    setAttempt(n => n + 1);
+    setAttempt((n) => n + 1);
   }
   async function tryAgain() {
-    if (storageError) { window.location.reload(); return; }
+    if (storageError) {
+      window.location.reload();
+      return;
+    }
     if (noOfflineCopy && onReconnect) {
       if (retryConnection.current) return;
-      const token = retryConnection.current = Symbol();
+      const token = (retryConnection.current = Symbol());
       setRetryingOfflineOpen(true);
-      try { await onReconnect(); } catch { /* An offline copy may have been added by another tab. */ }
+      try {
+        await onReconnect();
+      } catch {
+        /* An offline copy may have been added by another tab. */
+      }
       if (retryConnection.current !== token) return;
       retryConnection.current = null;
       setRetryingOfflineOpen(false);
@@ -314,10 +495,16 @@ export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onRecon
     if (readingOffline) snackbar.show({ message: 'Reading offline', icon: 'cloud-off', placement: 'reader' });
     return snackbar.dismiss;
   }, [readingOffline, snackbar]);
-  useEffect(() => { if (chromeVisible) snackbar.dismiss(); }, [chromeVisible, readingOffline, snackbar]);
+  useEffect(() => {
+    if (chromeVisible) snackbar.dismiss();
+  }, [chromeVisible, readingOffline, snackbar]);
   const chromeEvents = {
-    onPointerEnter: (event: React.PointerEvent) => { if (event.pointerType === 'mouse') setHovering(true); },
-    onPointerLeave: (event: React.PointerEvent) => { if (event.pointerType === 'mouse') setHovering(false); },
+    onPointerEnter: (event: React.PointerEvent) => {
+      if (event.pointerType === 'mouse') setHovering(true);
+    },
+    onPointerLeave: (event: React.PointerEvent) => {
+      if (event.pointerType === 'mouse') setHovering(false);
+    },
     onPointerDown: refreshChrome,
     onFocus: refreshChrome,
     onBlur: refreshChrome,
@@ -325,92 +512,409 @@ export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onRecon
   const turn = (forward: boolean) => {
     if (canTurn) void (forward ? controller.current?.next() : controller.current?.previous());
   };
-  return <section className={styles.reader} style={{ visibility: !storedAppearance && !showLoading && status.state === 'opening' && !storageError ? 'hidden' : undefined, background, color, colorScheme: appearance.theme === 'gray' || appearance.theme === 'black' ? 'dark' : 'light', '--reader-paper': background } as CSSProperties} aria-label="Book reader" data-reader-controls={chromeVisible ? 'visible' : undefined} data-reader-state={status.state} data-reader-metrics={permitted ? JSON.stringify(status.diagnostics) : undefined}>
-    {hasOpened && permitted && status.state !== 'error' && <button ref={keyboardReveal} type="button" className={`${styles.srOnly} ${styles.keyboardReveal}`} aria-keyshortcuts="C" onClick={() => reveal('focus')}>Show Reader Controls</button>}
-    <header ref={top} inert={!chromeVisible && permitted && status.state !== 'error' && hasOpened} className={`${styles.bar} ${styles.top}`}>
-      <button {...chromeEvents} className={styles.glass} onClick={onClose}><Chevron /><span>Library</span></button>
-      {hasOpened && !blocked && recoveryControl && <div className={styles.connection} {...chromeEvents}>{recoveryControl}</div>}
-      <div className={styles.tools} role="group" aria-label="Reading tools">
-        {permitted && status.canGoBack && <button {...chromeEvents} className={styles.glass} disabled={status.state !== 'ready'} aria-label="Back to Previous Spot" title="Back to Previous Spot" onClick={() => { closePanel(); reveal('show'); void controller.current?.back(); }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 14-5-5 5-5M4 9h10a5 5 0 0 1 0 10h-2" /></svg><span>Back</span></button>}
-        <button {...chromeEvents} className={styles.glass} disabled={!hasOpened} aria-label="Contents" aria-controls={panel === 'toc' ? 'reader-panel' : undefined} aria-expanded={panel === 'toc'} onClick={() => panel === 'toc' ? closePanel() : setPanel('toc')}><Icon name="contents" /><span>Contents</span></button>
-      </div>
-    </header>
-    <div ref={host} className={styles.viewport} hidden={!permitted || readerState.key !== key} inert={blocked} />
-    {permitted && resumeChoice?.key === key && <Dialog title="Conflicting Positions" onClose={onClose} footer={<>
-      <Button size="slim" onClick={() => resumeChoice.choose(true)}>{resumeChoice.device}</Button>
-      <Button size="slim" tone="primary" onClick={() => resumeChoice.choose(false)}>{resumeChoice.server}</Button>
-    </>}><p>Where would you like to resume? Choosing a position won’t overwrite progress on the server.</p></Dialog>}
-    {permitted && <><span aria-hidden="true" className={`${styles.edgePaint} ${styles.edgePaintTop}`} /><span aria-hidden="true" className={`${styles.edgePaint} ${styles.edgePaintBottom}`} /></>}
-    {canTurn && panel === 'hide' && !parentGestures && <><PageEdge next={false} turn={turn} /><PageEdge next turn={turn} /></>}
-    {hasOpened && permitted && status.state !== 'error' && parentGestures && !selecting && <GestureLayer className={styles.gestureLayer}
-      resize={(scale, finished) => { if (canTurn && panel === 'hide' || finished) resizeFromPinch(scale, finished); }}
-      turn={turn} showControls={() => reveal('show')} tap={(x, y, zone) => {
-        if (panel !== 'hide') { reveal('hide'); return; }
-        if (!canTurn || controller.current?.tapLinkAt(x, y)) return;
-        if (zone < .2 || zone > .8) turn(zone > .8);
-        else reveal('toggle');
-      }} />}
-    {pinchSize !== null && permitted && <output className={`${styles.pinchHud} ${styles.glass}`} aria-label="Text size">Aa <strong>{pinchSize}%</strong></output>}
-    {selecting && permitted && <button className={`${styles.doneSelecting} ${styles.glass}`} onClick={() => { setSelecting(false); reveal('show'); }}>Done</button>}
-    {showHint && !offline && !chromeVisible && canTurn && <p className={`${styles.hint} ${styles.glass}`} role="status"><span className={styles.touchHint}>Tap the center for controls</span><span className={styles.mouseHint}>Move to the center or press C for controls</span></p>}
-    {permitted && <span className={styles.srOnly} role="status">{status.state === 'opening' && !storageError ? loadingMessage : ''}</span>}
-    {showLoading && permitted && !hasOpened && status.state === 'opening' && !storageError && <div className={styles.loading}><span aria-hidden="true">{loadingMessage}</span>{download && !download.preparing && <><progress aria-label="EPUB download progress" max={download.totalBytes || undefined} value={download.totalBytes ? Math.min(download.receivedBytes, download.totalBytes) : undefined} /><small>{(download.receivedBytes / 1048576).toFixed(1)} MiB{download.totalBytes ? ` / ${(download.totalBytes / 1048576).toFixed(1)} MiB · ${Math.floor(Math.min(1, download.receivedBytes / download.totalBytes) * 100)}%` : ''}</small></>}</div>}
-    {blocked && <div className={styles.failureScreen} data-failure={failure}>
-      <div className={styles.failureBody}>
-        <span className={styles.failureIcon}><Icon name="book" size={30} /></span>
-        <div role="alert">
-          <h1>{noOfflineCopy ? 'No Offline Copy' : 'Couldn’t Open This Book'}</h1>
-          <p>{failureMessage}</p>
+  return (
+    <section
+      className={styles.reader}
+      style={
+        {
+          visibility:
+            !storedAppearance && !showLoading && status.state === 'opening' && !storageError ? 'hidden' : undefined,
+          background,
+          color,
+          colorScheme: appearance.theme === 'gray' || appearance.theme === 'black' ? 'dark' : 'light',
+          '--reader-paper': background,
+        } as CSSProperties
+      }
+      aria-label="Book reader"
+      data-reader-controls={chromeVisible ? 'visible' : undefined}
+      data-reader-state={status.state}
+      data-reader-metrics={permitted ? JSON.stringify(status.diagnostics) : undefined}
+    >
+      {hasOpened && permitted && status.state !== 'error' && (
+        <button
+          ref={keyboardReveal}
+          type="button"
+          className={`${styles.srOnly} ${styles.keyboardReveal}`}
+          aria-keyshortcuts="C"
+          onClick={() => reveal('focus')}
+        >
+          Show Reader Controls
+        </button>
+      )}
+      <header
+        ref={top}
+        inert={!chromeVisible && permitted && status.state !== 'error' && hasOpened}
+        className={`${styles.bar} ${styles.top}`}
+      >
+        <button {...chromeEvents} className={styles.glass} onClick={onClose}>
+          <Chevron />
+          <span>Library</span>
+        </button>
+        {hasOpened && !blocked && recoveryControl && (
+          <div className={styles.connection} {...chromeEvents}>
+            {recoveryControl}
+          </div>
+        )}
+        <div className={styles.tools} role="group" aria-label="Reading tools">
+          {permitted && status.canGoBack && (
+            <button
+              {...chromeEvents}
+              className={styles.glass}
+              disabled={status.state !== 'ready'}
+              aria-label="Back to Previous Spot"
+              title="Back to Previous Spot"
+              onClick={() => {
+                closePanel();
+                reveal('show');
+                void controller.current?.back();
+              }}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m9 14-5-5 5-5M4 9h10a5 5 0 0 1 0 10h-2" />
+              </svg>
+              <span>Back</span>
+            </button>
+          )}
+          <button
+            {...chromeEvents}
+            className={styles.glass}
+            disabled={!hasOpened}
+            aria-label="Contents"
+            aria-controls={panel === 'toc' ? 'reader-panel' : undefined}
+            aria-expanded={panel === 'toc'}
+            onClick={() => (panel === 'toc' ? closePanel() : setPanel('toc'))}
+          >
+            <Icon name="contents" />
+            <span>Contents</span>
+          </button>
         </div>
-        <div className={styles.failureActions}>
-          <button type="button" data-primary={noOfflineCopy || !permitted || undefined} onClick={onBackToLibrary}>Back to Library</button>
-          {permitted && (failure === 'saved-position' ? <>
-            <button type="button" data-primary onClick={() => retry()}>Retry Original Position</button>
-            <button type="button" onClick={() => retry(true)}>Open Beginning Without Changing Saved Position</button>
-          </> : <button type="button" data-primary={!noOfflineCopy || undefined} aria-disabled={retryingOfflineOpen || undefined} onClick={() => void tryAgain()}>{retryingOfflineOpen ? 'Reconnecting…' : 'Try Again'}</button>)}
+      </header>
+      <div ref={host} className={styles.viewport} hidden={!permitted || readerState.key !== key} inert={blocked} />
+      {permitted && resumeChoice?.key === key && (
+        <Dialog
+          title="Conflicting Positions"
+          onClose={onClose}
+          footer={
+            <>
+              <Button size="slim" onClick={() => resumeChoice.choose(true)}>
+                {resumeChoice.device}
+              </Button>
+              <Button size="slim" tone="primary" onClick={() => resumeChoice.choose(false)}>
+                {resumeChoice.server}
+              </Button>
+            </>
+          }
+        >
+          <p>Where would you like to resume? Choosing a position won’t overwrite progress on the server.</p>
+        </Dialog>
+      )}
+      {permitted && (
+        <>
+          <span aria-hidden="true" className={`${styles.edgePaint} ${styles.edgePaintTop}`} />
+          <span aria-hidden="true" className={`${styles.edgePaint} ${styles.edgePaintBottom}`} />
+        </>
+      )}
+      {canTurn && panel === 'hide' && !parentGestures && (
+        <>
+          <PageEdge next={false} turn={turn} />
+          <PageEdge next turn={turn} />
+        </>
+      )}
+      {hasOpened && permitted && status.state !== 'error' && parentGestures && !selecting && (
+        <GestureLayer
+          className={styles.gestureLayer}
+          resize={(scale, finished) => {
+            if ((canTurn && panel === 'hide') || finished) resizeFromPinch(scale, finished);
+          }}
+          turn={turn}
+          showControls={() => reveal('show')}
+          tap={(x, y, zone) => {
+            if (panel !== 'hide') {
+              reveal('hide');
+              return;
+            }
+            if (!canTurn || controller.current?.tapLinkAt(x, y)) return;
+            if (zone < 0.2 || zone > 0.8) turn(zone > 0.8);
+            else reveal('toggle');
+          }}
+        />
+      )}
+      {pinchSize !== null && permitted && (
+        <output className={`${styles.pinchHud} ${styles.glass}`} aria-label="Text size">
+          Aa <strong>{pinchSize}%</strong>
+        </output>
+      )}
+      {selecting && permitted && (
+        <button
+          className={`${styles.doneSelecting} ${styles.glass}`}
+          onClick={() => {
+            setSelecting(false);
+            reveal('show');
+          }}
+        >
+          Done
+        </button>
+      )}
+      {showHint && !offline && !chromeVisible && canTurn && (
+        <p className={`${styles.hint} ${styles.glass}`} role="status">
+          <span className={styles.touchHint}>Tap the center for controls</span>
+          <span className={styles.mouseHint}>Move to the center or press C for controls</span>
+        </p>
+      )}
+      {permitted && (
+        <span className={styles.srOnly} role="status">
+          {status.state === 'opening' && !storageError ? loadingMessage : ''}
+        </span>
+      )}
+      {showLoading && permitted && !hasOpened && status.state === 'opening' && !storageError && (
+        <div className={styles.loading}>
+          <span aria-hidden="true">{loadingMessage}</span>
+          {download && !download.preparing && (
+            <>
+              <progress
+                aria-label="EPUB download progress"
+                max={download.totalBytes || undefined}
+                value={download.totalBytes ? Math.min(download.receivedBytes, download.totalBytes) : undefined}
+              />
+              <small>
+                {(download.receivedBytes / 1048576).toFixed(1)} MiB
+                {download.totalBytes
+                  ? ` / ${(download.totalBytes / 1048576).toFixed(1)} MiB · ${Math.floor(Math.min(1, download.receivedBytes / download.totalBytes) * 100)}%`
+                  : ''}
+              </small>
+            </>
+          )}
         </div>
-        {failure === 'saved-position' && <p>Only a subsequent intentional navigation can save a new position.</p>}
-      </div>
-    </div>}
-    {!blocked && panel !== 'hide' && <aside id="reader-panel" className={`${styles.panel} ${panel === 'appearance' ? styles.progressPanel : ''}`} aria-labelledby="reader-panel-title">
-      <div className={styles.panelHeader}>
-        <h2 id="reader-panel-title">{panel === 'toc' ? 'Contents' : 'Appearance'}</h2>
-        <button onClick={(event) => { if (event.currentTarget.matches(':focus-visible')) (panel === 'toc' ? top : bottom).current?.querySelector<HTMLButtonElement>('[aria-expanded="true"]')?.focus(); closePanel(); }}>Done</button>
-      </div>
-      {panel === 'toc' ? <>
-        {status.toc?.length ? <nav aria-label="Chapters"><ol className={styles.chapterList}>{status.toc.map((item, i) => {
-          const current = item === currentChapter;
-          return <li key={`${item.href}:${i}`}><button aria-current={current ? 'location' : undefined} onClick={() => { closePanel(); reveal('show'); void controller.current?.toc(item.href); }}><span>{item.label}</span><Chevron right /></button></li>;
-        })}</ol></nav> : <p className={styles.panelNote}>This book doesn’t have a table of contents.</p>}
-      </> : <div className={styles.appearanceOptions}>
-        <div className={styles.size}>
-          <label htmlFor="reader-text-size">Text size</label><output htmlFor="reader-text-size">{appearance.size}%</output>
-          <div className={styles.sizeControls}>
-            <button aria-label="Decrease Text Size" disabled={appearance.size <= minTextSize} onClick={() => setTextSize(appearance.size - 10)}>A−</button>
-            <input id="reader-text-size" type="range" min={minTextSize} max={maxTextSize} value={appearance.size} aria-valuetext={`${appearance.size}%`} onPointerDown={() => { draggingSize.current = true; clearTimeout(appearanceTimer.current); appearanceTimer.current = undefined; }} onPointerUp={finishSize} onPointerCancel={finishSize} onBlur={finishSize} onChange={event => changeAppearance({ ...appearanceRef.current, size: Number(event.target.value) }, true)} />
-            <button aria-label="Increase Text Size" disabled={appearance.size >= maxTextSize} onClick={() => setTextSize(appearance.size + 10)}>A+</button>
+      )}
+      {blocked && (
+        <div className={styles.failureScreen} data-failure={failure}>
+          <div className={styles.failureBody}>
+            <span className={styles.failureIcon}>
+              <Icon name="book" size={30} />
+            </span>
+            <div role="alert">
+              <h1>{noOfflineCopy ? 'No Offline Copy' : 'Couldn’t Open This Book'}</h1>
+              <p>{failureMessage}</p>
+            </div>
+            <div className={styles.failureActions}>
+              <button type="button" data-primary={noOfflineCopy || !permitted || undefined} onClick={onBackToLibrary}>
+                Back to Library
+              </button>
+              {permitted &&
+                (failure === 'saved-position' ? (
+                  <>
+                    <button type="button" data-primary onClick={() => retry()}>
+                      Retry Original Position
+                    </button>
+                    <button type="button" onClick={() => retry(true)}>
+                      Open Beginning Without Changing Saved Position
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    data-primary={!noOfflineCopy || undefined}
+                    aria-disabled={retryingOfflineOpen || undefined}
+                    onClick={() => void tryAgain()}
+                  >
+                    {retryingOfflineOpen ? 'Reconnecting…' : 'Try Again'}
+                  </button>
+                ))}
+            </div>
+            {failure === 'saved-position' && <p>Only a subsequent intentional navigation can save a new position.</p>}
           </div>
         </div>
-        <label className={styles.fontRow}>Font <select value={appearance.font} onChange={event => changeAppearance({ ...appearanceRef.current, font: event.target.value })}>{readerFontNames.map(font => <option key={font} value={font}>{readerFontLabel(font)}</option>)}</select></label>
-        <fieldset className={styles.themeField}>
-          <legend>Theme</legend>
-          <div className={styles.themes}>{(Object.keys(palette) as Appearance['theme'][]).map(theme => {
-            const [paper, ink] = palette[theme];
-            return <button key={theme} aria-pressed={appearance.theme === theme} onClick={() => changeAppearance({ ...appearanceRef.current, theme })}>
-              <span style={{ background: paper, color: ink }}>Aa</span>{themeNames[theme]}
-            </button>;
-          })}</div>
-        </fieldset>
-        <p className={styles.panelNote}>{readerMode === 'account' ? 'Reading syncs with your account when connected.' : 'Reading stays on this device.'}</p>
-        {parentGestures && <button className={styles.selectAction} onClick={() => { setSelecting(true); reveal('hide'); }}>Select Text</button>}
-      </div>}
-    </aside>}
-    <footer ref={bottom} {...chromeEvents} inert={selecting || !chromeVisible || !hasOpened || !permitted || status.state === 'error'} className={`${styles.bar} ${styles.bottom} ${styles.glass}`}>
-      <button aria-label="Previous Page" disabled={!permitted || status.state !== 'ready'} onClick={() => turn(false)}><Chevron /></button>
-      <button aria-label="Reading Progress and Appearance" aria-controls={panel === 'appearance' ? 'reader-panel' : undefined} aria-expanded={panel === 'appearance'} onClick={() => panel === 'appearance' ? closePanel() : setPanel('appearance')}>
-        <span>{location ? `${location.page} / ${location.pages} · ${Math.round(location.fraction * 100)}%` : ''}</span><svg className={styles.expandIcon} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>
-      </button>
-      <button aria-label="Next Page" disabled={!permitted || status.state !== 'ready'} onClick={() => turn(true)}><Chevron right /></button>
-    </footer>
-  </section>;
+      )}
+      {!blocked && panel !== 'hide' && (
+        <aside
+          id="reader-panel"
+          className={`${styles.panel} ${panel === 'appearance' ? styles.progressPanel : ''}`}
+          aria-labelledby="reader-panel-title"
+        >
+          <div className={styles.panelHeader}>
+            <h2 id="reader-panel-title">{panel === 'toc' ? 'Contents' : 'Appearance'}</h2>
+            <button
+              onClick={(event) => {
+                if (event.currentTarget.matches(':focus-visible'))
+                  (panel === 'toc' ? top : bottom).current
+                    ?.querySelector<HTMLButtonElement>('[aria-expanded="true"]')
+                    ?.focus();
+                closePanel();
+              }}
+            >
+              Done
+            </button>
+          </div>
+          {panel === 'toc' ? (
+            <>
+              {status.toc?.length ? (
+                <nav aria-label="Chapters">
+                  <ol className={styles.chapterList}>
+                    {status.toc.map((item, i) => {
+                      const current = item === currentChapter;
+                      return (
+                        <li key={`${item.href}:${i}`}>
+                          <button
+                            aria-current={current ? 'location' : undefined}
+                            onClick={() => {
+                              closePanel();
+                              reveal('show');
+                              void controller.current?.toc(item.href);
+                            }}
+                          >
+                            <span>{item.label}</span>
+                            <Chevron right />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </nav>
+              ) : (
+                <p className={styles.panelNote}>This book doesn’t have a table of contents.</p>
+              )}
+            </>
+          ) : (
+            <div className={styles.appearanceOptions}>
+              <div className={styles.size}>
+                <label htmlFor="reader-text-size">Text size</label>
+                <output htmlFor="reader-text-size">{appearance.size}%</output>
+                <div className={styles.sizeControls}>
+                  <button
+                    aria-label="Decrease Text Size"
+                    disabled={appearance.size <= minTextSize}
+                    onClick={() => setTextSize(appearance.size - 10)}
+                  >
+                    A−
+                  </button>
+                  <input
+                    id="reader-text-size"
+                    type="range"
+                    min={minTextSize}
+                    max={maxTextSize}
+                    value={appearance.size}
+                    aria-valuetext={`${appearance.size}%`}
+                    onPointerDown={() => {
+                      draggingSize.current = true;
+                      clearTimeout(appearanceTimer.current);
+                      appearanceTimer.current = undefined;
+                    }}
+                    onPointerUp={finishSize}
+                    onPointerCancel={finishSize}
+                    onBlur={finishSize}
+                    onChange={(event) =>
+                      changeAppearance({ ...appearanceRef.current, size: Number(event.target.value) }, true)
+                    }
+                  />
+                  <button
+                    aria-label="Increase Text Size"
+                    disabled={appearance.size >= maxTextSize}
+                    onClick={() => setTextSize(appearance.size + 10)}
+                  >
+                    A+
+                  </button>
+                </div>
+              </div>
+              <label className={styles.fontRow}>
+                Font{' '}
+                <select
+                  value={appearance.font}
+                  onChange={(event) => changeAppearance({ ...appearanceRef.current, font: event.target.value })}
+                >
+                  {readerFontNames.map((font) => (
+                    <option key={font} value={font}>
+                      {readerFontLabel(font)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <fieldset className={styles.themeField}>
+                <legend>Theme</legend>
+                <div className={styles.themes}>
+                  {(Object.keys(palette) as Appearance['theme'][]).map((theme) => {
+                    const [paper, ink] = palette[theme];
+                    return (
+                      <button
+                        key={theme}
+                        aria-pressed={appearance.theme === theme}
+                        onClick={() => changeAppearance({ ...appearanceRef.current, theme })}
+                      >
+                        <span style={{ background: paper, color: ink }}>Aa</span>
+                        {themeNames[theme]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+              <p className={styles.panelNote}>
+                {readerMode === 'account'
+                  ? 'Reading syncs with your account when connected.'
+                  : 'Reading stays on this device.'}
+              </p>
+              {parentGestures && (
+                <button
+                  className={styles.selectAction}
+                  onClick={() => {
+                    setSelecting(true);
+                    reveal('hide');
+                  }}
+                >
+                  Select Text
+                </button>
+              )}
+            </div>
+          )}
+        </aside>
+      )}
+      <footer
+        ref={bottom}
+        {...chromeEvents}
+        inert={selecting || !chromeVisible || !hasOpened || !permitted || status.state === 'error'}
+        className={`${styles.bar} ${styles.bottom} ${styles.glass}`}
+      >
+        <button
+          aria-label="Previous Page"
+          disabled={!permitted || status.state !== 'ready'}
+          onClick={() => turn(false)}
+        >
+          <Chevron />
+        </button>
+        <button
+          aria-label="Reading Progress and Appearance"
+          aria-controls={panel === 'appearance' ? 'reader-panel' : undefined}
+          aria-expanded={panel === 'appearance'}
+          onClick={() => (panel === 'appearance' ? closePanel() : setPanel('appearance'))}
+        >
+          <span>
+            {location ? `${location.page} / ${location.pages} · ${Math.round(location.fraction * 100)}%` : ''}
+          </span>
+          <svg
+            className={styles.expandIcon}
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
+            <path d="m6 15 6-6 6 6" />
+          </svg>
+        </button>
+        <button aria-label="Next Page" disabled={!permitted || status.state !== 'ready'} onClick={() => turn(true)}>
+          <Chevron right />
+        </button>
+      </footer>
+    </section>
+  );
 }

@@ -3,7 +3,9 @@ import { bookPath } from './library';
 
 export function legacyDocument(search: string): string | null {
   const values = new URLSearchParams(search).getAll('legacyDocument');
-  return values.length === 1 && Array.from(values[0]).length >= 1 && Array.from(values[0]).length <= 128 ? values[0] : null;
+  return values.length === 1 && Array.from(values[0]).length >= 1 && Array.from(values[0]).length <= 128
+    ? values[0]
+    : null;
 }
 export function retirementDestination(id: string, access: ReadingAccess): string | null {
   if (access.kind !== 'authenticated' || access.account.origin !== window.location.origin) return null;

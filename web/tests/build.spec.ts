@@ -1,7 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect, root } from './fixtures';
 
-test('Go serves the compiled application, offline shell worker and real errors instead of SPA fallback', async ({ request, server }) => {
+test('Go serves the compiled application, offline shell worker and real errors instead of SPA fallback', async ({
+  request,
+  server,
+}) => {
   const worker = await request.get(`${server.origin}/sw.js`);
   expect(worker.status()).toBe(200);
   expect(worker.headers()['content-type']).toMatch(/javascript/);
@@ -13,7 +16,9 @@ test('Go serves the compiled application, offline shell worker and real errors i
   expect(index.status()).toBe(200);
   const indexHTML = await index.text();
   expect(indexHTML).toBe(await readFile(`${root}assets/app/index.html`, 'utf8'));
-  const assets = [...indexHTML.matchAll(/(?:src|href)="(\/assets\/app\/assets\/[^"]+\.(?:js|css))"/g)].map(match => match[1]);
+  const assets = [...indexHTML.matchAll(/(?:src|href)="(\/assets\/app\/assets\/[^"]+\.(?:js|css))"/g)].map(
+    (match) => match[1],
+  );
   expect(assets).toEqual(expect.arrayContaining([expect.stringMatching(/\.js$/), expect.stringMatching(/\.css$/)]));
   for (const asset of assets) {
     const response = await request.get(`${server.origin}${asset}`);
@@ -32,11 +37,13 @@ test('Go serves the compiled application, offline shell worker and real errors i
   expect(manifest.status()).toBe(200);
   const identity = await manifest.json();
   expect(identity.display).toBe('standalone');
-  expect(identity.icons).toEqual(expect.arrayContaining([
-    expect.objectContaining({ sizes: '192x192', purpose: 'any' }),
-    expect.objectContaining({ sizes: '512x512', purpose: 'any' }),
-    expect.objectContaining({ sizes: '512x512', purpose: 'maskable' }),
-  ]));
+  expect(identity.icons).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ sizes: '192x192', purpose: 'any' }),
+      expect.objectContaining({ sizes: '512x512', purpose: 'any' }),
+      expect.objectContaining({ sizes: '512x512', purpose: 'maskable' }),
+    ]),
+  );
   for (const { src, sizes } of identity.icons) {
     const icon = await request.get(new URL(src, server.origin).href);
     expect(icon.status()).toBe(200);
@@ -44,7 +51,9 @@ test('Go serves the compiled application, offline shell worker and real errors i
     const png = await icon.body();
     expect([png.readUInt32BE(16), png.readUInt32BE(20)].join('x')).toBe(sizes);
   }
-  expect(identity.start_url).toBe('/'); expect(identity.scope).toBe('/'); expect(identity).not.toHaveProperty('id');
+  expect(identity.start_url).toBe('/');
+  expect(identity.scope).toBe('/');
+  expect(identity).not.toHaveProperty('id');
   for (const path of ['/assets/app/assets/missing.js', '/not-a-route', '/api/v1/missing']) {
     const response = await request.get(`${server.origin}${path}`);
     expect(response.status()).toBe(404);

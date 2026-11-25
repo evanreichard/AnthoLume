@@ -3,13 +3,17 @@ import { test, expect, register, signIn } from './fixtures';
 import { storedRows, serverEffects } from './storage';
 
 test('missing service worker support is attributed to Save to Device, not app recovery', async ({ page, server }) => {
-  await page.addInitScript(() => { Reflect.deleteProperty(Navigator.prototype, 'serviceWorker'); });
+  await page.addInitScript(() => {
+    Reflect.deleteProperty(Navigator.prototype, 'serviceWorker');
+  });
   await register(page, server.origin, 'no-worker-reader');
   const card = page.getByRole('article').filter({ hasText: 'Public book 01' });
   await card.locator('summary').click();
   await card.getByRole('button', { name: 'Save to Device' }).click();
   const notice = page.locator('[data-snackbar]');
-  await expect(notice.getByRole('status')).toHaveText('Couldn’t save for offline reading. Save to Device requires service workers. Open the app on localhost or HTTPS in a browser that supports them.');
+  await expect(notice.getByRole('status')).toHaveText(
+    'Couldn’t save for offline reading. Save to Device requires service workers. Open the app on localhost or HTTPS in a browser that supports them.',
+  );
   await expect(page.getByRole('alert')).toHaveCount(0);
   await notice.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(notice.getByRole('status')).toContainText('requires service workers');
@@ -27,16 +31,29 @@ for (const status of [502, 503, 504, 'dropped body'] as const) {
     await page.close();
 
     const cold = await context.newPage();
-    if (status === 'dropped body') await cold.addInitScript(() => {
-      const fetch = window.fetch;
-      window.fetch = (input, init) => {
-        if (input instanceof Request && new URL(input.url).pathname === '/api/v1/session') {
-          return Promise.resolve(new Response(new ReadableStream({ pull(controller) { controller.error(new TypeError('Connection reset')); } }), { headers: { 'Content-Type': 'application/json' } }));
-        }
-        return fetch(input, init);
-      };
-    });
-    else await cold.route('**/api/v1/session', route => route.fulfill({ status, contentType: 'text/html', body: 'Upstream unavailable' }));
+    if (status === 'dropped body')
+      await cold.addInitScript(() => {
+        const fetch = window.fetch;
+        window.fetch = (input, init) => {
+          if (input instanceof Request && new URL(input.url).pathname === '/api/v1/session') {
+            return Promise.resolve(
+              new Response(
+                new ReadableStream({
+                  pull(controller) {
+                    controller.error(new TypeError('Connection reset'));
+                  },
+                }),
+                { headers: { 'Content-Type': 'application/json' } },
+              ),
+            );
+          }
+          return fetch(input, init);
+        };
+      });
+    else
+      await cold.route('**/api/v1/session', (route) =>
+        route.fulfill({ status, contentType: 'text/html', body: 'Upstream unavailable' }),
+      );
     await cold.goto(server.origin);
     await cold.getByRole('button', { name: user, exact: true }).click();
     await cold.getByRole('article').getByRole('link').click();
@@ -44,7 +61,11 @@ for (const status of [502, 503, 504, 'dropped body'] as const) {
   });
 }
 
-test('a saved book opens without a recovery prompt when the browser is online but the server is stopped', async ({ page, context, server }) => {
+test('a saved book opens without a recovery prompt when the browser is online but the server is stopped', async ({
+  page,
+  context,
+  server,
+}) => {
   await register(page, server.origin, 'offline-update-reader');
   const card = page.getByRole('article').filter({ hasText: 'Public book 01' });
   await card.locator('summary').click();
@@ -73,7 +94,11 @@ test('a saved book opens without a recovery prompt when the browser is online bu
     await cold.setViewportSize({ width, height: 844 });
     await cold.keyboard.press('c');
     const bounds = [];
-    for (const button of [reader.getByRole('button', { name: 'Library', exact: true }), reconnect, reader.getByRole('button', { name: 'Contents' })]) {
+    for (const button of [
+      reader.getByRole('button', { name: 'Library', exact: true }),
+      reconnect,
+      reader.getByRole('button', { name: 'Contents' }),
+    ]) {
       await button.click({ trial: true });
       bounds.push((await button.boundingBox())!);
     }
@@ -87,49 +112,63 @@ test('a saved book opens without a recovery prompt when the browser is online bu
   await expect(reader.locator('iframe').first()).toBeVisible();
 });
 
-test('forgetting an offline profile blocks dismissal and allows retry after a storage failure', async ({ page, context, server }) => {
+test('forgetting an offline profile blocks dismissal and allows retry after a storage failure', async ({
+  page,
+  context,
+  server,
+}) => {
   await register(page, server.origin, 'forget-profile-reader');
   const picker = await context.newPage();
-  await picker.route('**/api/v1/session', route => route.fulfill({ status: 503 }));
+  await picker.route('**/api/v1/session', (route) => route.fulfill({ status: 503 }));
   await picker.goto(server.origin);
   await picker.getByRole('button', { name: 'Manage Profiles' }).click();
   const profile = picker.getByRole('button', { name: 'forget-profile-reader', exact: true });
   const forget = picker.getByRole('button', { name: 'Forget forget-profile-reader', exact: true });
   await forget.click();
   const dialog = picker.getByRole('dialog', { name: 'Forget forget-profile-reader?' });
-  const release = await picker.evaluateHandle(() => new Promise<() => void>((resolve, reject) => {
-    const request = indexedDB.open('antholume-reading-v1');
-    const remove = IDBObjectStore.prototype.delete;
-    IDBObjectStore.prototype.delete = function (key) {
-      const deletion = remove.call(this, key);
-      if (this.name === 'meta' && typeof key === 'string' && key.startsWith('profile:')) {
-        IDBObjectStore.prototype.delete = remove;
-        deletion.addEventListener('success', () => this.transaction.abort(), { once: true });
-      }
-      return deletion;
-    };
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const db = request.result;
-      const transaction = db.transaction('meta', 'readwrite');
-      const store = transaction.objectStore('meta');
-      let held = true;
-      function keepOpen() {
-        if (held) store.get('migrated:profiles').onsuccess = keepOpen;
-      }
-      transaction.oncomplete = () => db.close();
-      transaction.onerror = () => { db.close(); reject(transaction.error); };
-      keepOpen();
-      resolve(() => { held = false; });
-    };
-  }));
+  const release = await picker.evaluateHandle(
+    () =>
+      new Promise<() => void>((resolve, reject) => {
+        const request = indexedDB.open('antholume-reading-v1');
+        const remove = IDBObjectStore.prototype.delete;
+        IDBObjectStore.prototype.delete = function (key) {
+          const deletion = remove.call(this, key);
+          if (this.name === 'meta' && typeof key === 'string' && key.startsWith('profile:')) {
+            IDBObjectStore.prototype.delete = remove;
+            deletion.addEventListener('success', () => this.transaction.abort(), { once: true });
+          }
+          return deletion;
+        };
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const transaction = db.transaction('meta', 'readwrite');
+          const store = transaction.objectStore('meta');
+          let held = true;
+          function keepOpen() {
+            if (held) store.get('migrated:profiles').onsuccess = keepOpen;
+          }
+          transaction.oncomplete = () => db.close();
+          transaction.onerror = () => {
+            db.close();
+            reject(transaction.error);
+          };
+          keepOpen();
+          resolve(() => {
+            held = false;
+          });
+        };
+      }),
+  );
   try {
     await dialog.getByRole('button', { name: 'Forget on This Device' }).click();
     await expect(dialog.getByRole('button', { name: 'Forgetting…' })).toBeDisabled();
     await expect(dialog.getByRole('button', { name: 'Close Dialog' })).toBeDisabled();
     await picker.keyboard.press('Escape');
     await expect(dialog).toBeVisible();
-  } finally { await release.evaluate(unlock => unlock()); }
+  } finally {
+    await release.evaluate((unlock) => unlock());
+  }
   await expect(dialog.getByRole('alert')).toBeVisible();
   await expect(profile).toBeVisible();
   await dialog.getByRole('button', { name: 'Retry Forgetting Profile' }).click();
@@ -137,20 +176,47 @@ test('forgetting an offline profile blocks dismissal and allows retry after a st
   await expect(profile).toHaveCount(0);
 });
 
-test('cold start, pick a profile, review offline reading and upload the selected kinds separately', async ({ page, context, server }) => {
+test('cold start, pick a profile, review offline reading and upload the selected kinds separately', async ({
+  page,
+  context,
+  server,
+}) => {
   const user = 'offline-library';
   await register(page, server.origin, user);
-  const onlineCard = page.getByRole('article').filter({hasText:'Public book 01'});
+  const onlineCard = page.getByRole('article').filter({ hasText: 'Public book 01' });
   await onlineCard.locator('summary').click();
   await onlineCard.getByRole('button', { name: 'Save to Device' }).click();
-  await expect(onlineCard.getByRole('img', {name:'Saved to device'})).toBeVisible();
+  await expect(onlineCard.getByRole('img', { name: 'Saved to device' })).toBeVisible();
   await expect(page).toHaveURL(/\/library/);
-  const started = new Date(); started.setUTCHours(12,0,0,0); started.setUTCDate(started.getUTCDate()-1);
+  const started = new Date();
+  started.setUTCHours(12, 0, 0, 0);
+  started.setUTCDate(started.getUTCDate() - 1);
   const { csrf_token, user: identity } = await (await page.request.get(`${server.origin}/api/v1/session`)).json();
-  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': identity.reading_generation };
-  await page.request.post(`${server.origin}/api/v1/me/devices`, {headers, data:{id:'other',name:'Other reader'}});
-  for (const [daysAgo, duration] of [[0,120],[3,300]] as const) {
-    const response = await page.request.post(`${server.origin}/api/v1/me/activity`, {headers,data:{event_id:crypto.randomUUID(),document_id:'book_001',device_id:'other',start_time:new Date(+started-daysAgo*86400000).toISOString(),duration,start_fraction:0,end_fraction:0.1}});
+  const headers = {
+    Origin: server.origin,
+    'X-CSRF-Token': csrf_token,
+    'X-AnthoLume-Reading-Generation': identity.reading_generation,
+  };
+  await page.request.post(`${server.origin}/api/v1/me/devices`, {
+    headers,
+    data: { id: 'other', name: 'Other reader' },
+  });
+  for (const [daysAgo, duration] of [
+    [0, 120],
+    [3, 300],
+  ] as const) {
+    const response = await page.request.post(`${server.origin}/api/v1/me/activity`, {
+      headers,
+      data: {
+        event_id: crypto.randomUUID(),
+        document_id: 'book_001',
+        device_id: 'other',
+        start_time: new Date(+started - daysAgo * 86400000).toISOString(),
+        duration,
+        start_fraction: 0,
+        end_fraction: 0.1,
+      },
+    });
     expect(response.status()).toBe(200);
   }
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
@@ -158,12 +224,14 @@ test('cold start, pick a profile, review offline reading and upload the selected
   await context.setOffline(true);
   const cold = await context.newPage();
   await cold.goto(`${server.origin}/`);
-  await cold.getByRole('button', {name: user, exact:true}).click();
-  const bar = cold.getByRole('region', {name:'Offline controls'});
-  await expect(bar.getByRole('button', {name:`Switch Profile: ${user}`})).toBeVisible();
-  expect(Math.round((await bar.boundingBox())!.y + (await bar.boundingBox())!.height)).toBe(cold.viewportSize()!.height);
-  await expect(cold.getByRole('navigation',{name:'Main navigation'})).toHaveCount(0);
-  await expect(cold.getByRole('button',{name:'Switch Profile'})).toBeVisible();
+  await cold.getByRole('button', { name: user, exact: true }).click();
+  const bar = cold.getByRole('region', { name: 'Offline controls' });
+  await expect(bar.getByRole('button', { name: `Switch Profile: ${user}` })).toBeVisible();
+  expect(Math.round((await bar.boundingBox())!.y + (await bar.boundingBox())!.height)).toBe(
+    cold.viewportSize()!.height,
+  );
+  await expect(cold.getByRole('navigation', { name: 'Main navigation' })).toHaveCount(0);
+  await expect(cold.getByRole('button', { name: 'Switch Profile' })).toBeVisible();
   await expect(cold.getByRole('article')).toHaveCount(1);
   await expect(cold.getByRole('article')).toContainText('Public book 01');
   await cold.clock.setFixedTime(started);
@@ -175,34 +243,36 @@ test('cold start, pick a profile, review offline reading and upload the selected
     await cold.getByRole('button', { name: 'Next Page', exact: true }).click();
     await expect(cold.locator('footer')).toContainText(`${next} /`);
   }
-  await expect.poll(async () => (await storedRows(cold, 'offline')).map(e => e.kind).sort()).toEqual(['activity', 'progress']);
-  const checkpoint = (await storedRows(cold, 'offline')).find(r => r.kind === 'progress')!.checkpoint;
+  await expect
+    .poll(async () => (await storedRows(cold, 'offline')).map((e) => e.kind).sort())
+    .toEqual(['activity', 'progress']);
+  const checkpoint = (await storedRows(cold, 'offline')).find((r) => r.kind === 'progress')!.checkpoint;
   await cold.reload();
   await expect(cold.getByRole('region', { name: 'Book reader' })).toHaveAttribute('data-reader-state', 'ready');
-  expect((await storedRows(cold, 'offline')).find(r => r.kind === 'progress')!.checkpoint).toEqual(checkpoint);
+  expect((await storedRows(cold, 'offline')).find((r) => r.kind === 'progress')!.checkpoint).toEqual(checkpoint);
   expect(serverEffects(server.data, user).head).toBeUndefined();
   await context.setOffline(false);
-  const review = cold.getByRole('dialog', {name:'Offline reading'});
+  const review = cold.getByRole('dialog', { name: 'Offline reading' });
   await expect(review).toBeVisible();
   for (const width of [320, 1280, 390]) {
-    await cold.setViewportSize({width, height:844});
+    await cold.setViewportSize({ width, height: 844 });
     const box = await review.boundingBox();
     if (width < 760) expect(Math.round(box!.y + box!.height)).toBe(844);
     else expect(box!.width).toBeLessThan(width / 2);
-    expect(await review.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    expect(await review.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   }
-  await expect(review.getByText('2m', {exact:true})).toBeVisible();
-  await expect(review.getByText('30s', {exact:true})).toBeVisible();
-  expect(serverEffects(server.data,user)).toMatchObject({activity:2});
-  expect(serverEffects(server.data,user).head).toBeUndefined();
-  await expect(review.getByRole('button',{name:'Upload Selected'})).toBeDisabled();
+  await expect(review.getByText('2m', { exact: true })).toBeVisible();
+  await expect(review.getByText('30s', { exact: true })).toBeVisible();
+  expect(serverEffects(server.data, user)).toMatchObject({ activity: 2 });
+  expect(serverEffects(server.data, user).head).toBeUndefined();
+  await expect(review.getByRole('button', { name: 'Upload Selected' })).toBeDisabled();
   await review.getByLabel('Activity').check();
-  await review.getByRole('button',{name:'Upload Selected'}).click();
-  await expect.poll(() => serverEffects(server.data,user).activity).toBe(3);
-  expect(serverEffects(server.data,user).head).toBeUndefined();
-  await cold.getByRole('button',{name:'Review Offline Reading'}).click();
+  await review.getByRole('button', { name: 'Upload Selected' }).click();
+  await expect.poll(() => serverEffects(server.data, user).activity).toBe(3);
+  expect(serverEffects(server.data, user).head).toBeUndefined();
+  await cold.getByRole('button', { name: 'Review Offline Reading' }).click();
   await review.getByLabel('Progress').check();
-  await review.getByRole('button',{name:'Upload Selected'}).click();
+  await review.getByRole('button', { name: 'Upload Selected' }).click();
   await expect.poll(() => serverEffects(server.data, user).head?.position).toBe(checkpoint!.position);
   await expect.poll(async () => (await storedRows(cold, 'events')).length).toBe(0);
   expect(serverEffects(server.data, user)).toMatchObject({ activity: 3, activitySeconds: 450 });
@@ -211,13 +281,14 @@ test('cold start, pick a profile, review offline reading and upload the selected
   await cold.getByRole('button', { name: 'Manage Profiles' }).click();
   await cold.getByRole('button', { name: `Forget ${user}` }).click();
   await cold.getByRole('button', { name: 'Forget on This Device' }).click();
-  await expect(cold.getByRole('button',{ name:user, exact:true })).toHaveCount(0);
+  await expect(cold.getByRole('button', { name: user, exact: true })).toHaveCount(0);
   await expect(cold.getByRole('article')).toHaveCount(0);
 });
 
 const bookReader = (page: Page) => page.getByRole('region', { name: 'Book reader', includeHidden: true });
 const offlineReview = (page: Page) => page.getByRole('dialog', { name: 'Offline reading' });
-const offlineProgress = async (page: Page) => (await storedRows(page, 'offline')).find(row => row.kind === 'progress');
+const offlineProgress = async (page: Page) =>
+  (await storedRows(page, 'offline')).find((row) => row.kind === 'progress');
 const offlinePosition = async (page: Page) => (await offlineProgress(page))?.checkpoint?.position;
 
 async function turnPage(page: Page, next: number) {
@@ -260,7 +331,11 @@ test('mounted libraries observe a shared pin and removal from another tab', asyn
   await expect(card(observer)).toBeVisible();
 });
 
-test('an account reader queues outage turns and delivers them after the tab closes', async ({ page, context, server }) => {
+test('an account reader queues outage turns and delivers them after the tab closes', async ({
+  page,
+  context,
+  server,
+}) => {
   const user = 'account-reader';
   await register(page, server.origin, user);
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
@@ -268,25 +343,32 @@ test('an account reader queues outage turns and delivers them after the tab clos
   await expect(bookReader(page)).toHaveAttribute('data-reader-state', 'ready');
   await server.stop();
   await turnPage(page, 2);
-  const queued = (await storedRows(page, 'events')).find(row => row.kind === 'progress')!;
+  const queued = (await storedRows(page, 'events')).find((row) => row.kind === 'progress')!;
   expect(queued.payload?.position).toBeTruthy();
   await turnPage(page, 3);
-  const latest = (await storedRows(page, 'positions')).find(row => row.ref?.documentId === 'book_001')!.checkpoint!;
+  const latest = (await storedRows(page, 'positions')).find((row) => row.ref?.documentId === 'book_001')!.checkpoint!;
   expect(latest.position).not.toBe(queued.payload?.position);
   expect(await storedRows(page, 'offline')).toEqual([]);
   await page.close();
   await server.start();
   const next = await context.newPage();
   await next.goto(server.origin);
-  await expect.poll(() => serverEffects(server.data, user).head).toMatchObject({ position: latest.position, revision: 2 });
+  await expect
+    .poll(() => serverEffects(server.data, user).head)
+    .toMatchObject({ position: latest.position, revision: 2 });
   await expect(offlineReview(next)).toHaveCount(0);
 });
 
-test('a device-only reader stays on the same page and keeps new turns private after upload', async ({ page, context, server }) => {
+test('a device-only reader stays on the same page and keeps new turns private after upload', async ({
+  page,
+  context,
+  server,
+}) => {
   const user = 'offline-upload-open-book';
   await readOffline(page, context, server.origin, user);
   const checkpoint = await offlinePosition(page);
-  const reader = bookReader(page), review = offlineReview(page);
+  const reader = bookReader(page),
+    review = offlineReview(page);
   const frame = reader.locator('iframe').first();
   const openedFrame = await frame.elementHandle();
   await context.setOffline(false);
@@ -321,7 +403,11 @@ test('a device-only reader stays on the same page and keeps new turns private af
 });
 
 for (const action of ['Upload', 'Discard'] as const) {
-  test(`${action} requires reselecting activity after another tab adds reading time`, async ({ page, context, server }) => {
+  test(`${action} requires reselecting activity after another tab adds reading time`, async ({
+    page,
+    context,
+    server,
+  }) => {
     const started = Date.now() - 120_000;
     await page.clock.setFixedTime(started);
     await readOffline(page, context, server.origin, `changed-activity-${action.toLowerCase()}`);
@@ -344,7 +430,7 @@ for (const action of ['Upload', 'Discard'] as const) {
     await expect(submit).toBeDisabled();
     await activity.check();
     await submit.click();
-    await expect.poll(async () => (await storedRows(reviewer, 'offline')).map(row => row.kind)).toEqual(['progress']);
+    await expect.poll(async () => (await storedRows(reviewer, 'offline')).map((row) => row.kind)).toEqual(['progress']);
   });
 }
 
@@ -357,11 +443,11 @@ for (const failed of ['Progress', 'Activity'] as const) {
     await page.clock.setFixedTime(started + 30_000);
     await turnPage(page, 4);
     const local = () => storedRows(page, 'offline');
-    await expect.poll(async () => (await local()).map(row => row.kind).sort()).toEqual(['activity', 'progress']);
-    const kept = (await local()).filter(row => row.kind === failed.toLowerCase());
+    await expect.poll(async () => (await local()).map((row) => row.kind).sort()).toEqual(['activity', 'progress']);
+    const kept = (await local()).filter((row) => row.kind === failed.toLowerCase());
 
     const endpoint = failed === 'Progress' ? '**/me/reading-state/book_001' : '**/me/insights/activity?*';
-    await page.route(endpoint, route => route.fulfill({ status: 500 }));
+    await page.route(endpoint, (route) => route.fulfill({ status: 500 }));
     await context.setOffline(false);
     const review = offlineReview(page);
     const retry = review.getByRole('button', { name: `Retry ${failed} Comparison` });
@@ -388,14 +474,22 @@ for (const failed of ['Progress', 'Activity'] as const) {
   });
 }
 
-test('a deleted book’s draft can be discarded locally without a server comparison', async ({ page, context, server }) => {
+test('a deleted book’s draft can be discarded locally without a server comparison', async ({
+  page,
+  context,
+  server,
+}) => {
   const user = 'discard-deleted-book';
   await readOffline(page, context, server.origin, user);
   await page.goto(server.origin + '/library');
   const { csrf_token, user: identity } = await (await page.request.get(server.origin + '/api/v1/session')).json();
-  const removed = await page.request.delete(server.origin + '/api/v1/documents/book_001', { headers: {
-    Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': identity.reading_generation,
-  } });
+  const removed = await page.request.delete(server.origin + '/api/v1/documents/book_001', {
+    headers: {
+      Origin: server.origin,
+      'X-CSRF-Token': csrf_token,
+      'X-AnthoLume-Reading-Generation': identity.reading_generation,
+    },
+  });
   expect(removed.status()).toBe(204);
   await context.setOffline(false);
   const review = offlineReview(page);
@@ -407,85 +501,99 @@ test('a deleted book’s draft can be discarded locally without a server compari
   await review.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(review.getByRole('button', { name: 'Upload Selected' })).toBeDisabled();
   const before = await storedRows(page, 'offline');
-  expect(before.some(row => row.kind === 'progress')).toBe(true);
+  expect(before.some((row) => row.kind === 'progress')).toBe(true);
   await review.getByRole('button', { name: 'Discard Records', exact: true }).click();
   await progress.check();
   await review.getByRole('button', { name: 'Discard Selected', exact: true }).click();
-  await expect.poll(() => storedRows(page, 'offline')).toEqual(before.filter(row => row.kind !== 'progress'));
+  await expect.poll(() => storedRows(page, 'offline')).toEqual(before.filter((row) => row.kind !== 'progress'));
   expect(await storedRows(page, 'events')).toEqual([]);
   expect(serverEffects(server.data, user).receipts).toEqual([]);
 });
 
-test('removing a shared download clears both shelves but preserves the offline reader’s private review', async ({page,context,server}) => {
+test('removing a shared download clears both shelves but preserves the offline reader’s private review', async ({
+  page,
+  context,
+  server,
+}) => {
   async function signOut() {
     await page.goto(`${server.origin}/settings`);
-    await page.getByRole('button',{name:'Sign Out',exact:true}).click();
-    await page.getByRole('dialog').getByRole('button',{name:'Sign Out',exact:true}).click();
-    await expect(page.getByRole('heading',{name:'Sign in'})).toBeVisible();
+    await page.getByRole('button', { name: 'Sign Out', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Sign Out', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   }
-  const bob = 'offline-bob', alice = 'offline-alice';
-  await register(page,server.origin,bob);
+  const bob = 'offline-bob',
+    alice = 'offline-alice';
+  await register(page, server.origin, bob);
   await signOut();
-  await register(page,server.origin,alice);
-  await page.getByRole('heading',{name:'Public book 01',exact:true}).click();
+  await register(page, server.origin, alice);
+  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
   const toolbar = page.getByRole('group', { name: 'Book actions' });
   await toolbar.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(toolbar.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
   await page.goto(`${server.origin}/library`);
   await context.setOffline(true);
-  await page.getByRole('button',{name:bob,exact:true}).click();
+  await page.getByRole('button', { name: bob, exact: true }).click();
   await page.getByRole('article').getByRole('link').click();
-  await expect(page.getByRole('region',{name:'Book reader'})).toHaveAttribute('data-reader-state','ready');
+  await expect(page.getByRole('region', { name: 'Book reader' })).toHaveAttribute('data-reader-state', 'ready');
   const start = Date.now();
   for (const [index, next] of [2, 3].entries()) {
     await page.clock.setFixedTime(start + index * 30_000);
     await page.keyboard.press('c');
-    await page.getByRole('button',{name:'Next Page',exact:true}).click();
+    await page.getByRole('button', { name: 'Next Page', exact: true }).click();
     await expect(page.locator('footer')).toContainText(`${next} /`);
   }
-  await expect.poll(async () => (await storedRows(page,'offline')).map(row => row.kind).sort()).toEqual(['activity', 'progress']);
-  const checkpoint = (await storedRows(page, 'offline')).find(row => row.kind === 'progress')!.checkpoint!;
+  await expect
+    .poll(async () => (await storedRows(page, 'offline')).map((row) => row.kind).sort())
+    .toEqual(['activity', 'progress']);
+  const checkpoint = (await storedRows(page, 'offline')).find((row) => row.kind === 'progress')!.checkpoint!;
   await page.goto(`${server.origin}/library`);
   const card = page.getByRole('article').filter({ hasText: 'Public book 01' });
-  await expect(card.getByRole('img', {name:'Saved to device'})).toBeVisible();
+  await expect(card.getByRole('img', { name: 'Saved to device' })).toBeVisible();
   await card.locator('summary').click();
-  await card.getByRole('button', {name:'Remove from Device'}).click();
-  await page.getByRole('dialog').getByRole('button', {name:'Remove from Device'}).click();
+  await card.getByRole('button', { name: 'Remove from Device' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove from Device' }).click();
   const emptyShelf = page.getByText('No matching books on this device.');
   await expect(emptyShelf).toBeVisible();
-  await page.getByRole('button', {name:`Switch Profile: ${bob}`}).click();
-  await page.getByRole('button', {name:alice, exact:true}).click();
-  await expect(page.getByRole('button', {name:`Switch Profile: ${alice}`})).toBeVisible();
+  await page.getByRole('button', { name: `Switch Profile: ${bob}` }).click();
+  await page.getByRole('button', { name: alice, exact: true }).click();
+  await expect(page.getByRole('button', { name: `Switch Profile: ${alice}` })).toBeVisible();
   await expect(emptyShelf).toBeVisible();
   await context.setOffline(false);
   await page.goto(`${server.origin}/library`);
-  await expect(page.getByRole('button',{name:'Add Book'})).toBeEnabled();
-  await expect(page.getByRole('dialog',{name:'Offline reading'})).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add Book' })).toBeEnabled();
+  await expect(page.getByRole('dialog', { name: 'Offline reading' })).toHaveCount(0);
   await signOut();
-  await signIn(page,server.origin,bob);
-  const dialog = page.getByRole('dialog',{name:'Offline reading'});
+  await signIn(page, server.origin, bob);
+  const dialog = page.getByRole('dialog', { name: 'Offline reading' });
   await expect(dialog).toBeVisible();
-  expect(serverEffects(server.data,bob).head).toBeUndefined();
+  expect(serverEffects(server.data, bob).head).toBeUndefined();
   await dialog.getByLabel('Progress').check();
   await dialog.getByLabel('Activity').check();
-  await dialog.getByRole('button',{name:'Upload Selected'}).click();
-  await expect.poll(() => serverEffects(server.data,bob).head?.position).toBe(checkpoint.position);
-  await expect.poll(() => serverEffects(server.data,bob).activity).toBe(1);
-  expect(serverEffects(server.data,alice).head).toBeUndefined();
-  expect(serverEffects(server.data,alice).activity).toBe(0);
+  await dialog.getByRole('button', { name: 'Upload Selected' }).click();
+  await expect.poll(() => serverEffects(server.data, bob).head?.position).toBe(checkpoint.position);
+  await expect.poll(() => serverEffects(server.data, bob).activity).toBe(1);
+  expect(serverEffects(server.data, alice).head).toBeUndefined();
+  expect(serverEffects(server.data, alice).activity).toBe(0);
 });
 
-test('pinning needs no reading state, position, or reader lease and does not need localStorage profiles', async ({ page, context, server }) => {
+test('pinning needs no reading state, position, or reader lease and does not need localStorage profiles', async ({
+  page,
+  context,
+  server,
+}) => {
   await context.addInitScript(() => {
     const set = Storage.prototype.setItem;
-    Storage.prototype.setItem = function(key, value) {
+    Storage.prototype.setItem = function (key, value) {
       if (key.startsWith('antholume:offline-profile:')) throw new DOMException('Full', 'QuotaExceededError');
       set.call(this, key, value);
     };
   });
   await register(page, server.origin, 'pin-only');
   let stateRequests = 0;
-  await page.route('**/me/reading-state/**', route => { stateRequests++; return route.fulfill({ status: 503 }); });
+  await page.route('**/me/reading-state/**', (route) => {
+    stateRequests++;
+    return route.fulfill({ status: 503 });
+  });
   const card = page.getByRole('article').filter({ hasText: 'Public book 01' });
   await card.locator('summary').click();
   await card.getByRole('button', { name: 'Save to Device' }).click();
@@ -493,7 +601,7 @@ test('pinning needs no reading state, position, or reader lease and does not nee
   expect(stateRequests).toBe(0);
   expect(await storedRows(page, 'positions')).toEqual([]);
   expect(await storedRows(page, 'heads')).toEqual([]);
-  expect((await storedRows(page, 'sources')).every(row => !Object.keys(row.cacheReaders ?? {}).length)).toBe(true);
+  expect((await storedRows(page, 'sources')).every((row) => !Object.keys(row.cacheReaders ?? {}).length)).toBe(true);
   await page.getByRole('heading', { name: 'Public book 02', exact: true }).click();
   await context.setOffline(true);
   await page.getByRole('button', { name: 'pin-only', exact: true }).click();
@@ -542,16 +650,19 @@ test('seven pins and an automatically cached book coexist on the offline shelf',
     await page.goto(`${server.origin}/library`);
   }
   await context.setOffline(true);
-  await page.getByRole('button',{name:'offline-capacity',exact:true}).click();
+  await page.getByRole('button', { name: 'offline-capacity', exact: true }).click();
   await expect(page.getByRole('article')).toHaveCount(8);
   const kept = page.getByRole('img', { name: 'Saved to device' });
   await expect(kept).toHaveCount(7);
-  const card = page.getByRole('article').filter({hasText:'Public book 01'});
+  const card = page.getByRole('article').filter({ hasText: 'Public book 01' });
   for (const action of ['Cancel', 'Remove from Device']) {
     await card.locator('summary').click();
-    await card.getByRole('button',{name:'Remove from Device'}).click();
+    await card.getByRole('button', { name: 'Remove from Device' }).click();
     await expect(kept).toHaveCount(7);
-    await page.getByRole('dialog',{name:'Remove this download?'}).getByRole('button',{name:action,exact:true}).click();
+    await page
+      .getByRole('dialog', { name: 'Remove this download?' })
+      .getByRole('button', { name: action, exact: true })
+      .click();
   }
   await expect(kept).toHaveCount(6);
   await expect(card).toHaveCount(0);
@@ -559,6 +670,6 @@ test('seven pins and an automatically cached book coexist on the offline shelf',
   await context.setOffline(false);
   await expect(card).toBeVisible();
   await card.locator('summary').click();
-  await card.getByRole('button',{name:'Save to Device'}).click();
-  await expect(card.getByRole('img',{name:'Saved to device'})).toBeVisible();
+  await card.getByRole('button', { name: 'Save to Device' }).click();
+  await expect(card.getByRole('img', { name: 'Saved to device' })).toBeVisible();
 });

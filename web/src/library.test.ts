@@ -5,8 +5,26 @@ import { accountKey, sameAccount } from './reading/types';
 
 const a = { origin: 'https://books.example', userId: 'a' };
 const b = { origin: 'https://books.example', userId: 'b' };
-const stored = (ref: StoredBook['ref']): StoredBook => ({ ref, title: 'Identical', author: 'Author', cover: null, availability: 'available', checkpoint: { position: null, fraction: null } });
-const doc = { id: 'book', title: 'Live title', author: 'Writer', series: null, description: null, lang: null, file_available: true, cover_available: false, media_type: 'application/epub+zip', file_size_bytes: 100 };
+const stored = (ref: StoredBook['ref']): StoredBook => ({
+  ref,
+  title: 'Identical',
+  author: 'Author',
+  cover: null,
+  availability: 'available',
+  checkpoint: { position: null, fraction: null },
+});
+const doc = {
+  id: 'book',
+  title: 'Live title',
+  author: 'Writer',
+  series: null,
+  description: null,
+  lang: null,
+  file_available: true,
+  cover_available: false,
+  media_type: 'application/epub+zip',
+  file_size_bytes: 100,
+};
 it('merges only composite server identities across real pages, never local records or accounts', () => {
   const local = stored({ kind: 'local', localId: 'book' });
   const sharedA = stored({ kind: 'server', account: a, documentId: 'book' });
@@ -29,12 +47,16 @@ it('never joins a restored book with the previous generation’s cached copy', (
 });
 it('sorts Last read by newest shared checkpoint, then puts unread books last', () => {
   const cached = { ...stored({ kind: 'server', account: a, documentId: 'older' }), lastReadAt: '2026-01-03T00:00:00Z' };
-  const books = combineBooks([cached], [
-    { ...doc, id: 'unread', title: 'A unread' },
-    { ...doc, id: 'older', title: 'B older', last_read_at: '2026-01-01T00:00:00Z' },
-    { ...doc, id: 'newer', title: 'C newer', last_read_at: '2026-01-02T00:00:00Z' },
-  ], a);
-  expect(sortBooks(books, 'read').map(book => book.document?.id)).toEqual(['newer', 'older', 'unread']);
+  const books = combineBooks(
+    [cached],
+    [
+      { ...doc, id: 'unread', title: 'A unread' },
+      { ...doc, id: 'older', title: 'B older', last_read_at: '2026-01-01T00:00:00Z' },
+      { ...doc, id: 'newer', title: 'C newer', last_read_at: '2026-01-02T00:00:00Z' },
+    ],
+    a,
+  );
+  expect(sortBooks(books, 'read').map((book) => book.document?.id)).toEqual(['newer', 'older', 'unread']);
 });
 it('restores matcher navigation only for the initiating account and generation', () => {
   const account = { ...a, readingGeneration: 'current' };
@@ -53,15 +75,28 @@ it('compares canonical origins, account IDs, and restore generations without cha
   expect(sameAccount({ ...account, readingGeneration: 'previous' }, account)).toBe(false);
   expect(sameAccount(a, account)).toBe(false);
   expect(sameAccount(a, { ...a, readingGeneration: '' })).toBe(false);
-  expect(accountKey({ ...account, origin: 'https://BOOKS.example:443/' })).toBe('["account","https://books.example","a","current"]');
+  expect(accountKey({ ...account, origin: 'https://BOOKS.example:443/' })).toBe(
+    '["account","https://books.example","a","current"]',
+  );
   expect(accountKey(a)).toBe('["account","https://books.example","a"]');
 });
 it('ignores matcher history with malformed or noncanonical identity fields', () => {
   const state = { search: 'q=Public+book', pages: 2 };
-  for (const owner of [null, 42, {}, [], { ...a, origin: 1 }, { ...a, origin: '://bad' },
-    { ...a, origin: `${a.origin}/` }, { ...a, origin: 'https://reader@books.example' },
-    { ...a, origin: `${a.origin}/anything` }, { ...a, userId: 1 }, { ...a, userId: '' },
-    { ...a, readingGeneration: '' }, { ...a, readingGeneration: null }]) {
+  for (const owner of [
+    null,
+    42,
+    {},
+    [],
+    { ...a, origin: 1 },
+    { ...a, origin: '://bad' },
+    { ...a, origin: `${a.origin}/` },
+    { ...a, origin: 'https://reader@books.example' },
+    { ...a, origin: `${a.origin}/anything` },
+    { ...a, userId: 1 },
+    { ...a, userId: '' },
+    { ...a, readingGeneration: '' },
+    { ...a, readingGeneration: null },
+  ]) {
     expect(matcherReturn({ ...state, account: owner }, a)).toBeNull();
   }
 });

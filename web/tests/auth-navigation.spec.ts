@@ -7,19 +7,26 @@ test('standalone sign-in gates app routes and Settings signs out immediately', a
   await page.addInitScript(() => {
     const shell = 'nav[aria-label="Main navigation"], header';
     new MutationObserver((records) => {
-      for (const record of records) for (const node of record.addedNodes) {
-        if (node instanceof Element && (node.matches(shell) || node.querySelector(shell))) {
-          document.documentElement.dataset.workspaceMounted = 'true';
+      for (const record of records)
+        for (const node of record.addedNodes) {
+          if (node instanceof Element && (node.matches(shell) || node.querySelector(shell))) {
+            document.documentElement.dataset.workspaceMounted = 'true';
+          }
         }
-      }
     }).observe(document, { childList: true, subtree: true });
   });
   let finishBootstrap!: () => void;
-  const bootstrap = new Promise<void>((resolve) => { finishBootstrap = resolve; });
-  await page.route('**/api/v1/session', async (route) => {
-    await bootstrap;
-    await route.continue();
-  }, { times: 1 });
+  const bootstrap = new Promise<void>((resolve) => {
+    finishBootstrap = resolve;
+  });
+  await page.route(
+    '**/api/v1/session',
+    async (route) => {
+      await bootstrap;
+      await route.continue();
+    },
+    { times: 1 },
+  );
   await page.goto(`${root}/`);
   await expect(page.getByRole('status')).toHaveText('Connecting…');
   await expect(page.getByRole('main').getByRole('heading')).toHaveCount(0);
@@ -67,11 +74,17 @@ test('standalone sign-in gates app routes and Settings signs out immediately', a
   expect((await page.request.get(`${root}/more`, { maxRedirects: 0 })).status()).toBe(404);
 
   let finishLogout!: () => void;
-  const logout = new Promise<void>((resolve) => { finishLogout = resolve; });
-  await page.route('**/api/v1/session/logout', async (route) => {
-    await logout;
-    await route.continue();
-  }, { times: 1 });
+  const logout = new Promise<void>((resolve) => {
+    finishLogout = resolve;
+  });
+  await page.route(
+    '**/api/v1/session/logout',
+    async (route) => {
+      await logout;
+      await route.continue();
+    },
+    { times: 1 },
+  );
   try {
     await page.getByRole('button', { name: 'Sign Out', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Sign Out', exact: true }).click();

@@ -4,14 +4,33 @@ import { test, expect, register } from './fixtures';
 
 test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
 
-test('Library rotates through the three newest books with dots, pause and native swipe', async ({ page, server }, testInfo) => {
+test('Library rotates through the three newest books with dots, pause and native swipe', async ({
+  page,
+  server,
+}, testInfo) => {
   await register(page, server.origin, 'carousel-reader');
   const endpoint = `${server.origin}/api/v1`;
   const { csrf_token, user } = await (await page.request.get(`${endpoint}/session`)).json();
-  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': user.reading_generation };
-  expect((await page.request.post(`${endpoint}/me/devices`, { headers, data: { id: 'carousel-device', name: 'Reader' } })).status()).toBe(200);
+  const headers = {
+    Origin: server.origin,
+    'X-CSRF-Token': csrf_token,
+    'X-AnthoLume-Reading-Generation': user.reading_generation,
+  };
+  expect(
+    (
+      await page.request.post(`${endpoint}/me/devices`, { headers, data: { id: 'carousel-device', name: 'Reader' } })
+    ).status(),
+  ).toBe(200);
   for (let book = 1; book <= 4; book++) {
-    const data = { event_id: randomUUID(), document_id: `book_00${book}`, device_id: 'carousel-device', base_revision: '0', observed_at: new Date(Date.now() - (5 - book) * 60_000).toISOString(), position: '/body/DocFragment[1]/body/p[2]', fraction: book / 10 };
+    const data = {
+      event_id: randomUUID(),
+      document_id: `book_00${book}`,
+      device_id: 'carousel-device',
+      base_revision: '0',
+      observed_at: new Date(Date.now() - (5 - book) * 60_000).toISOString(),
+      position: '/body/DocFragment[1]/body/p[2]',
+      fraction: book / 10,
+    };
     expect((await page.request.post(`${endpoint}/me/reading-progress`, { headers, data })).status()).toBe(200);
   }
   const db = new DatabaseSync(`${server.data}/browser.db`);
@@ -20,7 +39,9 @@ test('Library rotates through the three newest books with dots, pause and native
     for (let book = 1; book <= 4; book++) {
       expect(dateHead.run(`2026-01-0${book}T12:00:00Z`, user.id, `book_00${book}`).changes).toBe(1);
     }
-  } finally { db.close(); }
+  } finally {
+    db.close();
+  }
   await page.clock.install();
   await page.reload();
   const carousel = page.getByRole('region', { name: 'Continue reading carousel' });
@@ -28,11 +49,16 @@ test('Library rotates through the three newest books with dots, pause and native
   const dots = dotGroup.getByRole('button');
   const activeHero = carousel.getByRole('region', { name: 'Continue reading', exact: true });
   const story = () => activeHero.getByRole('heading');
-  const settled = () => expect.poll(() => activeHero.evaluate(hero => {
-    const track = hero.parentElement!.parentElement!;
-    const distance = Math.abs(track.scrollLeft) / track.clientWidth;
-    return Math.abs(distance - Math.round(distance));
-  })).toBeLessThan(.005);
+  const settled = () =>
+    expect
+      .poll(() =>
+        activeHero.evaluate((hero) => {
+          const track = hero.parentElement!.parentElement!;
+          const distance = Math.abs(track.scrollLeft) / track.clientWidth;
+          return Math.abs(distance - Math.round(distance));
+        }),
+      )
+      .toBeLessThan(0.005);
   await expect(dots).toHaveCount(3);
   await expect(dotGroup).toHaveCSS('opacity', '0');
   await expect(dots.first()).toHaveCSS('pointer-events', 'none');
@@ -45,11 +71,17 @@ test('Library rotates through the three newest books with dots, pause and native
 
   await settled();
   const box = (await carousel.boundingBox())!;
-  const left = box.x + box.width * .15, right = box.x + box.width * .85, y = box.y + box.height * .45;
+  const left = box.x + box.width * 0.15,
+    right = box.x + box.width * 0.85,
+    y = box.y + box.height * 0.45;
   const cdp = await page.context().newCDPSession(page);
   async function swipe(from: number, to: number) {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from, y }] });
-    for (let i = 1; i <= 8; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: from + (to - from) * i / 8, y }] });
+    for (let i = 1; i <= 8; i++)
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x: from + ((to - from) * i) / 8, y }],
+      });
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   }
   try {
@@ -60,7 +92,9 @@ test('Library rotates through the three newest books with dots, pause and native
     await swipe(left, right);
     await expect(story()).toHaveText('Public book 03');
     await settled();
-  } finally { await cdp.detach(); }
+  } finally {
+    await cdp.detach();
+  }
   await dots.first().tap();
   await expect(story()).toHaveText('Public book 04');
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -75,16 +109,17 @@ test('Library rotates through the three newest books with dots, pause and native
   await expect(dotGroup).toHaveCSS('opacity', '0');
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: testInfo.outputPath('recent-books-mobile.png') });
-  const typography = (heading: ReturnType<typeof story>) => heading.evaluate(el => {
-    const { fontSize, fontStyle, lineHeight } = getComputedStyle(el);
-    return { fontSize, fontStyle, lineHeight };
-  });
+  const typography = (heading: ReturnType<typeof story>) =>
+    heading.evaluate((el) => {
+      const { fontSize, fontStyle, lineHeight } = getComputedStyle(el);
+      return { fontSize, fontStyle, lineHeight };
+    });
   const libraryTitle = await typography(story());
   expect(libraryTitle.fontStyle).toBe('italic');
   const carouselBox = (await carousel.boundingBox())!;
   const heroBox = (await activeHero.boundingBox())!;
   expect(carouselBox.height - heroBox.height).toBe(2);
-  const coverWidth = (hero: typeof activeHero) => hero.locator('img').evaluate(image => image.clientWidth);
+  const coverWidth = (hero: typeof activeHero) => hero.locator('img').evaluate((image) => image.clientWidth);
   const expectWatermark = async (hero: typeof activeHero) => {
     const mark = hero.getByText('40%', { exact: true });
     await expect(mark).toHaveCSS('text-align', 'center');
@@ -94,10 +129,11 @@ test('Library rotates through the three newest books with dots, pause and native
   };
   await expectWatermark(activeHero);
   const libraryCoverWidth = await coverWidth(activeHero);
-  const spacing = (hero: typeof activeHero) => hero.evaluate(el => {
-    const { padding, gap } = getComputedStyle(el);
-    return { padding, gap };
-  });
+  const spacing = (hero: typeof activeHero) =>
+    hero.evaluate((el) => {
+      const { padding, gap } = getComputedStyle(el);
+      return { padding, gap };
+    });
   const librarySpacing = await spacing(activeHero);
   const labelBox = (await activeHero.getByText('Continue reading', { exact: true }).boundingBox())!;
   const titleBox = (await story().boundingBox())!;

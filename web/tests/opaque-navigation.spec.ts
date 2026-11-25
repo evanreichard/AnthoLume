@@ -1,14 +1,22 @@
 import { DatabaseSync } from 'node:sqlite';
 import { expect, register, test } from './fixtures';
 
-test('slash and literal percent-encoded slash navigate to distinct books and reader resources', async ({ page, server }) => {
+test('slash and literal percent-encoded slash navigate to distinct books and reader resources', async ({
+  page,
+  server,
+}) => {
   await register(page, server.origin, 'opaque-reader');
-  const books = [['a/b', 'Opaque slash'], ['a%2Fb', 'Opaque literal percent']];
+  const books = [
+    ['a/b', 'Opaque slash'],
+    ['a%2Fb', 'Opaque literal percent'],
+  ];
   const db = new DatabaseSync(`${server.data}/browser.db`);
   try {
     const insert = db.prepare("INSERT INTO documents(id, title, filepath) VALUES(?, ?, 'public.epub')");
     for (const [id, title] of books) insert.run(id, title);
-  } finally { db.close(); }
+  } finally {
+    db.close();
+  }
   for (const [id, title] of books) {
     await page.goto(`${server.origin}/library?q=Opaque`);
     await page.getByRole('heading', { name: title, exact: true }).click();

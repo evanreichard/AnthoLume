@@ -16,12 +16,13 @@ export function bindReadingPinch(surface: HTMLElement, resize: (scale: number, f
     resize(pinch.scale, false);
   };
   const finish = (event: TouchEvent) => {
-    if (!pinch || event.touches.length >= 2 && event.type !== 'touchcancel') return;
+    if (!pinch || (event.touches.length >= 2 && event.type !== 'touchcancel')) return;
     const { scale } = pinch;
     pinch = undefined;
     resize(event.type === 'touchcancel' ? 1 : scale, true);
   };
-  const listeners = new AbortController(), capture = { capture: true, signal: listeners.signal };
+  const listeners = new AbortController(),
+    capture = { capture: true, signal: listeners.signal };
   surface.addEventListener('touchstart', start, { ...capture, passive: true });
   surface.addEventListener('touchmove', move, { ...capture, passive: false });
   surface.addEventListener('touchend', finish, { ...capture, passive: true });

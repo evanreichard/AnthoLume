@@ -2,11 +2,15 @@ import { writeFile } from 'node:fs/promises';
 import type { Locator, Page } from '@playwright/test';
 import { test, expect, register } from './fixtures';
 
-const artwork = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGNQqpoDRAwQCgAgRgThJ/yiRwAAAABJRU5ErkJggg==', 'base64');
+const artwork = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGNQqpoDRAwQCgAgRgThJ/yiRwAAAABJRU5ErkJggg==',
+  'base64',
+);
 const documentID = 'book_001';
 const fileRoute = `**/api/v1/documents/${documentID}/file`;
 const coverRoute = `**/api/v1/documents/${documentID}/cover`;
-const bookCard = (page: Page) => page.getByRole('article').filter({ has: page.locator(`a[href*="?id=${documentID}&"]`) });
+const bookCard = (page: Page) =>
+  page.getByRole('article').filter({ has: page.locator(`a[href*="?id=${documentID}&"]`) });
 
 async function saveBook(page: Page) {
   const card = bookCard(page);
@@ -18,7 +22,9 @@ async function saveBook(page: Page) {
 async function expectArtwork(card: Locator) {
   const cover = card.locator('img[src^="blob:"]');
   await expect(cover).toBeVisible();
-  await expect.poll(() => cover.evaluate((image: HTMLImageElement) => [image.naturalWidth, image.naturalHeight])).toEqual([2, 2]);
+  await expect
+    .poll(() => cover.evaluate((image: HTMLImageElement) => [image.naturalWidth, image.naturalHeight]))
+    .toEqual([2, 2]);
   const pixels = await cover.evaluate((image: HTMLImageElement) => {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 2;
@@ -30,27 +36,47 @@ async function expectArtwork(card: Locator) {
 }
 
 async function storedCovers(page: Page): Promise<{ pinned: boolean; bytes: number[] }[]> {
-  return page.evaluate(id => new Promise<{ pinned: boolean; bytes: number[] }[]>((resolve, reject) => {
-    const request = indexedDB.open('antholume-reading-v1');
-    request.onupgradeneeded = () => { request.transaction?.abort(); reject(new Error('Production reader DB missing')); };
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const db = request.result;
-      const tx = db.transaction('downloads', 'readonly');
-      const rows = tx.objectStore('downloads').getAll();
-      tx.oncomplete = () => {
-        db.close();
-        resolve(Promise.all(rows.result.filter(row => row.document === id && row.cover instanceof Blob).map(async row => ({
-          pinned: !!row.pinned,
-          bytes: Array.from(new Uint8Array(await row.cover.arrayBuffer())),
-        }))));
-      };
-      tx.onerror = () => { db.close(); reject(tx.error); };
-    };
-  }), documentID);
+  return page.evaluate(
+    (id) =>
+      new Promise<{ pinned: boolean; bytes: number[] }[]>((resolve, reject) => {
+        const request = indexedDB.open('antholume-reading-v1');
+        request.onupgradeneeded = () => {
+          request.transaction?.abort();
+          reject(new Error('Production reader DB missing'));
+        };
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const tx = db.transaction('downloads', 'readonly');
+          const rows = tx.objectStore('downloads').getAll();
+          tx.oncomplete = () => {
+            db.close();
+            resolve(
+              Promise.all(
+                rows.result
+                  .filter((row) => row.document === id && row.cover instanceof Blob)
+                  .map(async (row) => ({
+                    pinned: !!row.pinned,
+                    bytes: Array.from(new Uint8Array(await row.cover.arrayBuffer())),
+                  })),
+              ),
+            );
+          };
+          tx.onerror = () => {
+            db.close();
+            reject(tx.error);
+          };
+        };
+      }),
+    documentID,
+  );
 }
 
-test('Save to Device keeps the server artwork on a cold offline start and removes it with the download', async ({ page, context, server }) => {
+test('Save to Device keeps the server artwork on a cold offline start and removes it with the download', async ({
+  page,
+  context,
+  server,
+}) => {
   const user = 'saved-cover-reader';
   await writeFile(`${server.data}/covers/public.png`, artwork);
   await register(page, server.origin, user);
@@ -66,7 +92,10 @@ test('Save to Device keeps the server artwork on a cold offline start and remove
   await expectArtwork(card);
   await card.locator('summary').click();
   await card.getByRole('button', { name: 'Remove from Device' }).click();
-  await cold.getByRole('dialog', { name: 'Remove this download?' }).getByRole('button', { name: 'Remove from Device' }).click();
+  await cold
+    .getByRole('dialog', { name: 'Remove this download?' })
+    .getByRole('button', { name: 'Remove from Device' })
+    .click();
   await expect(card).toHaveCount(0);
 
   expect(await storedCovers(cold)).toEqual([]);
@@ -77,7 +106,10 @@ test('confirmed catalog edits update the saved book without fetching the EPUB', 
   await saveBook(page);
   await expect.poll(async () => (await storedCovers(page)).length).toBe(1);
   let fileRequests = 0;
-  await page.route(fileRoute, route => { fileRequests++; return route.abort(); });
+  await page.route(fileRoute, (route) => {
+    fileRequests++;
+    return route.abort();
+  });
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Edit book' });
   async function editCover() {
@@ -124,10 +156,14 @@ test('opening a book directly caches artwork without pinning the book', async ({
   await expect(card.getByRole('img', { name: 'Saved to device' })).toHaveCount(0);
 });
 
-test('a missing cover does not block saving and backfills online without downloading the EPUB again', async ({ page, context, server }) => {
+test('a missing cover does not block saving and backfills online without downloading the EPUB again', async ({
+  page,
+  context,
+  server,
+}) => {
   const user = 'backfill-cover-reader';
   await writeFile(`${server.data}/covers/public.png`, artwork);
-  await context.route(coverRoute, route => route.fulfill({ status: 404 }));
+  await context.route(coverRoute, (route) => route.fulfill({ status: 404 }));
   await register(page, server.origin, user);
   await saveBook(page);
   await page.close();
@@ -141,7 +177,10 @@ test('a missing cover does not block saving and backfills online without downloa
   await cold.close();
 
   let fileRequests = 0;
-  await context.route(fileRoute, route => { fileRequests++; return route.abort(); });
+  await context.route(fileRoute, (route) => {
+    fileRequests++;
+    return route.abort();
+  });
   await context.unroute(coverRoute);
   await context.setOffline(false);
   const online = await context.newPage();

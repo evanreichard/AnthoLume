@@ -6,14 +6,22 @@ import { expect, register, signIn, test } from './fixtures';
 test('Admin card headings match the Library heading size across tabs', async ({ page, server }) => {
   await register(page, server.origin, 'admin-card-owner');
   const db = new DatabaseSync(`${server.data}/browser.db`);
-  try { db.prepare('UPDATE users SET admin=1 WHERE id=?').run('admin-card-owner'); }
-  finally { db.close(); }
+  try {
+    db.prepare('UPDATE users SET admin=1 WHERE id=?').run('admin-card-owner');
+  } finally {
+    db.close();
+  }
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto(`${server.origin}/admin/library`);
-    const size = await page.getByRole('heading', { name: 'Storage Roots' }).evaluate(node => getComputedStyle(node).fontSize);
+    const size = await page
+      .getByRole('heading', { name: 'Storage Roots' })
+      .evaluate((node) => getComputedStyle(node).fontSize);
     for (const tab of ['Library', 'Users', 'System']) {
-      await page.getByRole('navigation', { name: 'Administration sections' }).getByRole('link', { name: tab, exact: true }).click();
+      await page
+        .getByRole('navigation', { name: 'Administration sections' })
+        .getByRole('link', { name: tab, exact: true })
+        .click();
       const headings = page.getByRole('region').getByRole('heading', { level: 2 });
       await expect(headings.first()).toBeVisible();
       for (const heading of await headings.all()) await expect(heading).toHaveCSS('font-size', size);
@@ -33,7 +41,9 @@ test('Metadata provider defaults to Open Library and explains missing Hardcover 
     const hardcover = providers.getByRole('radio', { name: 'Hardcover' });
     await expect(openLibrary).toBeChecked();
     await expect(hardcover).toBeDisabled();
-    await expect(hardcover).toHaveAccessibleDescription('Set HARDCOVER_CATALOG_TOKEN and restart the server to enable Hardcover.');
+    await expect(hardcover).toHaveAccessibleDescription(
+      'Set HARDCOVER_CATALOG_TOKEN and restart the server to enable Hardcover.',
+    );
     db.prepare("INSERT INTO settings (name, value) VALUES ('metadata_provider', 'hardcover')").run();
     await page.reload();
     await expect(page.getByText(/Open Library is active because .* no longer has a catalog token/)).toBeVisible();
@@ -42,7 +52,10 @@ test('Metadata provider defaults to Open Library and explains missing Hardcover 
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
       const reference = page.getByRole('heading', { name: 'Storage Roots', exact: true });
-      await expect(page.getByRole('heading', { name: 'Metadata Provider', exact: true })).toHaveCSS('font-size', await reference.evaluate(node => getComputedStyle(node).fontSize));
+      await expect(page.getByRole('heading', { name: 'Metadata Provider', exact: true })).toHaveCSS(
+        'font-size',
+        await reference.evaluate((node) => getComputedStyle(node).fontSize),
+      );
       await openLibrary.click({ trial: true });
     }
     await openLibrary.click();
@@ -50,20 +63,30 @@ test('Metadata provider defaults to Open Library and explains missing Hardcover 
     await page.reload();
     await expect(openLibrary).toBeChecked();
     await expect(page.getByText(/Open Library is active because/)).toHaveCount(0);
-  } finally { db.close(); }
+  } finally {
+    db.close();
+  }
 });
 
 test('Import lists independent rules and opens editors on demand', async ({ page, server }, testInfo) => {
   await register(page, server.origin, 'auto-import-owner');
   const db = new DatabaseSync(`${server.data}/browser.db`);
-  try { db.prepare("UPDATE users SET admin=1 WHERE id=?").run('auto-import-owner'); }
-  finally { db.close(); }
+  try {
+    db.prepare('UPDATE users SET admin=1 WHERE id=?').run('auto-import-owner');
+  } finally {
+    db.close();
+  }
   await page.setViewportSize({ width: 320, height: 800 });
   const archivePath = `${server.data}/archive`;
   await mkdir(archivePath);
   const storageDb = new DatabaseSync(`${server.data}/browser.db`);
-  try { storageDb.prepare("INSERT INTO storage_roots(id,label,path,managed) VALUES('archive','Archive',?,0)").run(archivePath); }
-  finally { storageDb.close(); }
+  try {
+    storageDb
+      .prepare("INSERT INTO storage_roots(id,label,path,managed) VALUES('archive','Archive',?,0)")
+      .run(archivePath);
+  } finally {
+    storageDb.close();
+  }
   await page.goto(`${server.origin}/admin/library`);
   const roots = page.getByRole('region', { name: 'Storage Roots' });
   const imports = page.getByRole('region', { name: 'Import', exact: true });
@@ -81,7 +104,10 @@ test('Import lists independent rules and opens editors on demand', async ({ page
   await dialog.getByRole('button', { name: 'Close Dialog' }).click();
   await expect(imports).toContainText('No auto-import rules yet.');
   await expect(page.getByRole('combobox', { name: 'Source' })).toHaveCount(0);
-  for (const [name, folder] of [['New arrivals', 'Imports'], ['Archive books', 'Archive']]) {
+  for (const [name, folder] of [
+    ['New arrivals', 'Imports'],
+    ['Archive books', 'Archive'],
+  ]) {
     await imports.getByRole('button', { name: 'Auto', exact: true }).click();
     await expect(dialog).toHaveAccessibleName('Add Auto Import Rule');
     if (folder === 'Imports') {
@@ -116,7 +142,10 @@ test('Import lists independent rules and opens editors on demand', async ({ page
   await expect(enable).not.toBeChecked();
   await page.keyboard.press('Space');
   await expect(enable).toBeChecked();
-  await expect(dialog.locator('dl').filter({ hasText: 'Last scan' }).locator('dt')).toHaveText(['Last scan', 'Next scan']);
+  await expect(dialog.locator('dl').filter({ hasText: 'Last scan' }).locator('dt')).toHaveText([
+    'Last scan',
+    'Next scan',
+  ]);
   await expect(dialog.getByText('Not scheduled', { exact: true })).toBeVisible();
   const lastScan = dialog.locator('dl time').first();
   const previousScan = await lastScan.getAttribute('datetime');
@@ -125,8 +154,18 @@ test('Import lists independent rules and opens editors on demand', async ({ page
   const result = dialog.getByRole('status');
   await expect(result.getByText('Last Scan', { exact: true })).toBeVisible();
   await expect(result.getByText('Manual', { exact: true })).toBeVisible();
-  await expect(result.locator('div').filter({ has: page.getByText('Found', { exact: true }) }).locator('dd')).toHaveText('0');
-  await expect(result.locator('div').filter({ has: page.getByText('Added', { exact: true }) }).locator('dd')).toHaveText('0');
+  await expect(
+    result
+      .locator('div')
+      .filter({ has: page.getByText('Found', { exact: true }) })
+      .locator('dd'),
+  ).toHaveText('0');
+  await expect(
+    result
+      .locator('div')
+      .filter({ has: page.getByText('Added', { exact: true }) })
+      .locator('dd'),
+  ).toHaveText('0');
   await dialog.screenshot({ path: testInfo.outputPath('auto-import-result-320.png') });
   await page.setViewportSize({ width: 390, height: 844 });
   await dialog.screenshot({ path: testInfo.outputPath('auto-import-result-390.png') });
@@ -145,19 +184,32 @@ test('Import lists independent rules and opens editors on demand', async ({ page
   await expect(imports.getByRole('button', { name: 'Archive books', exact: true })).toBeVisible();
 });
 
-test('administrators manage users while members cannot open Administration', async ({ page, browser, server }, testInfo) => {
+test('administrators manage users while members cannot open Administration', async ({
+  page,
+  browser,
+  server,
+}, testInfo) => {
   await register(page, server.origin, 'admin-owner');
   const db = new DatabaseSync(`${server.data}/browser.db`);
-  try { db.prepare('UPDATE users SET admin=1 WHERE id=?').run('admin-owner'); }
-  finally { db.close(); }
+  try {
+    db.prepare('UPDATE users SET admin=1 WHERE id=?').run('admin-owner');
+  } finally {
+    db.close();
+  }
   await page.reload();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.setViewportSize({ width: 320, height: 800 });
-  const header = page.getByRole('main').locator('header').filter({ has: page.getByRole('heading', { name: 'Settings', exact: true }) });
+  const header = page
+    .getByRole('main')
+    .locator('header')
+    .filter({ has: page.getByRole('heading', { name: 'Settings', exact: true }) });
   const adminLink = header.getByRole('link', { name: 'Administration', exact: true });
   await expect(adminLink).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Tools', exact: true })).toHaveCount(0);
-  const [settingsTitle, adminPill] = await Promise.all([header.getByRole('heading').boundingBox(), adminLink.boundingBox()]);
+  const [settingsTitle, adminPill] = await Promise.all([
+    header.getByRole('heading').boundingBox(),
+    adminLink.boundingBox(),
+  ]);
   expect(adminPill!.height).toBeGreaterThanOrEqual(44);
   expect(adminPill!.x).toBeGreaterThan(settingsTitle!.x + settingsTitle!.width);
   expect(Math.abs(adminPill!.y + adminPill!.height / 2 - settingsTitle!.y - settingsTitle!.height / 2)).toBeLessThan(1);
@@ -177,7 +229,9 @@ test('administrators manage users while members cannot open Administration', asy
   await expect(page.getByText('What’s included', { exact: true })).toHaveCount(0);
   const storageTitle = page.getByRole('heading', { name: 'Storage Roots', exact: true });
   await expect(storageTitle).toBeVisible();
-  expect((await storageTitle.boundingBox())!.y).toBeLessThan((await page.getByRole('heading', { name: 'Import', exact: true }).boundingBox())!.y);
+  expect((await storageTitle.boundingBox())!.y).toBeLessThan(
+    (await page.getByRole('heading', { name: 'Import', exact: true }).boundingBox())!.y,
+  );
   expect((await title.boundingBox())!.x).toBe((await sections.boundingBox())!.x);
   for (const tab of await sections.getByRole('link').all()) {
     expect((await tab.boundingBox())!.height).toBeGreaterThanOrEqual(44);
@@ -186,12 +240,15 @@ test('administrators manage users while members cannot open Administration', asy
   await navigation.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page).toHaveURL(`${server.origin}/settings`);
   const libraryTab = sections.getByRole('link', { name: 'Library', exact: true });
-  const tabStyle = (tab: typeof libraryTab) => tab.evaluate(element => {
-    const { borderBottomColor, borderBottomWidth, fontWeight } = getComputedStyle(element);
-    return { borderBottomColor, borderBottomWidth, fontWeight };
-  });
+  const tabStyle = (tab: typeof libraryTab) =>
+    tab.evaluate((element) => {
+      const { borderBottomColor, borderBottomWidth, fontWeight } = getComputedStyle(element);
+      return { borderBottomColor, borderBottomWidth, fontWeight };
+    });
   await navigation.getByRole('link', { name: 'Insights' }).click();
-  const overviewTab = page.getByRole('navigation', { name: 'Insights sections' }).getByRole('link', { name: 'Overview' });
+  const overviewTab = page
+    .getByRole('navigation', { name: 'Insights sections' })
+    .getByRole('link', { name: 'Overview' });
   await expect(overviewTab).toHaveAttribute('aria-current', 'page');
   const activeTab = await tabStyle(overviewTab);
   expect(activeTab.borderBottomWidth).toBe('2px');
@@ -246,8 +303,13 @@ test('administrators manage users while members cannot open Administration', asy
   await expect(dialog.getByLabel('Directory', { exact: true })).toHaveValue(`${server.data}/alternate-library`);
   await expect(dialog.getByLabel('Ownership')).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Storage Roots' }).getByRole('button', { name: 'Alternate library', exact: true })).toBeVisible();
-  await page.getByRole('group', { name: 'Import actions' }).getByRole('button', { name: 'Manual', exact: true }).click();
+  await expect(
+    page.getByRole('region', { name: 'Storage Roots' }).getByRole('button', { name: 'Alternate library', exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole('group', { name: 'Import actions' })
+    .getByRole('button', { name: 'Manual', exact: true })
+    .click();
   const source = page.getByRole('combobox', { name: 'Source', exact: true });
   await expect(source.getByRole('option', { name: 'Alternate library', exact: true })).toHaveCount(1);
   await expect(source.getByRole('option', { name: 'Imports', exact: true })).toHaveCount(1);
@@ -314,7 +376,11 @@ test('administrators manage users while members cannot open Administration', asy
   expect(database.suggestedFilename()).toBe('antholume-backup.db');
   const databasePath = await database.path();
   await expect(backupCard.getByRole('link')).toHaveCount(0);
-  for (const [width, height, colorScheme] of [[320, 800, 'dark'], [390, 844, 'dark'], [1440, 900, 'light']] as const) {
+  for (const [width, height, colorScheme] of [
+    [320, 800, 'dark'],
+    [390, 844, 'dark'],
+    [1440, 900, 'light'],
+  ] as const) {
     await page.emulateMedia({ colorScheme });
     await page.setViewportSize({ width, height });
     await page.evaluate(() => document.fonts.ready.then(() => undefined));
@@ -341,8 +407,11 @@ test('administrators manage users while members cannot open Administration', asy
   const databaseFile = testInfo.outputPath('backup.db');
   await writeFile(databaseFile, await archive.file('antholume.db')!.async('nodebuffer'));
   const snapshot = new DatabaseSync(databaseFile, { readOnly: true });
-  try { expect(snapshot.prepare('PRAGMA quick_check').get()).toEqual({ quick_check: 'ok' }); }
-  finally { snapshot.close(); }
+  try {
+    expect(snapshot.prepare('PRAGMA quick_check').get()).toEqual({ quick_check: 'ok' });
+  } finally {
+    snapshot.close();
+  }
   await sections.getByRole('link', { name: 'System' }).click();
   const serverCard = page.getByRole('region', { name: 'Server', exact: true });
   const maintenance = page.getByRole('region', { name: 'Maintenance', exact: true });
@@ -354,7 +423,9 @@ test('administrators manage users while members cannot open Administration', asy
   await expect(recentJobs.getByText('No maintenance jobs yet.')).toBeVisible();
   await expect(maintenance.getByText('Never run', { exact: true })).toHaveCount(2);
   for (const name of ['Refresh Reading Statistics', 'Check Database Integrity']) {
-    const started = page.waitForResponse(response => response.url().endsWith('/api/v1/admin/jobs') && response.request().method() === 'POST');
+    const started = page.waitForResponse(
+      (response) => response.url().endsWith('/api/v1/admin/jobs') && response.request().method() === 'POST',
+    );
     await maintenance.getByRole('button', { name, exact: true }).click();
     expect((await started).status()).toBe(202);
     const row = maintenance.getByText(name, { exact: true }).locator('../..');
@@ -365,7 +436,11 @@ test('administrators manage users while members cannot open Administration', asy
   await sections.getByRole('link', { name: 'System' }).click();
   await expect(maintenance.getByText(/^Last ran on /)).toHaveCount(2);
   await expect(recentJobs.getByText(/Refresh Reading Statistics ·/)).toBeHidden();
-  for (const [width, colorScheme] of [[320, 'dark'], [390, 'light'], [1440, 'light']] as const) {
+  for (const [width, colorScheme] of [
+    [320, 'dark'],
+    [390, 'light'],
+    [1440, 'light'],
+  ] as const) {
     await page.emulateMedia({ colorScheme });
     await page.setViewportSize({ width, height: 844 });
     await page.evaluate(() => document.fonts.ready);
@@ -413,9 +488,14 @@ test('administrators manage users while members cannot open Administration', asy
     await expect(tab.getByRole('link', { name: 'Administration', exact: true })).toHaveCount(0);
     await tab.goto(`${server.origin}/admin/users`);
     await expect(tab.getByText('Administrator access is required.')).toBeVisible();
-  } finally { await member.close(); }
+  } finally {
+    await member.close();
+  }
 
-  await page.getByRole('button', { name: 'Manage admin-test-member' }).getByText('admin-test-member', { exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Manage admin-test-member' })
+    .getByText('admin-test-member', { exact: true })
+    .click();
   const roles = dialog.getByRole('group', { name: 'Role' });
   const memberRole = roles.getByRole('radio', { name: 'Member', exact: true });
   const adminRole = roles.getByRole('radio', { name: 'Administrator', exact: true });
@@ -427,15 +507,20 @@ test('administrators manage users while members cannot open Administration', asy
   await expectConfirmation('Updated admin-test-member.');
   const manage = page.getByRole('button', { name: 'Manage admin-test-member' });
   await expect(manage).toContainText('Administrator');
-  for (const [width, height, colorScheme] of [[320, 800, 'dark'], [390, 844, 'dark'], [1440, 900, 'light']] as const) {
+  for (const [width, height, colorScheme] of [
+    [320, 800, 'dark'],
+    [390, 844, 'dark'],
+    [1440, 900, 'light'],
+  ] as const) {
     await page.setViewportSize({ width, height });
     await page.emulateMedia({ colorScheme });
     await manage.click();
     await expect(adminRole).toBeChecked();
     const footer = dialog.locator('footer');
-    const actions = await Promise.all(['Save', 'Cancel', 'Delete'].map(name =>
-      footer.getByRole('button', { name, exact: true }).boundingBox()));
-    expect(new Set(actions.map(box => box?.y)).size).toBe(1);
+    const actions = await Promise.all(
+      ['Save', 'Cancel', 'Delete'].map((name) => footer.getByRole('button', { name, exact: true }).boundingBox()),
+    );
+    expect(new Set(actions.map((box) => box?.y)).size).toBe(1);
     await dialog.screenshot({ path: testInfo.outputPath(`manage-user-${width}-${colorScheme}.png`) });
     await footer.getByRole('button', { name: 'Cancel', exact: true }).click();
   }
@@ -452,8 +537,20 @@ test('administrators manage users while members cannot open Administration', asy
   await expect(page.getByRole('button', { name: 'Manage admin-test-member' })).toHaveCount(0);
 
   await mkdir(`${server.data}/logs`, { recursive: true });
-  const logFixture = (status: number, level: string) => JSON.stringify({ time: '2026-03-10T12:00:00Z', type: 'access', status, level, msg: `HTTP ${status}${status === 410 ? ` ${'long request path '.repeat(20)}` : ''}`, latency: '2ms', authorization: 'not-for-the-browser' });
-  await writeFile(`${server.data}/logs/antholume.log`, [...Array(15).fill(logFixture(200, 'info')), logFixture(503, 'warn')].join('\n') + '\n');
+  const logFixture = (status: number, level: string) =>
+    JSON.stringify({
+      time: '2026-03-10T12:00:00Z',
+      type: 'access',
+      status,
+      level,
+      msg: `HTTP ${status}${status === 410 ? ` ${'long request path '.repeat(20)}` : ''}`,
+      latency: '2ms',
+      authorization: 'not-for-the-browser',
+    });
+  await writeFile(
+    `${server.data}/logs/antholume.log`,
+    [...Array(15).fill(logFixture(200, 'info')), logFixture(503, 'warn')].join('\n') + '\n',
+  );
   await writeFile(`${server.data}/logs/antholume-2026-03-09T00-00-00.000.log`, logFixture(410, 'info') + '\n');
   await page.setViewportSize({ width: 390, height: 500 });
   await page.goto(`${server.origin}/admin/logs`);
@@ -471,7 +568,12 @@ test('administrators manage users while members cannot open Administration', asy
   await expect(entries.last()).toContainText('HTTP 410');
   await entries.last().locator('summary').click();
   const longDetails = entries.last().locator('pre');
-  expect(await longDetails.evaluate(node => { node.scrollLeft = 80; return node.scrollLeft; })).toBeGreaterThan(0);
+  expect(
+    await longDetails.evaluate((node) => {
+      node.scrollLeft = 80;
+      return node.scrollLeft;
+    }),
+  ).toBeGreaterThan(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   await expect.poll(async () => (await sections.boundingBox())?.y).toBe(0);
   const tabsBox = (await sections.boundingBox())!;
@@ -496,11 +598,11 @@ test('administrators manage users while members cannot open Administration', asy
     logViewer.getByRole('combobox', { name: 'Log level' }).boundingBox(),
     logViewer.getByRole('button', { name: 'Refresh Logs' }).boundingBox(),
   ]);
-  expect(new Set(toolbar.map(box => box?.y)).size).toBe(1);
+  expect(new Set(toolbar.map((box) => box?.y)).size).toBe(1);
   await page.screenshot({ path: testInfo.outputPath('logs-390.png') });
   await page.setViewportSize({ width: 1280, height: 844 });
   const railLink = navigation.getByRole('link', { name: 'Library', exact: true });
-  const background = () => railLink.evaluate(node => getComputedStyle(node).backgroundColor);
+  const background = () => railLink.evaluate((node) => getComputedStyle(node).backgroundColor);
   const idle = await background();
   await railLink.hover();
   expect(await background()).not.toBe(idle);
@@ -513,7 +615,9 @@ test('administrators manage users while members cannot open Administration', asy
   await expect(dialog).toHaveAccessibleName('Restore Backup');
   const applyRestore = async () => {
     await expect(async () => {
-      const applied = page.waitForResponse(response => response.url().endsWith('/api/v1/admin/restore') && response.request().method() === 'PATCH');
+      const applied = page.waitForResponse(
+        (response) => response.url().endsWith('/api/v1/admin/restore') && response.request().method() === 'PATCH',
+      );
       await dialog.getByRole('button', { name: 'Restore Backup' }).click();
       expect((await applied).status()).toBe(204);
     }).toPass({ timeout: 5000 });
@@ -521,7 +625,9 @@ test('administrators manage users while members cannot open Administration', asy
   };
   const changed = Buffer.from('replaced after backup');
   await writeFile(`${server.data}/documents/public.epub`, changed);
-  await page.getByLabel('Backup file').setInputFiles({name: 'invalid.zip', mimeType: 'application/zip', buffer: Buffer.from('not an archive')});
+  await page
+    .getByLabel('Backup file')
+    .setInputFiles({ name: 'invalid.zip', mimeType: 'application/zip', buffer: Buffer.from('not an archive') });
   await page.getByRole('button', { name: 'Validate', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('Choose a valid AnthoLume backup.');
   expect(await (await page.request.get(`${server.origin}/api/v1/documents/book_001/file`)).body()).toEqual(changed);
@@ -536,7 +642,9 @@ test('administrators manage users while members cannot open Administration', asy
   const restored = await page.request.get(`${server.origin}/api/v1/documents/book_001/file`);
   expect(restored.status()).toBe(200);
   expect(await restored.body()).toEqual(original);
-  expect(await (await page.request.get(`${server.origin}/api/v1/documents/book_001/cover`)).body()).toEqual(await archive.file('covers/public.png')!.async('nodebuffer'));
+  expect(await (await page.request.get(`${server.origin}/api/v1/documents/book_001/cover`)).body()).toEqual(
+    await archive.file('covers/public.png')!.async('nodebuffer'),
+  );
   await expect(stat(`${server.data}/backups`)).rejects.toMatchObject({ code: 'ENOENT' });
   expect(await readFile(`${server.data}/documents/public.epub`)).toEqual(changed);
 
@@ -559,7 +667,9 @@ test('remapping a storage root refreshes file availability in the open library s
   try {
     db.prepare("INSERT INTO storage_roots(id,label,path,managed) VALUES('archive','Archive',?,0)").run(empty);
     db.exec("UPDATE documents SET storage_root_id='archive' WHERE id='book_001'");
-  } finally { db.close(); }
+  } finally {
+    db.close();
+  }
   await register(page, server.origin, 'root-remap-owner');
   const nav = page.getByRole('navigation', { name: 'Main navigation' });
   const title = page.getByRole('heading', { name: 'Public book 01', exact: true });
@@ -573,7 +683,10 @@ test('remapping a storage root refreshes file availability in the open library s
 
   await nav.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.getByRole('link', { name: 'Administration', exact: true }).click();
-  await page.getByRole('region', { name: 'Storage Roots' }).getByRole('button', { name: 'Archive', exact: true }).click();
+  await page
+    .getByRole('region', { name: 'Storage Roots' })
+    .getByRole('button', { name: 'Archive', exact: true })
+    .click();
   const editor = page.getByRole('dialog', { name: 'Edit Root' });
   await editor.getByLabel('Directory', { exact: true }).fill(`${server.data}/documents`);
   await editor.getByRole('button', { name: 'Save', exact: true }).click();
@@ -594,23 +707,31 @@ test('Make Library previews the change and only applies after confirmation', asy
   const db = new DatabaseSync(`${server.data}/browser.db`);
   try {
     db.prepare('UPDATE users SET admin=1 WHERE id=?').run('library-owner');
-    db.prepare("INSERT INTO storage_roots(id,label,legacy_path,managed) VALUES('incoming','Incoming library',?,0)").run(`${sourcePath}-missing`);
+    db.prepare("INSERT INTO storage_roots(id,label,legacy_path,managed) VALUES('incoming','Incoming library',?,0)").run(
+      `${sourcePath}-missing`,
+    );
     db.exec("INSERT INTO documents(id,filepath,storage_root_id) VALUES('unavailable-book','book.epub','incoming')");
-  } finally { db.close(); }
+  } finally {
+    db.close();
+  }
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto(`${server.origin}/admin/library`);
   const roots = page.getByRole('region', { name: 'Storage Roots' });
   const dialog = page.getByRole('dialog');
   const source = roots.getByRole('button', { name: 'Incoming library', exact: true });
   await expect(source).toHaveAccessibleDescription(/Directory unavailable on the server/);
-  await expect(roots.getByRole('button', { name: 'Library', exact: true })).not.toHaveAccessibleDescription(/Directory unavailable on the server/);
+  await expect(roots.getByRole('button', { name: 'Library', exact: true })).not.toHaveAccessibleDescription(
+    /Directory unavailable on the server/,
+  );
   await source.click();
   await expect(dialog.getByText('1 book in catalog', { exact: true })).toBeVisible();
   await expect(dialog.getByLabel('Directory', { exact: true })).toHaveValue('');
   await dialog.getByLabel('Directory', { exact: true }).fill(sourcePath);
-  const actions = await Promise.all(['Save', 'Make Library', 'Cancel'].map(name => dialog.getByRole('button', { name, exact: true }).boundingBox()));
-  expect(actions.map(box => box?.height)).toEqual([44, 44, 44]);
-  expect(new Set(actions.map(box => box?.y)).size).toBe(1);
+  const actions = await Promise.all(
+    ['Save', 'Make Library', 'Cancel'].map((name) => dialog.getByRole('button', { name, exact: true }).boundingBox()),
+  );
+  expect(actions.map((box) => box?.height)).toEqual([44, 44, 44]);
+  expect(new Set(actions.map((box) => box?.y)).size).toBe(1);
   await dialog.screenshot({ path: testInfo.outputPath('edit-root-actions-320.png') });
   await dialog.getByRole('button', { name: 'Make Library', exact: true }).click();
   await expect(dialog).toHaveAccessibleName('Make this folder Library?');
@@ -625,7 +746,9 @@ test('Make Library previews the change and only applies after confirmation', asy
   await dialog.getByRole('button', { name: 'Make Library', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(roots.getByRole('button', { name: 'Former Library', exact: true })).toBeVisible();
-  await expect(roots.getByRole('button', { name: 'Library', exact: true })).toHaveAccessibleDescription(new RegExp(sourcePath));
+  await expect(roots.getByRole('button', { name: 'Library', exact: true })).toHaveAccessibleDescription(
+    new RegExp(sourcePath),
+  );
 });
 
 test('Make Library offers an explicit merge when the proposed folder already is Library', async ({ page, server }) => {
@@ -635,8 +758,12 @@ test('Make Library offers an explicit merge when the proposed folder already is 
   try {
     db.prepare("UPDATE users SET admin=1 WHERE id='merge-owner'").run();
     db.prepare("UPDATE storage_roots SET path=? WHERE id='library'").run(libraryPath);
-    db.exec("INSERT INTO storage_roots(id,label,managed) VALUES('incoming','Incoming library',0); INSERT INTO documents(id,filepath,storage_root_id) VALUES('incoming-book','public.epub','incoming')");
-  } finally { db.close(); }
+    db.exec(
+      "INSERT INTO storage_roots(id,label,managed) VALUES('incoming','Incoming library',0); INSERT INTO documents(id,filepath,storage_root_id) VALUES('incoming-book','public.epub','incoming')",
+    );
+  } finally {
+    db.close();
+  }
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto(`${server.origin}/admin/library`);
   const roots = page.getByRole('region', { name: 'Storage Roots' });
@@ -661,5 +788,7 @@ test('Make Library offers an explicit merge when the proposed folder already is 
   await expect(dialog).toHaveCount(0);
   await expect(incoming).toHaveCount(0);
   await expect(former).toHaveCount(formerCount);
-  await expect(roots.getByRole('button', { name: 'Library', exact: true })).toHaveAccessibleDescription(new RegExp(libraryPath));
+  await expect(roots.getByRole('button', { name: 'Library', exact: true })).toHaveAccessibleDescription(
+    new RegExp(libraryPath),
+  );
 });

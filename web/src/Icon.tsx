@@ -1,6 +1,40 @@
-export type IconName = 'close' | 'minus' | 'more' | 'kept' | 'down' | 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'cloud-off' | 'device' | 'device-saved' | 'link' | 'external-link' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'user' | 'warning' | 'folder' | 'up' | 'forward' | 'refresh' | 'sign-out' | 'upload' | 'info';
+export type IconName =
+  | 'close'
+  | 'minus'
+  | 'more'
+  | 'kept'
+  | 'down'
+  | 'library'
+  | 'insights'
+  | 'settings'
+  | 'back'
+  | 'book'
+  | 'download'
+  | 'check'
+  | 'cloud'
+  | 'cloud-off'
+  | 'device'
+  | 'device-saved'
+  | 'link'
+  | 'external-link'
+  | 'search'
+  | 'add'
+  | 'sort'
+  | 'edit'
+  | 'trash'
+  | 'contents'
+  | 'user'
+  | 'warning'
+  | 'folder'
+  | 'up'
+  | 'forward'
+  | 'refresh'
+  | 'sign-out'
+  | 'upload'
+  | 'info';
 
-const device = 'M6 2.5h12A1.5 1.5 0 0 1 19.5 4v16a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 20V4A1.5 1.5 0 0 1 6 2.5z M10.5 18.5h3';
+const device =
+  'M6 2.5h12A1.5 1.5 0 0 1 19.5 4v16a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 20V4A1.5 1.5 0 0 1 6 2.5z M10.5 18.5h3';
 
 const paths: Record<IconName, string> = {
   close: 'm6 6 12 12M18 6 6 18',
@@ -39,5 +73,20 @@ const paths: Record<IconName, string> = {
 };
 
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d={paths[name]} /></svg>;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.65"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d={paths[name]} />
+    </svg>
+  );
 }

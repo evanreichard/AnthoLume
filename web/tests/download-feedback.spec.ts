@@ -16,13 +16,18 @@ async function saveFromLibrary(page: Page) {
 }
 
 for (const surface of ['library', 'detail'] as const) {
-  test(`a ${surface} save retries the original book and leaves the Save control available`, async ({ page, server }) => {
+  test(`a ${surface} save retries the original book and leaves the Save control available`, async ({
+    page,
+    server,
+  }) => {
     await register(page, server.origin, `download-feedback-${surface}`);
-    const save = surface === 'library' ? () => saveFromLibrary(page)
-      : () => toolbar(page).getByRole('button', { name: 'Save', exact: true }).click();
+    const save =
+      surface === 'library'
+        ? () => saveFromLibrary(page)
+        : () => toolbar(page).getByRole('button', { name: 'Save', exact: true }).click();
     if (surface === 'detail') await bookHeading(page).click();
     let failed = true;
-    await page.route(file, route => failed ? route.fulfill({ status: 404 }) : route.continue());
+    await page.route(file, (route) => (failed ? route.fulfill({ status: 404 }) : route.continue()));
 
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
@@ -45,7 +50,7 @@ for (const surface of ['library', 'detail'] as const) {
         await expect(notice(page)).toHaveCount(0);
       } else {
         failed = false;
-        const response = page.waitForResponse(result => result.url().endsWith('/book_001/file') && result.ok());
+        const response = page.waitForResponse((result) => result.url().endsWith('/book_001/file') && result.ok());
         await retry.click();
         await response;
       }
@@ -58,7 +63,10 @@ for (const surface of ['library', 'detail'] as const) {
   });
 }
 
-test('Library book options dismiss without stealing focus and restore it after Escape or a dialog', async ({ page, server }) => {
+test('Library book options dismiss without stealing focus and restore it after Escape or a dialog', async ({
+  page,
+  server,
+}) => {
   await register(page, server.origin, 'download-options');
   const options = card(page).getByLabel('Options for Public book 01');
   const other = page.getByLabel('Options for Public book 02');
@@ -81,12 +89,14 @@ test('Library book options dismiss without stealing focus and restore it after E
 
   await options.click();
   const heading = page.getByRole('heading', { name: 'Library', exact: true });
-  await heading.evaluate(element => element.addEventListener('mousedown', event => event.preventDefault(), { once: true }));
+  await heading.evaluate((element) =>
+    element.addEventListener('mousedown', (event) => event.preventDefault(), { once: true }),
+  );
   await heading.click();
   await expect(save).toBeHidden();
 
   await options.click();
-  await other.evaluate(trigger => (trigger as HTMLElement).click());
+  await other.evaluate((trigger) => (trigger as HTMLElement).click());
   await expect(save).toBeHidden();
   await expect(other.locator('..').getByRole('button', { name: 'Save to Device', exact: true })).toBeVisible();
 
@@ -96,10 +106,16 @@ test('Library book options dismiss without stealing focus and restore it after E
   await options.click();
   const remove = card(page).getByRole('button', { name: 'Remove from Device', exact: true });
   await remove.focus();
-  await remove.evaluate(button => button.addEventListener('mousedown', event => {
-    event.preventDefault();
-    button.blur();
-  }, { once: true }));
+  await remove.evaluate((button) =>
+    button.addEventListener(
+      'mousedown',
+      (event) => {
+        event.preventDefault();
+        button.blur();
+      },
+      { once: true },
+    ),
+  );
   await remove.click();
   const dialog = page.getByRole('dialog', { name: 'Remove this download?' });
   await expect(dialog).toBeVisible();
@@ -112,7 +128,7 @@ test('leaving a book invalidates its Retry and aborts an in-flight save', async 
   await register(page, server.origin, 'download-feedback-route');
   await bookHeading(page).click();
   const save = () => toolbar(page).getByRole('button', { name: 'Save', exact: true }).click();
-  await page.route(file, route => route.fulfill({ status: 404 }), { times: 1 });
+  await page.route(file, (route) => route.fulfill({ status: 404 }), { times: 1 });
   await save();
   await expect(notice(page).getByRole('status')).toHaveText(failure);
   await libraryLink(page).click();
@@ -124,7 +140,7 @@ test('leaving a book invalidates its Retry and aborts an in-flight save', async 
   await bookHeading(page).click();
   await page.route(file, () => {});
   await Promise.all([page.waitForRequest(file), save()]);
-  const aborted = page.waitForEvent('requestfailed', request => request.url().endsWith('/book_001/file'));
+  const aborted = page.waitForEvent('requestfailed', (request) => request.url().endsWith('/book_001/file'));
   await libraryLink(page).click();
   await aborted;
   await bookHeading(page, 'Public book 02').click();
@@ -140,12 +156,14 @@ test('saving the same book in another tab invalidates a pending Retry', async ({
   try {
     await other.goto(`${server.origin}/library`);
     await other.bringToFront();
-    await page.route(file, route => route.fulfill({ status: 404 }));
+    await page.route(file, (route) => route.fulfill({ status: 404 }));
     await saveFromLibrary(page);
     await expect(notice(page).getByRole('status')).toHaveText(failure);
     await saveFromLibrary(other);
     await expect(saved(other)).toBeVisible();
     await expect(saved(page)).toBeVisible();
     await expect(notice(page)).toHaveCount(0);
-  } finally { await other.close(); }
+  } finally {
+    await other.close();
+  }
 });

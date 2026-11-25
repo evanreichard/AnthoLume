@@ -18,14 +18,17 @@ async function bookAction(page: Page, name: string) {
 
 async function uploadBook(page: Page, bytes: Buffer) {
   await button(page, 'Add Book').click();
-  await page.getByLabel('Choose EPUB to upload').setInputFiles({ name: 'book.epub', mimeType: 'application/epub+zip', buffer: bytes });
+  await page
+    .getByLabel('Choose EPUB to upload')
+    .setInputFiles({ name: 'book.epub', mimeType: 'application/epub+zip', buffer: bytes });
   await page.locator('[data-snackbar]').getByRole('button', { name: 'Open', exact: true }).click();
 }
 
 function jpeg(page: Page, width = 60) {
-  return page.evaluate(width => {
+  return page.evaluate((width) => {
     const canvas = document.createElement('canvas');
-    canvas.width = width; canvas.height = width * 1.5;
+    canvas.width = width;
+    canvas.height = width * 1.5;
     return canvas.toDataURL('image/jpeg').split(',')[1]!;
   }, width);
 }
@@ -38,15 +41,28 @@ async function publicBook(page: Page, origin: string) {
   return { endpoint, original };
 }
 
-async function mockAutomaticLookup(page: Page, provider: Provider, id: string | null, outcome: () => LookupOutcome | Promise<LookupOutcome>) {
-  await page.route('**/api/v1/metadata/providers', route => route.fulfill({ json: { selected: provider, effective: provider, hardcover_available: true } }));
-  await mockMatcherLookup(page, (_, body) => { expect(body).toEqual({ provider, document_ids: [id] }); return outcome(); });
+async function mockAutomaticLookup(
+  page: Page,
+  provider: Provider,
+  id: string | null,
+  outcome: () => LookupOutcome | Promise<LookupOutcome>,
+) {
+  await page.route('**/api/v1/metadata/providers', (route) =>
+    route.fulfill({ json: { selected: provider, effective: provider, hardcover_available: true } }),
+  );
+  await mockMatcherLookup(page, (_, body) => {
+    expect(body).toEqual({ provider, document_ids: [id] });
+    return outcome();
+  });
 }
 
 test.use({ serviceWorkers: 'block' });
 test.beforeEach(async ({ page }) => {
   // Unmatched catalog requests must never reach the real providers.
-  await page.route(/\/api\/v1\/(?:metadata\/(?:search|lookups|match|covers)(?:[/?]|$)|documents\/[^/?]+\/matches\/)/, route => route.abort());
+  await page.route(
+    /\/api\/v1\/(?:metadata\/(?:search|lookups|match|covers)(?:[/?]|$)|documents\/[^/?]+\/matches\/)/,
+    (route) => route.abort(),
+  );
 });
 
 test('book details show file information and download the original EPUB', async ({ page, server }) => {
@@ -58,7 +74,10 @@ test('book details show file information and download the original EPUB', async 
   const author = details.getByRole('term').filter({ hasText: /^Author$/ });
   const synopsis = details.getByRole('term').filter({ hasText: /^Synopsis$/ });
   for (const property of ['font-size', 'font-weight', 'color']) {
-    await expect(synopsis).toHaveCSS(property, await author.evaluate((node, prop) => getComputedStyle(node).getPropertyValue(prop), property));
+    await expect(synopsis).toHaveCSS(
+      property,
+      await author.evaluate((node, prop) => getComputedStyle(node).getPropertyValue(prop), property),
+    );
   }
   const more = page.getByRole('button', { name: 'More', exact: true });
   const info = page.getByRole('button', { name: 'Info', exact: true });
@@ -80,12 +99,19 @@ test('book details show file information and download the original EPUB', async 
   await more.click();
   await expect(info).toBeFocused();
   // Safari Tap - A button tap can blur the focused item without focusing a new element before click.
-  await info.evaluate(button => button.addEventListener('mousedown', event => {
-    event.preventDefault();
-    button.blur();
-  }, { once: true }));
+  await info.evaluate((button) =>
+    button.addEventListener(
+      'mousedown',
+      (event) => {
+        event.preventDefault();
+        button.blur();
+      },
+      { once: true },
+    ),
+  );
   const panel = page.getByRole('group', { name: 'More actions' });
-  const panelBox = (await panel.boundingBox())!, infoBox = (await info.boundingBox())!;
+  const panelBox = (await panel.boundingBox())!,
+    infoBox = (await info.boundingBox())!;
   await page.mouse.click(panelBox.x + panelBox.width - 12, infoBox.y + infoBox.height / 2);
   const dialog = page.getByRole('dialog', { name: 'Book information' });
   await expect(dialog.getByText('Downloadable edition', { exact: true })).toBeVisible();
@@ -117,15 +143,20 @@ test('Identify centers empty and retryable failure states within the review body
   await register(page, server.origin, 'identify-empty');
   await uploadBook(page, await epub('Unknown edition'));
   let fail = true;
-  await mockAutomaticLookup(page, 'openlibrary', bookID(page), () => fail ? { error: 'rate_limited' } : { candidates: [] });
+  await mockAutomaticLookup(page, 'openlibrary', bookID(page), () =>
+    fail ? { error: 'rate_limited' } : { candidates: [] },
+  );
   const dialog = await bookAction(page, 'Identify');
   const assertCentered = async (notice: ReturnType<typeof dialog.getByText>) => {
     await expect(notice).toBeVisible();
-    const offset = await notice.evaluate(node => {
+    const offset = await notice.evaluate((node) => {
       const state = node.closest('[class*="centeredState"]')!;
       const content = (state.firstElementChild ?? node).getBoundingClientRect();
       const body = state.parentElement!.getBoundingClientRect();
-      return Math.max(Math.abs(content.x + content.width / 2 - body.x - body.width / 2), Math.abs(content.y + content.height / 2 - body.y - body.height / 2));
+      return Math.max(
+        Math.abs(content.x + content.width / 2 - body.x - body.width / 2),
+        Math.abs(content.y + content.height / 2 - body.y - body.height / 2),
+      );
     });
     expect(offset).toBeLessThan(2);
   };
@@ -141,35 +172,61 @@ test('Identify centers empty and retryable failure states within the review body
   await expect(button(page, 'More')).toBeFocused();
 });
 
-test('book editor previews metadata without saving, saves cover and fields, and confirms shared deletion', async ({ page, server }) => {
+test('book editor previews metadata without saving, saves cover and fields, and confirms shared deletion', async ({
+  page,
+  server,
+}) => {
   await register(page, server.origin, 'book-editor');
-  const title = 'Disposable editor book', author = 'Author to preserve', description = 'Work synopsis from Open Library.';
+  const title = 'Disposable editor book',
+    author = 'Author to preserve',
+    description = 'Work synopsis from Open Library.';
   await uploadBook(page, await epub(title));
   const id = bookID(page);
   const more = button(page, 'More');
   const largeCover = await jpeg(page, 160);
   const longTitle = 'A collection of novels with a very long title that does not fit on one line on a mobile screen';
   let releaseLookup!: () => void, releasePreview!: () => void;
-  const lookupGate = new Promise<void>(resolve => { releaseLookup = resolve; });
-  const previewGate = new Promise<void>(resolve => { releasePreview = resolve; });
-  const suggestion = { provider: 'openlibrary', id: 'OL1W', title: 'Looked-up title', author: 'New author', year: 2022, edition_id: 'OL2M', cover_id: 42 };
+  const lookupGate = new Promise<void>((resolve) => {
+    releaseLookup = resolve;
+  });
+  const previewGate = new Promise<void>((resolve) => {
+    releasePreview = resolve;
+  });
+  const suggestion = {
+    provider: 'openlibrary',
+    id: 'OL1W',
+    title: 'Looked-up title',
+    author: 'New author',
+    year: 2022,
+    edition_id: 'OL2M',
+    cover_id: 42,
+  };
   const alternate = { provider: 'openlibrary', id: 'OL4W', title: 'Manual alternate', author: 'Other author' };
   const match = { provider: 'openlibrary', work_id: suggestion.id, edition_id: suggestion.edition_id, isbn: isbn13 };
   await mockAutomaticLookup(page, 'openlibrary', id, async () => {
     await lookupGate;
-    return { candidates: [
-      { work_id: suggestion.id, title: suggestion.title, author: suggestion.author, url: 'https://openlibrary.org/works/OL1W', edition_id: match.edition_id, isbn: match.isbn },
-      { work_id: 'OL3W', title: longTitle, author: 'Another author', url: 'https://openlibrary.org/works/OL3W' },
-    ] };
+    return {
+      candidates: [
+        {
+          work_id: suggestion.id,
+          title: suggestion.title,
+          author: suggestion.author,
+          url: 'https://openlibrary.org/works/OL1W',
+          edition_id: match.edition_id,
+          isbn: match.isbn,
+        },
+        { work_id: 'OL3W', title: longTitle, author: 'Another author', url: 'https://openlibrary.org/works/OL3W' },
+      ],
+    };
   });
-  await page.route('**/api/v1/metadata/search?*', route => {
+  await page.route('**/api/v1/metadata/search?*', (route) => {
     const q = new URL(route.request().url()).searchParams.get('q');
     expect(['no catalog result', 'manual alternate']).toContain(q);
     return route.fulfill({ json: q === 'manual alternate' ? [alternate] : [] });
   });
   const alternateMatch = { provider: alternate.provider, work_id: alternate.id };
   const previews: object[] = [];
-  await page.route('**/api/v1/metadata/match?*', async route => {
+  await page.route('**/api/v1/metadata/match?*', async (route) => {
     const params = Object.fromEntries(new URL(route.request().url()).searchParams);
     previews.push(params);
     if (params.work_id === alternate.id) {
@@ -181,13 +238,13 @@ test('book editor previews metadata without saving, saves cover and fields, and 
     return route.fulfill({ json: { ...suggestion, author: '', description, isbn10, isbn13 } });
   });
   let largeCoverRequests = 0;
-  await page.route(/\/api\/v1\/metadata\/covers\/42(?:\?|$)/, route => {
+  await page.route(/\/api\/v1\/metadata\/covers\/42(?:\?|$)/, (route) => {
     expect(new URL(route.request().url()).searchParams.get('prefer_large')).toBe('true');
     largeCoverRequests++;
     return route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(largeCover, 'base64') });
   });
   const writes: unknown[] = [];
-  await page.route(`${server.origin}/api/v1/documents/${encodeURIComponent(id!)}`, async route => {
+  await page.route(`${server.origin}/api/v1/documents/${encodeURIComponent(id!)}`, async (route) => {
     if (route.request().method() !== 'PATCH') return route.fallback();
     const { match, ...edits } = route.request().postDataJSON();
     writes.push({ match, ...edits });
@@ -238,13 +295,17 @@ test('book editor previews metadata without saving, saves cover and fields, and 
     expect(sheet.y + sheet.height).toBeCloseTo(844);
     await expect(dialog.getByRole('status').filter({ hasText: /Finding suggested matches/i })).toBeVisible();
     await expect(primaryAction).toBeDisabled();
-  } finally { releaseLookup(); }
+  } finally {
+    releaseLookup();
+  }
   try {
     await expect(dialog.getByRole('status').filter({ hasText: /Loading.*preview/i })).toBeVisible();
     await expect(dialog.locator('[class*="matchLoadingCover"]')).toBeVisible();
     await expect(primaryAction).toBeDisabled();
     await expect(search).toBeHidden();
-  } finally { releasePreview(); }
+  } finally {
+    releasePreview();
+  }
   await expect(pick).toContainText('Looked-up title');
   await expect(dialog.getByRole('button', { name: /Open Library/i })).toBeDisabled();
   await pick.click();
@@ -264,8 +325,11 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await expect(results).toBeHidden();
   await expect(dialog.getByText(description, { exact: true })).toBeVisible();
   const field = (name: string) => dialog.getByRole('button', { name, exact: true });
-  const assertSelected = async (name: string, selected: boolean) => expect(field(name)).toHaveAttribute('aria-pressed', String(selected));
-  const firstCoverURL = await field('Cover').locator('img').evaluate((image: HTMLImageElement) => image.src);
+  const assertSelected = async (name: string, selected: boolean) =>
+    expect(field(name)).toHaveAttribute('aria-pressed', String(selected));
+  const firstCoverURL = await field('Cover')
+    .locator('img')
+    .evaluate((image: HTMLImageElement) => image.src);
   await assertSelected('Cover', true);
   await assertSelected('ISBN-10', true);
   await assertSelected('ISBN-13', false);
@@ -291,7 +355,18 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await expect(results).toBeHidden();
   await expect(dialog.getByText('Verified alternate synopsis.')).toBeVisible();
   await expect(field('Cover')).toHaveCount(0);
-  await expect.poll(() => page.evaluate(url => fetch(url).then(() => true, () => false), firstCoverURL)).toBe(false);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        (url) =>
+          fetch(url).then(
+            () => true,
+            () => false,
+          ),
+        firstCoverURL,
+      ),
+    )
+    .toBe(false);
   expect(previews).toEqual([match, alternateMatch]);
   await pick.click();
   await restore.click();
@@ -299,7 +374,13 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await expect(pick).toContainText(suggestion.title);
   await page.keyboard.press('Escape');
   await assertSelected('Cover', false);
-  await expect.poll(() => field('Cover').locator('img').evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(160);
+  await expect
+    .poll(() =>
+      field('Cover')
+        .locator('img')
+        .evaluate((image: HTMLImageElement) => image.naturalWidth),
+    )
+    .toBe(160);
   await assertSelected('Title', true);
   await field('Cancel').click();
   await expect(dialog).toHaveCount(0);
@@ -308,7 +389,13 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
 
   await bookAction(page, 'Identify');
-  await expect.poll(() => field('Cover').locator('img').evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(160);
+  await expect
+    .poll(() =>
+      field('Cover')
+        .locator('img')
+        .evaluate((image: HTMLImageElement) => image.naturalWidth),
+    )
+    .toBe(160);
   await assertSelected('Author', false);
   await assertSelected('Synopsis', false);
   await field('Synopsis').press('Space');
@@ -339,30 +426,53 @@ test('Book Details reviews exact confirmed sources without searching or relinkin
   const provider = await (await page.request.get(`${server.origin}/api/v1/metadata/providers`)).json();
   expect(provider.effective).toBe('openlibrary');
 
-  const savedLinks: NonNullable<typeof original.matches> = [{ provider: 'openlibrary', work_id: 'OL101W' }, { provider: 'hardcover', work_id: '42' }];
-  const linked_source = savedLinks[1], description = 'Synopsis from the saved Hardcover record.', localSynopsis = 'Original synopsis';
-  const catalog = { provider: linked_source.provider, id: linked_source.work_id, title: 'Catalog title', author: 'Catalog author', description, cover_id: 42 };
+  const savedLinks: NonNullable<typeof original.matches> = [
+    { provider: 'openlibrary', work_id: 'OL101W' },
+    { provider: 'hardcover', work_id: '42' },
+  ];
+  const linked_source = savedLinks[1],
+    description = 'Synopsis from the saved Hardcover record.',
+    localSynopsis = 'Original synopsis';
+  const catalog = {
+    provider: linked_source.provider,
+    id: linked_source.work_id,
+    title: 'Catalog title',
+    author: 'Catalog author',
+    description,
+    cover_id: 42,
+  };
   let showSources = false;
   const cover = await jpeg(page);
   let failPreview = true;
   let previews = 0;
   const writes: unknown[] = [];
-  await page.route(endpoint, route => {
+  await page.route(endpoint, (route) => {
     if (route.request().method() === 'PATCH') writes.push(route.request().postDataJSON());
-    return route.fulfill({ json: { ...original, cover_available: true, matches: showSources ? savedLinks : [], description: writes.length ? description : localSynopsis } });
+    return route.fulfill({
+      json: {
+        ...original,
+        cover_available: true,
+        matches: showSources ? savedLinks : [],
+        description: writes.length ? description : localSynopsis,
+      },
+    });
   });
-  await page.route(`${endpoint}/matches/${linked_source.provider}?work_id=${linked_source.work_id}`, route => {
+  await page.route(`${endpoint}/matches/${linked_source.provider}?work_id=${linked_source.work_id}`, (route) => {
     expect(route.request().method()).toBe('GET');
     previews++;
     return failPreview ? route.fulfill({ status: 503 }) : route.fulfill({ json: catalog });
   });
-  await page.route(/\/api\/v1\/metadata\/covers\/42(?:\?|$)/, route => {
+  await page.route(/\/api\/v1\/metadata\/covers\/42(?:\?|$)/, (route) => {
     const params = new URL(route.request().url()).searchParams;
-    expect([params.get('provider'), params.get('document_id'), params.get('work_id')]).toEqual(['hardcover', 'book_001', '42']);
+    expect([params.get('provider'), params.get('document_id'), params.get('work_id')]).toEqual([
+      'hardcover',
+      'book_001',
+      '42',
+    ]);
     return route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(cover, 'base64') });
   });
   const discoveries: string[] = [];
-  await page.route(/\/api\/v1\/metadata\/(search|lookups|match)(?:\?|$)/, route => {
+  await page.route(/\/api\/v1\/metadata\/(search|lookups|match)(?:\?|$)/, (route) => {
     discoveries.push(route.request().url());
     return route.abort();
   });
@@ -387,13 +497,21 @@ test('Book Details reviews exact confirmed sources without searching or relinkin
   await page.setViewportSize({ width: 390, height: 844 });
   const hardcover = details.getByRole('button', { name: 'Review Hardcover metadata: 42', exact: true });
   const openLibrary = details.getByRole('button', { name: 'Review Open Library metadata: OL101W', exact: true });
-  for (const [pill, id] of [[hardcover, '42'], [openLibrary, 'OL101W']] as const) {
+  for (const [pill, id] of [
+    [hardcover, '42'],
+    [openLibrary, 'OL101W'],
+  ] as const) {
     await expect(pill).toBeVisible();
     await expect(pill).toHaveText(id);
     await expect(pill.locator('img')).toHaveCount(1);
     const box = (await pill.boundingBox())!;
     expect(box.height).toBe(24);
-    expect(await pill.evaluate(button => { const r = button.getBoundingClientRect(); return button.contains(document.elementFromPoint(r.left + r.width / 2, r.bottom + 2)); })).toBe(false);
+    expect(
+      await pill.evaluate((button) => {
+        const r = button.getBoundingClientRect();
+        return button.contains(document.elementFromPoint(r.left + r.width / 2, r.bottom + 2));
+      }),
+    ).toBe(false);
   }
 
   const dialog = page.getByRole('dialog', { name: 'Review Metadata' });
@@ -405,7 +523,8 @@ test('Book Details reviews exact confirmed sources without searching or relinkin
   const cancelButton = dialog.locator('footer').getByRole('button', { name: 'Cancel' });
   for (const width of viewportWidths) {
     await page.setViewportSize({ width, height: 844 });
-    const link = (await source.boundingBox())!, cancel = (await cancelButton.boundingBox())!;
+    const link = (await source.boundingBox())!,
+      cancel = (await cancelButton.boundingBox())!;
     expect(link.x).toBeGreaterThan(cancel.x + cancel.width);
     expect(link.y + link.height / 2).toBeCloseTo(cancel.y + cancel.height / 2, 0);
     expect(link.height).toBeGreaterThanOrEqual(44);
@@ -417,7 +536,9 @@ test('Book Details reviews exact confirmed sources without searching or relinkin
   await dialog.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(dialog.getByText(catalog.description, { exact: true })).toBeVisible();
   const coverChoice = dialog.getByRole('button', { name: 'Cover', exact: true });
-  await expect.poll(() => coverChoice.locator('img').evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(60);
+  await expect
+    .poll(() => coverChoice.locator('img').evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBe(60);
   await expect(coverChoice).toHaveAttribute('aria-pressed', 'false');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(dialog).toHaveCount(0);
@@ -437,37 +558,54 @@ test('Book Details reviews exact confirmed sources without searching or relinkin
   expect(discoveries).toEqual([]);
 });
 
-test('Hardcover links without edits, applies a verified edition, and saves when artwork fails', async ({ page, server }) => {
+test('Hardcover links without edits, applies a verified edition, and saves when artwork fails', async ({
+  page,
+  server,
+}) => {
   await register(page, server.origin, 'hardcover-catalog-reader');
   const { endpoint, original } = await publicBook(page, server.origin);
   const linked_source = { provider: 'hardcover' as const, work_id: '42' };
   const { provider, work_id } = linked_source;
   const url = `https://hardcover.app/id/book/${work_id}`;
-  const work = { provider, id: work_id, title: 'Hardcover Title', author: 'Verified Author', description: 'Catalog synopsis', cover_id: 42 };
+  const work = {
+    provider,
+    id: work_id,
+    title: 'Hardcover Title',
+    author: 'Verified Author',
+    description: 'Catalog synopsis',
+    cover_id: 42,
+  };
   const edition = { ...work, edition_id: '91', isbn13 };
   const editionMatch = { ...linked_source, edition_id: edition.edition_id, isbn: isbn13 };
   const cover = await jpeg(page);
   const writes: unknown[] = [];
-  let coverRequests = 0, coverUnavailable = false;
-  await page.route(/\/api\/v1\/metadata\/covers\/42(?:\?|$)/, route => {
+  let coverRequests = 0,
+    coverUnavailable = false;
+  await page.route(/\/api\/v1\/metadata\/covers\/42(?:\?|$)/, (route) => {
     coverRequests++;
     const query = new URL(route.request().url()).searchParams;
-    expect(Object.fromEntries(query)).toEqual(writes.length ? { provider, document_id: original.id, work_id } : { provider });
+    expect(Object.fromEntries(query)).toEqual(
+      writes.length ? { provider, document_id: original.id, work_id } : { provider },
+    );
     expect(route.request().headers()['x-antholume-account']).toBeTruthy();
-    return coverUnavailable ? route.fulfill({ status: 503 }) : route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(cover, 'base64') });
+    return coverUnavailable
+      ? route.fulfill({ status: 503 })
+      : route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(cover, 'base64') });
   });
-  await mockAutomaticLookup(page, provider, original.id, () => writes.length
-    ? { match: { work_id, url } }
-    : { candidates: [{ work_id, title: work.title, author: work.author, url }] });
-  await page.route(`${endpoint}/matches/${provider}?work_id=${work_id}`, route => route.fulfill({ json: work }));
-  await page.route(`**/api/v1/metadata/search?q=${isbn13}`, route => route.fulfill({ json: [edition] }));
-  await page.route('**/api/v1/metadata/match?*', route => {
+  await mockAutomaticLookup(page, provider, original.id, () =>
+    writes.length
+      ? { match: { work_id, url } }
+      : { candidates: [{ work_id, title: work.title, author: work.author, url }] },
+  );
+  await page.route(`${endpoint}/matches/${provider}?work_id=${work_id}`, (route) => route.fulfill({ json: work }));
+  await page.route(`**/api/v1/metadata/search?q=${isbn13}`, (route) => route.fulfill({ json: [edition] }));
+  await page.route('**/api/v1/metadata/match?*', (route) => {
     const params = Object.fromEntries(new URL(route.request().url()).searchParams);
     const verified = 'edition_id' in params;
     expect(params).toEqual(verified ? editionMatch : linked_source);
     return route.fulfill({ json: verified ? edition : work });
   });
-  await page.route(endpoint, route => {
+  await page.route(endpoint, (route) => {
     if (route.request().method() === 'PATCH') writes.push(route.request().postDataJSON());
     return route.fulfill({ json: { ...original, cover_available: !coverUnavailable } });
   });
@@ -511,7 +649,9 @@ test('Hardcover links without edits, applies a verified edition, and saves when 
 
   coverUnavailable = true;
   await page.reload();
-  const missingArtwork = page.waitForResponse(response => response.url().includes('/metadata/covers/42') && response.status() === 503);
+  const missingArtwork = page.waitForResponse(
+    (response) => response.url().includes('/metadata/covers/42') && response.status() === 503,
+  );
   await bookAction(page, 'Identify');
   await missingArtwork;
   await expect(coverChoice).toHaveCount(0);

@@ -47,10 +47,17 @@ test('body failures preserve deadline and cancellation semantics after headers',
   const { observer, fetch, send } = setup();
   for (const reason of [new DOMException('Cancelled', 'AbortError'), new DOMException('Expired', 'TimeoutError')]) {
     const controller = new AbortController();
-    fetch.mockResolvedValueOnce(new Response(new ReadableStream({ pull(stream) {
-      controller.abort(reason);
-      stream.error(new TypeError('Connection reset'));
-    } }), { headers: { 'Content-Type': 'application/problem+json' }, status: 400 }));
+    fetch.mockResolvedValueOnce(
+      new Response(
+        new ReadableStream({
+          pull(stream) {
+            controller.abort(reason);
+            stream.error(new TypeError('Connection reset'));
+          },
+        }),
+        { headers: { 'Content-Type': 'application/problem+json' }, status: 400 },
+      ),
+    );
     const result = send(request(controller.signal), 'operation', 'json');
     if (reason.name === 'AbortError') await expect(result).rejects.toBe(reason);
     else await expect(result).rejects.toBeInstanceOf(APIUnavailable);
@@ -60,7 +67,9 @@ test('body failures preserve deadline and cancellation semantics after headers',
 
 test('a failing session probe reports unavailability without starting another probe', async () => {
   const { observer, fetch, send } = setup();
-  fetch.mockResolvedValueOnce(new Response(null, { status: 503 })).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+  fetch
+    .mockResolvedValueOnce(new Response(null, { status: 503 }))
+    .mockRejectedValueOnce(new TypeError('Failed to fetch'));
   await expect(send(request(), 'session-probe')).rejects.toBeInstanceOf(APIUnavailable);
   await expect(send(request(), 'session-probe')).rejects.toBeInstanceOf(APIUnavailable);
   expect(observer.suspectOutage).not.toHaveBeenCalled();

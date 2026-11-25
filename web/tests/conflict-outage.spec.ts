@@ -14,10 +14,21 @@ for (const fault of ['503', 'malformed-200']) {
     await expect(page.locator('footer')).toContainText('1 /');
     const path = '**/api/v1/me/reading-progress';
     let release!: () => void;
-    const held = new Promise<void>(resolve => { release = resolve; });
-    await page.route(path, async route => { await held; await route.continue(); }, { times: 1 });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(
+      path,
+      async (route) => {
+        await held;
+        await route.continue();
+      },
+      { times: 1 },
+    );
     try {
-      const attempted = page.waitForRequest(request => request.method() === 'POST' && request.url().endsWith('/me/reading-progress'));
+      const attempted = page.waitForRequest(
+        (request) => request.method() === 'POST' && request.url().endsWith('/me/reading-progress'),
+      );
       await page.clock.setFixedTime(started + 30_000);
       await page.keyboard.press('c');
       await page.getByRole('button', { name: 'Next Page', exact: true }).click();
@@ -30,13 +41,16 @@ for (const fault of ['503', 'malformed-200']) {
       await page.keyboard.press('c');
       await page.getByRole('button', { name: 'Next Page', exact: true }).click();
       await expect(page.locator('footer')).toContainText('3 /');
-      const checkpoint = async () => (await storedRows(page, 'positions')).find(book => book.ref?.documentId === 'book_001')?.checkpoint;
+      const checkpoint = async () =>
+        (await storedRows(page, 'positions')).find((book) => book.ref?.documentId === 'book_001')?.checkpoint;
       const local = await checkpoint();
       expect(local?.position).toBeTruthy();
       expect(local?.position).not.toBe(submitted.position);
-      await ko(server.origin, user, .8);
+      await ko(server.origin, user, 0.8);
       await writeFile(`${server.data}/state-fault`, fault);
-      const conflicting = page.waitForResponse(response => response.url().endsWith('/me/reading-progress') && response.status() === 409);
+      const conflicting = page.waitForResponse(
+        (response) => response.url().endsWith('/me/reading-progress') && response.status() === 409,
+      );
       release();
       await conflicting;
       // Keep the second turn in the same reader session while checking conflict recovery for the attempted submission.
@@ -49,16 +63,20 @@ for (const fault of ['503', 'malformed-200']) {
       expect(await checkpoint()).toEqual(local);
       const effects = serverEffects(server.data, user);
       expect(effects).toMatchObject({ activity: previous.activity, activitySeconds: previous.activitySeconds });
-      expect(effects.receipts).toEqual(expect.arrayContaining([
-        ...previous.receipts,
-        expect.objectContaining({ event_id: submitted.event_id, kind: 'progress', status: 409 }),
-      ]));
+      expect(effects.receipts).toEqual(
+        expect.arrayContaining([
+          ...previous.receipts,
+          expect.objectContaining({ event_id: submitted.event_id, kind: 'progress', status: 409 }),
+        ]),
+      );
       await unlink(`${server.data}/state-fault`);
       await page.getByRole('button', { name: 'Retry Synchronization', exact: true }).click();
-      await expect(page.getByRole('status').filter({ hasText: 'Resume position changed on another device.' })).toBeVisible();
+      await expect(
+        page.getByRole('status').filter({ hasText: 'Resume position changed on another device.' }),
+      ).toBeVisible();
       await expect.poll(() => pendingIds(page)).toEqual([]);
       const shared = await ko(server.origin, user);
-      expect(await checkpoint()).toEqual({ position: shared.progress, fraction: .8 });
+      expect(await checkpoint()).toEqual({ position: shared.progress, fraction: 0.8 });
       expect(serverEffects(server.data, user)).toEqual(effects);
     } finally {
       release();

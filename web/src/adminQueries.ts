@@ -11,9 +11,15 @@ export const backupPreviewKey = (account: Account) => ['admin-backup-preview', a
 export const autoImportRulesKey = (account: Account) => ['auto-import-rules', account] as const;
 
 export function storageRootsOptions(account: Account) {
-  return queryOptions({ queryKey: storageRootsKey(account), queryFn: ({ signal }) => session.api.adminStorageRoots(account, signal) });
+  return queryOptions({
+    queryKey: storageRootsKey(account),
+    queryFn: ({ signal }) => session.api.adminStorageRoots(account, signal),
+  });
 }
 
 export function adminJobsOptions(account: Account, kind: JobKind) {
-  return queryOptions({ queryKey: adminJobsKey(account, kind), queryFn: ({ signal }) => session.api.adminJobs(account, kind, signal) });
+  return queryOptions({
+    queryKey: adminJobsKey(account, kind),
+    queryFn: ({ signal }) => session.api.adminJobs(account, kind, signal),
+  });
 }

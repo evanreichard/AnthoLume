@@ -29,7 +29,7 @@ for (const readerIndex of [0, 1]) {
         pageDurations.add(seconds);
       }
       assert.equal(startFraction, progress.get(bookIndex) ?? 0);
-      assert.ok(pageFraction > 0 && pageFraction < .005);
+      assert.ok(pageFraction > 0 && pageFraction < 0.005);
       const endFraction = startFraction + durations.length * pageFraction;
       assert.ok(endFraction <= 1);
       progress.set(bookIndex, endFraction);
@@ -44,7 +44,10 @@ for (const readerIndex of [0, 1]) {
     const nextDay = new Date(+now + dayMs);
     const first = readingSessions(readerIndex, now);
     const shifted = readingSessions(readerIndex, nextDay);
-    assert.deepEqual(shifted, first.map(session => ({ ...session, start: new Date(+session.start + dayMs) })));
+    assert.deepEqual(
+      shifted,
+      first.map((session) => ({ ...session, start: new Date(+session.start + dayMs) })),
+    );
     const latest = first.at(-1);
     assert.ok(latest.start < now);
     assert.equal(endOf(latest), +now);
