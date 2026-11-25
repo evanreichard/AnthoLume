@@ -50,15 +50,28 @@ func MatcherISBNs(value string) []string {
 	if isbn == "" {
 		return nil
 	}
-	if len(isbn) == 10 && isbn10Check(isbn[:9]) == isbn[9:] {
+	if !ValidMatcherISBN(isbn) {
+		return []string{isbn}
+	}
+	if len(isbn) == 10 {
 		prefix := "978" + isbn[:9]
 		return []string{isbn, prefix + isbn13Check(prefix)}
 	}
-	if len(isbn) == 13 && strings.HasPrefix(isbn, "978") && isbn13Check(isbn[:12]) == isbn[12:] {
+	if strings.HasPrefix(isbn, "978") {
 		digits := isbn[3:12]
 		return []string{isbn, digits + isbn10Check(digits)}
 	}
 	return []string{isbn}
+}
+
+func ValidMatcherISBN(isbn string) bool {
+	if !lookupISBN.MatchString(isbn) {
+		return false
+	}
+	if len(isbn) == 10 {
+		return isbn10Check(isbn[:9]) == isbn[9:]
+	}
+	return (strings.HasPrefix(isbn, "978") || strings.HasPrefix(isbn, "979")) && isbn13Check(isbn[:12]) == isbn[12:]
 }
 
 func isbn10Check(digits string) string {

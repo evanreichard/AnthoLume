@@ -1,4 +1,4 @@
-import { checkID, checkMetadataProvider, checkMetadataWorkID } from './guards.gen.js';
+import { checkID, checkMetadataEditionID, checkMetadataProvider, checkMetadataWorkID } from './guards.gen.js';
 import type { components } from './schema.gen';
 import { InvalidResponse } from './validate';
 
@@ -38,9 +38,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isCandidate(value: unknown): value is MatcherCandidate {
-  return isRecord(value) && Object.keys(value).every(key => ['work_id', 'title', 'author', 'url', 'reason'].includes(key))
+  return isRecord(value) && Object.keys(value).every(key => ['work_id', 'title', 'author', 'url', 'reason', 'edition_id', 'isbn'].includes(key))
     && checkMetadataWorkID(value.work_id) && typeof value.title === 'string' && typeof value.author === 'string'
-    && isCatalogURL(value.url) && (value.reason === undefined || typeof value.reason === 'string');
+    && isCatalogURL(value.url) && (value.reason === undefined || typeof value.reason === 'string')
+    && (value.edition_id === undefined || checkMetadataEditionID(value.edition_id))
+    && (value.isbn === undefined || (value.edition_id !== undefined && typeof value.isbn === 'string' && /^(?:[0-9]{13}|[0-9]{9}[0-9X])$/.test(value.isbn)));
 }
 
 function decodeOutcome(line: string): MatcherResult {

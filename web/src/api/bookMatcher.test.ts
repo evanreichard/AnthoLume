@@ -4,7 +4,7 @@ import { APIUnavailable } from './transport';
 import { InvalidResponse } from './validate';
 
 const encoder = new TextEncoder();
-const candidate = { work_id: 'OL1W', title: '雪 Café', author: '夏目', url: 'https://openlibrary.org/works/OL1W' };
+const candidate = { work_id: 'OL1W', title: '雪 Café', author: '夏目', url: 'https://openlibrary.org/works/OL1W', edition_id: 'OL2M', isbn: '9780765391193' };
 const first = { document_id: 'a', candidates: [candidate] };
 const empty = { document_id: 'b', candidates: [] };
 const line = (value: unknown) => JSON.stringify(value) + '\n';
@@ -12,6 +12,22 @@ const body = (text: string) => new Response(text).body!;
 const signal = () => new AbortController().signal;
 
 afterEach(() => vi.unstubAllGlobals());
+
+async function matcherAPI() {
+  const account = { origin: 'https://books.example', userId: 'reader', readingGeneration: 'generation' };
+  const fetch = vi.fn<typeof globalThis.fetch>();
+  vi.stubGlobal('window', { location: { origin: account.origin } });
+  vi.stubGlobal('fetch', fetch);
+  const { createAPI } = await import('./client');
+  let epoch = 0;
+  const gate = {
+    epoch: () => epoch, token: () => 'csrf', changed: vi.fn(), expired: vi.fn(), suspectOutage: vi.fn(),
+    assert(initiating: typeof account, originalEpoch: number) {
+      if (initiating !== account || originalEpoch !== epoch) throw new DOMException('Account changed', 'AbortError');
+    },
+  };
+  return { account, api: createAPI(gate), fetch, gate, advanceEpoch: () => { epoch++; } };
+}
 
 test('validates lookup size, identity and uniqueness before sending', () => {
   expect(matcherLookupRequest('openlibrary', ['a/b', '雪'])).toEqual({ provider: 'openlibrary', document_ids: ['a/b', '雪'] });
@@ -37,7 +53,8 @@ test('delivers outcomes in completion order before closing and decodes split UTF
 
 test('rejects incomplete and invalid streams without acknowledging the bad row', async () => {
   const cases = [JSON.stringify(empty), '{"document_id":', line(first), line(first) + line(first), line(first) + line({ ...empty, document_id: 'other' }),
-    line({ ...first, error: 'rate_limited' }), line({ ...first, candidates: [{ ...candidate, url: 'javascript:alert(1)' }] }), line({ document_id: 'a', candidates: null })];
+    line({ ...first, error: 'rate_limited' }), line({ document_id: 'a', candidates: null }),
+    ...[{ url: 'javascript:alert(1)' }, { edition_id: '' }, { edition_id: undefined }, { isbn: 'bad-isbn' }].map(fields => line({ ...first, candidates: [{ ...candidate, ...fields }] }))];
   for (const text of cases) {
     const onResult = vi.fn();
     await expect(readMatcherResults(body(text), ['a', 'b'], signal(), onResult)).rejects.toBeInstanceOf(InvalidResponse);
@@ -59,15 +76,10 @@ test('aborting an idle stream cancels the reader and does not deliver a result',
 });
 
 test('the matcher reads standard documents with associations for both providers', async () => {
-  vi.stubGlobal('window', { location: { origin: 'https://books.example' } });
-  const { createAPI } = await import('./client');
-  const account = { origin: 'https://books.example', userId: 'reader', readingGeneration: 'generation' };
-  const api = createAPI({ epoch: () => 0, token: () => null, changed: vi.fn(), expired: vi.fn(), suspectOutage: vi.fn(), assert: vi.fn() });
+  const { account, api, fetch } = await matcherAPI();
   const book = { id: 'book', title: 'Book', author: null, series: null, description: null, lang: null, file_available: false, cover_available: false, media_type: null, file_size_bytes: null };
   const matches = [{ provider: 'openlibrary', work_id: 'OL1W' }, { provider: 'hardcover', work_id: '42' }];
   const result = (item: object) => Response.json({ items: [item], page: 1, page_size: 10, total: 1, next_page: null });
-  const fetch = vi.fn<typeof globalThis.fetch>();
-  vi.stubGlobal('fetch', fetch);
   fetch.mockImplementationOnce(async input => {
     if (!(input instanceof Request)) throw new Error('Expected Request');
     const url = new URL(input.url);
@@ -84,19 +96,7 @@ test('the matcher reads standard documents with associations for both providers'
 });
 
 test('the authenticated POST sends CSRF and account headers and guards every streamed outcome', async () => {
-  vi.stubGlobal('window', { location: { origin: 'https://books.example' } });
-  const { createAPI } = await import('./client');
-  const account = { origin: 'https://books.example', userId: 'reader', readingGeneration: 'generation' };
-  let epoch = 0;
-  const gate = {
-    epoch: () => epoch, token: () => 'csrf', changed: vi.fn(), expired: vi.fn(), suspectOutage: vi.fn(),
-    assert(initiating: typeof account, originalEpoch: number) {
-      if (initiating !== account || originalEpoch !== epoch) throw new DOMException('Account changed', 'AbortError');
-    },
-  };
-  const fetch = vi.fn<typeof globalThis.fetch>();
-  vi.stubGlobal('fetch', fetch);
-  const api = createAPI(gate);
+  const { account, api, fetch, gate, advanceEpoch } = await matcherAPI();
   fetch.mockImplementationOnce(async input => {
     expect(input).toBeInstanceOf(Request);
     if (!(input instanceof Request)) throw new Error('Expected Request');
@@ -109,7 +109,7 @@ test('the authenticated POST sends CSRF and account headers and guards every str
     expect(await input.json()).toEqual({ provider: 'openlibrary', document_ids: ['a', 'b'] });
     return new Response(line(first) + line(empty), { headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' } });
   });
-  const onResult = vi.fn(() => { epoch++; });
+  const onResult = vi.fn(advanceEpoch);
   await expect(api.matcherLookups(account, 'openlibrary', ['a', 'b'], signal(), onResult)).rejects.toMatchObject({ name: 'AbortError' });
   expect(onResult).toHaveBeenCalledExactlyOnceWith(first);
   expect(gate.suspectOutage).not.toHaveBeenCalled();

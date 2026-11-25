@@ -1054,6 +1054,9 @@ export interface components {
             author: string;
             url: string;
             reason?: string;
+            edition_id?: components["schemas"]["MetadataEditionID"];
+            /** @description ISBN observed on the returned edition and verified against the document ISBN or its equivalent form. */
+            isbn?: string;
         };
         /** @enum {string} */
         MetadataProvider: "openlibrary" | "hardcover";

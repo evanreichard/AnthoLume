@@ -6,35 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"sync"
 
 	"reichard.io/antholume/database"
+	"reichard.io/antholume/metadata"
 	"reichard.io/antholume/reading"
 )
-
-func matcherLink(provider MetadataProvider, workID string) *BookMatcherLink {
-	if workID == "" {
-		return nil
-	}
-	return &BookMatcherLink{WorkId: workID, Url: matcherWorkURL(provider, workID)}
-}
-
-func matcherISBN(isbn13, isbn10 *string) *string {
-	if matchParam(isbn13) != "" {
-		return isbn13
-	}
-	if matchParam(isbn10) != "" {
-		return isbn10
-	}
-	return nil
-}
 
 func (s *webAPI) LookupBookMatches(ctx context.Context, r LookupBookMatchesRequestObject) (LookupBookMatchesResponseObject, error) {
 	ctx = requestContext(ctx)
 	provider := r.Body.Provider
-	if _, err := s.api.catalogFor(provider); err != nil {
-		return nil, err
-	}
 	ids := r.Body.DocumentIds
 	rows, err := s.api.db.Queries.GetBookMatcherDocuments(ctx, database.GetBookMatcherDocumentsParams{
 		Namespace: workNamespaces[provider], DocumentIds: ids,
@@ -51,14 +31,16 @@ func (s *webAPI) LookupBookMatches(ctx context.Context, r LookupBookMatchesReque
 		row, ok := byID[id]
 		switch {
 		case !ok:
-			code := "not_found"
-			response.ready = append(response.ready, BookMatcherOutcome{DocumentId: id, Error: &code})
+			response.ready = append(response.ready, BookMatcherOutcome{DocumentId: id, Error: new("not_found")})
 		case row.WorkID != "":
-			response.ready = append(response.ready, BookMatcherOutcome{DocumentId: id, Match: matcherLink(provider, row.WorkID)})
+			link := &BookMatcherLink{WorkId: row.WorkID, Url: matcherWorkURL(provider, row.WorkID)}
+			response.ready = append(response.ready, BookMatcherOutcome{DocumentId: id, Match: link})
 		default:
-			response.books = append(response.books, matcherBook{
-				ID: id, Title: matchParam(row.Title), Author: matchParam(row.Author), ISBN: matchParam(matcherISBN(row.Isbn13, row.Isbn10)),
-			})
+			isbn := matchParam(row.Isbn13)
+			if isbn == "" {
+				isbn = matchParam(row.Isbn10)
+			}
+			response.books = append(response.books, metadata.MatcherInput{ID: id, Title: matchParam(row.Title), Author: matchParam(row.Author), ISBN: isbn})
 		}
 	}
 	return response, nil
@@ -69,7 +51,7 @@ type matcherLookupResponse struct {
 	ctx      context.Context
 	provider MetadataProvider
 	ready    []BookMatcherOutcome
-	books    []matcherBook
+	books    []metadata.MatcherInput
 }
 
 func (r *matcherLookupResponse) VisitLookupBookMatchesResponse(w http.ResponseWriter) error {
@@ -92,55 +74,7 @@ func (r *matcherLookupResponse) VisitLookupBookMatchesResponse(w http.ResponseWr
 			return err
 		}
 	}
-	if len(r.books) == 0 {
-		return nil
-	}
-
-	pending := make(map[string]bool, len(r.books))
-	for _, book := range r.books {
-		pending[book.ID] = true
-	}
-	var mu sync.Mutex
-	var writeErr error
-	err := r.api.runMatcherLookups(r.ctx, r.provider, r.books, func(result matcherOutcome) error {
-		mu.Lock()
-		defer mu.Unlock()
-		if writeErr != nil || !pending[result.DocumentID] {
-			return writeErr
-		}
-		outcome := BookMatcherOutcome{DocumentId: result.DocumentID}
-		if result.Error != "" {
-			outcome.Error = &result.Error
-		} else {
-			candidates := make([]BookMatcherCandidate, 0, len(result.Candidates))
-			for _, candidate := range result.Candidates {
-				entry := BookMatcherCandidate{WorkId: candidate.WorkID, Title: candidate.Title, Author: candidate.Author, Url: candidate.URL}
-				if candidate.Reason != "" {
-					entry.Reason = &candidate.Reason
-				}
-				candidates = append(candidates, entry)
-			}
-			outcome.Candidates = &candidates
-		}
-		delete(pending, result.DocumentID)
-		writeErr = emit(outcome)
-		return writeErr
-	})
-	if writeErr != nil {
-		return writeErr
-	}
-	if r.ctx.Err() != nil {
-		return r.ctx.Err()
-	}
-	for _, book := range r.books {
-		if pending[book.ID] {
-			code := "lookup_failed"
-			if e := emit(BookMatcherOutcome{DocumentId: book.ID, Error: &code}); e != nil {
-				return e
-			}
-		}
-	}
-	return err
+	return r.api.runMatcherLookups(r.ctx, r.provider, r.books, emit)
 }
 
 func (s *webAPI) ConfirmBookMatch(ctx context.Context, r ConfirmBookMatchRequestObject) (ConfirmBookMatchResponseObject, error) {

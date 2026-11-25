@@ -11,8 +11,7 @@ import { LoadingStatus, Skeleton } from '../Skeleton';
 import { RecentBooks } from '../RecentBooks';
 import { OfflineStatusBar } from '../OfflineStatusBar';
 import { BookDownloadActions } from '../BookDownloadActions';
-import { Button } from '../Controls';
-import controls from '../Controls.module.css';
+import { Button, CircleAction } from '../Controls';
 import { sameAccount } from '../api/client';
 import { useSnackbar } from '../Snackbar';
 
@@ -164,8 +163,8 @@ export function Library() {
     <PageHeader title="Library" headingRef={heading} mobileBrand
       actions={access.kind === 'authenticated' && <div className={styles.libraryHeadingActions}>
         {reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>}
-        <Link to="/library/matcher" state={{ returnTo: { account: access.account, search: bookLinkState.librarySearch, pages: Math.max(1, loadedPages) } }}
-          className={controls.pillIcon} aria-label="Match Books" title="Match Books"><span><Icon name="link" size={16} /></span></Link>
+        <CircleAction icon="link" label="Match Books" to="/library/matcher"
+          state={{ returnTo: { account: access.account, search: bookLinkState.librarySearch, pages: Math.max(1, loadedPages) } }} />
       </div>} />
     {offline && <OfflineStatusBar profile={profiles.find(p => p.account.userId === access.account.userId && p.account.readingGeneration === access.account.readingGeneration)?.name ?? 'Reader'} />}
     {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}

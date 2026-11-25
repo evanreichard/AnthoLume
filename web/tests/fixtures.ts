@@ -1,4 +1,5 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
+import type { components } from '../src/api/schema.gen';
 import { spawn, execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -78,6 +79,16 @@ export const test = base.extend<{ server: Server; dataDir: string }, { serverBin
   },
 });
 export { expect };
+type Lookup = components['schemas']['BookMatcherLookupRequest'];
+export type LookupOutcome = Omit<components['schemas']['BookMatcherOutcome'], 'document_id'>;
+export function mockMatcherLookup(page: Page, lookup: (id: string, body: Lookup) => LookupOutcome | Promise<LookupOutcome>) {
+  return page.route('**/api/v1/metadata/lookups', async route => {
+    expect(route.request().method()).toBe('POST');
+    const body: Lookup = route.request().postDataJSON();
+    const rows = await Promise.all(body.document_ids.map(async document_id => ({ document_id, ...await lookup(document_id, body) })));
+    await route.fulfill({ contentType: 'application/x-ndjson', body: rows.map(row => JSON.stringify(row) + '\n').join('') });
+  });
+}
 export async function register(page: import('@playwright/test').Page, origin: string, username: string) {
   await page.goto(`${origin}/register`);
   await page.getByLabel('Username', { exact: true }).fill(username);

@@ -541,7 +541,11 @@ type AutoImportScanTrigger string
 
 // BookMatcherCandidate defines model for BookMatcherCandidate.
 type BookMatcherCandidate struct {
-	Author string         `json:"author"`
+	Author    string             `json:"author"`
+	EditionId *MetadataEditionID `json:"edition_id,omitempty"`
+
+	// Isbn ISBN observed on the returned edition and verified against the document ISBN or its equivalent form.
+	Isbn   *string        `json:"isbn,omitempty"`
 	Reason *string        `json:"reason,omitempty"`
 	Title  string         `json:"title"`
 	Url    string         `json:"url"`

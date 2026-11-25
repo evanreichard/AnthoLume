@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"reichard.io/antholume/matcherquota"
 	"reichard.io/antholume/metadata"
@@ -126,12 +125,7 @@ func (c *Catalog) query(ctx context.Context, query string, vars any, result any)
 }
 
 func (c *Catalog) Lookup(ctx context.Context, query string) ([]metadata.LookupMatch, error) {
-	isbn := strings.Map(func(r rune) rune {
-		if r == '-' || unicode.IsSpace(r) {
-			return -1
-		}
-		return unicode.ToUpper(r)
-	}, query)
+	isbn := metadata.MatcherISBN(query)
 	out := make([]metadata.LookupMatch, 0, 8)
 	seen := make(map[string]bool)
 	add := func(m metadata.LookupMatch) {

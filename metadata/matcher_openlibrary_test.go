@@ -20,6 +20,9 @@ func TestMatcherOpenLibraryBatchesISBNAndRequiresDirectEvidence(t *testing.T) {
 	var calls, delivered []string
 	upstream := openLibraryFake(func(req *http.Request) (*http.Response, error) {
 		q := req.URL.Query().Get("q")
+		if q == "" {
+			q = req.URL.Path
+		}
 		calls = append(calls, q)
 		var result string
 		switch len(calls) {
@@ -29,13 +32,17 @@ func TestMatcherOpenLibraryBatchesISBNAndRequiresDirectEvidence(t *testing.T) {
 			result = `{"docs":[
 {"key":"/works/OL99W","title":"Unrelated","isbn":["9780804429953"]},
 {"key":"/works/OL1W","title":"Book","author_name":["Author"],"cover_edition_key":"OL11M","isbn":["080442957X"]},
+{"key":"/works/OL12W","title":"Another work","cover_edition_key":"OL12M","isbn":["080442957X"]},
 {"key":"/works/OL88W","title":"No evidence"}
 ]}`
 		case 2:
+			require.Equal(t, "/isbn/080442957X.json", q)
+			result = `{"key":"/books/OL22M","works":[{"key":"/works/OL1W"}],"isbn_10":["080442957X"]}`
+		case 3:
 			require.Equal(t, []string{"a", "duplicate"}, delivered)
 			require.Equal(t, "Other Jane Doe", q)
-			result = `{"docs":[{"key":"/works/OL3W","title":"Other sequel","author_name":["Jane Doe"]},{"key":"/works/OL2W","title":"Other","author_name":["Jane Doe"]}]}`
-		case 3:
+			result = `{"docs":[{"key":"/works/OL3W","title":"Other sequel","author_name":["Jane Doe"]},{"key":"/works/OL2W","title":"Other","author_name":["Jane Doe"],"cover_edition_key":"OL88M"}]}`
+		case 4:
 			require.Equal(t, "No match", q)
 			result = `{"docs":[]}`
 		default:
@@ -54,14 +61,17 @@ func TestMatcherOpenLibraryBatchesISBNAndRequiresDirectEvidence(t *testing.T) {
 		delivered = append(delivered, id)
 		switch id {
 		case "a", "duplicate":
-			require.Len(t, results, 1)
+			require.Len(t, results, 2)
 			require.Equal(t, "OL1W", results[0].ID)
 			require.Equal(t, "080442957X", *results[0].ISBN10)
-			require.Nil(t, results[0].EditionID)
+			require.Equal(t, "OL22M", *results[0].EditionID)
+			require.Equal(t, "OL12W", results[1].ID)
+			require.Nil(t, results[1].EditionID)
 		case "b":
 			require.Len(t, results, 2)
 			require.Equal(t, "OL2W", results[0].ID)
 			require.Nil(t, results[0].ISBN13)
+			require.Nil(t, results[0].EditionID)
 		case "none":
 			require.Empty(t, results)
 		}
@@ -69,7 +79,7 @@ func TestMatcherOpenLibraryBatchesISBNAndRequiresDirectEvidence(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, []string{"a", "duplicate", "b", "none"}, delivered)
-	require.Len(t, calls, 3)
+	require.Len(t, calls, 4)
 }
 
 func TestMatcherOpenLibrarySeparatesProviderErrorAndStopsOnEmitError(t *testing.T) {

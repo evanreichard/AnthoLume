@@ -73,17 +73,13 @@ func TestBookMatcherSessionAndRequestBoundaries(t *testing.T) {
 	assertProblem(t, f.call("DELETE", match, nil, nil), 400, "invalid_request")
 	assertProblem(t, f.call("GET", adminMetadataPath, nil, nil), 403, "forbidden")
 	assertProblem(t, f.call("PUT", adminMetadataPath, `{"provider":"hardcover"}`, nil), 403, "forbidden")
-	assertProblem(t, f.call("GET", "/api/v1/admin/book-matcher?provider=openlibrary", nil, nil), 404, "not_found")
-	assertProblem(t, f.call("POST", "/api/v1/admin/book-matcher/lookups", lookup, nil), 404, "not_found")
-	assertProblem(t, f.call("PUT", "/api/v1/admin/documents/book-01/matches/openlibrary", `{"work_id":"OL100W"}`, nil), 404, "not_found")
+	require.Equal(t, 200, f.call("GET", metadataProvidersPath, nil, nil).status)
 }
 
 func registerMatcherReader(t *testing.T, f *webFixture) {
 	t.Helper()
 	f.register("reader")
 	f.exec("UPDATE users SET admin=0 WHERE id='reader'")
-	r := f.call("GET", adminMetadataPath, nil, nil)
-	assertProblem(t, r, 403, "forbidden")
 }
 
 func TestListDocumentsIncludesConfirmedMatchesAfterPagination(t *testing.T) {
@@ -126,21 +122,6 @@ func TestListDocumentsIncludesConfirmedMatchesAfterPagination(t *testing.T) {
 	require.NotNil(t, second.Items[0].Matches)
 	require.Equal(t, []DocumentMatch{{Provider: Openlibrary, WorkId: "OL200W"}}, *second.Items[0].Matches)
 	require.Equal(t, []Document{}, read(matcherDocumentsPath+"&include=matches&page=2147483647").Items)
-}
-
-func TestMetadataProvidersReadOnlyStatus(t *testing.T) {
-	f := newWebFixture(t)
-	registerMatcherReader(t, f)
-	read := func() AdminMetadataProvider {
-		r := f.call("GET", metadataProvidersPath, nil, nil)
-		require.Equal(t, 200, r.status, string(r.body))
-		return decodeWeb[AdminMetadataProvider](t, r)
-	}
-	require.Equal(t, AdminMetadataProvider{Selected: Openlibrary, Effective: Openlibrary}, read())
-	f.exec(`INSERT INTO settings(name,value) VALUES ('metadata_provider','hardcover') ON CONFLICT(name) DO UPDATE SET value=excluded.value`)
-	require.Equal(t, AdminMetadataProvider{Selected: Hardcover, Effective: Openlibrary}, read())
-	f.api.hardcoverCatalog = identifyCatalogFixture{}
-	require.Equal(t, AdminMetadataProvider{Selected: Hardcover, Effective: Hardcover, HardcoverAvailable: true}, read())
 }
 
 func TestBookMatcherStreamsWithoutHoldingSQLite(t *testing.T) {

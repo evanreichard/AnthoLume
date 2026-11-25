@@ -1280,6 +1280,12 @@ components:
         author: {type: string}
         url: {type: string}
         reason: {type: string}
+        edition_id:
+          $ref: '#/components/schemas/MetadataEditionID'
+        isbn:
+          description: ISBN observed on the returned edition and verified against the document ISBN or its equivalent form.
+          type: string
+          pattern: '^([0-9]{13}|[0-9]{9}[0-9X])$'
     MetadataProvider: {type: string, enum: [openlibrary, hardcover]}
     MetadataProviderChoice:
       type: object

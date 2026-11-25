@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -20,14 +21,6 @@ const (
 	matcherCacheTTL     = 10 * time.Minute
 	matcherBatchTimeout = time.Minute
 )
-
-type matcherBook struct{ ID, Title, Author, ISBN string }
-type matcherCandidate struct{ WorkID, Title, Author, URL, Reason string }
-type matcherOutcome struct {
-	DocumentID string
-	Candidates []matcherCandidate
-	Error      string
-}
 
 type matcherCatalog interface {
 	LookupMatcherBatch(context.Context, []metadata.MatcherInput, func(string, []metadata.LookupMatch, error) error) error
@@ -87,21 +80,20 @@ type matcherKey struct {
 
 type matcherCacheEntry struct {
 	key     matcherKey
-	outcome matcherOutcome
+	outcome BookMatcherOutcome
 	expires time.Time
 }
 
 type matcherFlight struct {
 	key       matcherKey
 	batch     *matcherBatch
-	listeners map[chan matcherOutcome]struct{}
+	listeners map[chan BookMatcherOutcome]struct{}
 }
 
 type matcherBatch struct {
-	ctx       context.Context
-	cancel    context.CancelFunc
-	byID      map[string]*matcherFlight
-	listeners int
+	ctx    context.Context
+	cancel context.CancelFunc
+	byID   map[string]*matcherFlight
 }
 
 type matcherEngine struct {
@@ -111,26 +103,36 @@ type matcherEngine struct {
 	recent  list.List
 }
 
-func (api *API) runMatcherLookups(ctx context.Context, provider MetadataProvider, books []matcherBook, emit func(matcherOutcome) error) error {
+func (api *API) runMatcherLookups(ctx context.Context, provider MetadataProvider, books []metadata.MatcherInput, emit func(BookMatcherOutcome) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if len(books) == 0 {
 		return nil
 	}
-	catalog, err := api.matcherCatalogFor(provider)
-	if err != nil {
-		return err
-	}
-	inputs := make([]metadata.MatcherInput, 0, len(books))
-	for _, book := range books {
-		inputs = append(inputs, metadata.MatcherInput{ID: book.ID, Title: strings.TrimSpace(book.Title), Author: strings.TrimSpace(book.Author), ISBN: metadata.MatcherISBN(book.ISBN)})
+	inputs := slices.Clone(books)
+	for i, book := range inputs {
+		inputs[i].Title = strings.TrimSpace(book.Title)
+		inputs[i].Author = strings.TrimSpace(book.Author)
+		inputs[i].ISBN = metadata.MatcherISBN(book.ISBN)
 	}
 	if err := metadata.ValidateMatcherBatch(inputs); err != nil {
 		return err
 	}
+	catalog, err := api.matcherCatalogFor(provider)
+	if err != nil {
+		for _, book := range inputs {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if err := emit(BookMatcherOutcome{DocumentId: book.ID, Error: new("metadata_unavailable")}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	engine := &api.matcherEngine
-	results := make(chan matcherOutcome, len(inputs))
+	results := make(chan BookMatcherOutcome, len(inputs))
 	flights := engine.subscribe(provider, inputs, results, catalog)
 	defer engine.unsubscribe(flights, results)
 	for range inputs {
@@ -141,7 +143,8 @@ func (api *API) runMatcherLookups(ctx context.Context, provider MetadataProvider
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if err := emit(result); err != nil {
+			// Copy on Delivery - Cached and in-flight outcomes share immutable data; callbacks own their copy.
+			if err := emit(cloneMatcherOutcome(result)); err != nil {
 				return err
 			}
 		}
@@ -149,7 +152,7 @@ func (api *API) runMatcherLookups(ctx context.Context, provider MetadataProvider
 	return nil
 }
 
-func (e *matcherEngine) subscribe(provider MetadataProvider, inputs []metadata.MatcherInput, results chan matcherOutcome, catalog matcherCatalog) []*matcherFlight {
+func (e *matcherEngine) subscribe(provider MetadataProvider, inputs []metadata.MatcherInput, results chan BookMatcherOutcome, catalog matcherCatalog) []*matcherFlight {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.flights == nil {
@@ -165,7 +168,7 @@ func (e *matcherEngine) subscribe(provider MetadataProvider, inputs []metadata.M
 			cached := entry.Value.(matcherCacheEntry)
 			if time.Now().Before(cached.expires) {
 				e.recent.MoveToFront(entry)
-				results <- cloneMatcherOutcome(cached.outcome)
+				results <- cached.outcome
 				continue
 			}
 			e.removeCacheEntry(entry)
@@ -177,22 +180,21 @@ func (e *matcherEngine) subscribe(provider MetadataProvider, inputs []metadata.M
 				ctx, cancel := context.WithTimeout(context.Background(), matcherBatchTimeout)
 				batch = &matcherBatch{ctx: ctx, cancel: cancel, byID: make(map[string]*matcherFlight)}
 			}
-			flight = &matcherFlight{key: key, batch: batch, listeners: make(map[chan matcherOutcome]struct{})}
+			flight = &matcherFlight{key: key, batch: batch, listeners: make(map[chan BookMatcherOutcome]struct{})}
 			e.flights[key] = flight
 			batch.byID[book.ID] = flight
 			missing = append(missing, book)
 		}
 		flight.listeners[results] = struct{}{}
-		flight.batch.listeners++
 		joined = append(joined, flight)
 	}
 	if batch != nil {
-		go e.lookup(catalog, batch, provider, missing)
+		go e.lookup(catalog, batch, missing)
 	}
 	return joined
 }
 
-func (e *matcherEngine) unsubscribe(flights []*matcherFlight, results chan matcherOutcome) {
+func (e *matcherEngine) unsubscribe(flights []*matcherFlight, results chan BookMatcherOutcome) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, flight := range flights {
@@ -200,14 +202,15 @@ func (e *matcherEngine) unsubscribe(flights []*matcherFlight, results chan match
 			continue
 		}
 		delete(flight.listeners, results)
-		flight.batch.listeners--
 		e.cancelUnobserved(flight.batch)
 	}
 }
 
 func (e *matcherEngine) cancelUnobserved(batch *matcherBatch) {
-	if batch.listeners != 0 {
-		return
+	for _, flight := range batch.byID {
+		if len(flight.listeners) > 0 {
+			return
+		}
 	}
 	batch.cancel()
 	for _, flight := range batch.byID {
@@ -216,37 +219,40 @@ func (e *matcherEngine) cancelUnobserved(batch *matcherBatch) {
 	clear(batch.byID)
 }
 
-func (e *matcherEngine) lookup(catalog matcherCatalog, batch *matcherBatch, provider MetadataProvider, books []metadata.MatcherInput) {
+func (e *matcherEngine) lookup(catalog matcherCatalog, batch *matcherBatch, books []metadata.MatcherInput) {
 	defer batch.cancel()
-	byID := make(map[string]metadata.MatcherInput, len(books))
-	for _, book := range books {
-		byID[book.ID] = book
-	}
 	err := catalog.LookupMatcherBatch(batch.ctx, books, func(id string, matches []metadata.LookupMatch, err error) error {
 		if ctxErr := batch.ctx.Err(); ctxErr != nil {
 			return ctxErr
 		}
-		if book, ok := byID[id]; ok {
-			e.complete(batch, matcherResult(provider, book, matches, err))
+		var code string
+		if err != nil {
+			code = matcherErrorCode(err)
 		}
+		e.complete(batch, id, matches, code)
 		return nil
 	})
-	// An interrupted adapter leaves pending rows, not successful empty searches.
+	// Unfinished Lookups - Missing adapter results are failures, not empty candidate lists.
 	for _, book := range books {
-		e.complete(batch, matcherOutcome{DocumentID: book.ID, Error: matcherErrorCode(err)})
+		e.complete(batch, book.ID, nil, matcherErrorCode(err))
 	}
 }
 
-func (e *matcherEngine) complete(batch *matcherBatch, outcome matcherOutcome) {
+func (e *matcherEngine) complete(batch *matcherBatch, id string, matches []metadata.LookupMatch, code string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	flight := batch.byID[outcome.DocumentID]
+	flight := batch.byID[id]
 	if flight == nil {
 		return
 	}
-	delete(batch.byID, outcome.DocumentID)
+	delete(batch.byID, id)
 	delete(e.flights, flight.key)
-	if outcome.Error == "" {
+	outcome := BookMatcherOutcome{DocumentId: id}
+	if code != "" {
+		outcome.Error = &code
+	} else {
+		candidates := matcherCandidates(flight.key, matches)
+		outcome.Candidates = &candidates
 		entry := matcherCacheEntry{flight.key, outcome, time.Now().Add(matcherCacheTTL)}
 		e.cache[flight.key] = e.recent.PushFront(entry)
 		if e.recent.Len() > matcherCacheSize {
@@ -255,9 +261,8 @@ func (e *matcherEngine) complete(batch *matcherBatch, outcome matcherOutcome) {
 	}
 	for listener := range flight.listeners {
 		// Each request reserves one channel slot per requested document.
-		listener <- cloneMatcherOutcome(outcome)
+		listener <- outcome
 	}
-	batch.listeners -= len(flight.listeners)
 	clear(flight.listeners)
 	e.cancelUnobserved(batch)
 }
@@ -267,11 +272,26 @@ func (e *matcherEngine) removeCacheEntry(entry *list.Element) {
 	e.recent.Remove(entry)
 }
 
-func cloneMatcherOutcome(outcome matcherOutcome) matcherOutcome {
-	if len(outcome.Candidates) > 0 {
-		outcome.Candidates = append([]matcherCandidate(nil), outcome.Candidates...)
+func cloneMatcherOutcome(outcome BookMatcherOutcome) BookMatcherOutcome {
+	outcome.Error = cloneMatcherPointer(outcome.Error)
+	outcome.Match = cloneMatcherPointer(outcome.Match)
+	if outcome.Candidates != nil {
+		candidates := slices.Clone(*outcome.Candidates)
+		for i, candidate := range candidates {
+			candidates[i].Reason = cloneMatcherPointer(candidate.Reason)
+			candidates[i].EditionId = cloneMatcherPointer(candidate.EditionId)
+			candidates[i].Isbn = cloneMatcherPointer(candidate.Isbn)
+		}
+		outcome.Candidates = &candidates
 	}
 	return outcome
+}
+
+func cloneMatcherPointer[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	return new(*value)
 }
 
 func matcherErrorCode(err error) string {
@@ -281,22 +301,21 @@ func matcherErrorCode(err error) string {
 	return "lookup_failed"
 }
 
-func matcherResult(provider MetadataProvider, book metadata.MatcherInput, matches []metadata.LookupMatch, err error) matcherOutcome {
-	result := matcherOutcome{DocumentID: book.ID}
-	if err != nil {
-		result.Error = matcherErrorCode(err)
-		return result
-	}
-	isbns := metadata.MatcherISBNs(book.ISBN)
+func matcherCandidates(key matcherKey, matches []metadata.LookupMatch) []BookMatcherCandidate {
+	candidates := make([]BookMatcherCandidate, 0, len(matches))
+	isbns := metadata.MatcherISBNs(key.book.ISBN)
 	for _, match := range matches {
-		candidate := matcherCandidate{WorkID: match.ID, Title: match.Title, Author: match.Author, URL: matcherWorkURL(provider, match.ID)}
+		candidate := BookMatcherCandidate{WorkId: match.ID, Title: match.Title, Author: match.Author, Url: matcherWorkURL(key.provider, match.ID)}
 		for _, isbn := range isbns {
 			if isbn == matchParam(match.ISBN10) || isbn == matchParam(match.ISBN13) {
-				candidate.Reason = "ISBN match"
+				candidate.Reason = new("ISBN match")
+				if edition := matchParam(match.EditionID); edition != "" && metadata.ValidMatcherISBN(isbn) {
+					candidate.EditionId, candidate.Isbn = &edition, new(isbn)
+				}
 				break
 			}
 		}
-		result.Candidates = append(result.Candidates, candidate)
+		candidates = append(candidates, candidate)
 	}
-	return result
+	return candidates
 }

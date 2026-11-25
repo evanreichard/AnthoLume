@@ -188,7 +188,7 @@
 .dialog[data-layout='scroll-body'][open]:has(.matchFields) { height: min(640px, 76dvh); }
 .dialogBody { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .lookupSearch { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
-.lookupSpinner { inline-size: 17px; block-size: 17px; border: 2px solid var(--line); border-top-color: var(--ink); border-radius: 50%; animation: lookupSpin .7s linear infinite; }
+.lookupSpinner { flex: none; inline-size: var(--lookup-spinner-size, 17px); block-size: var(--lookup-spinner-size, 17px); border: 2px solid var(--line); border-top-color: var(--lookup-spinner-color, var(--ink)); border-radius: 50%; animation: lookupSpin .7s linear infinite; }
 @keyframes lookupSpin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .lookupSpinner { animation: none; } }
 .lookupHint { margin: 8px 0 0; color: var(--muted); font-size: .85rem; }

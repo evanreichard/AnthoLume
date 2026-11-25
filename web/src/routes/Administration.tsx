@@ -5,7 +5,7 @@ import type { components } from '../api/schema.gen';
 import { ReadingHTTPError, type Account } from '../reading';
 import { session, useSession } from '../session';
 import { Dialog, ErrorNotice, PageHeader } from '../ui';
-import { ActionRow, AddPill, Card, CardHeader, RadioChoices, SectionTabs, Button } from '../Controls';
+import { ActionRow, CircleAction, Card, CardHeader, RadioChoices, SectionTabs, Button } from '../Controls';
 import { AdminBackups } from './AdminBackups';
 import { AdminImport } from './AdminImport';
 import { AdminMaintenance } from './AdminMaintenance';
@@ -116,7 +116,7 @@ function UserList({ account, username }: AdminContext) {
   const accounts = users.data?.pages.flatMap(page => page.slice(0, 50));
   return <Card density="compact" aria-labelledby="admin-users-heading">
     <CardHeader id="admin-users-heading" title={<>Users {accounts && <span className={styles.settingsCount}>{accounts.length}{users.hasNextPage ? '+' : ''}</span>}</>}
-      action={<AddPill label="Add User" onClick={() => select({ kind: 'create' })} />} />
+      action={<CircleAction icon="add" label="Add User" onClick={() => select({ kind: 'create' })} />} />
     <ErrorNotice error={users.error} />
     {users.isPending && <SkeletonRows label="Loading users…" />}
     {accounts && <ul className={styles.userList}>{accounts.map(user => {

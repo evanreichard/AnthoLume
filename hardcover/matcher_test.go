@@ -51,8 +51,12 @@ func TestCatalogMatcherBatchesEditionsAndMetersAliases(t *testing.T) {
 				require.Equal(t, map[string]any{"book0": "Last search"}, req.Variables)
 				reply = `{"data":{"book0":{"results":{"hits":[]}}}}`
 			case 4:
-				require.Contains(t, req.Query, "books(where:")
-				reply = `{"data":{"books":[` + workRow + `]}}`
+				require.Contains(t, req.Query, "editions(where:")
+				require.Equal(t, map[string]any{
+					"book_id": map[string]any{"_eq": float64(42)}, "id": map[string]any{"_eq": float64(99)},
+					"isbn_13": map[string]any{"_eq": "9780804429573"},
+				}, req.Variables["where"])
+				reply = `{"data":{"editions":[` + editionRow + `]}}`
 			default:
 				t.Fatalf("unexpected catalog call %v", req)
 			}
@@ -73,10 +77,12 @@ func TestCatalogMatcherBatchesEditionsAndMetersAliases(t *testing.T) {
 				require.Len(t, results, 1)
 				require.Equal(t, "42", results[0].ID)
 				require.Equal(t, "99", *results[0].EditionID)
+				require.Equal(t, "9780804429573", *results[0].ISBN13)
 			case "b":
 				require.NoError(t, err)
 				require.Len(t, results, 1)
 				require.Equal(t, "17", results[0].ID)
+				require.Nil(t, results[0].EditionID)
 			case "error":
 				require.Empty(t, results)
 				require.ErrorIs(t, err, ErrProvider)
@@ -88,9 +94,10 @@ func TestCatalogMatcherBatchesEditionsAndMetersAliases(t *testing.T) {
 			return nil
 		})
 		require.NoError(t, err)
-		verified, err := catalog.ResolveMatcher(t.Context(), "42", "", "")
+		verified, err := catalog.ResolveMatcher(t.Context(), "42", "99", "9780804429573")
 		require.NoError(t, err)
 		require.Equal(t, "42", verified.ID)
+		require.Equal(t, "99", *verified.EditionID)
 		require.Equal(t, []time.Duration{0, time.Second, 4 * time.Second, 5 * time.Second}, calls)
 	})
 }

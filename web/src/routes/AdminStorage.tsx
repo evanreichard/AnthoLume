@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { components } from '../api/schema.gen';
 import type { Account } from '../reading';
 import { session } from '../session';
-import { ActionRow, AddPill, Card, CardHeader, Button } from '../Controls';
+import { ActionRow, CircleAction, Card, CardHeader, Button } from '../Controls';
 import { Dialog, ErrorNotice } from '../ui';
 import { DirectoryPicker } from '../DirectoryPicker';
 import { Icon } from '../Icon';
@@ -18,7 +18,7 @@ export const storageRootsKey = (account: Account) => ['admin-storage-roots', acc
 export function StorageRoots({ account, roots, error }: { account: Account; roots: StorageRoot[]; error: unknown }) {
   const [editing, setEditing] = useState<StorageRoot | 'new' | null>(null);
   return <Card className={storage.rootCard} density="compact" aria-labelledby="storage-roots">
-    <CardHeader id="storage-roots" title="Storage Roots" action={<AddPill label="Add Root" onClick={() => setEditing('new')} />} />
+    <CardHeader id="storage-roots" title="Storage Roots" action={<CircleAction icon="add" label="Add Root" onClick={() => setEditing('new')} />} />
     <ErrorNotice error={error} />
     <div className={storage.rootList}>{roots.map(root => <ActionRow key={root.id} label={root.label} onClick={() => setEditing(root)} value={<span className={storage.rootValue}>
       <span className={storage.rootStatus}>

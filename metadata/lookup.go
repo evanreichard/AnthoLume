@@ -37,9 +37,9 @@ func (OpenLibraryCatalog) Lookup(ctx context.Context, query string) ([]LookupMat
 var lookupISBN = regexp.MustCompile(`^(?:[0-9]{13}|[0-9]{9}[0-9X])$`)
 
 func lookupOpenLibrary(ctx context.Context, client matcherquota.Doer, endpoint, query string) ([]LookupMatch, error) {
-	isbn := strings.NewReplacer("-", "", " ", "").Replace(strings.ToUpper(query))
+	isbn := MatcherISBN(query)
 	params := url.Values{"q": {query}, "limit": {"8"}, "fields": {openLibrarySearchFields}}
-	if lookupISBN.MatchString(isbn) {
+	if isbn != "" {
 		params.Set("q", "isbn:"+isbn)
 		params.Set("fields", params.Get("fields")+",isbn")
 	}
@@ -56,7 +56,7 @@ func lookupOpenLibrary(ctx context.Context, client matcherquota.Doer, endpoint, 
 		}
 		seen[m.ID] = true
 		for _, value := range d.ISBN {
-			if value != isbn || !lookupISBN.MatchString(value) {
+			if isbn == "" || value != isbn {
 				continue
 			}
 			if len(value) == 10 {

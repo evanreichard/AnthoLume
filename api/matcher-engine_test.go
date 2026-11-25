@@ -38,10 +38,10 @@ func (c matcherEngineCatalog) ResolveMatcher(ctx context.Context, work, edition,
 	return c.resolve(ctx, work, edition, isbn)
 }
 
-func collectMatcherResults(t *testing.T, api *API, provider MetadataProvider, books ...matcherBook) []matcherOutcome {
+func collectMatcherResults(t *testing.T, api *API, provider MetadataProvider, books ...metadata.MatcherInput) []BookMatcherOutcome {
 	t.Helper()
-	var results []matcherOutcome
-	require.NoError(t, api.runMatcherLookups(t.Context(), provider, books, func(row matcherOutcome) error {
+	var results []BookMatcherOutcome
+	require.NoError(t, api.runMatcherLookups(t.Context(), provider, books, func(row BookMatcherOutcome) error {
 		results = append(results, row)
 		return nil
 	}))
@@ -56,8 +56,8 @@ func TestMatcherEngineCacheScopeAndExpiry(t *testing.T) {
 			for _, book := range books {
 				var matches []metadata.LookupMatch
 				if book.Title != "No match" {
-					isbn := "9780547773742"
-					matches = []metadata.LookupMatch{{ID: "OL1W", Title: "First", ISBN13: &isbn}, {ID: "OL2W", Title: "Second"}}
+					isbn10, isbn13, edition := "0547773749", "9780547773742", "OL11M"
+					matches = []metadata.LookupMatch{{ID: "OL1W", Title: "First", ISBN10: &isbn10, EditionID: &edition}, {ID: "OL2W", Title: "Second", ISBN13: &isbn13}}
 				}
 				if err := emit(book.ID, matches, nil); err != nil {
 					return err
@@ -66,24 +66,25 @@ func TestMatcherEngineCacheScopeAndExpiry(t *testing.T) {
 			return nil
 		}}
 		api := &API{openLibraryCatalog: catalog, hardcoverCatalog: catalog}
-		book := matcherBook{ID: "earthsea", Title: " Earthsea ", Author: "Le Guin", ISBN: "978-0547773742"}
-		missing := matcherBook{ID: "other", Title: "No match"}
+		book := metadata.MatcherInput{ID: "earthsea", Title: " Earthsea ", Author: "Le Guin", ISBN: "978-0547773742"}
+		missing := metadata.MatcherInput{ID: "other", Title: "No match"}
 		results := collectMatcherResults(t, api, Openlibrary, book, missing)
-		input := <-batches
-		require.Len(t, input, 2)
-		require.Equal(t, metadata.MatcherInput{ID: "earthsea", Title: "Earthsea", Author: "Le Guin", ISBN: "9780547773742"}, input[0])
-		require.Equal(t, []matcherCandidate{
-			{WorkID: "OL1W", Title: "First", URL: "https://openlibrary.org/works/OL1W", Reason: "ISBN match"},
-			{WorkID: "OL2W", Title: "Second", URL: "https://openlibrary.org/works/OL2W"},
-		}, results[0].Candidates)
-		require.Empty(t, results[1].Candidates)
-		require.Empty(t, results[1].Error)
-		results[0].Candidates[0].Title = "Modified by subscriber"
-
 		book.Title, book.ISBN = "Earthsea", "9780547773742"
-		cached := collectMatcherResults(t, api, Openlibrary, book, missing)
+		require.Equal(t, []metadata.MatcherInput{book, missing}, <-batches)
+		want := []BookMatcherOutcome{
+			{DocumentId: book.ID, Candidates: &[]BookMatcherCandidate{
+				{WorkId: "OL1W", Title: "First", Url: "https://openlibrary.org/works/OL1W", Reason: new("ISBN match"), EditionId: new("OL11M"), Isbn: new("0547773749")},
+				{WorkId: "OL2W", Title: "Second", Url: "https://openlibrary.org/works/OL2W", Reason: new("ISBN match")},
+			}},
+			{DocumentId: missing.ID, Candidates: &[]BookMatcherCandidate{}},
+		}
+		require.Equal(t, want, results)
+		modified := &(*results[0].Candidates)[0]
+		modified.Title, *modified.Reason, *modified.EditionId, *modified.Isbn = "modified", "modified", "modified", "modified"
+		*results[1].Candidates = append(*results[1].Candidates, BookMatcherCandidate{WorkId: "injected"})
+
+		require.Equal(t, want, collectMatcherResults(t, api, Openlibrary, book, missing))
 		require.Empty(t, batches)
-		require.Equal(t, "First", cached[0].Candidates[0].Title)
 		collectMatcherResults(t, api, Hardcover, book)
 		require.Len(t, <-batches, 1)
 		book.Author = "A different author"
@@ -111,18 +112,19 @@ func TestMatcherEngineCacheCapacity(t *testing.T) {
 	}}
 	api := &API{openLibraryCatalog: catalog}
 	for start := 0; start < matcherCacheSize; start += metadata.MatcherBatchSize {
-		var books []matcherBook
+		var books []metadata.MatcherInput
 		for id := start; id < min(matcherCacheSize, start+metadata.MatcherBatchSize); id++ {
-			books = append(books, matcherBook{ID: fmt.Sprint(id)})
+			books = append(books, metadata.MatcherInput{ID: fmt.Sprint(id)})
 		}
 		collectMatcherResults(t, api, Openlibrary, books...)
 	}
-	collectMatcherResults(t, api, Openlibrary, matcherBook{ID: "0"})
-	collectMatcherResults(t, api, Openlibrary, matcherBook{ID: "extra"})
+	first := metadata.MatcherInput{ID: "0"}
+	collectMatcherResults(t, api, Openlibrary, first)
+	collectMatcherResults(t, api, Openlibrary, metadata.MatcherInput{ID: "extra"})
 	before := calls
-	collectMatcherResults(t, api, Openlibrary, matcherBook{ID: "0"})
+	collectMatcherResults(t, api, Openlibrary, first)
 	require.Equal(t, before, calls)
-	collectMatcherResults(t, api, Openlibrary, matcherBook{ID: "1"})
+	collectMatcherResults(t, api, Openlibrary, metadata.MatcherInput{ID: "1"})
 	require.Equal(t, before+1, calls)
 }
 
@@ -151,29 +153,29 @@ func TestMatcherEngineSharesOverlappingRequestsAndCancelsUnusedWork(t *testing.T
 			return nil
 		}}
 		api := &API{openLibraryCatalog: catalog}
-		listen := func(books ...matcherBook) (context.CancelFunc, <-chan matcherOutcome, <-chan error) {
+		listen := func(books ...metadata.MatcherInput) (context.CancelFunc, <-chan BookMatcherOutcome, <-chan error) {
 			ctx, cancel := context.WithCancel(t.Context())
-			rows, done := make(chan matcherOutcome, len(books)), make(chan error, 1)
+			rows, done := make(chan BookMatcherOutcome, len(books)), make(chan error, 1)
 			go func() {
-				done <- api.runMatcherLookups(ctx, Openlibrary, books, func(row matcherOutcome) error {
+				done <- api.runMatcherLookups(ctx, Openlibrary, books, func(row BookMatcherOutcome) error {
 					rows <- row
 					return nil
 				})
 			}()
 			return cancel, rows, done
 		}
-		shared := matcherBook{ID: "shared"}
+		shared, other := metadata.MatcherInput{ID: "shared"}, metadata.MatcherInput{ID: "other"}
 		cancelLeader, _, leaderDone := listen(shared)
 		first := <-started
-		cancelFollower, rows, followerDone := listen(shared, matcherBook{ID: "other"})
+		cancelFollower, rows, followerDone := listen(shared, other)
 		defer cancelFollower()
-		require.Equal(t, []metadata.MatcherInput{{ID: "other"}}, (<-started).books)
-		require.Equal(t, "other", (<-rows).DocumentID)
+		require.Equal(t, []metadata.MatcherInput{other}, (<-started).books)
+		require.Equal(t, other.ID, (<-rows).DocumentId)
 		cancelLeader()
 		require.ErrorIs(t, <-leaderDone, context.Canceled)
 		require.NoError(t, first.ctx.Err())
 		close(release)
-		require.Equal(t, "shared", (<-rows).DocumentID)
+		require.Equal(t, shared.ID, (<-rows).DocumentId)
 		require.NoError(t, <-followerDone)
 		require.Empty(t, started)
 	})
@@ -195,11 +197,11 @@ func TestMatcherEngineWriteFailureAbandonsPendingBatch(t *testing.T) {
 		}}
 		api := &API{openLibraryCatalog: catalog}
 		writeErr := errors.New("stream closed")
-		slow := matcherBook{ID: "slow"}
-		err := api.runMatcherLookups(t.Context(), Openlibrary, []matcherBook{{ID: "fast"}, slow}, func(matcherOutcome) error { return writeErr })
+		slow := metadata.MatcherInput{ID: "slow"}
+		err := api.runMatcherLookups(t.Context(), Openlibrary, []metadata.MatcherInput{{ID: "fast"}, slow}, func(BookMatcherOutcome) error { return writeErr })
 		require.ErrorIs(t, err, writeErr)
 		require.ErrorIs(t, <-stopped, context.Canceled)
-		require.Equal(t, []matcherOutcome{{DocumentID: "slow"}}, collectMatcherResults(t, api, Openlibrary, slow))
+		require.Equal(t, []BookMatcherOutcome{{DocumentId: slow.ID, Candidates: &[]BookMatcherCandidate{}}}, collectMatcherResults(t, api, Openlibrary, slow))
 	})
 }
 
@@ -209,15 +211,18 @@ func TestMatcherEngineReportsUnfinishedAndLimitedRowsWithoutCachingErrors(t *tes
 			if err := emit(books[0].ID, nil, matcherquota.ErrLimited); err != nil {
 				return err
 			}
+			if err := emit(books[0].ID, nil, nil); err != nil {
+				return err
+			}
 			return errors.New("private provider error")
 		}
 		return emit(books[0].ID, nil, nil)
 	}}
 	api := &API{openLibraryCatalog: catalog}
-	limited := matcherBook{ID: "limited"}
-	unfinished := matcherBook{ID: "unfinished"}
-	require.Equal(t, []matcherOutcome{{DocumentID: "limited", Error: "rate_limited"}, {DocumentID: "unfinished", Error: "lookup_failed"}}, collectMatcherResults(t, api, Openlibrary, limited, unfinished))
-	require.Equal(t, []matcherOutcome{{DocumentID: "limited"}}, collectMatcherResults(t, api, Openlibrary, limited))
+	limited, unfinished := metadata.MatcherInput{ID: "limited"}, metadata.MatcherInput{ID: "unfinished"}
+	require.Equal(t, []BookMatcherOutcome{{DocumentId: limited.ID, Error: new("rate_limited")}, {DocumentId: unfinished.ID, Error: new("lookup_failed")}}, collectMatcherResults(t, api, Openlibrary, limited, unfinished))
+	require.Equal(t, []BookMatcherOutcome{{DocumentId: limited.ID, Candidates: &[]BookMatcherCandidate{}}}, collectMatcherResults(t, api, Openlibrary, limited))
+	require.Equal(t, []BookMatcherOutcome{{DocumentId: limited.ID, Error: new("metadata_unavailable")}, {DocumentId: unfinished.ID, Error: new("metadata_unavailable")}}, collectMatcherResults(t, api, Hardcover, limited, unfinished))
 }
 
 func TestMatcherEngineVerifiesThroughSelectedPacedCatalog(t *testing.T) {

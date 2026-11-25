@@ -20,21 +20,9 @@
 .trigger { justify-content: center; min-width: 0; }
 .trigger:enabled:hover { background: var(--hero); }
 .trigger svg { flex: none; }
-.status { min-height: 32px; }
-.spinner { width: 12px; height: 12px; flex: none; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
-@keyframes spin { to { transform: rotate(1turn); } }
-@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+.status { min-height: 32px; --lookup-spinner-size: 12px; --lookup-spinner-color: var(--accent); }
 .writeError { color: var(--danger); font-size: .8rem; }
 .writeError button { padding-inline: 6px; border: 0; text-decoration: underline; }
-
-.roundButton { display: inline-grid; width: 44px; height: 44px; padding: 0; place-items: center; border: 0; background: transparent; vertical-align: middle; }
-.roundButton > span { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); }
-.roundButton[data-emphasized] > span, .roundButton:enabled:hover > span { background: var(--hero); }
-.roundButton:disabled { cursor: default; }
-.pager { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 4px 8px; color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
-.pager button { justify-self: start; }
-.pager button:last-child { justify-self: end; }
-.pager svg { width: 14px; height: 14px; }
 
 @media (max-width: 600px) {
   .table thead th:first-child { width: 46%; }
