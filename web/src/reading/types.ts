@@ -19,6 +19,7 @@ export interface ReadingBridge {
   fetchFile(account: Account, documentId: string, signal: AbortSignal, etag?: string): Promise<Response>;
   fetchCover(account: Account, documentId: string, signal: AbortSignal): Promise<Response>;
   submitProgress(account: Account, event: S['ProgressEvent'], signal: AbortSignal): Promise<Delivery>;
+  progressAcknowledged?(account: Account): void;
   submitActivity(account: Account, event: S['ActivityEvent'], signal: AbortSignal): Promise<Delivery>;
 }
 export type Delivery = { status: number; body: unknown };

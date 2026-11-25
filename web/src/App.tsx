@@ -3,7 +3,8 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, ScrollRestoration, useLocation, useNavigate, useRouteError } from 'react-router';
 import type { RouteObject } from 'react-router';
 import { appRoutes, type AppRoute } from './app-routes';
-import { ReadingProvider, useReading } from './reading';
+import { ReadingProvider, useReading, type ReadingBridge } from './reading';
+import { refreshLibraryResume } from './catalogQueries';
 import { sameAccount } from './api/client';
 import { queryClient, session, useSession } from './session';
 import { Library } from './routes/Library';
@@ -43,13 +44,20 @@ function RetirementDestination() {
   return null;
 }
 const retirementAccess = { kind: 'loading' } as const;
+const readingBridge: ReadingBridge = {
+  ...session.api.bridge,
+  progressAcknowledged: account => {
+    const { access } = session.getSnapshot();
+    if (access.kind === 'authenticated' && sameAccount(access.account, account)) void refreshLibraryResume(queryClient, account);
+  },
+};
 function Providers() {
   const state = useSession();
   const location = useLocation();
   const intent = legacyDocument(location.search);
   const pendingIntent = intent && !['/login', '/register'].includes(location.pathname);
   return <QueryClientProvider client={queryClient}>
-    <ReadingProvider access={intent && state.access.kind === 'expired' ? retirementAccess : state.access} bridge={session.api.bridge} lookupCover={ref => queryClient.getQueryData<Blob>(['cover', ref])} onSessionExpired={(account) => session.expire(account)}>
+    <ReadingProvider access={intent && state.access.kind === 'expired' ? retirementAccess : state.access} bridge={readingBridge} lookupCover={ref => queryClient.getQueryData<Blob>(['cover', ref])} onSessionExpired={(account) => session.expire(account)}>
       <ReadingSession />
       <RetirementDestination />
       {state.access.kind === 'picker' ? (location.pathname === '/library' ? <OfflinePicker /> : <Navigate to="/library" replace />) : state.access.kind === 'offline' && ['/login','/register'].includes(location.pathname) ? <Navigate to="/library" replace /> : pendingIntent ? <AppLoading message="Opening requested book…" /> : <Outlet />}

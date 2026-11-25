@@ -11,6 +11,13 @@ export function invalidateLibraryAvailability(client: QueryClient, account: Acco
   return invalidateCatalog(client, account);
 }
 
+export async function refreshLibraryResume(client: QueryClient, account: Account) {
+  const filters = { queryKey: ['library-resume', account], exact: true };
+  // Cold Load - Invalidation alone reuses an in-flight first fetch when no data is cached yet.
+  await client.cancelQueries(filters);
+  await client.invalidateQueries(filters);
+}
+
 function invalidateCatalog(client: QueryClient, account: Account, documentId?: string) {
   return client.invalidateQueries({ predicate: ({ queryKey: [family, scope] }) => {
     if (!scope || typeof scope !== 'object') return false;
