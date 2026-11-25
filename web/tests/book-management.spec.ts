@@ -265,6 +265,7 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await expect(dialog.getByText(description, { exact: true })).toBeVisible();
   const field = (name: string) => dialog.getByRole('button', { name, exact: true });
   const assertSelected = async (name: string, selected: boolean) => expect(field(name)).toHaveAttribute('aria-pressed', String(selected));
+  const firstCoverURL = await field('Cover').locator('img').evaluate((image: HTMLImageElement) => image.src);
   await assertSelected('Cover', true);
   await assertSelected('ISBN-10', true);
   await assertSelected('ISBN-13', false);
@@ -289,6 +290,8 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await manual.click();
   await expect(results).toBeHidden();
   await expect(dialog.getByText('Verified alternate synopsis.')).toBeVisible();
+  await expect(field('Cover')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(url => fetch(url).then(() => true, () => false), firstCoverURL)).toBe(false);
   expect(previews).toEqual([match, alternateMatch]);
   await pick.click();
   await restore.click();
@@ -296,6 +299,7 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await expect(pick).toContainText(suggestion.title);
   await page.keyboard.press('Escape');
   await assertSelected('Cover', false);
+  await expect.poll(() => field('Cover').locator('img').evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(160);
   await assertSelected('Title', true);
   await field('Cancel').click();
   await expect(dialog).toHaveCount(0);

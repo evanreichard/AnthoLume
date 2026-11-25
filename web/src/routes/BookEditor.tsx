@@ -6,6 +6,7 @@ import { session } from '../session';
 import { Cover } from '../BookPresentation';
 import bookStyles from '../BookPresentation.module.css';
 import { Dialog, ErrorNotice } from '../ui';
+import { useObjectURL } from '../useObjectURL';
 import type { LibraryBook } from '../library';
 import styles from '../App.module.css';
 import { bookMetadataDraft, encodeBookCover } from './bookMetadataDraft';
@@ -15,15 +16,11 @@ export function BookEditor({ book, refId, document, onClose, onSaved }: {
 }) {
   const formId = useId();
   const [draft, setDraft] = useState(() => bookMetadataDraft(document));
-  const [cover, setCover] = useState<File | null>(null), [remove, setRemove] = useState(false), [preview, setPreview] = useState('');
+  const [cover, setCover] = useState<File | null>(null), [remove, setRemove] = useState(false);
+  const preview = useObjectURL(cover);
   const [error, setError] = useState<unknown>(null), [busy, setBusy] = useState(false);
   const request = useRef<AbortController | null>(null);
   useEffect(() => () => request.current?.abort(), []);
-  useEffect(() => {
-    const url = cover ? URL.createObjectURL(cover) : '';
-    setPreview(url);
-    return () => { if (url) URL.revokeObjectURL(url); };
-  }, [cover]);
   function setField(key: keyof typeof draft, value: string) { setDraft(old => ({ ...old, [key]: value })); }
   async function save() {
     if (request.current) return;

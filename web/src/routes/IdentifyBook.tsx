@@ -10,6 +10,7 @@ import { ReadingHTTPError, type BookRef } from '../reading';
 import { session } from '../session';
 import { LoadingStatus, Skeleton } from '../Skeleton';
 import { Dialog } from '../ui';
+import { useObjectURL } from '../useObjectURL';
 import styles from '../App.module.css';
 import identify from './IdentifyBook.module.css';
 import { bookMetadataDraft, encodeBookCover } from './bookMetadataDraft';
@@ -51,19 +52,16 @@ function fieldsFor(match: Match): (keyof Draft)[] {
 }
 
 function useCoverImage(source: Review['cover']) {
-  const [loaded, setLoaded] = useState<{ source: NonNullable<Review['cover']>; image: { blob: Blob; url: string } | null }>();
+  const [loaded, setLoaded] = useState<{ source: Promise<Blob | null>; blob: Blob | null }>();
   useEffect(() => {
     if (!source) return;
     let active = true;
-    let url: string | undefined;
-    void source.then(blob => {
-      if (!active) return;
-      if (blob) url = URL.createObjectURL(blob);
-      setLoaded({ source, image: blob && url ? { blob, url } : null });
-    });
-    return () => { active = false; if (url) URL.revokeObjectURL(url); };
+    void source.then(blob => { if (active) setLoaded({ source, blob }); });
+    return () => { active = false; };
   }, [source]);
-  return loaded?.source === source ? loaded?.image : undefined;
+  const blob = loaded?.source === source ? loaded?.blob : undefined;
+  const url = useObjectURL(blob);
+  return url && blob ? { blob, url } : blob === null ? null : undefined;
 }
 
 function failureMessage(error: unknown, operation: Operation) {

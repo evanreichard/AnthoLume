@@ -8,6 +8,7 @@ import { readCover, sameAccount, useReading, type BookRef } from './reading';
 import { session, useSession } from './session';
 import app from './App.module.css';
 import styles from './BookPresentation.module.css';
+import { useObjectURL } from './useObjectURL';
 
 const coverHues = [24, 46, 104, 167, 211, 267, 336];
 
@@ -27,15 +28,8 @@ export function Cover({ book, sourceId, warningId, thumbnail = false }: {
   thumbnail?: boolean;
 }) {
   const { access } = useSession();
-  const [localURL, setLocalURL] = useState<string | null>(null);
   const { cacheCover, deviceCopies, ready } = useReading();
   const cover = book.stored?.cover;
-  useEffect(() => {
-    if (!cover) { setLocalURL(null); return; }
-    const url = URL.createObjectURL(cover);
-    setLocalURL(url);
-    return () => URL.revokeObjectURL(url);
-  }, [cover]);
   const ref = book.ref;
   const authenticated = access.kind === 'authenticated' && ref.kind === 'server' && sameAccount(access.account, ref.account);
   const remote = useQuery({
@@ -54,14 +48,9 @@ export function Cover({ book, sourceId, warningId, thumbnail = false }: {
   useEffect(() => {
     if (canBackfill && remote.data) storeCover(remote.data);
   }, [canBackfill, key, remote.data]);
-  const [remoteURL, setRemoteURL] = useState<string | null>(null);
-  useEffect(() => {
-    if (!remote.data || !authenticated) { setRemoteURL(null); return; }
-    const url = URL.createObjectURL(remote.data);
-    setRemoteURL(url);
-    return () => URL.revokeObjectURL(url);
-  }, [remote.data, authenticated]);
-  const image = authenticated && book.document ? (book.document.cover_available ? remoteURL || (remote.isError ? localURL : null) : null) : localURL;
+  const image = useObjectURL(authenticated && book.document
+    ? book.document.cover_available ? remote.data ?? (remote.isError ? cover : undefined) : undefined
+    : cover);
   const [failedImage, setFailedImage] = useState<string | null>(null);
   const sourceLabel = ref.kind === 'local' ? 'Local-only book' : 'Shared library book';
   return <div className={thumbnail ? `${styles.cover} ${styles.coverThumbnail}` : styles.cover}>
