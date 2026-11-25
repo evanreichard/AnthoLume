@@ -2,7 +2,6 @@ package metadata
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -16,16 +15,16 @@ type openLibraryFake func(*http.Request) (*http.Response, error)
 
 func (f openLibraryFake) Do(r *http.Request) (*http.Response, error) { return f(r) }
 
+const matcherSearchURL = "https://openlibrary.invalid/search.json"
+
 func TestMatcherOpenLibraryBatchesISBNAndRequiresDirectEvidence(t *testing.T) {
-	var calls, delivered []string
+	calls := 0
+	var delivered []string
 	upstream := openLibraryFake(func(req *http.Request) (*http.Response, error) {
+		calls++
 		q := req.URL.Query().Get("q")
-		if q == "" {
-			q = req.URL.Path
-		}
-		calls = append(calls, q)
 		var result string
-		switch len(calls) {
+		switch calls {
 		case 1:
 			require.Equal(t, "(isbn:080442957X OR isbn:9780804429573 OR isbn:9781234567890)", q)
 			require.Contains(t, req.URL.Query().Get("fields"), ",isbn")
@@ -36,7 +35,7 @@ func TestMatcherOpenLibraryBatchesISBNAndRequiresDirectEvidence(t *testing.T) {
 {"key":"/works/OL88W","title":"No evidence"}
 ]}`
 		case 2:
-			require.Equal(t, "/isbn/080442957X.json", q)
+			require.Equal(t, "/isbn/080442957X.json", req.URL.RequestURI())
 			result = `{"key":"/books/OL22M","works":[{"key":"/works/OL1W"}],"isbn_10":["080442957X"]}`
 		case 3:
 			require.Equal(t, []string{"a", "duplicate"}, delivered)
@@ -56,7 +55,7 @@ func TestMatcherOpenLibraryBatchesISBNAndRequiresDirectEvidence(t *testing.T) {
 		{ID: "duplicate", ISBN: "080442957X"},
 		{ID: "none", Title: "No match"},
 	}
-	err := lookupOpenLibraryMatcher(t.Context(), upstream, "https://openlibrary.invalid/search.json", books, func(id string, results []LookupMatch, err error) error {
+	err := lookupOpenLibraryMatcher(t.Context(), upstream, matcherSearchURL, books, func(id string, results []LookupMatch, err error) error {
 		require.NoError(t, err)
 		delivered = append(delivered, id)
 		switch id {
@@ -79,7 +78,7 @@ func TestMatcherOpenLibraryBatchesISBNAndRequiresDirectEvidence(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, []string{"a", "duplicate", "b", "none"}, delivered)
-	require.Len(t, calls, 4)
+	require.Equal(t, 4, calls)
 }
 
 func TestMatcherOpenLibrarySeparatesProviderErrorAndStopsOnEmitError(t *testing.T) {
@@ -89,7 +88,7 @@ func TestMatcherOpenLibrarySeparatesProviderErrorAndStopsOnEmitError(t *testing.
 		return &http.Response{StatusCode: 429, Body: io.NopCloser(strings.NewReader("rate limited"))}, nil
 	})
 	stop := errors.New("stream disconnected")
-	err := lookupOpenLibraryMatcher(t.Context(), upstream, "https://openlibrary.invalid/search.json", []MatcherInput{{ID: "a", ISBN: "9780804429573"}, {ID: "b", Title: "Other"}}, func(id string, results []LookupMatch, err error) error {
+	err := lookupOpenLibraryMatcher(t.Context(), upstream, matcherSearchURL, []MatcherInput{{ID: "a", ISBN: "9780804429573"}, {ID: "b", Title: "Other"}}, func(id string, results []LookupMatch, err error) error {
 		require.Equal(t, "a", id)
 		require.Empty(t, results)
 		require.ErrorIs(t, err, matcherquota.ErrLimited)
@@ -98,8 +97,9 @@ func TestMatcherOpenLibrarySeparatesProviderErrorAndStopsOnEmitError(t *testing.
 	require.ErrorIs(t, err, stop)
 	require.Equal(t, 1, calls)
 
-	err = lookupOpenLibraryMatcher(t.Context(), upstream, "https://openlibrary.invalid/search.json", []MatcherInput{{ID: "a"}, {ID: "a"}}, func(string, []LookupMatch, error) error {
-		return fmt.Errorf("invalid batches do not emit")
+	err = lookupOpenLibraryMatcher(t.Context(), upstream, matcherSearchURL, []MatcherInput{{ID: "a"}, {ID: "a"}}, func(string, []LookupMatch, error) error {
+		t.Fatal("invalid batches must not emit")
+		return nil
 	})
 	require.ErrorIs(t, err, ErrInvalidMatcherBatch)
 	require.Equal(t, 1, calls)

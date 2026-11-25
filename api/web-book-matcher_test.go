@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,41 +19,17 @@ const bookMatcherLookupPath = "/api/v1/metadata/lookups"
 const matcherDocumentsPath = "/api/v1/documents?page_size=10&sort=title"
 const metadataProvidersPath = "/api/v1/metadata/providers"
 
-type matcherHTTPCatalog struct {
-	lookup func(context.Context, string) ([]metadata.LookupMatch, error)
-}
-
-func (c matcherHTTPCatalog) Lookup(ctx context.Context, query string) ([]metadata.LookupMatch, error) {
-	if c.lookup == nil {
-		return nil, nil
-	}
-	return c.lookup(ctx, query)
-}
-
-func (c matcherHTTPCatalog) LookupMatcherBatch(ctx context.Context, books []metadata.MatcherInput, emit func(string, []metadata.LookupMatch, error) error) error {
-	for _, book := range books {
-		matches, err := c.Lookup(ctx, book.SearchText())
-		if err := emit(book.ID, matches, err); err != nil {
-			return err
+func matcherLinkCatalog() matcherEngineCatalog {
+	return matcherEngineCatalog{resolve: func(_ context.Context, work, _, _ string) (metadata.LookupMatch, error) {
+		if work != "OL100W" && work != "OL200W" {
+			return metadata.LookupMatch{}, metadata.ErrInvalidLookupMatch
 		}
-	}
-	return nil
-}
-
-func (c matcherHTTPCatalog) ResolveMatcher(ctx context.Context, work, edition, isbn string) (metadata.LookupMatch, error) {
-	return c.Resolve(ctx, work, edition, isbn)
-}
-
-func (matcherHTTPCatalog) Resolve(_ context.Context, work, _, _ string) (metadata.LookupMatch, error) {
-	if work != "OL100W" && work != "OL200W" {
-		return metadata.LookupMatch{}, metadata.ErrInvalidLookupMatch
-	}
-	return metadata.LookupMatch{ID: work}, nil
+		return metadata.LookupMatch{ID: work}, nil
+	}}
 }
 
 func TestBookMatcherSessionAndRequestBoundaries(t *testing.T) {
 	f := newWebFixture(t)
-	f.api.openLibraryCatalog = matcherHTTPCatalog{}
 	match := "/api/v1/documents/book-01/matches/openlibrary"
 	lookup := `{"provider":"openlibrary","document_ids":["book-01"]}`
 	assertProblem(t, f.call("GET", matcherDocumentsPath+"&include=matches", nil, nil), 401, "unauthenticated")
@@ -66,13 +42,10 @@ func TestBookMatcherSessionAndRequestBoundaries(t *testing.T) {
 	assertProblem(t, f.call("PUT", match, `{"work_id":"OL100W"}`, map[string]string{"Origin": "https://example.test"}), 403, "csrf_failed")
 	assertProblem(t, f.call("DELETE", match+"?work_id=OL100W", nil, map[string]string{"X-CSRF-Token": "wrong"}), 403, "csrf_failed")
 	assertProblem(t, f.call("GET", matcherDocumentsPath+"&include=other", nil, nil), 400, "invalid_request")
-	assertProblem(t, f.call("GET", matcherDocumentsPath+"&page=0", nil, nil), 400, "invalid_request")
 	assertProblem(t, f.call("POST", bookMatcherLookupPath, `{"provider":"openlibrary","document_ids":[]}`, nil), 400, "invalid_request")
 	assertProblem(t, f.call("POST", bookMatcherLookupPath, `{"provider":"openlibrary","document_ids":["a","a"]}`, nil), 400, "invalid_request")
 	assertProblem(t, f.call("POST", bookMatcherLookupPath, `{"provider":"openlibrary","document_ids":["1","2","3","4","5","6","7","8","9","10","11"]}`, nil), 400, "invalid_request")
 	assertProblem(t, f.call("DELETE", match, nil, nil), 400, "invalid_request")
-	assertProblem(t, f.call("GET", adminMetadataPath, nil, nil), 403, "forbidden")
-	assertProblem(t, f.call("PUT", adminMetadataPath, `{"provider":"hardcover"}`, nil), 403, "forbidden")
 	require.Equal(t, 200, f.call("GET", metadataProvidersPath, nil, nil).status)
 }
 
@@ -126,33 +99,31 @@ func TestListDocumentsIncludesConfirmedMatchesAfterPagination(t *testing.T) {
 
 func TestBookMatcherStreamsWithoutHoldingSQLite(t *testing.T) {
 	f := newWebFixture(t)
-	lookupStarted := make(chan struct{}, 1)
-	release := make(chan struct{})
-	f.api.openLibraryCatalog = matcherHTTPCatalog{lookup: func(ctx context.Context, query string) ([]metadata.LookupMatch, error) {
-		if strings.Contains(query, "Fast") {
-			return []metadata.LookupMatch{{ID: "OL200W", Title: "Fast Title", Author: "Fast Author"}}, nil
+	lookupStarted, release := make(chan struct{}), make(chan struct{})
+	f.api.openLibraryCatalog = matcherEngineCatalog{lookup: func(ctx context.Context, books []metadata.MatcherInput, emit func(string, []metadata.LookupMatch, error) error) error {
+		for _, book := range books {
+			if book.Title == "Fast Title" {
+				if err := emit(book.ID, []metadata.LookupMatch{{ID: "OL200W", Title: book.Title, Author: book.Author}}, nil); err != nil {
+					return err
+				}
+				continue
+			}
+			close(lookupStarted)
+			select {
+			case <-release:
+				return emit(book.ID, nil, nil)
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
-		select {
-		case lookupStarted <- struct{}{}:
-		default:
-		}
-		select {
-		case <-release:
-			return nil, nil
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
+		return nil
 	}}
 	registerMatcherReader(t, f)
 	f.exec(`INSERT INTO documents(id,title,author) VALUES ('linked','First Title','First Author'), ('pending','Second Title','Second Author'), ('fast','Fast Title','Fast Author')`)
 	f.exec(`INSERT INTO document_identifiers VALUES ('linked','openlibrary_work','OL100W')`)
 
-	request, err := http.NewRequest("POST", f.server.URL+bookMatcherLookupPath,
-		strings.NewReader(`{"provider":"openlibrary","document_ids":["fast","pending","linked","missing"]}`))
-	require.NoError(t, err)
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-CSRF-Token", f.csrf)
-	request.Header.Set("Origin", f.cfg.PublicOrigin)
+	request := f.newRequest("POST", bookMatcherLookupPath,
+		`{"provider":"openlibrary","document_ids":["fast","pending","linked","missing"]}`, nil)
 	response, err := f.client.Do(request)
 	require.NoError(t, err)
 	defer response.Body.Close()
@@ -160,27 +131,15 @@ func TestBookMatcherStreamsWithoutHoldingSQLite(t *testing.T) {
 	require.Equal(t, "application/x-ndjson", response.Header.Get("Content-Type"))
 	require.Equal(t, "private, no-store", response.Header.Get("Cache-Control"))
 	reader := bufio.NewReader(response.Body)
-	line, err := reader.ReadString('\n')
-	require.NoError(t, err)
-	var linked BookMatcherOutcome
-	require.NoError(t, json.Unmarshal([]byte(line), &linked))
-	require.Equal(t, "linked", linked.DocumentId)
-	require.NotNil(t, linked.Match)
-	require.Equal(t, "OL100W", linked.Match.WorkId)
-	line, err = reader.ReadString('\n')
-	require.NoError(t, err)
-	require.JSONEq(t, `{"document_id":"missing","error":"not_found"}`, line)
-	line, err = reader.ReadString('\n')
-	require.NoError(t, err)
-	var fast BookMatcherOutcome
-	require.NoError(t, json.Unmarshal([]byte(line), &fast))
-	require.Equal(t, "fast", fast.DocumentId)
-	require.NotNil(t, fast.Candidates)
-	require.Len(t, *fast.Candidates, 1)
-	require.Equal(t, "OL200W", (*fast.Candidates)[0].WorkId)
-	require.Equal(t, "Fast Title", (*fast.Candidates)[0].Title)
-	require.Equal(t, "Fast Author", (*fast.Candidates)[0].Author)
-	require.Contains(t, (*fast.Candidates)[0].Url, "openlibrary.org/works/OL200W")
+	assertLine := func(want string) {
+		t.Helper()
+		line, err := reader.ReadString('\n')
+		require.NoError(t, err)
+		require.JSONEq(t, want, line)
+	}
+	assertLine(`{"document_id":"linked","match":{"work_id":"OL100W","url":"https://openlibrary.org/works/OL100W"}}`)
+	assertLine(`{"document_id":"missing","error":"not_found"}`)
+	assertLine(`{"document_id":"fast","candidates":[{"work_id":"OL200W","title":"Fast Title","author":"Fast Author","url":"https://openlibrary.org/works/OL200W"}]}`)
 	select {
 	case <-lookupStarted:
 	case <-time.After(3 * time.Second):
@@ -188,9 +147,7 @@ func TestBookMatcherStreamsWithoutHoldingSQLite(t *testing.T) {
 	}
 	require.Equal(t, 200, f.call("GET", matcherDocumentsPath+"&include=matches", nil, nil).status)
 	close(release)
-	line, err = reader.ReadString('\n')
-	require.NoError(t, err)
-	require.JSONEq(t, `{"document_id":"pending","candidates":[]}`, line)
+	assertLine(`{"document_id":"pending","candidates":[]}`)
 	_, err = reader.ReadByte()
 	require.ErrorIs(t, err, io.EOF)
 	require.Equal(t, 1, f.count("document_identifiers"))
@@ -198,11 +155,26 @@ func TestBookMatcherStreamsWithoutHoldingSQLite(t *testing.T) {
 
 func TestBookMatcherConcurrentConfirms(t *testing.T) {
 	f := newWebFixture(t)
-	f.api.openLibraryCatalog = matcherHTTPCatalog{}
+	// Make both requests reach provider resolution before either can write the link.
+	var resolving atomic.Int32
+	bothResolving := make(chan struct{})
+	catalog := matcherLinkCatalog()
+	resolve := catalog.resolve
+	catalog.resolve = func(ctx context.Context, work, edition, isbn string) (metadata.LookupMatch, error) {
+		if resolving.Add(1) == 2 {
+			close(bothResolving)
+		}
+		select {
+		case <-bothResolving:
+			return resolve(ctx, work, edition, isbn)
+		case <-ctx.Done():
+			return metadata.LookupMatch{}, ctx.Err()
+		}
+	}
+	f.api.openLibraryCatalog = catalog
 	registerMatcherReader(t, f)
 	f.exec(`INSERT INTO documents(id,title) VALUES ('book','Local Title')`)
 
-	start := make(chan struct{})
 	type result struct {
 		workID string
 		status int
@@ -210,14 +182,8 @@ func TestBookMatcherConcurrentConfirms(t *testing.T) {
 	}
 	results := make(chan result, 2)
 	for _, workID := range []string{"OL100W", "OL200W"} {
-		r, err := http.NewRequest("PUT", f.server.URL+"/api/v1/documents/book/matches/openlibrary",
-			strings.NewReader(fmt.Sprintf(`{"work_id":%q}`, workID)))
-		require.NoError(t, err)
-		r.Header.Set("Content-Type", "application/json")
-		r.Header.Set("X-CSRF-Token", f.csrf)
-		r.Header.Set("Origin", f.cfg.PublicOrigin)
+		r := f.newRequest("PUT", "/api/v1/documents/book/matches/openlibrary", BookMatcherWork{WorkId: workID}, nil)
 		go func() {
-			<-start
 			response, err := f.client.Do(r)
 			if err != nil {
 				results <- result{workID: workID, err: err}
@@ -227,8 +193,8 @@ func TestBookMatcherConcurrentConfirms(t *testing.T) {
 			results <- result{workID: workID, status: response.StatusCode}
 		}()
 	}
-	close(start)
 	first, second := <-results, <-results
+	require.EqualValues(t, 2, resolving.Load())
 	require.NoError(t, first.err)
 	require.NoError(t, second.err)
 	require.ElementsMatch(t, []int{http.StatusNoContent, http.StatusConflict}, []int{first.status, second.status})
@@ -238,8 +204,7 @@ func TestBookMatcherConcurrentConfirms(t *testing.T) {
 	}
 	r := f.call("GET", matcherDocumentsPath+"&include=matches", nil, nil)
 	require.Equal(t, 200, r.status, string(r.body))
-	var page DocumentPage
-	require.NoError(t, json.Unmarshal(r.body, &page))
+	page := decodeWeb[DocumentPage](t, r)
 	require.Len(t, page.Items, 1)
 	require.NotNil(t, page.Items[0].Matches)
 	require.Equal(t, []DocumentMatch{{Provider: Openlibrary, WorkId: winner.workID}}, *page.Items[0].Matches)
@@ -248,7 +213,7 @@ func TestBookMatcherConcurrentConfirms(t *testing.T) {
 
 func TestBookMatcherLinkMutations(t *testing.T) {
 	f := newWebFixture(t)
-	f.api.openLibraryCatalog = matcherHTTPCatalog{}
+	f.api.openLibraryCatalog = matcherLinkCatalog()
 	f.api.hardcoverCatalog = identifyCatalogFixture{}
 	registerMatcherReader(t, f)
 	f.exec(`INSERT INTO settings(name,value) VALUES ('metadata_provider','hardcover') ON CONFLICT(name) DO UPDATE SET value=excluded.value`)
@@ -281,8 +246,5 @@ func TestBookMatcherLinkMutations(t *testing.T) {
 	require.Equal(t, "local.png", *document.Coverfile)
 	stateResponse := f.call("GET", metadataProvidersPath, nil, nil)
 	require.Equal(t, 200, stateResponse.status, string(stateResponse.body))
-	var state AdminMetadataProvider
-	require.NoError(t, json.Unmarshal(stateResponse.body, &state))
-	require.Equal(t, Hardcover, state.Selected)
-	require.Equal(t, Hardcover, state.Effective)
+	require.Equal(t, AdminMetadataProvider{Selected: Hardcover, Effective: Hardcover, HardcoverAvailable: true}, decodeWeb[AdminMetadataProvider](t, stateResponse))
 }

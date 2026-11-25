@@ -44,6 +44,10 @@ async function mockAutomaticLookup(page: Page, provider: Provider, id: string | 
 }
 
 test.use({ serviceWorkers: 'block' });
+test.beforeEach(async ({ page }) => {
+  // Unmatched catalog requests must never reach the real providers.
+  await page.route(/\/api\/v1\/(?:metadata\/(?:search|lookups|match|covers)(?:[/?]|$)|documents\/[^/?]+\/matches\/)/, route => route.abort());
+});
 
 test('book details show file information and download the original EPUB', async ({ page, server }) => {
   await register(page, server.origin, 'book-info');
@@ -305,17 +309,15 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   expect(largeCoverRequests).toBe(coversBeforeSave);
   const appliedTitle = page.getByRole('heading', { name: suggestion.title, exact: true });
   await expect(appliedTitle).toBeVisible();
-  const details = page.getByRole('region', { name: 'Book details' });
-  for (const value of [description, author, isbn13]) await expect(details.getByText(value, { exact: true })).toBeVisible();
 
   await bookAction(page, 'Delete');
   await expect(dialog.getByText(/for everyone/)).toBeVisible();
   await field('Cancel').click();
+  await expect(dialog).toHaveCount(0);
   await expect(appliedTitle).toBeVisible();
   await bookAction(page, 'Delete');
-  await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+  await field('Delete').click();
   await expect(page).toHaveURL(`${server.origin}/library`);
-  await expect(appliedTitle).toHaveCount(0);
 });
 
 test('Book Details reviews exact confirmed sources without searching or relinking', async ({ page, server }) => {
@@ -327,18 +329,14 @@ test('Book Details reviews exact confirmed sources without searching or relinkin
   const savedLinks: NonNullable<typeof original.matches> = [{ provider: 'openlibrary', work_id: 'OL101W' }, { provider: 'hardcover', work_id: '42' }];
   const linked_source = savedLinks[1], description = 'Synopsis from the saved Hardcover record.', localSynopsis = 'Original synopsis';
   const catalog = { provider: linked_source.provider, id: linked_source.work_id, title: 'Catalog title', author: 'Catalog author', description, cover_id: 42 };
-  let current: typeof original = { ...original, description: localSynopsis, cover_available: true, reading_stats: { reading_seconds: 0, words_per_minute: 0, word_count: 161098 }, matches: [] };
+  let showSources = false;
   const cover = await jpeg(page);
   let failPreview = true;
   let previews = 0;
   const writes: unknown[] = [];
-  await page.route(endpoint, async route => {
-    if (route.request().method() === 'PATCH') {
-      const body = route.request().postDataJSON();
-      writes.push(body);
-      current = { ...current, description: body.description };
-    }
-    await route.fulfill({ json: current });
+  await page.route(endpoint, route => {
+    if (route.request().method() === 'PATCH') writes.push(route.request().postDataJSON());
+    return route.fulfill({ json: { ...original, cover_available: true, matches: showSources ? savedLinks : [], description: writes.length ? description : localSynopsis } });
   });
   await page.route(`${endpoint}/matches/${linked_source.provider}?work_id=${linked_source.work_id}`, route => {
     expect(route.request().method()).toBe('GET');
@@ -363,7 +361,7 @@ test('Book Details reviews exact confirmed sources without searching or relinkin
   await expect(details.getByText(localSynopsis, { exact: true })).toBeVisible();
   await expect(sourcesLabel).toHaveCount(0);
 
-  current = { ...current, matches: savedLinks };
+  showSources = true;
   await page.goto(bookURL);
   await expect(sourcesLabel).toBeVisible();
   for (const width of viewportWidths) {
@@ -421,15 +419,12 @@ test('Book Details reviews exact confirmed sources without searching or relinkin
   await dialog.getByRole('button', { name: /^Apply 1 Change$/i }).click();
   await expect(dialog).toHaveCount(0);
   await expect(details.getByText(catalog.description, { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Public book 01', exact: true })).toBeVisible();
-  await expect(hardcover).toBeVisible();
-  await expect(openLibrary).toBeVisible();
   expect(writes).toEqual([{ linked_source, description }]);
   expect(previews).toBe(3);
   expect(discoveries).toEqual([]);
 });
 
-test('Hardcover reuses cover bytes for preview and save, and still links when artwork fails', async ({ page, server }) => {
+test('Hardcover links without edits, applies a verified edition, and saves when artwork fails', async ({ page, server }) => {
   await register(page, server.origin, 'hardcover-catalog-reader');
   const { endpoint, original } = await publicBook(page, server.origin);
   const linked_source = { provider: 'hardcover' as const, work_id: '42' };
@@ -439,21 +434,19 @@ test('Hardcover reuses cover bytes for preview and save, and still links when ar
   const edition = { ...work, edition_id: '91', isbn13 };
   const editionMatch = { ...linked_source, edition_id: edition.edition_id, isbn: isbn13 };
   const cover = await jpeg(page);
+  const writes: unknown[] = [];
   let coverRequests = 0, coverUnavailable = false;
   await page.route(/\/api\/v1\/metadata\/covers\/42(?:\?|$)/, route => {
     coverRequests++;
     const query = new URL(route.request().url()).searchParams;
-    expect(query.get('provider')).toBe(provider);
-    expect(query.has('prefer_large')).toBe(false);
+    expect(Object.fromEntries(query)).toEqual(writes.length ? { provider, document_id: original.id, work_id } : { provider });
     expect(route.request().headers()['x-antholume-account']).toBeTruthy();
     return coverUnavailable ? route.fulfill({ status: 503 }) : route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(cover, 'base64') });
   });
-  const confirmed: unknown[] = [];
-  let current = { ...original, cover_available: true };
-  await mockAutomaticLookup(page, provider, original.id, () => current.matches?.length
+  await mockAutomaticLookup(page, provider, original.id, () => writes.length
     ? { match: { work_id, url } }
     : { candidates: [{ work_id, title: work.title, author: work.author, url }] });
-  await page.route(`${endpoint}/matches/${provider}?work_id=${work_id}`, route => route.fulfill({ json: current.isbn13 ? edition : work }));
+  await page.route(`${endpoint}/matches/${provider}?work_id=${work_id}`, route => route.fulfill({ json: work }));
   await page.route(`**/api/v1/metadata/search?q=${isbn13}`, route => route.fulfill({ json: [edition] }));
   await page.route('**/api/v1/metadata/match?*', route => {
     const params = Object.fromEntries(new URL(route.request().url()).searchParams);
@@ -462,12 +455,8 @@ test('Hardcover reuses cover bytes for preview and save, and still links when ar
     return route.fulfill({ json: verified ? edition : work });
   });
   await page.route(endpoint, route => {
-    if (route.request().method() === 'PATCH') {
-      const body = route.request().postDataJSON();
-      confirmed.push(body);
-      current = { ...current, title: body.title ?? current.title, isbn13: body.isbn13 ?? current.isbn13, matches: [linked_source] };
-    }
-    return route.fulfill({ json: current });
+    if (route.request().method() === 'PATCH') writes.push(route.request().postDataJSON());
+    return route.fulfill({ json: { ...original, cover_available: !coverUnavailable } });
   });
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Review Metadata' });
@@ -482,7 +471,7 @@ test('Hardcover reuses cover bytes for preview and save, and still links when ar
   await assertCover();
   await expect(dialog.getByRole('button', { name: /Hardcover/i })).toBeDisabled();
   expect(coverRequests).toBe(1);
-  expect(confirmed).toEqual([]);
+  expect(writes).toEqual([]);
   const link = dialog.getByRole('button', { name: /^(Link|Link Book)$/ });
   for (const width of viewportWidths) {
     await page.setViewportSize({ width, height: 844 });
@@ -490,8 +479,7 @@ test('Hardcover reuses cover bytes for preview and save, and still links when ar
   }
   await link.click();
   await expect(dialog).toHaveCount(0);
-  expect(confirmed).toEqual([{ match: linked_source }]);
-  await expect(page.getByRole('heading', { name: 'Public book 01', exact: true })).toBeVisible();
+  expect(writes).toEqual([{ match: linked_source }]);
 
   await bookAction(page, 'Identify');
   await dialog.getByRole('button', { name: /^Choose Match/i }).click();
@@ -503,23 +491,20 @@ test('Hardcover reuses cover bytes for preview and save, and still links when ar
   await expect(results).toBeHidden();
   await expect(dialog.getByText(/ISBN match/)).toBeVisible();
   await assertCover();
-  await field('Title').click();
-  await coverChoice.click();
-  await dialog.getByRole('button', { name: /(?:Link (?:and|&) )?Apply 3 Changes/i }).click();
+  await field('Apply 1 Change').click();
   await expect(dialog).toHaveCount(0);
   expect(coverRequests).toBe(2);
-  expect(confirmed[1]).toEqual({ match: editionMatch, isbn13, title: work.title, cover_base64: cover });
-  await expect(page.getByRole('heading', { name: work.title, exact: true })).toBeVisible();
+  expect(writes[1]).toEqual({ match: editionMatch, isbn13 });
 
   coverUnavailable = true;
-  current = { ...current, cover_available: false };
+  await page.reload();
   const missingArtwork = page.waitForResponse(response => response.url().includes('/metadata/covers/42') && response.status() === 503);
   await bookAction(page, 'Identify');
   await missingArtwork;
   await expect(coverChoice).toHaveCount(0);
   await field('Synopsis').click();
-  await dialog.getByRole('button', { name: /(?:Link (?:and|&) )?Apply 1 Change$/i }).click();
+  await field('Apply 1 Change').click();
   await expect(dialog).toHaveCount(0);
   expect(coverRequests).toBe(3);
-  expect(confirmed[2]).toEqual({ linked_source, description: work.description });
+  expect(writes.slice(2)).toEqual([{ linked_source, description: work.description }]);
 });

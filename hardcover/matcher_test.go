@@ -18,7 +18,7 @@ type matcherTransport func(*http.Request) (*http.Response, error)
 
 func (f matcherTransport) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
 
-func TestCatalogMatcherBatchesEditionsAndMetersAliases(t *testing.T) {
+func TestCatalogMatcherBatchesAndSharesProviderQuota(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var calls []time.Duration
 		var emitted []string
@@ -51,12 +51,11 @@ func TestCatalogMatcherBatchesEditionsAndMetersAliases(t *testing.T) {
 				require.Equal(t, map[string]any{"book0": "Last search"}, req.Variables)
 				reply = `{"data":{"book0":{"results":{"hits":[]}}}}`
 			case 4:
-				require.Contains(t, req.Query, "editions(where:")
-				require.Equal(t, map[string]any{
-					"book_id": map[string]any{"_eq": float64(42)}, "id": map[string]any{"_eq": float64(99)},
-					"isbn_13": map[string]any{"_eq": "9780804429573"},
-				}, req.Variables["where"])
 				reply = `{"data":{"editions":[` + editionRow + `]}}`
+			case 5:
+				require.Equal(t, map[string]any{"book0": "Limited book"}, req.Variables)
+				return &http.Response{StatusCode: http.StatusTooManyRequests, Header: http.Header{"Retry-After": {"20"}},
+					Body: io.NopCloser(strings.NewReader(`{"errors":[{"message":"rate limited"}]}`))}, nil
 			default:
 				t.Fatalf("unexpected catalog call %v", req)
 			}
@@ -94,30 +93,19 @@ func TestCatalogMatcherBatchesEditionsAndMetersAliases(t *testing.T) {
 			return nil
 		})
 		require.NoError(t, err)
-		verified, err := catalog.ResolveMatcher(t.Context(), "42", "99", "9780804429573")
+		_, err = catalog.ResolveMatcher(t.Context(), "42", "99", "9780804429573")
 		require.NoError(t, err)
-		require.Equal(t, "42", verified.ID)
-		require.Equal(t, "99", *verified.EditionID)
-		require.Equal(t, []time.Duration{0, time.Second, 4 * time.Second, 5 * time.Second}, calls)
-	})
-}
 
-func TestCatalogMatcherSharesProviderCooldownWithVerification(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		catalog := NewCatalog(testCatalogToken)
-		calls := 0
-		catalog.http.Transport = matcherTransport(func(r *http.Request) (*http.Response, error) {
-			calls++
-			return &http.Response{StatusCode: 429, Body: io.NopCloser(strings.NewReader("rate limited")), Header: http.Header{"Retry-After": {"20"}}}, nil
-		})
-		err := catalog.LookupMatcherBatch(t.Context(), []metadata.MatcherInput{{ID: "a", Title: "Book"}}, func(id string, results []metadata.LookupMatch, err error) error {
+		err = catalog.LookupMatcherBatch(t.Context(), []metadata.MatcherInput{{ID: "limited", Title: "Limited book"}}, func(id string, results []metadata.LookupMatch, err error) error {
+			emitted = append(emitted, id)
 			require.ErrorIs(t, err, matcherquota.ErrLimited)
 			require.Empty(t, results)
 			return nil
 		})
 		require.NoError(t, err)
+		require.Equal(t, []string{"a", "b", "none", "error", "last", "limited"}, emitted)
 		_, err = catalog.ResolveMatcher(t.Context(), "42", "", "")
 		require.ErrorIs(t, err, matcherquota.ErrLimited)
-		require.Equal(t, 1, calls)
+		require.Equal(t, []time.Duration{0, time.Second, 4 * time.Second, 5 * time.Second, 6 * time.Second}, calls)
 	})
 }

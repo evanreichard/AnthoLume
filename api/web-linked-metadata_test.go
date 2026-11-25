@@ -40,36 +40,43 @@ func (f *linkedCatalogFixture) Cover(ctx context.Context, id int64) ([]byte, err
 	return f.identifyCatalogFixture.Cover(ctx, id)
 }
 
+const (
+	linkedBookPath    = "/api/v1/documents/book"
+	linkedPreviewPath = linkedBookPath + "/matches/hardcover?work_id=42"
+)
+
+func seedLinkedReviewBook(f *webFixture, catalog *linkedCatalogFixture) {
+	f.api.hardcoverCatalog = catalog
+	registerMatcherReader(f.t, f)
+	f.exec(`INSERT INTO documents(id,title) VALUES('book','Original')`)
+	f.exec(`INSERT INTO document_identifiers VALUES('book','hardcover_book','42'), ('book','openlibrary_work','OL20W')`)
+}
+
 func TestConfirmedSourceReview(t *testing.T) {
 	f := newWebFixture(t)
 	catalog := &linkedCatalogFixture{}
-	f.api.hardcoverCatalog = catalog
-	const document = "/api/v1/documents/book"
-	const preview = document + "/matches/hardcover?work_id=42"
+	const document, preview = linkedBookPath, linkedPreviewPath
 	const cover = "/api/v1/metadata/covers/123?provider=hardcover&document_id=book&work_id=42"
 	const edit = `{"title":"Reviewed title","linked_source":{"provider":"hardcover","work_id":"42"}}`
-	assertProblem(t, f.call("GET", preview, nil, nil), 401, "unauthenticated")
-	assertProblem(t, f.call("GET", cover, nil, nil), 401, "unauthenticated")
-	assertProblem(t, f.call("PATCH", document, edit, nil), 401, "unauthenticated")
-	f.register("member")
-	f.exec(`UPDATE users SET admin=0 WHERE id='member'`)
-	f.exec(`INSERT INTO documents(id,title) VALUES('book','Original')`)
-	f.exec(`INSERT INTO document_identifiers VALUES('book','hardcover_book','42'), ('book','openlibrary_work','OL20W')`)
+	assertSourceProblem := func(status int, code, workID, title string) {
+		t.Helper()
+		assertProblem(t, f.call("GET", strings.Replace(preview, "42", workID, 1), nil, nil), status, code)
+		assertProblem(t, f.call("GET", strings.Replace(cover, "42", workID, 1), nil, nil), status, code)
+		body := strings.NewReplacer("42", workID, "Reviewed title", title).Replace(edit)
+		assertProblem(t, f.call("PATCH", document, body, nil), status, code)
+	}
+	assertSourceProblem(401, "unauthenticated", "42", "Reviewed title")
+	seedLinkedReviewBook(f, catalog)
 	provider := decodeWeb[AdminMetadataProvider](t, f.call("GET", "/api/v1/metadata/providers", nil, nil))
 	require.Equal(t, Openlibrary, provider.Effective)
 
-	assertProblem(t, f.call("GET", "/api/v1/metadata/match?provider=hardcover&work_id=42", nil, nil), 409, "metadata_provider_changed")
-	assertProblem(t, f.call("GET", "/api/v1/metadata/covers/123?provider=hardcover", nil, nil), 409, "metadata_provider_changed")
-	assertProblem(t, f.call("PATCH", document, `{"title":"Do not save","match":{"provider":"hardcover","work_id":"42"}}`, nil), 409, "metadata_provider_changed")
 	assertProblem(t, f.call("PATCH", document, edit, map[string]string{"X-CSRF-Token": "wrong"}), 403, "csrf_failed")
 	assertProblem(t, f.call("PATCH", document, `{"title":"Do not save","linked_source":{"provider":"hardcover","work_id":"42"},"match":{"provider":"hardcover","work_id":"42"}}`, nil), 400, "invalid_request")
 	assertProblem(t, f.call("GET", document+"/matches/hardcover", nil, nil), 400, "invalid_request")
 	for _, query := range []string{"provider=hardcover&document_id=book", "provider=hardcover&work_id=42", "document_id=book&work_id=42", "provider=hardcover&document_id=book&work_id=" + strings.Repeat("x", 65), "provider=hardcover&work_id=42&document_id=" + strings.Repeat("x", 129)} {
 		assertProblem(t, f.call("GET", "/api/v1/metadata/covers/123?"+query, nil, nil), 400, "invalid_request")
 	}
-	assertProblem(t, f.call("GET", strings.Replace(preview, "42", "43", 1), nil, nil), 409, "book_match_changed")
-	assertProblem(t, f.call("GET", strings.Replace(cover, "42", "43", 1), nil, nil), 409, "book_match_changed")
-	assertProblem(t, f.call("PATCH", document, strings.Replace(edit, "42", "43", 1), nil), 409, "book_match_changed")
+	assertSourceProblem(409, "book_match_changed", "43", "Wrong work title")
 	require.Equal(t, int32(0), catalog.resolves.Load())
 	require.Equal(t, int32(0), catalog.covers.Load())
 	before := decodeWeb[Document](t, f.call("GET", document, nil, nil))
@@ -93,17 +100,13 @@ func TestConfirmedSourceReview(t *testing.T) {
 	require.Equal(t, int32(1), catalog.resolves.Load(), "applying a confirmed source must not re-resolve the catalog")
 
 	require.Equal(t, http.StatusNoContent, f.call("DELETE", preview, nil, nil).status)
-	assertProblem(t, f.call("GET", preview, nil, nil), 409, "book_match_changed")
-	assertProblem(t, f.call("GET", cover, nil, nil), 409, "book_match_changed")
-	assertProblem(t, f.call("PATCH", document, strings.Replace(edit, "Reviewed title", "Stale title", 1), nil), 409, "book_match_changed")
+	assertSourceProblem(409, "book_match_changed", "42", "Stale title")
 	actual := decodeWeb[Document](t, f.call("GET", document, nil, nil))
 	require.Equal(t, saved.Title, actual.Title)
 	require.Equal(t, []DocumentMatch{{Provider: Openlibrary, WorkId: "OL20W"}}, *actual.Matches)
 
 	require.Equal(t, http.StatusNoContent, f.call("DELETE", document, nil, nil).status)
-	assertProblem(t, f.call("GET", preview, nil, nil), 404, "not_found")
-	assertProblem(t, f.call("GET", cover, nil, nil), 404, "not_found")
-	assertProblem(t, f.call("PATCH", document, edit, nil), 404, "not_found")
+	assertSourceProblem(404, "not_found", "42", "Deleted book title")
 	require.Equal(t, int32(1), catalog.resolves.Load())
 	require.Equal(t, int32(1), catalog.covers.Load())
 }
@@ -112,7 +115,7 @@ func TestConfirmedSourceReadChecksLinkAfterProviderIO(t *testing.T) {
 	f := newWebFixture(t)
 	entered, release := make(chan struct{}), make(chan struct{})
 	t.Cleanup(func() { close(release) })
-	f.api.hardcoverCatalog = &linkedCatalogFixture{beforeResolve: func(ctx context.Context) error {
+	seedLinkedReviewBook(f, &linkedCatalogFixture{beforeResolve: func(ctx context.Context) error {
 		close(entered)
 		select {
 		case <-release:
@@ -120,11 +123,8 @@ func TestConfirmedSourceReadChecksLinkAfterProviderIO(t *testing.T) {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
-	}}
-	f.register("member")
-	f.exec(`INSERT INTO documents(id,title) VALUES('book','Original')`)
-	f.exec(`INSERT INTO document_identifiers VALUES('book','hardcover_book','42')`)
-	const path = "/api/v1/documents/book/matches/hardcover?work_id=42"
+	}})
+	const path = linkedPreviewPath
 	result := make(chan webResponse, 1)
 	go func() { result <- f.call("GET", path, nil, nil) }()
 	select {

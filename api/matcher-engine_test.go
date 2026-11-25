@@ -38,6 +38,15 @@ func (c matcherEngineCatalog) ResolveMatcher(ctx context.Context, work, edition,
 	return c.resolve(ctx, work, edition, isbn)
 }
 
+func emitEmptyMatches(books []metadata.MatcherInput, emit func(string, []metadata.LookupMatch, error) error) error {
+	for _, book := range books {
+		if err := emit(book.ID, nil, nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func collectMatcherResults(t *testing.T, api *API, provider MetadataProvider, books ...metadata.MatcherInput) []BookMatcherOutcome {
 	t.Helper()
 	var results []BookMatcherOutcome
@@ -103,12 +112,7 @@ func TestMatcherEngineCacheCapacity(t *testing.T) {
 	calls := 0
 	catalog := matcherEngineCatalog{lookup: func(_ context.Context, books []metadata.MatcherInput, emit func(string, []metadata.LookupMatch, error) error) error {
 		calls++
-		for _, book := range books {
-			if err := emit(book.ID, nil, nil); err != nil {
-				return err
-			}
-		}
-		return nil
+		return emitEmptyMatches(books, emit)
 	}}
 	api := &API{openLibraryCatalog: catalog}
 	for start := 0; start < matcherCacheSize; start += metadata.MatcherBatchSize {
@@ -145,12 +149,7 @@ func TestMatcherEngineSharesOverlappingRequestsAndCancelsUnusedWork(t *testing.T
 				case <-release:
 				}
 			}
-			for _, book := range books {
-				if err := emit(book.ID, nil, nil); err != nil {
-					return err
-				}
-			}
-			return nil
+			return emitEmptyMatches(books, emit)
 		}}
 		api := &API{openLibraryCatalog: catalog}
 		listen := func(books ...metadata.MatcherInput) (context.CancelFunc, <-chan BookMatcherOutcome, <-chan error) {

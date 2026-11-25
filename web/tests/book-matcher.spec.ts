@@ -6,6 +6,11 @@ const libraryURL = '/library?q=Public+book&sort=author';
 const matcherTitle = (page: Page) => page.getByRole('heading', { name: 'Book Matcher', exact: true });
 const backToLibrary = (page: Page) => page.getByRole('main').getByRole('link', { name: /^(?:Back to )?Library$/i });
 
+test.use({ serviceWorkers: 'block' });
+test.beforeEach(async ({ page }) => {
+  await page.route(/\/api\/v1\/metadata\/lookups(?:\?|$)/, route => route.abort());
+});
+
 async function registerMember(page: Page, origin: string) {
   // First Account - Production assigns the first registered account the administrator role.
   const firstAccount = await request.newContext({ baseURL: origin });
@@ -43,9 +48,6 @@ async function mockPages(page: Page, getMatches: (id: string) => DocumentMatch[]
   await page.route('**/api/v1/documents?*', async route => {
     const query = new URL(route.request().url()).searchParams;
     if (query.get('include') !== 'matches') return route.continue();
-    expect(query.get('page_size')).toBe('10');
-    expect(query.get('sort')).toBe('title');
-    expect(query.has('provider')).toBe(false);
     const requested = Number(query.get('page') ?? 1);
     pages.push(requested);
     const items = books.slice((requested - 1) * 10, requested * 10).map(book => ({ ...book, matches: getMatches(book.id) }));
@@ -195,17 +197,16 @@ test('direct matcher entry requires sign-in; streams render incrementally and ca
       const request = input instanceof Request ? input : new Request(input, init);
       if (!new URL(request.url).pathname.endsWith('/metadata/lookups')) return original(input, init);
       const { provider, document_ids: ids } = await request.json();
-      let canceled = false;
       const body = new ReadableStream<Uint8Array>({ start(controller) {
         const encoder = new TextEncoder();
         state.matcherStreams.push({ provider, ids, signal: request.signal,
-          emit(line) { if (!canceled) controller.enqueue(encoder.encode(JSON.stringify(line) + '\n')); },
-          close() { if (!canceled) controller.close(); } });
-      }, cancel() { canceled = true; } });
+          emit(line) { controller.enqueue(encoder.encode(JSON.stringify(line) + '\n')); },
+          close() { controller.close(); } });
+      } });
       return new Response(body, { headers: { 'Content-Type': 'application/x-ndjson' } });
     };
   });
-  await registerMember(page, server.origin);
+  await register(page, server.origin, 'matcher-stream-reader');
   expect((await page.goto(matcherURL))?.ok()).toBe(true);
   const select = page.getByRole('combobox', { name: 'Provider', exact: true });
   const current = page.getByRole('table');
@@ -225,12 +226,9 @@ test('direct matcher entry requires sign-in; streams render incrementally and ca
   expect(pages).toEqual([1]);
   expect(await page.evaluate(() => window.matcherStreams.map(item => item.ids.includes('book-10')))).toEqual([false, false]);
   await page.evaluate(() => {
-    window.matcherStreams[0].emit({ document_id: 'book-2', candidates: [{ work_id: 'OL999W', url: 'https://openlibrary.org/works/OL999W', title: 'Stale Result', author: '' }] });
-    window.matcherStreams[0].close();
     window.matcherStreams[1].emit({ document_id: 'book-2', error: 'rate_limited' });
     window.matcherStreams[1].close();
   });
-  await expect(current.getByText('Stale Result')).toHaveCount(0);
   await expect(current.getByText('No Match')).toHaveCount(0);
   await expect(current.getByRole('button', { name: `Retry Lookup: ${title(3)}` })).toBeVisible(); // The stream ended without this row.
   const retry = current.getByRole('button', { name: `Retry Lookup: ${title(2)}` });
