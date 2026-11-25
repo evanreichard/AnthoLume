@@ -26,6 +26,17 @@ const minTextSize = 50,
   maxTextSize = 200;
 const clampSize = (size: number) => Math.max(minTextSize, Math.min(maxTextSize, Math.round(size)));
 
+function claimControlsHint(): boolean {
+  const key = 'antholume.reader-controls-hint';
+  try {
+    if (localStorage.getItem(key)) return false;
+    localStorage.setItem(key, 'seen');
+  } catch {
+    /* The hint still works without storage. */
+  }
+  return true;
+}
+
 function resumeLabel(source: string, progress: number | null, savedAt?: string) {
   return `${source}${progress == null ? '' : ` · ${Math.round(progress * 100)}%`}${savedAt ? ` · ${new Date(savedAt).toLocaleDateString()}` : ''}`;
 }
@@ -83,19 +94,19 @@ function PageEdge({ next, turn }: { next: boolean; turn: (forward: boolean) => v
   );
 }
 
-export function ReaderScreen({
-  book,
-  onClose,
-  onBackToLibrary = onClose,
-  onReconnect,
-  recoveryControl,
-}: {
+type ReaderScreenProps = {
   book: BookRef;
   onClose: () => void;
   onBackToLibrary?: () => void;
   onReconnect?: () => Promise<void>;
   recoveryControl?: ReactNode;
-}): ReactNode {
+};
+
+export function ReaderScreen(props: ReaderScreenProps): ReactNode {
+  return <BookReader key={refKey(props.book)} {...props} />;
+}
+
+function BookReader({ book, onClose, onBackToLibrary = onClose, onReconnect, recoveryControl }: ReaderScreenProps) {
   const { runtime, snapshot, access } = useReadingContext();
   const key = refKey(book);
   const snackbar = useSnackbar(key);
@@ -104,13 +115,7 @@ export function ReaderScreen({
   const [selecting, setSelecting] = useState(false);
   const host = useRef<HTMLDivElement>(null),
     controller = useRef<ReaderController | null>(null);
-  const [readerState, setReaderState] = useState<{ key: string; value: ReaderStatus }>({
-    key,
-    value: { state: 'opening', message: 'Getting the reader ready…' },
-  });
-  const status: ReaderStatus =
-    readerState.key === key ? readerState.value : { state: 'opening', message: 'Getting the reader ready…' };
-  const setStatus = (value: ReaderStatus) => setReaderState({ key, value });
+  const [status, setStatus] = useState<ReaderStatus>({ state: 'opening', message: 'Getting the reader ready…' });
   const [panel, setPanel] = useState<'toc' | 'appearance' | 'hide'>('hide'),
     [storedAppearance, setAppearance] = useState<Appearance>();
   const appearance = storedAppearance ?? defaults;
@@ -118,8 +123,7 @@ export function ReaderScreen({
   const [hovering, setHovering] = useState(false),
     [showHint, setShowHint] = useState(false);
   const [readerMode, setReaderMode] = useState<'account' | 'device'>('device');
-  const [hasOpened, setHasOpened] = useState(false),
-    [showLoading, setShowLoading] = useState(false);
+  const [hasOpened, setHasOpened] = useState(false);
   const top = useRef<HTMLElement>(null),
     bottom = useRef<HTMLElement>(null);
   const keyboardReveal = useRef<HTMLButtonElement>(null),
@@ -135,14 +139,13 @@ export function ReaderScreen({
     [explicitBeginning, setExplicitBeginning] = useState(false);
   const [retryingOfflineOpen, setRetryingOfflineOpen] = useState(false);
   const retryConnection = useRef<symbol | null>(null);
-  useLayoutEffect(() => {
-    setRetryingOfflineOpen(false);
-    return () => {
+  useLayoutEffect(
+    () => () => {
       retryConnection.current = null;
-    };
-  }, [key]);
+    },
+    [],
+  );
   const [resumeChoice, setResumeChoice] = useState<{
-    key: string;
     device: string;
     server: string;
     choose: (device: boolean) => void;
@@ -194,32 +197,23 @@ export function ReaderScreen({
     return () => clearTimeout(timer);
   }, [chrome, panel, hovering]);
   useEffect(() => {
-    setShowHint(false);
-    if (!hasOpened || !permitted || offline) return;
-    const hintKey = 'antholume.reader-controls-hint';
-    try {
-      if (localStorage.getItem(hintKey)) return;
-      localStorage.setItem(hintKey, 'seen');
-    } catch {
-      /* The hint still works without storage. */
-    }
-    setShowHint(true);
+    const show = hasOpened && permitted && !offline && claimControlsHint();
+    // oxlint-disable-next-line react/set-state-in-effect -- Hint Ownership - Reading and claiming the once-per-browser hint must happen after commit.
+    setShowHint(show);
+    if (!show) return;
     const timer = setTimeout(() => setShowHint(false), chromeIdleMs);
     return () => clearTimeout(timer);
   }, [hasOpened, permitted, offline]);
+  const loadingPending = !hasOpened && status.state === 'opening' && permitted;
+  const [loading, setLoading] = useState(false);
+  if (!loadingPending && loading) setLoading(false);
+  const showLoading = loadingPending && loading;
   useEffect(() => {
-    setExplicitBeginning(false);
-    setChrome({ visible: false, activity: 0 });
-    setHovering(false);
-    setSelecting(false);
-  }, [key]);
-  useEffect(() => {
-    setShowLoading(false);
-    if (hasOpened || status.state !== 'opening' || !permitted) return;
-    const timer = setTimeout(() => setShowLoading(true), 450);
+    if (!loadingPending) return;
+    const timer = setTimeout(() => setLoading(true), 450);
     return () => clearTimeout(timer);
-  }, [hasOpened, status.state, permitted, key]);
-  const readerReady = permitted && !retryingOfflineOpen && (snapshot.ready || (hasOpened && readerState.key === key));
+  }, [loadingPending]);
+  const readerReady = permitted && !retryingOfflineOpen && (snapshot.ready || hasOpened);
   // oxlint-disable react/exhaustive-deps -- Reader Lifetime - Reopen on book identity, not new book objects or handler closures.
   useEffect(() => {
     if (!runtime || !readerReady || !host.current || parentGestures === undefined) return;
@@ -319,7 +313,6 @@ export function ReaderScreen({
           const cancelled = () => reject(abort.signal.reason);
           abort.signal.addEventListener('abort', cancelled, { once: true });
           setResumeChoice({
-            key,
             device: resumeLabel('This Device', resumeCandidate.fraction, resumeCandidate.savedAt),
             server: resumeLabel('Server', checkpoint.fraction, lastReadAt),
             choose: (device) => {
@@ -599,8 +592,8 @@ export function ReaderScreen({
           </button>
         </div>
       </header>
-      <div ref={host} className={styles.viewport} hidden={!permitted || readerState.key !== key} inert={blocked} />
-      {permitted && resumeChoice?.key === key && (
+      <div ref={host} className={styles.viewport} hidden={!permitted} inert={blocked} />
+      {permitted && resumeChoice && (
         <Dialog
           title="Conflicting Positions"
           onClose={onClose}

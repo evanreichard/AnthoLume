@@ -11,7 +11,17 @@ test('Library searches for literal all and Book Detail returns to the filtered L
   await expect(page.getByText('No matching books.', { exact: false })).toBeVisible();
 
   await search.fill('Public book 01');
+  await page.getByRole('button', { name: 'Sort Books', exact: true }).click();
+  const sort = page.getByRole('dialog', { name: 'Sort Books' });
+  await sort.press('Escape');
+  await expect(sort).toHaveCount(0);
+  await expect(search).toHaveValue('Public book 01');
   await search.press('Enter');
+  await expect(page).toHaveURL(/q=Public\+book\+01$/);
+  await page.goBack();
+  await expect(search).toHaveValue('all');
+  await page.goForward();
+  await expect(search).toHaveValue('Public book 01');
   await page.route('**/api/v1/documents/book_001', (route) =>
     route.fulfill({
       status: 404,

@@ -12,7 +12,7 @@ npm run test:browser
 npm run test:reader
 ```
 
-Use `npm run format` to apply Prettier to handwritten frontend files. Oxlint checks correctness and the Rules of Hooks, including effect dependencies. The app doesn't use React Compiler, so compiler-specific effect, ref, and immutability diagnostics are outside this baseline. Generated API bindings and generated reader fixtures are checked by their generators instead.
+Use `npm run format` to apply Prettier to handwritten frontend files. Oxlint checks correctness, the Rules of Hooks, effect dependencies, and synchronous state updates in effects. Exceptions for browser-owned resources are documented at the affected line. Generated API bindings and generated reader fixtures are checked by their generators instead.
 
 The build writes `../assets/app/` for Go packaging. Generate API bindings from the repository root with `make generate`.
 

@@ -292,7 +292,7 @@ function Page({
 }: PageControls) {
   const page = data.page;
   const request = useRef<AbortController | null>(null);
-  const [rowFocus, setRowFocus] = useState<string | null>(null);
+  const [focusRequest, setFocusRequest] = useState<{ bookId: string } | null>(null);
   const table = useRef<HTMLTableElement>(null);
 
   useLayoutEffect(() => {
@@ -351,15 +351,15 @@ function Page({
   }, []);
 
   useLayoutEffect(() => {
-    if (rowFocus == null) return;
-    const row = Array.from(table.current?.rows ?? []).find((row) => row.dataset.bookId === rowFocus);
+    if (!focusRequest) return;
+    const row = Array.from(table.current?.rows ?? []).find((row) => row.dataset.bookId === focusRequest.bookId);
     row?.querySelector<HTMLElement>('[data-match-value]')?.focus({ preventScroll: true });
-    setRowFocus(null);
-  }, [rowFocus]);
+  }, [focusRequest]);
 
   async function changeLink(book: MatcherBook, match: MatcherLink, remove = false) {
     const signal = request.current!.signal;
-    if (!signal.aborted && (await write(book, provider, match, remove)) && !signal.aborted) setRowFocus(book.id);
+    if (!signal.aborted && (await write(book, provider, match, remove)) && !signal.aborted)
+      setFocusRequest({ bookId: book.id });
   }
 
   function lookup(book: MatcherBook) {

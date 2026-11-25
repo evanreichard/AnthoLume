@@ -45,7 +45,9 @@ export function Library() {
   const bookLinkState = { librarySearch: libraryParams.toString() };
   const offline = access.kind === 'offline';
   const account = access.kind === 'authenticated' || offline || access.kind === 'expired' ? access.account : null;
-  const [input, setInput] = useState(q);
+  const [draft, setDraft] = useState({ query: q, value: q });
+  if (draft.query !== q) setDraft({ query: q, value: q });
+  const input = draft.value;
   const [error, setError] = useState<unknown>(null);
   const [importing, setImporting] = useState(false);
   const uploadScope = access.kind === 'authenticated' ? JSON.stringify(access.account) : undefined;
@@ -53,9 +55,6 @@ export function Library() {
   const [importNotice, setImportNotice] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
   const importController = useRef<AbortController | null>(null);
-  useEffect(() => {
-    setInput(q);
-  }, [q]);
   useEffect(() => {
     if (location.state?.focusLibrary && reading.ready && focusedLocation.current !== location.key) {
       heading.current?.focus();
@@ -157,7 +156,7 @@ export function Library() {
     if (value !== sort) window.scrollTo(0, 0);
   }
   function clearSearch() {
-    setInput('');
+    setDraft({ query: q, value: '' });
     update('q', '');
     searchInput.current?.focus();
   }
@@ -249,7 +248,7 @@ export function Library() {
           value={input}
           maxLength={256}
           placeholder="Title or author"
-          onChange={(event) => setInput(event.target.value)}
+          onChange={(event) => setDraft({ query: q, value: event.target.value })}
           onClear={input || q ? clearSearch : undefined}
         />
         {!offline && (

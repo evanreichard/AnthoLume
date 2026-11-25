@@ -191,6 +191,7 @@ test('a library member reviews ten books, writes only explicit link changes, and
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect(find(1).getByRole('link')).toHaveAttribute('href', match.url);
   await unlink(1).click();
+  await expect(unmatched).toBeFocused();
   await unmatched.click();
   await expect(pick).toBeVisible();
   await expect(page.locator(':popover-open')).toHaveCount(0);

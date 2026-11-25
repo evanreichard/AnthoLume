@@ -47,14 +47,17 @@ export function HardcoverSettings({ account }: { account: Account }) {
   const username = link.data?.username;
   const reconnectRequired = !!username && link.data?.reconnect_required;
   const disconnected = !!link.data && (!link.data.enabled || !username);
-  useEffect(() => {
-    if (disconnected) {
+  const connection = disconnected ? 'disconnected' : reconnectRequired ? 'reconnect' : 'other';
+  const [previousConnection, setPreviousConnection] = useState(connection);
+  if (connection !== previousConnection) {
+    setPreviousConnection(connection);
+    if (connection === 'disconnected') {
       setDialog(null);
       setError(null);
-    } else if (reconnectRequired) {
-      setDialog((current) => (current === 'preview' ? null : current));
+    } else if (connection === 'reconnect' && dialog === 'preview') {
+      setDialog(null);
     }
-  }, [disconnected, reconnectRequired]);
+  }
 
   useEffect(() => () => operation.current?.abort(), []);
   useEffect(() => {

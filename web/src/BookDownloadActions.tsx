@@ -22,15 +22,14 @@ export function useBookDownload(book: ServerBook | null, canSave: boolean) {
   const [confirm, setConfirm] = useState(false),
     [busy, setBusy] = useState(false),
     [removalError, setRemovalError] = useState<unknown>(null);
-  useLayoutEffect(() => {
-    setConfirm(false);
-    setBusy(false);
-    setRemovalError(null);
-    return () => {
+  // Download Scope - Both callers are keyed by book and account, so a scope change remounts this state.
+  useLayoutEffect(
+    () => () => {
       controller.current?.abort();
       controller.current = null;
-    };
-  }, [key]);
+    },
+    [],
+  );
   async function run(action: DownloadAction) {
     if (!book || controller.current || !reading.ready || (action.kind === 'save' && (!canSave || copy === 'saved')))
       return;
