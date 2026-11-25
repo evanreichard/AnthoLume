@@ -208,13 +208,12 @@ function BookDetailContent() {
       <IdentifyBook refId={ref} document={document.data} source={management === 'identify' ? undefined : management.source}
         onClose={() => setManagement(null)} onSaved={metadataSaved} />}
     <DownloadRemovalDialog download={download} />
-    {canManage && management === 'delete' && <Dialog title="Delete from shared library?" onClose={() => { if (!deleting) setManagement(null); }}>
+    {canManage && management === 'delete' && <Dialog title="Delete from shared library?" dismissDisabled={deleting} onClose={() => setManagement(null)} footer={<>
+      <Button disabled={deleting} onClick={() => setManagement(null)}>Cancel</Button>
+      <Button tone="danger" disabled={deleting} onClick={() => void deleteSharedBook()}>{deleting ? 'Deleting…' : 'Delete'}</Button>
+    </>}>
       <p>“{title}” will be removed from the shared library for everyone. The server keeps the original file and reading history. This does not remove downloads from other devices.</p>
       <ErrorNotice error={deleteError} />
-      <div className={styles.actions}>
-        <Button disabled={deleting} onClick={() => setManagement(null)}>Cancel</Button>
-        <Button tone="danger" disabled={deleting} onClick={() => void deleteSharedBook()}>{deleting ? 'Deleting…' : 'Delete'}</Button>
-      </div>
     </Dialog>}
     <ErrorNotice error={document.error} />
   </article>;

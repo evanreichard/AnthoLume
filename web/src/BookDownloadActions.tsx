@@ -62,7 +62,7 @@ export function useBookDownload(book: ServerBook | null, canSave: boolean) {
 
 export function DownloadRemovalDialog({ download }: { download: ReturnType<typeof useBookDownload> }) {
   if (!download.confirm) return null;
-  return <Dialog title="Remove this download?" onClose={download.cancel} footer={<>
+  return <Dialog title="Remove this download?" dismissDisabled={download.busy} onClose={download.cancel} footer={<>
     <Button disabled={download.busy} onClick={download.cancel}>Cancel</Button>
     <Button tone="primary" disabled={download.busy} onClick={download.remove}>Remove from Device</Button>
   </>}><p>This removes the offline copy for all profiles on this device. Your reading progress and activity are kept.</p><ErrorNotice error={download.removalError} /></Dialog>;

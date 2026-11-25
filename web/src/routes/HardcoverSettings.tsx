@@ -118,7 +118,7 @@ export function HardcoverSettings({ account }: { account: Account }) {
       footer={<Button size="slim" onClick={() => { setError(null); setDialog('disconnect'); }}>Disconnect</Button>}>
       <WantToRead key={username} account={account} onConnectionLost={shelfConnectionLost} />
     </Dialog>}
-    {username && dialog === 'disconnect' && <Dialog title="Disconnect?" onClose={() => { if (!busy) setDialog(null); }} footer={<>
+    {username && dialog === 'disconnect' && <Dialog title="Disconnect?" dismissDisabled={!!busy} onClose={() => setDialog(null)} footer={<>
       <Button size="slim" tone="danger" disabled={busy !== null} onClick={() => void change('disconnect')}>{busy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}</Button>
       <Button size="slim" disabled={busy !== null} onClick={() => setDialog(null)}>Cancel</Button>
     </>}>

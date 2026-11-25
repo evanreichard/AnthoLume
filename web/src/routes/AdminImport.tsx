@@ -103,7 +103,7 @@ function ManualImport({ account, roots, running, close }: Context & { running: b
     } catch (err) { setError(err); }
     finally { setBusy(false); }
   }
-  return <Dialog title="Manual Import" onClose={() => { if (!busy) close(); }} footer={<>
+  return <Dialog title="Manual Import" dismissDisabled={busy} onClose={close} footer={<>
     <Button size="slim" form={formId} type="submit" tone={preview?.length ? undefined : 'primary'} disabled={busy || !mappedSource(roots, fields.source)}>Preview</Button>
     {!!preview?.length && <Button size="slim" tone="primary" disabled={!validFields(roots, fields) || busy || running} onClick={() => void run(true)}>Start Import</Button>}
     <Button size="slim" disabled={busy} onClick={close}>Cancel</Button>
@@ -162,15 +162,16 @@ function RuleEditor({ account, roots, rule, close }: Context & { rule?: Rule; cl
       setError(err instanceof ReadingHTTPError && err.problem.code === 'auto_import_overlap' ? new Error('This source already has an enabled rule.') : err);
     } finally { setBusy(false); }
   }
-  const onClose = () => { if (!busy) close(); };
-  if (confirmDelete) return <Dialog title="Delete import rule?" onClose={onClose}>
+  if (confirmDelete) return <Dialog title="Delete import rule?" dismissDisabled={busy} onClose={close} footer={<>
+    <Button tone="danger" size="slim" disabled={busy} onClick={() => void run('delete')}>Delete Rule</Button>
+    <Button size="slim" disabled={busy} onClick={() => setConfirmDelete(false)}>Cancel</Button>
+  </>}>
     <p>Imported books will stay in the library.</p><ErrorNotice error={error} />
-    <div className={styles.backupActions}><Button tone="danger" size="slim" type="button" disabled={busy} onClick={() => void run('delete')}>Delete Rule</Button><Button size="slim" disabled={busy} onClick={() => setConfirmDelete(false)}>Cancel</Button></div>
   </Dialog>;
-  return <Dialog title={rule ? 'Edit Auto Import Rule' : 'Add Auto Import Rule'} onClose={onClose} footer={<>
+  return <Dialog title={rule ? 'Edit Auto Import Rule' : 'Add Auto Import Rule'} dismissDisabled={busy} onClose={close} footer={<>
     <Button size="slim" form={formId} type="submit" tone="primary" disabled={busy || !dirty || !valid}>Save</Button>
     {rule?.settings.enabled && <Button size="slim" disabled={busy || dirty} onClick={() => void run('scan')}>Scan</Button>}
-    <Button size="slim" disabled={busy} onClick={onClose}>Cancel</Button>
+    <Button size="slim" disabled={busy} onClick={close}>Cancel</Button>
     {rule && <Button size="slim" tone="danger" disabled={busy} onClick={() => setConfirmDelete(true)}>Delete</Button>}
   </>}>
     <form id={formId} className={layout.form} onSubmit={event => { event.preventDefault(); void run('save'); }}>

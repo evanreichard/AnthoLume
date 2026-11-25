@@ -64,7 +64,7 @@ function RootEditor({ account, current, libraryPath, close }: { account: Account
     setBrowsing(null);
   }} />;
 
-  return <Dialog key="editor" title={current ? 'Edit Root' : 'Add Root'} onClose={() => { if (!busy) close(); }} footer={<>
+  return <Dialog key="editor" title={current ? 'Edit Root' : 'Add Root'} dismissDisabled={busy} onClose={close} footer={<>
     <Button size="slim" form={formId} tone="primary" type="submit" disabled={busy || !label.trim() || !path.trim()}>Save</Button>
     {current && !current.managed && <Button size="slim" disabled={busy} onClick={() => {
       if (path.trim()) setConfirmLibrary(true);
@@ -112,7 +112,7 @@ function MakeLibraryDialog({ account, root, path, cancel, close }: { account: Ac
     } finally { setBusy(false); }
   }
   const sameFolder = plan?.same_folder === true;
-  return <Dialog key="make-library" title={sameFolder ? 'Merge into Library?' : 'Make this folder Library?'} onClose={() => { if (!busy) cancel(); }} footer={<>
+  return <Dialog key="make-library" title={sameFolder ? 'Merge into Library?' : 'Make this folder Library?'} dismissDisabled={busy} onClose={cancel} footer={<>
     <Button size="slim" tone="primary" disabled={busy || query.isFetching || !plan} onClick={() => void apply()}>{sameFolder ? 'Merge into Library' : 'Make Library'}</Button>
     <Button size="slim" disabled={busy} onClick={cancel}>Cancel</Button>
   </>}>

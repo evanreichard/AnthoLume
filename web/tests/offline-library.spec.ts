@@ -87,6 +87,56 @@ test('a saved book opens without a recovery prompt when the browser is online bu
   await expect(reader.locator('iframe').first()).toBeVisible();
 });
 
+test('forgetting an offline profile blocks dismissal and allows retry after a storage failure', async ({ page, context, server }) => {
+  await register(page, server.origin, 'forget-profile-reader');
+  const picker = await context.newPage();
+  await picker.route('**/api/v1/session', route => route.fulfill({ status: 503 }));
+  await picker.goto(server.origin);
+  await picker.getByRole('button', { name: 'Manage Profiles' }).click();
+  const profile = picker.getByRole('button', { name: 'forget-profile-reader', exact: true });
+  const forget = picker.getByRole('button', { name: 'Forget forget-profile-reader', exact: true });
+  await forget.click();
+  const dialog = picker.getByRole('dialog', { name: 'Forget forget-profile-reader?' });
+  const release = await picker.evaluateHandle(() => new Promise<() => void>((resolve, reject) => {
+    const request = indexedDB.open('antholume-reading-v1');
+    const remove = IDBObjectStore.prototype.delete;
+    IDBObjectStore.prototype.delete = function (key) {
+      const deletion = remove.call(this, key);
+      if (this.name === 'meta' && typeof key === 'string' && key.startsWith('profile:')) {
+        IDBObjectStore.prototype.delete = remove;
+        deletion.addEventListener('success', () => this.transaction.abort(), { once: true });
+      }
+      return deletion;
+    };
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const transaction = db.transaction('meta', 'readwrite');
+      const store = transaction.objectStore('meta');
+      let held = true;
+      function keepOpen() {
+        if (held) store.get('migrated:profiles').onsuccess = keepOpen;
+      }
+      transaction.oncomplete = () => db.close();
+      transaction.onerror = () => { db.close(); reject(transaction.error); };
+      keepOpen();
+      resolve(() => { held = false; });
+    };
+  }));
+  try {
+    await dialog.getByRole('button', { name: 'Forget on This Device' }).click();
+    await expect(dialog.getByRole('button', { name: 'Forgetting…' })).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: 'Close Dialog' })).toBeDisabled();
+    await picker.keyboard.press('Escape');
+    await expect(dialog).toBeVisible();
+  } finally { await release.evaluate(unlock => unlock()); }
+  await expect(dialog.getByRole('alert')).toBeVisible();
+  await expect(profile).toBeVisible();
+  await dialog.getByRole('button', { name: 'Retry Forgetting Profile' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(profile).toHaveCount(0);
+});
+
 test('cold start, pick a profile, review offline reading and upload the selected kinds separately', async ({ page, context, server }) => {
   const user = 'offline-library';
   await register(page, server.origin, user);

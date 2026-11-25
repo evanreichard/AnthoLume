@@ -21,6 +21,7 @@ type DialogProps = {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  dismissDisabled?: boolean;
   size?: 'default' | 'wide';
   layout?: 'content' | 'scroll-body';
   scrollHeight?: 'default' | 'tall';
@@ -30,7 +31,7 @@ type DialogProps = {
   footer?: ReactNode;
 };
 
-export function Dialog({ title, children, onClose, size = 'default', layout = 'content', scrollHeight = 'default', placement = 'center', toolbar, titleLeading, footer }: DialogProps) {
+export function Dialog({ title, children, onClose, dismissDisabled = false, size = 'default', layout = 'content', scrollHeight = 'default', placement = 'center', toolbar, titleLeading, footer }: DialogProps) {
   const titleId = useId();
   const ref = useRef<HTMLDialogElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -45,11 +46,11 @@ export function Dialog({ title, children, onClose, size = 'default', layout = 'c
     return () => { dialog?.close(); if (previous?.isConnected) previous.focus(); };
   }, []);
   const heading = <h2 id={titleId} ref={titleRef} tabIndex={-1}>{title}</h2>;
-  return <dialog ref={ref} className={styles.dialog} data-size={size} data-layout={layout} data-scroll-height={layout === 'scroll-body' ? scrollHeight : undefined} data-placement={placement} onCancel={(event) => { event.preventDefault(); onClose(); }} onClick={(event) => { if (event.target === ref.current) {
+  return <dialog ref={ref} className={styles.dialog} data-size={size} data-layout={layout} data-scroll-height={layout === 'scroll-body' ? scrollHeight : undefined} data-placement={placement} onCancel={(event) => { event.preventDefault(); if (!dismissDisabled) onClose(); }} onClick={(event) => { if (!dismissDisabled && event.target === ref.current) {
     const rect = event.currentTarget.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom) onClose();
   } }} aria-labelledby={titleId}>
-    <header className={styles.dialogHeader}>{titleLeading ? <div className={styles.dialogTitleGroup}>{titleLeading}{heading}</div> : heading}<button type="button" className={styles.icon} onClick={onClose} aria-label="Close Dialog">×</button></header>
+    <header className={styles.dialogHeader}>{titleLeading ? <div className={styles.dialogTitleGroup}>{titleLeading}{heading}</div> : heading}<button type="button" className={styles.icon} disabled={dismissDisabled} onClick={onClose} aria-label="Close Dialog">×</button></header>
     {toolbar != null && <div className={styles.dialogToolbar}>{toolbar}</div>}
     {layout === 'scroll-body' ? <div className={styles.dialogBody}>{children}</div> : children}
     {footer != null && <footer className={styles.dialogFooter}>{footer}</footer>}

@@ -80,7 +80,7 @@ function CreateBackup({ account, close }: { account: Account; close: () => void 
     link.click();
     close();
   }
-  return <Dialog title="Create Backup" layout={issue ? 'scroll-body' : 'content'} onClose={() => { if (!repairing) close(); }} footer={<>
+  return <Dialog title="Create Backup" layout={issue ? 'scroll-body' : 'content'} dismissDisabled={repairing} onClose={close} footer={<>
     <Button size="slim" tone="primary" disabled={downloadDisabled} onClick={downloadBackup}>Download</Button>
     <Button size="slim" disabled={repairing} onClick={close}>Cancel</Button>
   </>}>
@@ -174,7 +174,7 @@ function RestoreBackup({ account, close }: { account: Account; close: () => void
       }
     } finally { setBusy(false); }
   }
-  return <Dialog title={candidate ? 'Confirm Restore' : 'Restore Backup'} onClose={() => { if (!busy) close(); }} footer={<>
+  return <Dialog title={candidate ? 'Confirm Restore' : 'Restore Backup'} dismissDisabled={busy} onClose={close} footer={<>
     {candidate
       ? <Button size="slim" tone="danger" disabled={confirm !== 'RESTORE' || busy} onClick={() => void restore(true)}>Restore Backup</Button>
       : <Button size="slim" tone="primary" disabled={!file || busy} onClick={() => void restore(false)}>{busy ? 'Validating…' : 'Validate'}</Button>}

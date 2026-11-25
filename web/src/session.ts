@@ -95,7 +95,7 @@ class SessionCoordinator {
     selectProfile(account);
     this.publish({ session: null, busy: false, access: account ? { kind: 'offline', account } : { kind: 'picker' }, error: null }, true);
   }
-  async forgetOffline(account: Account) { await forgetProfile(account); this.chooseOffline(); }
+  forgetOffline(account: Account) { return forgetProfile(account); }
   private eligible(): Account | null {
     const access = this.snapshot.access;
     if (access.kind === 'logout' || this.pendingLogout) return null;

@@ -303,15 +303,14 @@ export function IdentifyBook({ document, refId, source, onClose, onSaved }: {
     </JoinedAction></JoinedActions>
   </div>;
   const fields = match ? fieldsFor(match) : [];
-  const close = () => { if (busy !== 'apply') onClose(); };
   const previewFailure = failure?.operation === 'search' ? null : failure;
   const loadingPreview = busy === 'suggestions' || busy === 'preview';
   const showPreviewFields = !previewFailure && match && review;
 
   return <Dialog title="Review Metadata" placement="mobile-sheet" layout="scroll-body"
-    scrollHeight={loadingPreview || showPreviewFields ? 'tall' : 'default'} toolbar={toolbar} onClose={close} footer={<>
+    scrollHeight={loadingPreview || showPreviewFields ? 'tall' : 'default'} toolbar={toolbar} dismissDisabled={busy === 'apply'} onClose={onClose} footer={<>
     <Button type="submit" form={formId} tone="primary" disabled={!!busy || !!previewFailure || !canApply}>{busy === 'apply' ? 'Saving…' : applyLabel}</Button>
-    <Button disabled={busy === 'apply'} onClick={close}>Cancel</Button>
+    <Button disabled={busy === 'apply'} onClick={onClose}>Cancel</Button>
     {source && <div className={identify.sourceAction}>
       <ButtonLink size="slim" href={matcherLink(source.provider, source.work_id).url} target="_blank" rel="noopener noreferrer"
         aria-label={`View on ${providers[source.provider].name} (opens in a new tab)`} title={`View on ${providers[source.provider].name}`}>

@@ -130,7 +130,7 @@ function UserList({ account, username }: AdminContext) {
         : <ActionRow label={identity} aria-label={`Manage ${user.id}`} onClick={() => select({ kind: 'edit', user })} />}</li>;
     })}</ul>}
     {users.hasNextPage && <Button size="slim" disabled={users.isFetchingNextPage} onClick={() => void users.fetchNextPage()}>Load More Users</Button>}
-    {action && <Dialog key={action.kind} title={action.kind === 'create' ? 'Add User' : action.kind === 'edit' ? `Manage ${action.user.id}` : `Delete ${action.user.id}?`} onClose={() => { if (!busy) setAction(null); }} footer={<>
+    {action && <Dialog key={action.kind} title={action.kind === 'create' ? 'Add User' : action.kind === 'edit' ? `Manage ${action.user.id}` : `Delete ${action.user.id}?`} dismissDisabled={busy} onClose={() => setAction(null)} footer={<>
       <Button size="slim" form={formId} type="submit" tone={action.kind === 'delete' ? 'danger' : 'primary'} disabled={busy}>{busy ? 'Working…' : action.kind === 'delete' ? 'Delete User' : action.kind === 'create' ? 'Create' : 'Save'}</Button>
       <Button size="slim" disabled={busy} onClick={() => setAction(null)}>Cancel</Button>
       {action.kind === 'edit' && <Button size="slim" tone="danger" disabled={busy} onClick={() => select({ kind: 'delete', user: action.user })}>Delete</Button>}

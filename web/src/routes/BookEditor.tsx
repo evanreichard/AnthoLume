@@ -40,7 +40,7 @@ export function BookEditor({ book, refId, document, onClose, onSaved }: {
     } catch (err) { if (!signal.aborted) setError(err); }
     finally { request.current = null; if (!signal.aborted) setBusy(false); }
   }
-  return <Dialog title="Edit book" size="wide" onClose={() => { if (!busy) onClose(); }} footer={<>
+  return <Dialog title="Edit book" size="wide" dismissDisabled={busy} onClose={onClose} footer={<>
     <Button size="slim" form={formId} type="submit" tone="primary" disabled={busy || !draft.title.trim()}>{busy ? 'Saving…' : 'Save'}</Button>
     <Button size="slim" disabled={busy} onClick={onClose}>Cancel</Button>
   </>}>

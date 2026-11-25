@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Icon } from '../Icon';
@@ -33,22 +33,27 @@ function TimeZonePicker({ current }: { current: string }) {
   </Dropdown></label>;
 }
 
-function SettingsForm({ action, children, onClose }: { action(data: FormData): Promise<void>; children: ReactNode; onClose(): void }) {
+function SettingsDialog({ title, action, children, onClose }: { title: string; action(data: FormData): Promise<void>; children: ReactNode; onClose(): void }) {
+  const pending = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending.current) return;
     const data = new FormData(event.currentTarget);
+    pending.current = true;
     setBusy(true); setError(null);
     try { await action(data); onClose(); }
     catch (err) { setError(err); }
-    finally { setBusy(false); }
+    finally { pending.current = false; setBusy(false); }
   }
-  return <form className={styles.form} onSubmit={submit}>
-    <fieldset className={styles.settingsFields} disabled={busy}>{children}</fieldset>
-    <ErrorNotice error={error} />
-    <div className={styles.actions}><Button type="submit" tone="primary" disabled={busy}>{busy ? 'Saving…' : 'Save Changes'}</Button><Button type="button" disabled={busy} onClick={onClose}>Cancel</Button></div>
-  </form>;
+  return <Dialog title={title} dismissDisabled={busy} onClose={onClose}>
+    <form className={styles.form} onSubmit={submit}>
+      <fieldset className={styles.settingsFields} disabled={busy}>{children}</fieldset>
+      <ErrorNotice error={error} />
+      <div className={styles.actions}><Button type="submit" tone="primary" disabled={busy}>{busy ? 'Saving…' : 'Save Changes'}</Button><Button type="button" disabled={busy} onClick={onClose}>Cancel</Button></div>
+    </form>
+  </Dialog>;
 }
 
 function cacheSize(bytes: number) {
@@ -81,7 +86,7 @@ function ReaderCacheSettings() {
     <ActionRows>
       <ActionRow label="Reader Cache" disabled={!ready} onClick={() => { setError(null); setCleared(false); setOpen(true); }} />
     </ActionRows>
-    {open && <Dialog title={confirm ? 'Clear Reader Cache?' : 'Reader Cache'} onClose={close} footer={<>
+    {open && <Dialog title={confirm ? 'Clear Reader Cache?' : 'Reader Cache'} dismissDisabled={busy} onClose={close} footer={<>
       <Button type="button" tone="primary" disabled={!ready || busy} onClick={() => {
         if (confirm) void clear();
         else { setCleared(false); setConfirm(true); }
@@ -163,14 +168,14 @@ export function AccountSettings({ account, username, timezone, syncStatus, syncD
     <ReaderCacheSettings />
     <button className={styles.settingsSignOut} type="button" onClick={onSignOut}>Sign Out</button>
     </div>
-    {modal === 'timezone' && <Dialog title="Change Locale" onClose={close}><SettingsForm onClose={close} action={async data => {
+    {modal === 'timezone' && <SettingsDialog title="Change Locale" onClose={() => setModal(current => current === 'timezone' ? null : current)} action={async data => {
       try { await session.updateTimezone(account, String(data.get('timezone'))); }
       catch (err) { if (err instanceof ReadingHTTPError && err.problem.code === 'invalid_timezone') throw new Error('Choose a time zone supported by this server.'); throw err; }
       show({ message: 'Timezone updated.' });
     }}>
       <TimeZonePicker current={timezone} />
-    </SettingsForm></Dialog>}
-    {modal === 'password' && <Dialog title="Change Password" onClose={close}><SettingsForm onClose={close} action={async data => {
+    </SettingsDialog>}
+    {modal === 'password' && <SettingsDialog title="Change Password" onClose={() => setModal(current => current === 'password' ? null : current)} action={async data => {
       const newPassword = String(data.get('new'));
       if (newPassword !== data.get('confirm')) throw new Error('New passwords do not match.');
       try { await session.changePassword(account, { current_password: String(data.get('current')), new_password: newPassword }); }
@@ -181,7 +186,7 @@ export function AccountSettings({ account, username, timezone, syncStatus, syncD
       <label>Current password<input name="current" type="password" autoComplete="current-password" required maxLength={256} /></label>
       <label>New password<input name="new" type="password" autoComplete="new-password" required maxLength={256} /></label>
       <label>Confirm new password<input name="confirm" type="password" autoComplete="new-password" required maxLength={256} /></label>
-    </SettingsForm></Dialog>}
+    </SettingsDialog>}
     {modal && typeof modal !== 'string' && <DeviceEditor key={modal.id} device={modal} lastSynced={format(modal.last_synced, true)} close={close}
       update={async (changes, message) => {
         const saved = await session.api.updateDevice(account, modal.id, changes);
@@ -220,7 +225,7 @@ function DeviceEditor({ device, lastSynced, close, update }: {
     finally { setBusy(false); }
   }
 
-  return <Dialog title={confirm ? `${archiveAction} Device?` : 'Manage Device'} onClose={dismiss} footer={<>
+  return <Dialog title={confirm ? `${archiveAction} Device?` : 'Manage Device'} dismissDisabled={busy} onClose={dismiss} footer={<>
     {confirm
       ? <Button size="slim" tone="primary" disabled={busy} onClick={() => void apply(true)}>{archiveAction}</Button>
       : <>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { queryClient, session, useSession } from './session';
 import type { OfflineProfile } from './reading';
@@ -12,7 +12,6 @@ import styles from './OfflineReading.module.css';
 
 export function OfflinePicker() {
   const [forget, setForget] = useState<OfflineProfile>();
-  const [error, setError] = useState<unknown>();
   const [manage, setManage] = useState(false);
   const { profiles: remembered } = useSession();
   return <main className={styles.picker}>
@@ -23,15 +22,32 @@ export function OfflinePicker() {
       <button className={styles.profile} onClick={() => session.chooseOffline(p.account)}>
         <span className={styles.avatar} aria-hidden="true">{Array.from(p.name)[0]?.toLocaleUpperCase()}</span>
         <strong>{p.name}</strong><Icon name="forward" size={18} />
-      </button>{manage && <button className={styles.quiet} aria-label={`Forget ${p.name}`} onClick={() => { setError(null); setForget(p); }}><Icon name="trash" size={17} /></button>}
+      </button>{manage && <button className={styles.quiet} aria-label={`Forget ${p.name}`} onClick={() => setForget(p)}><Icon name="trash" size={17} /></button>}
     </li>)}</ul>
     {!!remembered.length && <button className={styles.manage} aria-pressed={manage} onClick={() => setManage(!manage)}>{manage ? 'Done' : 'Manage Profiles'}</button>}
     <OfflineStatusBar />
-    {forget && <Dialog title={`Forget ${forget.name}?`} onClose={() => setForget(undefined)}>
-      <p>This removes the offline profile and its unsubmitted reading.</p><ErrorNotice error={error} />
-      <Button onClick={async () => { try { await session.forgetOffline(forget.account); setForget(undefined); } catch (e) { setError(e); } }}>Forget on This Device</Button>
-    </Dialog>}
+    {forget && <ForgetProfile profile={forget} close={() => setForget(current => current === forget ? undefined : current)} />}
   </main>;
+}
+
+function ForgetProfile({ profile, close }: { profile: OfflineProfile; close(): void }) {
+  const pending = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>();
+  async function forget() {
+    if (pending.current) return;
+    pending.current = true;
+    setBusy(true); setError(null);
+    try { await session.forgetOffline(profile.account); close(); }
+    catch (failure) { setError(failure); }
+    finally { pending.current = false; setBusy(false); }
+  }
+  return <Dialog title={`Forget ${profile.name}?`} dismissDisabled={busy} onClose={close} footer={<>
+    <Button tone="danger" disabled={busy} onClick={() => void forget()}>{busy ? 'Forgetting…' : error ? 'Retry Forgetting Profile' : 'Forget on This Device'}</Button>
+    <Button disabled={busy} onClick={close}>Cancel</Button>
+  </>}>
+    <p>This removes the offline profile and its unsubmitted reading.</p><ErrorNotice error={error} />
+  </Dialog>;
 }
 
 const percent = (v: number | null) => v == null ? '—' : `${Math.round(v * 100)}%`;
@@ -122,7 +138,7 @@ export function OfflineReview({account}: {account: Account}) {
     finally { setSelected(new Map()); setBusy(false); setDiscard(false); }
   }
   if (later) return <button onClick={() => setLater(false)}>Review Offline Reading</button>;
-  return <Dialog title="Offline Reading" onClose={close} layout="scroll-body" placement="mobile-sheet" footer={<div className={styles.reviewActions}>
+  return <Dialog title="Offline Reading" dismissDisabled={busy} onClose={close} layout="scroll-body" placement="mobile-sheet" footer={<div className={styles.reviewActions}>
     <button className={styles.quiet} disabled={busy} onClick={() => { if (discard) { setDiscard(false); setSelected(new Map()); } else close(); }}>{discard ? 'Cancel' : 'Keep Reading'}</button>
     {!discard && <button className={styles.quiet} title="Discard Records" aria-label="Discard Records" disabled={busy} onClick={() => { setSelected(new Map()); setDiscard(true); }}><Icon name="trash" size={17} /></button>}
     <Button tone={discard ? 'danger' : 'primary'} disabled={busy || !choices.length} onClick={() => void submit(discard ? 'discard' : 'upload')}>{discard ? 'Discard Selected' : 'Upload Selected'}</Button>
