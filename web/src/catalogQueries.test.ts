@@ -32,7 +32,10 @@ it('invalidates book and availability queries without discarding data or crossin
     for (const [key] of items) client.setQueryData(key, 'cached');
     await action();
     for (const item of items) {
-      expect(client.getQueryState(item[0]), JSON.stringify(item[0])).toMatchObject({ data: 'cached', isInvalidated: item[expectedIndex] });
+      expect(client.getQueryState(item[0]), JSON.stringify(item[0])).toMatchObject({
+        data: 'cached',
+        isInvalidated: item[expectedIndex],
+      });
     }
   }
   client.clear();

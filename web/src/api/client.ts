@@ -1,16 +1,60 @@
 import createClient from 'openapi-fetch';
 import { createTransport } from './transport';
-import { matcherLookupRequest, readMatcherResults, type MatcherPage, type MatcherProvider, type MatcherResult } from './bookMatcher';
+import {
+  matcherLookupRequest,
+  readMatcherResults,
+  type MatcherPage,
+  type MatcherProvider,
+  type MatcherResult,
+} from './bookMatcher';
 import type { paths, components, operations } from './schema.gen';
 import { checkHardcoverConnect, checkHardcoverShelf, checkHardcoverStatus } from './guards.gen.js';
 import { ReadingHTTPError, type Account, type ReadingBridge } from '../reading';
-import { InvalidResponse, isMakeLibraryPlan, isAdminAutoImport, isAdminRestore, isStorageRoots, isStorageDirectories, isBackupPreview, isAdminLogs, isImportPreview, isImportResults, isAdminJob, isAdminJobs, isAdminSystem, isAdminMetadataProvider, isAdminUser, isAdminUsers, isCapabilities, isDevice, isDocument, isInsights, isMetadataMatch, isMetadataMatches, isManagedDevice, isManagedDevices, isInsightActivity, isInsightProgress, isInsightRankings, isPage, isProblem, isSession, isState, validated } from './validate';
+import {
+  InvalidResponse,
+  isMakeLibraryPlan,
+  isAdminAutoImport,
+  isAdminRestore,
+  isStorageRoots,
+  isStorageDirectories,
+  isBackupPreview,
+  isAdminLogs,
+  isImportPreview,
+  isImportResults,
+  isAdminJob,
+  isAdminJobs,
+  isAdminSystem,
+  isAdminMetadataProvider,
+  isAdminUser,
+  isAdminUsers,
+  isCapabilities,
+  isDevice,
+  isDocument,
+  isInsights,
+  isMetadataMatch,
+  isMetadataMatches,
+  isManagedDevice,
+  isManagedDevices,
+  isInsightActivity,
+  isInsightProgress,
+  isInsightRankings,
+  isPage,
+  isProblem,
+  isSession,
+  isState,
+  validated,
+} from './validate';
 
 type S = components['schemas'];
 
 type LinkedCover = { document_id: string; work_id: string };
 
-export function metadataCoverURL(provider: S['MetadataProvider'], id: number, preferLarge = false, linked?: LinkedCover) {
+export function metadataCoverURL(
+  provider: S['MetadataProvider'],
+  id: number,
+  preferLarge = false,
+  linked?: LinkedCover,
+) {
   const query = new URLSearchParams();
   if (linked || provider !== 'openlibrary') query.set('provider', provider);
   if (preferLarge) query.set('prefer_large', 'true');
@@ -25,13 +69,30 @@ function isHardcoverConnect(value: unknown): value is S['HardcoverConnect'] {
   if (!checkHardcoverConnect(value)) return false;
   try {
     const url = new URL(value.authorization_url);
-    return url.origin === 'https://hardcover.app' && url.pathname === '/oauth2/authorize' && !url.username && !url.password;
-  } catch { return false; }
+    return (
+      url.origin === 'https://hardcover.app' && url.pathname === '/oauth2/authorize' && !url.username && !url.password
+    );
+  } catch {
+    return false;
+  }
 }
 const configuredOrigin = new URL(import.meta.env.VITE_API_ORIGIN || window.location.origin);
 export const apiOrigin = configuredOrigin.origin;
-if (apiOrigin !== window.location.origin || configuredOrigin.pathname !== '/' || configuredOrigin.search || configuredOrigin.hash || configuredOrigin.username || configuredOrigin.password) throw new Error('VITE_API_ORIGIN must be the browser public origin. Configure the loopback proxy/PUBLIC_ORIGIN, not cross-origin credentials.');
-const accountHeader = (account: Account) => ({ 'X-AnthoLume-Account': account.userId, ...(account.readingGeneration ? { 'X-AnthoLume-Reading-Generation': account.readingGeneration } : {}) });
+if (
+  apiOrigin !== window.location.origin ||
+  configuredOrigin.pathname !== '/' ||
+  configuredOrigin.search ||
+  configuredOrigin.hash ||
+  configuredOrigin.username ||
+  configuredOrigin.password
+)
+  throw new Error(
+    'VITE_API_ORIGIN must be the browser public origin. Configure the loopback proxy/PUBLIC_ORIGIN, not cross-origin credentials.',
+  );
+const accountHeader = (account: Account) => ({
+  'X-AnthoLume-Account': account.userId,
+  ...(account.readingGeneration ? { 'X-AnthoLume-Reading-Generation': account.readingGeneration } : {}),
+});
 interface SessionGate {
   token(): string | null;
   suspectOutage(): void;
@@ -43,31 +104,48 @@ interface SessionGate {
 
 export function createAPI(gate: SessionGate) {
   const transport = createTransport(gate);
-  const scopedClient = (account?: Account, role: 'operation' | 'session-probe' = 'operation', mode: 'json' | 'ndjson' = 'json') => createClient<paths>({
-    baseUrl: apiOrigin,
-    headers: account ? accountHeader(account) : undefined,
-    credentials: 'same-origin',
-    cache: 'no-store',
-    fetch: (request: Request) => {
-      if (!['GET', 'HEAD'].includes(request.method)) {
-        const token = gate.token();
-        if (!token) throw new Error('Connect to the server before signing in.');
-        request.headers.set('X-CSRF-Token', token);
-      }
-      request.headers.set('Accept', `${mode === 'ndjson' ? 'application/x-ndjson' : 'application/json'}, application/problem+json`);
-      return transport(request, role, mode);
-    },
-  });
+  const scopedClient = (
+    account?: Account,
+    role: 'operation' | 'session-probe' = 'operation',
+    mode: 'json' | 'ndjson' = 'json',
+  ) =>
+    createClient<paths>({
+      baseUrl: apiOrigin,
+      headers: account ? accountHeader(account) : undefined,
+      credentials: 'same-origin',
+      cache: 'no-store',
+      fetch: (request: Request) => {
+        if (!['GET', 'HEAD'].includes(request.method)) {
+          const token = gate.token();
+          if (!token) throw new Error('Connect to the server before signing in.');
+          request.headers.set('X-CSRF-Token', token);
+        }
+        request.headers.set(
+          'Accept',
+          `${mode === 'ndjson' ? 'application/x-ndjson' : 'application/json'}, application/problem+json`,
+        );
+        return transport(request, role, mode);
+      },
+    });
   const client = scopedClient();
   const probe = scopedClient(undefined, 'session-probe');
   function checkIdentity(status: number, problem: S['Problem'], account: Account) {
-    if ((status === 401 && problem.code === 'account_changed') || (status === 409 && problem.code === 'stale_reading_generation')) {
+    if (
+      (status === 401 && problem.code === 'account_changed') ||
+      (status === 409 && problem.code === 'stale_reading_generation')
+    ) {
       gate.changed(account);
       throw new DOMException('Account changed', 'AbortError');
     }
     if (status === 401 && problem.code === 'unauthenticated') gate.expired(account);
   }
-  async function consume<T>(pending: (transport: typeof client) => Promise<{ response: Response; error?: unknown }>, guard: (value: unknown) => value is T, expected: number, account?: Account, epoch = gate.epoch()): Promise<T> {
+  async function consume<T>(
+    pending: (transport: typeof client) => Promise<{ response: Response; error?: unknown }>,
+    guard: (value: unknown) => value is T,
+    expected: number,
+    account?: Account,
+    epoch = gate.epoch(),
+  ): Promise<T> {
     if (account) gate.assert(account, epoch);
     const { response, error } = await pending(account ? scopedClient(account) : client);
     if (account) gate.assert(account, epoch);
@@ -76,7 +154,11 @@ export function createAPI(gate: SessionGate) {
     const media = response.headers.get('content-type')?.split(';')[0].trim();
     if (media !== (response.ok ? 'application/json' : 'application/problem+json')) throw new InvalidResponse();
     let body: unknown;
-    try { body = response.ok ? await response.json() : error; } catch { throw new InvalidResponse(); }
+    try {
+      body = response.ok ? await response.json() : error;
+    } catch {
+      throw new InvalidResponse();
+    }
     if (account) gate.assert(account, epoch);
     if (!response.ok) {
       throwProblem(response.status, body, account);
@@ -90,12 +172,22 @@ export function createAPI(gate: SessionGate) {
     if (account) checkIdentity(status, problem, account);
     throw new ReadingHTTPError(status, problem);
   }
-  async function matcherLookups(account: Account, provider: MatcherProvider, ids: string[], signal: AbortSignal, onResult: (result: MatcherResult) => void) {
+  async function matcherLookups(
+    account: Account,
+    provider: MatcherProvider,
+    ids: string[],
+    signal: AbortSignal,
+    onResult: (result: MatcherResult) => void,
+  ) {
     const body = matcherLookupRequest(provider, ids);
     const epoch = gate.epoch();
     gate.assert(account, epoch);
     signal.throwIfAborted();
-    const { response, error } = await scopedClient(account, 'operation', 'ndjson').POST('/api/v1/metadata/lookups', { body, signal, parseAs: 'stream' });
+    const { response, error } = await scopedClient(account, 'operation', 'ndjson').POST('/api/v1/metadata/lookups', {
+      body,
+      signal,
+      parseAs: 'stream',
+    });
     try {
       gate.assert(account, epoch);
       signal.throwIfAborted();
@@ -103,7 +195,7 @@ export function createAPI(gate: SessionGate) {
       const media = response.headers.get('content-type')?.split(';')[0].trim();
       if (!response.ok && media === 'application/problem+json') throwProblem(response.status, error, account);
       if (response.status !== 200 || media !== 'application/x-ndjson' || !response.body) throw new InvalidResponse();
-      await readMatcherResults(response.body, body.document_ids, signal, result => {
+      await readMatcherResults(response.body, body.document_ids, signal, (result) => {
         gate.assert(account, epoch);
         onResult(result);
       });
@@ -112,81 +204,418 @@ export function createAPI(gate: SessionGate) {
       if (!response.bodyUsed) void response.body?.cancel().catch(() => undefined);
     }
   }
-  async function listDocuments(account: Account, query: NonNullable<operations['listDocuments']['parameters']['query']> & { page: number; page_size: number }, signal: AbortSignal) {
-    const result = await consume(client => client.GET('/api/v1/documents', { params: { query }, signal, parseAs: 'stream' }), isPage, 200, account);
+  async function listDocuments(
+    account: Account,
+    query: NonNullable<operations['listDocuments']['parameters']['query']> & { page: number; page_size: number },
+    signal: AbortSignal,
+  ) {
+    const result = await consume(
+      (client) => client.GET('/api/v1/documents', { params: { query }, signal, parseAs: 'stream' }),
+      isPage,
+      200,
+      account,
+    );
     if (result.page !== query.page || result.page_size !== query.page_size) throw new InvalidResponse();
     return result;
   }
   const path = (id: string) => ({ path: { id } });
   const api = {
-    session: (signal?: AbortSignal) => consume(() => probe.GET('/api/v1/session', { signal, parseAs: 'stream' }), isSession, 200),
-    capabilities: (signal?: AbortSignal) => consume(client => client.GET('/api/v1/capabilities', { signal, parseAs: 'stream' }), isCapabilities, 200),
-    login: (credentials: { username: string; password: string }) => consume(client => client.POST('/api/v1/session/login', { body: credentials, parseAs: 'stream' }), isSession, 200),
-    register: (credentials: { username: string; password: string }) => consume(client => client.POST('/api/v1/session/register', { body: credentials, parseAs: 'stream' }), isSession, 201),
-    logout: (account: Account) => consume(() => scopedClient(account).POST('/api/v1/session/logout', { body: {}, parseAs: 'stream' }), isSession, 200),
-    updatePreferences: (account: Account, timezone: string) => consume(client => client.PATCH('/api/v1/me/preferences', { body: { timezone }, parseAs: 'stream' }), isSession, 200, account),
-    changePassword: (account: Account, body: S['PasswordChange']) => consume(client => client.POST('/api/v1/me/password', { body, parseAs: 'stream' }), isSession, 200, account),
-    hardcover: (account: Account, signal: AbortSignal) => consume(client => client.GET('/api/v1/me/hardcover', { signal, parseAs: 'stream' }), checkHardcoverStatus, 200, account),
-    connectHardcover: (account: Account, signal: AbortSignal) => consume(client => client.POST('/api/v1/me/hardcover/connect', { signal, parseAs: 'stream' }), isHardcoverConnect, 200, account),
-    disconnectHardcover: (account: Account, signal: AbortSignal) => consume(client => client.DELETE('/api/v1/me/hardcover', { signal, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
+    session: (signal?: AbortSignal) =>
+      consume(() => probe.GET('/api/v1/session', { signal, parseAs: 'stream' }), isSession, 200),
+    capabilities: (signal?: AbortSignal) =>
+      consume((client) => client.GET('/api/v1/capabilities', { signal, parseAs: 'stream' }), isCapabilities, 200),
+    login: (credentials: { username: string; password: string }) =>
+      consume(
+        (client) => client.POST('/api/v1/session/login', { body: credentials, parseAs: 'stream' }),
+        isSession,
+        200,
+      ),
+    register: (credentials: { username: string; password: string }) =>
+      consume(
+        (client) => client.POST('/api/v1/session/register', { body: credentials, parseAs: 'stream' }),
+        isSession,
+        201,
+      ),
+    logout: (account: Account) =>
+      consume(
+        () => scopedClient(account).POST('/api/v1/session/logout', { body: {}, parseAs: 'stream' }),
+        isSession,
+        200,
+      ),
+    updatePreferences: (account: Account, timezone: string) =>
+      consume(
+        (client) => client.PATCH('/api/v1/me/preferences', { body: { timezone }, parseAs: 'stream' }),
+        isSession,
+        200,
+        account,
+      ),
+    changePassword: (account: Account, body: S['PasswordChange']) =>
+      consume((client) => client.POST('/api/v1/me/password', { body, parseAs: 'stream' }), isSession, 200, account),
+    hardcover: (account: Account, signal: AbortSignal) =>
+      consume(
+        (client) => client.GET('/api/v1/me/hardcover', { signal, parseAs: 'stream' }),
+        checkHardcoverStatus,
+        200,
+        account,
+      ),
+    connectHardcover: (account: Account, signal: AbortSignal) =>
+      consume(
+        (client) => client.POST('/api/v1/me/hardcover/connect', { signal, parseAs: 'stream' }),
+        isHardcoverConnect,
+        200,
+        account,
+      ),
+    disconnectHardcover: (account: Account, signal: AbortSignal) =>
+      consume(
+        (client) => client.DELETE('/api/v1/me/hardcover', { signal, parseAs: 'stream' }),
+        (value): value is null => value === null,
+        204,
+        account,
+      ),
     hardcoverShelf: async (account: Account, offset: number, signal: AbortSignal) => {
-      const page = await consume(client => client.GET('/api/v1/me/hardcover/shelf', { signal, params: { query: { offset } }, parseAs: 'stream' }), checkHardcoverShelf, 200, account);
+      const page = await consume(
+        (client) =>
+          client.GET('/api/v1/me/hardcover/shelf', { signal, params: { query: { offset } }, parseAs: 'stream' }),
+        checkHardcoverShelf,
+        200,
+        account,
+      );
       if (page.next_offset !== null && page.next_offset <= offset) throw new InvalidResponse();
       return page;
     },
-    adminUsers: (account: Account, after: string, signal: AbortSignal) => consume(client => client.GET('/api/v1/admin/users', { signal, params: { query: { after } }, parseAs: 'stream' }), isAdminUsers, 200, account),
-    createAdminUser: (account: Account, body: S['AdminUserCreate']) => consume(client => client.POST('/api/v1/admin/users', { body, parseAs: 'stream' }), isAdminUser, 201, account),
-    updateAdminUser: (account: Account, id: string, body: S['AdminUserUpdate']) => consume(client => client.PATCH('/api/v1/admin/users/{id}', { params: path(id), body, parseAs: 'stream' }), isAdminUser, 200, account),
-    deleteAdminUser: (account: Account, id: string) => consume(client => client.DELETE('/api/v1/admin/users/{id}', { params: path(id), parseAs: 'stream' }), (value): value is null => value === null, 204, account),
-    adminJobs: (account: Account, kind: S['AdminJob']['kind'], signal: AbortSignal) => consume(client => client.GET('/api/v1/admin/jobs', { params: { query: { kind } }, signal, parseAs: 'stream' }), isAdminJobs, 200, account),
-    startAdminJob: (account: Account, kind: S['AdminJob']['kind'], options?: Omit<operations['startAdminJob']['requestBody']['content']['application/json'], 'kind'>) => consume(client => client.POST('/api/v1/admin/jobs', { body: { kind, ...options }, parseAs: 'stream' }), isAdminJob, 202, account),
-    adminStorageRoots: (account: Account, signal?: AbortSignal) => consume(client => client.GET('/api/v1/admin/storage-roots', { signal, parseAs: 'stream' }), isStorageRoots, 200, account),
-    saveAdminStorageRoot: (account: Account, body: S['AdminStorageRootInput']) => consume(client => client.PUT('/api/v1/admin/storage-roots', { body, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
-    previewMakeLibrary: (account: Account, id: string, path: string, signal?: AbortSignal) => consume(client => client.GET('/api/v1/admin/storage-roots/make-library', { params: { query: { id, path } }, signal, parseAs: 'stream' }), isMakeLibraryPlan, 200, account),
-    makeLibrary: (account: Account, body: S['MakeLibraryPlan']) => consume(client => client.POST('/api/v1/admin/storage-roots/make-library', { body, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
-    adminAutoImports: (account: Account, signal?: AbortSignal) => consume(client => client.GET('/api/v1/admin/auto-import', { signal, parseAs: 'stream' }), isAdminAutoImport, 200, account),
-    saveAdminAutoImport: (account: Account, body: S['AdminAutoImportSettings'], id?: string) => consume(client => client.PUT('/api/v1/admin/auto-import', { params: { query: { id } }, body, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
-    queueAdminAutoImport: (account: Account, id: string) => consume(client => client.POST('/api/v1/admin/auto-import', { params: { query: { id } }, body: {}, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
-    deleteAdminAutoImport: (account: Account, id: string) => consume(client => client.DELETE('/api/v1/admin/auto-import', { params: { query: { id } }, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
-    adminStorageDirectories: (account: Account, path: string, signal?: AbortSignal) => consume(client => client.GET('/api/v1/admin/storage-directories', { signal, params: { query: { path } }, parseAs: 'stream' }), isStorageDirectories, 200, account),
-    previewAdminBackup: (account: Account, signal?: AbortSignal) => consume(client => client.GET('/api/v1/admin/backup/preview', { signal, parseAs: 'stream' }), isBackupPreview, 200, account),
-    repairAdminBackupPath: (account: Account, body: S['AdminBackupPathRepair']) => consume(client => client.POST('/api/v1/admin/backup/repair-path', { body, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
-    previewAdminImport: (account: Account, root_id: string) => consume(client => client.GET('/api/v1/admin/import', { params: { query: { root_id } }, parseAs: 'stream' }), isImportPreview, 200, account),
-    adminImportResults: (account: Account, job: string, signal: AbortSignal) => consume(client => client.GET('/api/v1/admin/import/results', { params: { query: { job } }, signal, parseAs: 'stream' }), isImportResults, 200, account),
-    adminLogs: (account: Account, params: { cursor?: string; q?: string; level?: S['AdminLogLevel'] }, signal: AbortSignal) => consume(client => client.GET('/api/v1/admin/logs', { params: { query: params }, signal, parseAs: 'stream' }), isAdminLogs, 200, account),
-    stageAdminRestore: (account: Account, file: File) => consume(client => client.POST('/api/v1/admin/restore', { body: file, bodySerializer: value => value, headers: { 'Content-Type': 'application/octet-stream' }, parseAs: 'stream' }), isAdminRestore, 200, account),
-    applyAdminRestore: (account: Account, body: S['AdminRestoreApply']) => consume(client => client.PATCH('/api/v1/admin/restore', { body, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
-    adminSystem: (account: Account, signal: AbortSignal) => consume(client => client.GET('/api/v1/admin/system', { signal, parseAs: 'stream' }), isAdminSystem, 200, account),
+    adminUsers: (account: Account, after: string, signal: AbortSignal) =>
+      consume(
+        (client) => client.GET('/api/v1/admin/users', { signal, params: { query: { after } }, parseAs: 'stream' }),
+        isAdminUsers,
+        200,
+        account,
+      ),
+    createAdminUser: (account: Account, body: S['AdminUserCreate']) =>
+      consume((client) => client.POST('/api/v1/admin/users', { body, parseAs: 'stream' }), isAdminUser, 201, account),
+    updateAdminUser: (account: Account, id: string, body: S['AdminUserUpdate']) =>
+      consume(
+        (client) => client.PATCH('/api/v1/admin/users/{id}', { params: path(id), body, parseAs: 'stream' }),
+        isAdminUser,
+        200,
+        account,
+      ),
+    deleteAdminUser: (account: Account, id: string) =>
+      consume(
+        (client) => client.DELETE('/api/v1/admin/users/{id}', { params: path(id), parseAs: 'stream' }),
+        (value): value is null => value === null,
+        204,
+        account,
+      ),
+    adminJobs: (account: Account, kind: S['AdminJob']['kind'], signal: AbortSignal) =>
+      consume(
+        (client) => client.GET('/api/v1/admin/jobs', { params: { query: { kind } }, signal, parseAs: 'stream' }),
+        isAdminJobs,
+        200,
+        account,
+      ),
+    startAdminJob: (
+      account: Account,
+      kind: S['AdminJob']['kind'],
+      options?: Omit<operations['startAdminJob']['requestBody']['content']['application/json'], 'kind'>,
+    ) =>
+      consume(
+        (client) => client.POST('/api/v1/admin/jobs', { body: { kind, ...options }, parseAs: 'stream' }),
+        isAdminJob,
+        202,
+        account,
+      ),
+    adminStorageRoots: (account: Account, signal?: AbortSignal) =>
+      consume(
+        (client) => client.GET('/api/v1/admin/storage-roots', { signal, parseAs: 'stream' }),
+        isStorageRoots,
+        200,
+        account,
+      ),
+    saveAdminStorageRoot: (account: Account, body: S['AdminStorageRootInput']) =>
+      consume(
+        (client) => client.PUT('/api/v1/admin/storage-roots', { body, parseAs: 'stream' }),
+        (value): value is null => value === null,
+        204,
+        account,
+      ),
+    previewMakeLibrary: (account: Account, id: string, path: string, signal?: AbortSignal) =>
+      consume(
+        (client) =>
+          client.GET('/api/v1/admin/storage-roots/make-library', {
+            params: { query: { id, path } },
+            signal,
+            parseAs: 'stream',
+          }),
+        isMakeLibraryPlan,
+        200,
+        account,
+      ),
+    makeLibrary: (account: Account, body: S['MakeLibraryPlan']) =>
+      consume(
+        (client) => client.POST('/api/v1/admin/storage-roots/make-library', { body, parseAs: 'stream' }),
+        (value): value is null => value === null,
+        204,
+        account,
+      ),
+    adminAutoImports: (account: Account, signal?: AbortSignal) =>
+      consume(
+        (client) => client.GET('/api/v1/admin/auto-import', { signal, parseAs: 'stream' }),
+        isAdminAutoImport,
+        200,
+        account,
+      ),
+    saveAdminAutoImport: (account: Account, body: S['AdminAutoImportSettings'], id?: string) =>
+      consume(
+        (client) => client.PUT('/api/v1/admin/auto-import', { params: { query: { id } }, body, parseAs: 'stream' }),
+        (value): value is null => value === null,
+        204,
+        account,
+      ),
+    queueAdminAutoImport: (account: Account, id: string) =>
+      consume(
+        (client) =>
+          client.POST('/api/v1/admin/auto-import', { params: { query: { id } }, body: {}, parseAs: 'stream' }),
+        (value): value is null => value === null,
+        204,
+        account,
+      ),
+    deleteAdminAutoImport: (account: Account, id: string) =>
+      consume(
+        (client) => client.DELETE('/api/v1/admin/auto-import', { params: { query: { id } }, parseAs: 'stream' }),
+        (value): value is null => value === null,
+        204,
+        account,
+      ),
+    adminStorageDirectories: (account: Account, path: string, signal?: AbortSignal) =>
+      consume(
+        (client) =>
+          client.GET('/api/v1/admin/storage-directories', { signal, params: { query: { path } }, parseAs: 'stream' }),
+        isStorageDirectories,
+        200,
+        account,
+      ),
+    previewAdminBackup: (account: Account, signal?: AbortSignal) =>
+      consume(
+        (client) => client.GET('/api/v1/admin/backup/preview', { signal, parseAs: 'stream' }),
+        isBackupPreview,
+        200,
+        account,
+      ),
+    repairAdminBackupPath: (account: Account, body: S['AdminBackupPathRepair']) =>
+      consume(
+        (client) => client.POST('/api/v1/admin/backup/repair-path', { body, parseAs: 'stream' }),
+        (value): value is null => value === null,
+        204,
+        account,
+      ),
+    previewAdminImport: (account: Account, root_id: string) =>
+      consume(
+        (client) => client.GET('/api/v1/admin/import', { params: { query: { root_id } }, parseAs: 'stream' }),
+        isImportPreview,
+        200,
+        account,
+      ),
+    adminImportResults: (account: Account, job: string, signal: AbortSignal) =>
+      consume(
+        (client) =>
+          client.GET('/api/v1/admin/import/results', { params: { query: { job } }, signal, parseAs: 'stream' }),
+        isImportResults,
+        200,
+        account,
+      ),
+    adminLogs: (
+      account: Account,
+      params: { cursor?: string; q?: string; level?: S['AdminLogLevel'] },
+      signal: AbortSignal,
+    ) =>
+      consume(
+        (client) => client.GET('/api/v1/admin/logs', { params: { query: params }, signal, parseAs: 'stream' }),
+        isAdminLogs,
+        200,
+        account,
+      ),
+    stageAdminRestore: (account: Account, file: File) =>
+      consume(
+        (client) =>
+          client.POST('/api/v1/admin/restore', {
+            body: file,
+            bodySerializer: (value) => value,
+            headers: { 'Content-Type': 'application/octet-stream' },
+            parseAs: 'stream',
+          }),
+        isAdminRestore,
+        200,
+        account,
+      ),
+    applyAdminRestore: (account: Account, body: S['AdminRestoreApply']) =>
+      consume(
+        (client) => client.PATCH('/api/v1/admin/restore', { body, parseAs: 'stream' }),
+        (value): value is null => value === null,
+        204,
+        account,
+      ),
+    adminSystem: (account: Account, signal: AbortSignal) =>
+      consume(
+        (client) => client.GET('/api/v1/admin/system', { signal, parseAs: 'stream' }),
+        isAdminSystem,
+        200,
+        account,
+      ),
     matcherPage: async (account: Account, page: number, signal: AbortSignal): Promise<MatcherPage> => {
       const result = await listDocuments(account, { page, page_size: 10, sort: 'title', include: 'matches' }, signal);
-      return { ...result, items: result.items.map(book => {
-        if (!book.matches || new Set(book.matches.map(match => match.provider)).size !== book.matches.length) throw new InvalidResponse();
-        return { ...book, matches: book.matches };
-      }) };
+      return {
+        ...result,
+        items: result.items.map((book) => {
+          if (!book.matches || new Set(book.matches.map((match) => match.provider)).size !== book.matches.length)
+            throw new InvalidResponse();
+          return { ...book, matches: book.matches };
+        }),
+      };
     },
     matcherLookups,
-    putMatcherLink: (account: Account, id: string, provider: MatcherProvider, work_id: string) => consume(client => client.PUT('/api/v1/documents/{id}/matches/{provider}', { params: { path: { id, provider } }, body: { work_id }, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
-    deleteMatcherLink: (account: Account, id: string, provider: MatcherProvider, work_id: string) => consume(client => client.DELETE('/api/v1/documents/{id}/matches/{provider}', { params: { path: { id, provider }, query: { work_id } }, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
-    metadataProviders: (account: Account, signal: AbortSignal) => consume(client => client.GET('/api/v1/metadata/providers', { signal, parseAs: 'stream' }), isAdminMetadataProvider, 200, account),
-    setAdminMetadataProvider: (account: Account, provider: S['MetadataProvider']) => consume(client => client.PUT('/api/v1/admin/metadata-provider', { body: { provider }, parseAs: 'stream' }), isAdminMetadataProvider, 200, account),
-    devices: (account: Account, signal: AbortSignal) => consume(client => client.GET('/api/v1/me/devices', { signal, parseAs: 'stream' }), isManagedDevices, 200, account),
-    updateDevice: (account: Account, id: string, body: S['DevicePreferences']) => consume(client => client.PATCH('/api/v1/me/devices/{id}', { params: path(id), body, parseAs: 'stream' }), isManagedDevice, 200, account),
-    insights: (account: Account, signal: AbortSignal) => consume(client => client.GET('/api/v1/me/insights', { signal, parseAs: 'stream' }), isInsights, 200, account),
-    insightActivity: (account: Account, query: { cursor?: string; day?: string; document?: string }, signal: AbortSignal) => consume(client => client.GET('/api/v1/me/insights/activity', { params: { query }, signal, parseAs: 'stream' }), isInsightActivity, 200, account),
-    insightProgress: (account: Account, cursor: string | undefined, signal: AbortSignal) => consume(client => client.GET('/api/v1/me/insights/progress', { params: { query: { cursor } }, signal, parseAs: 'stream' }), isInsightProgress, 200, account),
-    insightRankings: (account: Account, query: NonNullable<operations['listInsightRankings']['parameters']['query']>, signal: AbortSignal) => consume(client => client.GET('/api/v1/insights/rankings', { params: { query }, signal, parseAs: 'stream' }), isInsightRankings, 200, account),
-    documents: (account: Account, page: number, q: string, sort: 'title' | 'author' | 'added' | 'read', signal: AbortSignal, resumable = false) =>
-      listDocuments(account, { page, page_size: 24, sort, ...(resumable ? { resumable: true } : {}), ...(q ? { q } : {}) }, signal),
-    uploadDocument: (account: Account, file: File, signal: AbortSignal) => consume(client => client.POST('/api/v1/documents', {
-      body: file, bodySerializer: value => value, headers: { 'Content-Type': 'application/epub+zip' }, signal, parseAs: 'stream',
-    }), isDocument, 200, account),
-    editDocument: (account: Account, id: string, body: S['DocumentEdit'], signal: AbortSignal) => consume(client => client.PATCH('/api/v1/documents/{id}', { params: path(id), body, signal, parseAs: 'stream' }), isDocument, 200, account),
-    deleteDocument: (account: Account, id: string, signal: AbortSignal) => consume(client => client.DELETE('/api/v1/documents/{id}', { params: path(id), signal, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
-    metadataCover: async (account: Account, provider: S['MetadataProvider'], id: number, signal: AbortSignal, linked?: LinkedCover) => {
+    putMatcherLink: (account: Account, id: string, provider: MatcherProvider, work_id: string) =>
+      consume(
+        (client) =>
+          client.PUT('/api/v1/documents/{id}/matches/{provider}', {
+            params: { path: { id, provider } },
+            body: { work_id },
+            parseAs: 'stream',
+          }),
+        (value): value is null => value === null,
+        204,
+        account,
+      ),
+    deleteMatcherLink: (account: Account, id: string, provider: MatcherProvider, work_id: string) =>
+      consume(
+        (client) =>
+          client.DELETE('/api/v1/documents/{id}/matches/{provider}', {
+            params: { path: { id, provider }, query: { work_id } },
+            parseAs: 'stream',
+          }),
+        (value): value is null => value === null,
+        204,
+        account,
+      ),
+    metadataProviders: (account: Account, signal: AbortSignal) =>
+      consume(
+        (client) => client.GET('/api/v1/metadata/providers', { signal, parseAs: 'stream' }),
+        isAdminMetadataProvider,
+        200,
+        account,
+      ),
+    setAdminMetadataProvider: (account: Account, provider: S['MetadataProvider']) =>
+      consume(
+        (client) => client.PUT('/api/v1/admin/metadata-provider', { body: { provider }, parseAs: 'stream' }),
+        isAdminMetadataProvider,
+        200,
+        account,
+      ),
+    devices: (account: Account, signal: AbortSignal) =>
+      consume(
+        (client) => client.GET('/api/v1/me/devices', { signal, parseAs: 'stream' }),
+        isManagedDevices,
+        200,
+        account,
+      ),
+    updateDevice: (account: Account, id: string, body: S['DevicePreferences']) =>
+      consume(
+        (client) => client.PATCH('/api/v1/me/devices/{id}', { params: path(id), body, parseAs: 'stream' }),
+        isManagedDevice,
+        200,
+        account,
+      ),
+    insights: (account: Account, signal: AbortSignal) =>
+      consume((client) => client.GET('/api/v1/me/insights', { signal, parseAs: 'stream' }), isInsights, 200, account),
+    insightActivity: (
+      account: Account,
+      query: { cursor?: string; day?: string; document?: string },
+      signal: AbortSignal,
+    ) =>
+      consume(
+        (client) => client.GET('/api/v1/me/insights/activity', { params: { query }, signal, parseAs: 'stream' }),
+        isInsightActivity,
+        200,
+        account,
+      ),
+    insightProgress: (account: Account, cursor: string | undefined, signal: AbortSignal) =>
+      consume(
+        (client) =>
+          client.GET('/api/v1/me/insights/progress', { params: { query: { cursor } }, signal, parseAs: 'stream' }),
+        isInsightProgress,
+        200,
+        account,
+      ),
+    insightRankings: (
+      account: Account,
+      query: NonNullable<operations['listInsightRankings']['parameters']['query']>,
+      signal: AbortSignal,
+    ) =>
+      consume(
+        (client) => client.GET('/api/v1/insights/rankings', { params: { query }, signal, parseAs: 'stream' }),
+        isInsightRankings,
+        200,
+        account,
+      ),
+    documents: (
+      account: Account,
+      page: number,
+      q: string,
+      sort: 'title' | 'author' | 'added' | 'read',
+      signal: AbortSignal,
+      resumable = false,
+    ) =>
+      listDocuments(
+        account,
+        { page, page_size: 24, sort, ...(resumable ? { resumable: true } : {}), ...(q ? { q } : {}) },
+        signal,
+      ),
+    uploadDocument: (account: Account, file: File, signal: AbortSignal) =>
+      consume(
+        (client) =>
+          client.POST('/api/v1/documents', {
+            body: file,
+            bodySerializer: (value) => value,
+            headers: { 'Content-Type': 'application/epub+zip' },
+            signal,
+            parseAs: 'stream',
+          }),
+        isDocument,
+        200,
+        account,
+      ),
+    editDocument: (account: Account, id: string, body: S['DocumentEdit'], signal: AbortSignal) =>
+      consume(
+        (client) => client.PATCH('/api/v1/documents/{id}', { params: path(id), body, signal, parseAs: 'stream' }),
+        isDocument,
+        200,
+        account,
+      ),
+    deleteDocument: (account: Account, id: string, signal: AbortSignal) =>
+      consume(
+        (client) => client.DELETE('/api/v1/documents/{id}', { params: path(id), signal, parseAs: 'stream' }),
+        (value): value is null => value === null,
+        204,
+        account,
+      ),
+    metadataCover: async (
+      account: Account,
+      provider: S['MetadataProvider'],
+      id: number,
+      signal: AbortSignal,
+      linked?: LinkedCover,
+    ) => {
       const epoch = gate.epoch();
-      const response = await binary(account, metadataCoverURL(provider, id, provider === 'openlibrary', linked), signal);
+      const response = await binary(
+        account,
+        metadataCoverURL(provider, id, provider === 'openlibrary', linked),
+        signal,
+      );
       if (!response.body) return null;
-      if (!response.ok || response.redirected || response.headers.get('content-type')?.split(';')[0].trim() !== 'image/jpeg') {
+      if (
+        !response.ok ||
+        response.redirected ||
+        response.headers.get('content-type')?.split(';')[0].trim() !== 'image/jpeg'
+      ) {
         void response.body.cancel().catch(() => {});
         return null;
       }
@@ -204,63 +633,165 @@ export function createAPI(gate: SessionGate) {
           }
           chunks.push(value);
         }
-      } finally { reader.releaseLock(); }
+      } finally {
+        reader.releaseLock();
+      }
       signal.throwIfAborted();
       gate.assert(account, epoch);
       return size ? new Blob(chunks, { type: 'image/jpeg' }) : null;
     },
-    previewLinkedSource: (account: Account, id: string, { provider, work_id }: S['DocumentMatch'], signal: AbortSignal) => consume(client => client.GET('/api/v1/documents/{id}/matches/{provider}', {
-      params: { path: { id, provider }, query: { work_id } }, signal, parseAs: 'stream',
-    }), isMetadataMatch, 200, account),
-    previewMetadataMatch: (account: Account, query: S['MetadataMatchReference'], signal: AbortSignal) => consume(client => client.GET('/api/v1/metadata/match', { params: { query }, signal, parseAs: 'stream' }), isMetadataMatch, 200, account),
-    lookupMetadata: (account: Account, q: string, signal: AbortSignal) => consume(client => client.GET('/api/v1/metadata/search', { params: { query: { q } }, signal, parseAs: 'stream' }), isMetadataMatches, 200, account),
-    document: (account: Account, id: string, signal: AbortSignal) => consume(client => client.GET('/api/v1/documents/{id}', { params: path(id), signal, parseAs: 'stream' }), isDocument, 200, account),
+    previewLinkedSource: (
+      account: Account,
+      id: string,
+      { provider, work_id }: S['DocumentMatch'],
+      signal: AbortSignal,
+    ) =>
+      consume(
+        (client) =>
+          client.GET('/api/v1/documents/{id}/matches/{provider}', {
+            params: { path: { id, provider }, query: { work_id } },
+            signal,
+            parseAs: 'stream',
+          }),
+        isMetadataMatch,
+        200,
+        account,
+      ),
+    previewMetadataMatch: (account: Account, query: S['MetadataMatchReference'], signal: AbortSignal) =>
+      consume(
+        (client) => client.GET('/api/v1/metadata/match', { params: { query }, signal, parseAs: 'stream' }),
+        isMetadataMatch,
+        200,
+        account,
+      ),
+    lookupMetadata: (account: Account, q: string, signal: AbortSignal) =>
+      consume(
+        (client) => client.GET('/api/v1/metadata/search', { params: { query: { q } }, signal, parseAs: 'stream' }),
+        isMetadataMatches,
+        200,
+        account,
+      ),
+    document: (account: Account, id: string, signal: AbortSignal) =>
+      consume(
+        (client) => client.GET('/api/v1/documents/{id}', { params: path(id), signal, parseAs: 'stream' }),
+        isDocument,
+        200,
+        account,
+      ),
   };
   async function binary(account: Account, path: string, signal: AbortSignal, etag?: string) {
     const epoch = gate.epoch();
     gate.assert(account, epoch);
-    const response = await transport(new Request(`${apiOrigin}${path}`, { credentials: 'same-origin', cache: 'no-store', signal, headers: { ...accountHeader(account), ...(etag ? { 'If-None-Match': etag } : {}) } }));
-    try { gate.assert(account, epoch); } catch (error) { await response.body?.cancel(); throw error; }
-    if ((response.status === 401 || response.status === 409) && !response.redirected && response.headers.get('content-type')?.split(';')[0].trim() === 'application/problem+json') {
-      const problem: unknown = await response.clone().json().catch(() => null);
+    const response = await transport(
+      new Request(`${apiOrigin}${path}`, {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        signal,
+        headers: { ...accountHeader(account), ...(etag ? { 'If-None-Match': etag } : {}) },
+      }),
+    );
+    try {
+      gate.assert(account, epoch);
+    } catch (error) {
+      await response.body?.cancel();
+      throw error;
+    }
+    if (
+      (response.status === 401 || response.status === 409) &&
+      !response.redirected &&
+      response.headers.get('content-type')?.split(';')[0].trim() === 'application/problem+json'
+    ) {
+      const problem: unknown = await response
+        .clone()
+        .json()
+        .catch(() => null);
       gate.assert(account, epoch);
       if (isProblem(problem) && problem.status === response.status) {
-        try { checkIdentity(response.status, problem, account); } catch (error) { await response.body?.cancel(); throw error; }
+        try {
+          checkIdentity(response.status, problem, account);
+        } catch (error) {
+          await response.body?.cancel();
+          throw error;
+        }
       }
     }
     return response;
   }
-  async function deliver(account: Account, event: S['ProgressEvent'] | S['ActivityEvent'], kind: 'progress' | 'activity', signal: AbortSignal) {
+  async function deliver(
+    account: Account,
+    event: S['ProgressEvent'] | S['ActivityEvent'],
+    kind: 'progress' | 'activity',
+    signal: AbortSignal,
+  ) {
     const epoch = gate.epoch();
     gate.assert(account, epoch);
-    const pending = kind === 'progress'
-      ? client.POST('/api/v1/me/reading-progress', { headers: accountHeader(account), body: event as S['ProgressEvent'], signal, parseAs: 'stream' })
-      : client.POST('/api/v1/me/activity', { headers: accountHeader(account), body: event as S['ActivityEvent'], signal, parseAs: 'stream' });
+    const pending =
+      kind === 'progress'
+        ? client.POST('/api/v1/me/reading-progress', {
+            headers: accountHeader(account),
+            body: event as S['ProgressEvent'],
+            signal,
+            parseAs: 'stream',
+          })
+        : client.POST('/api/v1/me/activity', {
+            headers: accountHeader(account),
+            body: event as S['ActivityEvent'],
+            signal,
+            parseAs: 'stream',
+          });
     const { response, error } = await pending;
     gate.assert(account, epoch);
     let body: unknown = null;
     try {
-      if (!response.redirected && response.headers.get('content-type')?.split(';')[0].trim() === (response.ok ? 'application/json' : 'application/problem+json')) body = response.ok ? await response.json() : error;
-    } catch { /* Untrusted Delivery - The reader must retain events on malformed acknowledgements. */ }
+      if (
+        !response.redirected &&
+        response.headers.get('content-type')?.split(';')[0].trim() ===
+          (response.ok ? 'application/json' : 'application/problem+json')
+      )
+        body = response.ok ? await response.json() : error;
+    } catch {
+      /* Untrusted Delivery - The reader must retain events on malformed acknowledgements. */
+    }
     gate.assert(account, epoch);
     // The reader owns normal expiry for event delivery; a mismatched session needs a fresh bootstrap.
-    if (isProblem(body) && body.status === response.status && body.code !== 'unauthenticated') checkIdentity(response.status, body, account);
+    if (isProblem(body) && body.status === response.status && body.code !== 'unauthenticated')
+      checkIdentity(response.status, body, account);
     return { status: response.status, body };
   }
   const bridge: ReadingBridge = {
     registerDevice: async (account, device, signal) => {
-      const result = await consume(client => client.POST('/api/v1/me/devices', { body: device, signal, parseAs: 'stream' }), isDevice, 200, account);
+      const result = await consume(
+        (client) => client.POST('/api/v1/me/devices', { body: device, signal, parseAs: 'stream' }),
+        isDevice,
+        200,
+        account,
+      );
       if (result.id !== device.id) throw new InvalidResponse();
       return result;
     },
     getState: async (account, documentId, signal) => {
-      const result = await consume(client => client.GET('/api/v1/me/reading-state/{document_id}', { params: { path: { document_id: documentId } }, signal, parseAs: 'stream' }), isState, 200, account);
+      const result = await consume(
+        (client) =>
+          client.GET('/api/v1/me/reading-state/{document_id}', {
+            params: { path: { document_id: documentId } },
+            signal,
+            parseAs: 'stream',
+          }),
+        isState,
+        200,
+        account,
+      );
       if (result.document_id !== documentId) throw new InvalidResponse();
       return result;
     },
-    fileReadFailed: account => { gate.assert(account, gate.epoch()); gate.suspectOutage(); },
-    fetchFile: (account, documentId, signal, etag) => binary(account, `/api/v1/documents/${encodeURIComponent(documentId)}/file`, signal, etag),
-    fetchCover: (account, documentId, signal) => binary(account, `/api/v1/documents/${encodeURIComponent(documentId)}/cover`, signal),
+    fileReadFailed: (account) => {
+      gate.assert(account, gate.epoch());
+      gate.suspectOutage();
+    },
+    fetchFile: (account, documentId, signal, etag) =>
+      binary(account, `/api/v1/documents/${encodeURIComponent(documentId)}/file`, signal, etag),
+    fetchCover: (account, documentId, signal) =>
+      binary(account, `/api/v1/documents/${encodeURIComponent(documentId)}/cover`, signal),
     submitProgress: (account, event, signal) => deliver(account, event, 'progress', signal),
     submitActivity: (account, event, signal) => deliver(account, event, 'activity', signal),
   };

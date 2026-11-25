@@ -2,7 +2,16 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 're
 import { hashKey, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { sameAccount, useReading } from '../reading';
-import { bookKey, bookPath, combineBooks, matcherReturn, parseSort, sortBooks, sortOptions, type LibrarySort } from '../library';
+import {
+  bookKey,
+  bookPath,
+  combineBooks,
+  matcherReturn,
+  parseSort,
+  sortBooks,
+  sortOptions,
+  type LibrarySort,
+} from '../library';
 import { queryClient, session, useSession } from '../session';
 import { BookCard } from '../BookPresentation';
 import bookStyles from '../BookPresentation.module.css';
@@ -44,7 +53,9 @@ export function Library() {
   const [importNotice, setImportNotice] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
   const importController = useRef<AbortController | null>(null);
-  useEffect(() => { setInput(q); }, [q]);
+  useEffect(() => {
+    setInput(q);
+  }, [q]);
   useEffect(() => {
     if (location.state?.focusLibrary && reading.ready && focusedLocation.current !== location.key) {
       heading.current?.focus();
@@ -70,7 +81,7 @@ export function Library() {
       const books: Awaited<ReturnType<typeof session.api.documents>>['items'] = [];
       while (page !== null && books.length < 3) {
         const result = await session.api.documents(account!, page, '', 'read', signal, true);
-        books.push(...result.items.filter(item => item.file_available).slice(0, 3 - books.length));
+        books.push(...result.items.filter((item) => item.file_available).slice(0, 3 - books.length));
         page = result.next_page;
       }
       return books;
@@ -81,25 +92,48 @@ export function Library() {
   const returning = account && matcherReturn(location.state?.returnTo, account);
   const restorePages = returning && returning.search === bookLinkState.librarySearch ? returning.pages : 0;
   useEffect(() => {
-    if (sharedEnabled && loadedPages < restorePages && hasNextPage && !isFetching && !isFetchNextPageError) void fetchNextPage({ cancelRefetch: false });
+    if (sharedEnabled && loadedPages < restorePages && hasNextPage && !isFetching && !isFetchNextPageError)
+      void fetchNextPage({ cancelRefetch: false });
   }, [sharedEnabled, loadedPages, restorePages, hasNextPage, isFetching, isFetchNextPageError, fetchNextPage]);
-  const append = () => { void fetchNextPage({ cancelRefetch: false }); };
+  const append = () => {
+    void fetchNextPage({ cancelRefetch: false });
+  };
   useNearEnd(loadMore, {
     enabled: sharedEnabled && !dialog && hasNextPage && !isFetching && !isFetchNextPageError,
-    rootMargin: '0px 0px 240px 0px', scope: hashKey(queryKey), onReach: append,
+    rootMargin: '0px 0px 240px 0px',
+    scope: hashKey(queryKey),
+    onReach: append,
   });
-  const serverDocuments = sharedEnabled ? documents.data?.pages.flatMap((page) => page.items) ?? [] : [];
-  const serverRows = reading.books.filter(book => book.ref.kind === 'server');
-  const books = sortBooks(combineBooks(serverRows, serverDocuments, account).filter(book => offline
-    ? book.stored?.availability === 'available' && `${book.title ?? ''} ${book.author ?? ''}`.toLocaleLowerCase().includes(q.trim().toLocaleLowerCase())
-    : !!book.document), sort);
-  const recent = sharedEnabled && !q && resume.data && account
-    ? resume.data.flatMap(document => combineBooks(serverRows.filter(book => book.ref.kind === 'server' && book.ref.documentId === document.id), [document], account))
-    : [];
+  const serverDocuments = sharedEnabled ? (documents.data?.pages.flatMap((page) => page.items) ?? []) : [];
+  const serverRows = reading.books.filter((book) => book.ref.kind === 'server');
+  const books = sortBooks(
+    combineBooks(serverRows, serverDocuments, account).filter((book) =>
+      offline
+        ? book.stored?.availability === 'available' &&
+          `${book.title ?? ''} ${book.author ?? ''}`.toLocaleLowerCase().includes(q.trim().toLocaleLowerCase())
+        : !!book.document,
+    ),
+    sort,
+  );
+  const recent =
+    sharedEnabled && !q && resume.data && account
+      ? resume.data.flatMap((document) =>
+          combineBooks(
+            serverRows.filter((book) => book.ref.kind === 'server' && book.ref.documentId === document.id),
+            [document],
+            account,
+          ),
+        )
+      : [];
   const update = (key: string, value: string) => {
     const next = new URLSearchParams(params);
-    if (value) next.set(key, value); else next.delete(key);
-    setParams(next, { preventScrollReset: true, replace: !!dialog && key !== 'dialog', state: dialog || key === 'dialog' ? { libraryDialog: true } : null });
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setParams(next, {
+      preventScrollReset: true,
+      replace: !!dialog && key !== 'dialog',
+      state: dialog || key === 'dialog' ? { libraryDialog: true } : null,
+    });
   };
   const open = (name: string) => update('dialog', name);
   const closeDialog = () => {
@@ -117,7 +151,8 @@ export function Library() {
   function applySort(value: LibrarySort) {
     const next = new URLSearchParams(params);
     next.delete('dialog');
-    if (value === 'read') next.delete('sort'); else next.set('sort', value);
+    if (value === 'read') next.delete('sort');
+    else next.set('sort', value);
     setParams(next, { replace: true, preventScrollReset: true });
     if (value !== sort) window.scrollTo(0, 0);
   }
@@ -136,7 +171,8 @@ export function Library() {
     };
     uploadNotice.dismiss();
     setImporting(true);
-    setError(null); setImportNotice(null);
+    setError(null);
+    setImportNotice(null);
     const controller = new AbortController();
     importController.current = controller;
     try {
@@ -146,58 +182,175 @@ export function Library() {
       if (controller.signal.aborted || !stillSignedIn()) return;
       const path = bookPath({ kind: 'server', account: uploadAccount, documentId: document.id });
       closeDialog();
-      uploadNotice.show({ message: 'Book added to the library', action: {
-        label: 'Open', onClick: () => { if (stillSignedIn()) void navigate(path, { state: bookLinkState }); },
-      } });
-    } catch (failure) { if (!controller.signal.aborted && stillSignedIn()) setError(failure); }
-    finally {
+      uploadNotice.show({
+        message: 'Book added to the library',
+        action: {
+          label: 'Open',
+          onClick: () => {
+            if (stillSignedIn()) void navigate(path, { state: bookLinkState });
+          },
+        },
+      });
+    } catch (failure) {
+      if (!controller.signal.aborted && stillSignedIn()) setError(failure);
+    } finally {
       setImporting(false);
       importController.current = null;
       if (file.current) file.current.value = '';
     }
   }
-  return <>
-    <PageHeader title="Library" headingRef={heading} mobileBrand
-      actions={access.kind === 'authenticated' && <div className={styles.libraryHeadingActions}>
-        {reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>}
-        <CircleAction icon="link" label="Match Books" to="/library/matcher"
-          state={{ returnTo: { account: access.account, search: bookLinkState.librarySearch, pages: Math.max(1, loadedPages) } }} />
-      </div>} />
-    {offline && <OfflineStatusBar profile={profiles.find(p => sameAccount(p.account, access.account))?.name ?? 'Reader'} />}
-    {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}
-    <RecentBooks books={recent} bookLinkState={bookLinkState} />
-    <form className={styles.searchRow} role="search" onSubmit={(event) => { event.preventDefault(); update('q', input.trim()); }}>
-      <SearchField ref={searchInput} aria-label="Search title or author" submit={{ label: 'Search' }} value={input} maxLength={256}
-        placeholder="Title or author" onChange={event => setInput(event.target.value)} onClear={input || q ? clearSearch : undefined} />
-      {!offline && <IconButton aria-label="Add Book" disabled={access.kind !== 'authenticated'} onClick={() => { setError(null); open('add'); }}><Icon name="add" /></IconButton>}
-      <IconButton aria-label="Sort Books" aria-haspopup="dialog" aria-expanded={dialog === 'sort'} onClick={() => open('sort')}><Icon name="sort" /></IconButton>
-    </form>
-    <div className={styles.divider} />
-    <ErrorNotice error={documents.error} />
-    {documents.isPending && documents.fetchStatus === 'fetching' && <LoadingStatus>Loading shared books…</LoadingStatus>}
-    {!books.length && reading.ready && !documents.isFetching && !(sharedEnabled && hasNextPage) && <p>{offline ? 'No matching books on this device.' : 'No matching books. Try another search or add an EPUB.'}</p>}
-    <div className={styles.grid}>
-      {books.map((book) => <BookCard key={bookKey(book.ref)} book={book} linkState={bookLinkState} action={offline ? 'read' : 'books'}>{book.ref.kind === 'server' && (offline || book.document?.file_available || reading.deviceCopies?.has(book.ref.documentId)) && <BookDownloadActions book={book.ref} metadata={book} canSave={offline || !!book.document?.file_available} />}</BookCard>)}
-      {!books.length && (!reading.ready || documents.isPending && documents.fetchStatus === 'fetching') && Array.from({ length: 6 }, (_, index) => <div key={index} className={bookStyles.card} aria-hidden="true">
-        <Skeleton block className={`${bookStyles.cover} ${bookStyles.coverThumbnail}`} />
-        <h2 className={bookStyles.cardTitle}><Skeleton width="75%" /></h2>
-        <p><Skeleton width="52%" /></p>
-      </div>)}
-    </div>
-    {importNotice && <p role="status">{importNotice}</p>}
-    <ErrorNotice error={dialog === 'add' ? null : error} />
-    {sharedEnabled && hasNextPage && <div className={styles.loadMore}><Button ref={loadMore} disabled={isFetching} onClick={append}>{documents.isFetchingNextPage ? 'Loading…' : isFetchNextPageError ? 'Retry Loading Shared Books' : 'Load More Shared Books'}</Button></div>}
-    {dialog === 'sort' && <Dialog title="Sort Books" onClose={close}><div className={styles.sortOptions}>
-      {sortOptions.map(([value, label]) => <button key={value} type="button" aria-pressed={sort === value} onClick={() => applySort(value)}>
-        {label}{sort === value && <Icon name="check" size={17} />}
-      </button>)}
-    </div></Dialog>}
-    {dialog === 'add' && <Dialog title="Add Book" onClose={close}><div className={styles.form}>
-      <p>Upload an EPUB to the shared library (up to 64 MiB).</p>
-      <input ref={file} type="file" accept=".epub,application/epub+zip" aria-label="Choose EPUB to upload" disabled={importing || access.kind !== 'authenticated'} onChange={importFile} />
-      {importing && <p role="status">Uploading to the shared library…</p>}
-      <ErrorNotice error={error} />
-      <Button onClick={close}>{importing ? 'Cancel Upload' : 'Done'}</Button>
-    </div></Dialog>}
-  </>;
+  return (
+    <>
+      <PageHeader
+        title="Library"
+        headingRef={heading}
+        mobileBrand
+        actions={
+          access.kind === 'authenticated' && (
+            <div className={styles.libraryHeadingActions}>
+              {reading.pendingCount > 0 && (
+                <Link className={styles.pendingSync} to="/settings?sync=open">
+                  {reading.pendingCount} pending
+                </Link>
+              )}
+              <CircleAction
+                icon="link"
+                label="Match Books"
+                to="/library/matcher"
+                state={{
+                  returnTo: {
+                    account: access.account,
+                    search: bookLinkState.librarySearch,
+                    pages: Math.max(1, loadedPages),
+                  },
+                }}
+              />
+            </div>
+          )
+        }
+      />
+      {offline && (
+        <OfflineStatusBar profile={profiles.find((p) => sameAccount(p.account, access.account))?.name ?? 'Reader'} />
+      )}
+      {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}
+      <RecentBooks books={recent} bookLinkState={bookLinkState} />
+      <form
+        className={styles.searchRow}
+        role="search"
+        onSubmit={(event) => {
+          event.preventDefault();
+          update('q', input.trim());
+        }}
+      >
+        <SearchField
+          ref={searchInput}
+          aria-label="Search title or author"
+          submit={{ label: 'Search' }}
+          value={input}
+          maxLength={256}
+          placeholder="Title or author"
+          onChange={(event) => setInput(event.target.value)}
+          onClear={input || q ? clearSearch : undefined}
+        />
+        {!offline && (
+          <IconButton
+            aria-label="Add Book"
+            disabled={access.kind !== 'authenticated'}
+            onClick={() => {
+              setError(null);
+              open('add');
+            }}
+          >
+            <Icon name="add" />
+          </IconButton>
+        )}
+        <IconButton
+          aria-label="Sort Books"
+          aria-haspopup="dialog"
+          aria-expanded={dialog === 'sort'}
+          onClick={() => open('sort')}
+        >
+          <Icon name="sort" />
+        </IconButton>
+      </form>
+      <div className={styles.divider} />
+      <ErrorNotice error={documents.error} />
+      {documents.isPending && documents.fetchStatus === 'fetching' && (
+        <LoadingStatus>Loading shared books…</LoadingStatus>
+      )}
+      {!books.length && reading.ready && !documents.isFetching && !(sharedEnabled && hasNextPage) && (
+        <p>{offline ? 'No matching books on this device.' : 'No matching books. Try another search or add an EPUB.'}</p>
+      )}
+      <div className={styles.grid}>
+        {books.map((book) => (
+          <BookCard key={bookKey(book.ref)} book={book} linkState={bookLinkState} action={offline ? 'read' : 'books'}>
+            {book.ref.kind === 'server' &&
+              (offline || book.document?.file_available || reading.deviceCopies?.has(book.ref.documentId)) && (
+                <BookDownloadActions
+                  book={book.ref}
+                  metadata={book}
+                  canSave={offline || !!book.document?.file_available}
+                />
+              )}
+          </BookCard>
+        ))}
+        {!books.length &&
+          (!reading.ready || (documents.isPending && documents.fetchStatus === 'fetching')) &&
+          Array.from({ length: 6 }, (_, index) => (
+            <div key={index} className={bookStyles.card} aria-hidden="true">
+              <Skeleton block className={`${bookStyles.cover} ${bookStyles.coverThumbnail}`} />
+              <h2 className={bookStyles.cardTitle}>
+                <Skeleton width="75%" />
+              </h2>
+              <p>
+                <Skeleton width="52%" />
+              </p>
+            </div>
+          ))}
+      </div>
+      {importNotice && <p role="status">{importNotice}</p>}
+      <ErrorNotice error={dialog === 'add' ? null : error} />
+      {sharedEnabled && hasNextPage && (
+        <div className={styles.loadMore}>
+          <Button ref={loadMore} disabled={isFetching} onClick={append}>
+            {documents.isFetchingNextPage
+              ? 'Loading…'
+              : isFetchNextPageError
+                ? 'Retry Loading Shared Books'
+                : 'Load More Shared Books'}
+          </Button>
+        </div>
+      )}
+      {dialog === 'sort' && (
+        <Dialog title="Sort Books" onClose={close}>
+          <div className={styles.sortOptions}>
+            {sortOptions.map(([value, label]) => (
+              <button key={value} type="button" aria-pressed={sort === value} onClick={() => applySort(value)}>
+                {label}
+                {sort === value && <Icon name="check" size={17} />}
+              </button>
+            ))}
+          </div>
+        </Dialog>
+      )}
+      {dialog === 'add' && (
+        <Dialog title="Add Book" onClose={close}>
+          <div className={styles.form}>
+            <p>Upload an EPUB to the shared library (up to 64 MiB).</p>
+            <input
+              ref={file}
+              type="file"
+              accept=".epub,application/epub+zip"
+              aria-label="Choose EPUB to upload"
+              disabled={importing || access.kind !== 'authenticated'}
+              onChange={importFile}
+            />
+            {importing && <p role="status">Uploading to the shared library…</p>}
+            <ErrorNotice error={error} />
+            <Button onClick={close}>{importing ? 'Cancel Upload' : 'Done'}</Button>
+          </div>
+        </Dialog>
+      )}
+    </>
+  );
 }

@@ -7,14 +7,22 @@ type PageHeaderProps = { actions?: ReactNode; mobileBrand?: boolean } & (
 );
 
 export function PageHeader({ title, headingRef, leading, actions, mobileBrand }: PageHeaderProps) {
-  return <header className={styles.pageTitle}>
-    <div className={styles.pageTitleStart}>
-      {mobileBrand && <img className={styles.mobileBrand} src="/assets/icons/mark.svg" width="30" height="30" alt="" />}
-      {leading}
-      {title && <h1 ref={headingRef} tabIndex={headingRef ? -1 : undefined}>{title}</h1>}
-    </div>
-    {actions}
-  </header>;
+  return (
+    <header className={styles.pageTitle}>
+      <div className={styles.pageTitleStart}>
+        {mobileBrand && (
+          <img className={styles.mobileBrand} src="/assets/icons/mark.svg" width="30" height="30" alt="" />
+        )}
+        {leading}
+        {title && (
+          <h1 ref={headingRef} tabIndex={headingRef ? -1 : undefined}>
+            {title}
+          </h1>
+        )}
+      </div>
+      {actions}
+    </header>
+  );
 }
 
 type DialogProps = {
@@ -31,7 +39,19 @@ type DialogProps = {
   footer?: ReactNode;
 };
 
-export function Dialog({ title, children, onClose, dismissDisabled = false, size = 'default', layout = 'content', scrollHeight = 'default', placement = 'center', toolbar, titleLeading, footer }: DialogProps) {
+export function Dialog({
+  title,
+  children,
+  onClose,
+  dismissDisabled = false,
+  size = 'default',
+  layout = 'content',
+  scrollHeight = 'default',
+  placement = 'center',
+  toolbar,
+  titleLeading,
+  footer,
+}: DialogProps) {
   const titleId = useId();
   const ref = useRef<HTMLDialogElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -43,20 +63,72 @@ export function Dialog({ title, children, onClose, dismissDisabled = false, size
     heading?.setAttribute('autofocus', '');
     dialog?.showModal();
     if (heading && document.activeElement !== heading) heading.focus({ preventScroll: true });
-    return () => { dialog?.close(); if (previous?.isConnected) previous.focus(); };
+    return () => {
+      dialog?.close();
+      if (previous?.isConnected) previous.focus();
+    };
   }, []);
-  const heading = <h2 id={titleId} ref={titleRef} tabIndex={-1}>{title}</h2>;
-  return <dialog ref={ref} className={styles.dialog} data-size={size} data-layout={layout} data-scroll-height={layout === 'scroll-body' ? scrollHeight : undefined} data-placement={placement} onCancel={(event) => { event.preventDefault(); if (!dismissDisabled) onClose(); }} onClick={(event) => { if (!dismissDisabled && event.target === ref.current) {
-    const rect = event.currentTarget.getBoundingClientRect();
-    if (event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom) onClose();
-  } }} aria-labelledby={titleId}>
-    <header className={styles.dialogHeader}>{titleLeading ? <div className={styles.dialogTitleGroup}>{titleLeading}{heading}</div> : heading}<button type="button" className={styles.icon} disabled={dismissDisabled} onClick={onClose} aria-label="Close Dialog">×</button></header>
-    {toolbar != null && <div className={styles.dialogToolbar}>{toolbar}</div>}
-    {layout === 'scroll-body' ? <div className={styles.dialogBody}>{children}</div> : children}
-    {footer != null && <footer className={styles.dialogFooter}>{footer}</footer>}
-  </dialog>;
+  const heading = (
+    <h2 id={titleId} ref={titleRef} tabIndex={-1}>
+      {title}
+    </h2>
+  );
+  return (
+    <dialog
+      ref={ref}
+      className={styles.dialog}
+      data-size={size}
+      data-layout={layout}
+      data-scroll-height={layout === 'scroll-body' ? scrollHeight : undefined}
+      data-placement={placement}
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!dismissDisabled) onClose();
+      }}
+      onClick={(event) => {
+        if (!dismissDisabled && event.target === ref.current) {
+          const rect = event.currentTarget.getBoundingClientRect();
+          if (
+            event.clientX < rect.left ||
+            event.clientX >= rect.right ||
+            event.clientY < rect.top ||
+            event.clientY >= rect.bottom
+          )
+            onClose();
+        }
+      }}
+      aria-labelledby={titleId}
+    >
+      <header className={styles.dialogHeader}>
+        {titleLeading ? (
+          <div className={styles.dialogTitleGroup}>
+            {titleLeading}
+            {heading}
+          </div>
+        ) : (
+          heading
+        )}
+        <button
+          type="button"
+          className={styles.icon}
+          disabled={dismissDisabled}
+          onClick={onClose}
+          aria-label="Close Dialog"
+        >
+          ×
+        </button>
+      </header>
+      {toolbar != null && <div className={styles.dialogToolbar}>{toolbar}</div>}
+      {layout === 'scroll-body' ? <div className={styles.dialogBody}>{children}</div> : children}
+      {footer != null && <footer className={styles.dialogFooter}>{footer}</footer>}
+    </dialog>
+  );
 }
 
 export function ErrorNotice({ error }: { error: unknown }) {
-  return error ? <p role="alert" className={styles.error}>{error instanceof Error ? error.message : String(error)}</p> : null;
+  return error ? (
+    <p role="alert" className={styles.error}>
+      {error instanceof Error ? error.message : String(error)}
+    </p>
+  ) : null;
 }

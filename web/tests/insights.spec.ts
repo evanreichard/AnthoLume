@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect, register } from './fixtures';
 
-test('Library, Insights, Settings and Book Detail share mobile and desktop gutters', async ({ page, server }, testInfo) => {
+test('Library, Insights, Settings and Book Detail share mobile and desktop gutters', async ({
+  page,
+  server,
+}, testInfo) => {
   await register(page, server.origin, 'header-reader');
   const nav = page.getByRole('navigation', { name: 'Main navigation' });
   for (const width of [320, 390, 1440]) {
@@ -18,7 +21,13 @@ test('Library, Insights, Settings and Book Detail share mobile and desktop gutte
       return { x, y, height };
     };
     const library = await position('Library');
-    const header = (name: string) => page.locator('main header').filter({ has: page.getByRole(name === 'Book' ? 'link' : 'heading', { name: name === 'Book' ? 'Library' : name, exact: true }) });
+    const header = (name: string) =>
+      page.locator('main header').filter({
+        has: page.getByRole(name === 'Book' ? 'link' : 'heading', {
+          name: name === 'Book' ? 'Library' : name,
+          exact: true,
+        }),
+      });
     const libraryHeader = await header('Library').boundingBox();
     await expect(page.getByRole('complementary').locator('img')).toBeVisible({ visible: width > 760 });
     const libraryGrid = (await page.getByRole('article').first().locator('..').boundingBox())!;
@@ -30,10 +39,11 @@ test('Library, Insights, Settings and Book Detail share mobile and desktop gutte
     expect(await position('Insights')).toEqual(library);
     const chart = page.getByRole('region', { name: 'Last 30 days' });
     await expectLibraryGutters(chart);
-    const cardStyle = (card: import('@playwright/test').Locator) => card.evaluate(node => {
-      const { backgroundColor, borderColor, borderRadius, borderWidth, padding } = getComputedStyle(node);
-      return { backgroundColor, borderColor, borderRadius, borderWidth, padding };
-    });
+    const cardStyle = (card: import('@playwright/test').Locator) =>
+      card.evaluate((node) => {
+        const { backgroundColor, borderColor, borderRadius, borderWidth, padding } = getComputedStyle(node);
+        return { backgroundColor, borderColor, borderRadius, borderWidth, padding };
+      });
     const insightsCard = await cardStyle(chart);
     expect(await position('Settings')).toEqual(library);
     for (const name of ['Account', 'Devices']) {
@@ -67,7 +77,11 @@ test('Library, Insights, Settings and Book Detail share mobile and desktop gutte
       await expectLibraryGutters(info);
     } else {
       await expect(reading).toBeVisible();
-      const [sidebar, details, feature] = await Promise.all([reading.boundingBox(), info.boundingBox(), hero.boundingBox()]);
+      const [sidebar, details, feature] = await Promise.all([
+        reading.boundingBox(),
+        info.boundingBox(),
+        hero.boundingBox(),
+      ]);
       expect(details!.x).toBe(libraryGrid.x);
       expect(sidebar!.x + sidebar!.width).toBeCloseTo(libraryGrid.x + libraryGrid.width);
       expect(sidebar!.x - (feature!.x + feature!.width)).toBeCloseTo(24);
@@ -77,18 +91,26 @@ test('Library, Insights, Settings and Book Detail share mobile and desktop gutte
   }
 });
 
-test('Insights reserves the overview layout while loading and respects reduced motion', async ({ page, server }, testInfo) => {
+test('Insights reserves the overview layout while loading and respects reduced motion', async ({
+  page,
+  server,
+}, testInfo) => {
   await register(page, server.origin, 'skeleton-reader');
   let finish!: () => void;
-  const waiting = new Promise<void>(resolve => { finish = resolve; });
-  await page.route('**/api/v1/me/insights', async route => { await waiting; await route.continue(); });
+  const waiting = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  await page.route('**/api/v1/me/insights', async (route) => {
+    await waiting;
+    await route.continue();
+  });
   try {
     await page.setViewportSize({ width: 320, height: 844 });
     await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Insights' }).click();
     await expect(page.getByRole('status').filter({ hasText: 'Loading your reading journal' })).toHaveCount(1);
     const bars = page.locator('[class*="skeletonBar"]');
     await expect(bars).toHaveCount(30);
-    const animation = () => bars.first().evaluate(el => getComputedStyle(el, '::after').animationName);
+    const animation = () => bars.first().evaluate((el) => getComputedStyle(el, '::after').animationName);
     expect(await animation()).not.toBe('none');
     const rankings = page.getByRole('region', { name: 'Rankings' });
     const top = (await rankings.boundingBox())!.y;
@@ -102,24 +124,49 @@ test('Insights reserves the overview layout while loading and respects reduced m
     await expect(page.getByRole('region', { name: 'Last 30 days' })).toBeVisible();
     await expect(bars).toHaveCount(0);
     expect(Math.abs((await rankings.boundingBox())!.y - top)).toBeLessThan(3);
-  } finally { finish(); }
+  } finally {
+    finish();
+  }
 });
 
-test('Insights shows acknowledged activity, links chart days and books, and keeps rankings secondary', async ({ page, server }, testInfo) => {
+test('Insights shows acknowledged activity, links chart days and books, and keeps rankings secondary', async ({
+  page,
+  server,
+}, testInfo) => {
   await register(page, server.origin, 'journal-reader');
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Insights' }).click();
   const chart = page.getByRole('region', { name: 'Last 30 days' });
   await expect(chart.getByText('0 min read', { exact: true })).toBeVisible();
   const { csrf_token, user } = await (await page.request.get(`${server.origin}/api/v1/session`)).json();
-  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': user.reading_generation };
+  const headers = {
+    Origin: server.origin,
+    'X-CSRF-Token': csrf_token,
+    'X-AnthoLume-Reading-Generation': user.reading_generation,
+  };
   const submit = async (path: string, data: object) => {
     const response = await page.request.post(`${server.origin}/api/v1/me/${path}`, { headers, data });
     expect(response.status(), await response.text()).toBe(200);
   };
   const timestamp = new Date(Date.now() - 60_000).toISOString();
   await submit('devices', { id: 'journal-device', name: 'Test reader' });
-  await submit('activity', { event_id: randomUUID(), document_id: 'book_001', device_id: 'journal-device', start_time: timestamp, duration: 120, start_fraction: .1, end_fraction: .2 });
-  await submit('reading-progress', { event_id: randomUUID(), document_id: 'book_001', device_id: 'journal-device', observed_at: timestamp, base_revision: '0', position: '/body/DocFragment[1]/body/p[2]', fraction: .2 });
+  await submit('activity', {
+    event_id: randomUUID(),
+    document_id: 'book_001',
+    device_id: 'journal-device',
+    start_time: timestamp,
+    duration: 120,
+    start_fraction: 0.1,
+    end_fraction: 0.2,
+  });
+  await submit('reading-progress', {
+    event_id: randomUUID(),
+    document_id: 'book_001',
+    device_id: 'journal-device',
+    observed_at: timestamp,
+    base_revision: '0',
+    position: '/body/DocFragment[1]/body/p[2]',
+    fraction: 0.2,
+  });
   await page.reload();
   await expect(chart.getByText('2 min read', { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 844 });
@@ -128,7 +175,7 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
   await expect(period.getByRole('option')).toHaveText(['Last 7 days', 'Last 30 days', 'Last 365 days', 'All time']);
   await expect(period).toHaveValue('month');
   const metric = rankings.getByRole('button', { name: 'Time', exact: true });
-  const insets = await metric.evaluate(button => {
+  const insets = await metric.evaluate((button) => {
     const group = button.parentElement!;
     const shell = group.getBoundingClientRect();
     const face = button.firstElementChild!.getBoundingClientRect();
@@ -179,12 +226,22 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
   await sections.getByRole('link', { name: 'Progress' }).click();
   const progress = page.getByRole('region', { name: 'Saved progress' });
   await expect(progress.getByText('20%', { exact: true })).toBeVisible();
-  await expect(progress.getByRole('progressbar', { name: 'Reading progress for Public book 01' })).toHaveAttribute('value', '0.2');
+  await expect(progress.getByRole('progressbar', { name: 'Reading progress for Public book 01' })).toHaveAttribute(
+    'value',
+    '0.2',
+  );
   await expect(progress.getByRole('heading')).toHaveCount(0);
-  for (const [width, colorScheme] of [[320, 'dark'], [390, 'light'], [1440, 'light']] as const) {
+  for (const [width, colorScheme] of [
+    [320, 'dark'],
+    [390, 'light'],
+    [1440, 'light'],
+  ] as const) {
     await page.emulateMedia({ colorScheme });
     await page.setViewportSize({ width, height: 844 });
-    for (const [tab, name] of [['Activity', 'Reading activity'], ['Progress', 'Saved progress']] as const) {
+    for (const [tab, name] of [
+      ['Activity', 'Reading activity'],
+      ['Progress', 'Saved progress'],
+    ] as const) {
       await sections.getByRole('link', { name: tab, exact: true }).click();
       const history = page.getByRole('region', { name });
       await expect(history.getByRole('link', { name: 'Public book 01' })).toBeVisible();
@@ -198,18 +255,49 @@ test('Insights shows acknowledged activity, links chart days and books, and keep
   await expect(sections.getByRole('link', { name: 'Rankings', exact: true })).toHaveCount(0);
 });
 
-test('Insights appends older activity and more progress without losing filters, focus, or place', async ({ page, server }) => {
+test('Insights appends older activity and more progress without losing filters, focus, or place', async ({
+  page,
+  server,
+}) => {
   await register(page, server.origin, 'history-pager');
   const endpoint = `${server.origin}/api/v1`;
   const { csrf_token, user } = await (await page.request.get(`${endpoint}/session`)).json();
-  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': user.reading_generation };
-  expect((await page.request.post(`${endpoint}/me/devices`, { headers, data: { id: 'history-device', name: 'Reader' } })).status()).toBe(200);
-  const noon = new Date(); noon.setUTCHours(12, 0, 0, 0); noon.setUTCDate(noon.getUTCDate() - 1);
-  const activityAt = (start_time: string) => ({ event_id: randomUUID(), document_id: 'book_001', device_id: 'history-device', start_time, duration: 30, start_fraction: 0, end_fraction: .1 });
+  const headers = {
+    Origin: server.origin,
+    'X-CSRF-Token': csrf_token,
+    'X-AnthoLume-Reading-Generation': user.reading_generation,
+  };
+  expect(
+    (
+      await page.request.post(`${endpoint}/me/devices`, { headers, data: { id: 'history-device', name: 'Reader' } })
+    ).status(),
+  ).toBe(200);
+  const noon = new Date();
+  noon.setUTCHours(12, 0, 0, 0);
+  noon.setUTCDate(noon.getUTCDate() - 1);
+  const activityAt = (start_time: string) => ({
+    event_id: randomUUID(),
+    document_id: 'book_001',
+    device_id: 'history-device',
+    start_time,
+    duration: 30,
+    start_fraction: 0,
+    end_fraction: 0.1,
+  });
   for (let i = 0; i < 21; i++) {
     const timestamp = new Date(noon.getTime() - i * 60_000).toISOString();
-    expect((await page.request.post(`${endpoint}/me/activity`, { headers, data: activityAt(timestamp) })).status()).toBe(200);
-    const data = { event_id: randomUUID(), document_id: `book_${String(i + 1).padStart(3, '0')}`, device_id: 'history-device', observed_at: timestamp, base_revision: '0', position: '/body/DocFragment[1]/body/p[1]', fraction: .2 };
+    expect(
+      (await page.request.post(`${endpoint}/me/activity`, { headers, data: activityAt(timestamp) })).status(),
+    ).toBe(200);
+    const data = {
+      event_id: randomUUID(),
+      document_id: `book_${String(i + 1).padStart(3, '0')}`,
+      device_id: 'history-device',
+      observed_at: timestamp,
+      base_revision: '0',
+      position: '/body/DocFragment[1]/body/p[1]',
+      fraction: 0.2,
+    };
     expect((await page.request.post(`${endpoint}/me/reading-progress`, { headers, data })).status()).toBe(200);
   }
   const url = `${server.origin}/insights/activity?document=book_001`;
@@ -219,7 +307,14 @@ test('Insights appends older activity and more progress without losing filters, 
   await expect(activity.getByRole('listitem')).toHaveCount(20);
   await expect(activity.getByText('10 min loaded')).toBeVisible();
   // Insert a newer session between requests: the cursor must not repeat the boundary row.
-  expect((await page.request.post(`${endpoint}/me/activity`, { headers, data: activityAt(new Date(noon.getTime() + 60_000).toISOString()) })).status()).toBe(200);
+  expect(
+    (
+      await page.request.post(`${endpoint}/me/activity`, {
+        headers,
+        data: activityAt(new Date(noon.getTime() + 60_000).toISOString()),
+      })
+    ).status(),
+  ).toBe(200);
   await next.focus();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(url);

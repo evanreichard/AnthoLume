@@ -2,7 +2,9 @@ import { test, expect, register } from './fixtures';
 
 const api = '**/api/v1/me/hardcover';
 const problem = (status: number, code: string) => ({
-  status, contentType: 'application/problem+json', json: { type: 'about:blank', title: code, status, code, detail: code },
+  status,
+  contentType: 'application/problem+json',
+  json: { type: 'about:blank', title: code, status, code, detail: code },
 });
 
 test('Hardcover lazily loads the shelf and retries a failed next page', async ({ page, server }) => {
@@ -10,19 +12,25 @@ test('Hardcover lazily loads the shelf and retries a failed next page', async ({
   let username: string | null = 'Hardcover Reader';
   let failPage = true;
   let shelfRequests = 0;
-  await page.route(api, route => {
-    if (route.request().method() !== 'DELETE') return route.fulfill({ json: { enabled: true, username, reconnect_required: false } });
+  await page.route(api, (route) => {
+    if (route.request().method() !== 'DELETE')
+      return route.fulfill({ json: { enabled: true, username, reconnect_required: false } });
     username = null;
     return route.fulfill({ status: 204 });
   });
-  await page.route(`${api}/shelf?*`, route => {
+  await page.route(`${api}/shelf?*`, (route) => {
     shelfRequests++;
     const offset = Number(new URL(route.request().url()).searchParams.get('offset'));
     if (offset === 1 && failPage) {
       failPage = false;
       return route.fulfill(problem(429, 'rate_limited'));
     }
-    return route.fulfill({ json: { books: [{ id: `${offset}`, title: `Private book ${offset}`, author: '' }], next_offset: offset === 0 ? 1 : null } });
+    return route.fulfill({
+      json: {
+        books: [{ id: `${offset}`, title: `Private book ${offset}`, author: '' }],
+        next_offset: offset === 0 ? 1 : null,
+      },
+    });
   });
   await page.setViewportSize({ width: 320, height: 844 });
   await page.goto(`${server.origin}/settings`);
@@ -42,16 +50,25 @@ test('Hardcover lazily loads the shelf and retries a failed next page', async ({
   await expect(preview).toBeFocused();
   await preview.click();
   await dialog.getByRole('button', { name: 'Disconnect', exact: true }).click();
-  await page.getByRole('dialog', { name: 'Disconnect?' }).getByRole('button', { name: 'Disconnect', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'Disconnect?' })
+    .getByRole('button', { name: 'Disconnect', exact: true })
+    .click();
   await expect(card.getByRole('button', { name: 'Connect Hardcover' })).toBeVisible();
   await expect(dialog).toHaveCount(0);
 });
 
 for (const enabled of [false, true]) {
-  test(`a failed status check can be retried when Hardcover is ${enabled ? 'enabled' : 'disabled'}`, async ({ page, server }) => {
+  test(`a failed status check can be retried when Hardcover is ${enabled ? 'enabled' : 'disabled'}`, async ({
+    page,
+    server,
+  }) => {
     await register(page, server.origin, 'status-retry-reader');
-    if (enabled) await page.route(api, route => route.fulfill({ json: { enabled: true, username: 'Linked reader', reconnect_required: false } }));
-    await page.route(api, route => route.fulfill(problem(502, 'hardcover_unavailable')), { times: 1 });
+    if (enabled)
+      await page.route(api, (route) =>
+        route.fulfill({ json: { enabled: true, username: 'Linked reader', reconnect_required: false } }),
+      );
+    await page.route(api, (route) => route.fulfill(problem(502, 'hardcover_unavailable')), { times: 1 });
     await page.goto(`${server.origin}/settings${enabled ? '' : '?hardcover=error'}`);
     const card = page.getByRole('region', { name: 'Connections' });
     await expect(card).toContainText('Could not check your Hardcover connection.');
@@ -60,7 +77,7 @@ for (const enabled of [false, true]) {
       await expect(card).toContainText('Hardcover was not connected. Try connecting again.');
       await expect(page).toHaveURL(`${server.origin}/settings`);
     }
-    const checked = page.waitForResponse(response => response.url().endsWith('/me/hardcover') && response.ok());
+    const checked = page.waitForResponse((response) => response.url().endsWith('/me/hardcover') && response.ok());
     await card.getByRole('button', { name: 'Retry Connection Check' }).click();
     expect((await (await checked).json()).enabled).toBe(enabled);
     if (enabled) {
@@ -77,16 +94,27 @@ for (const lostBy of ['shelf disconnect', 'status disconnect', 'status reconnect
     let reconnectRequired = false;
     let relinked = false;
     let releaseShelf!: () => void;
-    const pendingShelf = new Promise<void>(resolve => { releaseShelf = resolve; });
-    await page.route(api, route => route.fulfill({ json: { enabled: true, username, reconnect_required: reconnectRequired } }));
-    await page.route(`${api}/shelf?*`, async route => {
+    const pendingShelf = new Promise<void>((resolve) => {
+      releaseShelf = resolve;
+    });
+    await page.route(api, (route) =>
+      route.fulfill({ json: { enabled: true, username, reconnect_required: reconnectRequired } }),
+    );
+    await page.route(`${api}/shelf?*`, async (route) => {
       if (!username) return route.fulfill(problem(409, 'hardcover_not_connected'));
       if (relinked) {
         await pendingShelf;
-        return route.fulfill({ json: { books: [{ id: 'new', title: 'New shelf book', author: '' }], next_offset: null } });
+        return route.fulfill({
+          json: { books: [{ id: 'new', title: 'New shelf book', author: '' }], next_offset: null },
+        });
       }
       const offset = Number(new URL(route.request().url()).searchParams.get('offset'));
-      return route.fulfill({ json: { books: [{ id: `old-${offset}`, title: `Old shelf book ${offset}`, author: '' }], next_offset: offset + 1 } });
+      return route.fulfill({
+        json: {
+          books: [{ id: `old-${offset}`, title: `Old shelf book ${offset}`, author: '' }],
+          next_offset: offset + 1,
+        },
+      });
     });
     await page.goto(`${server.origin}/settings`);
     const card = page.getByRole('region', { name: 'Connections' });
@@ -102,11 +130,13 @@ for (const lostBy of ['shelf disconnect', 'status disconnect', 'status reconnect
     }
     reconnectRequired = lostBy === 'status reconnect required';
     if (!reconnectRequired) username = null;
-    const rechecked = page.waitForResponse(response => response.url().endsWith('/me/hardcover') && response.ok());
+    const rechecked = page.waitForResponse((response) => response.url().endsWith('/me/hardcover') && response.ok());
     if (detectedOnShelf) await loadMore.click();
     else await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange', { bubbles: true })));
     await rechecked;
-    await expect(card.getByRole('button', { name: reconnectRequired ? 'Reconnect Hardcover' : 'Connect Hardcover' })).toBeVisible();
+    await expect(
+      card.getByRole('button', { name: reconnectRequired ? 'Reconnect Hardcover' : 'Connect Hardcover' }),
+    ).toBeVisible();
     await expect(dialog).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Retry Loading Books' })).toHaveCount(0);
     if (lostBy === 'status disconnect') return;
@@ -123,7 +153,9 @@ for (const lostBy of ['shelf disconnect', 'status disconnect', 'status reconnect
       await preview.click();
       await expect(dialog).toContainText('Loading your Want to Read shelf…');
       await expect(dialog).not.toContainText('Old shelf book');
-    } finally { releaseShelf(); }
+    } finally {
+      releaseShelf();
+    }
     await expect(dialog).toContainText('New shelf book');
   });
 }
@@ -131,13 +163,19 @@ for (const lostBy of ['shelf disconnect', 'status disconnect', 'status reconnect
 test('a revoked shelf prompts the reader to reconnect without reloading Settings', async ({ page, server }) => {
   await register(page, server.origin, 'revoked-reader');
   let reconnectRequired = false;
-  await page.route(api, route => route.fulfill({ json: { enabled: true, username: 'Linked reader', reconnect_required: reconnectRequired } }));
-  await page.route(`${api}/shelf?*`, route => {
+  await page.route(api, (route) =>
+    route.fulfill({ json: { enabled: true, username: 'Linked reader', reconnect_required: reconnectRequired } }),
+  );
+  await page.route(`${api}/shelf?*`, (route) => {
     reconnectRequired = true;
     return route.fulfill(problem(409, 'hardcover_reconnect'));
   });
-  await page.route(`${api}/connect`, route => route.fulfill({ json: { authorization_url: 'https://hardcover.app/oauth2/authorize?state=reconnect' } }));
-  await page.route('https://hardcover.app/oauth2/authorize?*', route => route.fulfill({ contentType: 'text/html', body: '<h1>Hardcover Consent</h1>' }));
+  await page.route(`${api}/connect`, (route) =>
+    route.fulfill({ json: { authorization_url: 'https://hardcover.app/oauth2/authorize?state=reconnect' } }),
+  );
+  await page.route('https://hardcover.app/oauth2/authorize?*', (route) =>
+    route.fulfill({ contentType: 'text/html', body: '<h1>Hardcover Consent</h1>' }),
+  );
   await page.goto(`${server.origin}/settings`);
   const connections = page.getByRole('region', { name: 'Connections' });
   await connections.getByRole('button', { name: 'Hardcover', exact: true }).click();
@@ -153,14 +191,16 @@ for (const outcome of ['linked', 'disconnected', 'unknown']) {
   test(`a failed disconnect checks whether the local link is ${outcome}`, async ({ page, server }) => {
     await register(page, server.origin, 'disconnect-reader');
     let attempted = false;
-    await page.route(api, route => {
+    await page.route(api, (route) => {
       if (route.request().method() === 'DELETE') {
         attempted = true;
         return route.fulfill(problem(502, 'hardcover_unavailable'));
       }
       if (attempted && outcome === 'unknown') return route.fulfill(problem(502, 'hardcover_unavailable'));
       const linked = !attempted || outcome === 'linked';
-      return route.fulfill({ json: { enabled: true, username: linked ? 'Expired reader' : null, reconnect_required: linked } });
+      return route.fulfill({
+        json: { enabled: true, username: linked ? 'Expired reader' : null, reconnect_required: linked },
+      });
     });
     await page.goto(`${server.origin}/settings`);
     const connections = page.getByRole('region', { name: 'Connections' });
@@ -180,26 +220,38 @@ for (const outcome of ['linked', 'disconnected', 'unknown']) {
   });
 }
 
-test('leaving the initiating account while connect is pending never opens Hardcover consent', async ({ page, server }) => {
+test('leaving the initiating account while connect is pending never opens Hardcover consent', async ({
+  page,
+  server,
+}) => {
   await register(page, server.origin, 'first-shelf-reader');
   let finishConnect!: () => void;
-  const pending = new Promise<void>(resolve => { finishConnect = resolve; });
-  await page.route(api, route => route.fulfill({ json: { enabled: true, username: null, reconnect_required: false } }));
-  await page.route(`${api}/connect`, async route => {
+  const pending = new Promise<void>((resolve) => {
+    finishConnect = resolve;
+  });
+  await page.route(api, (route) =>
+    route.fulfill({ json: { enabled: true, username: null, reconnect_required: false } }),
+  );
+  await page.route(`${api}/connect`, async (route) => {
     await pending;
     await route.fulfill({ json: { authorization_url: 'https://hardcover.app/oauth2/authorize?state=stale' } });
   });
   let visitedConsent = false;
-  await page.route('https://hardcover.app/oauth2/authorize?*', route => { visitedConsent = true; return route.abort(); });
+  await page.route('https://hardcover.app/oauth2/authorize?*', (route) => {
+    visitedConsent = true;
+    return route.abort();
+  });
   await page.goto(`${server.origin}/settings`);
-  const sent = page.waitForRequest(request => request.url().endsWith('/api/v1/me/hardcover/connect'));
+  const sent = page.waitForRequest((request) => request.url().endsWith('/api/v1/me/hardcover/connect'));
   await page.getByRole('button', { name: 'Connect Hardcover' }).click();
   await sent;
   try {
     await page.getByRole('button', { name: 'Sign Out', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Sign Out', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
-  } finally { finishConnect(); }
+  } finally {
+    finishConnect();
+  }
   await register(page, server.origin, 'second-shelf-reader');
   await page.goto(`${server.origin}/settings`);
   await expect(page.getByRole('button', { name: 'Connect Hardcover' })).toBeEnabled();

@@ -1,6 +1,9 @@
 import { expect, register, test } from './fixtures';
 
-test('Settings updates timezone, manages devices and rotates the current password session', async ({ page, server }) => {
+test('Settings updates timezone, manages devices and rotates the current password session', async ({
+  page,
+  server,
+}) => {
   await register(page, server.origin, 'settings-reader');
   const endpoint = `${server.origin}/api/v1`;
   const { csrf_token } = await (await page.request.get(`${endpoint}/session`)).json();
@@ -77,7 +80,10 @@ test('Settings updates timezone, manages devices and rotates the current passwor
   await save.click();
   await expectConfirmation('Timezone updated.');
   await expect(timezone).toHaveAccessibleDescription('Tokyo');
-  await page.getByRole('button', { name: 'Manage Original reader' }).getByText('Original reader', { exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Manage Original reader' })
+    .getByText('Original reader', { exact: true })
+    .click();
   await expect(modal).toHaveAccessibleName('Manage Device');
   await expect(modal.getByText(/Last synced/)).toBeVisible();
   await modal.getByLabel('Name', { exact: true }).fill('Bedside reader');
@@ -125,7 +131,10 @@ test('Settings updates timezone, manages devices and rotates the current passwor
   await expect(devices.getByRole('button', { name: 'Manage Bedside reader' })).toContainText('Synced');
 });
 
-test('account dialogs block all dismissal paths during a save and can retry after failure', async ({ page, server }) => {
+test('account dialogs block all dismissal paths during a save and can retry after failure', async ({
+  page,
+  server,
+}) => {
   await register(page, server.origin, 'settings-pending-reader');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${server.origin}/settings`);
@@ -141,12 +150,18 @@ test('account dialogs block all dismissal paths during a save and can retry afte
     const save = dialog.getByRole('button', { name: 'Save Changes', exact: true });
     const url = `**/api/v1/me/${endpoint}`;
     let release!: () => void;
-    const response = new Promise<void>(resolve => { release = resolve; });
+    const response = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     let requests = 0;
-    await page.route(url, async route => {
+    await page.route(url, async (route) => {
       if (++requests !== 1) return route.continue();
       await response;
-      await route.fulfill({ status, contentType: 'application/problem+json', json: { type: 'about:blank', title: message, status, code, detail: message } });
+      await route.fulfill({
+        status,
+        contentType: 'application/problem+json',
+        json: { type: 'about:blank', title: message, status, code, detail: message },
+      });
     });
 
     await trigger.click();
@@ -171,7 +186,9 @@ test('account dialogs block all dismissal paths during a save and can retry afte
       await page.mouse.click(x.x + x.width / 2, x.y + x.height / 2);
       await expect(dialog).toBeVisible();
       expect(requests).toBe(1);
-    } finally { release(); }
+    } finally {
+      release();
+    }
 
     await expect(dialog.getByRole('alert')).toHaveText(message);
     await expect(close).toBeEnabled();
@@ -226,7 +243,7 @@ test('Devices lists ten per page without an expander', async ({ page, server }, 
   await expect(next).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(pager.getByRole('status')).toHaveText('2 of 2');
-  expect((await rows.allTextContents()).every(row => !first.includes(row))).toBe(true);
+  expect((await rows.allTextContents()).every((row) => !first.includes(row))).toBe(true);
   await devices.screenshot({ path: testInfo.outputPath('devices-last-page.png'), animations: 'disabled' });
   await previous.click();
   await expect(rows).toHaveCount(10);

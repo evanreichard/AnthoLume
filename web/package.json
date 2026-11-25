@@ -8,6 +8,9 @@
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "lint": "oxlint --deny-warnings --report-unused-disable-directives .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && vite build",
     "test": "node --test demo-data/history.test.mjs && vitest run",
@@ -40,6 +43,8 @@
     "js-yaml": "4.3.2",
     "jszip": "3.10.1",
     "openapi-typescript": "7.13.0",
+    "oxlint": "1.95.0",
+    "prettier": "3.10.1",
     "typescript": "5.9.3",
     "vite": "8.3.8",
     "vitest": "5.1.0"

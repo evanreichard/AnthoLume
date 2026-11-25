@@ -12,7 +12,13 @@ test('Library searches for literal all and Book Detail returns to the filtered L
 
   await search.fill('Public book 01');
   await search.press('Enter');
-  await page.route('**/api/v1/documents/book_001', route => route.fulfill({ status: 404, contentType: 'application/problem+json', json: { type: 'about:blank', title: 'Not Found', status: 404, code: 'not_found' } }));
+  await page.route('**/api/v1/documents/book_001', (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: 'application/problem+json',
+      json: { type: 'about:blank', title: 'Not Found', status: 404, code: 'not_found' },
+    }),
+  );
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
   await expect(page).toHaveURL(/\/books\/server\?/);
   await expect(page.getByRole('heading', { name: 'Book not available', exact: true })).toBeVisible();
@@ -22,7 +28,10 @@ test('Library searches for literal all and Book Detail returns to the filtered L
   await expect(page.getByRole('article')).toHaveCount(1);
 });
 
-test('one named 44px Clear Search clears draft and applied q, preserves sort, and returns focus to search', async ({ page, server }) => {
+test('one named 44px Clear Search clears draft and applied q, preserves sort, and returns focus to search', async ({
+  page,
+  server,
+}) => {
   await register(page, server.origin, `clear-${Date.now()}`);
   await page.goto(`${server.origin}/library?q=Public+book+01&sort=author`);
   await expect(page.getByRole('article')).toHaveCount(1);
@@ -31,7 +40,8 @@ test('one named 44px Clear Search clears draft and applied q, preserves sort, an
   const clear = page.getByRole('button', { name: 'Clear Search', exact: true });
   await expect(clear).toHaveCount(1);
   const box = await clear.boundingBox();
-  expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44);
+  expect(box!.width).toBeGreaterThanOrEqual(44);
+  expect(box!.height).toBeGreaterThanOrEqual(44);
   const cdp = await page.context().newCDPSession(page);
   try {
     const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
@@ -40,15 +50,22 @@ test('one named 44px Clear Search clears draft and applied q, preserves sort, an
     type Node = { backendNodeId: number; attributes?: string[]; children?: Node[]; shadowRoots?: Node[] };
     function findCancel(node: Node): Node | undefined {
       if (node.attributes?.includes('-webkit-search-cancel-button')) return node;
-      for (const child of [...node.children || [], ...node.shadowRoots || []]) { const found = findCancel(child); if (found) return found; }
+      for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) {
+        const found = findCancel(child);
+        if (found) return found;
+      }
     }
     const cancel = findCancel(node);
-    const box = cancel ? await cdp.send('DOM.getBoxModel', { backendNodeId: cancel.backendNodeId }).catch((error) => {
-      if (String(error).includes('Could not compute box model')) return null;
-      throw error;
-    }) : null;
+    const box = cancel
+      ? await cdp.send('DOM.getBoxModel', { backendNodeId: cancel.backendNodeId }).catch((error) => {
+          if (String(error).includes('Could not compute box model')) return null;
+          throw error;
+        })
+      : null;
     expect(!!box && box.model.width > 0 && box.model.height > 0).toBe(false);
-  } finally { await cdp.detach(); }
+  } finally {
+    await cdp.detach();
+  }
   await clear.click();
   await expect(search).toHaveValue('');
   await expect(search).toBeFocused();
@@ -59,14 +76,31 @@ test('one named 44px Clear Search clears draft and applied q, preserves sort, an
   await expect(clear).toHaveCount(0);
 });
 
-
-test('the Library defaults to Last Read and features the last shared checkpoint independently of grid sort', async ({ page, server }) => {
+test('the Library defaults to Last Read and features the last shared checkpoint independently of grid sort', async ({
+  page,
+  server,
+}) => {
   await register(page, server.origin, 'continue-reader');
   const { csrf_token, user } = await (await page.request.get(`${server.origin}/api/v1/session`)).json();
-  const headers = { Origin: server.origin, 'X-CSRF-Token': csrf_token, 'X-AnthoLume-Reading-Generation': user.reading_generation };
+  const headers = {
+    Origin: server.origin,
+    'X-CSRF-Token': csrf_token,
+    'X-AnthoLume-Reading-Generation': user.reading_generation,
+  };
   for (const [path, data] of [
     ['devices', { id: 'other-device', name: 'Other device' }],
-    ['reading-progress', { event_id: randomUUID(), document_id: 'book_030', device_id: 'other-device', observed_at: new Date().toISOString(), base_revision: '0', position: '/body/DocFragment[1]/body/p[2]', fraction: .24 }],
+    [
+      'reading-progress',
+      {
+        event_id: randomUUID(),
+        document_id: 'book_030',
+        device_id: 'other-device',
+        observed_at: new Date().toISOString(),
+        base_revision: '0',
+        position: '/body/DocFragment[1]/body/p[2]',
+        fraction: 0.24,
+      },
+    ],
   ] as const) {
     const response = await page.request.post(`${server.origin}/api/v1/me/${path}`, { headers, data });
     expect(response.status(), await response.text()).toBe(200);
@@ -84,12 +118,18 @@ test('the Library defaults to Last Read and features the last shared checkpoint 
   await expect(feature.getByRole('heading')).toHaveText('Public book 30');
 });
 
-test('Add book uploads to the shared library and Recently Added includes it on page one', async ({ page, browser, server }) => {
+test('Add book uploads to the shared library and Recently Added includes it on page one', async ({
+  page,
+  browser,
+  server,
+}) => {
   await register(page, server.origin, 'upload-reader');
   await page.goto(`${server.origin}/library?q=ZZ&sort=added`);
   await page.getByRole('button', { name: 'Add Book', exact: true }).click();
   await page.getByLabel('Choose EPUB to upload').setInputFiles({
-    name: 'upload.epub', mimeType: 'application/epub+zip', buffer: await epub('ZZ Shared Upload'),
+    name: 'upload.epub',
+    mimeType: 'application/epub+zip',
+    buffer: await epub('ZZ Shared Upload'),
   });
   await expect(page.getByRole('dialog', { name: 'Add Book' })).toHaveCount(0);
   await expect(page).toHaveURL(`${server.origin}/library?q=ZZ&sort=added`);
@@ -108,5 +148,7 @@ test('Add book uploads to the shared library and Recently Added includes it on p
     await other.getByRole('button', { name: 'Sort Books', exact: true }).click();
     await other.getByRole('button', { name: 'Recently Added', exact: true }).click();
     await expect(other.getByRole('article').first().getByRole('heading')).toHaveText('ZZ Shared Upload');
-  } finally { await other.close(); }
+  } finally {
+    await other.close();
+  }
 });

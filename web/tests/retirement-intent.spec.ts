@@ -2,9 +2,13 @@ import { unlink, writeFile } from 'node:fs/promises';
 import { test, expect, register } from './fixtures';
 import { pendingIds } from './storage';
 
-const requested = (origin: string, id: string) => `${origin}/?${new URLSearchParams({ 'antholume-retirement': 'legacy-v1', legacyDocument: id, origin: 'https://untrusted.example', account: 'old-account' })}`;
+const requested = (origin: string, id: string) =>
+  `${origin}/?${new URLSearchParams({ 'antholume-retirement': 'legacy-v1', legacyDocument: id, origin: 'https://untrusted.example', account: 'old-account' })}`;
 
-test('root retirement keeps only document intent through logout/login/register/reload, then opens an exact authorized BookRef', async ({ page, server }) => {
+test('root retirement keeps only document intent through logout/login/register/reload, then opens an exact authorized BookRef', async ({
+  page,
+  server,
+}) => {
   const user = `intent-${Date.now()}`;
   await register(page, server.origin, user);
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
@@ -28,7 +32,9 @@ test('root retirement keeps only document intent through logout/login/register/r
   await page.getByLabel('Password', { exact: true }).fill('synthetic-public-password');
   await page.getByRole('button', { name: 'Sign In', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Book reader', exact: true })).toBeVisible();
-  await expect(page.frameLocator('iframe').first().getByRole('heading', { name: 'Public chapter', exact: true })).toBeVisible();
+  await expect(
+    page.frameLocator('iframe').first().getByRole('heading', { name: 'Public chapter', exact: true }),
+  ).toBeVisible();
   const destination = new URL(page.url());
   expect(destination.pathname).toBe('/read/server');
   expect(destination.searchParams.get('id')).toBe('book_001');
@@ -41,7 +47,11 @@ test('root retirement keeps only document intent through logout/login/register/r
   expect(resources).not.toContain('/assets/index.js');
 });
 
-test('expired-account retirement intent hides retained pending counts until explicit authentication selects the account', async ({ page, context, server }) => {
+test('expired-account retirement intent hides retained pending counts until explicit authentication selects the account', async ({
+  page,
+  context,
+  server,
+}) => {
   const user = `intent-expired-${Date.now()}`;
   await register(page, server.origin, user);
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
@@ -69,16 +79,25 @@ test('expired-account retirement intent hides retained pending counts until expl
     await expect(page.getByRole('region', { name: 'Book reader', exact: true })).toBeVisible();
     await expect(page.locator('iframe').first()).toBeVisible();
     await expect.poll(() => pendingIds(page)).toEqual([]);
-  } finally { await unlink(`${server.data}/receipt-fault`).catch(() => undefined); }
+  } finally {
+    await unlink(`${server.data}/receipt-fault`).catch(() => undefined);
+  }
 });
 
-test('already authenticated root retirement opens the original uncached document without a fake title or legacy executable', async ({ page, server }) => {
+test('already authenticated root retirement opens the original uncached document without a fake title or legacy executable', async ({
+  page,
+  server,
+}) => {
   const user = `intent-auth-${Date.now()}`;
   await register(page, server.origin, user);
   const scripts: string[] = [];
-  page.on('request', (request) => { if (request.resourceType() === 'script') scripts.push(new URL(request.url()).pathname); });
+  page.on('request', (request) => {
+    if (request.resourceType() === 'script') scripts.push(new URL(request.url()).pathname);
+  });
   await page.goto(requested(server.origin, 'book_002'));
-  await expect(page.frameLocator('iframe').first().getByRole('heading', { name: 'Public chapter', exact: true })).toBeVisible();
+  await expect(
+    page.frameLocator('iframe').first().getByRole('heading', { name: 'Public chapter', exact: true }),
+  ).toBeVisible();
   const destination = new URL(page.url());
   expect(destination.pathname).toBe('/read/server');
   expect(destination.searchParams.get('id')).toBe('book_002');
@@ -86,5 +105,9 @@ test('already authenticated root retirement opens the original uncached document
   const { user: signedIn } = await (await page.request.get(`${server.origin}/api/v1/session`)).json();
   expect(signedIn.id).toBe(user);
   expect(destination.searchParams.get('account')).toBe(signedIn.account_id);
-  expect(scripts.some((path) => path.startsWith('/assets/reader/') || path === '/assets/index.js' || path === '/assets/common.js')).toBe(false);
+  expect(
+    scripts.some(
+      (path) => path.startsWith('/assets/reader/') || path === '/assets/index.js' || path === '/assets/common.js',
+    ),
+  ).toBe(false);
 });

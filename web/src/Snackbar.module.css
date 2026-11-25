@@ -1,5 +1,10 @@
 .idle {
-  position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); pointer-events: none;
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  pointer-events: none;
 }
 .snackbar {
   --snackbar-clearance: 0px;
@@ -19,22 +24,76 @@
   background: #2d3933;
   color: #fffdf5;
   box-shadow: 0 4px 18px #1d201c55;
-  font: 550 .93rem/1.35 var(--body, system-ui, sans-serif);
+  font: 550 0.93rem/1.35 var(--body, system-ui, sans-serif);
   animation: enter 150ms ease-out both;
 }
-:global(:root:has([aria-label='Offline controls'])) .snackbar:not([data-placement='reader']) { --snackbar-clearance: 58px; }
-@media (max-width: 760px) { .snackbar:not([data-placement='reader']) { --snackbar-clearance: 58px; } }
-.snackbar[data-placement='reader'] { border-radius: 999px; }
-:global(:root:has([data-reader-controls='visible'])) .snackbar[data-placement='reader'] { --snackbar-clearance: 54px; }
-.snackbar > svg { flex: none; color: #dce5d9; }
-.snackbar[data-tone='error'] > svg { color: #ffccaa; }
-.message { min-width: 0; flex: 1; overflow-wrap: anywhere; }
-.snackbar button {
-  display: grid; place-items: center; flex: none; min-width: 44px; min-height: 44px;
-  border: 0; border-radius: 999px; padding: 4px 8px; background: transparent; color: inherit; font: inherit; cursor: pointer;
+:global(:root:has([aria-label='Offline controls'])) .snackbar:not([data-placement='reader']) {
+  --snackbar-clearance: 58px;
 }
-.snackbar .action { max-width: 45%; overflow-wrap: anywhere; color: #f3e7be; font-weight: 700; }
-.snackbar button:focus-visible { outline: 2px solid #fffdf5; outline-offset: -3px; }
-@media (hover: hover) { .snackbar button:hover { background: #ffffff1a; } }
-@keyframes enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-@media (prefers-reduced-motion: reduce) { .snackbar { animation: none; } }
+@media (max-width: 760px) {
+  .snackbar:not([data-placement='reader']) {
+    --snackbar-clearance: 58px;
+  }
+}
+.snackbar[data-placement='reader'] {
+  border-radius: 999px;
+}
+:global(:root:has([data-reader-controls='visible'])) .snackbar[data-placement='reader'] {
+  --snackbar-clearance: 54px;
+}
+.snackbar > svg {
+  flex: none;
+  color: #dce5d9;
+}
+.snackbar[data-tone='error'] > svg {
+  color: #ffccaa;
+}
+.message {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.snackbar button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.snackbar .action {
+  max-width: 45%;
+  overflow-wrap: anywhere;
+  color: #f3e7be;
+  font-weight: 700;
+}
+.snackbar button:focus-visible {
+  outline: 2px solid #fffdf5;
+  outline-offset: -3px;
+}
+@media (hover: hover) {
+  .snackbar button:hover {
+    background: #ffffff1a;
+  }
+}
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .snackbar {
+    animation: none;
+  }
+}

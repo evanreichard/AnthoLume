@@ -6,7 +6,7 @@ const button = (page: Page, name: string) => page.getByRole('button', { name, ex
 const click = (page: Page, name: string) => button(page, name).dispatchEvent('click');
 
 async function visibility(page: Page, hidden: boolean) {
-  await page.evaluate(value => {
+  await page.evaluate((value) => {
     Object.defineProperty(document, 'hidden', { configurable: true, value });
     document.dispatchEvent(new Event('visibilitychange'));
   }, hidden);

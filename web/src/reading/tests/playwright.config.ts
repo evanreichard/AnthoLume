@@ -1,2 +1,24 @@
 import { defineConfig } from '@playwright/test';
-export default defineConfig({ testDir: './browser', timeout: 90000, expect: { timeout: 15000 }, workers: 1, fullyParallel: false, outputDir: '../../../../build/test-results/reader', reporter: [['list'], ['json', { outputFile: '../../../../build/test-results/reader/results.json' }]], use: { baseURL: 'http://127.0.0.1:5346', headless: true, launchOptions: { executablePath: process.env.CHROMIUM_PATH, args: ['--no-sandbox'] }, trace: 'retain-on-failure' }, webServer: { command: 'node src/reading/tests/generate-large.mjs --if-missing && node node_modules/vite/bin/vite.js --config src/reading/tests/vite.config.ts', cwd: '../../..', url: 'http://127.0.0.1:5346', reuseExistingServer: false, timeout: 30000 } });
+export default defineConfig({
+  testDir: './browser',
+  timeout: 90000,
+  expect: { timeout: 15000 },
+  workers: 1,
+  fullyParallel: false,
+  outputDir: '../../../../build/test-results/reader',
+  reporter: [['list'], ['json', { outputFile: '../../../../build/test-results/reader/results.json' }]],
+  use: {
+    baseURL: 'http://127.0.0.1:5346',
+    headless: true,
+    launchOptions: { executablePath: process.env.CHROMIUM_PATH, args: ['--no-sandbox'] },
+    trace: 'retain-on-failure',
+  },
+  webServer: {
+    command:
+      'node src/reading/tests/generate-large.mjs --if-missing && node node_modules/vite/bin/vite.js --config src/reading/tests/vite.config.ts',
+    cwd: '../../..',
+    url: 'http://127.0.0.1:5346',
+    reuseExistingServer: false,
+    timeout: 30000,
+  },
+});

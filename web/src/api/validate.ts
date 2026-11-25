@@ -33,16 +33,20 @@ export {
 
 type S = components['schemas'];
 export class InvalidResponse extends Error {
-  constructor() { super('The server returned an invalid response. Nothing was acknowledged.'); }
+  constructor() {
+    super('The server returned an invalid response. Nothing was acknowledged.');
+  }
 }
 export function isSession(value: unknown): value is S['Session'] {
   return checkSession(value) && (value.user === null) === (value.expires_at === null);
 }
 export function isPage(value: unknown): value is S['DocumentPage'] {
-  return checkDocumentPage(value)
-    && value.items.length <= Math.min(value.page_size, value.total)
-    && new Set(value.items.map(item => item.id)).size === value.items.length
-    && (value.next_page === null || value.next_page === value.page + 1);
+  return (
+    checkDocumentPage(value) &&
+    value.items.length <= Math.min(value.page_size, value.total) &&
+    new Set(value.items.map((item) => item.id)).size === value.items.length &&
+    (value.next_page === null || value.next_page === value.page + 1)
+  );
 }
 export function isInsightActivity(value: unknown): value is S['InsightActivityPage'] {
   return checkInsightActivityPage(value) && value.has_more === (value.next_cursor !== undefined);

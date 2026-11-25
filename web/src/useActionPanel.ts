@@ -1,6 +1,11 @@
 import { useEffect, useEffectEvent, type FocusEvent, type KeyboardEvent, type RefObject } from 'react';
 
-export function useActionPanel(open: boolean, trigger: RefObject<HTMLElement | null>, panel: RefObject<HTMLElement | null>, onDismiss: () => void) {
+export function useActionPanel(
+  open: boolean,
+  trigger: RefObject<HTMLElement | null>,
+  panel: RefObject<HTMLElement | null>,
+  onDismiss: () => void,
+) {
   function contains(target: EventTarget | null) {
     return target instanceof Node && (trigger.current?.contains(target) || panel.current?.contains(target));
   }

@@ -19,15 +19,19 @@ export async function refreshLibraryResume(client: QueryClient, account: Account
 }
 
 function invalidateCatalog(client: QueryClient, account: Account, documentId?: string) {
-  return client.invalidateQueries({ predicate: ({ queryKey: [family, scope] }) => {
-    if (!scope || typeof scope !== 'object') return false;
-    if (family === 'document' || family === 'cover') {
-      const ref = scope as BookRef;
-      if (ref.kind !== 'server' || !sameAccount(ref.account, account)) return false;
-      return documentId === undefined ? family === 'document' : ref.documentId === documentId;
-    }
-    const relevant = family === 'documents' || family === 'library-resume' ||
-      (documentId !== undefined && (family === 'insight-activity' || family === 'insight-progress'));
-    return relevant && sameAccount(scope as Account, account);
-  } });
+  return client.invalidateQueries({
+    predicate: ({ queryKey: [family, scope] }) => {
+      if (!scope || typeof scope !== 'object') return false;
+      if (family === 'document' || family === 'cover') {
+        const ref = scope as BookRef;
+        if (ref.kind !== 'server' || !sameAccount(ref.account, account)) return false;
+        return documentId === undefined ? family === 'document' : ref.documentId === documentId;
+      }
+      const relevant =
+        family === 'documents' ||
+        family === 'library-resume' ||
+        (documentId !== undefined && (family === 'insight-activity' || family === 'insight-progress'));
+      return relevant && sameAccount(scope as Account, account);
+    },
+  });
 }

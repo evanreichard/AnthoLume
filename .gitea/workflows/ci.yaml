@@ -65,6 +65,11 @@ jobs:
       - name: Frontend and generation
         run: make check_web check_generation
 
+      - name: Frontend lint and formatting
+        run: |
+          npm --prefix web run lint
+          npm --prefix web run format:check
+
       - name: Build server with frontend assets
         run: go build -mod=readonly -o /dev/null .
 

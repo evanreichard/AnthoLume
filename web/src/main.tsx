@@ -5,7 +5,11 @@ import './tokens.css';
 
 if (CSS.supports('-webkit-touch-callout', 'none') && navigator.maxTouchPoints > 0) {
   const root = document.documentElement;
-  window.addEventListener('pointerdown', event => root.toggleAttribute('data-touch-focus', event.pointerType === 'touch'), true);
+  window.addEventListener(
+    'pointerdown',
+    (event) => root.toggleAttribute('data-touch-focus', event.pointerType === 'touch'),
+    true,
+  );
   window.addEventListener('keydown', () => root.removeAttribute('data-touch-focus'), true);
 }
 

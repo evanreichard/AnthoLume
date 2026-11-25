@@ -1,51 +1,278 @@
-.kicker { margin: 0 0 .4rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); font-size: .69rem; font-weight: 700; }
-.chartHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
-.chartHeading h2 { font-family: inherit; margin: 0 0 .25rem; }
-.chartHeading p { margin: 0; color: var(--muted); font-size: .78rem; }
-.chartTotal { font-family: var(--display); font-size: clamp(1.05rem, 4.5vw, 1.55rem); font-weight: 400; line-height: 1.2; text-align: end; }
-.muted, .axis, .entries small { color: var(--muted); }
-.chart { display: grid; grid-template-columns: repeat(30, minmax(0, 1fr)); gap: clamp(1px, .55vw, 5px); height: 78px; padding-top: .5rem; }
-.chart a { display: flex; align-items: flex-end; justify-content: center; border-radius: 4px; }
-.chart a:is(:hover,:focus-visible) { background: var(--hero); }
-.chart a > span { display: block; width: 100%; height: max(2px, var(--bar)); border-radius: 4px 4px 2px 2px; background: var(--accent); }
-.chart .skeletonBar { align-self: end; height: var(--bar); border-radius: 4px 4px 2px 2px; }
-.chart a[aria-label$=': 0 min'] span { background: var(--line); }
-.axis, .historyFilters { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-.axis { margin-top: .5rem; font-size: .75rem; min-height: 1lh; }
-.streaks { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .65rem; margin-block: .8rem 1.4rem; }
-.streaks section { background: var(--surface); border: 1px solid var(--line); border-radius: .85rem; padding: .85rem; }
-.streaks h2, .streaks p:last-child { margin: 0; }
-.streaks p:last-child { color: var(--muted); font-size: .78rem; margin-top: .2rem; }
-.history { margin-top: .75rem; }
-.historyFilters { gap: .75rem; color: var(--muted); font-size: .875rem; }
-.historyFilters a { display: inline-flex; align-items: center; min-height: 44px; margin-inline-start: auto; }
-.entries { margin: .5rem 0 0; list-style: none; padding: 0; }
-.entries li { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .85rem 0; border-bottom: 1px solid var(--line); }
-.entries li > div { min-width: 0; overflow-wrap: anywhere; }
-.entries small { display: block; margin-top: .25rem; }
-.value { flex: none; font-variant-numeric: tabular-nums; font-size: .85rem; }
-.journalDay + .journalDay { margin-top: 1.5rem; }
-.dayHeader { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem 1rem; flex-wrap: wrap; padding: .55rem .7rem; background: var(--hero); border-radius: .55rem; }
-.dayHeader h2 { margin: 0; font: 650 .9rem/1.35 system-ui, sans-serif; }
-.dayHeader > span { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
-.journalDay .entries { margin-top: 0; }
-.progressEntries li { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; gap: .45rem; }
-.progressHeading { display: flex; justify-content: space-between; align-items: baseline; gap: .75rem; }
-.bookProgress { display: block; appearance: none; width: 100%; height: .35rem; border: 0; border-radius: 1rem; overflow: hidden; background: var(--line); accent-color: var(--accent); }
-.bookProgress::-webkit-progress-bar { background: var(--line); }
-.bookProgress::-webkit-progress-value { background: var(--accent); border-radius: 1rem; }
-.bookProgress::-moz-progress-bar { background: var(--accent); border-radius: 1rem; }
-.entries .progressMeta { display: flex; justify-content: space-between; align-items: baseline; gap: .15rem .75rem; flex-wrap: wrap; margin: 0; }
-.progressMeta a { display: inline-flex; align-items: center; min-height: 44px; margin-block: -.4rem; }
-.loadMore { display: flex; justify-content: center; margin-block: 1rem; }
-.loadMore button[aria-disabled='true'] { color: var(--muted); cursor: default; }
-.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.rankings { margin-top: 1.35rem; }
-.metricSwitch { margin-block: .9rem .5rem; }
-.rankingNote { color: var(--muted); font-size: .82rem; }
-.rankRows { padding: 0; margin: .4rem 0 0; list-style: none; }
-.rankRows li { display: grid; grid-template-columns: 1.75rem minmax(0, 1fr) auto; align-items: center; gap: .6rem; padding: .7rem 0; border-bottom: 1px solid var(--line); }
-.rankNumber { display: grid; place-items: center; min-height: 1.75rem; border-radius: .4rem; background: var(--hero); color: var(--ink); font-size: .75rem; font-weight: 700; }
-.rankRows .rankNumber[aria-hidden] { width: 1.75rem; }
-.rankName { overflow-wrap: anywhere; }
-.fullRankings { display: inline-flex; align-items: center; gap: .4rem; min-height: 44px; margin-top: .25rem; font-size: .85rem; }
+.kicker {
+  margin: 0 0 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-size: 0.69rem;
+  font-weight: 700;
+}
+.chartHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.chartHeading h2 {
+  font-family: inherit;
+  margin: 0 0 0.25rem;
+}
+.chartHeading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.chartTotal {
+  font-family: var(--display);
+  font-size: clamp(1.05rem, 4.5vw, 1.55rem);
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: end;
+}
+.muted,
+.axis,
+.entries small {
+  color: var(--muted);
+}
+.chart {
+  display: grid;
+  grid-template-columns: repeat(30, minmax(0, 1fr));
+  gap: clamp(1px, 0.55vw, 5px);
+  height: 78px;
+  padding-top: 0.5rem;
+}
+.chart a {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border-radius: 4px;
+}
+.chart a:is(:hover, :focus-visible) {
+  background: var(--hero);
+}
+.chart a > span {
+  display: block;
+  width: 100%;
+  height: max(2px, var(--bar));
+  border-radius: 4px 4px 2px 2px;
+  background: var(--accent);
+}
+.chart .skeletonBar {
+  align-self: end;
+  height: var(--bar);
+  border-radius: 4px 4px 2px 2px;
+}
+.chart a[aria-label$=': 0 min'] span {
+  background: var(--line);
+}
+.axis,
+.historyFilters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.axis {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  min-height: 1lh;
+}
+.streaks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-block: 0.8rem 1.4rem;
+}
+.streaks section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  padding: 0.85rem;
+}
+.streaks h2,
+.streaks p:last-child {
+  margin: 0;
+}
+.streaks p:last-child {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 0.2rem;
+}
+.history {
+  margin-top: 0.75rem;
+}
+.historyFilters {
+  gap: 0.75rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.historyFilters a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-inline-start: auto;
+}
+.entries {
+  margin: 0.5rem 0 0;
+  list-style: none;
+  padding: 0;
+}
+.entries li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.entries li > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.entries small {
+  display: block;
+  margin-top: 0.25rem;
+}
+.value {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+.journalDay + .journalDay {
+  margin-top: 1.5rem;
+}
+.dayHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+  flex-wrap: wrap;
+  padding: 0.55rem 0.7rem;
+  background: var(--hero);
+  border-radius: 0.55rem;
+}
+.dayHeader h2 {
+  margin: 0;
+  font:
+    650 0.9rem/1.35 system-ui,
+    sans-serif;
+}
+.dayHeader > span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+.journalDay .entries {
+  margin-top: 0;
+}
+.progressEntries li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
+  gap: 0.45rem;
+}
+.progressHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+.bookProgress {
+  display: block;
+  appearance: none;
+  width: 100%;
+  height: 0.35rem;
+  border: 0;
+  border-radius: 1rem;
+  overflow: hidden;
+  background: var(--line);
+  accent-color: var(--accent);
+}
+.bookProgress::-webkit-progress-bar {
+  background: var(--line);
+}
+.bookProgress::-webkit-progress-value {
+  background: var(--accent);
+  border-radius: 1rem;
+}
+.bookProgress::-moz-progress-bar {
+  background: var(--accent);
+  border-radius: 1rem;
+}
+.entries .progressMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.15rem 0.75rem;
+  flex-wrap: wrap;
+  margin: 0;
+}
+.progressMeta a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-block: -0.4rem;
+}
+.loadMore {
+  display: flex;
+  justify-content: center;
+  margin-block: 1rem;
+}
+.loadMore button[aria-disabled='true'] {
+  color: var(--muted);
+  cursor: default;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.rankings {
+  margin-top: 1.35rem;
+}
+.metricSwitch {
+  margin-block: 0.9rem 0.5rem;
+}
+.rankingNote {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.rankRows {
+  padding: 0;
+  margin: 0.4rem 0 0;
+  list-style: none;
+}
+.rankRows li {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.rankNumber {
+  display: grid;
+  place-items: center;
+  min-height: 1.75rem;
+  border-radius: 0.4rem;
+  background: var(--hero);
+  color: var(--ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.rankRows .rankNumber[aria-hidden] {
+  width: 1.75rem;
+}
+.rankName {
+  overflow-wrap: anywhere;
+}
+.fullRankings {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+}

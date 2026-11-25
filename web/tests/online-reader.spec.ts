@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 import { expect, register, test } from './fixtures';
 
-test('KO progress without a device ID can be resumed and does not create a manageable device', async ({ page, server }) => {
+test('KO progress without a device ID can be resumed and does not create a manageable device', async ({
+  page,
+  server,
+}) => {
   const user = 'optional-device';
   await register(page, server.origin, user);
   const position = '/body/DocFragment[1]/body/p[20]';
@@ -19,12 +22,15 @@ test('KO progress without a device ID can be resumed and does not create a manag
   await expect(page.getByRole('region', { name: 'Book reader' })).toHaveAttribute('data-reader-state', 'ready');
 });
 
-test('Read opens online and revalidates the browser EPUB cache without transferring it again', async ({ page, server }) => {
+test('Read opens online and revalidates the browser EPUB cache without transferring it again', async ({
+  page,
+  server,
+}) => {
   await register(page, server.origin, 'online-reader');
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
   const reader = page.getByRole('region', { name: 'Book reader', exact: true });
   for (const status of [200, 304]) {
-    const file = page.waitForResponse(response => /\/api\/v1\/documents\/[^/]+\/file$/.test(response.url()));
+    const file = page.waitForResponse((response) => /\/api\/v1\/documents\/[^/]+\/file$/.test(response.url()));
     await page.getByRole('link', { name: /^(Read|Resume)$/ }).click();
     expect((await file).status()).toBe(status);
     await expect(reader).toHaveAttribute('data-reader-state', 'ready');
@@ -47,21 +53,38 @@ test('saved theme is already active while the EPUB is downloading', async ({ pag
       await new Promise<void>((resolve, reject) => {
         const tx = db.transaction('meta', 'readwrite');
         tx.objectStore('meta').put({ key: 'appearance', value: { theme: 'black', font: 'serif', size: 100 } });
-        tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error);
+        tx.oncomplete = () => resolve();
+        tx.onabort = () => reject(tx.error);
       });
-    } finally { db.close(); }
+    } finally {
+      db.close();
+    }
   });
   const cdp = await context.newCDPSession(page);
-  await cdp.send('Network.emulateNetworkConditionsByRule', { offline: false, matchedNetworkConditions: [{ urlPattern: `${server.origin}/api/v1/documents/*/file`, latency: 0, downloadThroughput: 1024, uploadThroughput: -1 }] });
+  await cdp.send('Network.emulateNetworkConditionsByRule', {
+    offline: false,
+    matchedNetworkConditions: [
+      {
+        urlPattern: `${server.origin}/api/v1/documents/*/file`,
+        latency: 0,
+        downloadThroughput: 1024,
+        uploadThroughput: -1,
+      },
+    ],
+  });
   try {
     await page.getByRole('link', { name: 'Read', exact: true }).click();
     const progress = page.getByRole('progressbar', { name: 'EPUB download progress' });
     await expect(progress).toBeVisible();
-    await expect(page.getByText('Downloading EPUB…', { exact: true }).and(page.locator('span[aria-hidden="true"]'))).toBeVisible();
+    await expect(
+      page.getByText('Downloading EPUB…', { exact: true }).and(page.locator('span[aria-hidden="true"]')),
+    ).toBeVisible();
     await expect(progress).toHaveAttribute('max', /[1-9]\d*/);
     await expect(page.getByRole('region', { name: 'Book reader' })).toHaveCSS('background-color', 'rgb(18, 18, 18)');
     await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#121212');
-  } finally { await cdp.detach(); }
+  } finally {
+    await cdp.detach();
+  }
   await expect(page.getByRole('region', { name: 'Book reader' })).toHaveAttribute('data-reader-state', 'ready');
   await expect(page.frameLocator('iframe').locator('body')).toHaveCSS('background-color', 'rgb(18, 18, 18)');
 });

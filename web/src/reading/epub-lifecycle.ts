@@ -13,18 +13,25 @@ export class ScopedViewManager extends DefaultViewManager {
   }
   override paginatedLocation() {
     const pages = super.paginatedLocation();
-    const views = this.visible(), viewport = this.container.getBoundingClientRect();
+    const views = this.visible(),
+      viewport = this.container.getBoundingClientRect();
     for (const page of pages) {
-      const view = views.find(view => view.section.index === page.index);
+      const view = views.find((view) => view.section.index === page.index);
       const doc = view?.contents?.document;
       if (!view || !doc?.images.length) continue;
       const origin = view.iframe.getBoundingClientRect();
-      const clippedVisible = (element: Element | null) => element && Array.from(element.getClientRects()).some(rect =>
-        rect.right + origin.left > viewport.left && rect.left + origin.left < viewport.right &&
-        rect.bottom + origin.top > viewport.top && rect.top + origin.top < viewport.bottom);
+      const clippedVisible = (element: Element | null) =>
+        element &&
+        Array.from(element.getClientRects()).some(
+          (rect) =>
+            rect.right + origin.left > viewport.left &&
+            rect.left + origin.left < viewport.right &&
+            rect.bottom + origin.top > viewport.top &&
+            rect.top + origin.top < viewport.bottom,
+        );
       const endpoint = (cfi: string) => {
         const node = new EpubCFI(cfi).toRange(doc)?.startContainer;
-        return node?.nodeType === Node.ELEMENT_NODE ? node as Element : node?.parentElement ?? null;
+        return node?.nodeType === Node.ELEMENT_NODE ? (node as Element) : (node?.parentElement ?? null);
       };
       // Raster Page Mapping - EPUB.js walks only text, so an image-only column can inherit the next column's start and a body-relative end.
       if (clippedVisible(endpoint(page.mapping.start))) continue;
@@ -48,21 +55,32 @@ export function useValidatedDocuments(book: Book, policy: ChapterPolicy) {
   book.load = (input: string) => {
     const path = decodeURIComponent(new URL(book.resolve(input), 'https://epub.invalid/').pathname).replace(/^\//, '');
     if (!policy.allowsDocument(path)) return Promise.reject(new Error('Unvalidated engine document request'));
-    return policy.document(path).then(doc => doc.cloneNode(true));
+    return policy.document(path).then((doc) => doc.cloneNode(true));
   };
 }
 
 // Pinned Error Delivery - 0.3.93 otherwise leaves ready/display promises unresolved after rejected NAV/chapter work.
 export function settleBookFailures(book: Book) {
-  const engine = book as unknown as { loadNavigation(packaging: unknown): Promise<unknown>; loading: { navigation: { reject(error: unknown): void } } };
+  const engine = book as unknown as {
+    loadNavigation(packaging: unknown): Promise<unknown>;
+    loading: { navigation: { reject(error: unknown): void } };
+  };
   const load = engine.loadNavigation.bind(engine);
-  engine.loadNavigation = packaging => load(packaging).catch(error => { engine.loading.navigation.reject(error); });
+  engine.loadNavigation = (packaging) =>
+    load(packaging).catch((error) => {
+      engine.loading.navigation.reject(error);
+    });
 }
 export function settleDisplayFailures(rendition: Rendition, signal: AbortSignal) {
   const engine = rendition as Rendition & { displaying?: { reject(error: unknown): void } };
-  const fail = (error: unknown) => engine.displaying?.reject(error), abort = () => fail(signal.reason);
-  engine.on('displayerror', fail); signal.addEventListener('abort', abort, { once: true });
-  return () => { engine.off('displayerror', fail); signal.removeEventListener('abort', abort); };
+  const fail = (error: unknown) => engine.displaying?.reject(error),
+    abort = () => fail(signal.reason);
+  engine.on('displayerror', fail);
+  signal.addEventListener('abort', abort, { once: true });
+  return () => {
+    engine.off('displayerror', fail);
+    signal.removeEventListener('abort', abort);
+  };
 }
 
 export function destroyBook(book: Book) {
@@ -70,6 +88,7 @@ export function destroyBook(book: Book) {
   book.rendition?.q.stop();
   // CSS URLs - Archive.destroy revokes archive URLs, but Resources.destroy omits generated stylesheet URLs.
   const resources = book.resources as typeof book.resources & { replacementUrls?: string[] };
-  for (const url of resources?.replacementUrls || []) if (typeof url === 'string' && url.startsWith('blob:')) URL.revokeObjectURL(url);
+  for (const url of resources?.replacementUrls || [])
+    if (typeof url === 'string' && url.startsWith('blob:')) URL.revokeObjectURL(url);
   book.destroy();
 }

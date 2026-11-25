@@ -21,26 +21,63 @@ export function AdminMetadata({ account }: { account: Account }) {
   const [error, setError] = useState<unknown>(null);
   const current = query.data;
   async function choose(provider: Provider) {
-    if (!current || saving || provider === current.selected || (provider === 'hardcover' && !current.hardcover_available)) return;
-    setSaving(true); setError(null);
+    if (
+      !current ||
+      saving ||
+      provider === current.selected ||
+      (provider === 'hardcover' && !current.hardcover_available)
+    )
+      return;
+    setSaving(true);
+    setError(null);
     try {
       const saved = await session.api.setAdminMetadataProvider(account, provider);
       await client.cancelQueries({ queryKey });
       client.setQueryData(queryKey, saved);
-    } catch (failure) { setError(failure); }
-    finally { setSaving(false); }
+    } catch (failure) {
+      setError(failure);
+    } finally {
+      setSaving(false);
+    }
   }
-  return <Card density="compact" aria-labelledby="admin-metadata-heading">
-    <CardHeader id="admin-metadata-heading" title="Metadata Provider" />
-    <ErrorNotice error={error ?? query.error} />
-    {query.isPending && <SkeletonRows label="Loading metadata provider…" count={1} secondary={false} />}
-    {current && <>
-      <RadioChoices<Provider> labelledBy="admin-metadata-heading" value={current.selected} onChange={choose} options={[
-        { value: 'openlibrary', label: 'Open Library', description: 'Default provider for Identify Book.', disabled: saving },
-        { value: 'hardcover', label: 'Hardcover', description: current.hardcover_available ? 'Use the Hardcover catalog for all readers.' : tokenHint, disabled: saving || !current.hardcover_available },
-      ]} />
-      {current.selected !== current.effective && <p role="status" className={styles.settingsCardFeedback}>Open Library is active because the saved Hardcover provider no longer has a catalog token.</p>}
-      {saving && <p role="status" className={styles.settingsCardFeedback}>Saving provider…</p>}
-    </>}
-  </Card>;
+  return (
+    <Card density="compact" aria-labelledby="admin-metadata-heading">
+      <CardHeader id="admin-metadata-heading" title="Metadata Provider" />
+      <ErrorNotice error={error ?? query.error} />
+      {query.isPending && <SkeletonRows label="Loading metadata provider…" count={1} secondary={false} />}
+      {current && (
+        <>
+          <RadioChoices<Provider>
+            labelledBy="admin-metadata-heading"
+            value={current.selected}
+            onChange={choose}
+            options={[
+              {
+                value: 'openlibrary',
+                label: 'Open Library',
+                description: 'Default provider for Identify Book.',
+                disabled: saving,
+              },
+              {
+                value: 'hardcover',
+                label: 'Hardcover',
+                description: current.hardcover_available ? 'Use the Hardcover catalog for all readers.' : tokenHint,
+                disabled: saving || !current.hardcover_available,
+              },
+            ]}
+          />
+          {current.selected !== current.effective && (
+            <p role="status" className={styles.settingsCardFeedback}>
+              Open Library is active because the saved Hardcover provider no longer has a catalog token.
+            </p>
+          )}
+          {saving && (
+            <p role="status" className={styles.settingsCardFeedback}>
+              Saving provider…
+            </p>
+          )}
+        </>
+      )}
+    </Card>
+  );
 }

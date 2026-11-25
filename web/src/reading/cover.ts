@@ -17,7 +17,9 @@ export async function readCover(response: Response, signal: AbortSignal): Promis
   const reader = response.body.getReader();
   const parts: Uint8Array<ArrayBuffer>[] = [];
   let bytes = 0;
-  const abort = () => { void reader.cancel(signal.reason).catch(() => undefined); };
+  const abort = () => {
+    void reader.cancel(signal.reason).catch(() => undefined);
+  };
   signal.addEventListener('abort', abort, { once: true });
   try {
     signal.throwIfAborted();

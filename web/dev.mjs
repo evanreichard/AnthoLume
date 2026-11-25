@@ -18,9 +18,17 @@ function port(name, fallback) {
 
 function tailnetIP() {
   try {
-    const ip = execFileSync('tailscale', ['ip', '-4'], { encoding: 'utf8', timeout: 2000, stdio: ['ignore', 'pipe', 'ignore'] }).trim().split(/\s+/)[0];
+    const ip = execFileSync('tailscale', ['ip', '-4'], {
+      encoding: 'utf8',
+      timeout: 2000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .trim()
+      .split(/\s+/)[0];
     return isIPv4(ip) && ip !== '127.0.0.1' ? ip : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 const uuidFallback = `if (!crypto.randomUUID) crypto.randomUUID = () => {
@@ -44,7 +52,7 @@ const uuidPlugin = {
 
 async function hasAppBuild() {
   for (const name of ['index.html', 'sw.js', 'manifest.json', 'shell-paths.json']) {
-    const info = await stat(join(repo, 'assets/app', name)).catch(error => {
+    const info = await stat(join(repo, 'assets/app', name)).catch((error) => {
       if (error.code !== 'ENOENT') throw error;
     });
     if (!info?.isFile() || !info.size) return false;
@@ -56,9 +64,16 @@ async function run() {
   const hot = process.argv.includes('--hot');
   const root = join(repo, 'data/dev');
   const ip = tailnetIP();
-  const shouldSeed = process.env.SEED !== '0' && !process.env.RESTORE && await lstat(root).then(
-    () => false, error => { if (error.code === 'ENOENT') return true; throw error; },
-  );
+  const shouldSeed =
+    process.env.SEED !== '0' &&
+    !process.env.RESTORE &&
+    (await lstat(root).then(
+      () => false,
+      (error) => {
+        if (error.code === 'ENOENT') return true;
+        throw error;
+      },
+    ));
   const frontendPort = port('DEV_PORT', hot ? 5325 : 5323);
   const goPort = port('DEV_GO_PORT', 5324);
   if (frontendPort === goPort) throw new Error('DEV_PORT and DEV_GO_PORT must differ.');
@@ -74,26 +89,28 @@ async function run() {
   const launch = (binary, args, env) => {
     // Dev Lock - Keep the launcher's flock alive even if the launcher is killed before the child.
     child = spawn(binary, args, { cwd: repo, stdio: ['ignore', 'inherit', 'inherit', 9], env });
-    return new Promise(resolve => {
-      child.once('error', error => resolve(error.message));
+    return new Promise((resolve) => {
+      child.once('error', (error) => resolve(error.message));
       child.once('exit', (code, signal) => resolve(signal || code));
     });
   };
-  const clean = () => cleaning ??= (async () => {
-    const closed = extra?.listening ? new Promise(resolve => extra.close(resolve)) : null;
-    for (const socket of sockets) socket.destroy();
-    if (child?.pid && child.exitCode === null && child.signalCode === null) {
-      const done = new Promise(resolve => child.once('exit', resolve));
-      child.kill('SIGTERM');
-      await done;
-    }
-    await closed;
-    if (buildDir) await rm(buildDir, { recursive: true, force: true });
-  })();
+  const clean = () =>
+    (cleaning ??= (async () => {
+      const closed = extra?.listening ? new Promise((resolve) => extra.close(resolve)) : null;
+      for (const socket of sockets) socket.destroy();
+      if (child?.pid && child.exitCode === null && child.signalCode === null) {
+        const done = new Promise((resolve) => child.once('exit', resolve));
+        child.kill('SIGTERM');
+        await done;
+      }
+      await closed;
+      if (buildDir) await rm(buildDir, { recursive: true, force: true });
+    })());
 
-  let discardSeed = false, frontendReady = false;
+  let discardSeed = false,
+    frontendReady = false;
   const shutdown = new AbortController();
-  const stopped = new Promise(resolve => shutdown.signal.addEventListener('abort', () => resolve(), { once: true }));
+  const stopped = new Promise((resolve) => shutdown.signal.addEventListener('abort', () => resolve(), { once: true }));
   const stop = () => shutdown.abort();
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
@@ -112,36 +129,44 @@ async function run() {
     }
     if (shutdown.signal.aborted) return;
     vite = await createServer({
-      root: web, configFile: hot ? configFile : false,
+      root: web,
+      configFile: hot ? configFile : false,
       ...(hot ? {} : { appType: 'custom' }),
       server: {
-        host: '127.0.0.1', port: frontendPort, strictPort: true,
+        host: '127.0.0.1',
+        port: frontendPort,
+        strictPort: true,
         // Built App - Go serves the actual shell, assets and worker; Vite just proxies requests.
         ...(hot ? {} : { ws: false, watch: null, proxy: { '^/': { target } } }),
       },
-      plugins: [...(hot && ip ? [uuidPlugin] : []), {
-        name: 'antholume-local-development',
-        closeServer: clean,
-        configureServer(server) {
-          server.middlewares.use((_req, res, next) => {
-            if (frontendReady) return next();
-            res.writeHead(503, { 'Retry-After': '1', 'Cache-Control': 'no-store' });
-            res.end('Dev library is starting.');
-          });
-          for (const options of Object.values(server.config.server.proxy)) {
-            options.configure = proxy => proxy.on('proxyReq', (out, req) => {
-              const host = req.headers.host;
-              if (frontendHosts.has(host) && req.headers.origin === `http://${host}`) out.setHeader('Origin', target);
-              else if (req.headers.origin) out.removeHeader('Origin');
+      plugins: [
+        ...(hot && ip ? [uuidPlugin] : []),
+        {
+          name: 'antholume-local-development',
+          closeServer: clean,
+          configureServer(server) {
+            server.middlewares.use((_req, res, next) => {
+              if (frontendReady) return next();
+              res.writeHead(503, { 'Retry-After': '1', 'Cache-Control': 'no-store' });
+              res.end('Dev library is starting.');
             });
-          }
+            for (const options of Object.values(server.config.server.proxy)) {
+              options.configure = (proxy) =>
+                proxy.on('proxyReq', (out, req) => {
+                  const host = req.headers.host;
+                  if (frontendHosts.has(host) && req.headers.origin === `http://${host}`)
+                    out.setHeader('Origin', target);
+                  else if (req.headers.origin) out.removeHeader('Origin');
+                });
+            }
+          },
         },
-      }],
+      ],
     });
     await vite.listen();
     if (ip) {
       // Tailnet Listener - Share the frontend without binding every interface.
-      extra = createListener(socket => {
+      extra = createListener((socket) => {
         sockets.add(socket);
         socket.once('close', () => sockets.delete(socket));
         vite.httpServer.emit('connection', socket);
@@ -161,17 +186,28 @@ async function run() {
     const binary = join(buildDir, 'antholume');
     execFileSync('go', ['build', '-o', setup, './tools/dev'], { cwd: repo, stdio: 'inherit' });
     execFileSync('go', ['build', '-o', binary, '.'], { cwd: repo, stdio: 'inherit' });
-    const prepared = await Promise.race([stopped, launch(setup, [shouldSeed ? 'prepare-seed' : 'prepare'], { ...process.env, GIN_MODE: 'release' })]);
+    const prepared = await Promise.race([
+      stopped,
+      launch(setup, [shouldSeed ? 'prepare-seed' : 'prepare'], { ...process.env, GIN_MODE: 'release' }),
+    ]);
     if (prepared === undefined) return;
     if (prepared !== 0) throw new Error(`Go setup exited (${prepared})`);
     discardSeed = shouldSeed;
     const cookieKey = await readFile(join(root, 'cookie-auth.key'), 'utf8');
     const exited = launch(binary, ['serve'], {
-      ...process.env, GIN_MODE: 'release', CONFIG_PATH: root, DATA_PATH: root,
-      LISTEN_HOST: '127.0.0.1', LISTEN_PORT: String(goPort), PUBLIC_ORIGIN: target,
-      DATABASE_TYPE: 'sqlite', DATABASE_NAME: 'antholume', REGISTRATION_ENABLED: 'true',
-      COOKIE_AUTH_KEY: cookieKey, COOKIE_ENC_KEY: '',
-    }).then(result => `Go backend exited (${result})`);
+      ...process.env,
+      GIN_MODE: 'release',
+      CONFIG_PATH: root,
+      DATA_PATH: root,
+      LISTEN_HOST: '127.0.0.1',
+      LISTEN_PORT: String(goPort),
+      PUBLIC_ORIGIN: target,
+      DATABASE_TYPE: 'sqlite',
+      DATABASE_NAME: 'antholume',
+      REGISTRATION_ENABLED: 'true',
+      COOKIE_AUTH_KEY: cookieKey,
+      COOKIE_ENC_KEY: '',
+    }).then((result) => `Go backend exited (${result})`);
     const cancelStartup = new AbortController();
     const startup = AbortSignal.any([cancelStartup.signal, AbortSignal.timeout(30_000)]);
     const ready = (async () => {
@@ -180,7 +216,9 @@ async function run() {
           const response = await fetch(`${target}/api/v1/session`, { signal: startup });
           await response.body?.cancel();
           if (response.ok) return 'ready';
-        } catch { /* The normal server has not begun accepting requests yet. */ }
+        } catch {
+          /* The normal server has not begun accepting requests yet. */
+        }
         await delay(100);
       }
       return 'Go backend did not become ready';
@@ -190,7 +228,10 @@ async function run() {
     if (result === undefined) return;
     if (result !== 'ready') throw new Error(result);
     if (shouldSeed) {
-      const [{ request }, { seedLibrary }] = await Promise.all([import('@playwright/test'), import('./demo-data/seed.mjs')]);
+      const [{ request }, { seedLibrary }] = await Promise.all([
+        import('@playwright/test'),
+        import('./demo-data/seed.mjs'),
+      ]);
       const context = await request.newContext({ timeout: 10_000 });
       try {
         const { addReadingHistory } = await seedLibrary(context, target, 'antholume', { signal: shutdown.signal });
@@ -224,4 +265,7 @@ async function run() {
   }
 }
 
-run().catch(error => { console.error(`dev: ${error.message}`); process.exitCode = 1; });
+run().catch((error) => {
+  console.error(`dev: ${error.message}`);
+  process.exitCode = 1;
+});
