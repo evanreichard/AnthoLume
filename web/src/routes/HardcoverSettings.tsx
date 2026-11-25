@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { sameAccount } from '../api/client';
 import { ActionRow, ActionRows, Button, Card, CardHeader } from '../Controls';
-import { ReadingHTTPError, type Account } from '../reading';
+import { ReadingHTTPError, sameAccount, type Account } from '../reading';
 import { session } from '../session';
 import { SkeletonRows } from '../Skeleton';
 import { Dialog, ErrorNotice } from '../ui';
@@ -118,7 +117,7 @@ export function HardcoverSettings({ account }: { account: Account }) {
       footer={<Button size="slim" onClick={() => { setError(null); setDialog('disconnect'); }}>Disconnect</Button>}>
       <WantToRead key={username} account={account} onConnectionLost={shelfConnectionLost} />
     </Dialog>}
-    {username && dialog === 'disconnect' && <Dialog title="Disconnect?" onClose={() => { if (!busy) setDialog(null); }} footer={<>
+    {username && dialog === 'disconnect' && <Dialog title="Disconnect?" dismissDisabled={!!busy} onClose={() => setDialog(null)} footer={<>
       <Button size="slim" tone="danger" disabled={busy !== null} onClick={() => void change('disconnect')}>{busy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}</Button>
       <Button size="slim" disabled={busy !== null} onClick={() => setDialog(null)}>Cancel</Button>
     </>}>

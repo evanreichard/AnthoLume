@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
+import { hashKey, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router';
 import type { Account } from '../reading';
 import type { components } from '../api/schema.gen';
-import { Button, Dropdown, IconButton } from '../Controls';
+import { Button, Dropdown, IconButton, SearchField } from '../Controls';
+import { useNearEnd } from '../useNearEnd';
 import { Icon } from '../Icon';
 import { SkeletonRows } from '../Skeleton';
 import { ErrorNotice } from '../ui';
@@ -35,23 +36,18 @@ export function AdminLogs() {
   const entries = logs.data?.pages.flatMap(page => page.entries) ?? [];
   const canAutoLoad = Boolean(lastPage?.entries.length) && hasNextPage && !isFetching && !isFetchNextPageError;
 
-  useEffect(() => {
-    const target = loadMore.current;
-    if (!target || !canAutoLoad || !('IntersectionObserver' in window)) return;
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry?.isIntersecting) void fetchNextPage({ cancelRefetch: false });
-    }, { rootMargin: '0px 0px 160px' });
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [canAutoLoad, fetchNextPage]);
+  const append = () => { void fetchNextPage({ cancelRefetch: false }); };
+  useNearEnd(loadMore, {
+    enabled: canAutoLoad, rootMargin: '0px 0px 160px', scope: hashKey(queryKey), onReach: append,
+  });
 
   return <section aria-label="Logs">
     <div className={styles.sticky}>
       <AdminSectionTabs />
       <div role="group" aria-label="Log controls" className={styles.filters}>
         <form className={styles.searchForm} onSubmit={event => { event.preventDefault(); setTerm(search.trim()); }}>
-          <input type="search" aria-label="Search log events" placeholder="Search logs" maxLength={200} value={search} onChange={event => setSearch(event.target.value)} />
-          <button type="submit" aria-label="Search Logs" title="Search Logs"><Icon name="search" size={17} /></button>
+          <SearchField aria-label="Search log events" submit={{ label: 'Search Logs', title: 'Search Logs' }}
+            placeholder="Search logs" maxLength={200} value={search} onChange={event => setSearch(event.target.value)} />
         </form>
         <Dropdown aria-label="Log level" value={level} onChange={event => { setLevel(event.target.value as Level | ''); }}>
           <option value="">All levels</option>
@@ -77,7 +73,7 @@ export function AdminLogs() {
           </li>)}
       </ul>}
       {hasNextPage && <div className={styles.more}>
-        <Button ref={loadMore} size="slim" disabled={isFetching} onClick={() => void fetchNextPage({ cancelRefetch: false })}>
+        <Button ref={loadMore} size="slim" disabled={isFetching} onClick={append}>
           {logs.isFetchingNextPage ? 'Loading Older Logs…' : isFetchNextPageError ? 'Retry Loading Older Logs' : 'Load Older Logs'}
         </Button>
       </div>}

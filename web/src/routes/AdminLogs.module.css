@@ -2,11 +2,7 @@
 .sticky > nav { margin-bottom: 8px; }
 .more { display: flex; justify-content: center; margin-top: 8px; }
 .filters { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; }
-.searchForm { position: relative; min-width: 0; }
-.searchForm input { padding-inline-start: 44px; padding-inline-end: 6px; }
-.searchForm button { position: absolute; inset-block: 0; inset-inline-start: 0; display: grid; place-items: center; width: 44px; padding: 0; border: 0; background: transparent; color: var(--muted); }
-.searchForm button:hover { color: var(--ink); }
-.searchForm button:focus-visible { outline-offset: -3px; }
+.searchForm { --search-end-padding: 6px; }
 .summary { margin: 8px 0; color: var(--muted); font-size: .8125rem; }
 .entries { list-style: none; padding: 0; margin: 0; }
 .entries li + li { border-top: 1px solid var(--line); }

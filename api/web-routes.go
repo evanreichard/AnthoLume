@@ -205,6 +205,18 @@ func (s *webAPI) ListDocuments(ctx context.Context, r ListDocumentsRequestObject
 	if err != nil {
 		return nil, err
 	}
+	includeMatches := r.Params.Include != nil && *r.Params.Include == Matches
+	var matches map[string][]DocumentMatch
+	if includeMatches && len(selected) != 0 {
+		ids := make([]string, 0, len(selected))
+		for _, row := range selected {
+			ids = append(ids, row.Document.ID)
+		}
+		matches, err = listedDocumentMatches(ctx, queries, ids)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -225,6 +237,13 @@ func (s *webAPI) ListDocuments(ctx context.Context, r ListDocumentsRequestObject
 			item.LastReadAt = &row.LastReadAt
 		}
 		item.ResumeFraction = row.ResumeFraction
+		if includeMatches {
+			links := matches[row.Document.ID]
+			if links == nil {
+				links = []DocumentMatch{}
+			}
+			item.Matches = &links
+		}
 		result.Items = append(result.Items, item)
 	}
 	if int64(page)*int64(size) < total {

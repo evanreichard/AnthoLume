@@ -3,7 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { components } from '../api/schema.gen';
 import type { Account } from '../reading';
 import { session } from '../session';
-import { ActionRow, AddPill, Card, CardHeader, Button } from '../Controls';
+import { autoImportRulesKey, backupPreviewKey, storageRootsKey } from '../adminQueries';
+import { invalidateLibraryAvailability } from '../catalogQueries';
+import { ActionRow, CircleAction, Card, CardHeader, Button, IconButton } from '../Controls';
 import { Dialog, ErrorNotice } from '../ui';
 import { DirectoryPicker } from '../DirectoryPicker';
 import { Icon } from '../Icon';
@@ -13,12 +15,11 @@ import styles from '../App.module.css';
 import storage from './AdminStorage.module.css';
 
 export type StorageRoot = components['schemas']['AdminStorageRoot'];
-export const storageRootsKey = (account: Account) => ['admin-storage-roots', account] as const;
 
 export function StorageRoots({ account, roots, error }: { account: Account; roots: StorageRoot[]; error: unknown }) {
   const [editing, setEditing] = useState<StorageRoot | 'new' | null>(null);
   return <Card className={storage.rootCard} density="compact" aria-labelledby="storage-roots">
-    <CardHeader id="storage-roots" title="Storage Roots" action={<AddPill label="Add Root" onClick={() => setEditing('new')} />} />
+    <CardHeader id="storage-roots" title="Storage Roots" action={<CircleAction icon="add" label="Add Root" onClick={() => setEditing('new')} />} />
     <ErrorNotice error={error} />
     <div className={storage.rootList}>{roots.map(root => <ActionRow key={root.id} label={root.label} onClick={() => setEditing(root)} value={<span className={storage.rootValue}>
       <span className={storage.rootStatus}>
@@ -52,7 +53,8 @@ function RootEditor({ account, current, libraryPath, close }: { account: Account
       const id = current?.id ?? `root-${crypto.getRandomValues(new Uint32Array(4)).join('-')}`;
       await session.api.saveAdminStorageRoot(account, { id, label: label.trim(), path: path.trim() });
       await client.invalidateQueries({ queryKey: storageRootsKey(account) });
-      await client.invalidateQueries({ queryKey: ['admin-backup-preview', account] });
+      await client.invalidateQueries({ queryKey: backupPreviewKey(account) });
+      if (current && path.trim() !== current.path) void invalidateLibraryAvailability(client, account);
       close();
     } catch (failure) { setError(failure); }
     finally { setBusy(false); }
@@ -64,7 +66,7 @@ function RootEditor({ account, current, libraryPath, close }: { account: Account
     setBrowsing(null);
   }} />;
 
-  return <Dialog key="editor" title={current ? 'Edit Root' : 'Add Root'} onClose={() => { if (!busy) close(); }} footer={<>
+  return <Dialog key="editor" title={current ? 'Edit Root' : 'Add Root'} dismissDisabled={busy} onClose={close} footer={<>
     <Button size="slim" form={formId} tone="primary" type="submit" disabled={busy || !label.trim() || !path.trim()}>Save</Button>
     {current && !current.managed && <Button size="slim" disabled={busy} onClick={() => {
       if (path.trim()) setConfirmLibrary(true);
@@ -79,7 +81,7 @@ function RootEditor({ account, current, libraryPath, close }: { account: Account
         <label htmlFor={directoryId}>Directory</label>
         <div className={storage.directoryRow}>
           <input id={directoryId} required value={path} maxLength={4096} placeholder="/books" onChange={event => setPath(event.target.value)} />
-          <button type="button" className={styles.icon} aria-label="Browse Directories" title="Browse Directories" aria-haspopup="dialog" disabled={busy} onClick={() => setBrowsing('edit')}><Icon name="folder" /></button>
+          <IconButton aria-label="Browse Directories" title="Browse Directories" aria-haspopup="dialog" disabled={busy} onClick={() => setBrowsing('edit')}><Icon name="folder" /></IconButton>
         </div>
       </div>
       {current && <p className={storage.hint}>Changing the folder does not move files.</p>}
@@ -100,9 +102,10 @@ function MakeLibraryDialog({ account, root, path, cancel, close }: { account: Ac
     setBusy(true); setError(null);
     try {
       await session.api.makeLibrary(account, plan);
-      for (const queryKey of [storageRootsKey(account), ['admin-backup-preview', account], ['auto-import-rules', account], ['documents'], ['document'], ['library-resume']]) {
+      for (const queryKey of [storageRootsKey(account), backupPreviewKey(account), autoImportRulesKey(account)]) {
         void client.invalidateQueries({ queryKey });
       }
+      void invalidateLibraryAvailability(client, account);
       close();
     } catch (failure) {
       if (failure instanceof ReadingHTTPError && failure.problem.code === 'library_plan_changed') {
@@ -112,7 +115,7 @@ function MakeLibraryDialog({ account, root, path, cancel, close }: { account: Ac
     } finally { setBusy(false); }
   }
   const sameFolder = plan?.same_folder === true;
-  return <Dialog key="make-library" title={sameFolder ? 'Merge into Library?' : 'Make this folder Library?'} onClose={() => { if (!busy) cancel(); }} footer={<>
+  return <Dialog key="make-library" title={sameFolder ? 'Merge into Library?' : 'Make this folder Library?'} dismissDisabled={busy} onClose={cancel} footer={<>
     <Button size="slim" tone="primary" disabled={busy || query.isFetching || !plan} onClick={() => void apply()}>{sameFolder ? 'Merge into Library' : 'Make Library'}</Button>
     <Button size="slim" disabled={busy} onClick={cancel}>Cancel</Button>
   </>}>

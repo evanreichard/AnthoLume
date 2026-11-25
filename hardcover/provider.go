@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
+	"reichard.io/antholume/matcherquota"
 )
 
 const responseLimit = 1 << 20
@@ -56,35 +57,50 @@ func (c *Client) query(ctx context.Context, token, query string, vars any, resul
 
 const hardcoverUserAgent = "AnthoLume (https://github.com/evanreichard/AnthoLume)"
 
-func graphqlQuery(ctx context.Context, client *http.Client, endpoint, token, query string, vars any, result any) error {
-	body, err := json.Marshal(struct {
-		Query     string `json:"query"`
-		Variables any    `json:"variables,omitempty"`
-	}{query, vars})
+type graphqlResponse struct {
+	Data   json.RawMessage `json:"data"`
+	Errors []struct {
+		Path []json.RawMessage `json:"path"`
+	} `json:"errors"`
+}
+
+func graphqlQuery(ctx context.Context, client matcherquota.Doer, endpoint, token, query string, vars any, result any) error {
+	response, err := graphqlRequest(ctx, client, endpoint, token, query, vars)
 	if err != nil {
-		return ErrProvider
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(string(body)))
-	if err != nil {
-		return ErrProvider
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("User-Agent", hardcoverUserAgent)
-	var response struct {
-		Data   json.RawMessage   `json:"data"`
-		Errors []json.RawMessage `json:"errors"`
-	}
-	if err := send(client, req, &response); err != nil {
 		return err
 	}
-	if len(response.Errors) != 0 || len(response.Data) == 0 || string(response.Data) == "null" || json.Unmarshal(response.Data, result) != nil {
+	if len(response.Errors) != 0 || json.Unmarshal(response.Data, result) != nil {
 		return ErrProvider
 	}
 	return nil
 }
 
-func send(client *http.Client, req *http.Request, result any) error {
+func graphqlRequest(ctx context.Context, client matcherquota.Doer, endpoint, token, query string, vars any) (graphqlResponse, error) {
+	var response graphqlResponse
+	body, err := json.Marshal(struct {
+		Query     string `json:"query"`
+		Variables any    `json:"variables,omitempty"`
+	}{query, vars})
+	if err != nil {
+		return response, ErrProvider
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(string(body)))
+	if err != nil {
+		return response, ErrProvider
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("User-Agent", hardcoverUserAgent)
+	if err := send(client, req, &response); err != nil {
+		return response, err
+	}
+	if len(response.Data) == 0 || string(response.Data) == "null" {
+		return response, ErrProvider
+	}
+	return response, nil
+}
+
+func send(client matcherquota.Doer, req *http.Request, result any) error {
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
 	if err == nil {
@@ -92,6 +108,8 @@ func send(client *http.Client, req *http.Request, result any) error {
 		switch {
 		case resp.StatusCode == http.StatusUnauthorized:
 			return ErrReconnect
+		case resp.StatusCode == http.StatusTooManyRequests:
+			return errors.Join(ErrProvider, matcherquota.ErrLimited)
 		case resp.StatusCode >= 200 && resp.StatusCode < 300:
 			if result == nil {
 				return nil
@@ -104,6 +122,9 @@ func send(client *http.Client, req *http.Request, result any) error {
 	}
 	if err := req.Context().Err(); err != nil {
 		return err
+	}
+	if errors.Is(err, matcherquota.ErrLimited) {
+		return errors.Join(ErrProvider, matcherquota.ErrLimited)
 	}
 	return ErrProvider
 }

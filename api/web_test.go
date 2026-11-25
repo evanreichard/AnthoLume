@@ -81,7 +81,7 @@ func (f *webFixture) start() {
 	})
 	f.server.Start()
 }
-func (f *webFixture) call(method, path string, body any, headers map[string]string) webResponse {
+func (f *webFixture) newRequest(method, path string, body any, headers map[string]string) *http.Request {
 	f.t.Helper()
 	var b []byte
 	switch value := body.(type) {
@@ -106,7 +106,11 @@ func (f *webFixture) call(method, path string, body any, headers map[string]stri
 	for k, v := range headers {
 		r.Header.Set(k, v)
 	}
-	response, err := f.client.Do(r)
+	return r
+}
+func (f *webFixture) call(method, path string, body any, headers map[string]string) webResponse {
+	f.t.Helper()
+	response, err := f.client.Do(f.newRequest(method, path, body, headers))
 	require.NoError(f.t, err)
 	defer response.Body.Close()
 	data, err := io.ReadAll(response.Body)

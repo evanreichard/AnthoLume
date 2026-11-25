@@ -12,8 +12,10 @@ test('Library searches for literal all and Book Detail returns to the filtered L
 
   await search.fill('Public book 01');
   await search.press('Enter');
+  await page.route('**/api/v1/documents/book_001', route => route.fulfill({ status: 404, contentType: 'application/problem+json', json: { type: 'about:blank', title: 'Not Found', status: 404, code: 'not_found' } }));
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
   await expect(page).toHaveURL(/\/books\/server\?/);
+  await expect(page.getByRole('heading', { name: 'Book not available', exact: true })).toBeVisible();
   await page.getByRole('main').getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page).toHaveURL(/\/library\?q=Public\+book\+01&sort=author$/);
   await expect(search).toHaveValue('Public book 01');

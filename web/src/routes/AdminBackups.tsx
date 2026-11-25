@@ -5,8 +5,9 @@ import { ReadingHTTPError, type Account } from '../reading';
 import { Button, Card, CardHeader, JoinedAction, JoinedActions, RadioChoices } from '../Controls';
 import { Icon } from '../Icon';
 import { session } from '../session';
+import { invalidateBook } from '../catalogQueries';
 import { Dialog, ErrorNotice } from '../ui';
-import { storageRootsKey } from './AdminStorage';
+import { backupPreviewKey, storageRootsKey, storageRootsOptions } from '../adminQueries';
 import styles from '../App.module.css';
 
 type Kind = 'full_backup' | 'backup';
@@ -54,7 +55,7 @@ function CreateBackup({ account, close }: { account: Account; close: () => void 
   const content = useRef<HTMLDivElement>(null);
   const client = useQueryClient();
   const full = kind === 'full_backup';
-  const preview = useQuery({ queryKey: ['admin-backup-preview', account], refetchOnMount: 'always', refetchOnWindowFocus: false, queryFn: ({ signal }) => session.api.previewAdminBackup(account, signal) });
+  const preview = useQuery({ queryKey: backupPreviewKey(account), refetchOnMount: 'always', refetchOnWindowFocus: false, queryFn: ({ signal }) => session.api.previewAdminBackup(account, signal) });
   const problem = catalogProblem(preview.error);
   const issue = problem?.backup_path_issue;
   const downloadDisabled = repairing || preview.isFetching || !!problem || full && (!preview.data || preview.isError);
@@ -63,10 +64,8 @@ function CreateBackup({ account, close }: { account: Account; close: () => void 
     setRepairing(true);
     try {
       await session.api.repairAdminBackupPath(account, body);
-      const ref = { kind: 'server', account, documentId: body.document_id };
-      for (const queryKey of [storageRootsKey(account), ['document', ref], ['cover', ref], ['documents', account], ['library-resume', account], ['insight-activity', account], ['insight-progress', account]]) {
-        void client.invalidateQueries({ queryKey });
-      }
+      void client.invalidateQueries({ queryKey: storageRootsKey(account) });
+      void invalidateBook(client, { kind: 'server', account, documentId: body.document_id });
       await preview.refetch();
       content.current?.closest('dialog')?.querySelector('h2')?.focus();
     } finally { setRepairing(false); }
@@ -80,7 +79,7 @@ function CreateBackup({ account, close }: { account: Account; close: () => void 
     link.click();
     close();
   }
-  return <Dialog title="Create Backup" layout={issue ? 'scroll-body' : 'content'} onClose={() => { if (!repairing) close(); }} footer={<>
+  return <Dialog title="Create Backup" layout={issue ? 'scroll-body' : 'content'} dismissDisabled={repairing} onClose={close} footer={<>
     <Button size="slim" tone="primary" disabled={downloadDisabled} onClick={downloadBackup}>Download</Button>
     <Button size="slim" disabled={repairing} onClick={close}>Cancel</Button>
   </>}>
@@ -104,7 +103,7 @@ function RepairBackupPath({ account, issue, busy, onRepair }: { account: Account
   const [confirmClear, setConfirmClear] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const book = issue.kind === 'book';
-  const roots = useQuery({ queryKey: storageRootsKey(account), enabled: book, queryFn: ({ signal }) => session.api.adminStorageRoots(account, signal) });
+  const roots = useQuery({ ...storageRootsOptions(account), enabled: book });
   const root = roots.data?.find(root => root.id === rootID);
   const validPath = safeRelativePath(path);
   const clear = action === 'clear';
@@ -174,7 +173,7 @@ function RestoreBackup({ account, close }: { account: Account; close: () => void
       }
     } finally { setBusy(false); }
   }
-  return <Dialog title={candidate ? 'Confirm Restore' : 'Restore Backup'} onClose={() => { if (!busy) close(); }} footer={<>
+  return <Dialog title={candidate ? 'Confirm Restore' : 'Restore Backup'} dismissDisabled={busy} onClose={close} footer={<>
     {candidate
       ? <Button size="slim" tone="danger" disabled={confirm !== 'RESTORE' || busy} onClick={() => void restore(true)}>Restore Backup</Button>
       : <Button size="slim" tone="primary" disabled={!file || busy} onClick={() => void restore(false)}>{busy ? 'Validating…' : 'Validate'}</Button>}

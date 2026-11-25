@@ -125,6 +125,78 @@ test('Settings updates timezone, manages devices and rotates the current passwor
   await expect(devices.getByRole('button', { name: 'Manage Bedside reader' })).toContainText('Synced');
 });
 
+test('account dialogs block all dismissal paths during a save and can retry after failure', async ({ page, server }) => {
+  await register(page, server.origin, 'settings-pending-reader');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${server.origin}/settings`);
+
+  for (const [name, endpoint, status, code, message] of [
+    ['Locale', 'preferences', 400, 'invalid_timezone', 'Choose a time zone supported by this server.'],
+    ['Password', 'password', 403, 'incorrect_password', 'Current password is incorrect.'],
+  ] as const) {
+    const trigger = page.getByRole('button', { name, exact: true });
+    const dialog = page.getByRole('dialog', { name: `Change ${name}`, exact: true });
+    const close = dialog.getByRole('button', { name: 'Close Dialog' });
+    const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true });
+    const save = dialog.getByRole('button', { name: 'Save Changes', exact: true });
+    const url = `**/api/v1/me/${endpoint}`;
+    let release!: () => void;
+    const response = new Promise<void>(resolve => { release = resolve; });
+    let requests = 0;
+    await page.route(url, async route => {
+      if (++requests !== 1) return route.continue();
+      await response;
+      await route.fulfill({ status, contentType: 'application/problem+json', json: { type: 'about:blank', title: message, status, code, detail: message } });
+    });
+
+    await trigger.click();
+    await expect(dialog.getByRole('heading')).toBeFocused();
+    try {
+      if (name === 'Locale') await dialog.getByRole('combobox', { name: 'Time zone' }).selectOption('Asia/Tokyo');
+      else {
+        await dialog.getByLabel('Current password').fill('synthetic-public-password');
+        await dialog.getByLabel('New password', { exact: true }).fill('synthetic-replacement-password');
+        await dialog.getByLabel('Confirm new password').fill('synthetic-replacement-password');
+      }
+      await save.press('Enter');
+      await expect.poll(() => requests).toBe(1);
+      await expect(dialog.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+      await expect(close).toBeDisabled();
+      await expect(cancel).toBeDisabled();
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeVisible();
+      await page.mouse.click(1, 1);
+      await expect(dialog).toBeVisible();
+      const x = (await close.boundingBox())!;
+      await page.mouse.click(x.x + x.width / 2, x.y + x.height / 2);
+      await expect(dialog).toBeVisible();
+      expect(requests).toBe(1);
+    } finally { release(); }
+
+    await expect(dialog.getByRole('alert')).toHaveText(message);
+    await expect(close).toBeEnabled();
+    await expect(cancel).toBeEnabled();
+    await save.click();
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    expect(requests).toBe(2);
+    await page.unroute(url);
+  }
+
+  const locale = page.getByRole('button', { name: 'Locale', exact: true });
+  await expect(locale).toHaveAccessibleDescription('Tokyo');
+  for (const dismiss of [
+    () => page.keyboard.press('Escape'),
+    () => page.mouse.click(1, 1),
+    () => page.getByRole('button', { name: 'Close Dialog' }).click(),
+  ]) {
+    await locale.click();
+    await dismiss();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(locale).toBeFocused();
+  }
+});
+
 test('Devices lists ten per page without an expander', async ({ page, server }, testInfo) => {
   await page.emulateMedia({ colorScheme: 'light' });
   await page.setViewportSize({ width: 390, height: 844 });

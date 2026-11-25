@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
+
+	"reichard.io/antholume/matcherquota"
 )
 
 var workID = regexp.MustCompile(`^OL[0-9]{1,15}W$`)
@@ -17,10 +18,10 @@ var editionID = regexp.MustCompile(`^OL[0-9]{1,15}M$`)
 var ErrInvalidLookupMatch = errors.New("invalid metadata match")
 
 func (OpenLibraryCatalog) Resolve(ctx context.Context, work, edition, isbn string) (LookupMatch, error) {
-	return resolveOpenLibrary(ctx, lookupClient, "https://openlibrary.org", work, edition, isbn)
+	return resolveOpenLibrary(ctx, openLibraryMatcherQuota.Client(lookupClient, 1), openLibraryBase, work, edition, isbn)
 }
 
-func resolveOpenLibrary(ctx context.Context, client *http.Client, base, work, edition, isbn string) (LookupMatch, error) {
+func resolveOpenLibrary(ctx context.Context, client matcherquota.Doer, base, work, edition, isbn string) (LookupMatch, error) {
 	out := LookupMatch{ID: work}
 	if !workID.MatchString(work) || edition != "" && !editionID.MatchString(edition) || isbn != "" && !lookupISBN.MatchString(isbn) {
 		return out, ErrInvalidLookupMatch
@@ -28,6 +29,7 @@ func resolveOpenLibrary(ctx context.Context, client *http.Client, base, work, ed
 	var record struct {
 		Title       string
 		Description json.RawMessage
+		Covers      []int64
 	}
 	if err := readLookupRecord(ctx, client, base, "/works/"+work+".json", &record); err != nil {
 		return out, err
@@ -47,78 +49,100 @@ func resolveOpenLibrary(ctx context.Context, client *http.Client, base, work, ed
 		out.Description = &value
 	}
 	if edition == "" && isbn == "" {
+		out.CoverID = openLibraryCoverID(record.Covers)
 		return out, nil
 	}
-	var ed struct {
-		Key        string
-		Works      []struct{ Key string }
-		Covers     []int64
-		ISBN10     []string `json:"isbn_10"`
-		ISBN13     []string `json:"isbn_13"`
-		Publishers []string
-		Published  string `json:"publish_date"`
-	}
-	path := "/books/" + edition + ".json"
-	if isbn != "" {
-		path = "/isbn/" + isbn + ".json"
-	}
-	if err := readLookupRecord(ctx, client, base, path, &ed); err != nil {
+	ed, err := readOpenLibraryEdition(ctx, client, base, edition, isbn)
+	if err != nil {
 		if errors.Is(err, ErrInvalidLookupMatch) {
 			return out, nil
 		}
 		return out, err
 	}
-	id := strings.TrimPrefix(ed.Key, "/books/")
-	if !editionID.MatchString(id) || isbn == "" && id != edition {
+	if !ed.supports(work, isbn) {
 		return out, nil
 	}
-	linked := false
-	for _, w := range ed.Works {
-		if w.Key == "/works/"+work {
-			linked = true
-			break
-		}
-	}
-	if !linked {
-		return out, nil
-	}
-	firstISBN := func(values []string, length int) *string {
-		var first *string
-		for _, value := range values {
-			value = strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(value), "-", ""))
-			if len(value) != length || !lookupISBN.MatchString(value) {
-				continue
-			}
-			if value == isbn {
-				return &value
-			}
-			if first == nil {
-				first = &value
-			}
-		}
-		return first
-	}
-	ten, thirteen := firstISBN(ed.ISBN10, 10), firstISBN(ed.ISBN13, 13)
-	if isbn != "" && (ten == nil || *ten != isbn) && (thirteen == nil || *thirteen != isbn) {
-		return out, nil
-	}
-	out.EditionID, out.ISBN10, out.ISBN13 = &id, ten, thirteen
+	out.EditionID = &ed.ID
+	out.ISBN10, out.ISBN13 = editionISBN(ed.ISBN10, isbn, 10), editionISBN(ed.ISBN13, isbn, 13)
 	if publisher := lookupText(strings.Join(ed.Publishers, ", "), 256); publisher != "" {
 		out.Publisher = &publisher
 	}
 	if published := lookupText(ed.Published, 80); published != "" {
 		out.Published = &published
 	}
-	for _, cover := range ed.Covers {
-		if cover > 0 && cover <= 9999999999 {
-			out.CoverID = &cover
-			break
-		}
-	}
+	out.CoverID = openLibraryCoverID(ed.Covers)
 	return out, nil
 }
 
-func readLookupRecord(ctx context.Context, client *http.Client, base, path string, out any) error {
+type openLibraryEdition struct {
+	ID         string `json:"-"`
+	Key        string
+	Works      []struct{ Key string }
+	Covers     []int64
+	ISBN10     []string `json:"isbn_10"`
+	ISBN13     []string `json:"isbn_13"`
+	Publishers []string
+	Published  string `json:"publish_date"`
+}
+
+func readOpenLibraryEdition(ctx context.Context, client matcherquota.Doer, base, edition, isbn string) (openLibraryEdition, error) {
+	var ed openLibraryEdition
+	path := "/books/" + edition + ".json"
+	if isbn != "" {
+		path = "/isbn/" + isbn + ".json"
+	}
+	if err := readLookupRecord(ctx, client, base, path, &ed); err != nil {
+		return ed, err
+	}
+	ed.ID = strings.TrimPrefix(ed.Key, "/books/")
+	if !editionID.MatchString(ed.ID) || isbn == "" && ed.ID != edition {
+		return ed, ErrInvalidLookupMatch
+	}
+	return ed, nil
+}
+
+func (ed openLibraryEdition) supports(work, isbn string) bool {
+	if isbn != "" {
+		ten, thirteen := editionISBN(ed.ISBN10, isbn, 10), editionISBN(ed.ISBN13, isbn, 13)
+		if (ten == nil || *ten != isbn) && (thirteen == nil || *thirteen != isbn) {
+			return false
+		}
+	}
+	for _, w := range ed.Works {
+		if w.Key == "/works/"+work {
+			return true
+		}
+	}
+	return false
+}
+
+func editionISBN(values []string, isbn string, length int) *string {
+	var first *string
+	for _, value := range values {
+		value = strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(value), "-", ""))
+		if len(value) != length || !lookupISBN.MatchString(value) {
+			continue
+		}
+		if value == isbn {
+			return &value
+		}
+		if first == nil {
+			first = &value
+		}
+	}
+	return first
+}
+
+func openLibraryCoverID(covers []int64) *int64 {
+	for _, cover := range covers {
+		if cover > 0 && cover <= 9999999999 {
+			return &cover
+		}
+	}
+	return nil
+}
+
+func readLookupRecord(ctx context.Context, client matcherquota.Doer, base, path string, out any) error {
 	for attempt := 0; attempt < 2; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+path, nil)
 		if err != nil {
@@ -148,7 +172,7 @@ func readLookupRecord(ctx context.Context, client *http.Client, base, path strin
 			return ErrInvalidLookupMatch
 		}
 		if res.StatusCode != http.StatusOK {
-			return fmt.Errorf("Open Library returned HTTP %d", res.StatusCode)
+			return openLibraryStatusError(res.StatusCode)
 		}
 		const max = 512 << 10
 		raw, err := io.ReadAll(io.LimitReader(res.Body, max+1))

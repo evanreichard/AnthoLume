@@ -3,11 +3,12 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, ScrollRestoration, useLocation, useNavigate, useRouteError } from 'react-router';
 import type { RouteObject } from 'react-router';
 import { appRoutes, type AppRoute } from './app-routes';
-import { ReadingProvider, useReading } from './reading';
-import { sameAccount } from './api/client';
+import { ReadingProvider, sameAccount, useReading, type ReadingBridge } from './reading';
+import { refreshLibraryResume } from './catalogQueries';
 import { queryClient, session, useSession } from './session';
 import { Library } from './routes/Library';
 import { BookDetail } from './routes/BookDetail';
+import { BookMatcher } from './routes/BookMatcher';
 import { AppLoading, Auth } from './routes/Auth';
 import { Insights } from './routes/Insights';
 import { Settings } from './routes/More';
@@ -42,13 +43,20 @@ function RetirementDestination() {
   return null;
 }
 const retirementAccess = { kind: 'loading' } as const;
+const readingBridge: ReadingBridge = {
+  ...session.api.bridge,
+  progressAcknowledged: account => {
+    const { access } = session.getSnapshot();
+    if (access.kind === 'authenticated' && sameAccount(access.account, account)) void refreshLibraryResume(queryClient, account);
+  },
+};
 function Providers() {
   const state = useSession();
   const location = useLocation();
   const intent = legacyDocument(location.search);
   const pendingIntent = intent && !['/login', '/register'].includes(location.pathname);
   return <QueryClientProvider client={queryClient}>
-    <ReadingProvider access={intent && state.access.kind === 'expired' ? retirementAccess : state.access} bridge={session.api.bridge} lookupCover={ref => queryClient.getQueryData<Blob>(['cover', ref])} onSessionExpired={(account) => session.expire(account)}>
+    <ReadingProvider access={intent && state.access.kind === 'expired' ? retirementAccess : state.access} bridge={readingBridge} lookupCover={ref => queryClient.getQueryData<Blob>(['cover', ref])} onSessionExpired={(account) => session.expire(account)}>
       <ReadingSession />
       <RetirementDestination />
       {state.access.kind === 'picker' ? (location.pathname === '/library' ? <OfflinePicker /> : <Navigate to="/library" replace />) : state.access.kind === 'offline' && ['/login','/register'].includes(location.pathname) ? <Navigate to="/library" replace /> : pendingIntent ? <AppLoading message="Opening requested book…" /> : <Outlet />}
@@ -67,7 +75,7 @@ function ProtectedApp() {
   if (access.kind === 'offline') {
     const path = location.pathname.replace(/\/+$/, '');
     if (path === '/books/server') return <Navigate to={'/read/server' + location.search} replace />;
-    return ['/library', '/read/server'].includes(path) ? <Outlet /> : <Navigate to="/library" replace />;
+    return ['/library', '/library/matcher', '/read/server'].includes(path) ? <Outlet /> : <Navigate to="/library" replace />;
   }
   return access.kind === 'authenticated' ? <Outlet /> : null;
 }
@@ -144,6 +152,7 @@ const screens = {
   protected: { Component: ProtectedApp, ErrorBoundary: RouteError },
   home: { element: <Navigate to="/library" replace /> },
   library: { Component: Library },
+  bookMatcher: { Component: BookMatcher },
   book: { Component: BookDetail },
   reader: { lazy: () => import('./routes/ReaderRoute') },
   insights: { Component: Insights },

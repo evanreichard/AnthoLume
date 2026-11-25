@@ -24,6 +24,7 @@ export declare function checkMetadataProvider(value: unknown): value is componen
 export declare function checkMetadataWorkID(value: unknown): value is components['schemas']['MetadataWorkID'];
 export declare function checkMetadataMatch(value: unknown): value is components['schemas']['MetadataMatch'];
 export declare function checkMetadataEditionID(value: unknown): value is components['schemas']['MetadataEditionID'];
+export declare function checkAdminMetadataProvider(value: unknown): value is components['schemas']['AdminMetadataProvider'];
 export declare function checkManagedDevice(value: unknown): value is components['schemas']['ManagedDevice'];
 export declare function checkDevice(value: unknown): value is components['schemas']['Device'];
 export declare function checkReadingState(value: unknown): value is components['schemas']['ReadingState'];
@@ -50,7 +51,6 @@ export declare function checkAdminStorageRoot(value: unknown): value is componen
 export declare function checkStorageRootID(value: unknown): value is components['schemas']['StorageRootID'];
 export declare function checkMakeLibraryPlan(value: unknown): value is components['schemas']['MakeLibraryPlan'];
 export declare function checkAdminStorageDirectories(value: unknown): value is components['schemas']['AdminStorageDirectories'];
-export declare function checkAdminMetadataProvider(value: unknown): value is components['schemas']['AdminMetadataProvider'];
 export declare function checkAdminAutoImport(value: unknown): value is components['schemas']['AdminAutoImport'];
 export declare function checkAutoImportID(value: unknown): value is components['schemas']['AutoImportID'];
 export declare function checkAdminAutoImportSettings(value: unknown): value is components['schemas']['AdminAutoImportSettings'];

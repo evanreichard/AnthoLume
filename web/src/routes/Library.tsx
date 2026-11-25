@@ -1,18 +1,20 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { hashKey, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { useReading } from '../reading';
-import { bookKey, bookPath, combineBooks, parseSort, sortBooks, sortOptions, type LibrarySort } from '../library';
+import { sameAccount, useReading } from '../reading';
+import { bookKey, bookPath, combineBooks, matcherReturn, parseSort, sortBooks, sortOptions, type LibrarySort } from '../library';
 import { queryClient, session, useSession } from '../session';
-import { BookCard, Dialog, ErrorNotice, PageHeader } from '../ui';
+import { BookCard } from '../BookPresentation';
+import bookStyles from '../BookPresentation.module.css';
+import { Dialog, ErrorNotice, PageHeader } from '../ui';
 import styles from '../App.module.css';
 import { Icon } from '../Icon';
 import { LoadingStatus, Skeleton } from '../Skeleton';
 import { RecentBooks } from '../RecentBooks';
 import { OfflineStatusBar } from '../OfflineStatusBar';
 import { BookDownloadActions } from '../BookDownloadActions';
-import { Button } from '../Controls';
-import { sameAccount } from '../api/client';
+import { Button, CircleAction, IconButton, SearchField } from '../Controls';
+import { useNearEnd } from '../useNearEnd';
 import { useSnackbar } from '../Snackbar';
 
 export function Library() {
@@ -51,8 +53,9 @@ export function Library() {
   }, [location.key, location.state, reading.ready]);
   useLayoutEffect(() => () => importController.current?.abort(), [dialog, uploadScope]);
   const sharedEnabled = access.kind === 'authenticated';
+  const queryKey = ['documents', account, q, sort] as const;
   const documents = useInfiniteQuery({
-    queryKey: ['documents', account, q, sort],
+    queryKey,
     enabled: sharedEnabled,
     initialPageParam: 1,
     queryFn: ({ pageParam, signal }) => session.api.documents(account!, pageParam, q, sort, signal),
@@ -74,17 +77,17 @@ export function Library() {
     },
   });
   const { hasNextPage, isFetching, isFetchNextPageError, fetchNextPage } = documents;
+  const loadedPages = documents.data?.pages.length ?? 0;
+  const returning = account && matcherReturn(location.state?.returnTo, account);
+  const restorePages = returning && returning.search === bookLinkState.librarySearch ? returning.pages : 0;
   useEffect(() => {
-    const target = loadMore.current;
-    if (!target || !sharedEnabled || dialog || !hasNextPage || isFetching || isFetchNextPageError || !('IntersectionObserver' in window)) return;
-    const observer = new IntersectionObserver(entries => {
-      if (!entries.some(entry => entry.isIntersecting)) return;
-      observer.disconnect();
-      void fetchNextPage({ cancelRefetch: false });
-    }, { rootMargin: '0px 0px 240px 0px' });
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [sharedEnabled, dialog, hasNextPage, isFetching, isFetchNextPageError, fetchNextPage, account, q, sort]);
+    if (sharedEnabled && loadedPages < restorePages && hasNextPage && !isFetching && !isFetchNextPageError) void fetchNextPage({ cancelRefetch: false });
+  }, [sharedEnabled, loadedPages, restorePages, hasNextPage, isFetching, isFetchNextPageError, fetchNextPage]);
+  const append = () => { void fetchNextPage({ cancelRefetch: false }); };
+  useNearEnd(loadMore, {
+    enabled: sharedEnabled && !dialog && hasNextPage && !isFetching && !isFetchNextPageError,
+    rootMargin: '0px 0px 240px 0px', scope: hashKey(queryKey), onReach: append,
+  });
   const serverDocuments = sharedEnabled ? documents.data?.pages.flatMap((page) => page.items) ?? [] : [];
   const serverRows = reading.books.filter(book => book.ref.kind === 'server');
   const books = sortBooks(combineBooks(serverRows, serverDocuments, account).filter(book => offline
@@ -155,18 +158,19 @@ export function Library() {
   }
   return <>
     <PageHeader title="Library" headingRef={heading} mobileBrand
-      actions={!offline && reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>} />
-    {offline && <OfflineStatusBar profile={profiles.find(p => p.account.userId === access.account.userId && p.account.readingGeneration === access.account.readingGeneration)?.name ?? 'Reader'} />}
+      actions={access.kind === 'authenticated' && <div className={styles.libraryHeadingActions}>
+        {reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>}
+        <CircleAction icon="link" label="Match Books" to="/library/matcher"
+          state={{ returnTo: { account: access.account, search: bookLinkState.librarySearch, pages: Math.max(1, loadedPages) } }} />
+      </div>} />
+    {offline && <OfflineStatusBar profile={profiles.find(p => sameAccount(p.account, access.account))?.name ?? 'Reader'} />}
     {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}
     <RecentBooks books={recent} bookLinkState={bookLinkState} />
     <form className={styles.searchRow} role="search" onSubmit={(event) => { event.preventDefault(); update('q', input.trim()); }}>
-      <div className={styles.search}>
-        <button type="submit" className={styles.searchSubmit} aria-label="Search"><Icon name="search" size={17} /></button>
-        <label><span className={styles.srOnly}>Search title or author</span><input ref={searchInput} type="search" value={input} maxLength={256} placeholder="Title or author" onChange={(event) => setInput(event.target.value)} /></label>
-        {(input || q) && <button type="button" className={styles.searchClear} aria-label="Clear Search" onClick={clearSearch}>×</button>}
-      </div>
-      {!offline && <button type="button" className={styles.icon} aria-label="Add Book" disabled={access.kind !== 'authenticated'} onClick={() => { setError(null); open('add'); }}><Icon name="add" /></button>}
-      <button type="button" className={styles.icon} aria-label="Sort Books" aria-haspopup="dialog" aria-expanded={dialog === 'sort'} onClick={() => open('sort')}><Icon name="sort" /></button>
+      <SearchField ref={searchInput} aria-label="Search title or author" submit={{ label: 'Search' }} value={input} maxLength={256}
+        placeholder="Title or author" onChange={event => setInput(event.target.value)} onClear={input || q ? clearSearch : undefined} />
+      {!offline && <IconButton aria-label="Add Book" disabled={access.kind !== 'authenticated'} onClick={() => { setError(null); open('add'); }}><Icon name="add" /></IconButton>}
+      <IconButton aria-label="Sort Books" aria-haspopup="dialog" aria-expanded={dialog === 'sort'} onClick={() => open('sort')}><Icon name="sort" /></IconButton>
     </form>
     <div className={styles.divider} />
     <ErrorNotice error={documents.error} />
@@ -174,15 +178,15 @@ export function Library() {
     {!books.length && reading.ready && !documents.isFetching && !(sharedEnabled && hasNextPage) && <p>{offline ? 'No matching books on this device.' : 'No matching books. Try another search or add an EPUB.'}</p>}
     <div className={styles.grid}>
       {books.map((book) => <BookCard key={bookKey(book.ref)} book={book} linkState={bookLinkState} action={offline ? 'read' : 'books'}>{book.ref.kind === 'server' && (offline || book.document?.file_available || reading.deviceCopies?.has(book.ref.documentId)) && <BookDownloadActions book={book.ref} metadata={book} canSave={offline || !!book.document?.file_available} />}</BookCard>)}
-      {!books.length && (!reading.ready || documents.isPending && documents.fetchStatus === 'fetching') && Array.from({ length: 6 }, (_, index) => <div key={index} className={styles.card} aria-hidden="true">
-        <Skeleton block className={`${styles.cover} ${styles.coverThumbnail}`} />
-        <h2 className={styles.cardTitle}><Skeleton width="75%" /></h2>
+      {!books.length && (!reading.ready || documents.isPending && documents.fetchStatus === 'fetching') && Array.from({ length: 6 }, (_, index) => <div key={index} className={bookStyles.card} aria-hidden="true">
+        <Skeleton block className={`${bookStyles.cover} ${bookStyles.coverThumbnail}`} />
+        <h2 className={bookStyles.cardTitle}><Skeleton width="75%" /></h2>
         <p><Skeleton width="52%" /></p>
       </div>)}
     </div>
     {importNotice && <p role="status">{importNotice}</p>}
     <ErrorNotice error={dialog === 'add' ? null : error} />
-    {sharedEnabled && hasNextPage && <div className={styles.loadMore}><Button ref={loadMore} disabled={isFetching} onClick={() => void fetchNextPage({ cancelRefetch: false })}>{documents.isFetchingNextPage ? 'Loading…' : isFetchNextPageError ? 'Retry Loading Shared Books' : 'Load More Shared Books'}</Button></div>}
+    {sharedEnabled && hasNextPage && <div className={styles.loadMore}><Button ref={loadMore} disabled={isFetching} onClick={append}>{documents.isFetchingNextPage ? 'Loading…' : isFetchNextPageError ? 'Retry Loading Shared Books' : 'Load More Shared Books'}</Button></div>}
     {dialog === 'sort' && <Dialog title="Sort Books" onClose={close}><div className={styles.sortOptions}>
       {sortOptions.map(([value, label]) => <button key={value} type="button" aria-pressed={sort === value} onClick={() => applySort(value)}>
         {label}{sort === value && <Icon name="check" size={17} />}

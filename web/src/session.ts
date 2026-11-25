@@ -1,9 +1,9 @@
 import { QueryClient } from '@tanstack/react-query';
 import { useSyncExternalStore } from 'react';
 import type { components } from './api/schema.gen';
-import { apiOrigin, createAPI, sameAccount } from './api/client';
+import { apiOrigin, createAPI } from './api/client';
 import { APIUnavailable } from './api/transport';
-import { watchProfiles, rememberProfile, selectProfile, selectedProfile, forgetProfile, type OfflineProfile } from './reading';
+import { watchProfiles, rememberProfile, selectProfile, selectedProfile, forgetProfile, sameAccount, type OfflineProfile } from './reading';
 import type { Account, ReadingAccess } from './reading';
 
 type S = components['schemas'];
@@ -95,7 +95,7 @@ class SessionCoordinator {
     selectProfile(account);
     this.publish({ session: null, busy: false, access: account ? { kind: 'offline', account } : { kind: 'picker' }, error: null }, true);
   }
-  async forgetOffline(account: Account) { await forgetProfile(account); this.chooseOffline(); }
+  forgetOffline(account: Account) { return forgetProfile(account); }
   private eligible(): Account | null {
     const access = this.snapshot.access;
     if (access.kind === 'logout' || this.pendingLogout) return null;

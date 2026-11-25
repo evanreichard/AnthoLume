@@ -3,7 +3,10 @@ import { Button } from '../Controls';
 import type { components } from '../api/schema.gen';
 import type { BookRef } from '../reading';
 import { session } from '../session';
-import { Cover, Dialog, ErrorNotice } from '../ui';
+import { Cover } from '../BookPresentation';
+import bookStyles from '../BookPresentation.module.css';
+import { Dialog, ErrorNotice } from '../ui';
+import { useObjectURL } from '../useObjectURL';
 import type { LibraryBook } from '../library';
 import styles from '../App.module.css';
 import { bookMetadataDraft, encodeBookCover } from './bookMetadataDraft';
@@ -13,15 +16,11 @@ export function BookEditor({ book, refId, document, onClose, onSaved }: {
 }) {
   const formId = useId();
   const [draft, setDraft] = useState(() => bookMetadataDraft(document));
-  const [cover, setCover] = useState<File | null>(null), [remove, setRemove] = useState(false), [preview, setPreview] = useState('');
+  const [cover, setCover] = useState<File | null>(null), [remove, setRemove] = useState(false);
+  const preview = useObjectURL(cover);
   const [error, setError] = useState<unknown>(null), [busy, setBusy] = useState(false);
   const request = useRef<AbortController | null>(null);
   useEffect(() => () => request.current?.abort(), []);
-  useEffect(() => {
-    const url = cover ? URL.createObjectURL(cover) : '';
-    setPreview(url);
-    return () => { if (url) URL.revokeObjectURL(url); };
-  }, [cover]);
   function setField(key: keyof typeof draft, value: string) { setDraft(old => ({ ...old, [key]: value })); }
   async function save() {
     if (request.current) return;
@@ -38,12 +37,12 @@ export function BookEditor({ book, refId, document, onClose, onSaved }: {
     } catch (err) { if (!signal.aborted) setError(err); }
     finally { request.current = null; if (!signal.aborted) setBusy(false); }
   }
-  return <Dialog title="Edit book" size="wide" onClose={() => { if (!busy) onClose(); }} footer={<>
+  return <Dialog title="Edit book" size="wide" dismissDisabled={busy} onClose={onClose} footer={<>
     <Button size="slim" form={formId} type="submit" tone="primary" disabled={busy || !draft.title.trim()}>{busy ? 'Saving…' : 'Save'}</Button>
     <Button size="slim" disabled={busy} onClick={onClose}>Cancel</Button>
   </>}>
     <form id={formId} className={styles.form} onSubmit={event => { event.preventDefault(); void save(); }}>
-      <div className={styles.editorCover}>
+      <div className={bookStyles.editorCover}>
         {preview ? <img src={preview} alt="New cover preview" /> : !remove && document.cover_available ? <Cover book={book} /> : <p>No cover</p>}
         <div>
           <label>Cover image<input type="file" accept="image/jpeg,image/png" disabled={busy} onChange={event => {

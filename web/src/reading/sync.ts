@@ -38,7 +38,11 @@ export class Replay {
           ? await this.bridge.submitProgress(account, structuredClone(event.payload), controller.signal)
           : await this.bridge.submitActivity(account, structuredClone(event.payload), controller.signal);
         await current();
-        if (delivery.status === 200) { await this.repo.acknowledge(access, event, delivery.body); continue; }
+        if (delivery.status === 200) {
+          await this.repo.acknowledge(access, event, delivery.body);
+          if (event.kind === 'progress' && !controller.signal.aborted) this.bridge.progressAcknowledged?.(account);
+          continue;
+        }
         if (!validProblem(delivery.body, delivery.status)) throw new Error('Invalid HTTP Problem; event retained');
         if (delivery.status === 401 && delivery.body.code === 'unauthenticated') {
           if (!controller.signal.aborted && await this.repo.expire(access, event.id)) { this.status = 'auth-required'; this.expired(account); return; }

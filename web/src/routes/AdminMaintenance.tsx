@@ -4,6 +4,7 @@ import type { Account } from '../reading';
 import { Button, Card, CardHeader, Disclosure } from '../Controls';
 import { ErrorNotice } from '../ui';
 import { session } from '../session';
+import { adminJobsKey, adminJobsOptions } from '../adminQueries';
 import styles from '../App.module.css';
 
 const tasks = {
@@ -17,10 +18,8 @@ const date = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle
 
 export function AdminMaintenance({ account }: { account: Account }) {
   const client = useQueryClient();
-  const key = (kind: Kind) => ['admin-jobs', account, kind] as const;
   const histories = useQueries({ queries: kinds.map(kind => ({
-    queryKey: key(kind),
-    queryFn: ({ signal }: { signal: AbortSignal }) => session.api.adminJobs(account, kind, signal),
+    ...adminJobsOptions(account, kind),
     refetchInterval: (query: { state: { data?: { status: string }[] } }) => query.state.data?.some(job => job.status === 'running') ? 1000 : 15_000,
   })) });
   const [starting, setStarting] = useState<Kind | null>(null);
@@ -32,7 +31,7 @@ export function AdminMaintenance({ account }: { account: Account }) {
     setError(null);
     try {
       await session.api.startAdminJob(account, kind);
-      await client.invalidateQueries({ queryKey: key(kind) });
+      await client.invalidateQueries({ queryKey: adminJobsKey(account, kind) });
     } catch (err) { setError(err); }
     finally { setStarting(null); }
   }

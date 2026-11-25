@@ -23,6 +23,14 @@ func (api *API) metadataProviderChoice(selected MetadataProvider) AdminMetadataP
 	return state
 }
 
+func (s *webAPI) GetMetadataProviders(ctx context.Context, _ GetMetadataProvidersRequestObject) (GetMetadataProvidersResponseObject, error) {
+	state, err := s.api.metadataProviderStatus(requestContext(ctx), s.api.db.Queries)
+	if err != nil {
+		return nil, err
+	}
+	return GetMetadataProviders200JSONResponse(state), nil
+}
+
 func (s *webAPI) GetAdminMetadataProvider(ctx context.Context, _ GetAdminMetadataProviderRequestObject) (GetAdminMetadataProviderResponseObject, error) {
 	state, err := s.api.metadataProviderStatus(requestContext(ctx), s.api.db.Queries)
 	if err != nil {

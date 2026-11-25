@@ -3,7 +3,7 @@ export class APIUnavailable extends Error {}
 type Observer = { epoch(): number; suspectOutage(): void };
 
 export function createTransport(observer: Observer) {
-  return async function send(request: Request, role: 'operation' | 'session-probe' = 'operation', body: 'stream' | 'json' = 'stream') {
+  return async function send(request: Request, role: 'operation' | 'session-probe' = 'operation', body: 'stream' | 'json' | 'ndjson' = 'stream') {
     const epoch = observer.epoch();
     const report = () => {
       if (role === 'operation' && observer.epoch() === epoch) observer.suspectOutage();
@@ -24,9 +24,22 @@ export function createTransport(observer: Observer) {
       report();
     }
     // JSON Transport - openapi-fetch consumes problem bodies internally. Finish the network read here so success and error bodies share the request's cancellation and outage rules.
-    if (body === 'json' && !response.redirected && response.body && ['application/json', 'application/problem+json'].includes(response.headers.get('content-type')?.split(';')[0].trim() ?? '')) {
+    const media = response.headers.get('content-type')?.split(';')[0].trim();
+    if (body !== 'stream' && !response.redirected && response.body && (media === 'application/problem+json' || (body === 'json' && media === 'application/json'))) {
       const bytes = await response.arrayBuffer().catch(failed);
       return new Response(bytes, { status: response.status, statusText: response.statusText, headers: response.headers });
+    }
+    if (body === 'ndjson' && response.status === 200 && !response.redirected && media === 'application/x-ndjson' && response.body) {
+      const reader = response.body.getReader();
+      const stream = new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          const { done, value } = await reader.read().catch(failed);
+          if (done) controller.close();
+          else controller.enqueue(value);
+        },
+        cancel(reason) { return reader.cancel(reason); },
+      });
+      return new Response(stream, { status: response.status, headers: response.headers });
     }
     return response;
   };

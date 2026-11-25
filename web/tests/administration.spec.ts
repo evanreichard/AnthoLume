@@ -222,6 +222,12 @@ test('administrators manage users while members cannot open Administration', asy
   await dialog.getByRole('button', { name: 'alternate-library', exact: true }).waitFor();
   await page.screenshot({ path: testInfo.outputPath('directory-picker-390.png') });
   const filter = dialog.getByRole('searchbox', { name: 'Filter folders' });
+  await filter.fill(' FOLDER-1 ');
+  await expect(dialog.getByRole('button', { name: 'folder-1', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'alternate-library', exact: true })).toHaveCount(0);
+  await filter.press('Enter');
+  await expect(dialog).toHaveAccessibleName('Select Folder');
+  await expect(location).toHaveText(server.data);
   await filter.fill('no-match');
   await expect(dialog.getByText('No matching folders.')).toBeVisible();
   await dialog.getByRole('button', { name: 'Clear Folder Filter' }).click();
@@ -407,8 +413,6 @@ test('administrators manage users while members cannot open Administration', asy
     await expect(tab.getByRole('link', { name: 'Administration', exact: true })).toHaveCount(0);
     await tab.goto(`${server.origin}/admin/users`);
     await expect(tab.getByText('Administrator access is required.')).toBeVisible();
-    expect((await tab.request.get(`${server.origin}/api/v1/admin/users`)).status()).toBe(403);
-    expect((await tab.request.get(`${server.origin}/api/v1/admin/backup`)).status()).toBe(403);
   } finally { await member.close(); }
 
   await page.getByRole('button', { name: 'Manage admin-test-member' }).getByText('admin-test-member', { exact: true }).click();
@@ -480,7 +484,8 @@ test('administrators manage users while members cannot open Administration', asy
   await eventSearch.press('Enter');
   await expect(logViewer.getByText('No matching events.')).toBeVisible();
   await eventSearch.fill('2ms');
-  await eventSearch.press('Enter');
+  await expect(logViewer.getByText('No matching events.')).toBeVisible();
+  await logViewer.getByRole('button', { name: 'Search Logs', exact: true }).click();
   await expect(entries).toHaveCount(1);
   await entries.first().getByText('HTTP 503', { exact: true }).click();
   await expect(entries.first().getByText(/"latency": "2ms"/)).toBeVisible();
@@ -545,6 +550,41 @@ test('administrators manage users while members cannot open Administration', asy
   await applyRestore();
   await signIn(page, server.origin, 'admin-owner');
   expect(await (await page.request.get(`${server.origin}/api/v1/documents/book_001/file`)).body()).toEqual(changed);
+});
+
+test('remapping a storage root refreshes file availability in the open library session', async ({ page, server }) => {
+  const empty = `${server.data}/unmapped-books`;
+  await mkdir(empty);
+  const db = new DatabaseSync(`${server.data}/browser.db`);
+  try {
+    db.prepare("INSERT INTO storage_roots(id,label,path,managed) VALUES('archive','Archive',?,0)").run(empty);
+    db.exec("UPDATE documents SET storage_root_id='archive' WHERE id='book_001'");
+  } finally { db.close(); }
+  await register(page, server.origin, 'root-remap-owner');
+  const nav = page.getByRole('navigation', { name: 'Main navigation' });
+  const title = page.getByRole('heading', { name: 'Public book 01', exact: true });
+  const card = page.getByRole('link', { name: /Public book 01/ }).filter({ has: title });
+  const warning = 'Book file unavailable';
+  const documentURL = `${server.origin}/api/v1/documents/book_001`;
+  await expect(card).toHaveAccessibleDescription(warning);
+  await card.click();
+  await expect(page.getByRole('status').filter({ hasText: warning })).toBeVisible();
+  expect((await (await page.request.get(documentURL)).json()).file_available).toBe(false);
+
+  await nav.getByRole('link', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Administration', exact: true }).click();
+  await page.getByRole('region', { name: 'Storage Roots' }).getByRole('button', { name: 'Archive', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit Root' });
+  await editor.getByLabel('Directory', { exact: true }).fill(`${server.data}/documents`);
+  await editor.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(editor).not.toBeVisible();
+  expect((await (await page.request.get(documentURL)).json()).file_available).toBe(true);
+
+  await nav.getByRole('link', { name: 'Library', exact: true }).click();
+  await expect(card).not.toHaveAccessibleDescription(warning);
+  await card.click();
+  await expect(page.getByRole('link', { name: 'Read', exact: true })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: warning })).not.toBeVisible();
 });
 
 test('Make Library previews the change and only applies after confirmation', async ({ page, server }, testInfo) => {

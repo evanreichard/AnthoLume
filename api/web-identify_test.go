@@ -51,9 +51,12 @@ func TestWebMetadataProviderSelectionAndTokenRemoval(t *testing.T) {
 		f.start()
 	}
 	check := func(selected, effective MetadataProvider, available bool) {
-		r := f.call("GET", adminMetadataPath, nil, nil)
-		require.Equal(t, 200, r.status, string(r.body))
-		require.JSONEq(t, fmt.Sprintf(`{"selected":%q,"effective":%q,"hardcover_available":%t}`, selected, effective, available), string(r.body))
+		t.Helper()
+		for _, path := range []string{adminMetadataPath, metadataProvidersPath} {
+			r := f.call("GET", path, nil, nil)
+			require.Equal(t, 200, r.status, string(r.body))
+			require.JSONEq(t, fmt.Sprintf(`{"selected":%q,"effective":%q,"hardcover_available":%t}`, selected, effective, available), string(r.body))
+		}
 	}
 	checkStored := func(expected int) {
 		t.Helper()

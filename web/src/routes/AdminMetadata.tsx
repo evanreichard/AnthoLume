@@ -4,6 +4,7 @@ import type { components } from '../api/schema.gen';
 import { Card, CardHeader, RadioChoices } from '../Controls';
 import type { Account } from '../reading';
 import { session } from '../session';
+import { metadataProviderOptions } from '../metadataProviders';
 import { SkeletonRows } from '../Skeleton';
 import { ErrorNotice } from '../ui';
 import styles from '../App.module.css';
@@ -12,9 +13,10 @@ type Provider = components['schemas']['MetadataProvider'];
 const tokenHint = 'Set HARDCOVER_CATALOG_TOKEN and restart the server to enable Hardcover.';
 
 export function AdminMetadata({ account }: { account: Account }) {
-  const queryKey = ['admin-metadata-provider', account] as const;
+  const options = metadataProviderOptions(account);
+  const { queryKey } = options;
   const client = useQueryClient();
-  const query = useQuery({ queryKey, queryFn: ({ signal }) => session.api.adminMetadataProvider(account, signal) });
+  const query = useQuery(options);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const current = query.data;

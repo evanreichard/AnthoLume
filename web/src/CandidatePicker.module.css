@@ -1,0 +1,32 @@
+.bookInfo { display: block; text-align: start; min-width: 0; line-height: 1.25; overflow-wrap: anywhere; }
+.bookInfo > span { display: block; }
+.bookTitle { font-weight: 700; }
+.author, .isbn { color: var(--muted); font-size: .9em; font-weight: 400; }
+.isbn { margin-top: 2px; }
+.trigger, .providerPill { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); max-width: 100%; }
+.trigger { width: 100%; min-width: 0; justify-content: space-between; padding: 6px 8px; border-radius: var(--radius); color: var(--ink); font-size: .9rem; }
+.trigger[data-rounded] { border-radius: 999px; padding-inline: 16px; }
+.trigger:enabled:hover, a.providerPill:hover { background: var(--hero); }
+.trigger svg, .providerPill img { flex: none; }
+.trigger .bookInfo > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.placeholder { color: var(--muted); }
+.providerPill { min-height: 32px; padding: 3px 7px; border-radius: 999px; font-weight: 650; line-height: 1.2; font-size: .8rem; text-decoration: none; text-align: start; }
+.providerPill span { min-width: 0; overflow-wrap: anywhere; }
+.reviewSource { align-self: flex-start; min-height: 24px; padding-block: 2px; background: transparent; }
+.reviewSource:enabled:hover { background: var(--hero); }
+.reviewSource:disabled { cursor: default; }
+.picker { position: fixed; inset: auto; width: 26rem; padding: 5px; margin: 0; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); color: var(--ink); box-shadow: 0 8px 28px #0003; text-align: start; }
+.picker:not(:popover-open) { display: none; }
+/* Sheet Search - Keep the focused input in the sheet's layout while the software keyboard pans the visual viewport. */
+.sheetPicker { grid-column: 1 / -1; grid-row: 2; min-width: 0; max-height: min(32dvh, 260px); overflow: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 5px; }
+.sheetPicker > div > :first-child { position: sticky; top: -5px; background: var(--surface); z-index: 1; }
+.candidate { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 8px; padding: 5px 7px; }
+.candidate + .candidate { border-top: 1px solid var(--line); }
+.candidate .providerPill { max-width: 9rem; }
+.candidate p { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: .83rem; }
+.candidate button { border: 0; background: transparent; text-align: start; padding: 4px 6px; }
+.candidate button:is(:hover, :focus-visible) { background: var(--hero); }
+.empty { margin: 0; padding: 8px; color: var(--muted); }
+@media (max-width: 600px) {
+  .bookInfo > .isbn { display: none; }
+}

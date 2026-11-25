@@ -288,6 +288,21 @@ func (e ListDocumentsParamsSort) Valid() bool {
 	}
 }
 
+// Defines values for ListDocumentsParamsInclude.
+const (
+	Matches ListDocumentsParamsInclude = "matches"
+)
+
+// Valid indicates whether the value is a known member of the ListDocumentsParamsInclude enum.
+func (e ListDocumentsParamsInclude) Valid() bool {
+	switch e {
+	case Matches:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListInsightRankingsParamsPeriod.
 const (
 	All   ListInsightRankingsParamsPeriod = "all"
@@ -524,6 +539,44 @@ type AutoImportScanSummary struct {
 // AutoImportScanTrigger defines model for AutoImportScanTrigger.
 type AutoImportScanTrigger string
 
+// BookMatcherCandidate defines model for BookMatcherCandidate.
+type BookMatcherCandidate struct {
+	Author    string             `json:"author"`
+	EditionId *MetadataEditionID `json:"edition_id,omitempty"`
+
+	// Isbn ISBN observed on the returned edition and verified against the document ISBN or its equivalent form.
+	Isbn   *string        `json:"isbn,omitempty"`
+	Reason *string        `json:"reason,omitempty"`
+	Title  string         `json:"title"`
+	Url    string         `json:"url"`
+	WorkId MetadataWorkID `json:"work_id"`
+}
+
+// BookMatcherLink defines model for BookMatcherLink.
+type BookMatcherLink struct {
+	Url    string         `json:"url"`
+	WorkId MetadataWorkID `json:"work_id"`
+}
+
+// BookMatcherLookupRequest defines model for BookMatcherLookupRequest.
+type BookMatcherLookupRequest struct {
+	DocumentIds []ID             `json:"document_ids"`
+	Provider    MetadataProvider `json:"provider"`
+}
+
+// BookMatcherOutcome Exactly one of candidates, error, or match is present. Empty candidates means a successful lookup found no match.
+type BookMatcherOutcome struct {
+	Candidates *[]BookMatcherCandidate `json:"candidates,omitempty"`
+	DocumentId ID                      `json:"document_id"`
+	Error      *string                 `json:"error,omitempty"`
+	Match      *BookMatcherLink        `json:"match,omitempty"`
+}
+
+// BookMatcherWork defines model for BookMatcherWork.
+type BookMatcherWork struct {
+	WorkId MetadataWorkID `json:"work_id"`
+}
+
 // BookReadingStats Account-scoped statistics returned on the book detail endpoint.
 type BookReadingStats struct {
 	ReadingSeconds int64  `json:"reading_seconds"`
@@ -569,7 +622,7 @@ type Document struct {
 	Lang           *string `json:"lang"`
 	LastReadAt     *string `json:"last_read_at,omitempty"`
 
-	// Matches Confirmed work links. Always present on document detail GET and PATCH responses, empty when unlinked. Omitted on lists.
+	// Matches Confirmed work links. Always present on document detail GET and PATCH responses, or on lists requesting `include=matches`. Empty when unlinked; omitted on ordinary lists.
 	Matches   *[]DocumentMatch `json:"matches,omitempty"`
 	MediaType *string          `json:"media_type"`
 
@@ -588,14 +641,17 @@ type Document struct {
 
 // DocumentEdit Omitted fields are unchanged. Supply an empty string to clear author, description, or ISBN. Title cannot be cleared.
 type DocumentEdit struct {
-	Author      *string                 `json:"author,omitempty"`
-	CoverBase64 *string                 `json:"cover_base64,omitempty"`
-	Description *string                 `json:"description,omitempty"`
-	Isbn10      *string                 `json:"isbn10,omitempty"`
-	Isbn13      *string                 `json:"isbn13,omitempty"`
-	Match       *MetadataMatchReference `json:"match,omitempty"`
-	RemoveCover *bool                   `json:"remove_cover,omitempty"`
-	Title       *string                 `json:"title,omitempty"`
+	Author      *string `json:"author,omitempty"`
+	CoverBase64 *string `json:"cover_base64,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Isbn10      *string `json:"isbn10,omitempty"`
+	Isbn13      *string `json:"isbn13,omitempty"`
+
+	// LinkedSource Apply fields only if this confirmed link still exists. Does not create or replace a link. Mutually exclusive with match.
+	LinkedSource *DocumentMatch          `json:"linked_source,omitempty"`
+	Match        *MetadataMatchReference `json:"match,omitempty"`
+	RemoveCover  *bool                   `json:"remove_cover,omitempty"`
+	Title        *string                 `json:"title,omitempty"`
 }
 
 // DocumentMatch defines model for DocumentMatch.
@@ -1056,10 +1112,16 @@ type ListDocumentsParams struct {
 	Q         *string                  `form:"q,omitempty" json:"q,omitempty"`
 	Sort      *ListDocumentsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 	Resumable *bool                    `form:"resumable,omitempty" json:"resumable,omitempty"`
+
+	// Include Include confirmed provider links for each item
+	Include *ListDocumentsParamsInclude `form:"include,omitempty" json:"include,omitempty"`
 }
 
 // ListDocumentsParamsSort defines parameters for ListDocuments.
 type ListDocumentsParamsSort string
+
+// ListDocumentsParamsInclude defines parameters for ListDocuments.
+type ListDocumentsParamsInclude string
 
 // UploadDocumentParams defines parameters for UploadDocument.
 type UploadDocumentParams struct {
@@ -1081,6 +1143,31 @@ type DeleteDocumentParams struct {
 
 // EditDocumentParams defines parameters for EditDocument.
 type EditDocumentParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// UnlinkBookMatchParams defines parameters for UnlinkBookMatch.
+type UnlinkBookMatchParams struct {
+	WorkId MetadataWorkID `form:"work_id" json:"work_id"`
+
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// GetLinkedMetadataParams defines parameters for GetLinkedMetadata.
+type GetLinkedMetadataParams struct {
+	WorkId MetadataWorkID `form:"work_id" json:"work_id"`
+}
+
+// ConfirmBookMatchParams defines parameters for ConfirmBookMatch.
+type ConfirmBookMatchParams struct {
 	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
 	Origin *Origin `json:"Origin,omitempty"`
 
@@ -1194,11 +1281,26 @@ type SubmitProgressParams struct {
 
 // GetMetadataCoverParams defines parameters for GetMetadataCover.
 type GetMetadataCoverParams struct {
-	// Provider Cover ID namespace. Defaults to Open Library.
+	// Provider Cover ID namespace. Defaults to Open Library unless reviewing a confirmed link.
 	Provider *MetadataProvider `form:"provider,omitempty" json:"provider,omitempty"`
+
+	// DocumentId To review a confirmed source, supply this with provider and work_id.
+	DocumentId *ID `form:"document_id,omitempty" json:"document_id,omitempty"`
+
+	// WorkId Expected confirmed work ID. Supply together with provider and document_id.
+	WorkId *MetadataWorkID `form:"work_id,omitempty" json:"work_id,omitempty"`
 
 	// PreferLarge For Open Library try the large cover before medium.
 	PreferLarge *bool `form:"prefer_large,omitempty" json:"prefer_large,omitempty"`
+}
+
+// LookupBookMatchesParams defines parameters for LookupBookMatches.
+type LookupBookMatchesParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
 }
 
 // PreviewMetadataMatchParams defines parameters for PreviewMetadataMatch.
@@ -1277,6 +1379,9 @@ type UpdateAdminUserJSONRequestBody = AdminUserUpdate
 // EditDocumentJSONRequestBody defines body for EditDocument for application/json ContentType.
 type EditDocumentJSONRequestBody = DocumentEdit
 
+// ConfirmBookMatchJSONRequestBody defines body for ConfirmBookMatch for application/json ContentType.
+type ConfirmBookMatchJSONRequestBody = BookMatcherWork
+
 // SubmitActivityJSONRequestBody defines body for SubmitActivity for application/json ContentType.
 type SubmitActivityJSONRequestBody = ActivityEvent
 
@@ -1294,6 +1399,9 @@ type UpdatePreferencesJSONRequestBody = PreferencesUpdate
 
 // SubmitProgressJSONRequestBody defines body for SubmitProgress for application/json ContentType.
 type SubmitProgressJSONRequestBody = ProgressEvent
+
+// LookupBookMatchesJSONRequestBody defines body for LookupBookMatches for application/json ContentType.
+type LookupBookMatchesJSONRequestBody = BookMatcherLookupRequest
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = Credentials
@@ -1409,6 +1517,15 @@ type ServerInterface interface {
 	// (GET /api/v1/documents/{id}/file)
 	DownloadDocument(c *gin.Context, id ID)
 
+	// (DELETE /api/v1/documents/{id}/matches/{provider})
+	UnlinkBookMatch(c *gin.Context, id ID, provider MetadataProvider, params UnlinkBookMatchParams)
+
+	// (GET /api/v1/documents/{id}/matches/{provider})
+	GetLinkedMetadata(c *gin.Context, id ID, provider MetadataProvider, params GetLinkedMetadataParams)
+
+	// (PUT /api/v1/documents/{id}/matches/{provider})
+	ConfirmBookMatch(c *gin.Context, id ID, provider MetadataProvider, params ConfirmBookMatchParams)
+
 	// (GET /api/v1/insights/rankings)
 	ListInsightRankings(c *gin.Context, params ListInsightRankingsParams)
 
@@ -1460,8 +1577,14 @@ type ServerInterface interface {
 	// (GET /api/v1/metadata/covers/{cover_id})
 	GetMetadataCover(c *gin.Context, coverId int64, params GetMetadataCoverParams)
 
+	// (POST /api/v1/metadata/lookups)
+	LookupBookMatches(c *gin.Context, params LookupBookMatchesParams)
+
 	// (GET /api/v1/metadata/match)
 	PreviewMetadataMatch(c *gin.Context, params PreviewMetadataMatchParams)
+
+	// (GET /api/v1/metadata/providers)
+	GetMetadataProviders(c *gin.Context)
 
 	// (GET /api/v1/metadata/search)
 	LookupMetadata(c *gin.Context, params LookupMetadataParams)
@@ -2680,6 +2803,14 @@ func (siw *ServerInterfaceWrapper) ListDocuments(c *gin.Context) {
 		return
 	}
 
+	// ------------- Optional query parameter "include" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "include", c.Request.URL.Query(), &params.Include, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter include: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -2958,6 +3089,213 @@ func (siw *ServerInterfaceWrapper) DownloadDocument(c *gin.Context) {
 	}
 
 	siw.Handler.DownloadDocument(c, id)
+}
+
+// UnlinkBookMatch operation middleware
+func (siw *ServerInterfaceWrapper) UnlinkBookMatch(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "provider" -------------
+	var provider MetadataProvider
+
+	err = runtime.BindStyledParameterWithOptions("simple", "provider", c.Param("provider"), &provider, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UnlinkBookMatchParams
+
+	// ------------- Required query parameter "work_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "work_id", c.Request.URL.Query(), &params.WorkId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter work_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UnlinkBookMatch(c, id, provider, params)
+}
+
+// GetLinkedMetadata operation middleware
+func (siw *ServerInterfaceWrapper) GetLinkedMetadata(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "provider" -------------
+	var provider MetadataProvider
+
+	err = runtime.BindStyledParameterWithOptions("simple", "provider", c.Param("provider"), &provider, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetLinkedMetadataParams
+
+	// ------------- Required query parameter "work_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "work_id", c.Request.URL.Query(), &params.WorkId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter work_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetLinkedMetadata(c, id, provider, params)
+}
+
+// ConfirmBookMatch operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmBookMatch(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "provider" -------------
+	var provider MetadataProvider
+
+	err = runtime.BindStyledParameterWithOptions("simple", "provider", c.Param("provider"), &provider, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ConfirmBookMatchParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ConfirmBookMatch(c, id, provider, params)
 }
 
 // ListInsightRankings operation middleware
@@ -3679,6 +4017,22 @@ func (siw *ServerInterfaceWrapper) GetMetadataCover(c *gin.Context) {
 		return
 	}
 
+	// ------------- Optional query parameter "document_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "document_id", c.Request.URL.Query(), &params.DocumentId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "work_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "work_id", c.Request.URL.Query(), &params.WorkId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter work_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	// ------------- Optional query parameter "prefer_large" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "prefer_large", c.Request.URL.Query(), &params.PreferLarge, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
@@ -3695,6 +4049,65 @@ func (siw *ServerInterfaceWrapper) GetMetadataCover(c *gin.Context) {
 	}
 
 	siw.Handler.GetMetadataCover(c, coverId, params)
+}
+
+// LookupBookMatches operation middleware
+func (siw *ServerInterfaceWrapper) LookupBookMatches(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params LookupBookMatchesParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LookupBookMatches(c, params)
 }
 
 // PreviewMetadataMatch operation middleware
@@ -3746,6 +4159,19 @@ func (siw *ServerInterfaceWrapper) PreviewMetadataMatch(c *gin.Context) {
 	}
 
 	siw.Handler.PreviewMetadataMatch(c, params)
+}
+
+// GetMetadataProviders operation middleware
+func (siw *ServerInterfaceWrapper) GetMetadataProviders(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMetadataProviders(c)
 }
 
 // LookupMetadata operation middleware
@@ -4006,6 +4432,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/api/v1/documents/:id", wrapper.DeleteDocument)
 	router.GET(options.BaseURL+"/api/v1/documents/:id", wrapper.GetDocument)
 	router.PATCH(options.BaseURL+"/api/v1/documents/:id", wrapper.EditDocument)
+	router.DELETE(options.BaseURL+"/api/v1/documents/:id/matches/:provider", wrapper.UnlinkBookMatch)
+	router.GET(options.BaseURL+"/api/v1/documents/:id/matches/:provider", wrapper.GetLinkedMetadata)
+	router.PUT(options.BaseURL+"/api/v1/documents/:id/matches/:provider", wrapper.ConfirmBookMatch)
+	router.GET(options.BaseURL+"/api/v1/metadata/providers", wrapper.GetMetadataProviders)
+	router.POST(options.BaseURL+"/api/v1/metadata/lookups", wrapper.LookupBookMatches)
 	router.GET(options.BaseURL+"/api/v1/metadata/search", wrapper.LookupMetadata)
 	router.GET(options.BaseURL+"/api/v1/metadata/match", wrapper.PreviewMetadataMatch)
 	router.GET(options.BaseURL+"/api/v1/metadata/covers/:cover_id", wrapper.GetMetadataCover)
@@ -5565,6 +5996,144 @@ func (response DownloadDocumentdefaultApplicationProblemPlusJSONResponse) VisitD
 	return err
 }
 
+type UnlinkBookMatchRequestObject struct {
+	Id       ID               `json:"id"`
+	Provider MetadataProvider `json:"provider"`
+	Params   UnlinkBookMatchParams
+}
+
+type UnlinkBookMatchResponseObject interface {
+	VisitUnlinkBookMatchResponse(w http.ResponseWriter) error
+}
+
+type UnlinkBookMatch204Response struct {
+}
+
+func (response UnlinkBookMatch204Response) VisitUnlinkBookMatchResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type UnlinkBookMatchdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response UnlinkBookMatchdefaultApplicationProblemPlusJSONResponse) VisitUnlinkBookMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLinkedMetadataRequestObject struct {
+	Id       ID               `json:"id"`
+	Provider MetadataProvider `json:"provider"`
+	Params   GetLinkedMetadataParams
+}
+
+type GetLinkedMetadataResponseObject interface {
+	VisitGetLinkedMetadataResponse(w http.ResponseWriter) error
+}
+
+type GetLinkedMetadata200JSONResponse MetadataMatch
+
+func (response GetLinkedMetadata200JSONResponse) VisitGetLinkedMetadataResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLinkedMetadata409ApplicationProblemPlusJSONResponse Problem
+
+func (response GetLinkedMetadata409ApplicationProblemPlusJSONResponse) VisitGetLinkedMetadataResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLinkedMetadatadefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response GetLinkedMetadatadefaultApplicationProblemPlusJSONResponse) VisitGetLinkedMetadataResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmBookMatchRequestObject struct {
+	Id       ID               `json:"id"`
+	Provider MetadataProvider `json:"provider"`
+	Params   ConfirmBookMatchParams
+	Body     *ConfirmBookMatchJSONRequestBody
+}
+
+type ConfirmBookMatchResponseObject interface {
+	VisitConfirmBookMatchResponse(w http.ResponseWriter) error
+}
+
+type ConfirmBookMatch204Response struct {
+}
+
+func (response ConfirmBookMatch204Response) VisitConfirmBookMatchResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ConfirmBookMatchdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response ConfirmBookMatchdefaultApplicationProblemPlusJSONResponse) VisitConfirmBookMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListInsightRankingsRequestObject struct {
 	Params ListInsightRankingsParams
 }
@@ -6301,6 +6870,79 @@ func (response GetMetadataCoverdefaultApplicationProblemPlusJSONResponse) VisitG
 	return err
 }
 
+type LookupBookMatchesRequestObject struct {
+	Params LookupBookMatchesParams
+	Body   *LookupBookMatchesJSONRequestBody
+}
+
+type LookupBookMatchesResponseObject interface {
+	VisitLookupBookMatchesResponse(w http.ResponseWriter) error
+}
+
+type LookupBookMatches200ApplicationxNdjsonResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response LookupBookMatches200ApplicationxNdjsonResponse) VisitLookupBookMatchesResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		// If w doesn't support flushing, fall back to io.Copy.
+		_, err := io.Copy(w, response.Body)
+		return err
+	}
+	// text/event-stream messages are typically small; use a
+	// modest buffer and flush after each chunk so clients see
+	// events immediately instead of waiting on OS buffering.
+	buf := make([]byte, 4096)
+	for {
+		n, err := response.Body.Read(buf)
+		if n > 0 {
+			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
+				return writeErr
+			}
+			flusher.Flush()
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+type LookupBookMatchesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response LookupBookMatchesdefaultApplicationProblemPlusJSONResponse) VisitLookupBookMatchesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PreviewMetadataMatchRequestObject struct {
 	Params PreviewMetadataMatchParams
 }
@@ -6330,6 +6972,48 @@ type PreviewMetadataMatchdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PreviewMetadataMatchdefaultApplicationProblemPlusJSONResponse) VisitPreviewMetadataMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMetadataProvidersRequestObject struct {
+}
+
+type GetMetadataProvidersResponseObject interface {
+	VisitGetMetadataProvidersResponse(w http.ResponseWriter) error
+}
+
+type GetMetadataProviders200JSONResponse AdminMetadataProvider
+
+func (response GetMetadataProviders200JSONResponse) VisitGetMetadataProvidersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMetadataProvidersdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response GetMetadataProvidersdefaultApplicationProblemPlusJSONResponse) VisitGetMetadataProvidersResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -6666,6 +7350,15 @@ type StrictServerInterface interface {
 	// (GET /api/v1/documents/{id}/file)
 	DownloadDocument(ctx context.Context, request DownloadDocumentRequestObject) (DownloadDocumentResponseObject, error)
 
+	// (DELETE /api/v1/documents/{id}/matches/{provider})
+	UnlinkBookMatch(ctx context.Context, request UnlinkBookMatchRequestObject) (UnlinkBookMatchResponseObject, error)
+
+	// (GET /api/v1/documents/{id}/matches/{provider})
+	GetLinkedMetadata(ctx context.Context, request GetLinkedMetadataRequestObject) (GetLinkedMetadataResponseObject, error)
+
+	// (PUT /api/v1/documents/{id}/matches/{provider})
+	ConfirmBookMatch(ctx context.Context, request ConfirmBookMatchRequestObject) (ConfirmBookMatchResponseObject, error)
+
 	// (GET /api/v1/insights/rankings)
 	ListInsightRankings(ctx context.Context, request ListInsightRankingsRequestObject) (ListInsightRankingsResponseObject, error)
 
@@ -6717,8 +7410,14 @@ type StrictServerInterface interface {
 	// (GET /api/v1/metadata/covers/{cover_id})
 	GetMetadataCover(ctx context.Context, request GetMetadataCoverRequestObject) (GetMetadataCoverResponseObject, error)
 
+	// (POST /api/v1/metadata/lookups)
+	LookupBookMatches(ctx context.Context, request LookupBookMatchesRequestObject) (LookupBookMatchesResponseObject, error)
+
 	// (GET /api/v1/metadata/match)
 	PreviewMetadataMatch(ctx context.Context, request PreviewMetadataMatchRequestObject) (PreviewMetadataMatchResponseObject, error)
+
+	// (GET /api/v1/metadata/providers)
+	GetMetadataProviders(ctx context.Context, request GetMetadataProvidersRequestObject) (GetMetadataProvidersResponseObject, error)
 
 	// (GET /api/v1/metadata/search)
 	LookupMetadata(ctx context.Context, request LookupMetadataRequestObject) (LookupMetadataResponseObject, error)
@@ -7871,6 +8570,108 @@ func (sh *strictHandler) DownloadDocument(ctx *gin.Context, id ID) {
 	}
 }
 
+// UnlinkBookMatch operation middleware
+func (sh *strictHandler) UnlinkBookMatch(ctx *gin.Context, id ID, provider MetadataProvider, params UnlinkBookMatchParams) {
+	var request UnlinkBookMatchRequestObject
+
+	request.Id = id
+	request.Provider = provider
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UnlinkBookMatch(ctx, request.(UnlinkBookMatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnlinkBookMatch")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(UnlinkBookMatchResponseObject); ok {
+		if err := validResponse.VisitUnlinkBookMatchResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetLinkedMetadata operation middleware
+func (sh *strictHandler) GetLinkedMetadata(ctx *gin.Context, id ID, provider MetadataProvider, params GetLinkedMetadataParams) {
+	var request GetLinkedMetadataRequestObject
+
+	request.Id = id
+	request.Provider = provider
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLinkedMetadata(ctx, request.(GetLinkedMetadataRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLinkedMetadata")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetLinkedMetadataResponseObject); ok {
+		if err := validResponse.VisitGetLinkedMetadataResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfirmBookMatch operation middleware
+func (sh *strictHandler) ConfirmBookMatch(ctx *gin.Context, id ID, provider MetadataProvider, params ConfirmBookMatchParams) {
+	var request ConfirmBookMatchRequestObject
+
+	request.Id = id
+	request.Provider = provider
+	request.Params = params
+
+	var body ConfirmBookMatchJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfirmBookMatch(ctx, request.(ConfirmBookMatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfirmBookMatch")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ConfirmBookMatchResponseObject); ok {
+		if err := validResponse.VisitConfirmBookMatchResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListInsightRankings operation middleware
 func (sh *strictHandler) ListInsightRankings(ctx *gin.Context, params ListInsightRankingsParams) {
 	var request ListInsightRankingsRequestObject
@@ -8417,6 +9218,50 @@ func (sh *strictHandler) GetMetadataCover(ctx *gin.Context, coverId int64, param
 	}
 }
 
+// LookupBookMatches operation middleware
+func (sh *strictHandler) LookupBookMatches(ctx *gin.Context, params LookupBookMatchesParams) {
+	var request LookupBookMatchesRequestObject
+
+	request.Params = params
+
+	var body LookupBookMatchesJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.LookupBookMatches(ctx, request.(LookupBookMatchesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "LookupBookMatches")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(LookupBookMatchesResponseObject); ok {
+		if err := validResponse.VisitLookupBookMatchesResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PreviewMetadataMatch operation middleware
 func (sh *strictHandler) PreviewMetadataMatch(ctx *gin.Context, params PreviewMetadataMatchParams) {
 	var request PreviewMetadataMatchRequestObject
@@ -8436,6 +9281,30 @@ func (sh *strictHandler) PreviewMetadataMatch(ctx *gin.Context, params PreviewMe
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(PreviewMetadataMatchResponseObject); ok {
 		if err := validResponse.VisitPreviewMetadataMatchResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMetadataProviders operation middleware
+func (sh *strictHandler) GetMetadataProviders(ctx *gin.Context) {
+	var request GetMetadataProvidersRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMetadataProviders(ctx, request.(GetMetadataProvidersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMetadataProviders")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetMetadataProvidersResponseObject); ok {
+		if err := validResponse.VisitGetMetadataProvidersResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {

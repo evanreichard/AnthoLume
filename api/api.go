@@ -34,6 +34,7 @@ type API struct {
 	hardcoverAccounts  hardcoverFlow
 	hardcoverCatalog   hardcoverCatalogProvider
 	openLibraryCatalog catalogProvider
+	matcherEngine      matcherEngine
 	attempts           credentialLimiter
 	identitySlots      chan struct{}
 	restoreGate        sync.RWMutex

@@ -1,0 +1,30 @@
+.card.card { padding: 0; }
+.heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px; }
+.heading h2 { margin: 0; font-size: clamp(19px, 2vw, 24px); }
+.heading h2:focus { outline: none; }
+.heading select { width: min(52%, 14rem); min-height: 36px; padding: 4px 8px; }
+.feedback { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 8px 14px; }
+.empty { padding: 12px 14px 0; }
+
+.table { --edge: 14px; width: 100%; table-layout: fixed; border-collapse: collapse; }
+.table :is(th, td) { padding: 4px 6px; text-align: start; vertical-align: middle; border-top: 1px solid var(--line); }
+.table tr > :first-child { padding-inline-start: var(--edge); }
+.table thead { background: var(--subtle); }
+.table thead th { color: var(--muted); font-size: .85rem; white-space: nowrap; }
+.table thead th:nth-child(2) { width: clamp(118px, 36%, 17rem); }
+.table tbody th { font-weight: normal; }
+.table .value { padding-inline: 4px 0; text-align: end; }
+.table .action { width: calc(44px + var(--edge)); padding-inline: 0 var(--edge); text-align: end; }
+
+.trigger, .noMatch, .status { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 999px; max-width: 100%; padding: 4px 8px; color: var(--muted); font-size: .84rem; }
+.trigger { justify-content: center; min-width: 0; }
+.trigger:enabled:hover { background: var(--hero); }
+.trigger svg { flex: none; }
+.status { min-height: 32px; --lookup-spinner-size: 12px; --lookup-spinner-color: var(--accent); }
+.writeError { color: var(--danger); font-size: .8rem; }
+.writeError button { padding-inline: 6px; border: 0; text-decoration: underline; }
+
+@media (max-width: 600px) {
+  .table thead th:first-child { width: 46%; }
+  .table thead th:nth-child(2) { width: auto; }
+}

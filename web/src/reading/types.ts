@@ -19,6 +19,7 @@ export interface ReadingBridge {
   fetchFile(account: Account, documentId: string, signal: AbortSignal, etag?: string): Promise<Response>;
   fetchCover(account: Account, documentId: string, signal: AbortSignal): Promise<Response>;
   submitProgress(account: Account, event: S['ProgressEvent'], signal: AbortSignal): Promise<Delivery>;
+  progressAcknowledged?(account: Account): void;
   submitActivity(account: Account, event: S['ActivityEvent'], signal: AbortSignal): Promise<Delivery>;
 }
 export type Delivery = { status: number; body: unknown };
@@ -50,4 +51,7 @@ export type ProviderProps = { access: ReadingAccess; bridge: ReadingBridge; look
 // Separate UUID scopes from the older username scopes, even for usernames that look like UUIDs.
 export function accountKey(account: Account): string { return JSON.stringify(['account', new URL(account.origin).origin, account.userId, ...(account.readingGeneration ? [account.readingGeneration] : [])]); }
 export function refKey(ref: BookRef): string { return ref.kind === 'local' ? JSON.stringify(['local', ref.localId]) : JSON.stringify(['server', accountKey(ref.account), ref.documentId]); }
-export function sameAccount(a: Account, b: Account) { return accountKey(a) === accountKey(b); }
+// Canonical Origin - Account inputs already use URL.origin; persistence normalization is not an identity check.
+export function sameAccount(a: Account, b: Account): boolean {
+  return a.origin === b.origin && a.userId === b.userId && a.readingGeneration === b.readingGeneration;
+}

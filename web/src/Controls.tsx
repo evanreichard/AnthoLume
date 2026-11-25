@@ -1,10 +1,28 @@
-import { useId, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes } from 'react';
+import { useId, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes } from 'react';
 import { Link, NavLink, type LinkProps } from 'react-router';
-import { Icon } from './Icon';
+import { Icon, type IconName } from './Icon';
 import styles from './Controls.module.css';
 
 export function IconButton({ type = 'button', ...props }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> & { 'aria-label': string }) {
   return <button {...props} type={type} className={styles.iconButton} />;
+}
+
+type SearchFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'aria-label'> & {
+  ref?: Ref<HTMLInputElement>;
+  'aria-label': string;
+  submit?: { label: string; title?: string };
+  onClear?: () => void;
+  clearLabel?: string;
+  clearTitle?: string;
+};
+
+export function SearchField({ submit, onClear, clearLabel = 'Clear Search', clearTitle, ...input }: SearchFieldProps) {
+  return <div className={styles.searchField} data-passive={!submit || undefined}>
+    {submit ? <button type="submit" className={styles.searchSubmit} aria-label={submit.label} title={submit.title} disabled={input.disabled}><Icon name="search" size={17} /></button>
+      : <span className={styles.searchGlyph}><Icon name="search" size={17} /></span>}
+    <input {...input} type="search" />
+    {onClear && <button type="button" className={styles.searchClear} aria-label={clearLabel} title={clearTitle} disabled={input.disabled} onClick={onClear}>×</button>}
+  </div>;
 }
 
 export function BackPill({ children, ...props }: Omit<LinkProps, 'className'>) {
@@ -88,8 +106,15 @@ export function Button({ children, size = 'full', tone, type = 'button', ...prop
   return <button {...props} type={type} className={styles.button} data-size={size} data-tone={tone}><span>{children}</span></button>;
 }
 
-export function AddPill({ label, ...props }: Pick<ButtonHTMLAttributes<HTMLButtonElement>, 'disabled' | 'onClick'> & { label: string }) {
-  return <button {...props} type="button" className={styles.pillIcon} aria-label={label} title={label}><span><Icon name="add" size={16} /></span></button>;
+type CircleActionProps = { label: string; icon: IconName; emphasized?: boolean } & (
+  | Pick<LinkProps, 'to' | 'state'>
+  | Pick<ButtonHTMLAttributes<HTMLButtonElement>, 'disabled' | 'onClick'>
+);
+
+export function CircleAction({ label, icon, emphasized, ...props }: CircleActionProps) {
+  const appearance = { className: styles.pillIcon, 'data-emphasized': emphasized || undefined, 'aria-label': label, title: label };
+  const face = <span><Icon name={icon} size={16} /></span>;
+  return 'to' in props ? <Link {...props} {...appearance}>{face}</Link> : <button {...props} {...appearance} type="button">{face}</button>;
 }
 
 type ButtonLinkProps = ButtonStyle & (Omit<LinkProps, 'className' | 'href'> | Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'className'>);
@@ -104,11 +129,20 @@ export function Dropdown({ size = 'full', stretch = false, ...props }: Omit<Sele
   return <span className={styles.dropdown} data-size={size} data-stretch={stretch || undefined}><select {...props} /></span>;
 }
 
-export function Pager({ label, page, total, hasNext, onPageChange }: { label: string; page: number; total?: number; hasNext: boolean; onPageChange: (page: number) => void }) {
-  return <nav className={styles.pager} aria-label={label}>
-    <Button size="slim" aria-disabled={page <= 1} onClick={() => { if (page > 1) onPageChange(page - 1); }}>Previous</Button>
-    <span role="status">{total == null ? `Page ${page}` : `${page} of ${total}`}</span>
-    <Button size="slim" aria-disabled={!hasNext} onClick={() => { if (hasNext) onPageChange(page + 1); }}>Next</Button>
+type PagerProps = { label: string; page: number; hasNext: boolean; onPageChange: (page: number) => void } & (
+  | { range: string; total?: never }
+  | { range?: never; total?: number }
+);
+
+export function Pager({ label, page, total, range, hasNext, onPageChange }: PagerProps) {
+  const previous = () => { if (page > 1) onPageChange(page - 1); };
+  const next = () => { if (hasNext) onPageChange(page + 1); };
+  return <nav className={styles.pager} data-range={range != null || undefined} aria-label={label}>
+    {range != null ? <CircleAction icon="back" label="Previous Page" disabled={page <= 1} onClick={previous} />
+      : <Button size="slim" aria-disabled={page <= 1} onClick={previous}>Previous</Button>}
+    <span role="status">{range ?? (total == null ? `Page ${page}` : `${page} of ${total}`)}</span>
+    {range != null ? <CircleAction icon="forward" label="Next Page" disabled={!hasNext} onClick={next} />
+      : <Button size="slim" aria-disabled={!hasNext} onClick={next}>Next</Button>}
   </nav>;
 }
 
