@@ -1,9 +1,4 @@
 .navigation { display: grid; gap: 8px; min-width: 0; }
-.search { position: relative; display: flex; align-items: center; }
-.search > svg { position: absolute; inset-inline-start: 11px; pointer-events: none; color: var(--muted); }
-.search > input { padding-inline: 36px 44px; }
-.search > button { position: absolute; inset-inline-end: 0; width: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 1.25rem; }
-.search > button:focus-visible { outline-offset: -3px; }
 .toolbar { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; }
 .path { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); font-size: .8125rem; }
 .pathText { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; direction: rtl; text-align: left; scrollbar-width: thin; }

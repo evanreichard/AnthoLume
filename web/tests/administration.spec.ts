@@ -222,6 +222,12 @@ test('administrators manage users while members cannot open Administration', asy
   await dialog.getByRole('button', { name: 'alternate-library', exact: true }).waitFor();
   await page.screenshot({ path: testInfo.outputPath('directory-picker-390.png') });
   const filter = dialog.getByRole('searchbox', { name: 'Filter folders' });
+  await filter.fill(' FOLDER-1 ');
+  await expect(dialog.getByRole('button', { name: 'folder-1', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'alternate-library', exact: true })).toHaveCount(0);
+  await filter.press('Enter');
+  await expect(dialog).toHaveAccessibleName('Select Folder');
+  await expect(location).toHaveText(server.data);
   await filter.fill('no-match');
   await expect(dialog.getByText('No matching folders.')).toBeVisible();
   await dialog.getByRole('button', { name: 'Clear Folder Filter' }).click();

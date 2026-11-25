@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Account } from './reading';
 import { session } from './session';
-import { Button, IconButton } from './Controls';
+import { Button, IconButton, SearchField } from './Controls';
 import { Icon } from './Icon';
 import { Dialog, ErrorNotice } from './ui';
 import { SkeletonRows } from './Skeleton';
@@ -32,14 +32,12 @@ export function DirectoryPicker({ account, initialPath, onChoose, onCancel }: { 
           <div ref={pathBar} tabIndex={0} role="status" title={path} className={picker.pathText}><bdi dir="ltr">{path}</bdi></div>
         </div>
       </div>
-      {folder && folder.entries.length >= 10 && <div className={picker.search}>
-        <Icon name="search" size={17} />
-        <input ref={searchInput} type="search" aria-label="Filter folders" placeholder="Filter folders" value={filter} onChange={event => setFilter(event.target.value)} />
-        {filter && <button type="button" aria-label="Clear Folder Filter" title="Clear Folder Filter" onClick={() => {
+      {folder && folder.entries.length >= 10 && <SearchField ref={searchInput} aria-label="Filter folders" placeholder="Filter folders"
+        value={filter} onChange={event => setFilter(event.target.value)} clearLabel="Clear Folder Filter" clearTitle="Clear Folder Filter"
+        onClear={filter ? () => {
           setFilter('');
           searchInput.current?.focus();
-        }}>×</button>}
-      </div>}
+        } : undefined} />}
     </div>
     } footer={<>
       <Button size="slim" tone="primary" disabled={!folder || listing.isError} onClick={() => { if (folder) onChoose(folder.path); }}>Select</Button>

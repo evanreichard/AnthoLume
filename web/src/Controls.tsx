@@ -10,15 +10,18 @@ export function IconButton({ type = 'button', ...props }: Omit<ButtonHTMLAttribu
 type SearchFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'aria-label'> & {
   ref?: Ref<HTMLInputElement>;
   'aria-label': string;
-  submit: { label: string; title?: string };
+  submit?: { label: string; title?: string };
   onClear?: () => void;
+  clearLabel?: string;
+  clearTitle?: string;
 };
 
-export function SearchField({ submit, onClear, ...input }: SearchFieldProps) {
-  return <div className={styles.searchField}>
-    <button type="submit" className={styles.searchSubmit} aria-label={submit.label} title={submit.title} disabled={input.disabled}><Icon name="search" size={17} /></button>
+export function SearchField({ submit, onClear, clearLabel = 'Clear Search', clearTitle, ...input }: SearchFieldProps) {
+  return <div className={styles.searchField} data-passive={!submit || undefined}>
+    {submit ? <button type="submit" className={styles.searchSubmit} aria-label={submit.label} title={submit.title} disabled={input.disabled}><Icon name="search" size={17} /></button>
+      : <span className={styles.searchGlyph}><Icon name="search" size={17} /></span>}
     <input {...input} type="search" />
-    {onClear && <button type="button" className={styles.searchClear} aria-label="Clear Search" disabled={input.disabled} onClick={onClear}>×</button>}
+    {onClear && <button type="button" className={styles.searchClear} aria-label={clearLabel} title={clearTitle} disabled={input.disabled} onClick={onClear}>×</button>}
   </div>;
 }
 
