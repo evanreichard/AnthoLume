@@ -603,6 +603,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/book-matcher": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAdminBookMatcherPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/book-matcher/lookups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["lookupAdminBookMatches"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/documents/{id}/matches/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+                provider: components["schemas"]["MetadataProvider"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["confirmAdminBookMatch"];
+        post?: never;
+        delete: operations["unlinkAdminBookMatch"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/metadata-provider": {
         parameters: {
             query?: never;
@@ -976,6 +1027,43 @@ export interface components {
             isbn13?: string;
             cover_base64?: string;
             remove_cover?: boolean;
+        };
+        AdminBookMatcherPage: {
+            items: components["schemas"]["AdminBookMatcherItem"][];
+            total: number;
+            page: number;
+        };
+        AdminBookMatcherItem: {
+            id: components["schemas"]["ID"];
+            title: string;
+            author: string;
+            isbn?: string;
+            match?: components["schemas"]["AdminBookMatcherLink"];
+        };
+        AdminBookMatcherLink: {
+            work_id: components["schemas"]["MetadataWorkID"];
+            url: string;
+        };
+        AdminBookMatcherWork: {
+            work_id: components["schemas"]["MetadataWorkID"];
+        };
+        AdminBookMatcherLookupRequest: {
+            provider: components["schemas"]["MetadataProvider"];
+            document_ids: components["schemas"]["ID"][];
+        };
+        /** @description Exactly one of candidates, error, or match is present. Empty candidates means a successful lookup found no match. */
+        AdminBookMatcherOutcome: {
+            document_id: components["schemas"]["ID"];
+            candidates?: components["schemas"]["AdminBookMatcherCandidate"][];
+            error?: string;
+            match?: components["schemas"]["AdminBookMatcherLink"];
+        };
+        AdminBookMatcherCandidate: {
+            work_id: components["schemas"]["MetadataWorkID"];
+            title: string;
+            author: string;
+            url: string;
+            reason?: string;
         };
         /** @enum {string} */
         MetadataProvider: "openlibrary" | "hardcover";
@@ -2423,6 +2511,120 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AdminStorageDirectories"];
                 };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getAdminBookMatcherPage: {
+        parameters: {
+            query: {
+                provider: components["schemas"]["MetadataProvider"];
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ten books at most, with saved links for the requested provider. Does not look up candidates. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBookMatcherPage"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    lookupAdminBookMatches: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminBookMatcherLookupRequest"];
+            };
+        };
+        responses: {
+            /** @description Newline-delimited JSON; one outcome per requested document, delivered in completion order. No matches are saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/x-ndjson": components["schemas"]["AdminBookMatcherOutcome"][];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    confirmAdminBookMatch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: components["parameters"]["ID"];
+                provider: components["schemas"]["MetadataProvider"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminBookMatcherWork"];
+            };
+        };
+        responses: {
+            /** @description Verified link saved, or identical link already present */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    unlinkAdminBookMatch: {
+        parameters: {
+            query: {
+                work_id: components["schemas"]["MetadataWorkID"];
+            };
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: components["parameters"]["ID"];
+                provider: components["schemas"]["MetadataProvider"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Matching link removed, or no link already present */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Problem"];
         };

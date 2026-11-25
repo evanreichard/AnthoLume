@@ -395,6 +395,56 @@ type AdminBackupPreview struct {
 	Missing int   `json:"missing"`
 }
 
+// AdminBookMatcherCandidate defines model for AdminBookMatcherCandidate.
+type AdminBookMatcherCandidate struct {
+	Author string         `json:"author"`
+	Reason *string        `json:"reason,omitempty"`
+	Title  string         `json:"title"`
+	Url    string         `json:"url"`
+	WorkId MetadataWorkID `json:"work_id"`
+}
+
+// AdminBookMatcherItem defines model for AdminBookMatcherItem.
+type AdminBookMatcherItem struct {
+	Author string                `json:"author"`
+	Id     ID                    `json:"id"`
+	Isbn   *string               `json:"isbn,omitempty"`
+	Match  *AdminBookMatcherLink `json:"match,omitempty"`
+	Title  string                `json:"title"`
+}
+
+// AdminBookMatcherLink defines model for AdminBookMatcherLink.
+type AdminBookMatcherLink struct {
+	Url    string         `json:"url"`
+	WorkId MetadataWorkID `json:"work_id"`
+}
+
+// AdminBookMatcherLookupRequest defines model for AdminBookMatcherLookupRequest.
+type AdminBookMatcherLookupRequest struct {
+	DocumentIds []ID             `json:"document_ids"`
+	Provider    MetadataProvider `json:"provider"`
+}
+
+// AdminBookMatcherOutcome Exactly one of candidates, error, or match is present. Empty candidates means a successful lookup found no match.
+type AdminBookMatcherOutcome struct {
+	Candidates *[]AdminBookMatcherCandidate `json:"candidates,omitempty"`
+	DocumentId ID                           `json:"document_id"`
+	Error      *string                      `json:"error,omitempty"`
+	Match      *AdminBookMatcherLink        `json:"match,omitempty"`
+}
+
+// AdminBookMatcherPage defines model for AdminBookMatcherPage.
+type AdminBookMatcherPage struct {
+	Items []AdminBookMatcherItem `json:"items"`
+	Page  int                    `json:"page"`
+	Total int                    `json:"total"`
+}
+
+// AdminBookMatcherWork defines model for AdminBookMatcherWork.
+type AdminBookMatcherWork struct {
+	WorkId MetadataWorkID `json:"work_id"`
+}
+
 // AdminImportResult defines model for AdminImportResult.
 type AdminImportResult struct {
 	File   string                  `json:"file"`
@@ -916,6 +966,41 @@ type RepairAdminBackupPathParams struct {
 	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
 }
 
+// GetAdminBookMatcherPageParams defines parameters for GetAdminBookMatcherPage.
+type GetAdminBookMatcherPageParams struct {
+	Provider MetadataProvider `form:"provider" json:"provider"`
+	Page     *int             `form:"page,omitempty" json:"page,omitempty"`
+}
+
+// LookupAdminBookMatchesParams defines parameters for LookupAdminBookMatches.
+type LookupAdminBookMatchesParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// UnlinkAdminBookMatchParams defines parameters for UnlinkAdminBookMatch.
+type UnlinkAdminBookMatchParams struct {
+	WorkId MetadataWorkID `form:"work_id" json:"work_id"`
+
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// ConfirmAdminBookMatchParams defines parameters for ConfirmAdminBookMatch.
+type ConfirmAdminBookMatchParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
 // PreviewAdminImportParams defines parameters for PreviewAdminImport.
 type PreviewAdminImportParams struct {
 	RootId *StorageRootID `form:"root_id,omitempty" json:"root_id,omitempty"`
@@ -1253,6 +1338,12 @@ type SaveAdminAutoImportJSONRequestBody = AdminAutoImportSettings
 // RepairAdminBackupPathJSONRequestBody defines body for RepairAdminBackupPath for application/json ContentType.
 type RepairAdminBackupPathJSONRequestBody = AdminBackupPathRepair
 
+// LookupAdminBookMatchesJSONRequestBody defines body for LookupAdminBookMatches for application/json ContentType.
+type LookupAdminBookMatchesJSONRequestBody = AdminBookMatcherLookupRequest
+
+// ConfirmAdminBookMatchJSONRequestBody defines body for ConfirmAdminBookMatch for application/json ContentType.
+type ConfirmAdminBookMatchJSONRequestBody = AdminBookMatcherWork
+
 // StartAdminJobJSONRequestBody defines body for StartAdminJob for application/json ContentType.
 type StartAdminJobJSONRequestBody StartAdminJobJSONBody
 
@@ -1327,6 +1418,18 @@ type ServerInterface interface {
 
 	// (POST /api/v1/admin/backup/repair-path)
 	RepairAdminBackupPath(c *gin.Context, params RepairAdminBackupPathParams)
+
+	// (GET /api/v1/admin/book-matcher)
+	GetAdminBookMatcherPage(c *gin.Context, params GetAdminBookMatcherPageParams)
+
+	// (POST /api/v1/admin/book-matcher/lookups)
+	LookupAdminBookMatches(c *gin.Context, params LookupAdminBookMatchesParams)
+
+	// (DELETE /api/v1/admin/documents/{id}/matches/{provider})
+	UnlinkAdminBookMatch(c *gin.Context, id ID, provider MetadataProvider, params UnlinkAdminBookMatchParams)
+
+	// (PUT /api/v1/admin/documents/{id}/matches/{provider})
+	ConfirmAdminBookMatch(c *gin.Context, id ID, provider MetadataProvider, params ConfirmAdminBookMatchParams)
 
 	// (GET /api/v1/admin/import)
 	PreviewAdminImport(c *gin.Context, params PreviewAdminImportParams)
@@ -1815,6 +1918,262 @@ func (siw *ServerInterfaceWrapper) RepairAdminBackupPath(c *gin.Context) {
 	}
 
 	siw.Handler.RepairAdminBackupPath(c, params)
+}
+
+// GetAdminBookMatcherPage operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminBookMatcherPage(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminBookMatcherPageParams
+
+	// ------------- Required query parameter "provider" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "provider", c.Request.URL.Query(), &params.Provider, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminBookMatcherPage(c, params)
+}
+
+// LookupAdminBookMatches operation middleware
+func (siw *ServerInterfaceWrapper) LookupAdminBookMatches(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params LookupAdminBookMatchesParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LookupAdminBookMatches(c, params)
+}
+
+// UnlinkAdminBookMatch operation middleware
+func (siw *ServerInterfaceWrapper) UnlinkAdminBookMatch(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "provider" -------------
+	var provider MetadataProvider
+
+	err = runtime.BindStyledParameterWithOptions("simple", "provider", c.Param("provider"), &provider, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UnlinkAdminBookMatchParams
+
+	// ------------- Required query parameter "work_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "work_id", c.Request.URL.Query(), &params.WorkId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter work_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UnlinkAdminBookMatch(c, id, provider, params)
+}
+
+// ConfirmAdminBookMatch operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmAdminBookMatch(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "provider" -------------
+	var provider MetadataProvider
+
+	err = runtime.BindStyledParameterWithOptions("simple", "provider", c.Param("provider"), &provider, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ConfirmAdminBookMatchParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ConfirmAdminBookMatch(c, id, provider, params)
 }
 
 // PreviewAdminImport operation middleware
@@ -4040,6 +4399,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/api/v1/admin/storage-roots/make-library", wrapper.PreviewMakeLibrary)
 	router.POST(options.BaseURL+"/api/v1/admin/storage-roots/make-library", wrapper.MakeLibrary)
 	router.GET(options.BaseURL+"/api/v1/admin/storage-directories", wrapper.BrowseAdminStorageDirectories)
+	router.GET(options.BaseURL+"/api/v1/admin/book-matcher", wrapper.GetAdminBookMatcherPage)
+	router.POST(options.BaseURL+"/api/v1/admin/book-matcher/lookups", wrapper.LookupAdminBookMatches)
+	router.DELETE(options.BaseURL+"/api/v1/admin/documents/:id/matches/:provider", wrapper.UnlinkAdminBookMatch)
+	router.PUT(options.BaseURL+"/api/v1/admin/documents/:id/matches/:provider", wrapper.ConfirmAdminBookMatch)
 	router.GET(options.BaseURL+"/api/v1/admin/metadata-provider", wrapper.GetAdminMetadataProvider)
 	router.PUT(options.BaseURL+"/api/v1/admin/metadata-provider", wrapper.SetAdminMetadataProvider)
 	router.DELETE(options.BaseURL+"/api/v1/admin/auto-import", wrapper.DeleteAdminAutoImport)
@@ -4330,6 +4693,201 @@ type RepairAdminBackupPathdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response RepairAdminBackupPathdefaultApplicationProblemPlusJSONResponse) VisitRepairAdminBackupPathResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminBookMatcherPageRequestObject struct {
+	Params GetAdminBookMatcherPageParams
+}
+
+type GetAdminBookMatcherPageResponseObject interface {
+	VisitGetAdminBookMatcherPageResponse(w http.ResponseWriter) error
+}
+
+type GetAdminBookMatcherPage200JSONResponse AdminBookMatcherPage
+
+func (response GetAdminBookMatcherPage200JSONResponse) VisitGetAdminBookMatcherPageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminBookMatcherPagedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response GetAdminBookMatcherPagedefaultApplicationProblemPlusJSONResponse) VisitGetAdminBookMatcherPageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LookupAdminBookMatchesRequestObject struct {
+	Params LookupAdminBookMatchesParams
+	Body   *LookupAdminBookMatchesJSONRequestBody
+}
+
+type LookupAdminBookMatchesResponseObject interface {
+	VisitLookupAdminBookMatchesResponse(w http.ResponseWriter) error
+}
+
+type LookupAdminBookMatches200ApplicationxNdjsonResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response LookupAdminBookMatches200ApplicationxNdjsonResponse) VisitLookupAdminBookMatchesResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		// If w doesn't support flushing, fall back to io.Copy.
+		_, err := io.Copy(w, response.Body)
+		return err
+	}
+	// text/event-stream messages are typically small; use a
+	// modest buffer and flush after each chunk so clients see
+	// events immediately instead of waiting on OS buffering.
+	buf := make([]byte, 4096)
+	for {
+		n, err := response.Body.Read(buf)
+		if n > 0 {
+			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
+				return writeErr
+			}
+			flusher.Flush()
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+type LookupAdminBookMatchesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response LookupAdminBookMatchesdefaultApplicationProblemPlusJSONResponse) VisitLookupAdminBookMatchesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnlinkAdminBookMatchRequestObject struct {
+	Id       ID               `json:"id"`
+	Provider MetadataProvider `json:"provider"`
+	Params   UnlinkAdminBookMatchParams
+}
+
+type UnlinkAdminBookMatchResponseObject interface {
+	VisitUnlinkAdminBookMatchResponse(w http.ResponseWriter) error
+}
+
+type UnlinkAdminBookMatch204Response struct {
+}
+
+func (response UnlinkAdminBookMatch204Response) VisitUnlinkAdminBookMatchResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type UnlinkAdminBookMatchdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response UnlinkAdminBookMatchdefaultApplicationProblemPlusJSONResponse) VisitUnlinkAdminBookMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmAdminBookMatchRequestObject struct {
+	Id       ID               `json:"id"`
+	Provider MetadataProvider `json:"provider"`
+	Params   ConfirmAdminBookMatchParams
+	Body     *ConfirmAdminBookMatchJSONRequestBody
+}
+
+type ConfirmAdminBookMatchResponseObject interface {
+	VisitConfirmAdminBookMatchResponse(w http.ResponseWriter) error
+}
+
+type ConfirmAdminBookMatch204Response struct {
+}
+
+func (response ConfirmAdminBookMatch204Response) VisitConfirmAdminBookMatchResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ConfirmAdminBookMatchdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response ConfirmAdminBookMatchdefaultApplicationProblemPlusJSONResponse) VisitConfirmAdminBookMatchResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -6585,6 +7143,18 @@ type StrictServerInterface interface {
 	// (POST /api/v1/admin/backup/repair-path)
 	RepairAdminBackupPath(ctx context.Context, request RepairAdminBackupPathRequestObject) (RepairAdminBackupPathResponseObject, error)
 
+	// (GET /api/v1/admin/book-matcher)
+	GetAdminBookMatcherPage(ctx context.Context, request GetAdminBookMatcherPageRequestObject) (GetAdminBookMatcherPageResponseObject, error)
+
+	// (POST /api/v1/admin/book-matcher/lookups)
+	LookupAdminBookMatches(ctx context.Context, request LookupAdminBookMatchesRequestObject) (LookupAdminBookMatchesResponseObject, error)
+
+	// (DELETE /api/v1/admin/documents/{id}/matches/{provider})
+	UnlinkAdminBookMatch(ctx context.Context, request UnlinkAdminBookMatchRequestObject) (UnlinkAdminBookMatchResponseObject, error)
+
+	// (PUT /api/v1/admin/documents/{id}/matches/{provider})
+	ConfirmAdminBookMatch(ctx context.Context, request ConfirmAdminBookMatchRequestObject) (ConfirmAdminBookMatchResponseObject, error)
+
 	// (GET /api/v1/admin/import)
 	PreviewAdminImport(ctx context.Context, request PreviewAdminImportRequestObject) (PreviewAdminImportResponseObject, error)
 
@@ -7018,6 +7588,150 @@ func (sh *strictHandler) RepairAdminBackupPath(ctx *gin.Context, params RepairAd
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(RepairAdminBackupPathResponseObject); ok {
 		if err := validResponse.VisitRepairAdminBackupPathResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminBookMatcherPage operation middleware
+func (sh *strictHandler) GetAdminBookMatcherPage(ctx *gin.Context, params GetAdminBookMatcherPageParams) {
+	var request GetAdminBookMatcherPageRequestObject
+
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminBookMatcherPage(ctx, request.(GetAdminBookMatcherPageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminBookMatcherPage")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetAdminBookMatcherPageResponseObject); ok {
+		if err := validResponse.VisitGetAdminBookMatcherPageResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// LookupAdminBookMatches operation middleware
+func (sh *strictHandler) LookupAdminBookMatches(ctx *gin.Context, params LookupAdminBookMatchesParams) {
+	var request LookupAdminBookMatchesRequestObject
+
+	request.Params = params
+
+	var body LookupAdminBookMatchesJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.LookupAdminBookMatches(ctx, request.(LookupAdminBookMatchesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "LookupAdminBookMatches")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(LookupAdminBookMatchesResponseObject); ok {
+		if err := validResponse.VisitLookupAdminBookMatchesResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnlinkAdminBookMatch operation middleware
+func (sh *strictHandler) UnlinkAdminBookMatch(ctx *gin.Context, id ID, provider MetadataProvider, params UnlinkAdminBookMatchParams) {
+	var request UnlinkAdminBookMatchRequestObject
+
+	request.Id = id
+	request.Provider = provider
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UnlinkAdminBookMatch(ctx, request.(UnlinkAdminBookMatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnlinkAdminBookMatch")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(UnlinkAdminBookMatchResponseObject); ok {
+		if err := validResponse.VisitUnlinkAdminBookMatchResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfirmAdminBookMatch operation middleware
+func (sh *strictHandler) ConfirmAdminBookMatch(ctx *gin.Context, id ID, provider MetadataProvider, params ConfirmAdminBookMatchParams) {
+	var request ConfirmAdminBookMatchRequestObject
+
+	request.Id = id
+	request.Provider = provider
+	request.Params = params
+
+	var body ConfirmAdminBookMatchJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfirmAdminBookMatch(ctx, request.(ConfirmAdminBookMatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfirmAdminBookMatch")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ConfirmAdminBookMatchResponseObject); ok {
+		if err := validResponse.VisitConfirmAdminBookMatchResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {

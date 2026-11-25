@@ -1,8 +1,9 @@
-export type IconName = 'minus' | 'more' | 'kept' | 'down' | 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'cloud-off' | 'device' | 'device-saved' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'user' | 'warning' | 'folder' | 'up' | 'forward' | 'refresh' | 'sign-out' | 'upload' | 'info';
+export type IconName = 'close' | 'minus' | 'more' | 'kept' | 'down' | 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'cloud-off' | 'device' | 'device-saved' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'user' | 'warning' | 'folder' | 'up' | 'forward' | 'refresh' | 'sign-out' | 'upload' | 'info';
 
 const device = 'M6 2.5h12A1.5 1.5 0 0 1 19.5 4v16a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 20V4A1.5 1.5 0 0 1 6 2.5z M10.5 18.5h3';
 
 const paths: Record<IconName, string> = {
+  close: 'm6 6 12 12M18 6 6 18',
   more: 'M4 12h.1m7.9 0h.1m7.9 0h.1',
   kept: 'M15 20H5V3h13v8 M8 6h7 M10 17h1 m3-1 2.5 2.5L22 13',
   down: 'm6 9 6 6 6-6',

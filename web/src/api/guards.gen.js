@@ -1,5 +1,5 @@
 // Generated from api/openapi.yaml; do not edit.
-export const [checkLookupMetadata200, checkListManagedDevices200, checkListAdminUsers200, checkListAdminJobs200, checkListAdminStorageRoots200, checkListAdminAutoImports200, checkPreviewAdminImport200, checkListAdminImportResults200, checkSession, checkSessionUser, checkID, checkCapabilities, checkHardcoverStatus, checkHardcoverConnect, checkHardcoverShelf, checkHardcoverBook, checkDocumentPage, checkDocument, checkBookReadingStats, checkDocumentMatch, checkMetadataProvider, checkMetadataWorkID, checkMetadataMatch, checkMetadataEditionID, checkManagedDevice, checkDevice, checkReadingState, checkRevision, checkReceipt, checkEventID, checkInsights, checkInsightDay, checkInsightActivityPage, checkInsightActivity, checkInsightCursor, checkInsightProgressPage, checkInsightProgress, checkInsightRankings, checkInsightRank, checkAdminUser, checkAdminJob, checkAdminBackupPreview, checkAdminRestore, checkAdminLogPage, checkAdminLog, checkAdminLogLevel, checkAdminStorageRoot, checkStorageRootID, checkMakeLibraryPlan, checkAdminStorageDirectories, checkAdminMetadataProvider, checkAdminAutoImport, checkAutoImportID, checkAdminAutoImportSettings, checkAutoImportScanTrigger, checkAutoImportScanSummary, checkAdminImportResult, checkAdminSystem, checkProblem, checkAdminBackupPathIssue, checkAdminBackupPathKind] = (function() {
+export const [checkLookupMetadata200, checkListManagedDevices200, checkListAdminUsers200, checkListAdminJobs200, checkListAdminStorageRoots200, checkListAdminAutoImports200, checkPreviewAdminImport200, checkListAdminImportResults200, checkSession, checkSessionUser, checkID, checkCapabilities, checkHardcoverStatus, checkHardcoverConnect, checkHardcoverShelf, checkHardcoverBook, checkDocumentPage, checkDocument, checkBookReadingStats, checkDocumentMatch, checkMetadataProvider, checkMetadataWorkID, checkMetadataMatch, checkMetadataEditionID, checkManagedDevice, checkDevice, checkReadingState, checkRevision, checkReceipt, checkEventID, checkInsights, checkInsightDay, checkInsightActivityPage, checkInsightActivity, checkInsightCursor, checkInsightProgressPage, checkInsightProgress, checkInsightRankings, checkInsightRank, checkAdminUser, checkAdminJob, checkAdminBackupPreview, checkAdminRestore, checkAdminLogPage, checkAdminLog, checkAdminLogLevel, checkAdminStorageRoot, checkStorageRootID, checkMakeLibraryPlan, checkAdminStorageDirectories, checkAdminBookMatcherPage, checkAdminBookMatcherItem, checkAdminBookMatcherLink, checkAdminMetadataProvider, checkAdminAutoImport, checkAutoImportID, checkAdminAutoImportSettings, checkAutoImportScanTrigger, checkAutoImportScanSummary, checkAdminImportResult, checkAdminSystem, checkProblem, checkAdminBackupPathIssue, checkAdminBackupPathKind] = (function() {
 'use strict'
 const hasOwn = Function.prototype.call.bind(Object.prototype.hasOwnProperty);
 const ref2 = function validate(data) {
@@ -1149,16 +1149,56 @@ const ref96 = function validate(data) {
   if (!ref97(data)) return false
   return true
 };
+const ref101 = function validate(data) {
+  if (!(typeof data === "object" && data && !Array.isArray(data))) return false
+  if (!("work_id" in data && hasOwn(data, "work_id"))) return false
+  if (!("url" in data && hasOwn(data, "url"))) return false
+  if (!ref3(data.work_id)) return false
+  if (!(typeof data.url === "string")) return false
+  for (const key37 of Object.keys(data)) {
+    if (key37 !== "work_id" && key37 !== "url") return false
+  }
+  return true
+};
+const ref100 = function validate(data) {
+  if (!(typeof data === "object" && data && !Array.isArray(data))) return false
+  if (!("id" in data && hasOwn(data, "id"))) return false
+  if (!("title" in data && hasOwn(data, "title"))) return false
+  if (!("author" in data && hasOwn(data, "author"))) return false
+  if (!ref7(data.id)) return false
+  if (!(typeof data.title === "string")) return false
+  if (!(typeof data.author === "string")) return false
+  if ("isbn" in data && hasOwn(data, "isbn")) {
+    if (!(typeof data.isbn === "string")) return false
+  }
+  if ("match" in data && hasOwn(data, "match")) {
+    if (!ref101(data.match)) return false
+  }
+  for (const key38 of Object.keys(data)) {
+    if (key38 !== "id" && key38 !== "title" && key38 !== "author" && key38 !== "isbn" && key38 !== "match") return false
+  }
+  return true
+};
 const ref99 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
-  if (!("selected" in data && hasOwn(data, "selected"))) return false
-  if (!("effective" in data && hasOwn(data, "effective"))) return false
-  if (!("hardcover_available" in data && hasOwn(data, "hardcover_available"))) return false
-  if (!ref2(data.selected)) return false
-  if (!ref2(data.effective)) return false
-  if (!(typeof data.hardcover_available === "boolean")) return false
-  for (const key37 of Object.keys(data)) {
-    if (key37 !== "selected" && key37 !== "effective" && key37 !== "hardcover_available") return false
+  if (!("items" in data && hasOwn(data, "items"))) return false
+  if (!("total" in data && hasOwn(data, "total"))) return false
+  if (!("page" in data && hasOwn(data, "page"))) return false
+  if (!Array.isArray(data.items)) return false
+  if (data.items.length > 10) return false
+  for (let ii = 0; ii < data.items.length; ii++) {
+    if (ii in data.items && hasOwn(data.items, ii)) {
+      if (!ref100(data.items[ii])) return false
+    }
+  }
+  if (!Number.isInteger(data.total)) return false
+  if (!(0 <= data.total)) return false
+  if (!(9007199254740991 >= data.total)) return false
+  if (!Number.isInteger(data.page)) return false
+  if (!(1 <= data.page)) return false
+  if (!(9007199254740991 >= data.page)) return false
+  for (const key39 of Object.keys(data)) {
+    if (key39 !== "items" && key39 !== "total" && key39 !== "page") return false
   }
   return true
 };
@@ -1166,60 +1206,85 @@ const ref98 = function validate(data) {
   if (!ref99(data)) return false
   return true
 };
-const ref100 = function validate(data) {
-  if (!ref16(data)) return false
-  return true
-};
-const ref101 = function validate(data) {
-  if (!ref17(data)) return false
-  return true
-};
 const ref102 = function validate(data) {
-  if (!ref18(data)) return false
+  if (!ref100(data)) return false
   return true
 };
 const ref103 = function validate(data) {
-  if (!ref19(data)) return false
-  return true
-};
-const ref104 = function validate(data) {
-  if (!ref20(data)) return false
+  if (!ref101(data)) return false
   return true
 };
 const ref105 = function validate(data) {
-  if (!ref23(data)) return false
-  return true
-};
-const ref107 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
-  if (!("version" in data && hasOwn(data, "version"))) return false
-  if (!(typeof data.version === "string")) return false
-  for (const key38 of Object.keys(data)) {
-    if (key38 !== "version") return false
+  if (!("selected" in data && hasOwn(data, "selected"))) return false
+  if (!("effective" in data && hasOwn(data, "effective"))) return false
+  if (!("hardcover_available" in data && hasOwn(data, "hardcover_available"))) return false
+  if (!ref2(data.selected)) return false
+  if (!ref2(data.effective)) return false
+  if (!(typeof data.hardcover_available === "boolean")) return false
+  for (const key40 of Object.keys(data)) {
+    if (key40 !== "selected" && key40 !== "effective" && key40 !== "hardcover_available") return false
   }
   return true
 };
+const ref104 = function validate(data) {
+  if (!ref105(data)) return false
+  return true
+};
 const ref106 = function validate(data) {
-  if (!ref107(data)) return false
+  if (!ref16(data)) return false
+  return true
+};
+const ref107 = function validate(data) {
+  if (!ref17(data)) return false
+  return true
+};
+const ref108 = function validate(data) {
+  if (!ref18(data)) return false
+  return true
+};
+const ref109 = function validate(data) {
+  if (!ref19(data)) return false
+  return true
+};
+const ref110 = function validate(data) {
+  if (!ref20(data)) return false
   return true
 };
 const ref111 = function validate(data) {
+  if (!ref23(data)) return false
+  return true
+};
+const ref113 = function validate(data) {
+  if (!(typeof data === "object" && data && !Array.isArray(data))) return false
+  if (!("version" in data && hasOwn(data, "version"))) return false
+  if (!(typeof data.version === "string")) return false
+  for (const key41 of Object.keys(data)) {
+    if (key41 !== "version") return false
+  }
+  return true
+};
+const ref112 = function validate(data) {
+  if (!ref113(data)) return false
+  return true
+};
+const ref117 = function validate(data) {
   if (!(typeof data === "string")) return false
   if (!(data === "book" || data === "cover")) return false
   return true
 };
-const ref110 = function validate(data) {
+const ref116 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("document_id" in data && hasOwn(data, "document_id"))) return false
   if (!("kind" in data && hasOwn(data, "kind"))) return false
   if (!(typeof data.document_id === "string")) return false
-  if (!ref111(data.kind)) return false
-  for (const key39 of Object.keys(data)) {
-    if (key39 !== "document_id" && key39 !== "kind") return false
+  if (!ref117(data.kind)) return false
+  for (const key42 of Object.keys(data)) {
+    if (key42 !== "document_id" && key42 !== "kind") return false
   }
   return true
 };
-const ref109 = function validate(data) {
+const ref115 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("type" in data && hasOwn(data, "type"))) return false
   if (!("title" in data && hasOwn(data, "title"))) return false
@@ -1237,23 +1302,23 @@ const ref109 = function validate(data) {
     if (!ref56(data.current_revision)) return false
   }
   if ("backup_path_issue" in data && hasOwn(data, "backup_path_issue")) {
-    if (!ref110(data.backup_path_issue)) return false
+    if (!ref116(data.backup_path_issue)) return false
   }
-  for (const key40 of Object.keys(data)) {
-    if (key40 !== "type" && key40 !== "title" && key40 !== "status" && key40 !== "code" && key40 !== "detail" && key40 !== "current_revision" && key40 !== "backup_path_issue") return false
+  for (const key43 of Object.keys(data)) {
+    if (key43 !== "type" && key43 !== "title" && key43 !== "status" && key43 !== "code" && key43 !== "detail" && key43 !== "current_revision" && key43 !== "backup_path_issue") return false
   }
   return true
 };
-const ref108 = function validate(data) {
-  if (!ref109(data)) return false
+const ref114 = function validate(data) {
+  if (!ref115(data)) return false
   return true
 };
-const ref112 = function validate(data) {
-  if (!ref110(data)) return false
+const ref118 = function validate(data) {
+  if (!ref116(data)) return false
   return true
 };
-const ref113 = function validate(data) {
-  if (!ref111(data)) return false
+const ref119 = function validate(data) {
+  if (!ref117(data)) return false
   return true
 };
 return ([
@@ -1308,14 +1373,17 @@ return ([
   ref94,
   ref96,
   ref98,
-  ref100,
-  ref101,
   ref102,
   ref103,
   ref104,
-  ref105,
   ref106,
+  ref107,
   ref108,
+  ref109,
+  ref110,
+  ref111,
   ref112,
-  ref113
+  ref114,
+  ref118,
+  ref119
 ])})();

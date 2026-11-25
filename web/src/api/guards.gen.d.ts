@@ -50,6 +50,9 @@ export declare function checkAdminStorageRoot(value: unknown): value is componen
 export declare function checkStorageRootID(value: unknown): value is components['schemas']['StorageRootID'];
 export declare function checkMakeLibraryPlan(value: unknown): value is components['schemas']['MakeLibraryPlan'];
 export declare function checkAdminStorageDirectories(value: unknown): value is components['schemas']['AdminStorageDirectories'];
+export declare function checkAdminBookMatcherPage(value: unknown): value is components['schemas']['AdminBookMatcherPage'];
+export declare function checkAdminBookMatcherItem(value: unknown): value is components['schemas']['AdminBookMatcherItem'];
+export declare function checkAdminBookMatcherLink(value: unknown): value is components['schemas']['AdminBookMatcherLink'];
 export declare function checkAdminMetadataProvider(value: unknown): value is components['schemas']['AdminMetadataProvider'];
 export declare function checkAdminAutoImport(value: unknown): value is components['schemas']['AdminAutoImport'];
 export declare function checkAutoImportID(value: unknown): value is components['schemas']['AutoImportID'];

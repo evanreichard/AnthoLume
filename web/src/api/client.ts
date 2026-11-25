@@ -1,5 +1,6 @@
 import createClient from 'openapi-fetch';
 import { createTransport } from './transport';
+import { isMatcherPage, matcherLookupRequest, readMatcherResults, type MatcherProvider, type MatcherResult } from './bookMatcher';
 import type { paths, components, operations } from './schema.gen';
 import { checkHardcoverConnect, checkHardcoverShelf, checkHardcoverStatus } from './guards.gen.js';
 import { ReadingHTTPError, type Account, type ReadingBridge } from '../reading';
@@ -37,7 +38,7 @@ interface SessionGate {
 
 export function createAPI(gate: SessionGate) {
   const transport = createTransport(gate);
-  const scopedClient = (account?: Account, role: 'operation' | 'session-probe' = 'operation') => createClient<paths>({
+  const scopedClient = (account?: Account, role: 'operation' | 'session-probe' = 'operation', mode: 'json' | 'ndjson' = 'json') => createClient<paths>({
     baseUrl: apiOrigin,
     headers: account ? accountHeader(account) : undefined,
     credentials: 'same-origin',
@@ -48,8 +49,8 @@ export function createAPI(gate: SessionGate) {
         if (!token) throw new Error('Connect to the server before signing in.');
         request.headers.set('X-CSRF-Token', token);
       }
-      request.headers.set('Accept', 'application/json, application/problem+json');
-      return transport(request, role, 'json');
+      request.headers.set('Accept', `${mode === 'ndjson' ? 'application/x-ndjson' : 'application/json'}, application/problem+json`);
+      return transport(request, role, mode);
     },
   });
   const client = scopedClient();
@@ -73,13 +74,38 @@ export function createAPI(gate: SessionGate) {
     try { body = response.ok ? await response.json() : error; } catch { throw new InvalidResponse(); }
     if (account) gate.assert(account, epoch);
     if (!response.ok) {
-      const problem = validated(body, isProblem);
-      if (problem.status !== response.status) throw new InvalidResponse();
-      if (account) checkIdentity(response.status, problem, account);
-      throw new ReadingHTTPError(response.status, problem);
+      throwProblem(response.status, body, account);
     }
     if (response.status !== expected) throw new InvalidResponse();
     return validated(body, guard);
+  }
+  function throwProblem(status: number, body: unknown, account?: Account): never {
+    const problem = validated(body, isProblem);
+    if (problem.status !== status) throw new InvalidResponse();
+    if (account) checkIdentity(status, problem, account);
+    throw new ReadingHTTPError(status, problem);
+  }
+  async function matcherLookups(account: Account, provider: MatcherProvider, ids: string[], signal: AbortSignal, onResult: (result: MatcherResult) => void) {
+    const body = matcherLookupRequest(provider, ids);
+    const epoch = gate.epoch();
+    gate.assert(account, epoch);
+    signal.throwIfAborted();
+    const { response, error } = await scopedClient(account, 'operation', 'ndjson').POST('/api/v1/admin/book-matcher/lookups', { body, signal, parseAs: 'stream' });
+    try {
+      gate.assert(account, epoch);
+      signal.throwIfAborted();
+      if (response.redirected) throw new InvalidResponse();
+      const media = response.headers.get('content-type')?.split(';')[0].trim();
+      if (!response.ok && media === 'application/problem+json') throwProblem(response.status, error, account);
+      if (response.status !== 200 || media !== 'application/x-ndjson' || !response.body) throw new InvalidResponse();
+      await readMatcherResults(response.body, body.document_ids, signal, result => {
+        gate.assert(account, epoch);
+        onResult(result);
+      });
+      gate.assert(account, epoch);
+    } finally {
+      if (!response.bodyUsed) void response.body?.cancel().catch(() => undefined);
+    }
   }
   const path = (id: string) => ({ path: { id } });
   const api = {
@@ -121,6 +147,14 @@ export function createAPI(gate: SessionGate) {
     stageAdminRestore: (account: Account, file: File) => consume(client => client.POST('/api/v1/admin/restore', { body: file, bodySerializer: value => value, headers: { 'Content-Type': 'application/octet-stream' }, parseAs: 'stream' }), isAdminRestore, 200, account),
     applyAdminRestore: (account: Account, body: S['AdminRestoreApply']) => consume(client => client.PATCH('/api/v1/admin/restore', { body, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
     adminSystem: (account: Account, signal: AbortSignal) => consume(client => client.GET('/api/v1/admin/system', { signal, parseAs: 'stream' }), isAdminSystem, 200, account),
+    matcherPage: async (account: Account, provider: MatcherProvider, page: number, signal: AbortSignal) => {
+      const result = await consume(client => client.GET('/api/v1/admin/book-matcher', { params: { query: { provider, page } }, signal, parseAs: 'stream' }), isMatcherPage, 200, account);
+      if (result.page !== page) throw new InvalidResponse();
+      return result;
+    },
+    matcherLookups,
+    putMatcherLink: (account: Account, id: string, provider: MatcherProvider, work_id: string) => consume(client => client.PUT('/api/v1/admin/documents/{id}/matches/{provider}', { params: { path: { id, provider } }, body: { work_id }, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
+    deleteMatcherLink: (account: Account, id: string, provider: MatcherProvider, work_id: string) => consume(client => client.DELETE('/api/v1/admin/documents/{id}/matches/{provider}', { params: { path: { id, provider }, query: { work_id } }, parseAs: 'stream' }), (value): value is null => value === null, 204, account),
     adminMetadataProvider: (account: Account, signal: AbortSignal) => consume(client => client.GET('/api/v1/admin/metadata-provider', { signal, parseAs: 'stream' }), isAdminMetadataProvider, 200, account),
     setAdminMetadataProvider: (account: Account, provider: S['MetadataProvider']) => consume(client => client.PUT('/api/v1/admin/metadata-provider', { body: { provider }, parseAs: 'stream' }), isAdminMetadataProvider, 200, account),
     devices: (account: Account, signal: AbortSignal) => consume(client => client.GET('/api/v1/me/devices', { signal, parseAs: 'stream' }), isManagedDevices, 200, account),

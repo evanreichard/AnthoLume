@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
+
+	"reichard.io/antholume/matcherquota"
 )
 
 var workID = regexp.MustCompile(`^OL[0-9]{1,15}W$`)
@@ -17,10 +18,10 @@ var editionID = regexp.MustCompile(`^OL[0-9]{1,15}M$`)
 var ErrInvalidLookupMatch = errors.New("invalid metadata match")
 
 func (OpenLibraryCatalog) Resolve(ctx context.Context, work, edition, isbn string) (LookupMatch, error) {
-	return resolveOpenLibrary(ctx, lookupClient, "https://openlibrary.org", work, edition, isbn)
+	return resolveOpenLibrary(ctx, openLibraryMatcherQuota.Client(lookupClient, 1), openLibraryBase, work, edition, isbn)
 }
 
-func resolveOpenLibrary(ctx context.Context, client *http.Client, base, work, edition, isbn string) (LookupMatch, error) {
+func resolveOpenLibrary(ctx context.Context, client matcherquota.Doer, base, work, edition, isbn string) (LookupMatch, error) {
 	out := LookupMatch{ID: work}
 	if !workID.MatchString(work) || edition != "" && !editionID.MatchString(edition) || isbn != "" && !lookupISBN.MatchString(isbn) {
 		return out, ErrInvalidLookupMatch
@@ -118,7 +119,7 @@ func resolveOpenLibrary(ctx context.Context, client *http.Client, base, work, ed
 	return out, nil
 }
 
-func readLookupRecord(ctx context.Context, client *http.Client, base, path string, out any) error {
+func readLookupRecord(ctx context.Context, client matcherquota.Doer, base, path string, out any) error {
 	for attempt := 0; attempt < 2; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+path, nil)
 		if err != nil {
@@ -148,7 +149,7 @@ func readLookupRecord(ctx context.Context, client *http.Client, base, path strin
 			return ErrInvalidLookupMatch
 		}
 		if res.StatusCode != http.StatusOK {
-			return fmt.Errorf("Open Library returned HTTP %d", res.StatusCode)
+			return openLibraryStatusError(res.StatusCode)
 		}
 		const max = 512 << 10
 		raw, err := io.ReadAll(io.LimitReader(res.Body, max+1))

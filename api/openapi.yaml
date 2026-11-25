@@ -649,6 +649,61 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AdminStorageDirectories'}
         default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/book-matcher:
+    get:
+      operationId: getAdminBookMatcherPage
+      parameters:
+        - {name: provider, in: query, required: true, schema: {$ref: '#/components/schemas/MetadataProvider'}}
+        - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 2147483647, default: 1}}
+      responses:
+        '200':
+          description: Ten books at most, with saved links for the requested provider. Does not look up candidates.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminBookMatcherPage'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/book-matcher/lookups:
+    post:
+      operationId: lookupAdminBookMatches
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminBookMatcherLookupRequest'}
+      responses:
+        '200':
+          description: Newline-delimited JSON; one outcome per requested document, delivered in completion order. No matches are saved.
+          content:
+            application/x-ndjson:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/AdminBookMatcherOutcome'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/documents/{id}/matches/{provider}:
+    parameters:
+      - {$ref: '#/components/parameters/ID'}
+      - {name: provider, in: path, required: true, schema: {$ref: '#/components/schemas/MetadataProvider'}}
+    put:
+      operationId: confirmAdminBookMatch
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminBookMatcherWork'}
+      responses:
+        '204': {description: 'Verified link saved, or identical link already present'}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: unlinkAdminBookMatch
+      parameters:
+        - {$ref: '#/components/parameters/Origin'}
+        - {$ref: '#/components/parameters/CSRF'}
+        - {name: work_id, in: query, required: true, schema: {$ref: '#/components/schemas/MetadataWorkID'}}
+      responses:
+        '204': {description: 'Matching link removed, or no link already present'}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/admin/metadata-provider:
     get:
       operationId: getAdminMetadataProvider
@@ -1170,6 +1225,64 @@ components:
         isbn13: {type: string, pattern: '^([0-9]{13})?$'}
         cover_base64: {type: string, maxLength: 2796204, minLength: 4}
         remove_cover: {type: boolean}
+    AdminBookMatcherPage:
+      type: object
+      additionalProperties: false
+      required: [items, total, page]
+      properties:
+        items: {type: array, maxItems: 10, items: {$ref: '#/components/schemas/AdminBookMatcherItem'}}
+        total: {type: integer, minimum: 0}
+        page: {type: integer, minimum: 1}
+    AdminBookMatcherItem:
+      type: object
+      additionalProperties: false
+      required: [id, title, author]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        title: {type: string}
+        author: {type: string}
+        isbn: {type: string}
+        match: {$ref: '#/components/schemas/AdminBookMatcherLink'}
+    AdminBookMatcherLink:
+      type: object
+      additionalProperties: false
+      required: [work_id, url]
+      properties:
+        work_id: {$ref: '#/components/schemas/MetadataWorkID'}
+        url: {type: string}
+    AdminBookMatcherWork:
+      type: object
+      additionalProperties: false
+      required: [work_id]
+      properties:
+        work_id: {$ref: '#/components/schemas/MetadataWorkID'}
+    AdminBookMatcherLookupRequest:
+      type: object
+      additionalProperties: false
+      required: [provider, document_ids]
+      properties:
+        provider: {$ref: '#/components/schemas/MetadataProvider'}
+        document_ids: {type: array, minItems: 1, maxItems: 10, uniqueItems: true, items: {$ref: '#/components/schemas/ID'}}
+    AdminBookMatcherOutcome:
+      type: object
+      additionalProperties: false
+      required: [document_id]
+      description: Exactly one of candidates, error, or match is present. Empty candidates means a successful lookup found no match.
+      properties:
+        document_id: {$ref: '#/components/schemas/ID'}
+        candidates: {type: array, items: {$ref: '#/components/schemas/AdminBookMatcherCandidate'}}
+        error: {type: string}
+        match: {$ref: '#/components/schemas/AdminBookMatcherLink'}
+    AdminBookMatcherCandidate:
+      type: object
+      additionalProperties: false
+      required: [work_id, title, author, url]
+      properties:
+        work_id: {$ref: '#/components/schemas/MetadataWorkID'}
+        title: {type: string}
+        author: {type: string}
+        url: {type: string}
+        reason: {type: string}
     MetadataProvider: {type: string, enum: [openlibrary, hardcover]}
     MetadataProviderChoice:
       type: object
