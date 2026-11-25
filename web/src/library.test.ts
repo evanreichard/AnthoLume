@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { bookKey, bookPath, combineBooks, matcherReturn, sortBooks } from './library';
 import type { StoredBook } from './reading';
+import { accountKey, sameAccount } from './reading/types';
 
 const a = { origin: 'https://books.example', userId: 'a' };
 const b = { origin: 'https://books.example', userId: 'b' };
@@ -42,6 +43,27 @@ it('restores matcher navigation only for the initiating account and generation',
   expect(matcherReturn(state, b)).toBeNull();
   expect(matcherReturn(state, { ...account, readingGeneration: 'previous' })).toBeNull();
   expect(matcherReturn({ ...state, pages: 1.5 }, account)).toBeNull();
+});
+it('compares canonical origins, account IDs, and restore generations without changing persisted keys', () => {
+  const account = { ...a, readingGeneration: 'current' };
+  expect(sameAccount({ ...account, origin: new URL('https://BOOKS.example:443/').origin }, account)).toBe(true);
+  expect(sameAccount({ ...account, origin: 'https://BOOKS.example:443/' }, account)).toBe(false);
+  expect(sameAccount({ ...account, origin: 'http://books.example' }, account)).toBe(false);
+  expect(sameAccount({ ...account, userId: 'b' }, account)).toBe(false);
+  expect(sameAccount({ ...account, readingGeneration: 'previous' }, account)).toBe(false);
+  expect(sameAccount(a, account)).toBe(false);
+  expect(sameAccount(a, { ...a, readingGeneration: '' })).toBe(false);
+  expect(accountKey({ ...account, origin: 'https://BOOKS.example:443/' })).toBe('["account","https://books.example","a","current"]');
+  expect(accountKey(a)).toBe('["account","https://books.example","a"]');
+});
+it('ignores matcher history with malformed or noncanonical identity fields', () => {
+  const state = { search: 'q=Public+book', pages: 2 };
+  for (const owner of [null, 42, {}, [], { ...a, origin: 1 }, { ...a, origin: '://bad' },
+    { ...a, origin: `${a.origin}/` }, { ...a, origin: 'https://reader@books.example' },
+    { ...a, origin: `${a.origin}/anything` }, { ...a, userId: 1 }, { ...a, userId: '' },
+    { ...a, readingGeneration: '' }, { ...a, readingGeneration: null }]) {
+    expect(matcherReturn({ ...state, account: owner }, a)).toBeNull();
+  }
 });
 it('routes preserve opaque IDs and account/origin intent', () => {
   const ref = { kind: 'server' as const, account: a, documentId: 'opaque/id' };

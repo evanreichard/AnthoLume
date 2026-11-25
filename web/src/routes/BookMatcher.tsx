@@ -2,14 +2,13 @@ import { useEffectEvent, useEffect, useLayoutEffect, useRef, useState } from 're
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate, useLocation } from 'react-router';
 import { matcherLink, type MatcherBook, type MatcherCandidate, type MatcherLink, type MatcherPage, type MatcherProvider } from '../api/bookMatcher';
-import { sameAccount } from '../api/client';
 import { matcherReturn } from '../library';
 import { metadataProviderOptions } from '../metadataProviders';
 import { session, useSession } from '../session';
 import { BookInfo, CandidatePicker, ProviderPill, candidateProviders as providers } from '../CandidatePicker';
 import { BackPill, Button, Card, CircleAction, Pager } from '../Controls';
 import { Icon } from '../Icon';
-import { ReadingHTTPError, type Account } from '../reading';
+import { ReadingHTTPError, sameAccount, type Account } from '../reading';
 import { SkeletonRows } from '../Skeleton';
 import { useSnackbar } from '../Snackbar';
 import { PageHeader } from '../ui';

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { hashKey, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { useReading } from '../reading';
+import { sameAccount, useReading } from '../reading';
 import { bookKey, bookPath, combineBooks, matcherReturn, parseSort, sortBooks, sortOptions, type LibrarySort } from '../library';
 import { queryClient, session, useSession } from '../session';
 import { BookCard } from '../BookPresentation';
@@ -15,7 +15,6 @@ import { OfflineStatusBar } from '../OfflineStatusBar';
 import { BookDownloadActions } from '../BookDownloadActions';
 import { Button, CircleAction, IconButton, SearchField } from '../Controls';
 import { useNearEnd } from '../useNearEnd';
-import { sameAccount } from '../api/client';
 import { useSnackbar } from '../Snackbar';
 
 export function Library() {
@@ -164,7 +163,7 @@ export function Library() {
         <CircleAction icon="link" label="Match Books" to="/library/matcher"
           state={{ returnTo: { account: access.account, search: bookLinkState.librarySearch, pages: Math.max(1, loadedPages) } }} />
       </div>} />
-    {offline && <OfflineStatusBar profile={profiles.find(p => p.account.userId === access.account.userId && p.account.readingGeneration === access.account.readingGeneration)?.name ?? 'Reader'} />}
+    {offline && <OfflineStatusBar profile={profiles.find(p => sameAccount(p.account, access.account))?.name ?? 'Reader'} />}
     {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}
     <RecentBooks books={recent} bookLinkState={bookLinkState} />
     <form className={styles.searchRow} role="search" onSubmit={(event) => { event.preventDefault(); update('q', input.trim()); }}>
