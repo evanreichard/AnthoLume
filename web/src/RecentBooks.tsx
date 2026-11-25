@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { bookKey, type LibraryBook } from './library';
 import { BookHero } from './BookPresentation';
 import styles from './App.module.css';
@@ -37,12 +37,12 @@ function RecentCarousel({ books, bookLinkState }: RecentBooksProps) {
       document.removeEventListener('visibilitychange', updateVisibility);
     };
   }, []);
-  const go = (index: number) => {
+  const go = useCallback((index: number) => {
     const el = track.current;
     if (!el) return;
     const direction = getComputedStyle(el).direction === 'rtl' ? -1 : 1;
     el.scrollTo({ left: index * el.clientWidth * direction, behavior: reduced ? 'instant' : 'smooth' });
-  };
+  }, [reduced]);
   useEffect(() => {
     if (touching || !touchHint) return;
     const timer = window.setTimeout(() => setTouchHint(false), 2500);
@@ -52,7 +52,7 @@ function RecentCarousel({ books, bookLinkState }: RecentBooksProps) {
     if (paused || reduced || hovered || focused || touching || touchHint || !visible) return;
     const timer = window.setTimeout(() => go((active + 1) % books.length), 5000);
     return () => window.clearTimeout(timer);
-  }, [active, books.length, paused, reduced, hovered, focused, touching, touchHint, visible]);
+  }, [active, books.length, go, paused, reduced, hovered, focused, touching, touchHint, visible]);
   return <div className={styles.recentCarousel} role="region" aria-label="Continue reading carousel" aria-roledescription="carousel"
     onPointerEnter={event => { if (event.pointerType === 'mouse') setHovered(true); }} onPointerLeave={() => setHovered(false)}
     data-show-dots={hovered || touchHint || undefined}

@@ -20,22 +20,24 @@ export async function epub(title = 'Local public book'): Promise<Buffer> {
 
 type Server = { origin: string; data: string; stop: () => Promise<void>; start: () => Promise<void> };
 export const test = base.extend<{ server: Server; dataDir: string }, { serverBinary: string }>({
-  dataDir: async ({}, use) => {
+  // oxlint-disable-next-line no-empty-pattern -- Playwright requires object destructuring even for fixtures without dependencies.
+  dataDir: async ({}, provide) => {
     const dir = await mkdtemp(join(tmpdir(), 'antholume-browser-'));
-    try { await use(dir); } finally { await rm(dir, { recursive: true, force: true }); }
+    try { await provide(dir); } finally { await rm(dir, { recursive: true, force: true }); }
   },
-  serverBinary: [async ({}, use) => {
+  // oxlint-disable-next-line no-empty-pattern -- Playwright requires object destructuring even for fixtures without dependencies.
+  serverBinary: [async ({}, provide) => {
     const go = process.env.GO_BINARY || 'go';
     const dir = await mkdtemp(join(tmpdir(), 'antholume-router-'));
     const binary = join(dir, 'server');
     try {
       execFileSync(go, ['build', '-mod=readonly', '-o', binary, './web/tests/server'], { cwd: root, env: { ...process.env, GOTOOLCHAIN: 'local' }, timeout: 180_000, stdio: 'pipe' });
-      await use(binary);
+      await provide(binary);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   }, { scope: 'worker', timeout: 240_000 }],
-  server: async ({ serverBinary, dataDir: data }, use, testInfo) => {
+  server: async ({ serverBinary, dataDir: data }, provide, testInfo) => {
     await mkdir(`${data}/documents`);
     await mkdir(`${data}/covers`);
     await writeFile(`${data}/documents/public.epub`, await epub('Server public book'));
@@ -65,14 +67,18 @@ export const test = base.extend<{ server: Server; dataDir: string }, { serverBin
       const exited = new Promise<void>((resolve, reject) => {
         if (current.exitCode !== null || current.signalCode !== null) return reject(new Error(`Test server already exited: ${current.exitCode ?? current.signalCode}\n${logs}`));
         const timer = setTimeout(() => { current.kill('SIGKILL'); reject(new Error(`Test server shutdown timeout\n${logs}`)); }, 8000);
-        current.once('close', (code, signal) => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error(`Test server exit ${code ?? signal}\n${logs}`)); });
+        current.once('close', (code, signal) => {
+          clearTimeout(timer);
+          if (code === 0) resolve();
+          else reject(new Error(`Test server exit ${code ?? signal}\n${logs}`));
+        });
       });
       current.kill('SIGTERM');
       await exited;
     }
     try {
       await start();
-      await use({ origin, data, stop, start });
+      await provide({ origin, data, stop, start });
     } finally {
       try { await stop(); } finally { await writeFile(testInfo.outputPath('server.log'), logs); }
     }

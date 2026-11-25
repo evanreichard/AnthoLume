@@ -4,11 +4,15 @@ Use Node 22.23.4. From `web/`:
 
 ```sh
 npm ci
+npm run lint
+npm run format:check
 npm run build
 npm test
 npm run test:browser
 npm run test:reader
 ```
+
+Use `npm run format` to apply Prettier to handwritten frontend files. Oxlint checks correctness and the Rules of Hooks, including effect dependencies. The app doesn't use React Compiler, so compiler-specific effect, ref, and immutability diagnostics are outside this baseline. Generated API bindings and generated reader fixtures are checked by their generators instead.
 
 The build writes `../assets/app/` for Go packaging. Generate API bindings from the repository root with `make generate`.
 

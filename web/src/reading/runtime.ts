@@ -3,7 +3,7 @@ import { sourceLimits } from './source';
 import { Repository, type TurnPolicy } from './repository';
 import { Replay } from './sync';
 import { WorkerCoordinator } from './worker-client';
-import { accountKey, refKey, sameAccount, type Account, type BookRef, type Checkpoint, type CoverLookup, type ReadingAccess, type OfflineChoice, type ReviewDecision, type ReadingActions, type ReadingBridge, type ReadingSnapshot, type StoredBook, type S } from './types';
+import { accountKey, sameAccount, type Account, type BookRef, type Checkpoint, type CoverLookup, type ReadingAccess, type OfflineChoice, type ReviewDecision, type ReadingActions, type ReadingBridge, type ReadingSnapshot, type StoredBook, type S } from './types';
 import { readCover } from './cover';
 
 const cacheETag = (value: string | null | undefined): string | undefined => value && /^(?:W\/)?"[\x21\x23-\x7e]{1,128}"$/.test(value) ? value : undefined;

@@ -138,6 +138,7 @@ export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onRecon
     return () => clearTimeout(timer);
   }, [hasOpened, status.state, permitted, key]);
   const readerReady = permitted && !retryingOfflineOpen && (snapshot.ready || (hasOpened && readerState.key === key));
+  // oxlint-disable react/exhaustive-deps -- Reader Lifetime - Reopen on book identity, not new book objects or handler closures.
   useEffect(() => {
     if (!runtime || !readerReady || !host.current || parentGestures === undefined) return;
     let alive = true, resizeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -213,6 +214,7 @@ export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onRecon
       void instance.dispose();
     };
   }, [runtime, readerReady, key, attempt, explicitBeginning, parentGestures]);
+  // oxlint-enable react/exhaustive-deps
   async function applyAppearance() {
     clearTimeout(appearanceTimer.current); appearanceTimer.current = undefined;
     const instance = controller.current;
@@ -261,8 +263,9 @@ export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onRecon
     if (draggingSize.current || pendingAppearance.current) finishSize();
   }
   const [background, color] = palette[appearance.theme];
+  const hasStoredAppearance = storedAppearance !== undefined;
   useLayoutEffect(() => {
-    if (!permitted || !storedAppearance) return;
+    if (!permitted || !hasStoredAppearance) return;
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     const previous = meta?.content;
     const surfaces = [document.documentElement, document.body];
@@ -274,7 +277,7 @@ export function ReaderScreen({ book, onClose, onBackToLibrary = onClose, onRecon
       if (meta && previous !== undefined) meta.content = previous;
       surfaces.forEach((element, i) => { element.style.backgroundColor = backgrounds[i]!; });
     };
-  }, [background, permitted, !!storedAppearance]);
+  }, [background, permitted, hasStoredAppearance]);
   const location = status.location;
   const currentChapter = status.toc?.find(item => item.href.split('#')[0] === location?.chapter.split('#')[0]);
   const canTurn = permitted && status.state === 'ready';

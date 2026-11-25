@@ -45,15 +45,16 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
 export function useSnackbar(scope?: string) {
   const slot = useContext(SnackbarContext);
   if (!slot) throw new Error('SnackbarProvider is required');
-  const owner = useMemo<Owner>(() => ({ active: false }), [scope, slot]);
+  // Owner Lifetime - A returning scope gets a fresh owner so callbacks from its earlier visit stay inactive.
+  const owner = useMemo(() => ({ scope, slot, active: false }), [scope, slot]);
   useLayoutEffect(() => {
     owner.active = true;
-    return () => { owner.active = false; slot.dismiss(owner); };
-  }, [slot, owner]);
+    return () => { owner.active = false; owner.slot.dismiss(owner); };
+  }, [owner]);
   return useMemo(() => ({
-    show: (options: NoticeOptions) => slot.show(owner, options),
-    dismiss: () => slot.dismiss(owner),
-  }), [slot, owner]);
+    show: (options: NoticeOptions) => owner.slot.show(owner, options),
+    dismiss: () => owner.slot.dismiss(owner),
+  }), [owner]);
 }
 
 function SnackbarHost({ notice, close }: { notice: Notice | null; close(entry: Notice): boolean }) {

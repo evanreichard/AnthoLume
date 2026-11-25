@@ -72,9 +72,11 @@ async function hash(reader: RangeReader) {
 }
 const u16 = (bytes: Uint8Array, p: number) => { requireZIP(p >= 0 && p + 2 <= bytes.length, 'truncated header'); return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint16(p, true); };
 const u32 = (bytes: Uint8Array, p: number) => { requireZIP(p >= 0 && p + 4 <= bytes.length, 'truncated header'); return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(p, true); };
+// oxlint-disable-next-line no-control-regex -- ZIP Name Validation - Valid UTF-8 can still contain ASCII controls.
+const unsafeEntryCharacters = /[\\\x00-\x1f\x7f:%?#]/;
 function safeName(bytes: Uint8Array) {
   const name = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  requireZIP(name.length > 0 && name.length <= 512 && !/[\\\x00-\x1f\x7f:%?#]/.test(name) && !name.startsWith('/') && name === name.normalize('NFC') && name.replace(/\/$/, '').split('/').every(p => p && p !== '.' && p !== '..'), 'unsafe name'); return name;
+  requireZIP(name.length > 0 && name.length <= 512 && !unsafeEntryCharacters.test(name) && !name.startsWith('/') && name === name.normalize('NFC') && name.replace(/\/$/, '').split('/').every(p => p && p !== '.' && p !== '..'), 'unsafe name'); return name;
 }
 function extras(bytes: Uint8Array) { for (let p = 0; p < bytes.length;) { const id = u16(bytes, p), length = u16(bytes, p + 2); requireZIP(id !== 1 && id !== 0x7075 && p + 4 + length <= bytes.length, 'ZIP64/alternate path/extra'); p += 4 + length; } }
 function limit(name: string) { return /\.css$/i.test(name) ? L.cssBytes : /\.(?:xhtml|html|xml|opf|ncx|svg)$/i.test(name) ? L.textBytes : L.entryBytes; }

@@ -5,7 +5,9 @@ import { ArchiveReader, sourceLimits } from './source';
 import type { BookManifest } from './book-manifest';
 import { documentInfo, parseDocument, validateBinary, validateLoadedDocument } from './content-policy';
 import { mediaLimits } from './media-budget';
-export function passiveExternalLink(value: string) { try { const url = new URL(value); return ['http:', 'https:', 'mailto:'].includes(url.protocol) && !/[\u0000-\u0020\u007f]/.test(value); } catch { return false; } }
+// oxlint-disable-next-line no-control-regex -- External Link Validation - URL parsing can strip ASCII controls.
+const unsafeExternalCharacters = /[\u0000-\u0020\u007f]/;
+export function passiveExternalLink(value: string) { try { const url = new URL(value); return ['http:', 'https:', 'mailto:'].includes(url.protocol) && !unsafeExternalCharacters.test(value); } catch { return false; } }
 export const chapterCSP = "default-src 'none'; script-src 'none'; connect-src 'none'; img-src blob:; style-src 'unsafe-inline' blob:; font-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
 const imageTypes = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml']);
 const fontTypes = new Set(['font/woff', 'font/woff2', 'font/ttf', 'font/otf']);

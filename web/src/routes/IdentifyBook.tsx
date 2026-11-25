@@ -190,12 +190,13 @@ export function IdentifyBook({ document, refId, source, onClose, onSaved }: {
 
   useEffect(() => {
     const lifetime = new AbortController();
+    const coverCache = covers.current;
     coverLifetime.current = lifetime;
     loadInitialReview();
     return () => {
       request.current?.abort(); request.current = null;
       lifetime.abort(); coverLifetime.current = null;
-      covers.current.clear();
+      coverCache.clear();
     };
   }, []);
 

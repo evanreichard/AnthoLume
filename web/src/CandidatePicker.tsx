@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import hardcoverIcon from './assets/hardcover.svg';
 import openLibraryIcon from './assets/openlibrary.svg';
 import { Icon } from './Icon';
@@ -71,14 +71,15 @@ export function CandidatePicker<T extends Candidate>({ label, groupLabel, select
   const content = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [sheetWidth, setSheetWidth] = useState(() => window.matchMedia('(max-width: 760px)').matches);
-  const inline = toolbar != null && sheetWidth;
+  const hasToolbar = toolbar != null;
+  const inline = hasToolbar && sheetWidth;
   useEffect(() => {
-    if (toolbar == null) return;
+    if (!hasToolbar) return;
     const media = window.matchMedia('(max-width: 760px)');
     const resize = () => { setOpen(false); setSheetWidth(media.matches); };
     media.addEventListener('change', resize);
     return () => media.removeEventListener('change', resize);
-  }, [toolbar != null]);
+  }, [hasToolbar]);
 
   useEffect(() => {
     if (!inline || !open) return;
@@ -97,9 +98,9 @@ export function CandidatePicker<T extends Candidate>({ label, groupLabel, select
     return () => { document.removeEventListener('pointerdown', dismiss); document.removeEventListener('keydown', escape); };
   }, [inline, open]);
 
-  const position = () => {
+  const position = useCallback(() => {
     if (picker.current?.matches(':popover-open') && content.current && trigger.current) placePicker(picker.current, content.current, trigger.current);
-  };
+  }, []);
 
   useLayoutEffect(position);
   useEffect(() => {
@@ -119,7 +120,7 @@ export function CandidatePicker<T extends Candidate>({ label, groupLabel, select
       window.removeEventListener('resize', position);
       window.removeEventListener('scroll', position, true);
     };
-  }, [open, inline]);
+  }, [open, inline, position]);
 
   function keys(event: KeyboardEvent<HTMLDivElement>) {
     if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
@@ -133,7 +134,7 @@ export function CandidatePicker<T extends Candidate>({ label, groupLabel, select
   }
 
   return <>
-    <button ref={trigger} type="button" className={styles.trigger} data-rounded={toolbar != null || undefined} data-match-value aria-label={label}
+    <button ref={trigger} type="button" className={styles.trigger} data-rounded={hasToolbar || undefined} data-match-value aria-label={label}
       popoverTarget={inline ? undefined : id} aria-controls={id} aria-expanded={open} disabled={disabled} onClick={inline ? () => setOpen(!open) : undefined} onKeyDown={event => {
         const popup = picker.current;
         if (!popup || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')) return;
