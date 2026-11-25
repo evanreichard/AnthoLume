@@ -8,6 +8,7 @@ import { sameAccount } from './api/client';
 import { queryClient, session, useSession } from './session';
 import { Library } from './routes/Library';
 import { BookDetail } from './routes/BookDetail';
+import { BookMatcher } from './routes/BookMatcher';
 import { AppLoading, Auth } from './routes/Auth';
 import { Insights } from './routes/Insights';
 import { Settings } from './routes/More';
@@ -67,7 +68,7 @@ function ProtectedApp() {
   if (access.kind === 'offline') {
     const path = location.pathname.replace(/\/+$/, '');
     if (path === '/books/server') return <Navigate to={'/read/server' + location.search} replace />;
-    return ['/library', '/read/server'].includes(path) ? <Outlet /> : <Navigate to="/library" replace />;
+    return ['/library', '/library/matcher', '/read/server'].includes(path) ? <Outlet /> : <Navigate to="/library" replace />;
   }
   return access.kind === 'authenticated' ? <Outlet /> : null;
 }
@@ -144,6 +145,7 @@ const screens = {
   protected: { Component: ProtectedApp, ErrorBoundary: RouteError },
   home: { element: <Navigate to="/library" replace /> },
   library: { Component: Library },
+  bookMatcher: { Component: BookMatcher },
   book: { Component: BookDetail },
   reader: { lazy: () => import('./routes/ReaderRoute') },
   insights: { Component: Insights },

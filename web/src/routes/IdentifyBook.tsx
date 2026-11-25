@@ -1,7 +1,8 @@
 import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
 import { CandidatePicker, candidateProviders as providers } from '../CandidatePicker';
-import { Button, JoinedAction, JoinedActions } from '../Controls';
+import { Button, ButtonLink, JoinedAction, JoinedActions } from '../Controls';
 import { Icon } from '../Icon';
+import { matcherLink } from '../api/bookMatcher';
 import type { components } from '../api/schema.gen';
 import { ReadingHTTPError, type BookRef } from '../reading';
 import { session } from '../session';
@@ -14,6 +15,7 @@ import { bookMetadataDraft, encodeBookCover } from './bookMetadataDraft';
 type Document = components['schemas']['Document'];
 type Match = components['schemas']['MetadataMatch'];
 type MatchReference = components['schemas']['MetadataMatchReference'];
+type LinkedSource = components['schemas']['DocumentMatch'];
 type Provider = Match['provider'];
 type Draft = ReturnType<typeof bookMetadataDraft>;
 type Field = keyof Draft | 'cover';
@@ -29,10 +31,8 @@ function normalizedISBN(query: string): string | undefined {
 }
 
 function candidateFor(result: Match, isbn?: string): Candidate {
-  const encoded = encodeURIComponent(result.id);
   return {
-    ...result, work_id: result.id, isbn,
-    url: result.provider === 'hardcover' ? `https://hardcover.app/id/book/${encoded}` : `https://openlibrary.org/works/${encoded}`,
+    ...result, ...matcherLink(result.provider, result.id), isbn,
     reason: [result.publisher, result.published || result.year].filter(Boolean).join(' · ') || undefined,
   };
 }
@@ -72,8 +72,8 @@ function failureMessage(error: unknown, operation: Operation) {
   return 'Metadata lookup is unavailable. Try again in a moment.';
 }
 
-export function IdentifyBook({ document, refId, onClose, onSaved }: {
-  document: Document; refId: Extract<BookRef, { kind: 'server' }>; onClose(): void; onSaved(document: Document, cover?: Blob): void;
+export function IdentifyBook({ document, refId, source, onClose, onSaved }: {
+  document: Document; refId: Extract<BookRef, { kind: 'server' }>; source?: LinkedSource; onClose(): void; onSaved(document: Document, cover?: Blob): void;
 }) {
   const formId = useId();
   const original = bookMetadataDraft(document);
@@ -83,7 +83,7 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
   const [manual, setManual] = useState<Candidate[] | null>(null);
   const [review, setReview] = useState<Review | null>(null);
   const suggestedReview = useRef<Review | null>(null);
-  const [busy, setBusy] = useState<Operation | null>('suggestions');
+  const [busy, setBusy] = useState<Operation | null>(source ? 'preview' : 'suggestions');
   const [failure, setFailure] = useState<{ operation: Operation; message: string; retry: () => void } | null>(null);
   const request = useRef<AbortController | null>(null);
   const coverLifetime = useRef<AbortController | null>(null);
@@ -127,7 +127,9 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
     const key = `${match.provider}:${match.cover_id}`;
     const existing = covers.current.get(key);
     if (existing) return existing;
-    const load = session.api.metadataCover(refId.account, match.provider, match.cover_id, AbortSignal.any([lifetime.signal, AbortSignal.timeout(12_000)])).catch(() => null);
+    const linked = source && { document_id: refId.documentId, work_id: source.work_id };
+    const load = session.api.metadataCover(refId.account, match.provider, match.cover_id,
+      AbortSignal.any([lifetime.signal, AbortSignal.timeout(12_000)]), linked).catch(() => null);
     covers.current.set(key, load);
     void load.then(blob => { if (!blob && covers.current.get(key) === load) covers.current.delete(key); });
     return load;
@@ -137,8 +139,12 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
     const { provider, work_id, edition_id, isbn } = candidate;
     const detail = await session.api.previewMetadataMatch(refId.account, { provider, work_id, edition_id, isbn }, signal);
     signal.throwIfAborted();
-    if (detail.provider !== provider || detail.id !== work_id) throw new Error('Unexpected metadata record');
-    const match = { ...detail, author: detail.author || candidate.author, year: detail.year ?? candidate.year };
+    showPreview({ ...detail, author: detail.author || candidate.author, year: detail.year ?? candidate.year }, candidate);
+  }
+
+  function showPreview(match: Match, candidate: Candidate) {
+    const { provider, work_id, isbn } = candidate;
+    if (match.provider !== provider || match.id !== work_id) throw new Error('Unexpected metadata record');
     const verifiedISBN = isbn && (match.isbn10 === isbn || match.isbn13 === isbn) ? isbn : undefined;
     const reference = { provider, work_id, ...(match.edition_id ? { edition_id: match.edition_id, isbn: verifiedISBN } : {}) };
     const cover = downloadCover(match);
@@ -147,7 +153,16 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
     setReview({ candidate, match, reference, selected, expanded: false, cover });
   }
 
-  const loadSuggestions = useEffectEvent(() => {
+  const loadInitialReview = useEffectEvent(() => {
+    if (source) {
+      void run('preview', async signal => {
+        const detail = await session.api.previewLinkedSource(refId.account, refId.documentId, source, signal);
+        signal.throwIfAborted();
+        if (detail.provider !== source.provider || detail.id !== source.work_id) throw new Error('Unexpected linked record');
+        showPreview(detail, candidateFor(detail, normalizedISBN(original.isbn13) ?? normalizedISBN(original.isbn10)));
+      });
+      return;
+    }
     void run('suggestions', async signal => {
       const isbn = normalizedISBN(original.isbn13) ?? normalizedISBN(original.isbn10);
       const titleAuthor = `${original.title} ${original.author}`.trim().slice(0, 240);
@@ -163,7 +178,7 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
   useEffect(() => {
     const lifetime = new AbortController();
     coverLifetime.current = lifetime;
-    void loadSuggestions();
+    loadInitialReview();
     return () => {
       request.current?.abort(); request.current = null;
       lifetime.abort(); coverLifetime.current = null;
@@ -199,8 +214,8 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
 
   const match = review?.match;
   const knownLink = match && document.matches?.find(link => link.provider === match.provider);
-  const replacing = !!knownLink && knownLink.work_id !== match?.id;
-  const linked = !!knownLink && !replacing;
+  const replacing = !source && !!knownLink && knownLink.work_id !== match?.id;
+  const linked = !!source || (!!knownLink && !replacing);
   const selected = review?.selected.filter(field => field !== 'cover' || readyCover) ?? [];
   const waitingForCover = !!review?.selected.includes('cover') && image !== null && (image ? coverStatus?.url !== image.url : !!review.cover);
   const canApply = !!review && !waitingForCover && (!linked || selected.length > 0);
@@ -217,7 +232,9 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
       const cover = selected.includes('cover') ? readyCover?.blob : undefined;
       const cover_base64 = cover && await encodeBookCover(cover);
       signal.throwIfAborted();
-      const updated = await session.api.editDocument(refId.account, refId.documentId, { ...changes, cover_base64, match: review.reference }, signal);
+      const updated = await session.api.editDocument(refId.account, refId.documentId, {
+        ...changes, cover_base64, ...(source ? { linked_source: source } : { match: review.reference }),
+      }, signal);
       if (!signal.aborted) await onSaved(updated, cover);
     });
   }
@@ -255,7 +272,7 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
     </button>}
     {failure?.operation === 'search' && <div className={identify.failure}><p role="alert">{failure.message}</p><Button size="slim" onClick={search} disabled={query.trim().length < 2}>Retry Search</Button></div>}
   </div>;
-  const toolbar = <div className={identify.toolbar}>
+  const toolbar = source ? undefined : <div className={identify.toolbar}>
     <CandidatePicker label="Choose Match" groupLabel="Book Matches" selected={review?.candidate} candidates={busy === 'search' ? [] : manual ?? suggestions}
       disabled={busy === 'suggestions' || busy === 'preview' || busy === 'apply'} placeholder={busy === 'suggestions' ? 'Finding Matches…' : busy === 'preview' ? 'Loading Match…' : 'Choose Match'}
       toolbar={searchTools} emptyMessage={busy === 'search' ? 'Searching…' : failure?.operation === 'search' ? '' : 'No matches. Try another title, author, or ISBN.'} onChoose={choose} provider={provider} />
@@ -271,6 +288,12 @@ export function IdentifyBook({ document, refId, onClose, onSaved }: {
   return <Dialog title="Review Metadata" placement="mobile-sheet" layout="scroll-body" toolbar={toolbar} onClose={close} footer={<>
     <Button type="submit" form={formId} tone="primary" disabled={!!busy || !!previewFailure || !canApply}>{busy === 'apply' ? 'Saving…' : applyLabel}</Button>
     <Button disabled={busy === 'apply'} onClick={close}>Cancel</Button>
+    {source && <div className={identify.sourceAction}>
+      <ButtonLink size="slim" href={matcherLink(source.provider, source.work_id).url} target="_blank" rel="noopener noreferrer"
+        aria-label={`View on ${providers[source.provider].name} (opens in a new tab)`} title={`View on ${providers[source.provider].name}`}>
+        <img src={providers[source.provider].icon} alt="" width={16} height={16} /><span className={identify.sourceName}>{providers[source.provider].name}</span><Icon name="external-link" size={14} />
+      </ButtonLink>
+    </div>}
   </>}>
     {busy === 'suggestions' || busy === 'preview' ? <section className={styles.matchLoading} aria-label="Match Preview">
       <LoadingStatus>{busy === 'preview' ? 'Loading match preview…' : 'Finding suggested matches…'}</LoadingStatus>

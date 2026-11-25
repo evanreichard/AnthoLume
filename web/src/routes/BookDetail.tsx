@@ -6,6 +6,8 @@ import { bookKey, combineBooks } from '../library';
 import { queryClient, session, useSession } from '../session';
 import { BookHero, Dialog, ErrorNotice, missingFileLabel, PageHeader } from '../ui';
 import { Icon } from '../Icon';
+import { ReviewSourcePill } from '../CandidatePicker';
+import type { components } from '../api/schema.gen';
 import { DownloadRemovalDialog, useBookDownload } from '../BookDownloadActions';
 import { BookEditor } from './BookEditor';
 import { IdentifyBook } from './IdentifyBook';
@@ -51,7 +53,7 @@ function BookDetailContent() {
   const navigate = useNavigate();
   const librarySearch = useLocation().state?.librarySearch;
   const library = typeof librarySearch === 'string' && librarySearch ? `/library?${librarySearch}` : '/library';
-  const [management, setManagement] = useState<'edit' | 'identify' | 'delete' | 'info' | null>(null);
+  const [management, setManagement] = useState<'edit' | 'identify' | 'delete' | 'info' | { source: components['schemas']['DocumentMatch'] } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<unknown>(null);
   const deleteController = useRef<AbortController | null>(null);
@@ -177,6 +179,10 @@ function BookDetailContent() {
         <div><dt>Author</dt><dd>{book.author || 'Unknown'}</dd></div>
         {format && <div><dt>Format</dt><dd>{format}</dd></div>}
         {stats?.word_count != null && stats.word_count > 0 && <div><dt>Length</dt><dd>{stats.word_count.toLocaleString()} words</dd></div>}
+        {!!metadata?.matches?.length && <div className={styles.detailSources}><dt>Sources</dt><dd>
+          {metadata.matches.map(source => <ReviewSourcePill key={source.provider} provider={source.provider} workId={source.work_id}
+            disabled={!canManage} onReview={() => setManagement({ source })} />)}
+        </dd></div>}
         {metadata?.series && <div><dt>Series</dt><dd>{metadata.series}</dd></div>}
         {metadata?.lang && <div><dt>Language</dt><dd>{languageName(metadata.lang)}</dd></div>}
         {metadata?.isbn13 ? <div><dt>ISBN-13</dt><dd>{metadata.isbn13}</dd></div> : metadata?.isbn10 && <div><dt>ISBN-10</dt><dd>{metadata.isbn10}</dd></div>}
@@ -197,8 +203,9 @@ function BookDetailContent() {
     </Dialog>}
     {canManage && document.data && management === 'edit' &&
       <BookEditor book={book} refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={metadataSaved} />}
-    {canManage && document.data && management === 'identify' &&
-      <IdentifyBook refId={ref} document={document.data} onClose={() => setManagement(null)} onSaved={metadataSaved} />}
+    {canManage && document.data && (management === 'identify' || (management && typeof management === 'object')) &&
+      <IdentifyBook refId={ref} document={document.data} source={management === 'identify' ? undefined : management.source}
+        onClose={() => setManagement(null)} onSaved={metadataSaved} />}
     <DownloadRemovalDialog download={download} />
     {canManage && management === 'delete' && <Dialog title="Delete from shared library?" onClose={() => { if (!deleting) setManagement(null); }}>
       <p>“{title}” will be removed from the shared library for everyone. The server keeps the original file and reading history. This does not remove downloads from other devices.</p>

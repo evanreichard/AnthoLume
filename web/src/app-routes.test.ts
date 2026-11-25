@@ -4,7 +4,7 @@ import { matchesShell, shellPaths } from './app-routes';
 const pages = new Set(shellPaths());
 
 test('shell navigation includes index, nested and concrete reader pages', () => {
-  for (const path of ['/', '/settings', '/admin', '/admin/library/', '/admin/logs', '/insights', '/insights/activity', '/insights/progress', '/insights/rankings', '/books/server', '/books/local', '/read/server/', '/read/local']) {
+  for (const path of ['/', '/library/matcher', '/library/matcher/', '/settings', '/admin', '/admin/library/', '/admin/logs', '/insights', '/insights/activity', '/insights/progress', '/insights/rankings', '/books/server', '/books/local', '/read/server/', '/read/local']) {
     expect(matchesShell(pages, path), path).toBe(true);
   }
 });

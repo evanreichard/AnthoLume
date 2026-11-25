@@ -4,6 +4,7 @@ export const appRoutes = [{ id: 'providers', children: [
   { id: 'shell', children: [{ id: 'protected', children: [
     { id: 'home', index: true },
     { id: 'library', path: 'library' },
+    { id: 'bookMatcher', path: 'library/matcher' },
     { id: 'book', path: 'books/:kind' },
     { id: 'reader', path: 'read/:kind' },
     { id: 'insights', path: 'insights' },

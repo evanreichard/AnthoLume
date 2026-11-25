@@ -12,6 +12,9 @@
 .placeholder { color: var(--muted); }
 .providerPill { min-height: 32px; padding: 3px 7px; border-radius: 999px; font-weight: 650; line-height: 1.2; font-size: .8rem; text-decoration: none; text-align: start; }
 .providerPill span { min-width: 0; overflow-wrap: anywhere; }
+.reviewSource { align-self: flex-start; min-height: 24px; padding-block: 2px; background: transparent; }
+.reviewSource:enabled:hover { background: var(--hero); }
+.reviewSource:disabled { cursor: default; }
 .picker { position: fixed; inset: auto; width: 26rem; padding: 5px; margin: 0; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); color: var(--ink); box-shadow: 0 8px 28px #0003; text-align: start; }
 .picker:not(:popover-open) { display: none; }
 /* Sheet Search - Keep the focused input in the sheet's layout while the software keyboard pans the visual viewport. */

@@ -35,6 +35,7 @@
 .sortOptions { display: grid; gap: 6px; }
 .sortOptions button { display: flex; align-items: center; justify-content: space-between; text-align: start; }
 .sortOptions button[aria-pressed='true'] { background: var(--hero); font-weight: 700; }
+.libraryHeadingActions { display: flex; align-items: center; gap: 4px; }
 .pendingSync { display: inline-flex; min-height: 44px; align-items: center; font-size: 12px; color: var(--muted); }
 .eyebrow { text-transform: uppercase; letter-spacing: .11em; font-size: 10px; font-weight: 650; color: var(--muted); margin-bottom: 5px; }
 .feature { --hero-cover-width: clamp(74px, 21vw, 112px); --hero-end-padding: 28px; position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px; padding: 20px var(--hero-end-padding) 20px 20px; margin-bottom: 16px; background: var(--hero); border: 1px solid var(--line); border-radius: var(--radius); }
@@ -274,6 +275,7 @@
 .detailMeta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin: 0; }
 .detailSynopsis { grid-column: 1 / -1; white-space: pre-wrap; }
 .detailMeta dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.detailSources dd { display: flex; flex-wrap: wrap; gap: 0 6px; }
 .bookFileDetails { display: grid; gap: 10px; margin: 0; }
 .bookFileDetails dt { color: var(--muted); font-size: .8rem; }
 .bookFileDetails dd { margin: 2px 0 0; overflow-wrap: anywhere; }
@@ -284,7 +286,7 @@
   .bookPage > .detailReading { grid-column: 2; grid-row: 2 / span 2; }
   .detailReading { padding: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
   .detailStats { background: var(--bg); }
-  .detailMeta { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .detailMeta:not(:has(.detailSources)) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .detailInfo .detailMeta { max-width: 70ch; }
 }
 @media (max-width: 760px) {

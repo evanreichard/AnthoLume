@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"net/http"
 	"strings"
 
 	"reichard.io/antholume/database"
@@ -101,6 +103,10 @@ func (api *API) resolveMetadataMatch(ctx context.Context, ref MetadataMatchRefer
 	if err := api.checkMetadataProvider(ctx, api.db.Queries, ref.Provider); err != nil {
 		return metadata.LookupMatch{}, err
 	}
+	return api.resolveCatalogMatch(ctx, ref)
+}
+
+func (api *API) resolveCatalogMatch(ctx context.Context, ref MetadataMatchReference) (metadata.LookupMatch, error) {
 	catalog, err := api.catalogFor(ref.Provider)
 	if err != nil {
 		return metadata.LookupMatch{}, err
@@ -118,6 +124,84 @@ func (api *API) resolveMetadataMatch(ctx context.Context, ref MetadataMatchRefer
 // Confirmed Namespaces - The legacy openlibrary namespace may contain works, editions, or unclassified values.
 var workNamespaces = map[MetadataProvider]string{Openlibrary: "openlibrary_work", Hardcover: "hardcover_book"}
 
+func (s *webAPI) GetLinkedMetadata(ctx context.Context, r GetLinkedMetadataRequestObject) (GetLinkedMetadataResponseObject, error) {
+	ctx = requestContext(ctx)
+	link := DocumentMatch{Provider: r.Provider, WorkId: r.Params.WorkId}
+	if err := s.api.checkLinkedSource(ctx, r.Id, link); err != nil {
+		return nil, err
+	}
+	match, err := s.api.resolveCatalogMatch(ctx, MetadataMatchReference{Provider: link.Provider, WorkId: link.WorkId})
+	if err != nil {
+		return nil, err
+	}
+	if err := s.api.checkLinkedSource(ctx, r.Id, link); err != nil {
+		return nil, err
+	}
+	return GetLinkedMetadata200JSONResponse(metadataMatch(link.Provider, match)), nil
+}
+
+func (api *API) checkLinkedSource(ctx context.Context, id string, expected DocumentMatch) error {
+	tx, err := api.db.DB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	return requireLinkedSource(ctx, api.db.Queries.WithTx(tx), id, expected)
+}
+
+func requireLinkedSource(ctx context.Context, queries *database.Queries, id string, expected DocumentMatch) error {
+	doc, err := queries.GetDocument(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && doc.Deleted {
+		return &reading.Failure{Status: http.StatusNotFound, Code: "not_found"}
+	}
+	if err != nil {
+		return err
+	}
+	namespace := workNamespaces[expected.Provider]
+	links, err := queries.ListDocumentIdentifiers(ctx, id)
+	if err != nil {
+		return err
+	}
+	conflict := &reading.Failure{Status: http.StatusConflict, Code: "book_match_changed"}
+	var found bool
+	for _, link := range links {
+		if link.Namespace != namespace {
+			continue
+		}
+		if link.Value != expected.WorkId {
+			return conflict
+		}
+		found = true
+	}
+	if !found {
+		return conflict
+	}
+	return nil
+}
+
+func listedDocumentMatches(ctx context.Context, queries *database.Queries, ids []string) (map[string][]DocumentMatch, error) {
+	rows, err := queries.ListDocumentIdentifiersForPage(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	matches := make(map[string][]DocumentMatch, len(ids))
+	for _, row := range rows {
+		if link, ok := confirmedDocumentMatch(row.Namespace, row.Value); ok {
+			matches[row.DocumentID] = append(matches[row.DocumentID], link)
+		}
+	}
+	return matches, nil
+}
+
+func confirmedDocumentMatch(namespace, workID string) (DocumentMatch, bool) {
+	for provider, ns := range workNamespaces {
+		if ns == namespace {
+			return DocumentMatch{Provider: provider, WorkId: workID}, true
+		}
+	}
+	return DocumentMatch{}, false
+}
+
 func documentMatches(ctx context.Context, queries *database.Queries, id string) (*[]DocumentMatch, error) {
 	rows, err := queries.ListDocumentIdentifiers(ctx, id)
 	if err != nil {
@@ -125,11 +209,8 @@ func documentMatches(ctx context.Context, queries *database.Queries, id string) 
 	}
 	matches := make([]DocumentMatch, 0, len(rows))
 	for _, row := range rows {
-		for provider, namespace := range workNamespaces {
-			if row.Namespace == namespace {
-				matches = append(matches, DocumentMatch{Provider: provider, WorkId: row.Value})
-				break
-			}
+		if link, ok := confirmedDocumentMatch(row.Namespace, row.Value); ok {
+			matches = append(matches, link)
 		}
 	}
 	return &matches, nil

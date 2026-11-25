@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 're
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useReading } from '../reading';
-import { bookKey, bookPath, combineBooks, parseSort, sortBooks, sortOptions, type LibrarySort } from '../library';
+import { bookKey, bookPath, combineBooks, matcherReturn, parseSort, sortBooks, sortOptions, type LibrarySort } from '../library';
 import { queryClient, session, useSession } from '../session';
 import { BookCard, Dialog, ErrorNotice, PageHeader } from '../ui';
 import styles from '../App.module.css';
@@ -12,6 +12,7 @@ import { RecentBooks } from '../RecentBooks';
 import { OfflineStatusBar } from '../OfflineStatusBar';
 import { BookDownloadActions } from '../BookDownloadActions';
 import { Button } from '../Controls';
+import controls from '../Controls.module.css';
 import { sameAccount } from '../api/client';
 import { useSnackbar } from '../Snackbar';
 
@@ -74,6 +75,12 @@ export function Library() {
     },
   });
   const { hasNextPage, isFetching, isFetchNextPageError, fetchNextPage } = documents;
+  const loadedPages = documents.data?.pages.length ?? 0;
+  const returning = account && matcherReturn(location.state?.returnTo, account);
+  const restorePages = returning && returning.search === bookLinkState.librarySearch ? returning.pages : 0;
+  useEffect(() => {
+    if (sharedEnabled && loadedPages < restorePages && hasNextPage && !isFetching && !isFetchNextPageError) void fetchNextPage({ cancelRefetch: false });
+  }, [sharedEnabled, loadedPages, restorePages, hasNextPage, isFetching, isFetchNextPageError, fetchNextPage]);
   useEffect(() => {
     const target = loadMore.current;
     if (!target || !sharedEnabled || dialog || !hasNextPage || isFetching || isFetchNextPageError || !('IntersectionObserver' in window)) return;
@@ -155,7 +162,11 @@ export function Library() {
   }
   return <>
     <PageHeader title="Library" headingRef={heading} mobileBrand
-      actions={!offline && reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>} />
+      actions={access.kind === 'authenticated' && <div className={styles.libraryHeadingActions}>
+        {reading.pendingCount > 0 && <Link className={styles.pendingSync} to="/settings?sync=open">{reading.pendingCount} pending</Link>}
+        <Link to="/library/matcher" state={{ returnTo: { account: access.account, search: bookLinkState.librarySearch, pages: Math.max(1, loadedPages) } }}
+          className={controls.pillIcon} aria-label="Match Books" title="Match Books"><span><Icon name="link" size={16} /></span></Link>
+      </div>} />
     {offline && <OfflineStatusBar profile={profiles.find(p => p.account.userId === access.account.userId && p.account.readingGeneration === access.account.readingGeneration)?.name ?? 'Reader'} />}
     {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}
     <RecentBooks books={recent} bookLinkState={bookLinkState} />

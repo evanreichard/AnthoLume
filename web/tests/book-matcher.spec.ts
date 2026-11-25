@@ -1,53 +1,94 @@
-import { DatabaseSync } from 'node:sqlite';
-import type { Page } from '@playwright/test';
+import { request, type Page } from '@playwright/test';
+import type { components } from '../src/api/schema.gen';
 import { expect, register, test } from './fixtures';
 
-async function enterMatcher(page: Page, origin: string, data: string) {
-  await register(page, origin, 'matcher-owner');
-  const db = new DatabaseSync(`${data}/browser.db`);
-  try { db.prepare('UPDATE users SET admin=1 WHERE id=?').run('matcher-owner'); }
-  finally { db.close(); }
-  await page.goto(`${origin}/admin/library`);
-  await page.getByRole('link', { name: 'Open Book Matcher' }).click();
-  await expect(page.getByRole('heading', { name: 'Book Matcher' })).toBeVisible();
+const libraryURL = '/library?q=Public+book&sort=author';
+const matcherTitle = (page: Page) => page.getByRole('heading', { name: 'Book Matcher', exact: true });
+const backToLibrary = (page: Page) => page.getByRole('main').getByRole('link', { name: /^(?:Back to )?Library$/i });
+
+async function registerMember(page: Page, origin: string) {
+  // First Account - Production assigns the first registered account the administrator role.
+  const firstAccount = await request.newContext({ baseURL: origin });
+  try {
+    const session = await firstAccount.get('/api/v1/session');
+    const { csrf_token } = await session.json();
+    const registration = await firstAccount.post('/api/v1/session/register', {
+      headers: { Origin: origin, 'X-CSRF-Token': csrf_token },
+      data: { username: 'matcher-first-account', password: 'synthetic-public-password' },
+    });
+    expect(registration.status()).toBe(201);
+  } finally { await firstAccount.dispose(); }
+  await register(page, origin, 'matcher-member');
+  const session = await page.request.get(`${origin}/api/v1/session`);
+  expect((await session.json()).user?.is_admin).toBe(false);
+}
+
+async function enterMatcher(page: Page, origin: string, loadLibraryPage = false) {
+  await registerMember(page, origin);
+  await page.goto(origin + libraryURL);
+  if (loadLibraryPage) {
+    await page.getByRole('button', { name: 'Load More Shared Books' }).click();
+    await expect(page.getByRole('heading', { name: 'Public book 30', exact: true })).toBeVisible();
+  }
+  const libraryHeader = page.getByRole('main').locator('header').filter({ has: page.getByRole('heading', { name: 'Library', exact: true }) });
+  await libraryHeader.getByRole('link', { name: 'Match Books', exact: true }).click();
+  await expect(page).toHaveURL(url => url.pathname === '/library/matcher');
+  await expect(matcherTitle(page)).toBeVisible();
 }
 
 const title = (n: number) => `Matcher Test Book ${n}`;
-const books = Array.from({ length: 12 }, (_, i) => ({ id: `book-${i + 1}`, title: title(i + 1), author: 'A. Reader' }));
-const candidate = (work_id: string, title: string, provider = 'openlibrary') => ({ work_id, title, author: 'A. Reader', url: `https://${provider}.org/works/${work_id}` });
+type Document = components['schemas']['Document'];
+type DocumentMatch = NonNullable<Document['matches']>[number];
+const books: Document[] = Array.from({ length: 12 }, (_, i) => ({
+  id: `book-${i + 1}`, title: title(i + 1), author: 'A. Reader', series: null, description: null,
+  lang: 'en', file_available: true, cover_available: false, media_type: 'application/epub+zip', file_size_bytes: 2048,
+}));
+const candidate = (work_id: string, title: string) => ({ work_id, title, author: 'A. Reader', url: `https://openlibrary.org/works/${work_id}` });
+const hardcoverCandidate = { work_id: '3848', title: 'Primary Candidate', author: 'A. Reader', url: 'https://hardcover.app/id/book/3848' };
 const primary = candidate('OL123W', 'Primary Candidate');
 const alternative = candidate('OL124W', 'Alternative Candidate');
 const match = { work_id: primary.work_id, url: primary.url };
 
-async function mockPages(page: Page, getMatch: (id: string) => typeof match | undefined = () => undefined) {
-  await page.route('**/api/v1/admin/book-matcher?*', async route => {
-    const requested = Number(new URL(route.request().url()).searchParams.get('page') ?? 1);
-    const items = books.slice((requested - 1) * 10, requested * 10).map(book => ({ ...book, match: getMatch(book.id) }));
-    await route.fulfill({ json: { items, total: books.length, page: requested } });
+async function mockPages(page: Page, getMatches: (id: string) => DocumentMatch[] = () => []) {
+  const pages: number[] = [];
+  await page.route('**/api/v1/documents?*', async route => {
+    const query = new URL(route.request().url()).searchParams;
+    if (query.get('include') !== 'matches') return route.continue();
+    expect(query.get('page_size')).toBe('10');
+    expect(query.get('sort')).toBe('title');
+    expect(query.has('provider')).toBe(false);
+    const requested = Number(query.get('page') ?? 1);
+    pages.push(requested);
+    const items = books.slice((requested - 1) * 10, requested * 10).map(book => ({ ...book, matches: getMatches(book.id) }));
+    await route.fulfill({ json: { items, total: books.length, page: requested, page_size: 10, next_page: requested * 10 < books.length ? requested + 1 : null } });
   });
+  return pages;
 }
 
 const ndjson = (items: object[]) => ({ contentType: 'application/x-ndjson', body: items.map(item => JSON.stringify(item) + '\n').join('') });
 
-test('the matcher reviews ten books, uses a native picker, and writes only explicit link changes', async ({ page, server }) => {
+test('a library member reviews ten books, writes only explicit link changes, and returns to the same library URL', async ({ page, server }) => {
   const links = new Map([['book-2', match]]);
   const writes: string[] = [];
   const searches: string[][] = [];
-  await mockPages(page, id => links.get(id));
-  await page.route('**/api/v1/admin/book-matcher/lookups', async route => {
+  await mockPages(page, id => {
+    const link = links.get(id);
+    return link ? [{ provider: 'openlibrary', work_id: link.work_id }] : [];
+  });
+  await page.route('**/api/v1/metadata/lookups', async route => {
     const { document_ids: ids } = route.request().postDataJSON() as { document_ids: string[] };
     searches.push(ids);
     await route.fulfill(ndjson(ids.map(document_id => ({ document_id, candidates: ['book-1', 'book-2'].includes(document_id) ? [primary, alternative] : [] }))));
   });
   let failNextWrite = true;
-  await page.route('**/api/v1/admin/documents/*/matches/openlibrary*', async route => {
+  await page.route('**/api/v1/documents/*/matches/openlibrary*', async route => {
     if (failNextWrite) {
       failNextWrite = false;
       await route.fulfill({ status: 500, contentType: 'application/problem+json', body: JSON.stringify({ type: 'about:blank', title: 'Internal Server Error', status: 500, code: 'storage_error' }) });
       return;
     }
     const url = new URL(route.request().url());
-    const id = url.pathname.split('/')[5];
+    const id = url.pathname.split('/')[4];
     if (route.request().method() === 'PUT') {
       const { work_id } = route.request().postDataJSON() as { work_id: string };
       writes.push(`link ${id} ${work_id}`);
@@ -59,7 +100,7 @@ test('the matcher reviews ten books, uses a native picker, and writes only expli
     await route.fulfill({ status: 204 });
   });
 
-  await enterMatcher(page, server.origin, server.data);
+  await enterMatcher(page, server.origin, true);
   const provider = page.getByRole('combobox', { name: 'Provider', exact: true });
   await expect(provider.getByRole('option', { name: 'Hardcover (Not Configured)' })).toBeDisabled();
   const table = page.getByRole('table', { name: 'Open Library associations' });
@@ -129,13 +170,20 @@ test('the matcher reviews ten books, uses a native picker, and writes only expli
   await expect(find(1).getByRole('link')).toHaveAttribute('href', alternative.url);
   expect(searches.at(-1)).toEqual(['book-11', 'book-12']);
   expect(writes).toEqual(['link book-1 OL123W', 'unlink book-1 OL123W', 'link book-1 OL123W', 'unlink book-1 OL123W', 'link book-1 OL124W']);
-  await page.getByRole('link', { name: 'Administration', exact: true }).click();
-  await expect(page.getByRole('navigation', { name: 'Administration sections' })).toBeVisible();
+  await page.reload();
+  await expect(matcherTitle(page)).toBeVisible();
+  await backToLibrary(page).click();
+  await expect(page).toHaveURL(server.origin + libraryURL);
+  await expect(page.getByRole('searchbox', { name: 'Search title or author' })).toHaveValue('Public book');
+  await expect(page.getByRole('heading', { name: 'Public book 30', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
 });
 
 test('streamed results render before completion; provider changes abort old streams and missing results stay retryable', async ({ page, server }) => {
-  await mockPages(page);
-  await page.route('**/api/v1/admin/metadata-provider', route => route.fulfill({ json: { selected: 'hardcover', effective: 'hardcover', hardcover_available: true } }));
+  const pages = await mockPages(page, id => id === 'book-10' ? [
+    { provider: 'hardcover', work_id: '6271' }, { provider: 'openlibrary', work_id: 'OL71W' },
+  ] : []);
+  await page.route('**/api/v1/metadata/providers', route => route.fulfill({ json: { selected: 'hardcover', effective: 'hardcover', hardcover_available: true } }));
   await page.addInitScript(() => {
     type StreamControl = { emit(line: unknown): void; close(): void; signal: AbortSignal; provider: string; ids: string[] };
     const state = window as Window & { matcherStreams: StreamControl[] };
@@ -143,7 +191,7 @@ test('streamed results render before completion; provider changes abort old stre
     const original = window.fetch.bind(window);
     window.fetch = async (input, init) => {
       const request = input instanceof Request ? input : new Request(input, init);
-      if (!new URL(request.url).pathname.endsWith('/book-matcher/lookups')) return original(input, init);
+      if (!new URL(request.url).pathname.endsWith('/metadata/lookups')) return original(input, init);
       const { provider, document_ids: ids } = await request.json();
       let canceled = false;
       const body = new ReadableStream<Uint8Array>({ start(controller) {
@@ -155,20 +203,24 @@ test('streamed results render before completion; provider changes abort old stre
       return new Response(body, { headers: { 'Content-Type': 'application/x-ndjson' } });
     };
   });
-  await enterMatcher(page, server.origin, server.data);
+  await enterMatcher(page, server.origin);
   const select = page.getByRole('combobox', { name: 'Provider', exact: true });
   const current = page.getByRole('table');
-  await expect(current.getByText('Searching…', { exact: true })).toHaveCount(10);
+  await expect(current.getByText('Searching…', { exact: true })).toHaveCount(9);
+  await expect(current.getByRole('link', { name: /6271 on Hardcover/ })).toBeVisible();
   await expect(select).toHaveValue('hardcover');
   await expect.poll(() => page.evaluate(() => window.matcherStreams.map(stream => stream.provider))).toEqual(['hardcover']);
-  await page.evaluate(item => window.matcherStreams[0].emit({ document_id: 'book-1', candidates: [item] }), primary);
+  await page.evaluate(item => window.matcherStreams[0].emit({ document_id: 'book-1', candidates: [item] }), hardcoverCandidate);
   await expect(current.getByRole('button', { name: `Choose Match: ${title(1)}`, exact: true })).toContainText('Primary Candidate');
-  await expect(current.getByText('Searching…', { exact: true })).toHaveCount(9);
+  await expect(current.getByText('Searching…', { exact: true })).toHaveCount(8);
   await select.selectOption('openlibrary');
   await expect(page.getByRole('heading', { name: 'Book Matcher' })).toBeFocused();
   await expect(page.locator('select:open')).toHaveCount(0);
   await expect(page.getByRole('table', { name: 'Open Library associations' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.matcherStreams.map(item => [item.provider, item.signal.aborted]))).toEqual([['hardcover', true], ['openlibrary', false]]);
+  await expect(current.getByRole('link', { name: /OL71W on Open Library/ })).toBeVisible();
+  expect(pages).toEqual([1]);
+  expect(await page.evaluate(() => window.matcherStreams.map(item => item.ids.includes('book-10')))).toEqual([false, false]);
   await page.evaluate(() => {
     window.matcherStreams[0].emit({ document_id: 'book-2', candidates: [{ work_id: 'OL999W', url: 'https://openlibrary.org/works/OL999W', title: 'Stale Result', author: '' }] });
     window.matcherStreams[0].close();
@@ -191,8 +243,41 @@ test('streamed results render before completion; provider changes abort old stre
   await page.getByRole('button', { name: 'Next Page' }).click();
   await expect(page.getByRole('navigation', { name: 'Book Pages' })).toContainText('11–12 of 12');
   await expect.poll(() => page.evaluate(() => window.matcherStreams[3]?.ids)).toEqual(['book-11', 'book-12']);
-  await page.getByRole('link', { name: 'Administration', exact: true }).click();
+  expect(pages).toEqual([1, 2]);
+  await backToLibrary(page).click();
   await expect.poll(() => page.evaluate(() => window.matcherStreams[3].signal.aborted)).toBe(true);
+});
+
+test('the Library matcher can be loaded and refreshed directly by members, but not by signed-out visitors', async ({ page, server }) => {
+  const matcherURL = `${server.origin}/library/matcher`;
+  const providerURL = `${server.origin}/api/v1/metadata/providers`;
+  const requests: string[] = [];
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith('/api/v1/metadata/') || url.searchParams.get('include') === 'matches') requests.push(url.pathname);
+  });
+  expect((await page.goto(matcherURL))?.ok()).toBe(true);
+  await expect(page).toHaveURL(`${server.origin}/login`);
+  await expect(matcherTitle(page)).toHaveCount(0);
+  expect(requests).toEqual([]);
+  expect((await page.request.get(providerURL)).status()).toBe(401);
+
+  await registerMember(page, server.origin);
+  await page.route('**/api/v1/metadata/lookups', route => {
+    const { document_ids } = route.request().postDataJSON() as { document_ids: string[] };
+    return route.fulfill(ndjson(document_ids.map(document_id => ({ document_id, candidates: [] }))));
+  });
+  expect((await page.goto(matcherURL))?.ok()).toBe(true);
+  for (const load of [async () => {}, async () => { expect((await page.reload())?.ok()).toBe(true); }]) {
+    await load();
+    await expect(page).toHaveURL(matcherURL);
+    await expect(matcherTitle(page)).toBeVisible();
+    const table = page.getByRole('table', { name: 'Open Library associations' });
+    await expect(table.getByRole('rowheader')).toHaveCount(10);
+    await expect(table.getByText('No Match', { exact: true })).toHaveCount(10);
+  }
+  await backToLibrary(page).click();
+  await expect(page).toHaveURL(`${server.origin}/library`);
 });
 
 declare global {

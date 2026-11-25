@@ -27,6 +27,19 @@ export function combineBooks(stored: readonly StoredBook[], documents: readonly 
 }
 export const sortOptions = [['title', 'Title A–Z'], ['author', 'Author A–Z'], ['added', 'Recently Added'], ['read', 'Last Read']] as const;
 export type LibrarySort = typeof sortOptions[number][0];
+export type MatcherReturn = { account: Account; search: string; pages: number };
+export function matcherReturn(value: unknown, account: Account): MatcherReturn | null {
+  if (!value || typeof value !== 'object') return null;
+  const { account: owner, search, pages } = value as Partial<MatcherReturn>;
+  if (!owner || !sameAccount(owner, account) || typeof search !== 'string' || typeof pages !== 'number' || !Number.isSafeInteger(pages) || pages < 1) return null;
+  const params = new URLSearchParams(search);
+  const safe = new URLSearchParams();
+  const q = params.get('q')?.slice(0, 256);
+  const sort = parseSort(params.get('sort'));
+  if (q) safe.set('q', q);
+  if (sort !== 'read') safe.set('sort', sort);
+  return { account, search: safe.toString(), pages };
+}
 export function parseSort(value: string | null): LibrarySort {
   return sortOptions.find(([key]) => key === value)?.[0] ?? 'read';
 }

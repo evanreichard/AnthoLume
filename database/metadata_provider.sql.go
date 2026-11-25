@@ -7,6 +7,7 @@ package database
 
 import (
 	"context"
+	"strings"
 )
 
 const getMetadataProvider = `-- name: GetMetadataProvider :one
@@ -56,6 +57,46 @@ func (q *Queries) ListDocumentIdentifiers(ctx context.Context, documentID string
 	for rows.Next() {
 		var i ListDocumentIdentifiersRow
 		if err := rows.Scan(&i.Namespace, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDocumentIdentifiersForPage = `-- name: ListDocumentIdentifiersForPage :many
+SELECT document_id, namespace, value
+FROM document_identifiers
+WHERE document_id IN (/*SLICE:document_ids*/?)
+ORDER BY document_id, namespace, value
+`
+
+func (q *Queries) ListDocumentIdentifiersForPage(ctx context.Context, documentIds []string) ([]DocumentIdentifier, error) {
+	query := listDocumentIdentifiersForPage
+	var queryParams []interface{}
+	if len(documentIds) > 0 {
+		for _, v := range documentIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:document_ids*/?", strings.Repeat(",?", len(documentIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:document_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DocumentIdentifier
+	for rows.Next() {
+		var i DocumentIdentifier
+		if err := rows.Scan(&i.DocumentID, &i.Namespace, &i.Value); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

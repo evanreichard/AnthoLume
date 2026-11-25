@@ -15,8 +15,9 @@ import (
 	"reichard.io/antholume/metadata"
 )
 
-const bookMatcherPagePath = "/api/v1/admin/book-matcher"
-const bookMatcherLookupPath = bookMatcherPagePath + "/lookups"
+const bookMatcherLookupPath = "/api/v1/metadata/lookups"
+const matcherDocumentsPath = "/api/v1/documents?page_size=10&sort=title"
+const metadataProvidersPath = "/api/v1/metadata/providers"
 
 type matcherHTTPCatalog struct {
 	lookup func(context.Context, string) ([]metadata.LookupMatch, error)
@@ -50,68 +51,99 @@ func (matcherHTTPCatalog) Resolve(_ context.Context, work, _, _ string) (metadat
 	return metadata.LookupMatch{ID: work}, nil
 }
 
-func TestAdminBookMatcherPageAndBoundaries(t *testing.T) {
+func TestBookMatcherSessionAndRequestBoundaries(t *testing.T) {
 	f := newWebFixture(t)
 	f.api.openLibraryCatalog = matcherHTTPCatalog{}
-	page := bookMatcherPagePath + "?provider=openlibrary"
-	match := "/api/v1/admin/documents/book-01/matches/openlibrary"
+	match := "/api/v1/documents/book-01/matches/openlibrary"
 	lookup := `{"provider":"openlibrary","document_ids":["book-01"]}`
-	assertProblem(t, f.call("GET", page, nil, nil), 401, "unauthenticated")
+	assertProblem(t, f.call("GET", matcherDocumentsPath+"&include=matches", nil, nil), 401, "unauthenticated")
+	assertProblem(t, f.call("GET", metadataProvidersPath, nil, nil), 401, "unauthenticated")
 	assertProblem(t, f.call("POST", bookMatcherLookupPath, lookup, nil), 401, "unauthenticated")
-	f.register("admin")
-	f.exec("UPDATE users SET admin=0 WHERE id='admin'")
-	assertProblem(t, f.call("GET", page, nil, nil), 403, "forbidden")
-	assertProblem(t, f.call("POST", bookMatcherLookupPath, lookup, nil), 403, "forbidden")
-	assertProblem(t, f.call("PUT", match, `{"work_id":"OL100W"}`, nil), 403, "forbidden")
-	assertProblem(t, f.call("DELETE", match+"?work_id=OL100W", nil, nil), 403, "forbidden")
-	f.exec("UPDATE users SET admin=1 WHERE id='admin'")
+	assertProblem(t, f.call("PUT", match, `{"work_id":"OL100W"}`, nil), 401, "unauthenticated")
+	assertProblem(t, f.call("DELETE", match+"?work_id=OL100W", nil, nil), 401, "unauthenticated")
+	registerMatcherReader(t, f)
 	assertProblem(t, f.call("POST", bookMatcherLookupPath, lookup, map[string]string{"X-CSRF-Token": "wrong"}), 403, "csrf_failed")
 	assertProblem(t, f.call("PUT", match, `{"work_id":"OL100W"}`, map[string]string{"Origin": "https://example.test"}), 403, "csrf_failed")
 	assertProblem(t, f.call("DELETE", match+"?work_id=OL100W", nil, map[string]string{"X-CSRF-Token": "wrong"}), 403, "csrf_failed")
-	assertProblem(t, f.call("GET", bookMatcherPagePath, nil, nil), 400, "invalid_request")
-	assertProblem(t, f.call("GET", page+"&page=0", nil, nil), 400, "invalid_request")
+	assertProblem(t, f.call("GET", matcherDocumentsPath+"&include=other", nil, nil), 400, "invalid_request")
+	assertProblem(t, f.call("GET", matcherDocumentsPath+"&page=0", nil, nil), 400, "invalid_request")
+	assertProblem(t, f.call("POST", bookMatcherLookupPath, `{"provider":"openlibrary","document_ids":[]}`, nil), 400, "invalid_request")
 	assertProblem(t, f.call("POST", bookMatcherLookupPath, `{"provider":"openlibrary","document_ids":["a","a"]}`, nil), 400, "invalid_request")
 	assertProblem(t, f.call("POST", bookMatcherLookupPath, `{"provider":"openlibrary","document_ids":["1","2","3","4","5","6","7","8","9","10","11"]}`, nil), 400, "invalid_request")
 	assertProblem(t, f.call("DELETE", match, nil, nil), 400, "invalid_request")
+	assertProblem(t, f.call("GET", adminMetadataPath, nil, nil), 403, "forbidden")
+	assertProblem(t, f.call("PUT", adminMetadataPath, `{"provider":"hardcover"}`, nil), 403, "forbidden")
+	assertProblem(t, f.call("GET", "/api/v1/admin/book-matcher?provider=openlibrary", nil, nil), 404, "not_found")
+	assertProblem(t, f.call("POST", "/api/v1/admin/book-matcher/lookups", lookup, nil), 404, "not_found")
+	assertProblem(t, f.call("PUT", "/api/v1/admin/documents/book-01/matches/openlibrary", `{"work_id":"OL100W"}`, nil), 404, "not_found")
+}
 
+func registerMatcherReader(t *testing.T, f *webFixture) {
+	t.Helper()
+	f.register("reader")
+	f.exec("UPDATE users SET admin=0 WHERE id='reader'")
+	r := f.call("GET", adminMetadataPath, nil, nil)
+	assertProblem(t, r, 403, "forbidden")
+}
+
+func TestListDocumentsIncludesConfirmedMatchesAfterPagination(t *testing.T) {
+	f := newWebFixture(t)
+	registerMatcherReader(t, f)
 	for i := 11; i >= 1; i-- {
 		f.exec(fmt.Sprintf(`INSERT INTO documents(id,title,author) VALUES ('book-%02d','Same Title','Author')`, i))
 	}
 	f.exec(`INSERT INTO documents(id,title,deleted) VALUES ('deleted','AA',1)`)
-	f.exec(`UPDATE documents SET isbn10='0123456789', isbn13='9780765391193' WHERE id='book-01'`)
-	f.exec(`UPDATE documents SET isbn10='0123456789' WHERE id='book-02'`)
-	f.exec(`INSERT INTO document_identifiers VALUES ('book-01','openlibrary_work','OL100W'), ('book-01','hardcover_book','42'), ('book-02','openlibrary','OL200W')`)
-	read := func(path string) AdminBookMatcherPage {
+	f.exec(`INSERT INTO document_identifiers VALUES ('book-01','openlibrary_work','OL100W'), ('book-01','hardcover_book','42'), ('book-02','openlibrary','OL200W'), ('book-02','openlibrary_edition','OL1M'), ('book-11','openlibrary_work','OL200W')`)
+	read := func(path string) DocumentPage {
 		r := f.call("GET", path, nil, nil)
 		require.Equal(t, 200, r.status, string(r.body))
-		var jsonPage AdminBookMatcherPage
-		require.NoError(t, json.Unmarshal(r.body, &jsonPage))
-		return jsonPage
+		return decodeWeb[DocumentPage](t, r)
 	}
-	first := read(page)
+	ordinary := f.call("GET", matcherDocumentsPath, nil, nil)
+	require.Equal(t, 200, ordinary.status, string(ordinary.body))
+	ordinaryPage := decodeWeb[struct{ Items []map[string]json.RawMessage }](t, ordinary)
+	require.Len(t, ordinaryPage.Items, 10)
+	for _, item := range ordinaryPage.Items {
+		require.NotContains(t, item, "matches")
+	}
+	first := read(matcherDocumentsPath + "&include=matches")
 	require.Equal(t, 1, first.Page)
 	require.Equal(t, 11, first.Total)
 	require.Len(t, first.Items, 10)
 	require.Equal(t, "book-01", first.Items[0].Id)
-	require.Equal(t, "Same Title", first.Items[0].Title)
-	require.Equal(t, "Author", first.Items[0].Author)
-	require.Equal(t, "9780765391193", *first.Items[0].Isbn)
-	require.Equal(t, "OL100W", first.Items[0].Match.WorkId)
-	require.Contains(t, first.Items[0].Match.Url, "openlibrary.org/works/OL100W")
-	require.Equal(t, "0123456789", *first.Items[1].Isbn)
-	require.Nil(t, first.Items[1].Match)
-	require.Nil(t, first.Items[2].Isbn)
 	require.Equal(t, "book-10", first.Items[9].Id)
-	second := read(page + "&page=2")
+	require.NotNil(t, first.Items[0].Matches)
+	require.ElementsMatch(t, []DocumentMatch{{Provider: Openlibrary, WorkId: "OL100W"}, {Provider: Hardcover, WorkId: "42"}}, *first.Items[0].Matches)
+	for _, item := range first.Items[1:] {
+		require.NotNil(t, item.Matches)
+		require.Equal(t, []DocumentMatch{}, *item.Matches)
+	}
+	second := read(matcherDocumentsPath + "&include=matches&page=2")
 	require.Equal(t, 2, second.Page)
 	require.Equal(t, 11, second.Total)
 	require.Len(t, second.Items, 1)
 	require.Equal(t, "book-11", second.Items[0].Id)
-	require.Equal(t, []AdminBookMatcherItem{}, read(page+"&page=2147483647").Items)
-	require.Equal(t, "42", read(bookMatcherPagePath + "?provider=hardcover").Items[0].Match.WorkId)
+	require.NotNil(t, second.Items[0].Matches)
+	require.Equal(t, []DocumentMatch{{Provider: Openlibrary, WorkId: "OL200W"}}, *second.Items[0].Matches)
+	require.Equal(t, []Document{}, read(matcherDocumentsPath+"&include=matches&page=2147483647").Items)
 }
 
-func TestAdminBookMatcherStreamsWithoutHoldingSQLite(t *testing.T) {
+func TestMetadataProvidersReadOnlyStatus(t *testing.T) {
+	f := newWebFixture(t)
+	registerMatcherReader(t, f)
+	read := func() AdminMetadataProvider {
+		r := f.call("GET", metadataProvidersPath, nil, nil)
+		require.Equal(t, 200, r.status, string(r.body))
+		return decodeWeb[AdminMetadataProvider](t, r)
+	}
+	require.Equal(t, AdminMetadataProvider{Selected: Openlibrary, Effective: Openlibrary}, read())
+	f.exec(`INSERT INTO settings(name,value) VALUES ('metadata_provider','hardcover') ON CONFLICT(name) DO UPDATE SET value=excluded.value`)
+	require.Equal(t, AdminMetadataProvider{Selected: Hardcover, Effective: Openlibrary}, read())
+	f.api.hardcoverCatalog = identifyCatalogFixture{}
+	require.Equal(t, AdminMetadataProvider{Selected: Hardcover, Effective: Hardcover, HardcoverAvailable: true}, read())
+}
+
+func TestBookMatcherStreamsWithoutHoldingSQLite(t *testing.T) {
 	f := newWebFixture(t)
 	lookupStarted := make(chan struct{}, 1)
 	release := make(chan struct{})
@@ -130,8 +162,7 @@ func TestAdminBookMatcherStreamsWithoutHoldingSQLite(t *testing.T) {
 			return nil, ctx.Err()
 		}
 	}}
-	f.register("admin")
-	f.exec(`UPDATE users SET admin=1 WHERE id='admin'`)
+	registerMatcherReader(t, f)
 	f.exec(`INSERT INTO documents(id,title,author) VALUES ('linked','First Title','First Author'), ('pending','Second Title','Second Author'), ('fast','Fast Title','Fast Author')`)
 	f.exec(`INSERT INTO document_identifiers VALUES ('linked','openlibrary_work','OL100W')`)
 
@@ -150,7 +181,7 @@ func TestAdminBookMatcherStreamsWithoutHoldingSQLite(t *testing.T) {
 	reader := bufio.NewReader(response.Body)
 	line, err := reader.ReadString('\n')
 	require.NoError(t, err)
-	var linked AdminBookMatcherOutcome
+	var linked BookMatcherOutcome
 	require.NoError(t, json.Unmarshal([]byte(line), &linked))
 	require.Equal(t, "linked", linked.DocumentId)
 	require.NotNil(t, linked.Match)
@@ -160,7 +191,7 @@ func TestAdminBookMatcherStreamsWithoutHoldingSQLite(t *testing.T) {
 	require.JSONEq(t, `{"document_id":"missing","error":"not_found"}`, line)
 	line, err = reader.ReadString('\n')
 	require.NoError(t, err)
-	var fast AdminBookMatcherOutcome
+	var fast BookMatcherOutcome
 	require.NoError(t, json.Unmarshal([]byte(line), &fast))
 	require.Equal(t, "fast", fast.DocumentId)
 	require.NotNil(t, fast.Candidates)
@@ -174,7 +205,7 @@ func TestAdminBookMatcherStreamsWithoutHoldingSQLite(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("catalog lookup did not start")
 	}
-	require.Equal(t, 200, f.call("GET", bookMatcherPagePath+"?provider=openlibrary", nil, nil).status)
+	require.Equal(t, 200, f.call("GET", matcherDocumentsPath+"&include=matches", nil, nil).status)
 	close(release)
 	line, err = reader.ReadString('\n')
 	require.NoError(t, err)
@@ -184,11 +215,10 @@ func TestAdminBookMatcherStreamsWithoutHoldingSQLite(t *testing.T) {
 	require.Equal(t, 1, f.count("document_identifiers"))
 }
 
-func TestAdminBookMatcherConcurrentConfirms(t *testing.T) {
+func TestBookMatcherConcurrentConfirms(t *testing.T) {
 	f := newWebFixture(t)
 	f.api.openLibraryCatalog = matcherHTTPCatalog{}
-	f.register("admin")
-	f.exec(`UPDATE users SET admin=1 WHERE id='admin'`)
+	registerMatcherReader(t, f)
 	f.exec(`INSERT INTO documents(id,title) VALUES ('book','Local Title')`)
 
 	start := make(chan struct{})
@@ -199,7 +229,7 @@ func TestAdminBookMatcherConcurrentConfirms(t *testing.T) {
 	}
 	results := make(chan result, 2)
 	for _, workID := range []string{"OL100W", "OL200W"} {
-		r, err := http.NewRequest("PUT", f.server.URL+"/api/v1/admin/documents/book/matches/openlibrary",
+		r, err := http.NewRequest("PUT", f.server.URL+"/api/v1/documents/book/matches/openlibrary",
 			strings.NewReader(fmt.Sprintf(`{"work_id":%q}`, workID)))
 		require.NoError(t, err)
 		r.Header.Set("Content-Type", "application/json")
@@ -225,26 +255,25 @@ func TestAdminBookMatcherConcurrentConfirms(t *testing.T) {
 	if second.status == http.StatusNoContent {
 		winner = second
 	}
-	r := f.call("GET", bookMatcherPagePath+"?provider=openlibrary", nil, nil)
+	r := f.call("GET", matcherDocumentsPath+"&include=matches", nil, nil)
 	require.Equal(t, 200, r.status, string(r.body))
-	var page AdminBookMatcherPage
+	var page DocumentPage
 	require.NoError(t, json.Unmarshal(r.body, &page))
 	require.Len(t, page.Items, 1)
-	require.NotNil(t, page.Items[0].Match)
-	require.Equal(t, winner.workID, page.Items[0].Match.WorkId)
+	require.NotNil(t, page.Items[0].Matches)
+	require.Equal(t, []DocumentMatch{{Provider: Openlibrary, WorkId: winner.workID}}, *page.Items[0].Matches)
 	require.Equal(t, 1, f.count("document_identifiers"))
 }
 
-func TestAdminBookMatcherLinkMutations(t *testing.T) {
+func TestBookMatcherLinkMutations(t *testing.T) {
 	f := newWebFixture(t)
 	f.api.openLibraryCatalog = matcherHTTPCatalog{}
 	f.api.hardcoverCatalog = identifyCatalogFixture{}
-	f.register("admin")
-	f.exec(`UPDATE users SET admin=1 WHERE id='admin'`)
+	registerMatcherReader(t, f)
 	f.exec(`INSERT INTO settings(name,value) VALUES ('metadata_provider','hardcover') ON CONFLICT(name) DO UPDATE SET value=excluded.value`)
 	f.exec(`INSERT INTO documents(id,title,author,isbn13,description,coverfile) VALUES ('book','Local Title','Local Author','9780765391193','Local Description','local.png')`)
 	f.exec(`INSERT INTO document_identifiers VALUES ('book','hardcover_book','42'), ('book','openlibrary_edition','OL5M')`)
-	path := "/api/v1/admin/documents/book/matches/openlibrary"
+	path := "/api/v1/documents/book/matches/openlibrary"
 	assertProblem(t, f.call("PUT", path, `{"work_id":"OL900W"}`, nil), 400, "invalid_request")
 	require.Equal(t, 2, f.count("document_identifiers"))
 	for range 2 {
@@ -261,7 +290,7 @@ func TestAdminBookMatcherLinkMutations(t *testing.T) {
 	require.Equal(t, 2, f.count("document_identifiers"))
 	r := f.call("PUT", path, `{"work_id":"OL100W"}`, nil)
 	require.Equal(t, 204, r.status, string(r.body))
-	assertProblem(t, f.call("DELETE", "/api/v1/admin/documents/missing/matches/openlibrary?work_id=OL100W", nil, nil), 404, "not_found")
+	assertProblem(t, f.call("DELETE", "/api/v1/documents/missing/matches/openlibrary?work_id=OL100W", nil, nil), 404, "not_found")
 	document, err := f.db.Queries.GetDocument(context.Background(), "book")
 	require.NoError(t, err)
 	require.Equal(t, "Local Title", *document.Title)
@@ -269,7 +298,7 @@ func TestAdminBookMatcherLinkMutations(t *testing.T) {
 	require.Equal(t, "9780765391193", *document.Isbn13)
 	require.Equal(t, "Local Description", *document.Description)
 	require.Equal(t, "local.png", *document.Coverfile)
-	stateResponse := f.call("GET", adminMetadataPath, nil, nil)
+	stateResponse := f.call("GET", metadataProvidersPath, nil, nil)
 	require.Equal(t, 200, stateResponse.status, string(stateResponse.body))
 	var state AdminMetadataProvider
 	require.NoError(t, json.Unmarshal(stateResponse.body, &state))

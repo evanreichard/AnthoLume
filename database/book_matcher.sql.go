@@ -10,17 +10,6 @@ import (
 	"strings"
 )
 
-const countBookMatcherDocuments = `-- name: CountBookMatcherDocuments :one
-SELECT count(*) FROM documents WHERE deleted = 0
-`
-
-func (q *Queries) CountBookMatcherDocuments(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countBookMatcherDocuments)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const getBookMatcherDocuments = `-- name: GetBookMatcherDocuments :many
 SELECT d.id, d.title, d.author, d.isbn13, d.isbn10,
     CAST(COALESCE((SELECT value FROM document_identifiers
@@ -64,61 +53,6 @@ func (q *Queries) GetBookMatcherDocuments(ctx context.Context, arg GetBookMatche
 	var items []GetBookMatcherDocumentsRow
 	for rows.Next() {
 		var i GetBookMatcherDocumentsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Title,
-			&i.Author,
-			&i.Isbn13,
-			&i.Isbn10,
-			&i.WorkID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listBookMatcherDocuments = `-- name: ListBookMatcherDocuments :many
-SELECT d.id, d.title, d.author, d.isbn13, d.isbn10,
-    CAST(COALESCE((SELECT value FROM document_identifiers
-        WHERE document_id = d.id AND namespace = ?1
-        ORDER BY value LIMIT 1), '') AS TEXT) AS work_id
-FROM documents d
-WHERE d.deleted = 0
-ORDER BY NULLIF(trim(d.title), '') COLLATE NOCASE ASC NULLS LAST, d.id ASC
-LIMIT 10 OFFSET ?2
-`
-
-type ListBookMatcherDocumentsParams struct {
-	Namespace  string `json:"namespace"`
-	PageOffset int64  `json:"page_offset"`
-}
-
-type ListBookMatcherDocumentsRow struct {
-	ID     string  `json:"id"`
-	Title  *string `json:"title"`
-	Author *string `json:"author"`
-	Isbn13 *string `json:"isbn13"`
-	Isbn10 *string `json:"isbn10"`
-	WorkID string  `json:"work_id"`
-}
-
-func (q *Queries) ListBookMatcherDocuments(ctx context.Context, arg ListBookMatcherDocumentsParams) ([]ListBookMatcherDocumentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listBookMatcherDocuments, arg.Namespace, arg.PageOffset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListBookMatcherDocumentsRow
-	for rows.Next() {
-		var i ListBookMatcherDocumentsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,

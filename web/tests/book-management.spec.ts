@@ -328,6 +328,126 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await expect(appliedTitle).toHaveCount(0);
 });
 
+test('Book Details reviews exact confirmed sources without searching or relinking', async ({ page, server }) => {
+  await register(page, server.origin, 'confirmed-source-reader');
+  const endpoint = `${server.origin}/api/v1/documents/book_001`;
+  const original = await (await page.request.get(endpoint)).json();
+  const config = await page.request.get(`${server.origin}/api/v1/metadata/providers`);
+  expect(config.ok()).toBe(true);
+  expect((await config.json()).effective).toBe('openlibrary');
+
+  const savedLinks = [{ provider: 'openlibrary', work_id: 'OL101W' }, { provider: 'hardcover', work_id: '42' }];
+  const catalog = { provider: 'hardcover', id: '42', title: 'Catalog title not selected', author: 'Catalog author not selected', description: 'Synopsis from the saved Hardcover record.', cover_id: 42 };
+  let current = { ...original, description: 'Original synopsis', cover_available: true, reading_stats: { reading_seconds: 0, words_per_minute: 0, word_count: 161098 }, matches: [] };
+  const cover = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 60; canvas.height = 90;
+    return canvas.toDataURL('image/jpeg').split(',')[1]!;
+  });
+  let failPreview = true;
+  const requests: string[] = [];
+  const writes: unknown[] = [];
+  await page.route(endpoint, async route => {
+    if (route.request().method() === 'PATCH') {
+      const body = route.request().postDataJSON();
+      writes.push(body);
+      current = { ...current, description: body.description, matches: savedLinks };
+    }
+    await route.fulfill({ json: current });
+  });
+  await page.route(`${endpoint}/matches/**`, async route => {
+    const url = new URL(route.request().url());
+    requests.push(`${route.request().method()} ${url.pathname}${url.search}`);
+    if (failPreview) {
+      return route.fulfill({ status: 503, contentType: 'application/problem+json', body: JSON.stringify({ type: 'about:blank', title: 'Service Unavailable', status: 503, code: 'metadata_unavailable' }) });
+    }
+    return route.fulfill({ json: catalog });
+  });
+  await page.route(/\/api\/v1\/metadata\/covers\/42(?:\?|$)/, route => {
+    const params = new URL(route.request().url()).searchParams;
+    expect([params.get('provider'), params.get('document_id'), params.get('work_id')]).toEqual(['hardcover', 'book_001', '42']);
+    return route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(cover, 'base64') });
+  });
+  const searchRequests: string[] = [];
+  await page.route(/\/api\/v1\/metadata\/(search|lookups|match)(?:\?|$)/, route => {
+    searchRequests.push(route.request().url());
+    return route.fulfill({ json: [] });
+  });
+
+  await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
+  const bookURL = page.url();
+  const details = page.getByRole('region', { name: 'Book details' });
+  await expect(details.getByText('Original synopsis', { exact: true })).toBeVisible();
+  await expect(details.getByRole('term').filter({ hasText: /^Sources$/ })).toHaveCount(0);
+
+  current = { ...current, matches: savedLinks };
+  await page.goto(bookURL);
+  await expect(details.getByRole('term').filter({ hasText: /^Sources$/ })).toBeVisible();
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    const length = (await details.getByText('Length', { exact: true }).boundingBox())!;
+    const sources = (await details.getByText('Sources', { exact: true }).boundingBox())!;
+    expect(sources.y).toBeCloseTo(length.y, 0);
+    expect(sources.x).toBeGreaterThan(length.x);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  const hardcover = details.getByRole('button', { name: 'Review Hardcover metadata: 42', exact: true });
+  const openLibrary = details.getByRole('button', { name: 'Review Open Library metadata: OL101W', exact: true });
+  for (const [pill, id] of [[hardcover, '42'], [openLibrary, 'OL101W']] as const) {
+    await expect(pill).toBeVisible();
+    await expect(pill).toHaveText(id);
+    await expect(pill.locator('img')).toHaveCount(1);
+    const box = (await pill.boundingBox())!;
+    expect(box.height).toBe(24);
+    expect(await pill.evaluate(button => { const r = button.getBoundingClientRect(); return button.contains(document.elementFromPoint(r.left + r.width / 2, r.bottom + 2)); })).toBe(false);
+  }
+
+  const dialog = page.getByRole('dialog', { name: 'Review Metadata' });
+  const source = dialog.getByRole('link', { name: /^View on Hardcover/i });
+  const request = 'GET /api/v1/documents/book_001/matches/hardcover?work_id=42';
+  expect(requests).toEqual([]);
+  await hardcover.click();
+  await expect(dialog.getByRole('alert')).toBeVisible();
+  await expect(source).toHaveAttribute('href', 'https://hardcover.app/id/book/42');
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    const footer = dialog.locator('footer');
+    const link = (await footer.getByRole('link', { name: /^View on Hardcover/i }).boundingBox())!;
+    const cancel = (await footer.getByRole('button', { name: 'Cancel' }).boundingBox())!;
+    expect(link.x).toBeGreaterThan(cancel.x + cancel.width);
+    expect(link.y + link.height / 2).toBeCloseTo(cancel.y + cancel.height / 2, 0);
+    expect(link.height).toBeGreaterThanOrEqual(44);
+    if (width === 320) await expect(source.getByText('Hardcover', { exact: true })).toBeHidden();
+    else await expect(source.getByText('Hardcover', { exact: true })).toBeVisible();
+  }
+  expect(requests).toEqual([request]);
+  failPreview = false;
+  await dialog.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(dialog.getByText(catalog.description, { exact: true })).toBeVisible();
+  const coverChoice = dialog.getByRole('button', { name: 'Cover', exact: true });
+  await expect.poll(() => coverChoice.locator('img').evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(60);
+  await expect(coverChoice).toHaveAttribute('aria-pressed', 'false');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(hardcover).toBeFocused();
+  expect(writes).toEqual([]);
+  await expect(details.getByText('Original synopsis', { exact: true })).toBeVisible();
+
+  await hardcover.click();
+  const synopsis = dialog.getByRole('button', { name: 'Synopsis', exact: true });
+  await expect(synopsis).toHaveAttribute('aria-pressed', 'false');
+  await synopsis.click();
+  await dialog.getByRole('button', { name: /^Apply 1 Change$/i }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(details.getByText(catalog.description, { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: original.title, exact: true })).toBeVisible();
+  await expect(hardcover).toBeVisible();
+  await expect(openLibrary).toBeVisible();
+  expect(writes).toEqual([{ linked_source: savedLinks[1], description: catalog.description }]);
+  expect(requests).toEqual([request, request, request]);
+  expect(searchRequests).toEqual([]);
+});
+
 test('Hardcover reuses cover bytes for preview and save, and still links when artwork fails', async ({ page, server }) => {
   await register(page, server.origin, 'hardcover-catalog-reader');
   const originalDocument = await (await page.request.get(`${server.origin}/api/v1/documents/book_001`)).json();

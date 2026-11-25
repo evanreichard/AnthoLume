@@ -1,16 +1,15 @@
 import { useId, useState, type FormEvent } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Outlet, useMatch, useOutletContext, useSearchParams } from 'react-router';
+import { Outlet, useMatch, useOutletContext } from 'react-router';
 import type { components } from '../api/schema.gen';
 import { ReadingHTTPError, type Account } from '../reading';
 import { session, useSession } from '../session';
 import { Dialog, ErrorNotice, PageHeader } from '../ui';
-import { ActionRow, AddPill, BackPill, Card, CardHeader, RadioChoices, SectionTabs, Button } from '../Controls';
+import { ActionRow, AddPill, Card, CardHeader, RadioChoices, SectionTabs, Button } from '../Controls';
 import { AdminBackups } from './AdminBackups';
 import { AdminImport } from './AdminImport';
 import { AdminMaintenance } from './AdminMaintenance';
 import { AdminMetadata } from './AdminMetadata';
-import { AdminBookMatcher } from './AdminBookMatcher';
 import { SkeletonRows } from '../Skeleton';
 import { useSnackbar } from '../Snackbar';
 import { StorageRoots, storageRootsKey } from './AdminStorage';
@@ -28,16 +27,10 @@ export function AdminSectionTabs() {
 
 export function Administration() {
   const logs = useMatch('/admin/logs');
-  const library = useMatch('/admin/library');
-  const [params] = useSearchParams();
   const { access, session: current } = useSession();
   const context: AdminContext | null = access.kind === 'authenticated' && current?.user?.is_admin
     ? { account: access.account, username: current.user.id }
     : null;
-  if (context && library && params.get('view') === 'matcher') return <>
-    <PageHeader leading={<BackPill to="/admin/library">Administration</BackPill>} />
-    <AdminBookMatcher key={JSON.stringify(context.account)} account={context.account} />
-  </>;
   return <>
     <PageHeader title="Administration" />
     {context ? <>

@@ -30,9 +30,20 @@ export function BookInfo({ book, isbn }: { book: Book; isbn?: string }) {
   </span>;
 }
 
+function ProviderIdentity({ provider, workId }: { provider?: Provider; workId: string }) {
+  return <>{provider && <img src={candidateProviders[provider].icon} alt="" width={15} height={15} />}<span>{workId}</span></>;
+}
+
+export function ReviewSourcePill({ provider, workId, disabled, onReview }: { provider: Provider; workId: string; disabled?: boolean; onReview: () => void }) {
+  return <button type="button" className={`${styles.providerPill} ${styles.reviewSource}`} aria-haspopup="dialog" aria-label={`Review ${candidateProviders[provider].name} metadata: ${workId}`}
+    disabled={disabled} onClick={event => { event.currentTarget.focus({ preventScroll: true }); onReview(); }}>
+    <ProviderIdentity provider={provider} workId={workId} />
+  </button>;
+}
+
 export function ProviderPill({ provider, match, matchValue }: { provider?: Provider; match: ProviderMatch; matchValue?: boolean }) {
   const branding = provider && candidateProviders[provider];
-  const contents = <>{branding && <img src={branding.icon} alt="" width={15} height={15} />}<span>{match.work_id}</span></>;
+  const contents = <ProviderIdentity provider={provider} workId={match.work_id} />;
   if (!match.url) return <span className={styles.providerPill}>{contents}</span>;
   return <a className={styles.providerPill} href={match.url} target="_blank" rel="noopener noreferrer" data-match-value={matchValue || undefined}
     aria-label={`${match.work_id}${branding ? ` on ${branding.name}` : ''} (Opens in a New Tab)`}>{contents}</a>;

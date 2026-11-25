@@ -24,7 +24,7 @@ func (s *webAPI) EditDocument(ctx context.Context, r EditDocumentRequestObject) 
 	b := r.Body
 	remove := b.RemoveCover != nil && *b.RemoveCover
 	invalid := &reading.Failure{Status: 400, Code: "invalid_request"}
-	if b.Title != nil && strings.TrimSpace(*b.Title) == "" || remove && b.CoverBase64 != nil {
+	if b.Title != nil && strings.TrimSpace(*b.Title) == "" || remove && b.CoverBase64 != nil || b.Match != nil && b.LinkedSource != nil {
 		return nil, invalid
 	}
 	var workID string
@@ -100,6 +100,11 @@ func (s *webAPI) EditDocument(ctx context.Context, r EditDocumentRequestObject) 
 			return nil, err
 		}
 	}
+	if b.LinkedSource != nil {
+		if err := requireLinkedSource(ctx, queries, r.Id, *b.LinkedSource); err != nil {
+			return nil, err
+		}
+	}
 	if b.Title != nil || b.Author != nil || b.Description != nil || b.Isbn10 != nil || b.Isbn13 != nil || cover != nil {
 		if _, err := queries.UpdateWebDocumentMetadata(ctx, database.UpdateWebDocumentMetadataParams{
 			ID: r.Id, Title: trimOptional(b.Title), Author: trimOptional(b.Author),
@@ -162,7 +167,17 @@ func (s *webAPI) GetMetadataCover(ctx context.Context, r GetMetadataCoverRequest
 	if r.Params.Provider != nil {
 		provider = *r.Params.Provider
 	}
-	if err := s.api.checkMetadataProvider(reqCtx, s.api.db.Queries, provider); err != nil {
+	linked := r.Params.DocumentId != nil || r.Params.WorkId != nil
+	var source DocumentMatch
+	if linked {
+		if r.Params.DocumentId == nil || r.Params.WorkId == nil || r.Params.Provider == nil {
+			return nil, &reading.Failure{Status: 400, Code: "invalid_request"}
+		}
+		source = DocumentMatch{Provider: provider, WorkId: *r.Params.WorkId}
+		if err := s.api.checkLinkedSource(reqCtx, *r.Params.DocumentId, source); err != nil {
+			return nil, err
+		}
+	} else if err := s.api.checkMetadataProvider(reqCtx, s.api.db.Queries, provider); err != nil {
 		return nil, err
 	}
 	var raw []byte
@@ -183,6 +198,11 @@ func (s *webAPI) GetMetadataCover(ctx context.Context, r GetMetadataCoverRequest
 	}
 	if err != nil {
 		return nil, &reading.Failure{Status: 503, Code: "metadata_unavailable"}
+	}
+	if linked {
+		if err := s.api.checkLinkedSource(reqCtx, *r.Params.DocumentId, source); err != nil {
+			return nil, err
+		}
 	}
 	setCoverResponseHeaders(ginContext(ctx).Writer)
 	return GetMetadataCover200ImagejpegResponse{Body: bytes.NewReader(raw), ContentLength: int64(len(raw))}, nil

@@ -58,10 +58,35 @@ test('aborting an idle stream cancels the reader and does not deliver a result',
   expect(onResult).not.toHaveBeenCalled();
 });
 
+test('the matcher reads standard documents with associations for both providers', async () => {
+  vi.stubGlobal('window', { location: { origin: 'https://books.example' } });
+  const { createAPI } = await import('./client');
+  const account = { origin: 'https://books.example', userId: 'reader', readingGeneration: 'generation' };
+  const api = createAPI({ epoch: () => 0, token: () => null, changed: vi.fn(), expired: vi.fn(), suspectOutage: vi.fn(), assert: vi.fn() });
+  const book = { id: 'book', title: 'Book', author: null, series: null, description: null, lang: null, file_available: false, cover_available: false, media_type: null, file_size_bytes: null };
+  const matches = [{ provider: 'openlibrary', work_id: 'OL1W' }, { provider: 'hardcover', work_id: '42' }];
+  const result = (item: object) => Response.json({ items: [item], page: 1, page_size: 10, total: 1, next_page: null });
+  const fetch = vi.fn<typeof globalThis.fetch>();
+  vi.stubGlobal('fetch', fetch);
+  fetch.mockImplementationOnce(async input => {
+    if (!(input instanceof Request)) throw new Error('Expected Request');
+    const url = new URL(input.url);
+    expect(url.pathname).toBe('/api/v1/documents');
+    expect(Object.fromEntries(url.searchParams)).toEqual({ page: '1', page_size: '10', sort: 'title', include: 'matches' });
+    expect(input.headers.get('x-antholume-account')).toBe(account.userId);
+    return result({ ...book, matches });
+  });
+  await expect(api.matcherPage(account, 1, signal())).resolves.toMatchObject({ items: [{ matches }] });
+  for (const item of [book, { ...book, matches: [matches[0], matches[0]] }]) {
+    fetch.mockResolvedValueOnce(result(item));
+    await expect(api.matcherPage(account, 1, signal())).rejects.toBeInstanceOf(InvalidResponse);
+  }
+});
+
 test('the authenticated POST sends CSRF and account headers and guards every streamed outcome', async () => {
   vi.stubGlobal('window', { location: { origin: 'https://books.example' } });
   const { createAPI } = await import('./client');
-  const account = { origin: 'https://books.example', userId: 'admin', readingGeneration: 'generation' };
+  const account = { origin: 'https://books.example', userId: 'reader', readingGeneration: 'generation' };
   let epoch = 0;
   const gate = {
     epoch: () => epoch, token: () => 'csrf', changed: vi.fn(), expired: vi.fn(), suspectOutage: vi.fn(),
@@ -76,7 +101,7 @@ test('the authenticated POST sends CSRF and account headers and guards every str
     expect(input).toBeInstanceOf(Request);
     if (!(input instanceof Request)) throw new Error('Expected Request');
     expect(input.method).toBe('POST');
-    expect(new URL(input.url).pathname).toBe('/api/v1/admin/book-matcher/lookups');
+    expect(new URL(input.url).pathname).toBe('/api/v1/metadata/lookups');
     expect(input.headers.get('x-csrf-token')).toBe('csrf');
     expect(input.headers.get('x-antholume-account')).toBe(account.userId);
     expect(input.headers.get('x-antholume-reading-generation')).toBe(account.readingGeneration);

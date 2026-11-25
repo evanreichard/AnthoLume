@@ -1,4 +1,4 @@
-export type IconName = 'close' | 'minus' | 'more' | 'kept' | 'down' | 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'cloud-off' | 'device' | 'device-saved' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'user' | 'warning' | 'folder' | 'up' | 'forward' | 'refresh' | 'sign-out' | 'upload' | 'info';
+export type IconName = 'close' | 'minus' | 'more' | 'kept' | 'down' | 'library' | 'insights' | 'settings' | 'back' | 'book' | 'download' | 'check' | 'cloud' | 'cloud-off' | 'device' | 'device-saved' | 'link' | 'external-link' | 'search' | 'add' | 'sort' | 'edit' | 'trash' | 'contents' | 'user' | 'warning' | 'folder' | 'up' | 'forward' | 'refresh' | 'sign-out' | 'upload' | 'info';
 
 const device = 'M6 2.5h12A1.5 1.5 0 0 1 19.5 4v16a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 20V4A1.5 1.5 0 0 1 6 2.5z M10.5 18.5h3';
 
@@ -28,6 +28,8 @@ const paths: Record<IconName, string> = {
   folder: 'M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
   'sign-out': 'M10 4H5v16h5m3-8h8m-4-4 4 4-4 4',
   refresh: 'M20 11a8 8 0 1 0-2 6m2-12v6h-6',
+  'external-link': 'M14 3h7v7 M21 3 10 14 M10 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5',
+  link: 'M10 13a4 4 0 0 0 6 0l4-4a4 4 0 0 0-6-6l-2 2m2 6a4 4 0 0 0-6 0l-4 4a4 4 0 1 0 6 6l2-2',
   search: 'M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Z M16 16l4 4',
   add: 'M12 5v14 M5 12h14',
   edit: 'm14 6 4 4 M4 20l4-1 12-12a2.8 2.8 0 0 0-4-4L4 15z',

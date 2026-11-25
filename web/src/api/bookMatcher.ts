@@ -1,14 +1,21 @@
-import { checkAdminBookMatcherLink, checkAdminBookMatcherPage, checkID, checkMetadataProvider, checkMetadataWorkID } from './guards.gen.js';
+import { checkID, checkMetadataProvider, checkMetadataWorkID } from './guards.gen.js';
 import type { components } from './schema.gen';
 import { InvalidResponse } from './validate';
 
 type S = components['schemas'];
 export type MatcherProvider = S['MetadataProvider'];
-export type MatcherBook = S['AdminBookMatcherItem'];
-export type MatcherCandidate = S['AdminBookMatcherCandidate'];
+export type MatcherBook = S['Document'] & { matches: S['DocumentMatch'][] };
+export type MatcherPage = Omit<S['DocumentPage'], 'items'> & { items: MatcherBook[] };
+export type MatcherCandidate = S['BookMatcherCandidate'];
+export type MatcherLink = S['BookMatcherLink'];
 export type MatcherResult = { document_id: string } & (
-  { candidates: MatcherCandidate[] } | { error: string } | { match: S['AdminBookMatcherLink'] }
+  { candidates: MatcherCandidate[] } | { error: string } | { match: MatcherLink }
 );
+
+export function matcherLink(provider: MatcherProvider, work_id: string): MatcherLink {
+  const base = provider === 'hardcover' ? 'https://hardcover.app/id/book/' : 'https://openlibrary.org/works/';
+  return { work_id, url: base + encodeURIComponent(work_id) };
+}
 
 function isCatalogURL(value: unknown): value is string {
   if (typeof value !== 'string') return false;
@@ -18,13 +25,7 @@ function isCatalogURL(value: unknown): value is string {
   } catch { return false; }
 }
 
-export function isMatcherPage(value: unknown): value is S['AdminBookMatcherPage'] {
-  return checkAdminBookMatcherPage(value) && Number.isSafeInteger(value.total) && Number.isSafeInteger(value.page)
-    && value.items.length <= value.total && new Set(value.items.map(book => book.id)).size === value.items.length
-    && value.items.every(book => !book.match || isCatalogURL(book.match.url));
-}
-
-export function matcherLookupRequest(provider: MatcherProvider, document_ids: string[]): S['AdminBookMatcherLookupRequest'] {
+export function matcherLookupRequest(provider: MatcherProvider, document_ids: string[]): S['BookMatcherLookupRequest'] {
   if (!checkMetadataProvider(provider) || document_ids.length < 1 || document_ids.length > 10
     || new Set(document_ids).size !== document_ids.length || !document_ids.every(checkID)) {
     throw new TypeError('Expected one to ten distinct document IDs and a supported provider.');
@@ -49,7 +50,9 @@ function decodeOutcome(line: string): MatcherResult {
   const { document_id, candidates, error, match } = value;
   if (Array.isArray(candidates) && candidates.every(isCandidate)) return { document_id, candidates };
   if (typeof error === 'string' && error.length > 0) return { document_id, error };
-  if (checkAdminBookMatcherLink(match) && isCatalogURL(match.url)) return { document_id, match };
+  if (isRecord(match) && Object.keys(match).length === 2 && checkMetadataWorkID(match.work_id) && isCatalogURL(match.url)) {
+    return { document_id, match: { work_id: match.work_id, url: match.url } };
+  }
   throw new InvalidResponse();
 }
 

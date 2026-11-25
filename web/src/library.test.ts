@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { bookKey, bookPath, combineBooks, sortBooks } from './library';
+import { bookKey, bookPath, combineBooks, matcherReturn, sortBooks } from './library';
 import type { StoredBook } from './reading';
 
 const a = { origin: 'https://books.example', userId: 'a' };
@@ -34,6 +34,14 @@ it('sorts Last read by newest shared checkpoint, then puts unread books last', (
     { ...doc, id: 'newer', title: 'C newer', last_read_at: '2026-01-02T00:00:00Z' },
   ], a);
   expect(sortBooks(books, 'read').map(book => book.document?.id)).toEqual(['newer', 'older', 'unread']);
+});
+it('restores matcher navigation only for the initiating account and generation', () => {
+  const account = { ...a, readingGeneration: 'current' };
+  const state = { account, search: 'q=Public+book&sort=author&dialog=add', pages: 3 };
+  expect(matcherReturn(state, account)).toEqual({ ...state, search: 'q=Public+book&sort=author' });
+  expect(matcherReturn(state, b)).toBeNull();
+  expect(matcherReturn(state, { ...account, readingGeneration: 'previous' })).toBeNull();
+  expect(matcherReturn({ ...state, pages: 1.5 }, account)).toBeNull();
 });
 it('routes preserve opaque IDs and account/origin intent', () => {
   const ref = { kind: 'server' as const, account: a, documentId: 'opaque/id' };

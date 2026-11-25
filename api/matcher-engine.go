@@ -12,6 +12,7 @@ import (
 
 	"reichard.io/antholume/matcherquota"
 	"reichard.io/antholume/metadata"
+	"reichard.io/antholume/reading"
 )
 
 const (
@@ -41,7 +42,7 @@ func (api *API) matcherCatalogFor(provider MetadataProvider) (matcherCatalog, er
 	if matcher, ok := catalog.(matcherCatalog); ok {
 		return matcher, nil
 	}
-	return nil, adminFailure(http.StatusServiceUnavailable, "metadata_unavailable")
+	return nil, &reading.Failure{Status: http.StatusServiceUnavailable, Code: "metadata_unavailable"}
 }
 
 func matcherWorkURL(provider MetadataProvider, workID string) string {
@@ -68,7 +69,7 @@ func (api *API) verifyMatcherLink(ctx context.Context, provider MetadataProvider
 		return ctx.Err()
 	}
 	if errors.Is(err, matcherquota.ErrLimited) {
-		return adminFailure(http.StatusTooManyRequests, "rate_limited")
+		return &reading.Failure{Status: http.StatusTooManyRequests, Code: "rate_limited"}
 	}
 	if err != nil {
 		return metadataLookupFailure(err)

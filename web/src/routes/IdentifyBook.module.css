@@ -6,6 +6,10 @@
 }
 
 .toolbar > :last-child { grid-area: 1 / 2; }
+.sourceAction { margin-inline-start: auto; }
+@media (max-width: 374px) {
+  .sourceName { display: none; }
+}
 
 .searchTools {
   padding: 4px 4px 6px;
