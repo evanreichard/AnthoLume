@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { request, type Page } from '@playwright/test';
 import type { components } from '../src/api/schema.gen';
 import { expect, mockMatcherLookup, register, test } from './fixtures';
@@ -345,6 +346,84 @@ test('direct matcher entry requires sign-in; streams render incrementally and ca
   await backToLibrary(page).click();
   await expect(page).toHaveURL(`${server.origin}/library`);
   await expect.poll(() => page.evaluate(() => window.matcherStreams[3].signal.aborted)).toBe(true);
+});
+
+test('matcher sorts the full catalog before paging and preserves the provider and Library view', async ({
+  page,
+  server,
+}) => {
+  await page.route('**/api/v1/metadata/providers', (route) =>
+    route.fulfill({ json: { selected: 'openlibrary', effective: 'openlibrary', hardcover_available: true } }),
+  );
+  await mockMatcherLookup(page, () => ({ candidates: [] }));
+  await register(page, server.origin, 'matcher-sort-reader');
+  const { csrf_token, user } = await (await page.request.get(`${server.origin}/api/v1/session`)).json();
+  const headers = {
+    Origin: server.origin,
+    'X-CSRF-Token': csrf_token,
+    'X-AnthoLume-Reading-Generation': user.reading_generation,
+  };
+  for (const [path, data] of [
+    ['devices', { id: 'matcher-sort-device', name: 'Matcher sort device' }],
+    [
+      'reading-progress',
+      {
+        event_id: randomUUID(),
+        document_id: 'book_030',
+        device_id: 'matcher-sort-device',
+        observed_at: new Date().toISOString(),
+        base_revision: '0',
+        position: '/body/DocFragment[1]/body/p[2]',
+        fraction: 0.24,
+      },
+    ],
+  ] as const) {
+    const response = await page.request.post(`${server.origin}/api/v1/me/${path}`, { headers, data });
+    expect(response.status(), await response.text()).toBe(200);
+  }
+
+  const originalLibrary = `${server.origin}/library?q=Public+book+01&sort=author`;
+  await page.goto(originalLibrary);
+  await page.getByRole('link', { name: 'Match Books', exact: true }).click();
+  const sort = page
+    .getByRole('main')
+    .locator('header')
+    .filter({ has: page.getByRole('link', { name: 'Library', exact: true }) })
+    .getByRole('button', { name: 'Sort Books', exact: true });
+  const dialog = page.getByRole('dialog', { name: 'Sort Books', exact: true });
+  const option = (name: string) => dialog.getByRole('button', { name, exact: true });
+  const pager = page.getByRole('navigation', { name: 'Book Pages' });
+  const rows = page.getByRole('table').getByRole('rowheader');
+  const bookRow = (n: number) => new RegExp(`^Public book ${String(n).padStart(2, '0')}(?!\\d)`);
+  await expect(pager).toContainText('1–10 of 30');
+  await expect(rows).toHaveText([30, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(bookRow));
+  await sort.click();
+  await expect(option('Last Read')).toHaveAttribute('aria-pressed', 'true');
+  await expect(option('Author A–Z')).toBeEnabled();
+  await expect(option('Recently Added')).toBeEnabled();
+  await dialog.press('Escape');
+
+  const provider = page.getByRole('combobox', { name: 'Provider', exact: true });
+  await expect(provider).toHaveValue('openlibrary');
+  await provider.selectOption('hardcover');
+  await pager.getByRole('button', { name: 'Next Page' }).click();
+  await expect(pager).toContainText('11–20 of 30');
+  await expect(rows.first()).toHaveText(bookRow(10));
+  await sort.click();
+  await option('Title A–Z').click();
+  await expect(pager).toContainText('1–10 of 30');
+  await expect(pager.getByRole('button', { name: 'Previous Page' })).toBeDisabled();
+  await expect(rows).toHaveText([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(bookRow));
+  await expect(provider).toHaveValue('hardcover');
+  await sort.click();
+  await expect(option('Title A–Z')).toHaveAttribute('aria-pressed', 'true');
+  await dialog.press('Escape');
+
+  await backToLibrary(page).click();
+  await expect(page).toHaveURL(originalLibrary);
+  await expect(page.getByRole('searchbox', { name: 'Search title or author' })).toHaveValue('Public book 01');
+  await page.getByRole('button', { name: 'Sort Books', exact: true }).click();
+  await expect(option('Author A–Z')).toHaveAttribute('aria-pressed', 'true');
 });
 
 declare global {

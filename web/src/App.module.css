@@ -161,20 +161,6 @@
 .pageTitleStart > a + h1 {
   font-size: clamp(20px, 4vw, 26px);
 }
-.sortOptions {
-  display: grid;
-  gap: 6px;
-}
-.sortOptions button {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  text-align: start;
-}
-.sortOptions button[aria-pressed='true'] {
-  background: var(--hero);
-  font-weight: 700;
-}
 .libraryHeadingActions {
   display: flex;
   align-items: center;

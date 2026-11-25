@@ -9,6 +9,7 @@ import {
 } from './bookMatcher';
 import type { paths, components, operations } from './schema.gen';
 import { checkHardcoverConnect, checkHardcoverShelf, checkHardcoverStatus } from './guards.gen.js';
+import type { LibrarySort } from '../library';
 import { ReadingHTTPError, type Account, type ReadingBridge } from '../reading';
 import {
   InvalidResponse,
@@ -461,8 +462,13 @@ export function createAPI(gate: SessionGate) {
         200,
         account,
       ),
-    matcherPage: async (account: Account, page: number, signal: AbortSignal): Promise<MatcherPage> => {
-      const result = await listDocuments(account, { page, page_size: 10, sort: 'title', include: 'matches' }, signal);
+    matcherPage: async (
+      account: Account,
+      page: number,
+      sort: LibrarySort,
+      signal: AbortSignal,
+    ): Promise<MatcherPage> => {
+      const result = await listDocuments(account, { page, page_size: 10, sort, include: 'matches' }, signal);
       return {
         ...result,
         items: result.items.map((book) => {
@@ -556,14 +562,7 @@ export function createAPI(gate: SessionGate) {
         200,
         account,
       ),
-    documents: (
-      account: Account,
-      page: number,
-      q: string,
-      sort: 'title' | 'author' | 'added' | 'read',
-      signal: AbortSignal,
-      resumable = false,
-    ) =>
+    documents: (account: Account, page: number, q: string, sort: LibrarySort, signal: AbortSignal, resumable = false) =>
       listDocuments(
         account,
         { page, page_size: 24, sort, ...(resumable ? { resumable: true } : {}), ...(q ? { q } : {}) },

@@ -1,4 +1,4 @@
-import { useEffectEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffectEvent, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate, useLocation } from 'react-router';
 import {
@@ -9,7 +9,8 @@ import {
   type MatcherPage,
   type MatcherProvider,
 } from '../api/bookMatcher';
-import { matcherReturn } from '../library';
+import { matcherReturn, parseSort, type LibrarySort } from '../library';
+import { BookSortControl } from '../BookSortControl';
 import { metadataProviderOptions } from '../metadataProviders';
 import { session, useSession } from '../session';
 import { BookInfo, CandidatePicker, ProviderPill, candidateProviders as providers } from '../CandidatePicker';
@@ -62,20 +63,19 @@ export function BookMatcher() {
   const state = back ? { returnTo: back, focusLibrary: true } : { focusLibrary: true };
   if (access.kind === 'offline') return <Navigate to={library} state={state} replace />;
   return (
-    <>
-      <PageHeader
-        leading={
-          <BackPill to={library} state={state}>
-            Library
-          </BackPill>
-        }
-      />
-      <Matcher key={JSON.stringify(access.account)} account={access.account} />
-    </>
+    <Matcher
+      key={JSON.stringify(access.account)}
+      account={access.account}
+      back={
+        <BackPill to={library} state={state}>
+          Library
+        </BackPill>
+      }
+    />
   );
 }
 
-function Matcher({ account }: { account: Account }) {
+function Matcher({ account, back }: { account: Account; back: ReactNode }) {
   const config = useQuery(metadataProviderOptions(account));
   const [override, setProvider] = useState<MatcherProvider>();
   const provider =
@@ -84,6 +84,7 @@ function Matcher({ account }: { account: Account }) {
       ? config.data.effective
       : (override ?? config.data.effective));
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState(() => parseSort(null));
   const [revision, setRevision] = useState(0);
   const [lookups, setLookups] = useState<ReadonlyMap<string, Lookup>>(() => new Map());
   const latestLookups = useRef(lookups);
@@ -95,13 +96,13 @@ function Matcher({ account }: { account: Account }) {
   const { show } = useSnackbar(JSON.stringify(account));
   const pagePrefix = ['documents', account, 'matcher'] as const;
   const documents = useQuery({
-    queryKey: [...pagePrefix, page],
-    queryFn: ({ signal }) => session.api.matcherPage(account, page, signal),
+    queryKey: [...pagePrefix, sort, page],
+    queryFn: ({ signal }) => session.api.matcherPage(account, page, sort, signal),
   });
-  const viewed = useRef({ page, provider });
+  const viewed = useRef({ page, provider, sort });
   useLayoutEffect(() => {
-    viewed.current = { page, provider };
-  }, [page, provider]);
+    viewed.current = { page, provider, sort };
+  }, [page, provider, sort]);
 
   function storeLookup(key: string, value?: Lookup) {
     if (latestLookups.current.get(key) === value) return;
@@ -156,10 +157,17 @@ function Matcher({ account }: { account: Account }) {
       await client.cancelQueries({
         queryKey: pagePrefix,
         predicate: (query) =>
-          (query.state.data as MatcherPage | undefined)?.items.some((item) => item.id === book.id) ?? false,
+          (query.state.data as MatcherPage | undefined)?.items.some((item) => item.id === book.id) ??
+          query.state.fetchStatus === 'fetching',
       });
       if (!currentAccount()) return false;
       recordLink(book.id, source, remove ? null : match.work_id);
+      // Cold Pages - An interrupted first load has no cached links to patch and needs a fresh request.
+      void client.refetchQueries({
+        queryKey: pagePrefix,
+        type: 'active',
+        predicate: (query) => query.state.status === 'pending',
+      });
       void client.invalidateQueries({ queryKey: ['document', { kind: 'server', account, documentId: book.id }] });
       const name = providers[source].name;
       show(
@@ -193,7 +201,7 @@ function Matcher({ account }: { account: Account }) {
           }
         : () => void write(book, source, match, remove, undo);
       setErrors((current) => new Map(current).set(key, { message, retry }));
-      if (undo || viewed.current.provider !== source || viewed.current.page !== page)
+      if (undo || viewed.current.provider !== source || viewed.current.page !== page || viewed.current.sort !== sort)
         show({ message, tone: 'error', action: { label: 'Retry', onClick: retry } });
       return false;
     } finally {
@@ -208,72 +216,81 @@ function Matcher({ account }: { account: Account }) {
     heading.current?.scrollIntoView({ block: 'nearest' });
   }
 
+  function changeSort(next: LibrarySort) {
+    if (next === sort) return;
+    setSort(next);
+    setPage(1);
+  }
+
   return (
-    <Card density="compact" className={styles.card} aria-labelledby="book-matcher-heading">
-      <header className={styles.heading}>
-        <h2 id="book-matcher-heading" ref={heading} tabIndex={-1}>
-          Book Matcher
-        </h2>
-        <select
-          aria-label="Provider"
-          value={provider ?? ''}
-          disabled={!provider}
-          onChange={(event) => {
-            setProvider(event.currentTarget.value === 'hardcover' ? 'hardcover' : 'openlibrary');
-            event.currentTarget.blur();
-            heading.current?.focus({ preventScroll: true });
-          }}
-        >
-          {!provider && <option value="">Select provider</option>}
-          <option value="openlibrary">Open Library</option>
-          <option value="hardcover" disabled={!config.data?.hardcover_available}>
-            {config.isPending || config.data?.hardcover_available ? 'Hardcover' : 'Hardcover (Not Configured)'}
-          </option>
-        </select>
-      </header>
-      {config.isError && !config.data && (
-        <div className={styles.feedback}>
-          <span role="status">Could not check provider availability.</span>
-          <Button size="slim" onClick={() => void config.refetch()}>
-            Retry
-          </Button>
-        </div>
-      )}
-      {documents.isError && !documents.data && (
-        <div className={styles.feedback}>
-          <span role="alert">Could not load this page of books.</span>
-          <Button size="slim" onClick={() => void documents.refetch()}>
-            Retry
-          </Button>
-          {page > 1 && (
-            <Button size="slim" onClick={() => turn(page - 1)}>
-              Previous Page
+    <>
+      <PageHeader leading={back} actions={<BookSortControl sort={sort} onChange={changeSort} />} />
+      <Card density="compact" className={styles.card} aria-labelledby="book-matcher-heading">
+        <header className={styles.heading}>
+          <h2 id="book-matcher-heading" ref={heading} tabIndex={-1}>
+            Book Matcher
+          </h2>
+          <select
+            aria-label="Provider"
+            value={provider ?? ''}
+            disabled={!provider}
+            onChange={(event) => {
+              setProvider(event.currentTarget.value === 'hardcover' ? 'hardcover' : 'openlibrary');
+              event.currentTarget.blur();
+              heading.current?.focus({ preventScroll: true });
+            }}
+          >
+            {!provider && <option value="">Select provider</option>}
+            <option value="openlibrary">Open Library</option>
+            <option value="hardcover" disabled={!config.data?.hardcover_available}>
+              {config.isPending || config.data?.hardcover_available ? 'Hardcover' : 'Hardcover (Not Configured)'}
+            </option>
+          </select>
+        </header>
+        {config.isError && !config.data && (
+          <div className={styles.feedback}>
+            <span role="status">Could not check provider availability.</span>
+            <Button size="slim" onClick={() => void config.refetch()}>
+              Retry
             </Button>
-          )}
-        </div>
-      )}
-      {documents.isPending && (
-        <div className={styles.feedback}>
-          <SkeletonRows label="Loading Books" count={3} secondary />
-        </div>
-      )}
-      {provider && documents.data && (
-        <Page
-          key={`${provider}:${page}:${revision}`}
-          account={account}
-          provider={provider}
-          data={documents.data}
-          lookups={lookups}
-          readLookup={(key) => latestLookups.current.get(key)}
-          storeLookup={storeLookup}
-          onPageChange={turn}
-          write={write}
-          busy={busy}
-          errors={errors}
-          recordLink={recordLink}
-        />
-      )}
-    </Card>
+          </div>
+        )}
+        {documents.isError && !documents.data && (
+          <div className={styles.feedback}>
+            <span role="alert">Could not load this page of books.</span>
+            <Button size="slim" onClick={() => void documents.refetch()}>
+              Retry
+            </Button>
+            {page > 1 && (
+              <Button size="slim" onClick={() => turn(page - 1)}>
+                Previous Page
+              </Button>
+            )}
+          </div>
+        )}
+        {documents.isPending && (
+          <div className={styles.feedback}>
+            <SkeletonRows label="Loading Books" count={3} secondary />
+          </div>
+        )}
+        {provider && documents.data && (
+          <Page
+            key={`${provider}:${sort}:${page}:${revision}`}
+            account={account}
+            provider={provider}
+            data={documents.data}
+            lookups={lookups}
+            readLookup={(key) => latestLookups.current.get(key)}
+            storeLookup={storeLookup}
+            onPageChange={turn}
+            write={write}
+            busy={busy}
+            errors={errors}
+            recordLink={recordLink}
+          />
+        )}
+      </Card>
+    </>
   );
 }
 

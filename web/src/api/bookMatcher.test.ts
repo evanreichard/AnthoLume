@@ -144,16 +144,16 @@ test('the matcher reads standard documents with associations for both providers'
     expect(Object.fromEntries(url.searchParams)).toEqual({
       page: '1',
       page_size: '10',
-      sort: 'title',
+      sort: 'author',
       include: 'matches',
     });
     expect(input.headers.get('x-antholume-account')).toBe(account.userId);
     return result({ ...book, matches });
   });
-  await expect(api.matcherPage(account, 1, signal())).resolves.toMatchObject({ items: [{ matches }] });
+  await expect(api.matcherPage(account, 1, 'author', signal())).resolves.toMatchObject({ items: [{ matches }] });
   for (const item of [book, { ...book, matches: [matches[0], matches[0]] }]) {
     fetch.mockResolvedValueOnce(result(item));
-    await expect(api.matcherPage(account, 1, signal())).rejects.toBeInstanceOf(InvalidResponse);
+    await expect(api.matcherPage(account, 1, 'read', signal())).rejects.toBeInstanceOf(InvalidResponse);
   }
 });
 

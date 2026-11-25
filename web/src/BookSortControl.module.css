@@ -1,0 +1,14 @@
+.options {
+  display: grid;
+  gap: 6px;
+}
+.options button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: start;
+}
+.options button[aria-pressed='true'] {
+  background: var(--hero);
+  font-weight: 700;
+}

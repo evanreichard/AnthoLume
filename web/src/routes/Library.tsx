@@ -2,16 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 're
 import { hashKey, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { sameAccount, useReading } from '../reading';
-import {
-  bookKey,
-  bookPath,
-  combineBooks,
-  matcherReturn,
-  parseSort,
-  sortBooks,
-  sortOptions,
-  type LibrarySort,
-} from '../library';
+import { bookKey, bookPath, combineBooks, matcherReturn, parseSort, sortBooks, type LibrarySort } from '../library';
+import { BookSortControl } from '../BookSortControl';
 import { queryClient, session, useSession } from '../session';
 import { BookCard } from '../BookPresentation';
 import bookStyles from '../BookPresentation.module.css';
@@ -263,14 +255,11 @@ export function Library() {
             <Icon name="add" />
           </IconButton>
         )}
-        <IconButton
-          aria-label="Sort Books"
-          aria-haspopup="dialog"
-          aria-expanded={dialog === 'sort'}
-          onClick={() => open('sort')}
-        >
-          <Icon name="sort" />
-        </IconButton>
+        <BookSortControl
+          sort={sort}
+          onChange={applySort}
+          dialog={{ open: dialog === 'sort', onOpen: () => open('sort'), onClose: close }}
+        />
       </form>
       <div className={styles.divider} />
       <ErrorNotice error={documents.error} />
@@ -319,18 +308,6 @@ export function Library() {
                 : 'Load More Shared Books'}
           </Button>
         </div>
-      )}
-      {dialog === 'sort' && (
-        <Dialog title="Sort Books" onClose={close}>
-          <div className={styles.sortOptions}>
-            {sortOptions.map(([value, label]) => (
-              <button key={value} type="button" aria-pressed={sort === value} onClick={() => applySort(value)}>
-                {label}
-                {sort === value && <Icon name="check" size={17} />}
-              </button>
-            ))}
-          </div>
-        </Dialog>
       )}
       {dialog === 'add' && (
         <Dialog title="Add Book" onClose={close}>
