@@ -305,8 +305,11 @@ export function IdentifyBook({ document, refId, source, onClose, onSaved }: {
   const fields = match ? fieldsFor(match) : [];
   const close = () => { if (busy !== 'apply') onClose(); };
   const previewFailure = failure?.operation === 'search' ? null : failure;
+  const loadingPreview = busy === 'suggestions' || busy === 'preview';
+  const showPreviewFields = !previewFailure && match && review;
 
-  return <Dialog title="Review Metadata" placement="mobile-sheet" layout="scroll-body" toolbar={toolbar} onClose={close} footer={<>
+  return <Dialog title="Review Metadata" placement="mobile-sheet" layout="scroll-body"
+    scrollHeight={loadingPreview || showPreviewFields ? 'tall' : 'default'} toolbar={toolbar} onClose={close} footer={<>
     <Button type="submit" form={formId} tone="primary" disabled={!!busy || !!previewFailure || !canApply}>{busy === 'apply' ? 'Saving…' : applyLabel}</Button>
     <Button disabled={busy === 'apply'} onClick={close}>Cancel</Button>
     {source && <div className={identify.sourceAction}>
@@ -316,7 +319,7 @@ export function IdentifyBook({ document, refId, source, onClose, onSaved }: {
       </ButtonLink>
     </div>}
   </>}>
-    {busy === 'suggestions' || busy === 'preview' ? <section className={styles.matchLoading} aria-label="Match Preview">
+    {loadingPreview ? <section className={styles.matchLoading} aria-label="Match Preview">
       <LoadingStatus>{busy === 'preview' ? 'Loading match preview…' : 'Finding suggested matches…'}</LoadingStatus>
       <div className={styles.matchFields}>
         <div className={styles.matchIdentity} data-cover>
@@ -332,7 +335,7 @@ export function IdentifyBook({ document, refId, source, onClose, onSaved }: {
       <p role="alert">{previewFailure.message}</p>
       <Button size="slim" onClick={previewFailure.operation === 'apply' ? apply : previewFailure.retry}>Retry</Button>
       {review && <Button size="slim" onClick={() => setFailure(null)}>Back to Preview</Button>}
-    </div></div> : match && review ? <section aria-label="Match Preview">
+    </div></div> : showPreviewFields ? <section aria-label="Match Preview">
       <form id={formId} onSubmit={event => { event.preventDefault(); apply(); }}>
         <fieldset aria-label="Suggested Metadata" className={styles.matchFields} disabled={busy === 'apply'}>
           <div className={styles.matchIdentity} data-cover={showCover || undefined}>

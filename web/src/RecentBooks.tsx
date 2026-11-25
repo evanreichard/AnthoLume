@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { bookKey, type LibraryBook } from './library';
-import { BookHero } from './ui';
+import { BookHero } from './BookPresentation';
 import styles from './App.module.css';
 
-function RecentBook({ book, bookLinkState }: { book: LibraryBook; bookLinkState: { librarySearch: string } }) {
+function RecentBook({ book, bookLinkState, embedded }: { book: LibraryBook; bookLinkState: { librarySearch: string }; embedded?: boolean }) {
   const fraction = book.stored?.checkpoint.fraction ?? book.document?.resume_fraction;
-  return <BookHero variant="continue" book={book} linkState={bookLinkState} progress={fraction == null ? null : Math.round(fraction * 100)} />;
+  return <BookHero variant="continue" embedded={embedded} book={book} linkState={bookLinkState} progress={fraction == null ? null : Math.round(fraction * 100)} />;
 }
 
 type RecentBooksProps = { books: readonly LibraryBook[]; bookLinkState: { librarySearch: string } };
@@ -65,7 +65,7 @@ function RecentCarousel({ books, bookLinkState }: RecentBooksProps) {
         setActive(Math.max(0, Math.min(books.length - 1, index)));
       }}>
       {books.map((book, index) => <div key={bookKey(book.ref)} className={styles.recentSlide} inert={index !== active} aria-hidden={index !== active || undefined}>
-        <RecentBook book={book} bookLinkState={bookLinkState} />
+        <RecentBook embedded book={book} bookLinkState={bookLinkState} />
       </div>)}
     </div>
     <div className={styles.recentControls}>

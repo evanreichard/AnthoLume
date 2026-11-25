@@ -4,7 +4,9 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useReading } from '../reading';
 import { bookKey, bookPath, combineBooks, matcherReturn, parseSort, sortBooks, sortOptions, type LibrarySort } from '../library';
 import { queryClient, session, useSession } from '../session';
-import { BookCard, Dialog, ErrorNotice, PageHeader } from '../ui';
+import { BookCard } from '../BookPresentation';
+import bookStyles from '../BookPresentation.module.css';
+import { Dialog, ErrorNotice, PageHeader } from '../ui';
 import styles from '../App.module.css';
 import { Icon } from '../Icon';
 import { LoadingStatus, Skeleton } from '../Skeleton';
@@ -184,9 +186,9 @@ export function Library() {
     {!books.length && reading.ready && !documents.isFetching && !(sharedEnabled && hasNextPage) && <p>{offline ? 'No matching books on this device.' : 'No matching books. Try another search or add an EPUB.'}</p>}
     <div className={styles.grid}>
       {books.map((book) => <BookCard key={bookKey(book.ref)} book={book} linkState={bookLinkState} action={offline ? 'read' : 'books'}>{book.ref.kind === 'server' && (offline || book.document?.file_available || reading.deviceCopies?.has(book.ref.documentId)) && <BookDownloadActions book={book.ref} metadata={book} canSave={offline || !!book.document?.file_available} />}</BookCard>)}
-      {!books.length && (!reading.ready || documents.isPending && documents.fetchStatus === 'fetching') && Array.from({ length: 6 }, (_, index) => <div key={index} className={styles.card} aria-hidden="true">
-        <Skeleton block className={`${styles.cover} ${styles.coverThumbnail}`} />
-        <h2 className={styles.cardTitle}><Skeleton width="75%" /></h2>
+      {!books.length && (!reading.ready || documents.isPending && documents.fetchStatus === 'fetching') && Array.from({ length: 6 }, (_, index) => <div key={index} className={bookStyles.card} aria-hidden="true">
+        <Skeleton block className={`${bookStyles.cover} ${bookStyles.coverThumbnail}`} />
+        <h2 className={bookStyles.cardTitle}><Skeleton width="75%" /></h2>
         <p><Skeleton width="52%" /></p>
       </div>)}
     </div>

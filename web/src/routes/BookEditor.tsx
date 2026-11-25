@@ -3,7 +3,9 @@ import { Button } from '../Controls';
 import type { components } from '../api/schema.gen';
 import type { BookRef } from '../reading';
 import { session } from '../session';
-import { Cover, Dialog, ErrorNotice } from '../ui';
+import { Cover } from '../BookPresentation';
+import bookStyles from '../BookPresentation.module.css';
+import { Dialog, ErrorNotice } from '../ui';
 import type { LibraryBook } from '../library';
 import styles from '../App.module.css';
 import { bookMetadataDraft, encodeBookCover } from './bookMetadataDraft';
@@ -43,7 +45,7 @@ export function BookEditor({ book, refId, document, onClose, onSaved }: {
     <Button size="slim" disabled={busy} onClick={onClose}>Cancel</Button>
   </>}>
     <form id={formId} className={styles.form} onSubmit={event => { event.preventDefault(); void save(); }}>
-      <div className={styles.editorCover}>
+      <div className={bookStyles.editorCover}>
         {preview ? <img src={preview} alt="New cover preview" /> : !remove && document.cover_available ? <Cover book={book} /> : <p>No cover</p>}
         <div>
           <label>Cover image<input type="file" accept="image/jpeg,image/png" disabled={busy} onChange={event => {
