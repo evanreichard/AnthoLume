@@ -60,6 +60,37 @@ test('book details show file information and download the original EPUB', async 
   await expect(exportFile).toBeHidden();
 });
 
+test('Identify centers empty and retryable failure states within the review body', async ({ page, server }) => {
+  await register(page, server.origin, 'identify-empty');
+  await page.getByRole('button', { name: 'Add Book', exact: true }).click();
+  await page.getByLabel('Choose EPUB to upload').setInputFiles({ name: 'empty.epub', mimeType: 'application/epub+zip', buffer: await epub('Unknown edition') });
+  await page.locator('[data-snackbar]').getByRole('button', { name: 'Open', exact: true }).click();
+  let fail = true;
+  await page.route('**/api/v1/metadata/search?*', route => fail ? route.abort() : route.fulfill({ json: [] }));
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('button', { name: 'Identify', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Review Metadata' });
+  for (const width of [390, 900]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(dialog.getByRole('alert')).toBeVisible();
+    const offsets = await dialog.getByRole('alert').evaluate(node => {
+      const group = node.parentElement!, body = group.parentElement!.parentElement!;
+      const g = group.getBoundingClientRect(), b = body.getBoundingClientRect();
+      return [Math.abs(g.x + g.width / 2 - b.x - b.width / 2), Math.abs(g.y + g.height / 2 - b.y - b.height / 2)];
+    });
+    expect(Math.max(...offsets)).toBeLessThan(2);
+  }
+  fail = false;
+  await dialog.getByRole('button', { name: 'Retry', exact: true }).click();
+  const hint = dialog.getByText('Choose a suggested match or search by title, author, or ISBN.');
+  await expect(hint).toBeVisible();
+  const offset = await hint.evaluate(node => {
+    const g = node.getBoundingClientRect(), b = node.parentElement!.parentElement!.getBoundingClientRect();
+    return Math.max(Math.abs(g.x + g.width / 2 - b.x - b.width / 2), Math.abs(g.y + g.height / 2 - b.y - b.height / 2));
+  });
+  expect(offset).toBeLessThan(2);
+});
+
 test('book editor previews metadata without saving, saves cover and fields, and confirms shared deletion', async ({ page, server }, testInfo) => {
   await register(page, server.origin, 'book-editor');
   await page.getByRole('button', { name: 'Add Book', exact: true }).click();
@@ -73,34 +104,49 @@ test('book editor previews metadata without saving, saves cover and fields, and 
     canvas.width = width; canvas.height = width * 1.5;
     return canvas.toDataURL('image/jpeg').split(',')[1]!;
   }, width);
-  const cover = await jpeg(16);
   const largeCover = await jpeg(160);
   const longTitle = 'A collection of novels with a very long title that does not fit on one line on a mobile screen';
   let releaseSearch: () => void;
   const firstSearch = new Promise<void>(resolve => { releaseSearch = resolve; });
-  await page.route('**/api/v1/metadata/search?*', async route => { await firstSearch; return route.fulfill({ json: [
-    { provider: 'openlibrary', id: 'OL1W', title: 'Looked-up title', author: 'New author', year: 2022, edition_id: 'OL2M', cover_id: 42 },
-    { provider: 'openlibrary', id: 'OL3W', title: longTitle, author: 'Another author', year: 2025 },
-  ] }); });
+  const suggestion = { provider: 'openlibrary', id: 'OL1W', title: 'Looked-up title', author: 'New author', year: 2022, edition_id: 'OL2M', cover_id: 42 };
+  const alternate = { provider: 'openlibrary', id: 'OL4W', title: 'Manual alternate', author: 'Other author' };
+  const searches: string[] = [];
+  await page.route('**/api/v1/metadata/search?*', async route => {
+    const q = new URL(route.request().url()).searchParams.get('q')!;
+    searches.push(q);
+    if (q === 'no catalog result') return route.fulfill({ json: [] });
+    if (q === 'manual alternate') return route.fulfill({ json: [alternate] });
+    expect(q).toMatch(/^(Disposable editor book|Looked-up title)( Author to preserve)?$|^9780765391193$/);
+    await firstSearch;
+    return route.fulfill({ json: [suggestion, { provider: 'openlibrary', id: 'OL3W', title: longTitle, author: 'Another author', year: 2025 }] });
+  });
   let releaseMatch: () => void;
   const firstMatch = new Promise<void>(resolve => { releaseMatch = resolve; });
+  const previews: string[] = [];
   await page.route('**/api/v1/metadata/match?*', async route => {
-    expect(new URL(route.request().url()).searchParams.get('provider')).toBe('openlibrary');
+    const params = new URL(route.request().url()).searchParams;
+    expect(params.get('provider')).toBe('openlibrary');
+    previews.push(params.get('work_id')!);
+    if (params.get('work_id') === alternate.id) return route.fulfill({ json: { ...alternate, description: 'Verified alternate synopsis.' } });
+    expect(params.get('work_id')).toBe(suggestion.id);
+    expect(params.get('edition_id')).toBe(suggestion.edition_id);
     await firstMatch;
-    await route.fulfill({ json: { provider: 'openlibrary', id: 'OL1W', edition_id: 'OL2M', title: 'Looked-up title', author: '', description: 'Work synopsis from Open Library.', isbn10: '0765391198', isbn13: '9780765391193', cover_id: 42 } });
+    await route.fulfill({ json: { ...suggestion, author: '', description: 'Work synopsis from Open Library.', isbn10: '0765391198', isbn13: '9780765391193' } });
   });
-  await page.route('**/api/v1/metadata/covers/42', route => route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(cover, 'base64') }));
   let largeCoverRequests = 0;
-  await page.route('**/api/v1/metadata/covers/42?prefer_large=true', route => {
+  await page.route(/\/api\/v1\/metadata\/covers\/42(?:\?|$)/, route => {
+    expect(new URL(route.request().url()).searchParams.get('prefer_large')).toBe('true');
     largeCoverRequests++;
     return route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(largeCover, 'base64') });
   });
+  const confirmed: unknown[] = [];
   await page.route('**/api/v1/documents/*', async route => {
     if (route.request().method() !== 'PATCH') return route.fallback();
     const { match, ...edits } = route.request().postDataJSON();
     if (!match) return route.fallback();
     // Let the real server save selected fields and the cover without calling the live provider.
     expect(match).toEqual({ provider: 'openlibrary', work_id: 'OL1W', edition_id: 'OL2M' });
+    confirmed.push({ match, ...edits });
     const response = await route.fetch({ postData: edits });
     return route.fulfill({ response });
   });
@@ -135,8 +181,8 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   const identify = page.getByRole('button', { name: 'Identify', exact: true });
   await more.click();
   await identify.click();
-  await expect(dialog).toHaveAccessibleName('Identify Book');
-  await expect(dialog.getByRole('heading', { name: 'Identify Book' })).toBeFocused();
+  await expect(dialog).toHaveAccessibleName('Review Metadata');
+  await expect(dialog.getByRole('heading', { name: 'Review Metadata' })).toBeFocused();
   await page.keyboard.press('Tab');
   const closeDialog = dialog.getByRole('button', { name: 'Close Dialog' });
   await expect(closeDialog).toBeFocused();
@@ -147,45 +193,49 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(more).toBeFocused();
+  const pick = dialog.getByRole('button', { name: /^Choose Match/i });
+  const results = dialog.getByRole('group', { name: 'Book Matches', exact: true });
+  const search = results.getByRole('searchbox', { name: /Title, Author, or ISBN/i });
+  const restore = results.getByRole('button', { name: 'Suggested Matches', exact: true });
+  const primaryAction = dialog.getByRole('button', { name: /^Link(?: Book| (?:and|&) Apply)/i });
   const openMatch = async () => {
     await more.click();
     await identify.click();
-    await dialog.getByRole('button', { name: 'Search', exact: true }).click();
-    const result = dialog.getByRole('button', { name: /Looked-up title/ });
-    await expect.poll(() => result.locator('img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(16);
-    const title = dialog.getByRole('button', { name: new RegExp(longTitle) }).locator('strong');
-    await expect(title).toHaveCSS('text-overflow', 'ellipsis');
-    await expect(title).toHaveCSS('white-space', 'nowrap');
-    expect(await title.evaluate(node => node.scrollWidth > node.clientWidth)).toBe(true);
-    await expect(dialog.getByText('Search Open Library by title, author, or ISBN.', { exact: true })).toHaveCount(0);
-    await dialog.screenshot({ path: testInfo.outputPath('identify-results-390.png'), animations: 'disabled' });
-    await result.click();
-    await expect(dialog.getByRole('button', { name: 'Title', exact: true })).toBeVisible();
   };
-  const opening = openMatch();
+  await openMatch();
   try {
-    await expect(dialog.getByRole('status')).toHaveText('Searching…');
-    const searchButton = dialog.getByRole('button', { name: 'Search', exact: true });
-    await expect(searchButton).toBeDisabled();
-    await expect(searchButton.locator('[class*="lookupSpinner"]')).toBeVisible();
+    await expect(dialog.getByRole('status').filter({ hasText: /Finding suggested matches/i })).toBeVisible();
+    await expect(primaryAction).toBeDisabled();
     await dialog.screenshot({ path: testInfo.outputPath('identify-searching-390.png'), animations: 'disabled' });
   } finally { releaseSearch!(); }
   try {
-    const preview = dialog.getByRole('region', { name: 'Match preview' });
-    await expect(preview.getByRole('status')).toHaveText('Loading match preview…');
-    await expect(dialog.getByRole('button', { name: 'Link Book', exact: true })).toBeDisabled();
+    await expect.poll(() => previews).toContain(suggestion.id);
+    await expect(dialog.getByRole('status').filter({ hasText: /Loading.*preview/i })).toBeVisible();
+    await expect(dialog.locator('[class*="matchLoadingCover"]')).toBeVisible();
+    await expect(primaryAction).toBeDisabled();
     await expect(dialog.getByRole('searchbox')).toHaveCount(0);
-    await expect(preview.locator('[class*="matchLoadingCover"]')).toBeVisible();
-    await dialog.getByRole('button', { name: 'Back to Results' }).click();
-    const result = dialog.getByRole('button', { name: /Looked-up title/ });
-    await expect(result).toBeFocused();
-    await result.click();
-    await expect(preview.getByRole('status')).toHaveText('Loading match preview…');
   } finally { releaseMatch!(); }
-  await opening;
-  await dialog.getByRole('button', { name: 'Back to Results' }).click();
-  await expect(dialog.getByRole('button', { name: /Looked-up title/ })).toBeFocused();
-  await dialog.getByRole('button', { name: /Looked-up title/ }).click();
+  expect(searches[0]).toBe('Disposable editor book Author to preserve');
+  await expect(pick).toContainText('Looked-up title');
+  await expect(dialog.getByRole('button', { name: /Open Library/i })).toBeDisabled();
+  await pick.click();
+  await expect(search).toBeVisible();
+  await expect(search).not.toBeFocused();
+  await search.focus();
+  await page.setViewportSize({ width: 390, height: 520 });
+  const anchor = (await pick.boundingBox())!;
+  const focusedPanel = (await results.boundingBox())!;
+  const gap = focusedPanel.y - (anchor.y + anchor.height);
+  expect(gap).toBeGreaterThanOrEqual(0);
+  expect(gap).toBeLessThan(12);
+  await expect(search).toBeInViewport();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const longResult = results.getByRole('button', { name: new RegExp(longTitle) });
+  await expect(longResult).toBeVisible();
+  await expect(longResult).toContainText('Another author');
+  await dialog.screenshot({ path: testInfo.outputPath('identify-results-390.png'), animations: 'disabled' });
+  await page.keyboard.press('Escape');
+  await expect(results).toBeHidden();
   await expect(dialog.getByText('Work synopsis from Open Library.', { exact: true })).toBeVisible();
   await expect(dialog.getByRole('textbox', { name: 'Synopsis', exact: true })).toHaveCount(0);
   const coverChoice = dialog.getByRole('button', { name: 'Cover', exact: true });
@@ -197,9 +247,34 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   const isbnChoice = dialog.getByRole('button', { name: 'ISBN-13', exact: true });
   await expect(isbn10Choice).toHaveAttribute('aria-pressed', 'true');
   await expect(isbnChoice).toHaveAttribute('aria-pressed', 'true');
-  await expect(dialog.getByRole('button', { name: 'Link and Apply 3 Changes', exact: true })).toBeEnabled();
+  await expect(dialog.getByRole('button', { name: /Link (?:and|&) Apply 3 Changes/i })).toBeEnabled();
+  await pick.click();
+  const verified = [...previews];
+  await search.fill('no catalog result');
+  await search.press('Enter');
+  await expect(results.getByText(/No matches/i)).toBeVisible();
+  await expect(pick).toContainText(suggestion.title);
+  await expect(coverChoice).toHaveAttribute('aria-pressed', 'false');
+  await expect(dialog.getByRole('button', { name: 'Title', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await search.fill('manual alternate');
+  await results.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(results.getByRole('button', { name: /Manual alternate/ })).toBeVisible();
+  expect(previews).toEqual(verified);
+  await expect(pick).toContainText(suggestion.title);
+  await results.getByRole('button', { name: /Manual alternate/ }).click();
+  await expect(results).toBeHidden();
+  await expect(dialog.getByText('Verified alternate synopsis.')).toBeVisible();
+  expect(previews.at(-1)).toBe(alternate.id);
+  await pick.click();
+  await restore.click();
+  await expect(results.getByRole('button', { name: new RegExp(longTitle) })).toBeVisible();
+  await expect(pick).toContainText(suggestion.title);
+  await page.keyboard.press('Escape');
+  await expect(coverChoice).toHaveAttribute('aria-pressed', 'false');
+  await expect(dialog.getByRole('button', { name: 'Title', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(dialog).toHaveCount(0);
+  expect(confirmed).toEqual([]);
   await expect(page.getByRole('heading', { name: 'Disposable editor book', exact: true })).toBeVisible();
   await openMatch();
   const image = dialog.getByRole('img', { name: 'Cover for Looked-up title' });
@@ -210,7 +285,7 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await synopsis.focus();
   await page.keyboard.press('Space');
   await expect(synopsis).toHaveAttribute('aria-pressed', 'true');
-  await expect(dialog.getByRole('button', { name: 'Link and Apply 4 Changes', exact: true })).toBeEnabled();
+  await expect(dialog.getByRole('button', { name: /Link (?:and|&) Apply 4 Changes/i })).toBeEnabled();
   await expect(dialog.getByRole('textbox')).toHaveCount(0);
   await dialog.screenshot({ path: testInfo.outputPath('identify-match-390.png'), animations: 'disabled' });
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -219,12 +294,12 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await dialog.getByRole('button', { name: 'Title', exact: true }).click();
   await isbnChoice.click();
   await expect(isbnChoice).toHaveAttribute('aria-pressed', 'false');
-  await expect(dialog.getByRole('button', { name: 'Link and Apply 4 Changes', exact: true })).toBeEnabled();
+  await expect(dialog.getByRole('button', { name: /Link (?:and|&) Apply 4 Changes/i })).toBeEnabled();
   await isbnChoice.click();
   await expect(coverChoice).toHaveAttribute('aria-pressed', 'true');
   const largeCoverRequestsBeforeApply = largeCoverRequests;
   const saved = page.waitForRequest(req => req.method() === 'PATCH' && req.url().includes('/api/v1/documents/'));
-  await dialog.getByRole('button', { name: 'Link and Apply 5 Changes', exact: true }).click();
+  await dialog.getByRole('button', { name: /Link (?:and|&) Apply 5 Changes/i }).click();
   const body = (await saved).postDataJSON();
   expect(body.cover_base64).toBe(largeCover);
   expect(largeCoverRequests).toBe(largeCoverRequestsBeforeApply);
@@ -277,8 +352,8 @@ test('Hardcover reuses cover bytes for preview and save, and still links when ar
   const confirmed: unknown[] = [];
   await page.route('**/api/v1/metadata/search?*', route => {
     const q = new URL(route.request().url()).searchParams.get('q');
-    expect(['Verified Author', '978-0765391193']).toContain(q);
-    return route.fulfill({ json: [q === 'Verified Author' ? work : edition] });
+    expect(['Public book 01 Synthetic Author', 'Hardcover Title Synthetic Author', '9780765391193']).toContain(q);
+    return route.fulfill({ json: [q === '9780765391193' ? edition : work] });
   });
   await page.route('**/api/v1/metadata/match?*', route => {
     const url = new URL(route.request().url());
@@ -303,17 +378,23 @@ test('Hardcover reuses cover bytes for preview and save, and still links when ar
     return route.fulfill({ json: current });
   });
   await page.getByRole('heading', { name: 'Public book 01', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Identify Book' });
-  const preview = async (query: string, expectCover = true) => {
+  const dialog = page.getByRole('dialog', { name: 'Review Metadata' });
+  const preview = async (query?: string, expectCover = true) => {
     await page.getByRole('button', { name: 'More', exact: true }).click();
     await page.getByRole('button', { name: 'Identify', exact: true }).click();
-    await dialog.getByRole('searchbox').fill(query);
-    await dialog.getByRole('button', { name: 'Search', exact: true }).click();
-    const result = dialog.getByRole('button', { name: /Hardcover Title.*Verified Author/ });
-    const thumbnail = result.locator('img');
-    if (expectCover) await expect.poll(() => thumbnail.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(60);
-    await result.click();
-    await expect(dialog.getByRole('region', { name: 'Match preview' })).toBeVisible();
+    const pick = dialog.getByRole('button', { name: /^Choose Match/i });
+    await expect(pick).toContainText(work.title);
+    await expect(dialog.getByRole('button', { name: /Hardcover/i })).toBeDisabled();
+    if (query) {
+      await pick.click();
+      const results = dialog.getByRole('group', { name: 'Book Matches', exact: true });
+      await results.getByRole('searchbox', { name: /Title, Author, or ISBN/i }).fill(query);
+      await results.getByRole('button', { name: 'Search', exact: true }).click();
+      await expect(results.getByRole('button', { name: 'Suggested Matches', exact: true })).toBeVisible();
+      await results.getByRole('button', { name: /Hardcover Title.*Verified Author/ }).click();
+      await expect(results).toBeHidden();
+    }
+    await expect(dialog.getByRole('region', { name: 'Match Preview', exact: true })).toBeVisible();
     await expect(dialog.getByText('Catalog synopsis')).toBeVisible();
     await expect(dialog.getByRole('radio')).toHaveCount(0);
     await expect(dialog.getByText('Link this book with or without applying metadata changes.')).toHaveCount(0);
@@ -322,15 +403,16 @@ test('Hardcover reuses cover bytes for preview and save, and still links when ar
     const choice = dialog.getByRole('button', { name: 'Cover', exact: true });
     if (expectCover) {
       await expect(choice).toBeEnabled();
+      await expect.poll(() => choice.locator('img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(60);
       await expect(choice).toHaveAttribute('aria-pressed', 'false');
     } else {
       await expect(choice).toHaveCount(0);
     }
   };
-  await preview('Verified Author');
+  await preview();
   expect(coverRequests).toBe(1);
   expect(confirmed).toEqual([]);
-  const link = dialog.getByRole('button', { name: 'Link Book', exact: true });
+  const link = dialog.getByRole('button', { name: /^(Link|Link Book)$/ });
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     await link.click({ trial: true });
@@ -344,7 +426,7 @@ test('Hardcover reuses cover bytes for preview and save, and still links when ar
   await expect(dialog.getByText(/ISBN match/)).toBeVisible();
   await dialog.getByRole('button', { name: 'Title', exact: true }).click();
   await dialog.getByRole('button', { name: 'Cover', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Link and Apply 3 Changes' }).click();
+  await dialog.getByRole('button', { name: /(?:Link (?:and|&) )?Apply 3 Changes/i }).click();
   await expect(dialog).toHaveCount(0);
   expect(coverRequests).toBe(2);
   expect(confirmed[1]).toEqual({ match: { provider: 'hardcover', work_id: '42', edition_id: '91', isbn: '9780765391193' }, isbn13: edition.isbn13, title: work.title, cover_base64: cover });
@@ -352,10 +434,12 @@ test('Hardcover reuses cover bytes for preview and save, and still links when ar
 
   coverUnavailable = true;
   current = { ...current, cover_available: false };
-  await preview('Verified Author', false);
+  const missingArtwork = page.waitForResponse(response => response.url().includes('/metadata/covers/42') && response.status() === 503);
+  await preview(undefined, false);
+  await missingArtwork;
   await dialog.getByRole('button', { name: 'Synopsis', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Link and Apply 1 Change', exact: true }).click();
+  await dialog.getByRole('button', { name: /(?:Link (?:and|&) )?Apply 1 Change$/i }).click();
   await expect(dialog).toHaveCount(0);
   expect(coverRequests).toBe(3);
-  expect(confirmed[2]).toEqual({ match: { provider: 'hardcover', work_id: '42' }, description: work.description });
+  expect(confirmed[2]).toEqual({ match: { provider: 'hardcover', work_id: '42', edition_id: '91', isbn: '9780765391193' }, description: work.description });
 });

@@ -1,0 +1,37 @@
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar > :last-child { grid-area: 1 / 2; }
+
+.searchTools {
+  padding: 4px 4px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.searchTools input { min-width: 0; }
+.suggestions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: .86rem;
+  padding-inline: 4px;
+}
+.suggestions:hover:enabled { text-decoration: underline; }
+
+.isbn {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 128px), 1fr));
+  gap: 6px;
+}
+.centeredState { min-height: 100%; display: grid; place-items: center; padding: 8px; text-align: center; }
+.centeredState > p { margin: 0; }
+.failure { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; padding: 8px; text-align: center; }
+.failure p { flex-basis: 100%; }
+.failure p { margin: 0; color: var(--danger); }
+.failure button { flex-shrink: 0; }

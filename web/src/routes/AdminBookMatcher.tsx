@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { MatcherBook, MatcherCandidate, MatcherProvider } from '../api/bookMatcher';
 import { session } from '../session';
-import hardcoverIcon from '../assets/hardcover.svg';
-import openLibraryIcon from '../assets/openlibrary.svg';
+import { BookInfo, CandidatePicker, ProviderPill, candidateProviders as providers } from '../CandidatePicker';
 import { Button, Card } from '../Controls';
 import { Icon, type IconName } from '../Icon';
 import { ReadingHTTPError, type Account } from '../reading';
@@ -14,7 +13,6 @@ import app from '../App.module.css';
 import styles from './AdminBookMatcher.module.css';
 
 const pageSize = 10;
-const providers = { openlibrary: { name: 'Open Library', icon: openLibraryIcon }, hardcover: { name: 'Hardcover', icon: hardcoverIcon } };
 const cacheKey = (provider: MatcherProvider, book: MatcherBook) => JSON.stringify([provider, book.id, book.title, book.author, book.isbn]);
 type Match = NonNullable<MatcherBook['match']>;
 type Lookup = { kind: 'searching' | 'error' } | { kind: 'ready'; candidates: MatcherCandidate[] };
@@ -210,7 +208,8 @@ function MatcherPage({ account, provider, page, cache, onPageChange, onRefresh }
             <th scope="row"><BookInfo book={book} isbn={book.isbn} /></th>
             <td className={styles.value}>
               {match ? <ProviderPill provider={provider} match={match} matchValue />
-                : result?.kind === 'ready' ? (best ? <CandidatePicker book={book} candidates={result.candidates} best={best} provider={provider} busy={busy} onChoose={save} />
+                : result?.kind === 'ready' ? (best ? <CandidatePicker label={`Choose Match: ${book.title}`} groupLabel={`Matches for ${book.title}`}
+                    candidates={result.candidates} selected={best} provider={provider} disabled={busy} onChoose={save} />
                   : <span className={styles.noMatch}>No Match</span>)
                 : result?.kind === 'searching' ? <span className={styles.status} role="status"><span className={styles.spinner} aria-hidden="true" />Searching…</span>
                 : <button type="button" className={styles.trigger} data-match-value disabled={busy} onClick={() => lookup(book)}
@@ -240,88 +239,4 @@ function RoundButton({ label, icon, disabled, emphasized, onClick }: { label: st
   return <button type="button" className={styles.roundButton} aria-label={label} title={label} disabled={disabled} onClick={onClick} data-emphasized={emphasized}>
     <span><Icon name={icon} size={16} /></span>
   </button>;
-}
-
-function BookInfo({ book, isbn }: { book: { title: string; author: string }; isbn?: string }) {
-  return <span className={styles.bookInfo}>
-    <span className={styles.bookTitle} title={book.title}>{book.title}</span>
-    {book.author && <span className={styles.author} title={book.author}>{book.author}</span>}
-    {isbn && <span className={styles.isbn}>ISBN {isbn}</span>}
-  </span>;
-}
-
-function ProviderPill({ provider, match, matchValue }: { provider: MatcherProvider; match: Match; matchValue?: boolean }) {
-  const branding = providers[provider];
-  return <a className={styles.providerPill} href={match.url} target="_blank" rel="noopener noreferrer" data-match-value={matchValue || undefined}
-    aria-label={`${match.work_id} on ${branding.name} (Opens in a New Tab)`}>
-    <img src={branding.icon} alt="" width={15} height={15} /><span>{match.work_id}</span>
-  </a>;
-}
-
-function placePicker(picker: HTMLDivElement, anchor: HTMLButtonElement) {
-  const rect = anchor.getBoundingClientRect();
-  const viewport = window.visualViewport;
-  const left = (viewport?.offsetLeft ?? 0) + 8, top = (viewport?.offsetTop ?? 0) + 8;
-  const right = left + (viewport?.width ?? document.documentElement.clientWidth) - 16;
-  const bottom = top + (viewport?.height ?? document.documentElement.clientHeight) - 16;
-  const below = Math.max(0, bottom - rect.bottom - 4), above = Math.max(0, rect.top - top - 4);
-  const openAbove = below < Math.min(picker.scrollHeight, 320) && above > below;
-  picker.style.maxWidth = `${right - left}px`;
-  picker.style.maxHeight = `${Math.min(320, openAbove ? above : below)}px`;
-  const { width, height } = picker.getBoundingClientRect();
-  picker.style.left = `${Math.max(left, Math.min(rect.right - width, right - width))}px`;
-  picker.style.top = `${openAbove ? rect.top - height - 4 : rect.bottom + 4}px`;
-}
-
-function CandidatePicker({ book, candidates, best, provider, busy, onChoose }: {
-  book: MatcherBook; candidates: MatcherCandidate[]; best: MatcherCandidate; provider: MatcherProvider; busy: boolean; onChoose: (item: MatcherCandidate) => void;
-}) {
-  const id = useId();
-  const trigger = useRef<HTMLButtonElement>(null);
-  const picker = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    function position() { if (picker.current && trigger.current) placePicker(picker.current, trigger.current); }
-    window.addEventListener('resize', position);
-    window.addEventListener('scroll', position, true);
-    return () => { window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true); };
-  }, [open]);
-
-  function keys(event: KeyboardEvent<HTMLDivElement>) {
-    const options = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button'));
-    if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key) || !options.length) return;
-    event.preventDefault();
-    const index = options.indexOf(document.activeElement as HTMLButtonElement);
-    options[event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1
-      : index < 0 ? (event.key === 'ArrowDown' ? 0 : options.length - 1)
-      : (index + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length].focus();
-  }
-
-  return <>
-    <button ref={trigger} type="button" className={`${styles.trigger} ${styles.preview}`} data-match-value aria-label={`Choose Match: ${book.title}`}
-      popoverTarget={id} aria-expanded={open} disabled={busy} onKeyDown={event => {
-        const popup = picker.current;
-        if (!popup || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')) return;
-        event.preventDefault();
-        if (!popup.matches(':popover-open')) event.currentTarget.click();
-        const options = popup.querySelectorAll<HTMLButtonElement>('button');
-        options[event.key === 'ArrowDown' ? 0 : options.length - 1]?.focus();
-      }}>
-      <BookInfo book={best} /><Icon name="down" size={14} />
-    </button>
-    <div id={id} ref={picker} className={styles.picker} popover="auto" role="group" aria-label={`Matches for ${book.title}`} onKeyDown={keys}
-      onToggle={event => {
-        if (event.target !== event.currentTarget) return;
-        const isOpen = event.newState === 'open';
-        setOpen(isOpen);
-        if (isOpen && trigger.current) placePicker(event.currentTarget, trigger.current);
-      }}>
-      {candidates.map(item => <div className={styles.candidate} key={item.work_id}>
-        <button type="button" disabled={busy} onClick={() => { picker.current?.hidePopover(); trigger.current?.focus({ preventScroll: true }); onChoose(item); }}><BookInfo book={item} /></button>
-        <ProviderPill provider={provider} match={item} />
-        {item.reason && <p>{item.reason}</p>}
-      </div>)}
-    </div>
-  </>;
 }
