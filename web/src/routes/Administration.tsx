@@ -12,7 +12,8 @@ import { AdminMaintenance } from './AdminMaintenance';
 import { AdminMetadata } from './AdminMetadata';
 import { SkeletonRows } from '../Skeleton';
 import { useSnackbar } from '../Snackbar';
-import { StorageRoots, storageRootsKey } from './AdminStorage';
+import { storageRootsOptions } from '../adminQueries';
+import { StorageRoots } from './AdminStorage';
 import styles from '../App.module.css';
 
 type User = components['schemas']['AdminUser'];
@@ -44,7 +45,7 @@ export function Administration() {
 
 export function AdminLibrary() {
   const { account } = useOutletContext<AdminContext>();
-  const query = useQuery({ queryKey: storageRootsKey(account), queryFn: ({ signal }) => session.api.adminStorageRoots(account, signal) });
+  const query = useQuery(storageRootsOptions(account));
   const roots = query.data ?? [];
   return <div className={styles.settingsLayout}>
     <StorageRoots account={account} roots={roots} error={query.error} />

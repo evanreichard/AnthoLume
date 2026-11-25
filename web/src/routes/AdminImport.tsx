@@ -6,6 +6,7 @@ import { ActionRow, Card, CardHeader, Disclosure, JoinedAction, JoinedActions, S
 import { SkeletonRows } from '../Skeleton';
 import { ReadingHTTPError } from '../reading';
 import { session } from '../session';
+import { adminJobsKey, adminJobsOptions, autoImportRulesKey } from '../adminQueries';
 import { Dialog, ErrorNotice } from '../ui';
 import styles from '../App.module.css';
 import layout from './AdminImport.module.css';
@@ -16,8 +17,6 @@ type Rule = components['schemas']['AdminAutoImport'];
 type Fields = { source: string; mode: 'copy' | 'reference' };
 const modes = [['copy', 'Copy'], ['reference', 'Reference']] as const;
 const statusLabels = { idle: 'Waiting for scan', complete: 'Scan Complete', errors: 'Some files failed', unavailable: 'Source or destination unavailable' };
-const ruleKey = (account: Account) => ['auto-import-rules', account] as const;
-const jobsKey = (account: Account) => ['admin-jobs', account, 'import'] as const;
 const formatScanTime = (value: string) => new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 const initialFields = (rule?: Rule): Fields => ({ source: rule?.settings.root_id ?? 'imports', mode: rule?.settings.reference ? 'reference' : 'copy' });
 const mappedSource = (roots: StorageRoot[], id: string) => roots.find(root => root.id === id && !root.managed && root.path);
@@ -54,8 +53,8 @@ function ImportFields({ roots, value, onChange, busy }: { roots: StorageRoot[]; 
 
 export function AdminImport({ account, roots }: Context) {
   const [editor, setEditor] = useState<'manual' | 'new' | Rule | null>(null);
-  const rules = useQuery({ queryKey: ruleKey(account), queryFn: ({ signal }) => session.api.adminAutoImports(account, signal), refetchInterval: 3000 });
-  const jobs = useQuery({ queryKey: jobsKey(account), queryFn: ({ signal }) => session.api.adminJobs(account, 'import', signal), refetchInterval: query => query.state.data?.[0]?.status === 'running' ? 1000 : false });
+  const rules = useQuery({ queryKey: autoImportRulesKey(account), queryFn: ({ signal }) => session.api.adminAutoImports(account, signal), refetchInterval: 3000 });
+  const jobs = useQuery({ ...adminJobsOptions(account, 'import'), refetchInterval: query => query.state.data?.[0]?.status === 'running' ? 1000 : false });
   const latest = jobs.data?.[0];
   const results = useQuery({ queryKey: ['admin-import-results', account, latest?.id], enabled: latest?.status === 'succeeded', queryFn: ({ signal }) => session.api.adminImportResults(account, latest!.id, signal) });
   return <Card density="compact" aria-labelledby="admin-import-heading">
@@ -97,7 +96,7 @@ function ManualImport({ account, roots, running, close }: Context & { running: b
     try {
       if (start) {
         await session.api.startAdminJob(account, 'import', { reference: fields.mode === 'reference', relink_missing: relink, root_id: fields.source });
-        await client.invalidateQueries({ queryKey: jobsKey(account) });
+        await client.invalidateQueries({ queryKey: adminJobsKey(account, 'import') });
         close();
       } else setPreview(await session.api.previewAdminImport(account, fields.source));
     } catch (err) { setError(err); }
@@ -156,7 +155,7 @@ function RuleEditor({ account, roots, rule, close }: Context & { rule?: Rule; cl
         await session.api.queueAdminAutoImport(account, rule.id);
         setScanRequest({ lastScan: rule.last_scan });
       } else if (rule) await session.api.deleteAdminAutoImport(account, rule.id);
-      await client.invalidateQueries({ queryKey: ruleKey(account) });
+      await client.invalidateQueries({ queryKey: autoImportRulesKey(account) });
       if (action !== 'scan') close();
     } catch (err) {
       setError(err instanceof ReadingHTTPError && err.problem.code === 'auto_import_overlap' ? new Error('This source already has an enabled rule.') : err);

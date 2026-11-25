@@ -7,7 +7,7 @@ import { Icon } from '../Icon';
 import { session } from '../session';
 import { invalidateBook } from '../catalogQueries';
 import { Dialog, ErrorNotice } from '../ui';
-import { storageRootsKey } from './AdminStorage';
+import { backupPreviewKey, storageRootsKey, storageRootsOptions } from '../adminQueries';
 import styles from '../App.module.css';
 
 type Kind = 'full_backup' | 'backup';
@@ -55,7 +55,7 @@ function CreateBackup({ account, close }: { account: Account; close: () => void 
   const content = useRef<HTMLDivElement>(null);
   const client = useQueryClient();
   const full = kind === 'full_backup';
-  const preview = useQuery({ queryKey: ['admin-backup-preview', account], refetchOnMount: 'always', refetchOnWindowFocus: false, queryFn: ({ signal }) => session.api.previewAdminBackup(account, signal) });
+  const preview = useQuery({ queryKey: backupPreviewKey(account), refetchOnMount: 'always', refetchOnWindowFocus: false, queryFn: ({ signal }) => session.api.previewAdminBackup(account, signal) });
   const problem = catalogProblem(preview.error);
   const issue = problem?.backup_path_issue;
   const downloadDisabled = repairing || preview.isFetching || !!problem || full && (!preview.data || preview.isError);
@@ -103,7 +103,7 @@ function RepairBackupPath({ account, issue, busy, onRepair }: { account: Account
   const [confirmClear, setConfirmClear] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const book = issue.kind === 'book';
-  const roots = useQuery({ queryKey: storageRootsKey(account), enabled: book, queryFn: ({ signal }) => session.api.adminStorageRoots(account, signal) });
+  const roots = useQuery({ ...storageRootsOptions(account), enabled: book });
   const root = roots.data?.find(root => root.id === rootID);
   const validPath = safeRelativePath(path);
   const clear = action === 'clear';

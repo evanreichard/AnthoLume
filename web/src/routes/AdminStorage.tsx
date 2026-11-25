@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { components } from '../api/schema.gen';
 import type { Account } from '../reading';
 import { session } from '../session';
+import { autoImportRulesKey, backupPreviewKey, storageRootsKey } from '../adminQueries';
 import { invalidateLibraryAvailability } from '../catalogQueries';
 import { ActionRow, CircleAction, Card, CardHeader, Button, IconButton } from '../Controls';
 import { Dialog, ErrorNotice } from '../ui';
@@ -14,7 +15,6 @@ import styles from '../App.module.css';
 import storage from './AdminStorage.module.css';
 
 export type StorageRoot = components['schemas']['AdminStorageRoot'];
-export const storageRootsKey = (account: Account) => ['admin-storage-roots', account] as const;
 
 export function StorageRoots({ account, roots, error }: { account: Account; roots: StorageRoot[]; error: unknown }) {
   const [editing, setEditing] = useState<StorageRoot | 'new' | null>(null);
@@ -53,7 +53,7 @@ function RootEditor({ account, current, libraryPath, close }: { account: Account
       const id = current?.id ?? `root-${crypto.getRandomValues(new Uint32Array(4)).join('-')}`;
       await session.api.saveAdminStorageRoot(account, { id, label: label.trim(), path: path.trim() });
       await client.invalidateQueries({ queryKey: storageRootsKey(account) });
-      await client.invalidateQueries({ queryKey: ['admin-backup-preview', account] });
+      await client.invalidateQueries({ queryKey: backupPreviewKey(account) });
       if (current && path.trim() !== current.path) void invalidateLibraryAvailability(client, account);
       close();
     } catch (failure) { setError(failure); }
@@ -102,7 +102,7 @@ function MakeLibraryDialog({ account, root, path, cancel, close }: { account: Ac
     setBusy(true); setError(null);
     try {
       await session.api.makeLibrary(account, plan);
-      for (const queryKey of [storageRootsKey(account), ['admin-backup-preview', account], ['auto-import-rules', account]]) {
+      for (const queryKey of [storageRootsKey(account), backupPreviewKey(account), autoImportRulesKey(account)]) {
         void client.invalidateQueries({ queryKey });
       }
       void invalidateLibraryAvailability(client, account);
