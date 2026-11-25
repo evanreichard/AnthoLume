@@ -545,6 +545,41 @@ test('administrators manage users while members cannot open Administration', asy
   expect(await (await page.request.get(`${server.origin}/api/v1/documents/book_001/file`)).body()).toEqual(changed);
 });
 
+test('remapping a storage root refreshes file availability in the open library session', async ({ page, server }) => {
+  const empty = `${server.data}/unmapped-books`;
+  await mkdir(empty);
+  const db = new DatabaseSync(`${server.data}/browser.db`);
+  try {
+    db.prepare("INSERT INTO storage_roots(id,label,path,managed) VALUES('archive','Archive',?,0)").run(empty);
+    db.exec("UPDATE documents SET storage_root_id='archive' WHERE id='book_001'");
+  } finally { db.close(); }
+  await register(page, server.origin, 'root-remap-owner');
+  const nav = page.getByRole('navigation', { name: 'Main navigation' });
+  const title = page.getByRole('heading', { name: 'Public book 01', exact: true });
+  const card = page.getByRole('link', { name: /Public book 01/ }).filter({ has: title });
+  const warning = 'Book file unavailable';
+  const documentURL = `${server.origin}/api/v1/documents/book_001`;
+  await expect(card).toHaveAccessibleDescription(warning);
+  await card.click();
+  await expect(page.getByRole('status').filter({ hasText: warning })).toBeVisible();
+  expect((await (await page.request.get(documentURL)).json()).file_available).toBe(false);
+
+  await nav.getByRole('link', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Administration', exact: true }).click();
+  await page.getByRole('region', { name: 'Storage Roots' }).getByRole('button', { name: 'Archive', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit Root' });
+  await editor.getByLabel('Directory', { exact: true }).fill(`${server.data}/documents`);
+  await editor.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(editor).not.toBeVisible();
+  expect((await (await page.request.get(documentURL)).json()).file_available).toBe(true);
+
+  await nav.getByRole('link', { name: 'Library', exact: true }).click();
+  await expect(card).not.toHaveAccessibleDescription(warning);
+  await card.click();
+  await expect(page.getByRole('link', { name: 'Read', exact: true })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: warning })).not.toBeVisible();
+});
+
 test('Make Library previews the change and only applies after confirmation', async ({ page, server }, testInfo) => {
   await register(page, server.origin, 'library-owner');
   const sourcePath = `${server.data}/incoming-library`;

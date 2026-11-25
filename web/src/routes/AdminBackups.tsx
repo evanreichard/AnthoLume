@@ -5,6 +5,7 @@ import { ReadingHTTPError, type Account } from '../reading';
 import { Button, Card, CardHeader, JoinedAction, JoinedActions, RadioChoices } from '../Controls';
 import { Icon } from '../Icon';
 import { session } from '../session';
+import { invalidateBook } from '../catalogQueries';
 import { Dialog, ErrorNotice } from '../ui';
 import { storageRootsKey } from './AdminStorage';
 import styles from '../App.module.css';
@@ -63,10 +64,8 @@ function CreateBackup({ account, close }: { account: Account; close: () => void 
     setRepairing(true);
     try {
       await session.api.repairAdminBackupPath(account, body);
-      const ref = { kind: 'server', account, documentId: body.document_id };
-      for (const queryKey of [storageRootsKey(account), ['document', ref], ['cover', ref], ['documents', account], ['library-resume', account], ['insight-activity', account], ['insight-progress', account]]) {
-        void client.invalidateQueries({ queryKey });
-      }
+      void client.invalidateQueries({ queryKey: storageRootsKey(account) });
+      void invalidateBook(client, { kind: 'server', account, documentId: body.document_id });
       await preview.refetch();
       content.current?.closest('dialog')?.querySelector('h2')?.focus();
     } finally { setRepairing(false); }

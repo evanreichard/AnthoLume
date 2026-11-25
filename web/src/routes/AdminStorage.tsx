@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { components } from '../api/schema.gen';
 import type { Account } from '../reading';
 import { session } from '../session';
+import { invalidateLibraryAvailability } from '../catalogQueries';
 import { ActionRow, CircleAction, Card, CardHeader, Button } from '../Controls';
 import { Dialog, ErrorNotice } from '../ui';
 import { DirectoryPicker } from '../DirectoryPicker';
@@ -53,6 +54,7 @@ function RootEditor({ account, current, libraryPath, close }: { account: Account
       await session.api.saveAdminStorageRoot(account, { id, label: label.trim(), path: path.trim() });
       await client.invalidateQueries({ queryKey: storageRootsKey(account) });
       await client.invalidateQueries({ queryKey: ['admin-backup-preview', account] });
+      if (current && path.trim() !== current.path) void invalidateLibraryAvailability(client, account);
       close();
     } catch (failure) { setError(failure); }
     finally { setBusy(false); }
@@ -100,9 +102,10 @@ function MakeLibraryDialog({ account, root, path, cancel, close }: { account: Ac
     setBusy(true); setError(null);
     try {
       await session.api.makeLibrary(account, plan);
-      for (const queryKey of [storageRootsKey(account), ['admin-backup-preview', account], ['auto-import-rules', account], ['documents'], ['document'], ['library-resume']]) {
+      for (const queryKey of [storageRootsKey(account), ['admin-backup-preview', account], ['auto-import-rules', account]]) {
         void client.invalidateQueries({ queryKey });
       }
+      void invalidateLibraryAvailability(client, account);
       close();
     } catch (failure) {
       if (failure instanceof ReadingHTTPError && failure.problem.code === 'library_plan_changed') {

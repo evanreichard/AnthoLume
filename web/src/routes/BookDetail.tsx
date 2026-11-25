@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import { useReading } from '../reading';
 import { bookKey, combineBooks } from '../library';
 import { queryClient, session, useSession } from '../session';
+import { invalidateBook } from '../catalogQueries';
 import { BookHero, missingFileLabel } from '../BookPresentation';
 import { Dialog, ErrorNotice, PageHeader } from '../ui';
 import { Icon } from '../Icon';
@@ -76,17 +77,11 @@ function BookDetailContent() {
   const book = document.data && ref?.kind === 'server' ? combineBooks(stored ? [stored] : [], [document.data], ref.account).find(item => !!item.document) : undefined;
   if (!ref || ref.kind !== 'server') return <><h1>Book not available</h1><Link to="/library">Return to Library</Link></>;
   if (!book) return <><Link to="/library">← Library</Link><ErrorNotice error={document.error} /><h1 ref={heading} tabIndex={-1}>{document.isPending ? 'Opening book…' : 'Book not available'}</h1></>;
-  function refreshManagement() {
-    void queryClient.invalidateQueries({ queryKey: ['document', ref] });
-    void queryClient.invalidateQueries({ queryKey: ['cover', ref] });
-    void queryClient.invalidateQueries({ queryKey: ['documents'] });
-    void queryClient.invalidateQueries({ queryKey: ['library-resume'] });
-    void queryClient.invalidateQueries({ queryKey: ['insight-activity'] });
-    void queryClient.invalidateQueries({ queryKey: ['insight-progress'] });
-  }
   async function metadataSaved(updated: { title: string | null; author: string | null }, cover?: Blob | null) {
-    if (ref?.kind === 'server') await reading.updateDownloadMetadata(ref, { title: updated.title, author: updated.author }, cover);
-    refreshManagement();
+    if (ref?.kind === 'server') {
+      await reading.updateDownloadMetadata(ref, { title: updated.title, author: updated.author }, cover);
+      void invalidateBook(queryClient, ref);
+    }
     setManagement(null);
   }
   async function deleteSharedBook() {
@@ -95,7 +90,7 @@ function BookDetailContent() {
     setDeleting(true); setDeleteError(null);
     try {
       await session.api.deleteDocument(ref.account, ref.documentId, controller.signal);
-      refreshManagement();
+      void invalidateBook(queryClient, ref);
       navigate('/library', { replace: true, state: { focusLibrary: true } });
     } catch (err) {
       if (!controller.signal.aborted) setDeleteError(err);
