@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { hashKey, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useReading } from '../reading';
 import { bookKey, bookPath, combineBooks, matcherReturn, parseSort, sortBooks, sortOptions, type LibrarySort } from '../library';
@@ -13,7 +13,8 @@ import { LoadingStatus, Skeleton } from '../Skeleton';
 import { RecentBooks } from '../RecentBooks';
 import { OfflineStatusBar } from '../OfflineStatusBar';
 import { BookDownloadActions } from '../BookDownloadActions';
-import { Button, CircleAction } from '../Controls';
+import { Button, CircleAction, IconButton, SearchField } from '../Controls';
+import { useNearEnd } from '../useNearEnd';
 import { sameAccount } from '../api/client';
 import { useSnackbar } from '../Snackbar';
 
@@ -53,8 +54,9 @@ export function Library() {
   }, [location.key, location.state, reading.ready]);
   useLayoutEffect(() => () => importController.current?.abort(), [dialog, uploadScope]);
   const sharedEnabled = access.kind === 'authenticated';
+  const queryKey = ['documents', account, q, sort] as const;
   const documents = useInfiniteQuery({
-    queryKey: ['documents', account, q, sort],
+    queryKey,
     enabled: sharedEnabled,
     initialPageParam: 1,
     queryFn: ({ pageParam, signal }) => session.api.documents(account!, pageParam, q, sort, signal),
@@ -82,17 +84,11 @@ export function Library() {
   useEffect(() => {
     if (sharedEnabled && loadedPages < restorePages && hasNextPage && !isFetching && !isFetchNextPageError) void fetchNextPage({ cancelRefetch: false });
   }, [sharedEnabled, loadedPages, restorePages, hasNextPage, isFetching, isFetchNextPageError, fetchNextPage]);
-  useEffect(() => {
-    const target = loadMore.current;
-    if (!target || !sharedEnabled || dialog || !hasNextPage || isFetching || isFetchNextPageError || !('IntersectionObserver' in window)) return;
-    const observer = new IntersectionObserver(entries => {
-      if (!entries.some(entry => entry.isIntersecting)) return;
-      observer.disconnect();
-      void fetchNextPage({ cancelRefetch: false });
-    }, { rootMargin: '0px 0px 240px 0px' });
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [sharedEnabled, dialog, hasNextPage, isFetching, isFetchNextPageError, fetchNextPage, account, q, sort]);
+  const append = () => { void fetchNextPage({ cancelRefetch: false }); };
+  useNearEnd(loadMore, {
+    enabled: sharedEnabled && !dialog && hasNextPage && !isFetching && !isFetchNextPageError,
+    rootMargin: '0px 0px 240px 0px', scope: hashKey(queryKey), onReach: append,
+  });
   const serverDocuments = sharedEnabled ? documents.data?.pages.flatMap((page) => page.items) ?? [] : [];
   const serverRows = reading.books.filter(book => book.ref.kind === 'server');
   const books = sortBooks(combineBooks(serverRows, serverDocuments, account).filter(book => offline
@@ -172,13 +168,10 @@ export function Library() {
     {!reading.ready && !sharedEnabled && <LoadingStatus>Opening your stored library…</LoadingStatus>}
     <RecentBooks books={recent} bookLinkState={bookLinkState} />
     <form className={styles.searchRow} role="search" onSubmit={(event) => { event.preventDefault(); update('q', input.trim()); }}>
-      <div className={styles.search}>
-        <button type="submit" className={styles.searchSubmit} aria-label="Search"><Icon name="search" size={17} /></button>
-        <label><span className={styles.srOnly}>Search title or author</span><input ref={searchInput} type="search" value={input} maxLength={256} placeholder="Title or author" onChange={(event) => setInput(event.target.value)} /></label>
-        {(input || q) && <button type="button" className={styles.searchClear} aria-label="Clear Search" onClick={clearSearch}>×</button>}
-      </div>
-      {!offline && <button type="button" className={styles.icon} aria-label="Add Book" disabled={access.kind !== 'authenticated'} onClick={() => { setError(null); open('add'); }}><Icon name="add" /></button>}
-      <button type="button" className={styles.icon} aria-label="Sort Books" aria-haspopup="dialog" aria-expanded={dialog === 'sort'} onClick={() => open('sort')}><Icon name="sort" /></button>
+      <SearchField ref={searchInput} aria-label="Search title or author" submit={{ label: 'Search' }} value={input} maxLength={256}
+        placeholder="Title or author" onChange={event => setInput(event.target.value)} onClear={input || q ? clearSearch : undefined} />
+      {!offline && <IconButton aria-label="Add Book" disabled={access.kind !== 'authenticated'} onClick={() => { setError(null); open('add'); }}><Icon name="add" /></IconButton>}
+      <IconButton aria-label="Sort Books" aria-haspopup="dialog" aria-expanded={dialog === 'sort'} onClick={() => open('sort')}><Icon name="sort" /></IconButton>
     </form>
     <div className={styles.divider} />
     <ErrorNotice error={documents.error} />
@@ -194,7 +187,7 @@ export function Library() {
     </div>
     {importNotice && <p role="status">{importNotice}</p>}
     <ErrorNotice error={dialog === 'add' ? null : error} />
-    {sharedEnabled && hasNextPage && <div className={styles.loadMore}><Button ref={loadMore} disabled={isFetching} onClick={() => void fetchNextPage({ cancelRefetch: false })}>{documents.isFetchingNextPage ? 'Loading…' : isFetchNextPageError ? 'Retry Loading Shared Books' : 'Load More Shared Books'}</Button></div>}
+    {sharedEnabled && hasNextPage && <div className={styles.loadMore}><Button ref={loadMore} disabled={isFetching} onClick={append}>{documents.isFetchingNextPage ? 'Loading…' : isFetchNextPageError ? 'Retry Loading Shared Books' : 'Load More Shared Books'}</Button></div>}
     {dialog === 'sort' && <Dialog title="Sort Books" onClose={close}><div className={styles.sortOptions}>
       {sortOptions.map(([value, label]) => <button key={value} type="button" aria-pressed={sort === value} onClick={() => applySort(value)}>
         {label}{sort === value && <Icon name="check" size={17} />}

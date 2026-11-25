@@ -4,7 +4,7 @@ import type { components } from '../api/schema.gen';
 import type { Account } from '../reading';
 import { session } from '../session';
 import { invalidateLibraryAvailability } from '../catalogQueries';
-import { ActionRow, CircleAction, Card, CardHeader, Button } from '../Controls';
+import { ActionRow, CircleAction, Card, CardHeader, Button, IconButton } from '../Controls';
 import { Dialog, ErrorNotice } from '../ui';
 import { DirectoryPicker } from '../DirectoryPicker';
 import { Icon } from '../Icon';
@@ -81,7 +81,7 @@ function RootEditor({ account, current, libraryPath, close }: { account: Account
         <label htmlFor={directoryId}>Directory</label>
         <div className={storage.directoryRow}>
           <input id={directoryId} required value={path} maxLength={4096} placeholder="/books" onChange={event => setPath(event.target.value)} />
-          <button type="button" className={styles.icon} aria-label="Browse Directories" title="Browse Directories" aria-haspopup="dialog" disabled={busy} onClick={() => setBrowsing('edit')}><Icon name="folder" /></button>
+          <IconButton aria-label="Browse Directories" title="Browse Directories" aria-haspopup="dialog" disabled={busy} onClick={() => setBrowsing('edit')}><Icon name="folder" /></IconButton>
         </div>
       </div>
       {current && <p className={storage.hint}>Changing the folder does not move files.</p>}

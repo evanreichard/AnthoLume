@@ -4,9 +4,23 @@ test('actual bootstrap, credentials, server paging, inert detail, URL sorting an
   await register(page, server.origin, `layout-${Date.now()}`);
   await expect(page.getByRole('heading', { name: 'Public book 24', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Public book 25', exact: true })).toHaveCount(0);
+  let appendRequests = 0;
+  await page.route('**/api/v1/documents?*', async route => {
+    const query = new URL(route.request().url()).searchParams;
+    if (query.get('page') === '2' && query.get('resumable') !== 'true' && ++appendRequests === 1) {
+      await route.fulfill({ status: 500, contentType: 'application/problem+json', json: { type: 'about:blank', title: 'Internal Server Error', status: 500, code: 'storage_error' } });
+    } else await route.continue();
+  });
   const loadMore = page.getByRole('button', { name: 'Load More Shared Books' });
   await loadMore.scrollIntoViewIfNeeded();
+  const retry = page.getByRole('button', { name: 'Retry Loading Shared Books' });
+  await expect(retry).toBeEnabled();
+  await expect(page.getByRole('heading', { name: 'Public book 24', exact: true })).toBeAttached();
+  await retry.scrollIntoViewIfNeeded();
+  expect(appendRequests).toBe(1);
+  await retry.click();
   await expect(page.getByRole('heading', { name: 'Public book 30', exact: true })).toBeAttached();
+  expect(appendRequests).toBe(2);
   await expect(page.getByRole('article').filter({ has: page.getByRole('heading', { name: /^Public book \d+$/ }) })).toHaveCount(30);
   await expect(loadMore).toHaveCount(0);
   const sort = page.getByRole('button', { name: 'Sort Books' });

@@ -1,10 +1,25 @@
-import { useId, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes } from 'react';
+import { useId, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes } from 'react';
 import { Link, NavLink, type LinkProps } from 'react-router';
 import { Icon, type IconName } from './Icon';
 import styles from './Controls.module.css';
 
 export function IconButton({ type = 'button', ...props }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> & { 'aria-label': string }) {
   return <button {...props} type={type} className={styles.iconButton} />;
+}
+
+type SearchFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'aria-label'> & {
+  ref?: Ref<HTMLInputElement>;
+  'aria-label': string;
+  submit: { label: string; title?: string };
+  onClear?: () => void;
+};
+
+export function SearchField({ submit, onClear, ...input }: SearchFieldProps) {
+  return <div className={styles.searchField}>
+    <button type="submit" className={styles.searchSubmit} aria-label={submit.label} title={submit.title} disabled={input.disabled}><Icon name="search" size={17} /></button>
+    <input {...input} type="search" />
+    {onClear && <button type="button" className={styles.searchClear} aria-label="Clear Search" disabled={input.disabled} onClick={onClear}>×</button>}
+  </div>;
 }
 
 export function BackPill({ children, ...props }: Omit<LinkProps, 'className'>) {

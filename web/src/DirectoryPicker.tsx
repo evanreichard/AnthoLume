@@ -2,11 +2,10 @@ import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Account } from './reading';
 import { session } from './session';
-import { Button } from './Controls';
+import { Button, IconButton } from './Controls';
 import { Icon } from './Icon';
 import { Dialog, ErrorNotice } from './ui';
 import { SkeletonRows } from './Skeleton';
-import styles from './App.module.css';
 import picker from './DirectoryPicker.module.css';
 
 export function DirectoryPicker({ account, initialPath, onChoose, onCancel }: { account: Account; initialPath: string; onChoose: (path: string) => void; onCancel: () => void }) {
@@ -27,7 +26,7 @@ export function DirectoryPicker({ account, initialPath, onChoose, onCancel }: { 
   return <Dialog title="Select Folder" layout="scroll-body" onClose={onCancel} toolbar={
     <div className={picker.navigation}>
       <div className={picker.toolbar}>
-        <button type="button" className={styles.icon} aria-label="Up One Level" title="Up One Level" disabled={parent === path} onClick={() => browse(parent, parent === '/')}><Icon name="up" /></button>
+        <IconButton aria-label="Up One Level" title="Up One Level" disabled={parent === path} onClick={() => browse(parent, parent === '/')}><Icon name="up" /></IconButton>
         <div className={picker.path}>
           <Icon name="folder" size={17} />
           <div ref={pathBar} tabIndex={0} role="status" title={path} className={picker.pathText}><bdi dir="ltr">{path}</bdi></div>

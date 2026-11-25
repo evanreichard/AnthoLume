@@ -67,6 +67,14 @@
 
 .iconButton { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 44px; height: 44px; min-width: 44px; padding: 0; border-radius: 50%; font-size: 23px; font-weight: 400; }
 .iconButton:hover:not(:disabled) { background: var(--hero); }
+.searchField { flex: 1; min-width: 0; position: relative; }
+.searchField > input { padding-inline: 44px var(--search-end-padding, 12px); }
+.searchField:has(.searchClear) > input { padding-inline-end: 44px; }
+.searchSubmit, .searchClear { position: absolute; inset-block-start: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; }
+.searchSubmit { inset-inline-start: 0; color: var(--muted); }
+.searchSubmit:hover:not(:disabled) { color: var(--ink); }
+.searchSubmit:focus-visible, .searchClear:focus-visible { outline-offset: -3px; }
+.searchClear { inset-inline-end: 0; font-size: 23px; }
 .joinedActions { display: flex; border: 1px solid var(--line); border-radius: 99px; background: var(--surface); }
 .joinedActions > :is(button, a) { text-decoration: none; display: grid; place-items: center; min-width: 44px; min-height: 44px; padding-inline: 9px; border: 0; border-radius: 99px; background: transparent; color: var(--ink); font: inherit; font-size: .8rem; font-weight: 650; }
 .joinedActions > :is(button, a):not(:last-child) { border-start-end-radius: 0; border-end-end-radius: 0; }

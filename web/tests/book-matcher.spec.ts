@@ -89,7 +89,7 @@ test('a library member reviews ten books, writes only explicit link changes, and
 
   await registerMember(page, server.origin);
   await page.goto(server.origin + libraryURL);
-  await page.getByRole('button', { name: 'Load More Shared Books' }).click();
+  await page.getByRole('button', { name: 'Load More Shared Books' }).scrollIntoViewIfNeeded();
   await expect(lastLibraryBook(page)).toBeVisible();
   await page.getByRole('main').locator('header').getByRole('link', { name: 'Match Books', exact: true }).click();
   await expect(page).toHaveURL(url => url.pathname === '/library/matcher');

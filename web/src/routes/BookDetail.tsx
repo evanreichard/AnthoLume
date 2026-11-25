@@ -75,8 +75,11 @@ function BookDetailContent() {
   });
   const stored = ref ? reading.books.find((book) => bookKey(book.ref) === bookKey(ref)) : undefined;
   const book = document.data && ref?.kind === 'server' ? combineBooks(stored ? [stored] : [], [document.data], ref.account).find(item => !!item.document) : undefined;
-  if (!ref || ref.kind !== 'server') return <><h1>Book not available</h1><Link to="/library">Return to Library</Link></>;
-  if (!book) return <><Link to="/library">← Library</Link><ErrorNotice error={document.error} /><h1 ref={heading} tabIndex={-1}>{document.isPending ? 'Opening book…' : 'Book not available'}</h1></>;
+  if (!ref || ref.kind !== 'server' || !book) return <>
+    <PageHeader leading={<BackPill to={library}>Library</BackPill>} />
+    <ErrorNotice error={document.error} />
+    <h1 ref={heading} tabIndex={-1}>{ref?.kind === 'server' && document.isPending ? 'Opening book…' : 'Book not available'}</h1>
+  </>;
   async function metadataSaved(updated: { title: string | null; author: string | null }, cover?: Blob | null) {
     if (ref?.kind === 'server') {
       await reading.updateDownloadMetadata(ref, { title: updated.title, author: updated.author }, cover);

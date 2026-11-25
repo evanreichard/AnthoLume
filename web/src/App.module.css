@@ -54,11 +54,6 @@
 .recentDots button[aria-pressed='true'] span { background: var(--accent); border-color: var(--accent); }
 .recentPause { position: absolute; inset-inline-end: 4px; }
 .searchRow { display: flex; gap: 6px; align-items: center; }
-.search { flex: 1; min-width: 0; position: relative; }
-.search input { width: 100%; padding-inline: 44px 12px; }
-.search:has(.searchClear) input { padding-inline-end: 44px; }
-.searchSubmit { position: absolute; inset: 0 auto auto 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--muted); }
-.searchClear { position: absolute; right: 0; top: 0; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; font-size: 23px; }
 .icon { composes: iconButton from './Controls.module.css'; }
 .divider { height: 1px; background: var(--line); margin: 16px 0 10px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(142px, 1fr)); gap: 22px 18px; }

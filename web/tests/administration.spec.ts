@@ -478,7 +478,8 @@ test('administrators manage users while members cannot open Administration', asy
   await eventSearch.press('Enter');
   await expect(logViewer.getByText('No matching events.')).toBeVisible();
   await eventSearch.fill('2ms');
-  await eventSearch.press('Enter');
+  await expect(logViewer.getByText('No matching events.')).toBeVisible();
+  await logViewer.getByRole('button', { name: 'Search Logs', exact: true }).click();
   await expect(entries).toHaveCount(1);
   await entries.first().getByText('HTTP 503', { exact: true }).click();
   await expect(entries.first().getByText(/"latency": "2ms"/)).toBeVisible();
