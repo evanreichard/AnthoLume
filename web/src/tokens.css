@@ -52,6 +52,7 @@ input, select { width: 100%; font-size: 16px; }
 input[type='search'] { border-radius: 999px; }
 input[type='search']::-webkit-search-cancel-button, input[type='search']::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+:root[data-touch-focus] :focus-visible { outline: none; }
 img { display: block; max-width: 100%; }
 hr { width: 100%; border: 0; border-top: 1px solid var(--line); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }
