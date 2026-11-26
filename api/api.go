@@ -20,6 +20,7 @@ import (
 	"reichard.io/antholume/config"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/reading"
+	"reichard.io/antholume/shelfmark"
 	"reichard.io/antholume/utils"
 )
 
@@ -32,6 +33,7 @@ type API struct {
 	hardcoverAccounts hardcoverFlow
 	metadataCatalogs  map[MetadataProvider]catalogProvider
 	matcherEngine     matcherEngine
+	shelfmark         *shelfmark.Client
 	attempts          credentialLimiter
 	identitySlots     chan struct{}
 	restoreGate       sync.RWMutex
@@ -66,6 +68,12 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 		webUploadSlots:   make(chan struct{}, 2),
 	}
 
+	if c.ShelfmarkURL != "" && c.ShelfmarkAPIKey != "" {
+		api.shelfmark, err = shelfmark.New(c.ShelfmarkURL, c.ShelfmarkAPIKey)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if err := api.configureHardcover(); err != nil {
 		return nil, err
 	}

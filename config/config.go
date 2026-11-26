@@ -39,6 +39,9 @@ type Config struct {
 	HardcoverClientSecret string
 	HardcoverTokenKey     string
 	hardcoverCatalogToken string
+
+	ShelfmarkURL    string
+	ShelfmarkAPIKey string `json:"-"`
 }
 
 func (c *Config) HardcoverCatalogToken() string { return c.hardcoverCatalogToken }
@@ -77,6 +80,8 @@ func Load() (*Config, error) {
 		HardcoverClientSecret: getEnv("HARDCOVER_CLIENT_SECRET", ""),
 		HardcoverTokenKey:     getEnv("HARDCOVER_TOKEN_KEY", ""),
 		hardcoverCatalogToken: strings.TrimSpace(getEnv("HARDCOVER_CATALOG_TOKEN", "")),
+		ShelfmarkURL:          strings.TrimSpace(getEnv("SHELFMARK_URL", "")),
+		ShelfmarkAPIKey:       strings.TrimSpace(getEnv("SHELFMARK_API_KEY", "")),
 	}
 
 	if err := c.ValidateConfigPath(); err != nil {
