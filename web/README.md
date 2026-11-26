@@ -9,7 +9,6 @@ npm run format:check
 npm run build
 npm test
 npm run test:browser
-npm run test:reader
 ```
 
 Use `npm run format` to apply Prettier to handwritten frontend files. Oxlint checks correctness, the Rules of Hooks, effect dependencies, and synchronous state updates in effects. Exceptions for browser-owned resources are documented at the affected line. Generated API bindings and generated reader fixtures are checked by their generators instead.
@@ -38,7 +37,7 @@ Both modes also listen on `127.0.0.1` and on the tailnet IPv4 address when avail
 
 Browser tests use OS-assigned loopback ports and can run alongside dev or another CI job. Set `CHROMIUM_PATH` for a system Chromium or `GO_BINARY` to override `go` on `PATH`. Fixture binaries and databases use the OS temporary directory and are removed at teardown.
 
-From the repository root, browser reports, logs, and screenshots are under `build/test-results/{app,reader}/`. The generated 300 MB EPUB and its reference hashes are cached in `build/test-cache/reader/`; delete that directory to regenerate them on the next reader test run.
+From the repository root, browser smoke test reports, logs, and screenshots are under `build/test-results/app/`.
 
 ## Brand assets
 

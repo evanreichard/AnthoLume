@@ -158,7 +158,7 @@ make build_web
 # Clean Local Build
 make clean
 
-# Full release checks (run on the commit you intend to tag)
+# Run before tagging: the tag workflow publishes only after these same checks pass.
 make check-release
 ```
 
