@@ -285,8 +285,17 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 		return
 	}
 
-	// Get Missing Documents
-	missingDocs, err := api.db.Queries.GetMissingDocuments(c.Request.Context(), rCheckDocs.Have)
+	if rCheckDocs.Have == nil {
+		rCheckDocs.Have = []string{}
+	}
+	encoded, err := json.Marshal(rCheckDocs.Have)
+	if err != nil {
+		log.Error("JSON Marshal Error", err)
+		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
+		return
+	}
+	inventory := string(encoded)
+	missingDocs, err := api.db.Queries.GetMissingDocuments(c.Request.Context(), inventory)
 	if err != nil {
 		log.Error("GetMissingDocuments DB Error", err)
 		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
@@ -294,7 +303,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	}
 
 	// Get Deleted Documents
-	deletedDocIDs, err := api.db.Queries.GetDeletedDocuments(c.Request.Context(), rCheckDocs.Have)
+	deletedDocIDs, err := api.db.Queries.GetDeletedDocuments(c.Request.Context(), inventory)
 	if err != nil {
 		log.Error("GetDeletedDocuments DB Error", err)
 		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
@@ -302,14 +311,7 @@ func (api *API) koCheckDocumentsSync(c *gin.Context) {
 	}
 
 	// Get Wanted Documents
-	jsonHaves, err := json.Marshal(rCheckDocs.Have)
-	if err != nil {
-		log.Error("JSON Marshal Error", err)
-		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")
-		return
-	}
-
-	wantedDocs, err := api.db.Queries.GetWantedDocuments(c.Request.Context(), string(jsonHaves))
+	wantedDocs, err := api.db.Queries.GetWantedDocuments(c.Request.Context(), inventory)
 	if err != nil {
 		log.Error("GetWantedDocuments DB Error", err)
 		apiErrorPage(c, http.StatusBadRequest, "Invalid Request")

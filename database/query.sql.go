@@ -7,7 +7,6 @@ package database
 
 import (
 	"context"
-	"strings"
 )
 
 const deleteDocument = `-- name: DeleteDocument :execrows
@@ -35,47 +34,6 @@ func (q *Queries) DeleteUser(ctx context.Context, id string) (int64, error) {
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const getDeletedDocuments = `-- name: GetDeletedDocuments :many
-SELECT documents.id
-FROM documents
-WHERE
-    documents.deleted = true
-    AND documents.id IN (/*SLICE:document_ids*/?)
-`
-
-func (q *Queries) GetDeletedDocuments(ctx context.Context, documentIds []string) ([]string, error) {
-	query := getDeletedDocuments
-	var queryParams []interface{}
-	if len(documentIds) > 0 {
-		for _, v := range documentIds {
-			queryParams = append(queryParams, v)
-		}
-		query = strings.Replace(query, "/*SLICE:document_ids*/?", strings.Repeat(",?", len(documentIds))[1:], 1)
-	} else {
-		query = strings.Replace(query, "/*SLICE:document_ids*/?", "NULL", 1)
-	}
-	rows, err := q.db.QueryContext(ctx, query, queryParams...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getDocument = `-- name: GetDocument :one
@@ -130,67 +88,6 @@ func (q *Queries) GetLastActivity(ctx context.Context, arg GetLastActivityParams
 	return start_time, err
 }
 
-const getMissingDocuments = `-- name: GetMissingDocuments :many
-SELECT documents.id, documents.md5, documents.basepath, documents.filepath, documents.coverfile, documents.title, documents.author, documents.series, documents.series_index, documents.lang, documents.description, documents.words, documents.isbn10, documents.isbn13, documents.synced, documents.deleted, documents.updated_at, documents.created_at, documents.storage_root_id FROM documents
-WHERE
-    documents.filepath IS NOT NULL
-    AND documents.deleted = false
-    AND documents.id NOT IN (/*SLICE:document_ids*/?)
-`
-
-func (q *Queries) GetMissingDocuments(ctx context.Context, documentIds []string) ([]Document, error) {
-	query := getMissingDocuments
-	var queryParams []interface{}
-	if len(documentIds) > 0 {
-		for _, v := range documentIds {
-			queryParams = append(queryParams, v)
-		}
-		query = strings.Replace(query, "/*SLICE:document_ids*/?", strings.Repeat(",?", len(documentIds))[1:], 1)
-	} else {
-		query = strings.Replace(query, "/*SLICE:document_ids*/?", "NULL", 1)
-	}
-	rows, err := q.db.QueryContext(ctx, query, queryParams...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Document
-	for rows.Next() {
-		var i Document
-		if err := rows.Scan(
-			&i.ID,
-			&i.Md5,
-			&i.Basepath,
-			&i.Filepath,
-			&i.Coverfile,
-			&i.Title,
-			&i.Author,
-			&i.Series,
-			&i.SeriesIndex,
-			&i.Lang,
-			&i.Description,
-			&i.Words,
-			&i.Isbn10,
-			&i.Isbn13,
-			&i.Synced,
-			&i.Deleted,
-			&i.UpdatedAt,
-			&i.CreatedAt,
-			&i.StorageRootID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getUser = `-- name: GetUser :one
 SELECT id, pass, auth_hash, admin, timezone, created_at FROM users
 WHERE id = ?1 LIMIT 1
@@ -208,51 +105,6 @@ func (q *Queries) GetUser(ctx context.Context, userID string) (User, error) {
 		&i.CreatedAt,
 	)
 	return i, err
-}
-
-const getWantedDocuments = `-- name: GetWantedDocuments :many
-SELECT
-    CAST(value AS TEXT) AS id,
-    CAST((documents.filepath IS NULL) AS BOOLEAN) AS want_file,
-    CAST((documents.id IS NULL) AS BOOLEAN) AS want_metadata
-FROM json_each(CAST(?1 AS TEXT))
-LEFT JOIN documents
-ON value = documents.id
-WHERE (
-    documents.id IS NOT NULL
-    AND documents.deleted = false
-    AND documents.filepath IS NULL
-)
-OR (documents.id IS NULL)
-`
-
-type GetWantedDocumentsRow struct {
-	ID           string `json:"id"`
-	WantFile     bool   `json:"want_file"`
-	WantMetadata bool   `json:"want_metadata"`
-}
-
-func (q *Queries) GetWantedDocuments(ctx context.Context, documentIds string) ([]GetWantedDocumentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWantedDocuments, documentIds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetWantedDocumentsRow
-	for rows.Next() {
-		var i GetWantedDocumentsRow
-		if err := rows.Scan(&i.ID, &i.WantFile, &i.WantMetadata); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listOPDSDocuments = `-- name: ListOPDSDocuments :many

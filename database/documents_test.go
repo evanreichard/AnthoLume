@@ -44,8 +44,6 @@ func (suite *DocumentsTestSuite) SetupTest() {
 	suite.NoError(err)
 }
 
-// DOCUMENT - TODO:
-//   - 󰊕  (q *Queries) GetMissingDocuments
 func (suite *DocumentsTestSuite) TestGetDocument() {
 	doc, err := suite.dbm.Queries.GetDocument(context.Background(), documentID)
 	suite.Nil(err, "should have nil err")
@@ -82,12 +80,11 @@ func (suite *DocumentsTestSuite) TestGetDeletedDocuments() {
 	suite.Nil(err, "should have nil err")
 	suite.Equal(int64(1), changed, "should have changed the document")
 
-	deletedDocs, err := suite.dbm.Queries.GetDeletedDocuments(context.Background(), []string{documentID})
+	deletedDocs, err := suite.dbm.Queries.GetDeletedDocuments(context.Background(), fmt.Sprintf(`[%q]`, documentID))
 	suite.Nil(err, "should have nil err")
 	suite.Len(deletedDocs, 1, "should have one deleted document")
 }
 
-// TODO - Convert GetWantedDocuments -> (sqlc.slice('document_ids'));
 func (suite *DocumentsTestSuite) TestGetWantedDocuments() {
 	wantedDocs, err := suite.dbm.Queries.GetWantedDocuments(context.Background(), fmt.Sprintf("[\"%s\"]", documentID))
 	suite.Nil(err, "should have nil err")
@@ -100,20 +97,24 @@ func (suite *DocumentsTestSuite) TestGetMissingDocuments() {
 		ID:       documentID,
 		Filepath: &documentFilepath,
 	})
-	suite.NoError(err)
+	suite.Require().NoError(err)
 
-	missingDocs, err := suite.dbm.Queries.GetMissingDocuments(context.Background(), []string{documentID})
-	suite.Nil(err, "should have nil err")
-	suite.Len(missingDocs, 0, "should have no wanted document")
-
-	missingDocs, err = suite.dbm.Queries.GetMissingDocuments(context.Background(), []string{"other"})
-	suite.Nil(err, "should have nil err")
-	suite.Len(missingDocs, 1, "should have one missing document")
-	suite.Equal(documentID, missingDocs[0].ID, "should have missing doc")
-
-	// TODO - https://github.com/sqlc-dev/sqlc/issues/3451
-	// missingDocs, err = suite.dbm.Queries.GetMissingDocuments(context.Background(), []string{})
-	// suite.Nil(err, "should have nil err")
-	// suite.Len(missingDocs, 1, "should have one missing document")
-	// suite.Equal(documentID, missingDocs[0].ID, "should have missing doc")
+	for _, tc := range []struct {
+		name, inventory string
+		wantIDs         []string
+	}{
+		{"empty inventory excludes nothing", `[]`, []string{documentID}},
+		{"held document is excluded", fmt.Sprintf(`[%q]`, documentID), nil},
+		{"unrelated ID does not exclude the document", `["other"]`, []string{documentID}},
+	} {
+		suite.Run(tc.name, func() {
+			docs, err := suite.dbm.Queries.GetMissingDocuments(suite.T().Context(), tc.inventory)
+			suite.Require().NoError(err)
+			var ids []string
+			for _, doc := range docs {
+				ids = append(ids, doc.ID)
+			}
+			suite.ElementsMatch(tc.wantIDs, ids)
+		})
+	}
 }

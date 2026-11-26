@@ -7,13 +7,6 @@ SET
     deleted = 1
 WHERE id = $id;
 
--- name: GetDeletedDocuments :many
-SELECT documents.id
-FROM documents
-WHERE
-    documents.deleted = true
-    AND documents.id IN (sqlc.slice('document_ids'));
-
 -- name: GetDocument :one
 SELECT * FROM documents
 WHERE id = $document_id LIMIT 1;
@@ -36,31 +29,9 @@ WHERE device_id = $device_id
 AND user_id = $user_id
 ORDER BY start_time DESC LIMIT 1;
 
--- name: GetMissingDocuments :many
-SELECT documents.* FROM documents
-WHERE
-    documents.filepath IS NOT NULL
-    AND documents.deleted = false
-    AND documents.id NOT IN (sqlc.slice('document_ids'));
-
 -- name: GetUser :one
 SELECT * FROM users
 WHERE id = $user_id LIMIT 1;
-
--- name: GetWantedDocuments :many
-SELECT
-    CAST(value AS TEXT) AS id,
-    CAST((documents.filepath IS NULL) AS BOOLEAN) AS want_file,
-    CAST((documents.id IS NULL) AS BOOLEAN) AS want_metadata
-FROM json_each(CAST(sqlc.arg(document_ids) AS TEXT))
-LEFT JOIN documents
-ON value = documents.id
-WHERE (
-    documents.id IS NOT NULL
-    AND documents.deleted = false
-    AND documents.filepath IS NULL
-)
-OR (documents.id IS NULL);
 
 -- name: UpdateProgress :one
 INSERT OR REPLACE INTO document_progress (
