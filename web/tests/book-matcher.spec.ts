@@ -252,32 +252,28 @@ test('a library member reviews ten books, writes only explicit link changes, and
     .getByRole('group', { name: 'Sort Books', exact: true })
     .getByRole('button', { name: 'Author A–Z' })
     .click();
+  await pick.click();
+  await options.getByRole('button', { name: /Alternative Candidate/ }).click();
   await check.click();
-  await expect(find(1).getByText('Could Not Link', { exact: true })).toBeVisible();
+  await expect(page.getByText(`Could not link ${title(1)}. Use the checkmark to try again.`)).toBeVisible();
   await expect(find(1).getByRole('link')).toHaveCount(0);
   await modeButton(page).click();
   await modeOptions(page).getByRole('button', { name: 'Fill Missing' }).click();
   await pick.click();
-  await options.getByRole('button', { name: /Alternative Candidate/ }).click();
-  await expect(pick).toContainText('Alternative Candidate');
+  await options.getByRole('button').first().click();
+  await expect(find(1).getByRole('button', { name: /Retry Link Change/ })).toHaveCount(0);
   expect(confirmationBodies).toHaveLength(1);
   const pageRequests = pages.length;
-  await find(1)
-    .getByRole('button', { name: `Retry Link Change: ${title(1)}` })
-    .click();
+  await check.click();
   await expect(find(1).getByRole('link')).toHaveAttribute('href', match.url);
-  await expect(page.getByRole('status').filter({ hasText: '1 field updated' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: '1 field filled' })).toBeVisible();
   await expect.poll(() => pages.length).toBeGreaterThan(pageRequests);
   await expect(table.getByRole('rowheader').first()).toContainText(title(2));
   await expect(find(1)).toContainText('A. Revised');
-  expect(confirmationBodies).toEqual(
-    Array(2).fill({
-      work_id: primary.work_id,
-      metadata_mode: 'replace_fields',
-      edition_id: primary.edition_id,
-      isbn: primary.isbn,
-    }),
-  );
+  expect(confirmationBodies).toEqual([
+    { work_id: alternative.work_id, metadata_mode: 'replace_fields' },
+    { work_id: primary.work_id, metadata_mode: 'fill_missing', edition_id: primary.edition_id, isbn: primary.isbn },
+  ]);
   expect(documentWrites).toEqual(Array(2).fill('/api/v1/documents/book-1/matches/openlibrary'));
   await unlink(1).click();
   const unmatched = find(1).getByRole('button', { name: `Unmatched: ${title(1)}` });

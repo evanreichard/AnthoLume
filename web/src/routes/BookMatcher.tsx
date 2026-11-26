@@ -234,13 +234,11 @@ function Matcher({ account, back }: { account: Account; back: ReactNode }) {
     } catch (error) {
       if (!currentAccount()) return false;
       const conflict = error instanceof ReadingHTTPError && error.problem.code === 'book_match_changed';
-      const message = conflict
-        ? 'The match changed.'
-        : kind === 'undo'
-          ? 'Could Not Restore Link'
-          : kind === 'unlink'
-            ? 'Could Not Unlink'
-            : 'Could Not Link';
+      if (kind === 'confirm' && !conflict) {
+        show({ message: `Could not link ${book.title}. Use the checkmark to try again.`, tone: 'error' });
+        return false;
+      }
+      const message = conflict ? 'The match changed.' : kind === 'undo' ? 'Could Not Restore Link' : 'Could Not Unlink';
       const retry = conflict
         ? () => {
             setErrors((current) => {
