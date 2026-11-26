@@ -11,52 +11,23 @@ import (
 	dbmigrations "reichard.io/antholume/database/migrations"
 )
 
-func TestShelfmarkMigrationPreservesConduitBookRequests(t *testing.T) {
+func TestShelfmarkMigrationFromMaster(t *testing.T) {
 	ctx := t.Context()
 	dir := t.TempDir()
 	db := openPreReactDatabase(t, &config.Config{DBType: "sqlite", DBName: "shelfmark", ConfigPath: dir, DataPath: dir})
 	provider, err := migrationProvider(db.DB)
 	require.NoError(t, err)
-	_, err = provider.UpTo(dbmigrations.WithRestoreStorageDataPath(ctx, dir), 20261126000006)
+	_, err = provider.UpTo(dbmigrations.WithRestoreStorageDataPath(ctx, dir), 20261126000005)
 	require.NoError(t, err)
-	_, err = db.DB.Exec(`INSERT INTO shelfmark_requests(provider, book_id, title, author, description, year, has_cover, username, requested_at, remote_id) VALUES
-		('hardcover', '69589', 'The Time Machine', 'H. G. Wells', '', 1895, 1, 'alex', '2026-01-01T12:00:00Z', 81)`)
-	require.NoError(t, err)
-
 	require.NoError(t, MigrateRestore(ctx, db.DB, dir))
-	var remoteID int64
-	require.NoError(t, db.DB.QueryRow(`SELECT remote_id FROM legacy_shelfmark_requests WHERE provider = 'hardcover' AND book_id = '69589'`).Scan(&remoteID))
-	require.EqualValues(t, 81, remoteID)
 	queries := New(db.DB)
 	rows, err := queries.ListShelfmarkRequests(ctx, 0)
 	require.NoError(t, err)
 	require.Empty(t, rows)
-	count, err := queries.CountShelfmarkBookReleases(ctx, `[["hardcover", "69589"]]`)
-	require.NoError(t, err)
-	require.Empty(t, count)
-}
 
-func TestShelfmarkReleaseAuthorMigrationPreservesConduitHistory(t *testing.T) {
-	ctx := t.Context()
-	dir := t.TempDir()
-	db := openPreReactDatabase(t, &config.Config{DBType: "sqlite", DBName: "shelfmark", ConfigPath: dir, DataPath: dir})
-	provider, err := migrationProvider(db.DB)
-	require.NoError(t, err)
-	_, err = provider.UpTo(dbmigrations.WithRestoreStorageDataPath(ctx, dir), 20261126000007)
-	require.NoError(t, err)
-	_, err = db.DB.Exec(`INSERT INTO shelfmark_releases (source, source_id, release_key, release_title, format, size, language, indexer,
-		provider, book_id, book_title, author, description, year, has_cover, username, requested_at, state)
-		VALUES ('prowlarr', '1', 'key', 'Release', 'epub', '', '', '', 'hardcover', '1', 'Book', 'Catalog Author', '', 2026, 0, 'reader', '2026-01-01T12:00:00Z', 'queued')`)
-	require.NoError(t, err)
-	require.NoError(t, MigrateRestore(ctx, db.DB, dir))
 	var rawIDColumns int
 	require.NoError(t, db.DB.QueryRow(`SELECT count(*) FROM pragma_table_info('shelfmark_releases') WHERE name='source_id'`).Scan(&rawIDColumns))
 	require.Zero(t, rawIDColumns)
-	row, err := New(db.DB).GetShelfmarkRelease(ctx, "key")
-	require.NoError(t, err)
-	require.Equal(t, "Catalog Author", row.Author)
-	require.Empty(t, row.ReleaseAuthor)
-	require.Equal(t, "queued", row.State)
 }
 
 func TestShelfmarkHistoryPaginatesBooksByMostRecentRelease(t *testing.T) {

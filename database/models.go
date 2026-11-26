@@ -127,20 +127,6 @@ type HardcoverLink struct {
 	Credential []byte `json:"credential"`
 }
 
-type LegacyShelfmarkRequest struct {
-	Sequence    int64  `json:"sequence"`
-	Provider    string `json:"provider"`
-	BookID      string `json:"book_id"`
-	Title       string `json:"title"`
-	Author      string `json:"author"`
-	Description string `json:"description"`
-	Year        int64  `json:"year"`
-	HasCover    bool   `json:"has_cover"`
-	Username    string `json:"username"`
-	RequestedAt string `json:"requested_at"`
-	RemoteID    *int64 `json:"remote_id"`
-}
-
 type ReadingGeneration struct {
 	Singleton  int64  `json:"singleton"`
 	Generation string `json:"generation"`

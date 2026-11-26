@@ -232,6 +232,11 @@ func (s *webAPI) CreateShelfmarkRequest(ctx context.Context, r CreateShelfmarkRe
 	if err != nil {
 		return nil, adminFailure(http.StatusBadRequest, "shelfmark_invalid_selection")
 	}
+	s.api.shelfmarkSubmissions.RLock()
+	defer s.api.shelfmarkSubmissions.RUnlock()
+	if s.api.shelfmarkStopped {
+		return nil, adminFailure(http.StatusServiceUnavailable, "server_busy")
+	}
 	row, err := s.claimShelfmarkRelease(ctx, database.ClaimShelfmarkReleaseParams{
 		Source: release.Source, ReleaseKey: release.Key, ReleaseTitle: release.Title, ReleaseAuthor: release.Author,
 		Format: release.Format, Size: release.Size, Language: release.Language, Indexer: release.Indexer,

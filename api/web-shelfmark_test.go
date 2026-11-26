@@ -32,10 +32,6 @@ func testShelfmark(t *testing.T, f *webFixture, handle http.HandlerFunc) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path == "/api/config" {
-			fmt.Fprint(w, `{"supported_formats":["epub","pdf"]}`)
-			return
-		}
 		handle(w, r)
 	}))
 	t.Cleanup(upstream.Close)
@@ -249,7 +245,7 @@ func TestShelfmarkClaimSurvivesDisconnectWhileWaitingToWrite(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestShelfmarkDisconnectAfterClaimStillSettles(t *testing.T) {
+func TestShelfmarkShutdownDrainsClaimAfterDisconnect(t *testing.T) {
 	f := newWebFixture(t)
 	entered, finish := make(chan struct{}), make(chan struct{})
 	var unblock sync.Once
@@ -290,11 +286,18 @@ func TestShelfmarkDisconnectAfterClaimStillSettles(t *testing.T) {
 	}
 	disconnect()
 	require.ErrorIs(t, <-returned, context.Canceled)
+	stopped := make(chan error, 1)
+	go func() { stopped <- f.api.Stop() }()
+	select {
+	case <-stopped:
+		t.Fatal("shutdown returned before the upstream acknowledgement")
+	case <-time.After(100 * time.Millisecond):
+	}
 	end()
-	require.Eventually(t, func() bool {
-		row, err := f.db.Queries.GetShelfmarkRelease(t.Context(), file.Key)
-		return err == nil && row.State == string(ShelfmarkQueued)
-	}, 3*time.Second, 10*time.Millisecond)
+	require.NoError(t, <-stopped)
+	row, err := f.db.Queries.GetShelfmarkRelease(t.Context(), file.Key)
+	require.NoError(t, err)
+	require.Equal(t, string(ShelfmarkQueued), row.State)
 	require.EqualValues(t, 1, posts.Load())
 }
 
