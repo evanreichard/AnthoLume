@@ -180,7 +180,7 @@ func (s *webAPI) GetMetadataCover(ctx context.Context, r GetMetadataCoverRequest
 	} else if err := s.api.checkMetadataProvider(reqCtx, s.api.db.Queries, provider); err != nil {
 		return nil, err
 	}
-	raw, err := s.api.fetchMetadataCover(reqCtx, provider, r.CoverId, r.Params.PreferLarge != nil && *r.Params.PreferLarge)
+	raw, err := s.api.fetchMetadataCover(reqCtx, provider, r.CoverId)
 	var problem *reading.Failure
 	if errors.As(err, &problem) {
 		return nil, problem

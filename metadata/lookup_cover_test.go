@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
+	"sync"
 	"testing"
 
 	"reichard.io/antholume/matcherquota"
@@ -35,12 +37,16 @@ func TestLookupCoverErrors(t *testing.T) {
 		{"truncated medium", http.StatusOK, truncated, ErrLookupCoverMissing},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/b/id/42-L.jpg" {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
 				w.WriteHeader(tc.status)
 				_, _ = w.Write(tc.body)
 			}))
 			defer srv.Close()
-			got, err := lookupOpenLibraryCover(t.Context(), srv.Client(), srv.URL, 42, false)
+			got, err := lookupOpenLibraryCover(t.Context(), srv.Client(), srv.URL, 42)
 			if got != nil || !errors.Is(err, tc.want) {
 				t.Fatalf("got %d bytes and %v, want no cover and %v", len(got), err, tc.want)
 			}
@@ -59,13 +65,13 @@ func TestLookupCoverCancellationDoesNotFallBack(t *testing.T) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer srv.Close()
-	got, err := lookupOpenLibraryCover(ctx, srv.Client(), srv.URL, 42, true)
+	got, err := lookupOpenLibraryCover(ctx, srv.Client(), srv.URL, 42)
 	if got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatalf("got %d bytes and %v, want no cover and cancellation", len(got), err)
 	}
 }
 
-func TestLookupCoverSizePreference(t *testing.T) {
+func TestLookupCoverFallsBackOnlyWhenLargeIsUnusable(t *testing.T) {
 	cover := func(width int) []byte {
 		var buf bytes.Buffer
 		if err := jpeg.Encode(&buf, image.NewGray(image.Rect(0, 0, width, width)), nil); err != nil {
@@ -77,23 +83,26 @@ func TestLookupCoverSizePreference(t *testing.T) {
 	const m, l = "/b/id/42-M.jpg?default=false", "/b/id/42-L.jpg?default=false"
 	for _, tc := range []struct {
 		name            string
-		preferLarge     bool
 		largeStatus     int
 		largeBody, want []byte
 		requests        []string
 		wantErr         error
+		wantErrText     string
 	}{
-		{"preview", false, 200, large, medium, []string{m}, nil},
-		{"save large", true, 200, large, large, []string{l}, nil},
-		{"missing large", true, 404, nil, medium, []string{l, m}, nil},
-		{"invalid large", true, 200, []byte("not a JPEG"), medium, []string{l, m}, nil},
-		{"oversized large", true, 200, make([]byte, (2<<20)+1), medium, []string{l, m}, nil},
-		{"large rate limited", true, 429, nil, nil, []string{l}, matcherquota.ErrLimited},
+		{"usable large", 200, large, large, []string{l}, nil, ""},
+		{"missing large", 404, nil, medium, []string{l, m}, nil, ""},
+		{"invalid large", 200, []byte("not a JPEG"), medium, []string{l, m}, nil, ""},
+		{"oversized large", 200, make([]byte, (2<<20)+1), medium, []string{l, m}, nil, ""},
+		{"large rate limited", 429, nil, nil, []string{l}, matcherquota.ErrLimited, ""},
+		{"large temporarily unavailable", 503, nil, nil, []string{l}, nil, "HTTP 503"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var requests []string
+			var mu sync.Mutex
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
 				requests = append(requests, r.RequestURI)
+				mu.Unlock()
 				if r.RequestURI == l {
 					w.WriteHeader(tc.largeStatus)
 					w.Write(tc.largeBody)
@@ -102,8 +111,14 @@ func TestLookupCoverSizePreference(t *testing.T) {
 				w.Write(medium)
 			}))
 			defer srv.Close()
-			got, err := lookupOpenLibraryCover(t.Context(), srv.Client(), srv.URL, 42, tc.preferLarge)
-			if !errors.Is(err, tc.wantErr) || !bytes.Equal(got, tc.want) || !slices.Equal(requests, tc.requests) {
+			got, err := lookupOpenLibraryCover(t.Context(), srv.Client(), srv.URL, 42)
+			matchedErr := errors.Is(err, tc.wantErr)
+			if tc.wantErrText != "" {
+				matchedErr = err != nil && strings.Contains(err.Error(), tc.wantErrText)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if !matchedErr || !bytes.Equal(got, tc.want) || !slices.Equal(requests, tc.requests) {
 				t.Fatalf("requests %v, cover size %d, error %v", requests, len(got), err)
 			}
 		})

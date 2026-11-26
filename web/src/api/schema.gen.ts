@@ -1800,8 +1800,6 @@ export interface operations {
                 document_id?: components["schemas"]["ID"];
                 /** @description Expected confirmed work ID. Supply together with provider and document_id. */
                 work_id?: components["schemas"]["MetadataWorkID"];
-                /** @description For Open Library try the large cover before medium. */
-                prefer_large?: boolean;
             };
             header?: never;
             path: {
@@ -1811,7 +1809,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Cover artwork from the selected catalog provider */
+            /** @description Cover artwork from the selected catalog provider. Open Library falls back to medium only when large artwork is missing or unusable. */
             200: {
                 headers: {
                     [name: string]: unknown;

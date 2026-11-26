@@ -280,10 +280,9 @@ paths:
         - {name: provider, in: query, description: Cover ID namespace. Defaults to Open Library unless reviewing a confirmed link., schema: {$ref: '#/components/schemas/MetadataProvider'}}
         - {name: document_id, in: query, description: 'To review a confirmed source, supply this with provider and work_id.', schema: {$ref: '#/components/schemas/ID'}}
         - {name: work_id, in: query, description: Expected confirmed work ID. Supply together with provider and document_id., schema: {$ref: '#/components/schemas/MetadataWorkID'}}
-        - {name: prefer_large, in: query, description: For Open Library try the large cover before medium., schema: {type: boolean, default: false}}
       responses:
         '200':
-          description: Cover artwork from the selected catalog provider
+          description: Cover artwork from the selected catalog provider. Open Library falls back to medium only when large artwork is missing or unusable.
           content:
             image/jpeg:
               schema: {type: string, format: binary}

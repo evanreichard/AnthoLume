@@ -57,15 +57,9 @@ type S = components['schemas'];
 
 type LinkedCover = { document_id: string; work_id: string };
 
-export function metadataCoverURL(
-  provider: S['MetadataProvider'],
-  id: number,
-  preferLarge = false,
-  linked?: LinkedCover,
-) {
+export function metadataCoverURL(provider: S['MetadataProvider'], id: number, linked?: LinkedCover) {
   const query = new URLSearchParams();
   if (linked || provider !== 'openlibrary') query.set('provider', provider);
-  if (preferLarge) query.set('prefer_large', 'true');
   if (linked) {
     query.set('document_id', linked.document_id);
     query.set('work_id', linked.work_id);
@@ -619,11 +613,7 @@ export function createAPI(gate: SessionGate) {
       linked?: LinkedCover,
     ) => {
       const epoch = gate.epoch();
-      const response = await binary(
-        account,
-        metadataCoverURL(provider, id, provider === 'openlibrary', linked),
-        signal,
-      );
+      const response = await binary(account, metadataCoverURL(provider, id, linked), signal);
       if (!response.body) return null;
       if (
         !response.ok ||

@@ -1358,9 +1358,6 @@ type GetMetadataCoverParams struct {
 
 	// WorkId Expected confirmed work ID. Supply together with provider and document_id.
 	WorkId *MetadataWorkID `form:"work_id,omitempty" json:"work_id,omitempty"`
-
-	// PreferLarge For Open Library try the large cover before medium.
-	PreferLarge *bool `form:"prefer_large,omitempty" json:"prefer_large,omitempty"`
 }
 
 // LookupBookMatchesParams defines parameters for LookupBookMatches.
@@ -4099,14 +4096,6 @@ func (siw *ServerInterfaceWrapper) GetMetadataCover(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "work_id", c.Request.URL.Query(), &params.WorkId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter work_id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "prefer_large" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "prefer_large", c.Request.URL.Query(), &params.PreferLarge, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter prefer_large: %w", err), http.StatusBadRequest)
 		return
 	}
 

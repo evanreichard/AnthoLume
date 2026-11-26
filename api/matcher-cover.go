@@ -16,7 +16,7 @@ import (
 	"reichard.io/antholume/reading"
 )
 
-func (api *API) fetchMetadataCover(ctx context.Context, provider MetadataProvider, coverID int64, preferLarge bool) ([]byte, error) {
+func (api *API) fetchMetadataCover(ctx context.Context, provider MetadataProvider, coverID int64) ([]byte, error) {
 	var raw []byte
 	var err error
 	switch provider {
@@ -26,7 +26,7 @@ func (api *API) fetchMetadataCover(ctx context.Context, provider MetadataProvide
 		}
 		raw, err = api.hardcoverCatalog.Cover(ctx, coverID)
 	case Openlibrary:
-		raw, err = metadata.LookupOpenLibraryCover(ctx, coverID, preferLarge)
+		raw, err = metadata.LookupOpenLibraryCover(ctx, coverID)
 	default:
 		return nil, &reading.Failure{Status: http.StatusBadRequest, Code: "invalid_request"}
 	}
@@ -63,8 +63,7 @@ func (api *API) stageMatcherCover(ctx context.Context, provider MetadataProvider
 		raw, err = api.hardcoverCatalog.CoverFromURL(ctx, match.CoverURL)
 		err = metadataCoverFailure(err)
 	} else {
-		// Medium Covers - Keep confirmation to one artwork request; only Identify needs the large-size fallback.
-		raw, err = api.fetchMetadataCover(ctx, provider, *match.CoverID, false)
+		raw, err = api.fetchMetadataCover(ctx, provider, *match.CoverID)
 	}
 	if ctx.Err() != nil {
 		return "", ctx.Err()

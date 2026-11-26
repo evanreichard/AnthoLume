@@ -242,7 +242,7 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   });
   let largeCoverRequests = 0;
   await page.route(/\/api\/v1\/metadata\/covers\/42(?:\?|$)/, async (route) => {
-    expect(new URL(route.request().url()).searchParams.get('prefer_large')).toBe('true');
+    expect(new URL(route.request().url()).search).toBe('');
     largeCoverRequests++;
     await coverGate;
     return route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(largeCover, 'base64') });

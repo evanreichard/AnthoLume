@@ -30,11 +30,11 @@ func allowedCoverURL(u *url.URL) bool {
 	return u.Scheme == "https" && u.User == nil && u.Port() == "" && (host == "covers.openlibrary.org" || host == "archive.org" || archiveCoverHost.MatchString(host))
 }
 
-func LookupOpenLibraryCover(ctx context.Context, id int64, preferLarge bool) ([]byte, error) {
-	return lookupOpenLibraryCover(ctx, lookupCoverClient, "https://covers.openlibrary.org", id, preferLarge)
+func LookupOpenLibraryCover(ctx context.Context, id int64) ([]byte, error) {
+	return lookupOpenLibraryCover(ctx, lookupCoverClient, "https://covers.openlibrary.org", id)
 }
 
-func lookupOpenLibraryCover(ctx context.Context, client *http.Client, base string, id int64, preferLarge bool) ([]byte, error) {
+func lookupOpenLibraryCover(ctx context.Context, client *http.Client, base string, id int64) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -44,16 +44,14 @@ func lookupOpenLibraryCover(ctx context.Context, client *http.Client, base strin
 	fetch := func(size string) ([]byte, error) {
 		return lookupCover(ctx, client, fmt.Sprintf("%s/b/id/%d-%s.jpg?default=false", base, id, size))
 	}
-	if preferLarge {
-		raw, err := fetch("L")
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		if err == nil || errors.Is(err, matcherquota.ErrLimited) {
-			return raw, err
-		}
+	raw, err := fetch("L")
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
-	return fetch("M")
+	if errors.Is(err, ErrLookupCoverMissing) {
+		return fetch("M")
+	}
+	return raw, err
 }
 
 func lookupCover(ctx context.Context, client *http.Client, endpoint string) ([]byte, error) {
