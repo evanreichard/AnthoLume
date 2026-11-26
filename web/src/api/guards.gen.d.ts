@@ -1,5 +1,7 @@
 // Generated from api/openapi.yaml; do not edit.
 import type { components, operations } from './schema.gen';
+export declare function checkSearchShelfmark200(value: unknown): value is operations['searchShelfmark']['responses'][200]['content']['application/json'];
+export declare function checkListShelfmarkRequests200(value: unknown): value is operations['listShelfmarkRequests']['responses'][200]['content']['application/json'];
 export declare function checkLookupMetadata200(value: unknown): value is operations['lookupMetadata']['responses'][200]['content']['application/json'];
 export declare function checkListManagedDevices200(value: unknown): value is operations['listManagedDevices']['responses'][200]['content']['application/json'];
 export declare function checkListAdminUsers200(value: unknown): value is operations['listAdminUsers']['responses'][200]['content']['application/json'];
@@ -26,6 +28,10 @@ export declare function checkMetadataMatch(value: unknown): value is components[
 export declare function checkMetadataEditionID(value: unknown): value is components['schemas']['MetadataEditionID'];
 export declare function checkBookMatcherConfirmation(value: unknown): value is components['schemas']['BookMatcherConfirmation'];
 export declare function checkBookMatcherChangedField(value: unknown): value is components['schemas']['BookMatcherChangedField'];
+export declare function checkShelfmarkSettings(value: unknown): value is components['schemas']['ShelfmarkSettings'];
+export declare function checkShelfmarkBook(value: unknown): value is components['schemas']['ShelfmarkBook'];
+export declare function checkShelfmarkIdentifier(value: unknown): value is components['schemas']['ShelfmarkIdentifier'];
+export declare function checkShelfmarkRequestInfo(value: unknown): value is components['schemas']['ShelfmarkRequestInfo'];
 export declare function checkAdminMetadataProvider(value: unknown): value is components['schemas']['AdminMetadataProvider'];
 export declare function checkManagedDevice(value: unknown): value is components['schemas']['ManagedDevice'];
 export declare function checkDevice(value: unknown): value is components['schemas']['Device'];

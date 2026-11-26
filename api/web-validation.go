@@ -54,6 +54,18 @@ func problem(status int, code string) Problem {
 		detail = "Set HARDCOVER_CATALOG_TOKEN and restart the server to enable Hardcover."
 	case "metadata_provider_changed":
 		detail = "The active metadata provider changed. Search again to identify this book."
+	case "shelfmark_unconfigured":
+		detail = "Set SHELFMARK_URL and SHELFMARK_API_KEY and restart the server to enable Shelfmark."
+	case "shelfmark_disabled":
+		detail = "Shelfmark requests are disabled."
+	case "shelfmark_upstream_error":
+		detail = "Shelfmark could not complete the lookup. Try again later."
+	case "shelfmark_request_rejected":
+		detail = "Shelfmark declined the book request. Check the request policy or try again later."
+	case "shelfmark_request_not_found":
+		detail = "No AnthoLume request was found for this book."
+	case "shelfmark_request_changed":
+		detail = "This book's request changed. Refresh the results and try again."
 	}
 	return Problem{Type: "urn:antholume:problem:" + code, Title: http.StatusText(status), Status: status, Code: code, Detail: detail}
 }

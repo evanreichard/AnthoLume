@@ -217,6 +217,96 @@ paths:
       responses:
         '204': {description: 'Matching link removed, or no link already present'}
         default: {$ref: '#/components/responses/Problem'}
+  /api/v1/shelfmark/settings:
+    get:
+      operationId: getShelfmarkSettings
+      responses:
+        '200':
+          description: Shelfmark configuration and effective request enablement
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ShelfmarkSettings'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/admin/shelfmark:
+    put:
+      operationId: setShelfmarkSettings
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [enabled]
+              properties:
+                enabled: {type: boolean}
+      responses:
+        '200':
+          description: Saved Shelfmark settings
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ShelfmarkSettings'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/shelfmark/search:
+    get:
+      operationId: searchShelfmark
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 128}}
+      responses:
+        '200':
+          description: Matching books with any existing AnthoLume requests
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ShelfmarkBook'}}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/shelfmark/cover:
+    get:
+      operationId: getShelfmarkCover
+      parameters:
+        - {name: provider, in: query, required: true, schema: {$ref: '#/components/schemas/ShelfmarkIdentifier'}}
+        - {name: id, in: query, required: true, schema: {$ref: '#/components/schemas/ShelfmarkIdentifier'}}
+      responses:
+        '200':
+          description: Cover artwork
+          content:
+            image/*:
+              schema: {type: string, format: binary}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/shelfmark/requests:
+    get:
+      operationId: listShelfmarkRequests
+      parameters:
+        - {name: offset, in: query, schema: {type: integer, minimum: 0, maximum: 2147483647}}
+      responses:
+        '200':
+          description: Newest first. A 51st row indicates another page; advance offset by 50.
+          content:
+            application/json:
+              schema: {type: array, maxItems: 51, items: {$ref: '#/components/schemas/ShelfmarkBook'}}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createShelfmarkRequest
+      parameters: [{$ref: '#/components/parameters/Origin'}, {$ref: '#/components/parameters/CSRF'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [provider, id]
+              properties:
+                provider: {$ref: '#/components/schemas/ShelfmarkIdentifier'}
+                id: {$ref: '#/components/schemas/ShelfmarkIdentifier'}
+                check_only: {type: boolean, description: Reconcile an existing claim without creating a new one.}
+      responses:
+        '200':
+          description: New or existing request, including one awaiting confirmation
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ShelfmarkBook'}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/metadata/providers:
     get:
       operationId: getMetadataProviders
@@ -860,6 +950,39 @@ components:
         application/problem+json:
           schema: {$ref: '#/components/schemas/Problem'}
   schemas:
+    ShelfmarkIdentifier:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[A-Za-z0-9][A-Za-z0-9_.~-]*$'
+    ShelfmarkSettings:
+      type: object
+      additionalProperties: false
+      required: [configured, enabled]
+      properties:
+        configured: {type: boolean}
+        enabled: {type: boolean}
+    ShelfmarkBook:
+      type: object
+      additionalProperties: false
+      required: [provider, id, title, author, description, year, has_cover]
+      properties:
+        provider: {$ref: '#/components/schemas/ShelfmarkIdentifier'}
+        id: {$ref: '#/components/schemas/ShelfmarkIdentifier'}
+        title: {type: string}
+        author: {type: string}
+        description: {type: string}
+        year: {type: integer}
+        has_cover: {type: boolean}
+        request: {$ref: '#/components/schemas/ShelfmarkRequestInfo'}
+    ShelfmarkRequestInfo:
+      type: object
+      additionalProperties: false
+      required: [username, requested_at, state]
+      properties:
+        username: {type: string}
+        requested_at: {type: string, format: date-time}
+        state: {type: string, enum: [requested, confirming]}
     HardcoverStatus:
       type: object
       additionalProperties: false

@@ -273,6 +273,24 @@ func (e ReceiptKind) Valid() bool {
 	}
 }
 
+// Defines values for ShelfmarkRequestInfoState.
+const (
+	Confirming ShelfmarkRequestInfoState = "confirming"
+	Requested  ShelfmarkRequestInfoState = "requested"
+)
+
+// Valid indicates whether the value is a known member of the ShelfmarkRequestInfoState enum.
+func (e ShelfmarkRequestInfoState) Valid() bool {
+	switch e {
+	case Confirming:
+		return true
+	case Requested:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListAdminJobsParamsKind.
 const (
 	ListAdminJobsParamsKindDatabaseCheck ListAdminJobsParamsKind = "database_check"
@@ -976,6 +994,37 @@ type SessionUser struct {
 	Timezone          string `json:"timezone"`
 }
 
+// ShelfmarkBook defines model for ShelfmarkBook.
+type ShelfmarkBook struct {
+	Author      string                `json:"author"`
+	Description string                `json:"description"`
+	HasCover    bool                  `json:"has_cover"`
+	Id          ShelfmarkIdentifier   `json:"id"`
+	Provider    ShelfmarkIdentifier   `json:"provider"`
+	Request     *ShelfmarkRequestInfo `json:"request,omitempty"`
+	Title       string                `json:"title"`
+	Year        int                   `json:"year"`
+}
+
+// ShelfmarkIdentifier defines model for ShelfmarkIdentifier.
+type ShelfmarkIdentifier = string
+
+// ShelfmarkRequestInfo defines model for ShelfmarkRequestInfo.
+type ShelfmarkRequestInfo struct {
+	RequestedAt time.Time                 `json:"requested_at"`
+	State       ShelfmarkRequestInfoState `json:"state"`
+	Username    string                    `json:"username"`
+}
+
+// ShelfmarkRequestInfoState defines model for ShelfmarkRequestInfo.State.
+type ShelfmarkRequestInfoState string
+
+// ShelfmarkSettings defines model for ShelfmarkSettings.
+type ShelfmarkSettings struct {
+	Configured bool `json:"configured"`
+	Enabled    bool `json:"enabled"`
+}
+
 // StorageRootID defines model for StorageRootID.
 type StorageRootID = string
 
@@ -1106,6 +1155,20 @@ type ApplyAdminRestoreParams struct {
 
 // StageAdminRestoreParams defines parameters for StageAdminRestore.
 type StageAdminRestoreParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// SetShelfmarkSettingsJSONBody defines parameters for SetShelfmarkSettings.
+type SetShelfmarkSettingsJSONBody struct {
+	Enabled bool `json:"enabled"`
+}
+
+// SetShelfmarkSettingsParams defines parameters for SetShelfmarkSettings.
+type SetShelfmarkSettingsParams struct {
 	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
 	Origin *Origin `json:"Origin,omitempty"`
 
@@ -1412,6 +1475,39 @@ type RegisterParams struct {
 	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
 }
 
+// GetShelfmarkCoverParams defines parameters for GetShelfmarkCover.
+type GetShelfmarkCoverParams struct {
+	Provider ShelfmarkIdentifier `form:"provider" json:"provider"`
+	Id       ShelfmarkIdentifier `form:"id" json:"id"`
+}
+
+// ListShelfmarkRequestsParams defines parameters for ListShelfmarkRequests.
+type ListShelfmarkRequestsParams struct {
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// CreateShelfmarkRequestJSONBody defines parameters for CreateShelfmarkRequest.
+type CreateShelfmarkRequestJSONBody struct {
+	// CheckOnly Reconcile an existing claim without creating a new one.
+	CheckOnly *bool               `json:"check_only,omitempty"`
+	Id        ShelfmarkIdentifier `json:"id"`
+	Provider  ShelfmarkIdentifier `json:"provider"`
+}
+
+// CreateShelfmarkRequestParams defines parameters for CreateShelfmarkRequest.
+type CreateShelfmarkRequestParams struct {
+	// Origin Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host
+	Origin *Origin `json:"Origin,omitempty"`
+
+	// XCSRFToken Server-required random session-bound token, supplied by client middleware; rotates on authentication changes
+	XCSRFToken *CSRF `json:"X-CSRF-Token,omitempty"`
+}
+
+// SearchShelfmarkParams defines parameters for SearchShelfmark.
+type SearchShelfmarkParams struct {
+	Q string `form:"q" json:"q"`
+}
+
 // QueueAdminAutoImportJSONRequestBody defines body for QueueAdminAutoImport for application/json ContentType.
 type QueueAdminAutoImportJSONRequestBody = QueueAdminAutoImportJSONBody
 
@@ -1429,6 +1525,9 @@ type SetAdminMetadataProviderJSONRequestBody = MetadataProviderChoice
 
 // ApplyAdminRestoreJSONRequestBody defines body for ApplyAdminRestore for application/json ContentType.
 type ApplyAdminRestoreJSONRequestBody = AdminRestoreApply
+
+// SetShelfmarkSettingsJSONRequestBody defines body for SetShelfmarkSettings for application/json ContentType.
+type SetShelfmarkSettingsJSONRequestBody SetShelfmarkSettingsJSONBody
 
 // SaveAdminStorageRootJSONRequestBody defines body for SaveAdminStorageRoot for application/json ContentType.
 type SaveAdminStorageRootJSONRequestBody = AdminStorageRootInput
@@ -1477,6 +1576,9 @@ type LogoutJSONRequestBody = LogoutJSONBody
 
 // RegisterJSONRequestBody defines body for Register for application/json ContentType.
 type RegisterJSONRequestBody = Credentials
+
+// CreateShelfmarkRequestJSONRequestBody defines body for CreateShelfmarkRequest for application/json ContentType.
+type CreateShelfmarkRequestJSONRequestBody CreateShelfmarkRequestJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -1528,6 +1630,9 @@ type ServerInterface interface {
 
 	// (POST /api/v1/admin/restore)
 	StageAdminRestore(c *gin.Context, params StageAdminRestoreParams)
+
+	// (PUT /api/v1/admin/shelfmark)
+	SetShelfmarkSettings(c *gin.Context, params SetShelfmarkSettingsParams)
 
 	// (GET /api/v1/admin/storage-directories)
 	BrowseAdminStorageDirectories(c *gin.Context, params BrowseAdminStorageDirectoriesParams)
@@ -1666,6 +1771,21 @@ type ServerInterface interface {
 
 	// (POST /api/v1/session/register)
 	Register(c *gin.Context, params RegisterParams)
+
+	// (GET /api/v1/shelfmark/cover)
+	GetShelfmarkCover(c *gin.Context, params GetShelfmarkCoverParams)
+
+	// (GET /api/v1/shelfmark/requests)
+	ListShelfmarkRequests(c *gin.Context, params ListShelfmarkRequestsParams)
+
+	// (POST /api/v1/shelfmark/requests)
+	CreateShelfmarkRequest(c *gin.Context, params CreateShelfmarkRequestParams)
+
+	// (GET /api/v1/shelfmark/search)
+	SearchShelfmark(c *gin.Context, params SearchShelfmarkParams)
+
+	// (GET /api/v1/shelfmark/settings)
+	GetShelfmarkSettings(c *gin.Context)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -2377,6 +2497,65 @@ func (siw *ServerInterfaceWrapper) StageAdminRestore(c *gin.Context) {
 	}
 
 	siw.Handler.StageAdminRestore(c, params)
+}
+
+// SetShelfmarkSettings operation middleware
+func (siw *ServerInterfaceWrapper) SetShelfmarkSettings(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SetShelfmarkSettingsParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SetShelfmarkSettings(c, params)
 }
 
 // BrowseAdminStorageDirectories operation middleware
@@ -4449,6 +4628,167 @@ func (siw *ServerInterfaceWrapper) Register(c *gin.Context) {
 	siw.Handler.Register(c, params)
 }
 
+// GetShelfmarkCover operation middleware
+func (siw *ServerInterfaceWrapper) GetShelfmarkCover(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetShelfmarkCoverParams
+
+	// ------------- Required query parameter "provider" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "provider", c.Request.URL.Query(), &params.Provider, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required query parameter "id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "id", c.Request.URL.Query(), &params.Id, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetShelfmarkCover(c, params)
+}
+
+// ListShelfmarkRequests operation middleware
+func (siw *ServerInterfaceWrapper) ListShelfmarkRequests(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListShelfmarkRequestsParams
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "offset", c.Request.URL.Query(), &params.Offset, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListShelfmarkRequests(c, params)
+}
+
+// CreateShelfmarkRequest operation middleware
+func (siw *ServerInterfaceWrapper) CreateShelfmarkRequest(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateShelfmarkRequestParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Origin" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Origin")]; found {
+		var Origin Origin
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Origin, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Origin", valueList[0], &Origin, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Origin: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.Origin = &Origin
+
+	}
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRF
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateShelfmarkRequest(c, params)
+}
+
+// SearchShelfmark operation middleware
+func (siw *ServerInterfaceWrapper) SearchShelfmark(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SearchShelfmarkParams
+
+	// ------------- Required query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "q", c.Request.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SearchShelfmark(c, params)
+}
+
+// GetShelfmarkSettings operation middleware
+func (siw *ServerInterfaceWrapper) GetShelfmarkSettings(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetShelfmarkSettings(c)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -4493,6 +4833,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/api/v1/documents/:id/matches/:provider", wrapper.UnlinkBookMatch)
 	router.GET(options.BaseURL+"/api/v1/documents/:id/matches/:provider", wrapper.GetLinkedMetadata)
 	router.PUT(options.BaseURL+"/api/v1/documents/:id/matches/:provider", wrapper.ConfirmBookMatch)
+	router.GET(options.BaseURL+"/api/v1/shelfmark/settings", wrapper.GetShelfmarkSettings)
+	router.PUT(options.BaseURL+"/api/v1/admin/shelfmark", wrapper.SetShelfmarkSettings)
+	router.GET(options.BaseURL+"/api/v1/shelfmark/search", wrapper.SearchShelfmark)
+	router.GET(options.BaseURL+"/api/v1/shelfmark/cover", wrapper.GetShelfmarkCover)
+	router.GET(options.BaseURL+"/api/v1/shelfmark/requests", wrapper.ListShelfmarkRequests)
+	router.POST(options.BaseURL+"/api/v1/shelfmark/requests", wrapper.CreateShelfmarkRequest)
 	router.GET(options.BaseURL+"/api/v1/metadata/providers", wrapper.GetMetadataProviders)
 	router.POST(options.BaseURL+"/api/v1/metadata/lookups", wrapper.LookupBookMatches)
 	router.GET(options.BaseURL+"/api/v1/metadata/search", wrapper.LookupMetadata)
@@ -5203,6 +5549,50 @@ type StageAdminRestoredefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response StageAdminRestoredefaultApplicationProblemPlusJSONResponse) VisitStageAdminRestoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetShelfmarkSettingsRequestObject struct {
+	Params SetShelfmarkSettingsParams
+	Body   *SetShelfmarkSettingsJSONRequestBody
+}
+
+type SetShelfmarkSettingsResponseObject interface {
+	VisitSetShelfmarkSettingsResponse(w http.ResponseWriter) error
+}
+
+type SetShelfmarkSettings200JSONResponse ShelfmarkSettings
+
+func (response SetShelfmarkSettings200JSONResponse) VisitSetShelfmarkSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetShelfmarkSettingsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response SetShelfmarkSettingsdefaultApplicationProblemPlusJSONResponse) VisitSetShelfmarkSettingsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -7317,6 +7707,228 @@ func (response RegisterdefaultApplicationProblemPlusJSONResponse) VisitRegisterR
 	return err
 }
 
+type GetShelfmarkCoverRequestObject struct {
+	Params GetShelfmarkCoverParams
+}
+
+type GetShelfmarkCoverResponseObject interface {
+	VisitGetShelfmarkCoverResponse(w http.ResponseWriter) error
+}
+
+type GetShelfmarkCover200ImageResponse struct {
+	Body          io.Reader
+	ContentType   string
+	ContentLength int64
+}
+
+func (response GetShelfmarkCover200ImageResponse) VisitGetShelfmarkCoverResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", response.ContentType)
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetShelfmarkCoverdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response GetShelfmarkCoverdefaultApplicationProblemPlusJSONResponse) VisitGetShelfmarkCoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListShelfmarkRequestsRequestObject struct {
+	Params ListShelfmarkRequestsParams
+}
+
+type ListShelfmarkRequestsResponseObject interface {
+	VisitListShelfmarkRequestsResponse(w http.ResponseWriter) error
+}
+
+type ListShelfmarkRequests200JSONResponse []ShelfmarkBook
+
+func (response ListShelfmarkRequests200JSONResponse) VisitListShelfmarkRequestsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListShelfmarkRequestsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response ListShelfmarkRequestsdefaultApplicationProblemPlusJSONResponse) VisitListShelfmarkRequestsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateShelfmarkRequestRequestObject struct {
+	Params CreateShelfmarkRequestParams
+	Body   *CreateShelfmarkRequestJSONRequestBody
+}
+
+type CreateShelfmarkRequestResponseObject interface {
+	VisitCreateShelfmarkRequestResponse(w http.ResponseWriter) error
+}
+
+type CreateShelfmarkRequest200JSONResponse ShelfmarkBook
+
+func (response CreateShelfmarkRequest200JSONResponse) VisitCreateShelfmarkRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateShelfmarkRequestdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response CreateShelfmarkRequestdefaultApplicationProblemPlusJSONResponse) VisitCreateShelfmarkRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SearchShelfmarkRequestObject struct {
+	Params SearchShelfmarkParams
+}
+
+type SearchShelfmarkResponseObject interface {
+	VisitSearchShelfmarkResponse(w http.ResponseWriter) error
+}
+
+type SearchShelfmark200JSONResponse []ShelfmarkBook
+
+func (response SearchShelfmark200JSONResponse) VisitSearchShelfmarkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SearchShelfmarkdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response SearchShelfmarkdefaultApplicationProblemPlusJSONResponse) VisitSearchShelfmarkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetShelfmarkSettingsRequestObject struct {
+}
+
+type GetShelfmarkSettingsResponseObject interface {
+	VisitGetShelfmarkSettingsResponse(w http.ResponseWriter) error
+}
+
+type GetShelfmarkSettings200JSONResponse ShelfmarkSettings
+
+func (response GetShelfmarkSettings200JSONResponse) VisitGetShelfmarkSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetShelfmarkSettingsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	Headers    ProblemResponseHeaders
+	StatusCode int
+}
+
+func (response GetShelfmarkSettingsdefaultApplicationProblemPlusJSONResponse) VisitGetShelfmarkSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 
@@ -7367,6 +7979,9 @@ type StrictServerInterface interface {
 
 	// (POST /api/v1/admin/restore)
 	StageAdminRestore(ctx context.Context, request StageAdminRestoreRequestObject) (StageAdminRestoreResponseObject, error)
+
+	// (PUT /api/v1/admin/shelfmark)
+	SetShelfmarkSettings(ctx context.Context, request SetShelfmarkSettingsRequestObject) (SetShelfmarkSettingsResponseObject, error)
 
 	// (GET /api/v1/admin/storage-directories)
 	BrowseAdminStorageDirectories(ctx context.Context, request BrowseAdminStorageDirectoriesRequestObject) (BrowseAdminStorageDirectoriesResponseObject, error)
@@ -7505,6 +8120,21 @@ type StrictServerInterface interface {
 
 	// (POST /api/v1/session/register)
 	Register(ctx context.Context, request RegisterRequestObject) (RegisterResponseObject, error)
+
+	// (GET /api/v1/shelfmark/cover)
+	GetShelfmarkCover(ctx context.Context, request GetShelfmarkCoverRequestObject) (GetShelfmarkCoverResponseObject, error)
+
+	// (GET /api/v1/shelfmark/requests)
+	ListShelfmarkRequests(ctx context.Context, request ListShelfmarkRequestsRequestObject) (ListShelfmarkRequestsResponseObject, error)
+
+	// (POST /api/v1/shelfmark/requests)
+	CreateShelfmarkRequest(ctx context.Context, request CreateShelfmarkRequestRequestObject) (CreateShelfmarkRequestResponseObject, error)
+
+	// (GET /api/v1/shelfmark/search)
+	SearchShelfmark(ctx context.Context, request SearchShelfmarkRequestObject) (SearchShelfmarkResponseObject, error)
+
+	// (GET /api/v1/shelfmark/settings)
+	GetShelfmarkSettings(ctx context.Context, request GetShelfmarkSettingsRequestObject) (GetShelfmarkSettingsResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx *gin.Context, request any) (any, error)
@@ -8077,6 +8707,50 @@ func (sh *strictHandler) StageAdminRestore(ctx *gin.Context, params StageAdminRe
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(StageAdminRestoreResponseObject); ok {
 		if err := validResponse.VisitStageAdminRestoreResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetShelfmarkSettings operation middleware
+func (sh *strictHandler) SetShelfmarkSettings(ctx *gin.Context, params SetShelfmarkSettingsParams) {
+	var request SetShelfmarkSettingsRequestObject
+
+	request.Params = params
+
+	var body SetShelfmarkSettingsJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.SetShelfmarkSettings(ctx, request.(SetShelfmarkSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetShelfmarkSettings")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(SetShelfmarkSettingsResponseObject); ok {
+		if err := validResponse.VisitSetShelfmarkSettingsResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -9559,6 +10233,152 @@ func (sh *strictHandler) Register(ctx *gin.Context, params RegisterParams) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(RegisterResponseObject); ok {
 		if err := validResponse.VisitRegisterResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetShelfmarkCover operation middleware
+func (sh *strictHandler) GetShelfmarkCover(ctx *gin.Context, params GetShelfmarkCoverParams) {
+	var request GetShelfmarkCoverRequestObject
+
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetShelfmarkCover(ctx, request.(GetShelfmarkCoverRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetShelfmarkCover")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetShelfmarkCoverResponseObject); ok {
+		if err := validResponse.VisitGetShelfmarkCoverResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListShelfmarkRequests operation middleware
+func (sh *strictHandler) ListShelfmarkRequests(ctx *gin.Context, params ListShelfmarkRequestsParams) {
+	var request ListShelfmarkRequestsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ListShelfmarkRequests(ctx, request.(ListShelfmarkRequestsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListShelfmarkRequests")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ListShelfmarkRequestsResponseObject); ok {
+		if err := validResponse.VisitListShelfmarkRequestsResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateShelfmarkRequest operation middleware
+func (sh *strictHandler) CreateShelfmarkRequest(ctx *gin.Context, params CreateShelfmarkRequestParams) {
+	var request CreateShelfmarkRequestRequestObject
+
+	request.Params = params
+
+	var body CreateShelfmarkRequestJSONRequestBody
+	var err error
+	// A request validator built on kin-openapi's openapi3filter with
+	// KeepValidatedValue leaves the value it validated on the body. Bind
+	// that value, matching member names exactly, so the handler receives
+	// what was validated instead of a second, case-insensitive decode.
+	if vb, ok := ctx.Request.Body.(interface{ ValidatedValue() any }); !ok || runtime.BindJSONValue(vb.ValidatedValue(), &body) != nil {
+		err = ctx.ShouldBindJSON(&body)
+	} else if binding.Validator != nil {
+		// ShouldBindJSON runs the struct validator after decoding; keep that.
+		err = binding.Validator.ValidateStruct(&body)
+	}
+	if err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateShelfmarkRequest(ctx, request.(CreateShelfmarkRequestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateShelfmarkRequest")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(CreateShelfmarkRequestResponseObject); ok {
+		if err := validResponse.VisitCreateShelfmarkRequestResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SearchShelfmark operation middleware
+func (sh *strictHandler) SearchShelfmark(ctx *gin.Context, params SearchShelfmarkParams) {
+	var request SearchShelfmarkRequestObject
+
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.SearchShelfmark(ctx, request.(SearchShelfmarkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SearchShelfmark")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(SearchShelfmarkResponseObject); ok {
+		if err := validResponse.VisitSearchShelfmarkResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetShelfmarkSettings operation middleware
+func (sh *strictHandler) GetShelfmarkSettings(ctx *gin.Context) {
+	var request GetShelfmarkSettingsRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetShelfmarkSettings(ctx, request.(GetShelfmarkSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetShelfmarkSettings")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetShelfmarkSettingsResponseObject); ok {
+		if err := validResponse.VisitGetShelfmarkSettingsResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {

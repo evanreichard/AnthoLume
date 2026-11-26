@@ -154,6 +154,7 @@ func (f *webFixture) rewindReactMigrations() {
 	f.t.Helper()
 	// Goose rejects gaps, so restore the legacy identifier columns before marking all later migrations pending.
 	f.exec(`DROP INDEX settings_name_unique;
+ DROP TABLE shelfmark_requests;
  DROP TABLE document_identifiers;
  ALTER TABLE documents ADD COLUMN gbid TEXT;
  ALTER TABLE documents ADD COLUMN olid TEXT;

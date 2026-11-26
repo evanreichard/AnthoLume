@@ -171,6 +171,20 @@ type Setting struct {
 	CreatedAt string `json:"created_at"`
 }
 
+type ShelfmarkRequest struct {
+	Sequence    int64  `json:"sequence"`
+	Provider    string `json:"provider"`
+	BookID      string `json:"book_id"`
+	Title       string `json:"title"`
+	Author      string `json:"author"`
+	Description string `json:"description"`
+	Year        int64  `json:"year"`
+	HasCover    bool   `json:"has_cover"`
+	Username    string `json:"username"`
+	RequestedAt string `json:"requested_at"`
+	RemoteID    *int64 `json:"remote_id"`
+}
+
 type StorageRoot struct {
 	ID         string  `json:"id"`
 	Label      string  `json:"label"`

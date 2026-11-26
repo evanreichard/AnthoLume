@@ -1,123 +1,153 @@
 import { useState } from 'react';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router';
 import { ActionRow, ActionRows, Button, Card, CardHeader, SearchField, SegmentedControl } from '../Controls';
-import { useSession } from '../session';
-import { useShelfmarkPreview } from '../shelfmarkPreview';
-import { Dialog, PageHeader } from '../ui';
+import type { ShelfmarkBook, ShelfmarkRequestInfo } from '../api/shelfmark';
+import { ReadingHTTPError, type Account } from '../reading';
+import { session, useSession } from '../session';
+import { shelfmarkKey, useShelfmarkSettings } from '../shelfmarkQueries';
+import { Dialog, ErrorNotice, PageHeader } from '../ui';
 import { useSnackbar } from '../Snackbar';
-import styles from '../App.module.css';
-import dune from '../assets/request-preview/dune.jpg';
-import messiah from '../assets/request-preview/messiah.jpg';
-import children from '../assets/request-preview/children.jpg';
-import earthsea from '../assets/request-preview/earthsea.jpg';
+import { useObjectURL } from '../useObjectURL';
 import { Icon } from '../Icon';
+import styles from '../App.module.css';
 import coverStyles from './RequestBooks.module.css';
 
-const catalog = [
-  {
-    id: 'dune',
-    cover: dune,
-    title: 'Dune',
-    author: 'Frank Herbert',
-    year: 1965,
-    synopsis:
-      'On the desert planet Arrakis, Paul Atreides finds himself caught between an empire and the people who call the dunes home.',
-  },
-  {
-    id: 'messiah',
-    cover: messiah,
-    title: 'Dune Messiah',
-    author: 'Frank Herbert',
-    year: 1969,
-    synopsis: 'Twelve years after taking the throne, Paul faces a conspiracy that his visions cannot fully untangle.',
-  },
-  {
-    id: 'children',
-    cover: children,
-    title: 'Children of Dune',
-    author: 'Frank Herbert',
-    year: 1976,
-    synopsis: 'The twin heirs to the Atreides throne inherit a desert world on the brink of change.',
-  },
-  {
-    id: 'earthsea',
-    cover: earthsea,
-    title: 'A Wizard of Earthsea',
-    author: 'Ursula K. Le Guin',
-    year: 1968,
-    synopsis: 'A young wizard sails an archipelago in pursuit of the shadow he set loose.',
-  },
-];
-type Book = (typeof catalog)[number];
-type RequestEntry = { bookId: string; username: string; date: string };
-const historyKey = 'antholume:shared-request-preview';
-function previewHistory(): RequestEntry[] {
-  try {
-    const saved = JSON.parse(sessionStorage.getItem(historyKey) ?? 'null');
-    if (
-      Array.isArray(saved) &&
-      saved.every(
-        (row) =>
-          row &&
-          catalog.some((book) => book.id === row.bookId) &&
-          typeof row.username === 'string' &&
-          typeof row.date === 'string' &&
-          Number.isFinite(Date.parse(row.date)),
-      )
-    )
-      return saved;
-  } catch {
-    /* Use the sample history if storage is unavailable. */
-  }
-  return [
-    { bookId: 'messiah', username: 'alex', date: new Date(Date.now() - 86400000).toISOString() },
-    { bookId: 'earthsea', username: 'sam', date: new Date(Date.now() - 172800000).toISOString() },
-  ];
-}
+const historyPageSize = 50;
 const requestDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
+const bookKey = (book: ShelfmarkBook) => JSON.stringify([book.provider, book.id]);
+const bookByline = (book: ShelfmarkBook, ...rest: string[]) =>
+  [book.author, book.year ? String(book.year) : '', ...rest].filter(Boolean).join(' · ');
+const attribution = (info: ShelfmarkRequestInfo) => `Requested by ${info.username}`;
+const confirming = 'Shelfmark hasn’t confirmed this request yet.';
 
-function Cover({ src }: { src?: string }) {
-  const [failed, setFailed] = useState(false);
+function Cover({ account, book }: { account: Account; book: ShelfmarkBook }) {
+  const { data } = useQuery({
+    queryKey: [...shelfmarkKey(account, 'cover'), book.provider, book.id],
+    enabled: book.has_cover,
+    queryFn: ({ signal }) => session.api.shelfmarkCover(account, book.provider, book.id, signal),
+  });
+  const url = useObjectURL(book.has_cover ? data : undefined);
+  const [failedUrl, setFailedUrl] = useState<string>();
   return (
     <span className={coverStyles.cover} aria-hidden="true">
-      {src && !failed ? <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} /> : <Icon name="book" />}
+      {url && url !== failedUrl ? (
+        <img src={url} alt="" loading="lazy" onError={() => setFailedUrl(url)} />
+      ) : (
+        <Icon name="book" />
+      )}
     </span>
   );
 }
 
 export function RequestBooks() {
-  const { access, session } = useSession();
-  const { mode } = useShelfmarkPreview();
-  if (mode !== 'enabled' || access.kind !== 'authenticated') return <Navigate to="/library" replace />;
-  const scope = JSON.stringify(access.account);
-  return <RequestCatalog key={scope} scope={scope} username={session?.user?.id ?? access.account.userId} />;
+  const { access } = useSession();
+  const account = access.kind === 'authenticated' ? access.account : undefined;
+  const status = useShelfmarkSettings(account);
+  if (!account || (!status.isError && status.data && !status.data.enabled)) return <Navigate to="/library" replace />;
+  if (status.isError || !status.data)
+    return (
+      <>
+        <PageHeader title="Request" mobileBrand />
+        {status.isError ? (
+          <>
+            <ErrorNotice error={status.error} />
+            <Button size="slim" disabled={status.isFetching} onClick={() => void status.refetch()}>
+              Retry Settings Check
+            </Button>
+          </>
+        ) : (
+          <p role="status">Checking Shelfmark settings…</p>
+        )}
+      </>
+    );
+  return <RequestCatalog key={JSON.stringify(account)} account={account} />;
 }
 
-function RequestCatalog({ scope, username }: { scope: string; username: string }) {
+function RequestCatalog({ account }: { account: Account }) {
   const [view, setView] = useState<'search' | 'history'>('search');
   const [query, setQuery] = useState('');
   const [term, setTerm] = useState('');
+  const [selected, select] = useState<ShelfmarkBook | null>(null);
+  const [uncertain, setUncertain] = useState<Record<string, boolean>>({});
+  const client = useQueryClient();
+  const { show } = useSnackbar(JSON.stringify(account));
+  const searchKey = shelfmarkKey(account, 'search');
+  const historyKey = shelfmarkKey(account, 'history');
+  const search = useQuery({
+    queryKey: [...searchKey, term],
+    enabled: view === 'search' && !!term,
+    queryFn: ({ signal }) => session.api.shelfmarkSearch(account, term, signal),
+  });
+  const history = useInfiniteQuery({
+    queryKey: historyKey,
+    enabled: view === 'history',
+    initialPageParam: 0,
+    queryFn: ({ pageParam, signal }) => session.api.shelfmarkHistory(account, pageParam, signal),
+    getNextPageParam: (page, _pages, offset) => (page.length > historyPageSize ? offset + historyPageSize : undefined),
+  });
+  const historyRows = history.data?.pages.flatMap((page) => page.slice(0, historyPageSize)) ?? [];
+  const results = search.data ?? [];
+  const selectedKey = selected && bookKey(selected);
+  const previous =
+    selected &&
+    ((view === 'history' ? historyRows : results).find((book) => bookKey(book) === selectedKey)?.request ??
+      selected.request);
+  const unknown = !!selectedKey && !!uncertain[selectedKey] && !previous;
+  const visibleResults = (book: ShelfmarkBook) =>
+    book.request
+      ? book.request.state === 'confirming'
+        ? [book.author, 'Confirming Request'].filter(Boolean).join(' · ')
+        : [book.author, attribution(book.request)].filter(Boolean).join(' · ')
+      : uncertain[bookKey(book)]
+        ? bookByline(book, 'Request Status Unknown')
+        : bookByline(book);
+  const request = useMutation({
+    mutationFn: ({ book, checkOnly }: { book: ShelfmarkBook; checkOnly: boolean }) =>
+      session.api.requestShelfmarkBook(account, book.provider, book.id, checkOnly),
+  });
+  function close() {
+    request.reset();
+    select(null);
+  }
   function editQuery(value: string) {
     setQuery(value);
-    if (value.trim().toLowerCase() !== term) setTerm('');
+    if (value.trim() !== term) setTerm('');
   }
-  const [selected, select] = useState<Book | null>(null);
-  const [history, setHistory] = useState(previewHistory);
-  const requested = new Map(history.map((entry) => [entry.bookId, entry]));
-  const previous = selected && requested.get(selected.id);
-  const { show } = useSnackbar(scope);
-  const results = term ? catalog.filter((book) => `${book.title} ${book.author}`.toLowerCase().includes(term)) : [];
-  function confirm(book: Book) {
-    if (requested.has(book.id)) return;
-    const next = [{ bookId: book.id, username, date: new Date().toISOString() }, ...history];
-    setHistory(next);
-    try {
-      sessionStorage.setItem(historyKey, JSON.stringify(next));
-    } catch {
-      /* Keep the preview usable in memory. */
-    }
-    select(null);
-    show({ message: `Requested ${book.title} in this preview.` });
+  function confirm(book: ShelfmarkBook, checkOnly = false) {
+    if (request.isPending || (!checkOnly && (previous || unknown))) return;
+    request.mutate(
+      { book, checkOnly },
+      {
+        onSuccess: (saved) => {
+          client.setQueriesData<ShelfmarkBook[]>({ queryKey: searchKey }, (rows) =>
+            rows?.map((row) => (bookKey(row) === bookKey(saved) ? { ...row, request: saved.request } : row)),
+          );
+          void client.invalidateQueries({ queryKey: historyKey });
+          select(null);
+          show({
+            message:
+              saved.request.state === 'confirming' ? confirming : `${saved.title} · ${attribution(saved.request)}`,
+          });
+        },
+        onError: (error) => {
+          if (checkOnly && error instanceof ReadingHTTPError && error.problem.code === 'shelfmark_request_not_found') {
+            setUncertain((current) => ({ ...current, [bookKey(book)]: false }));
+            void client.invalidateQueries({ queryKey: searchKey });
+            void client.invalidateQueries({ queryKey: historyKey });
+            return;
+          }
+          if (
+            !checkOnly &&
+            (!(error instanceof ReadingHTTPError) ||
+              (!error.problem.code.startsWith('shelfmark_') && ![400, 401, 403, 404, 422, 429].includes(error.status)))
+          ) {
+            setUncertain((current) => ({ ...current, [bookKey(book)]: true }));
+            void client.invalidateQueries({ queryKey: historyKey });
+          }
+        },
+      },
+    );
   }
   return (
     <>
@@ -140,7 +170,9 @@ function RequestCatalog({ scope, username }: { scope: string; username: string }
               className={styles.settingsCardRows}
               onSubmit={(event) => {
                 event.preventDefault();
-                setTerm(query.trim().toLowerCase());
+                const next = query.trim();
+                if (next && next === term) void search.refetch();
+                else setTerm(next);
               }}
             >
               <SearchField
@@ -148,6 +180,7 @@ function RequestCatalog({ scope, username }: { scope: string; username: string }
                 placeholder="Search by title or author"
                 value={query}
                 enterKeyHint="search"
+                maxLength={128}
                 submit={{ label: 'Search Books', title: 'Search Books' }}
                 onChange={(event) => editQuery(event.target.value)}
                 onClear={query ? () => editQuery('') : undefined}
@@ -155,23 +188,34 @@ function RequestCatalog({ scope, username }: { scope: string; username: string }
             </form>
             {term && (
               <div role="group" aria-label="Search Results" className={coverStyles.results}>
-                <p className={results.length ? styles.srOnly : coverStyles.emptyResults} role="status">
-                  {results.length
-                    ? `${results.length} ${results.length === 1 ? 'book' : 'books'} found`
-                    : 'No books found. Try another title or author.'}
-                </p>
+                {search.isFetching && (
+                  <p className={styles.settingsCardFeedback} role="status">
+                    Searching…
+                  </p>
+                )}
+                {search.isError && (
+                  <>
+                    <ErrorNotice error={search.error} />
+                    <Button size="slim" onClick={() => void search.refetch()}>
+                      Retry Search
+                    </Button>
+                  </>
+                )}
+                {!search.isError && !search.isFetching && search.data && (
+                  <p className={results.length ? styles.srOnly : coverStyles.emptyResults} role="status">
+                    {results.length
+                      ? `${results.length} ${results.length === 1 ? 'book' : 'books'} found`
+                      : 'No books found. Try another title or author.'}
+                  </p>
+                )}
                 {results.length > 0 && (
                   <ActionRows>
                     {results.map((book) => (
                       <ActionRow
-                        key={book.id}
-                        leading={<Cover src={book.cover} />}
+                        key={bookKey(book)}
+                        leading={<Cover account={account} book={book} />}
                         label={book.title}
-                        subtitle={
-                          requested.has(book.id)
-                            ? `${book.author} · Requested by ${requested.get(book.id)?.username}`
-                            : `${book.author} · ${book.year}`
-                        }
+                        subtitle={visibleResults(book)}
                         onClick={() => select(book)}
                       />
                     ))}
@@ -183,48 +227,89 @@ function RequestCatalog({ scope, username }: { scope: string; username: string }
         ) : (
           <Card density="compact" aria-labelledby="request-history">
             <CardHeader id="request-history" title="Request History" />
-            <ActionRows>
-              {history.map((entry) => {
-                const book = catalog.find((book) => book.id === entry.bookId)!;
-                return (
+            <ErrorNotice error={history.error} />
+            {history.isPending && (
+              <p className={styles.settingsCardFeedback} role="status">
+                Loading request history…
+              </p>
+            )}
+            {history.isSuccess && !historyRows.length && (
+              <p className={coverStyles.emptyResults}>No books requested yet.</p>
+            )}
+            {historyRows.length > 0 && (
+              <ActionRows>
+                {historyRows.map((book) => (
                   <ActionRow
-                    key={book.id}
-                    leading={<Cover src={book.cover} />}
+                    key={bookKey(book)}
+                    leading={<Cover account={account} book={book} />}
                     label={book.title}
-                    subtitle={`Requested by ${entry.username} · ${requestDate.format(new Date(entry.date))}`}
+                    subtitle={`${attribution(book.request)} · ${requestDate.format(new Date(book.request.requested_at))}${book.request.state === 'confirming' ? ' · Confirming' : ''}`}
                     onClick={() => select(book)}
                   />
-                );
-              })}
-            </ActionRows>
+                ))}
+              </ActionRows>
+            )}
+            {(history.hasNextPage || history.isError) && (
+              <Button
+                size="slim"
+                disabled={history.isFetching}
+                onClick={() =>
+                  void (history.isFetchNextPageError || !history.isError ? history.fetchNextPage() : history.refetch())
+                }
+              >
+                {history.isFetching ? 'Loading Requests…' : history.isError ? 'Retry History' : 'Load More Requests'}
+              </Button>
+            )}
           </Card>
         )}
       </div>
       {selected && (
         <Dialog
           title={selected.title}
-          titleLeading={<Cover src={selected.cover} />}
+          titleLeading={<Cover account={account} book={selected} />}
           placement="mobile-sheet"
-          onClose={() => select(null)}
+          onClose={close}
+          dismissDisabled={request.isPending}
           footer={
-            previous ? (
-              <Button onClick={() => select(null)}>Done</Button>
+            previous?.state === 'confirming' || unknown ? (
+              <Button disabled={request.isPending} onClick={() => confirm(selected, true)}>
+                {request.isPending ? 'Checking Status…' : 'Check Status'}
+              </Button>
+            ) : previous ? (
+              <Button onClick={close}>Done</Button>
             ) : (
-              <Button tone="primary" onClick={() => confirm(selected)}>
-                Request Ebook
+              <Button
+                tone="primary"
+                disabled={request.isPending || search.isFetching || search.isError}
+                onClick={() => confirm(selected)}
+              >
+                {request.isPending ? 'Requesting Ebook…' : 'Request Ebook'}
               </Button>
             )
           }
         >
-          <p className={styles.settingsCardFeedback}>
-            {selected.author} · {selected.year} · Ebook
-          </p>
-          <p>{selected.synopsis}</p>
-          <p className={styles.settingsCardFeedback}>
-            {previous
-              ? `Requested by ${previous.username} on ${requestDate.format(new Date(previous.date))}.`
-              : 'Preview only. This will not start a download.'}
-          </p>
+          <p className={styles.settingsCardFeedback}>{bookByline(selected, 'Ebook')}</p>
+          {selected.description && <p>{selected.description}</p>}
+          {previous && (
+            <p className={styles.settingsCardFeedback}>
+              {attribution(previous)} on {requestDate.format(new Date(previous.requested_at))}.
+              {previous.state === 'confirming' ? ` ${confirming}` : ''}
+            </p>
+          )}
+          {unknown && (
+            <p role="alert" className={styles.settingsCardFeedback}>
+              Couldn’t verify whether Shelfmark received this request. Check its status before trying again.
+            </p>
+          )}
+          {(!unknown || request.variables?.checkOnly) && <ErrorNotice error={request.error} />}
+          {!previous && !unknown && search.isError && (
+            <>
+              <ErrorNotice error={search.error} />
+              <Button size="slim" onClick={() => void search.refetch()}>
+                Retry Search
+              </Button>
+            </>
+          )}
         </Dialog>
       )}
     </>

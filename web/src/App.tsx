@@ -23,7 +23,7 @@ import { BookMatcher } from './routes/BookMatcher';
 import { AppLoading, Auth } from './routes/Auth';
 import { Insights } from './routes/Insights';
 import { RequestBooks } from './routes/RequestBooks';
-import { ShelfmarkPreview, useShelfmarkPreview } from './shelfmarkPreview';
+import { useShelfmarkSettings } from './shelfmarkQueries';
 import { Settings } from './routes/More';
 import { Administration, AdminUsers, AdminLibrary, AdminSystem } from './routes/Administration';
 import { AdminLogs } from './routes/AdminLogs';
@@ -161,8 +161,8 @@ function Shell() {
   const reading = useReading();
   const location = useLocation();
   const reader = location.pathname.startsWith('/read/');
-  const { mode } = useShelfmarkPreview();
   const { access } = useSession();
+  const shelfmark = useShelfmarkSettings(access.kind === 'authenticated' ? access.account : undefined);
   const showShell = access.kind === 'authenticated' || access.kind === 'offline';
   useEffect(() => {
     if (!reader && showShell)
@@ -193,7 +193,7 @@ function Shell() {
                 </i>
                 <span>Library</span>
               </NavLink>
-              {mode === 'enabled' && (
+              {!shelfmark.isError && shelfmark.data?.enabled && (
                 <NavLink to="/request">
                   <i className={styles.tabIcon}>
                     <Icon name="request" />
@@ -286,9 +286,5 @@ function bindRoute(route: AppRoute): RouteObject {
 
 const router = createBrowserRouter(appRoutes.map(bindRoute));
 export function App() {
-  return (
-    <ShelfmarkPreview>
-      <RouterProvider router={router} />
-    </ShelfmarkPreview>
-  );
+  return <RouterProvider router={router} />;
 }

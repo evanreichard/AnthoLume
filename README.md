@@ -92,7 +92,11 @@ Backups download on demand and the server does not retain a copy. Before restori
 | REGISTRATION_ENABLED | false         | Whether to allow registration (applies to both WebApp & KOSync API)        |
 | COOKIE_AUTH_KEY      | <EMPTY>       | Optional secret cookie authentication key (auto generated if not provided) |
 | COOKIE_ENC_KEY       | <EMPTY>       | Optional secret cookie encryption key (16 or 32 bytes)                     |
+| SHELFMARK_URL        | <EMPTY>       | Shelfmark service URL; use HTTPS when connecting over a network |
+| SHELFMARK_API_KEY    | <EMPTY>       | Server-only Shelfmark admin API key; requires a Shelfmark admin user and enabled request policy |
 | HARDCOVER_CATALOG_TOKEN | <EMPTY>    | Optional server-only Hardcover catalog API token; enables the admin choice |
+
+With both Shelfmark variables set, **Request** enables ebook search and book-level requests by default. Administrators can disable it under **Administration → Library**. History is shared across readers and tracks only requests made through AnthoLume, not downloads or requests made in Shelfmark itself. An uncertain submission stays reserved; **Check Status** looks for it without submitting it again.
 
 ## Security
 
