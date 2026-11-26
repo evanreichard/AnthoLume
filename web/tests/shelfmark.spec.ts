@@ -59,7 +59,9 @@ test('Settings, explicit release selection and shared request history work acros
   });
   const submissions: string[] = [];
   let allowPost: (() => void) | undefined;
-  const saved = [{ ...paperback, request: { username: 'alex', requested_at, state: 'queued' as const } }];
+  const saved = [
+    { ...paperback, request: { username: 'alex', requested_at, state: 'unconfirmed' as 'unconfirmed' | 'queued' } },
+  ];
   await page.route('**/api/v1/shelfmark/settings', (route) => route.fulfill({ json: { configured, enabled } }));
   await page.route('**/api/v1/admin/shelfmark', (route) => {
     expect(route.request().method()).toBe('PUT');
@@ -165,7 +167,7 @@ test('Settings, explicit release selection and shared request history work acros
     await expect(dialog.getByText('By F. Herbert').first()).toBeVisible();
     await expect(dialog.getByText(/Requested by alex/)).toBeVisible();
     await expect(dialog.getByText(/Some sources didn’t return results/)).toBeVisible();
-    await expect(dialog.getByRole('button', { name: `Queued ${paperback.title}` })).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: `Unconfirmed ${paperback.title}` })).toBeDisabled();
     expect(submissions).toHaveLength(0);
     await dialog.getByRole('button', { name: `Download ${illustrated.title}` }).click({ trial: true });
     expect(await dialog.evaluate((node) => node.scrollWidth)).toBeLessThanOrEqual(width);
@@ -190,12 +192,17 @@ test('Settings, explicit release selection and shared request history work acros
   expect(liveLookups).toBe(1);
   const history = page.getByRole('region', { name: 'Request History' });
   await expect(history.getByRole('button', { name: 'Dune', exact: true })).toHaveCount(1);
+  saved[0].request.state = 'queued';
   const beforeHistory = liveLookups;
   await history.getByRole('button', { name: 'Dune', exact: true }).click();
   await expect(dialog.getByText(illustrated.title)).toBeVisible();
   await expect(dialog.getByText(paperback.title)).toBeVisible();
   await expect(dialog.getByRole('button', { name: `Queued ${illustrated.title}` })).toBeDisabled();
   await expect(dialog.getByRole('button', { name: `Queued ${paperback.title}` })).toBeDisabled();
+  await dialog.getByRole('button', { name: 'Close Dialog' }).click();
+  await book.click();
+  await expect(dialog.getByRole('button', { name: `Queued ${paperback.title}` })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: `Download ${hardcoverEdition.title}` })).toBeEnabled();
   expect(liveLookups).toBe(beforeHistory);
   await dialog.getByRole('button', { name: 'Close Dialog' }).click();
   await page.setViewportSize({ width: 390, height: 844 });
