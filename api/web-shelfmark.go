@@ -255,8 +255,6 @@ func (s *webAPI) CreateShelfmarkRequest(ctx context.Context, r CreateShelfmarkRe
 
 	dispatch := context.WithoutCancel(ctx)
 	err = s.api.shelfmark.Download(dispatch, release)
-	settle, cancel := context.WithTimeout(dispatch, 3*time.Second)
-	defer cancel()
 	var state ShelfmarkRequestInfoState
 	switch {
 	case errors.Is(err, shelfmark.ErrRejected):
@@ -264,13 +262,14 @@ func (s *webAPI) CreateShelfmarkRequest(ctx context.Context, r CreateShelfmarkRe
 	case err == nil:
 		state = ShelfmarkQueued
 	default:
-		return s.shelfmarkReleaseResponse(settle, book, row)
+		return s.shelfmarkReleaseResponse(ctx, book, row)
 	}
 	row.State = string(state)
-	if err := queries.SetShelfmarkReleaseState(settle, database.SetShelfmarkReleaseStateParams{ReleaseKey: key, State: row.State}); err != nil {
+	// Known Outcome - Wait for the database connection rather than discarding Shelfmark's acknowledgement.
+	if err := queries.SetShelfmarkReleaseState(dispatch, database.SetShelfmarkReleaseStateParams{ReleaseKey: key, State: row.State}); err != nil {
 		return nil, err
 	}
-	return s.shelfmarkReleaseResponse(settle, book, row)
+	return s.shelfmarkReleaseResponse(ctx, book, row)
 }
 
 func (s *webAPI) claimShelfmarkRelease(ctx context.Context, params database.ClaimShelfmarkReleaseParams) (database.ShelfmarkRelease, error) {

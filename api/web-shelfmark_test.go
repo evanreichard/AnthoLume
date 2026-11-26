@@ -293,7 +293,18 @@ func TestShelfmarkShutdownDrainsClaimAfterDisconnect(t *testing.T) {
 		t.Fatal("shutdown returned before the upstream acknowledgement")
 	case <-time.After(100 * time.Millisecond):
 	}
+	conn, err := f.db.DB.Conn(t.Context())
+	require.NoError(t, err)
+	defer conn.Close()
+	waiting := f.db.DB.Stats().WaitCount
 	end()
+	require.Eventually(t, func() bool { return f.db.DB.Stats().WaitCount > waiting }, time.Second, time.Millisecond)
+	select {
+	case <-stopped:
+		t.Fatal("shutdown discarded the acknowledgement while SQLite was occupied")
+	case <-time.After(3200 * time.Millisecond): // Exceeds the former three-second settlement deadline.
+	}
+	require.NoError(t, conn.Close())
 	require.NoError(t, <-stopped)
 	row, err := f.db.Queries.GetShelfmarkRelease(t.Context(), file.Key)
 	require.NoError(t, err)
