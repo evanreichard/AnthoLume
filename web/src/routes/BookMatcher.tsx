@@ -22,6 +22,7 @@ import { useSnackbar } from '../Snackbar';
 import { PageHeader } from '../ui';
 import app from '../App.module.css';
 import styles from './BookMatcher.module.css';
+import { MatcherLinkControls } from './MatcherLinkControls';
 
 const pageSize = 10;
 const metadataKey = (book: MatcherBook) => JSON.stringify([book.title, book.author, book.isbn13, book.isbn10]);
@@ -230,22 +231,11 @@ function Matcher({ account, back }: { account: Account; back: ReactNode }) {
           <h2 id="book-matcher-heading" ref={heading} tabIndex={-1}>
             Book Matcher
           </h2>
-          <select
-            aria-label="Provider"
-            value={provider ?? ''}
-            disabled={!provider}
-            onChange={(event) => {
-              setProvider(event.currentTarget.value === 'hardcover' ? 'hardcover' : 'openlibrary');
-              event.currentTarget.blur();
-              heading.current?.focus({ preventScroll: true });
-            }}
-          >
-            {!provider && <option value="">Select provider</option>}
-            <option value="openlibrary">Open Library</option>
-            <option value="hardcover" disabled={!config.data?.hardcover_available}>
-              {config.isPending || config.data?.hardcover_available ? 'Hardcover' : 'Hardcover (Not Configured)'}
-            </option>
-          </select>
+          <MatcherLinkControls
+            provider={provider}
+            hardcoverAvailable={!!config.data?.hardcover_available}
+            onProviderChange={setProvider}
+          />
         </header>
         {config.isError && !config.data && (
           <div className={styles.feedback}>

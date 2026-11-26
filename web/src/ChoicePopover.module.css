@@ -1,0 +1,40 @@
+.control {
+  position: relative;
+  flex: none;
+}
+.options {
+  inset-block-start: calc(100% + 4px);
+  inset-inline-end: 0;
+  z-index: 6;
+  width: min(11.5rem, calc(100vw - 32px));
+  padding: 4px;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 14%);
+}
+.options > button > span {
+  flex: 1;
+}
+.options small {
+  display: block;
+  color: var(--muted);
+  font-weight: normal;
+}
+.options > button > :is(img, svg) {
+  flex: none;
+}
+.options > button:disabled {
+  background: transparent;
+}
+.options:not([data-joined]) > button[aria-pressed='true'] {
+  background: var(--hero);
+  font-weight: 700;
+}
+.options[data-joined] {
+  z-index: 2;
+  inset-block-start: 50px;
+  width: min(18rem, calc(100vw - 48px));
+}
+.options[data-joined] > button {
+  padding-block: 7px;
+  font-weight: 650;
+}

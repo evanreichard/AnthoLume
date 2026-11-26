@@ -258,7 +258,7 @@ export function Library() {
         <BookSortControl
           sort={sort}
           onChange={applySort}
-          dialog={{ open: dialog === 'sort', onOpen: () => open('sort'), onClose: close }}
+          disclosure={{ open: dialog === 'sort', onOpen: () => open('sort'), onClose: closeDialog }}
         />
       </form>
       <div className={styles.divider} />

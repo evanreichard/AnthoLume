@@ -6,6 +6,10 @@ import { expect, mockMatcherLookup, register, test } from './fixtures';
 const libraryURL = '/library?q=Public+book&sort=author';
 const matcherTitle = (page: Page) => page.getByRole('heading', { name: 'Book Matcher', exact: true });
 const backToLibrary = (page: Page) => page.getByRole('main').getByRole('link', { name: /^(?:Back to )?Library$/i });
+const providerButton = (page: Page) => page.getByRole('button', { name: /^Provider:/ });
+const providerOptions = (page: Page) => page.getByRole('group', { name: 'Provider Options' });
+const modeButton = (page: Page) => page.getByRole('button', { name: /^When Linking:/ });
+const modeOptions = (page: Page) => page.getByRole('group', { name: 'Linking Options' });
 
 test.use({ serviceWorkers: 'block' });
 test.beforeEach(async ({ page }) => {
@@ -93,6 +97,15 @@ test('a library member reviews ten books, writes only explicit link changes, and
 }) => {
   const links = new Map([['book-2', match]]);
   const writes: string[] = [];
+  const documentWrites: string[] = [];
+  page.on('request', (request) => {
+    if (
+      /^(PUT|PATCH|DELETE)$/.test(request.method()) &&
+      new URL(request.url()).pathname.startsWith('/api/v1/documents/')
+    ) {
+      documentWrites.push(new URL(request.url()).pathname);
+    }
+  });
   await mockPages(page, (id) => {
     const link = links.get(id);
     return link ? [{ provider: 'openlibrary', work_id: link.work_id }] : [];
@@ -120,7 +133,9 @@ test('a library member reviews ten books, writes only explicit link changes, and
     const url = new URL(route.request().url());
     const id = url.pathname.split('/')[4];
     if (route.request().method() === 'PUT') {
-      const { work_id } = route.request().postDataJSON() as { work_id: string };
+      const payload = route.request().postDataJSON() as { work_id: string };
+      expect(payload).toEqual({ work_id: payload.work_id });
+      const { work_id } = payload;
       writes.push(`link ${id} ${work_id}`);
       links.set(id, { work_id, url: `https://openlibrary.org/works/${work_id}` });
     } else {
@@ -136,8 +151,15 @@ test('a library member reviews ten books, writes only explicit link changes, and
   await expect(lastLibraryBook(page)).toBeVisible();
   await page.getByRole('main').locator('header').getByRole('link', { name: 'Match Books', exact: true }).click();
   await expect(page).toHaveURL((url) => url.pathname === '/library/matcher');
-  const provider = page.getByRole('combobox', { name: 'Provider', exact: true });
-  await expect(provider.getByRole('option', { name: 'Hardcover (Not Configured)' })).toBeDisabled();
+  await providerButton(page).press('Enter');
+  const openLibraryOption = providerOptions(page).getByRole('button', { name: 'Open Library', exact: true });
+  await expect(openLibraryOption).toBeFocused();
+  await expect(openLibraryOption).toHaveAttribute('aria-pressed', 'true');
+  await expect(providerOptions(page).getByRole('button', { name: /Hardcover.*Not Configured/ })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(providerOptions(page)).toBeHidden();
+  await expect(providerButton(page)).toBeFocused();
+  await expect(modeButton(page)).toHaveText('Link Only');
   const table = page.getByRole('table', { name: 'Open Library associations' });
   const find = (n: number) =>
     table.getByRole('row').filter({ has: page.getByRole('rowheader', { name: new RegExp(`^${title(n)} A`) }) });
@@ -152,9 +174,39 @@ test('a library member reviews ten books, writes only explicit link changes, and
   await expect(find(3).getByRole('button')).toHaveCount(0);
   await expect(find(2).getByRole('link')).toHaveAttribute('href', match.url);
 
+  await modeButton(page).click();
+  await modeOptions(page).getByRole('button', { name: 'Replace Fields' }).click();
+  await expect(modeButton(page)).toHaveText('Replace Fields');
+  await expect(modeButton(page)).toBeFocused();
+  const preview = page.getByText('Preview only: confirming a link won’t change book metadata.');
   const options = page.getByRole('group', { name: `Matches for ${title(1)}` });
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
+    await expect(modeButton(page)).toHaveText('Replace Fields');
+    await expect(preview).toBeVisible();
+    await modeButton(page).click();
+    await expect(modeOptions(page).getByRole('button', { name: 'Fill Missing' })).toHaveAccessibleDescription(
+      'Fill blank fields and keep existing values.',
+    );
+    const modeBox = (await modeOptions(page).boundingBox())!;
+    expect(modeBox.x).toBeGreaterThanOrEqual(0);
+    expect(modeBox.x + modeBox.width).toBeLessThanOrEqual(width);
+    await providerButton(page).click();
+    await expect(modeOptions(page)).toBeHidden();
+    await expect(openLibraryOption).toBeVisible();
+    await modeButton(page).click();
+    await expect(providerOptions(page)).toBeHidden();
+    await expect(modeOptions(page).getByRole('button', { name: 'Replace Fields' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await page.keyboard.press('Escape');
+    await expect(modeOptions(page)).toBeHidden();
+    await expect(providerOptions(page)).toBeHidden();
+    await expect(modeButton(page)).toBeFocused();
+    await providerButton(page).click();
+    await matcherTitle(page).click();
+    await expect(providerOptions(page)).toBeHidden();
     await expect(check).toBeVisible();
     expect((await check.boundingBox())?.x).toBe((await unlink(2).boundingBox())?.x);
     await pick.click();
@@ -177,7 +229,7 @@ test('a library member reviews ten books, writes only explicit link changes, and
   await expect(options.getByRole('button').last()).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(options).toBeHidden();
-  expect(writes).toEqual([]);
+  expect(documentWrites).toEqual([]);
   await check.click();
   await expect(find(1).getByText('Could Not Link', { exact: true })).toBeVisible();
   await expect(find(1).getByRole('link')).toHaveCount(0);
@@ -186,6 +238,7 @@ test('a library member reviews ten books, writes only explicit link changes, and
     .click();
   await expect(find(1).getByRole('link')).toHaveAttribute('href', match.url);
   await expect(page.getByRole('status').filter({ hasText: `Linked ${title(1)}` })).toBeVisible();
+  expect(documentWrites).toEqual(Array(2).fill('/api/v1/documents/book-1/matches/openlibrary'));
   await unlink(1).click();
   const unmatched = find(1).getByRole('button', { name: `Unmatched: ${title(1)}` });
   await expect(unmatched).toBeFocused();
@@ -220,6 +273,7 @@ test('a library member reviews ten books, writes only explicit link changes, and
   expect((await page.reload())?.ok()).toBe(true);
   await expect(page).toHaveURL((url) => url.pathname === '/library/matcher');
   await expect(table).toBeVisible();
+  await expect(modeButton(page)).toHaveText('Link Only');
   await backToLibrary(page).click();
   await expect(page).toHaveURL(server.origin + libraryURL);
   await expect(page.getByRole('searchbox', { name: 'Search title or author' })).toHaveValue('Public book');
@@ -291,11 +345,10 @@ test('direct matcher entry requires sign-in; streams render incrementally and ca
   });
   await register(page, server.origin, 'matcher-stream-reader');
   expect((await page.goto(matcherURL))?.ok()).toBe(true);
-  const select = page.getByRole('combobox', { name: 'Provider', exact: true });
   const current = page.getByRole('table');
   await expect(current.getByText('Searching…', { exact: true })).toHaveCount(9);
   await expect(current.getByRole('link', { name: /6271 on Hardcover/ })).toBeVisible();
-  await expect(select).toHaveValue('hardcover');
+  await expect(providerButton(page)).toHaveAccessibleName('Provider: Hardcover');
   await expect
     .poll(() => page.evaluate(() => window.matcherStreams.map((stream) => stream.provider)))
     .toEqual(['hardcover']);
@@ -307,9 +360,15 @@ test('direct matcher entry requires sign-in; streams render incrementally and ca
     'Primary Candidate',
   );
   await expect(current.getByText('Searching…', { exact: true })).toHaveCount(8);
-  await select.selectOption('openlibrary');
-  await expect(page.getByRole('heading', { name: 'Book Matcher' })).toBeFocused();
-  await expect(page.locator('select:open')).toHaveCount(0);
+  await providerButton(page).click();
+  await expect(providerOptions(page).getByRole('button', { name: 'Hardcover', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await providerOptions(page).getByRole('button', { name: 'Open Library', exact: true }).click();
+  await expect(providerButton(page)).toHaveAccessibleName('Provider: Open Library');
+  await expect(providerButton(page)).toBeFocused();
+  await expect(providerOptions(page)).toBeHidden();
   await expect(page.getByRole('table', { name: 'Open Library associations' })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => window.matcherStreams.map((item) => [item.provider, item.signal.aborted])))
@@ -390,22 +449,37 @@ test('matcher sorts the full catalog before paging and preserves the provider an
     .locator('header')
     .filter({ has: page.getByRole('link', { name: 'Library', exact: true }) })
     .getByRole('button', { name: 'Sort Books', exact: true });
-  const dialog = page.getByRole('dialog', { name: 'Sort Books', exact: true });
-  const option = (name: string) => dialog.getByRole('button', { name, exact: true });
+  const options = page.getByRole('group', { name: 'Sort Books', exact: true });
+  const option = (name: string) => options.getByRole('button', { name, exact: true });
   const pager = page.getByRole('navigation', { name: 'Book Pages' });
   const rows = page.getByRole('table').getByRole('rowheader');
   const bookRow = (n: number) => new RegExp(`^Public book ${String(n).padStart(2, '0')}(?!\\d)`);
   await expect(pager).toContainText('1–10 of 30');
   await expect(rows).toHaveText([30, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(bookRow));
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    await sort.click();
+    await expect(option('Last Read')).toHaveAttribute('aria-pressed', 'true');
+    const triggerBox = (await sort.boundingBox())!;
+    const optionsBox = (await options.boundingBox())!;
+    expect(optionsBox.y).toBeGreaterThanOrEqual(triggerBox.y + triggerBox.height);
+    expect(optionsBox.x).toBeGreaterThanOrEqual(0);
+    expect(optionsBox.x + optionsBox.width).toBeLessThanOrEqual(width);
+    await option('Last Read').click();
+    await expect(options).toBeHidden();
+    await expect(sort).toBeFocused();
+  }
   await sort.click();
-  await expect(option('Last Read')).toHaveAttribute('aria-pressed', 'true');
   await expect(option('Author A–Z')).toBeEnabled();
   await expect(option('Recently Added')).toBeEnabled();
-  await dialog.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(options).toBeHidden();
 
-  const provider = page.getByRole('combobox', { name: 'Provider', exact: true });
-  await expect(provider).toHaveValue('openlibrary');
-  await provider.selectOption('hardcover');
+  await modeButton(page).click();
+  await modeOptions(page).getByRole('button', { name: 'Fill Missing' }).click();
+  await expect(providerButton(page)).toHaveAccessibleName('Provider: Open Library');
+  await providerButton(page).click();
+  await providerOptions(page).getByRole('button', { name: 'Hardcover', exact: true }).click();
   await pager.getByRole('button', { name: 'Next Page' }).click();
   await expect(pager).toContainText('11–20 of 30');
   await expect(rows.first()).toHaveText(bookRow(10));
@@ -414,10 +488,14 @@ test('matcher sorts the full catalog before paging and preserves the provider an
   await expect(pager).toContainText('1–10 of 30');
   await expect(pager.getByRole('button', { name: 'Previous Page' })).toBeDisabled();
   await expect(rows).toHaveText([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(bookRow));
-  await expect(provider).toHaveValue('hardcover');
+  await expect(providerButton(page)).toHaveAccessibleName('Provider: Hardcover');
+  await modeButton(page).click();
+  await expect(modeOptions(page).getByRole('button', { name: 'Fill Missing' })).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
   await sort.click();
   await expect(option('Title A–Z')).toHaveAttribute('aria-pressed', 'true');
-  await dialog.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(options).toBeHidden();
 
   await backToLibrary(page).click();
   await expect(page).toHaveURL(originalLibrary);

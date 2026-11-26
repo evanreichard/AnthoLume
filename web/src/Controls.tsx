@@ -15,7 +15,10 @@ import styles from './Controls.module.css';
 export function IconButton({
   type = 'button',
   ...props
-}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> & { 'aria-label': string }) {
+}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> & {
+  'aria-label': string;
+  ref?: Ref<HTMLButtonElement>;
+}) {
   return <button {...props} type={type} className={styles.iconButton} />;
 }
 

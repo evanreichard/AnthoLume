@@ -33,15 +33,20 @@ test('actual bootstrap, credentials, server paging, inert detail, URL sorting an
   ).toHaveCount(30);
   await expect(loadMore).toHaveCount(0);
   const sort = page.getByRole('button', { name: 'Sort Books' });
+  const options = page.getByRole('group', { name: 'Sort Books', exact: true });
+  const authorSort = options.getByRole('button', { name: 'Author A–Z', exact: true });
   await sort.click();
-  await page.getByRole('button', { name: 'Author A–Z', exact: true }).click();
-  await expect(page).toHaveURL(/sort=author/);
+  await expect(page.getByRole('dialog', { name: 'Sort Books' })).toBeHidden();
+  await authorSort.click();
+  await expect(page).toHaveURL(/sort=author$/);
   await expect(sort).toBeFocused();
   await page.reload();
   await sort.click();
-  await expect(page.getByRole('button', { name: 'Author A–Z', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(authorSort).toHaveAttribute('aria-pressed', 'true');
+  await authorSort.focus();
   await page.goBack();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(options).toBeHidden();
+  await expect(page).toHaveURL(/sort=author$/);
   await expect(sort).toBeFocused();
   await page.goto(`${server.origin}/library?q=Public+book+01`);
   await expect(page.getByRole('article')).toHaveCount(1);
@@ -54,6 +59,14 @@ test('actual bootstrap, credentials, server paging, inert detail, URL sorting an
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await sort.click();
+    const triggerBox = (await sort.boundingBox())!;
+    const optionsBox = (await options.boundingBox())!;
+    expect(optionsBox.y).toBeGreaterThanOrEqual(triggerBox.y + triggerBox.height);
+    expect(optionsBox.x).toBeGreaterThanOrEqual(0);
+    expect(optionsBox.x + optionsBox.width).toBeLessThanOrEqual(width);
+    await options.getByRole('button', { name: 'Last Read', exact: true }).click();
+    await expect(options).toBeHidden();
   }
   await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link')).toHaveCount(3);
   await expect(page.getByRole('link', { name: 'Insights', exact: true })).toHaveAttribute('href', '/insights');
