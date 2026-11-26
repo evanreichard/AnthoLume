@@ -38,6 +38,73 @@
   text-decoration: underline;
 }
 
+.identity {
+  display: grid;
+  grid-template-columns: clamp(74px, 24%, 108px) minmax(0, 1fr);
+  align-items: start;
+  gap: 6px;
+}
+.identityText {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.coverSlot {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius);
+  background: var(--subtle);
+}
+.coverSkeleton,
+.coverUnavailable,
+.coverSlot .coverChoice {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+.coverUnavailable {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 4px;
+  padding: 4px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  text-align: center;
+}
+.coverSlot .coverChoice:not([hidden]) {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
+.coverChoice[hidden] {
+  display: none;
+}
+.coverChoice img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.coverChoice > span {
+  position: absolute;
+  inset: 4px 4px auto auto;
+}
+.coverChoice[aria-pressed='true'] > span {
+  border-radius: 50%;
+  background: var(--surface);
+}
+.coverChoice:focus-visible::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 2px solid var(--ink);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
 .isbn {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 128px), 1fr));
