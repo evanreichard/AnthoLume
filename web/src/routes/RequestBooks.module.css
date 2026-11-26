@@ -18,7 +18,7 @@
   margin-top: 10px;
   border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
 }
-.emptyResults {
+.resultStatus {
   display: grid;
   place-items: center;
   min-height: 7rem;

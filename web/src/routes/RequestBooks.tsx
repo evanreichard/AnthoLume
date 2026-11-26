@@ -189,8 +189,9 @@ function RequestCatalog({ account }: { account: Account }) {
             {term && (
               <div role="group" aria-label="Search Results" className={coverStyles.results}>
                 {search.isFetching && (
-                  <p className={styles.settingsCardFeedback} role="status">
-                    Searching…
+                  <p className={results.length ? styles.srOnly : coverStyles.resultStatus} role="status">
+                    {!results.length && <span className={styles.lookupSpinner} aria-hidden="true" />}
+                    <span className={styles.srOnly}>Searching…</span>
                   </p>
                 )}
                 {search.isError && (
@@ -202,7 +203,7 @@ function RequestCatalog({ account }: { account: Account }) {
                   </>
                 )}
                 {!search.isError && !search.isFetching && search.data && (
-                  <p className={results.length ? styles.srOnly : coverStyles.emptyResults} role="status">
+                  <p className={results.length ? styles.srOnly : coverStyles.resultStatus} role="status">
                     {results.length
                       ? `${results.length} ${results.length === 1 ? 'book' : 'books'} found`
                       : 'No books found. Try another title or author.'}
@@ -234,7 +235,7 @@ function RequestCatalog({ account }: { account: Account }) {
               </p>
             )}
             {history.isSuccess && !historyRows.length && (
-              <p className={coverStyles.emptyResults}>No books requested yet.</p>
+              <p className={coverStyles.resultStatus}>No books requested yet.</p>
             )}
             {historyRows.length > 0 && (
               <ActionRows>
