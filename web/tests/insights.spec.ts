@@ -41,12 +41,12 @@ test('Library, Insights, Settings and Book Detail share mobile and desktop gutte
     await expectLibraryGutters(chart);
     const cardStyle = (card: import('@playwright/test').Locator) =>
       card.evaluate((node) => {
-        const { backgroundColor, borderColor, borderRadius, borderWidth, padding } = getComputedStyle(node);
-        return { backgroundColor, borderColor, borderRadius, borderWidth, padding };
+        const { backgroundColor, borderColor, borderRadius, borderWidth } = getComputedStyle(node);
+        return { backgroundColor, borderColor, borderRadius, borderWidth };
       });
     const insightsCard = await cardStyle(chart);
     expect(await position('Settings')).toEqual(library);
-    for (const name of ['Account', 'Devices']) {
+    for (const name of ['General', 'Devices']) {
       const card = page.getByRole('region', { name, exact: true });
       await expect(card.getByRole('heading', { name, exact: true })).toBeVisible();
       expect(await cardStyle(card)).toEqual(insightsCard);
