@@ -130,7 +130,9 @@ func (s *webAPI) ConfirmBookMatch(ctx context.Context, r ConfirmBookMatchRequest
 		staged, coverErr = api.stageMatcherCover(ctx, r.Provider, match)
 	}
 	if mode != LinkOnly {
-		api.libraryWrite.Lock()
+		if !api.libraryWrite.TryLock() {
+			return nil, adminFailure(409, "server_busy")
+		}
 		defer api.libraryWrite.Unlock()
 	}
 

@@ -214,17 +214,25 @@ func TestMatcherMetadataAndStagedArtRespectLatestBook(t *testing.T) {
 	}
 }
 
-func TestMatcherRollsBackMetadataWhenLinkCannotBeSaved(t *testing.T) {
+func TestMatcherLeavesNoChangesWhenWriteFails(t *testing.T) {
 	f := newWebFixture(t)
 	registerMatcherReader(t, f)
 	f.exec(`INSERT INTO documents(id,title) VALUES ('book','Original')`)
-	f.exec(`CREATE TRIGGER refuse_test_link BEFORE INSERT ON document_identifiers BEGIN SELECT RAISE(ABORT, 'fixture write failure'); END`)
 	var art bytes.Buffer
 	require.NoError(t, png.Encode(&art, image.NewRGBA(image.Rect(0, 0, 12, 16))))
 	f.api.metadataCatalogs[Hardcover] = matcherMetadataCatalog{matcherEngineCatalog: matcherEngineCatalog{resolve: func(_ context.Context, work, _, _ string) (metadata.LookupMatch, error) {
 		return metadata.LookupMatch{ID: work, Title: "Catalog Title", CoverID: new(int64(7)), CoverURL: matcherCoverURL}, nil
 	}}, cover: func(context.Context) ([]byte, error) { return art.Bytes(), nil }}
-	response := f.call("PUT", hardcoverMatchPath, `{"work_id":"42","metadata_mode":"replace_fields"}`, nil)
+	confirm := func() webResponse {
+		return f.call("PUT", hardcoverMatchPath, `{"work_id":"42","metadata_mode":"replace_fields"}`, nil)
+	}
+	func() {
+		f.api.libraryWrite.Lock()
+		defer f.api.libraryWrite.Unlock()
+		assertProblem(t, confirm(), 409, "server_busy")
+	}()
+	f.exec(`CREATE TRIGGER refuse_test_link BEFORE INSERT ON document_identifiers BEGIN SELECT RAISE(ABORT, 'fixture write failure'); END`)
+	response := confirm()
 	require.Equal(t, 500, response.status, string(response.body))
 	book := decodeWeb[Document](t, f.call("GET", "/api/v1/documents/book", nil, nil))
 	require.Equal(t, "Original", *book.Title)
