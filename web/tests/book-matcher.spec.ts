@@ -64,18 +64,22 @@ const hardcoverCandidate = {
   author: 'A. Reader',
   url: 'https://hardcover.app/id/book/3848',
 };
-const primary = candidate('OL123W', 'Primary Candidate');
+const primary = { ...candidate('OL123W', 'Primary Candidate'), edition_id: 'OL125M', isbn: '9780765391193' };
 const alternative = candidate('OL124W', 'Alternative Candidate');
 const match = { work_id: primary.work_id, url: primary.url };
 
-async function mockPages(page: Page, getMatches: (id: string) => DocumentMatch[] = () => []) {
+async function mockPages(
+  page: Page,
+  getMatches: (id: string) => DocumentMatch[] = () => [],
+  getBooks: (sort: string | null) => Document[] = () => books,
+) {
   const pages: number[] = [];
   await page.route('**/api/v1/documents?*', async (route) => {
     const query = new URL(route.request().url()).searchParams;
     if (query.get('include') !== 'matches') return route.continue();
     const requested = Number(query.get('page') ?? 1);
     pages.push(requested);
-    const items = books
+    const items = getBooks(query.get('sort'))
       .slice((requested - 1) * 10, requested * 10)
       .map((book) => ({ ...book, matches: getMatches(book.id) }));
     await route.fulfill({
@@ -106,16 +110,28 @@ test('a library member reviews ten books, writes only explicit link changes, and
       documentWrites.push(new URL(request.url()).pathname);
     }
   });
-  await mockPages(page, (id) => {
-    const link = links.get(id);
-    return link ? [{ provider: 'openlibrary', work_id: link.work_id }] : [];
-  });
+  let metadataSaved = false;
+  const pages = await mockPages(
+    page,
+    (id) => {
+      const link = links.get(id);
+      return link ? [{ provider: 'openlibrary', work_id: link.work_id }] : [];
+    },
+    (sort) =>
+      metadataSaved && sort === 'author'
+        ? [...books.slice(1, 10), { ...books[0], author: 'A. Revised' }, ...books.slice(10)]
+        : books,
+  );
   await mockMatcherLookup(page, (id, { document_ids }) => {
     expect(document_ids).not.toContain('book-2');
     return { candidates: id === 'book-1' ? [primary, alternative] : [] };
   });
   let failNextWrite = true;
+  const confirmationBodies: unknown[] = [];
   await page.route('**/api/v1/documents/*/matches/openlibrary*', async (route) => {
+    const request = route.request();
+    const payload = request.method() === 'PUT' ? request.postDataJSON() : null;
+    if (payload) confirmationBodies.push(payload);
     if (failNextWrite) {
       failNextWrite = false;
       await route.fulfill({
@@ -130,14 +146,17 @@ test('a library member reviews ten books, writes only explicit link changes, and
       });
       return;
     }
-    const url = new URL(route.request().url());
+    const url = new URL(request.url());
     const id = url.pathname.split('/')[4];
-    if (route.request().method() === 'PUT') {
-      const payload = route.request().postDataJSON() as { work_id: string };
-      expect(payload).toEqual({ work_id: payload.work_id });
+    if (payload) {
       const { work_id } = payload;
       writes.push(`link ${id} ${work_id}`);
       links.set(id, { work_id, url: `https://openlibrary.org/works/${work_id}` });
+      if (payload.metadata_mode) {
+        if (work_id === primary.work_id) metadataSaved = true;
+        await route.fulfill({ json: { changed_fields: work_id === primary.work_id ? ['author'] : [] } });
+        return;
+      }
     } else {
       writes.push(`unlink ${id} ${url.searchParams.get('work_id')}`);
       links.delete(id);
@@ -178,12 +197,10 @@ test('a library member reviews ten books, writes only explicit link changes, and
   await modeOptions(page).getByRole('button', { name: 'Replace Fields' }).click();
   await expect(modeButton(page)).toHaveText('Replace Fields');
   await expect(modeButton(page)).toBeFocused();
-  const preview = page.getByText('Preview only: confirming a link won’t change book metadata.');
   const options = page.getByRole('group', { name: `Matches for ${title(1)}` });
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     await expect(modeButton(page)).toHaveText('Replace Fields');
-    await expect(preview).toBeVisible();
     await modeButton(page).click();
     await expect(modeOptions(page).getByRole('button', { name: 'Fill Missing' })).toHaveAccessibleDescription(
       'Fill blank fields and keep existing values.',
@@ -230,31 +247,57 @@ test('a library member reviews ten books, writes only explicit link changes, and
   await page.keyboard.press('Escape');
   await expect(options).toBeHidden();
   expect(documentWrites).toEqual([]);
+  await page.getByRole('button', { name: 'Sort Books', exact: true }).click();
+  await page
+    .getByRole('group', { name: 'Sort Books', exact: true })
+    .getByRole('button', { name: 'Author A–Z' })
+    .click();
   await check.click();
   await expect(find(1).getByText('Could Not Link', { exact: true })).toBeVisible();
   await expect(find(1).getByRole('link')).toHaveCount(0);
+  await modeButton(page).click();
+  await modeOptions(page).getByRole('button', { name: 'Fill Missing' }).click();
+  await pick.click();
+  await options.getByRole('button', { name: /Alternative Candidate/ }).click();
+  await expect(pick).toContainText('Alternative Candidate');
+  expect(confirmationBodies).toHaveLength(1);
+  const pageRequests = pages.length;
   await find(1)
     .getByRole('button', { name: `Retry Link Change: ${title(1)}` })
     .click();
   await expect(find(1).getByRole('link')).toHaveAttribute('href', match.url);
-  await expect(page.getByRole('status').filter({ hasText: `Linked ${title(1)}` })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: '1 field updated' })).toBeVisible();
+  await expect.poll(() => pages.length).toBeGreaterThan(pageRequests);
+  await expect(table.getByRole('rowheader').first()).toContainText(title(2));
+  await expect(find(1)).toContainText('A. Revised');
+  expect(confirmationBodies).toEqual(
+    Array(2).fill({
+      work_id: primary.work_id,
+      metadata_mode: 'replace_fields',
+      edition_id: primary.edition_id,
+      isbn: primary.isbn,
+    }),
+  );
   expect(documentWrites).toEqual(Array(2).fill('/api/v1/documents/book-1/matches/openlibrary'));
   await unlink(1).click();
   const unmatched = find(1).getByRole('button', { name: `Unmatched: ${title(1)}` });
   await expect(unmatched).toBeFocused();
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect(find(1).getByRole('link')).toHaveAttribute('href', match.url);
+  expect(confirmationBodies.at(-1)).toEqual({ work_id: primary.work_id });
   await unlink(1).click();
   await expect(unmatched).toBeFocused();
   await unmatched.click();
   await expect(pick).toBeVisible();
   await expect(page.locator(':popover-open')).toHaveCount(0);
   await pick.click();
-  await page
-    .getByRole('group', { name: `Matches for ${title(1)}` })
-    .getByRole('button', { name: /Alternative Candidate/ })
-    .click();
+  await options.getByRole('button', { name: /Alternative Candidate/ }).click();
+  await expect(pick).toContainText('Alternative Candidate');
+  expect(confirmationBodies).toHaveLength(3);
+  await check.click();
   await expect(find(1).getByRole('link')).toHaveAttribute('href', alternative.url);
+  await expect(page.getByRole('status').filter({ hasText: 'No metadata changes' })).toBeVisible();
+  expect(confirmationBodies.at(-1)).toEqual({ work_id: alternative.work_id, metadata_mode: 'fill_missing' });
   await pager.getByRole('button', { name: 'Next Page' }).click();
   await expect(pager).toContainText('11–12 of 12');
   await expect(pager.getByRole('button', { name: 'Next Page' })).toBeDisabled();

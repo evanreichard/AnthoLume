@@ -2,6 +2,7 @@ package hardcover
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"image"
@@ -11,11 +12,14 @@ import (
 	"io"
 	"math/rand/v2"
 	"net/http"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"reichard.io/antholume/matcherquota"
 	"reichard.io/antholume/metadata"
 )
 
@@ -24,19 +28,25 @@ func TestCatalogCoverSelection(t *testing.T) {
 		name, bookImage, editionImage string
 		previewEdition                bool
 		wantID                        int64
+		wantURL                       string
 	}{
-		{"book", `{"id":12}`, `null`, false, 12},
-		{"edition preferred", `{"id":12}`, `{"id":99}`, true, 99},
-		{"book fallback", `{"id":12}`, `null`, true, 12},
-		{"invalid edition image", `{"id":12}`, `{"id":10000000000}`, true, 12},
-		{"neither", `null`, `null`, true, 0},
+		{"book", `{"id":12,"url":"https://assets.hardcover.app/work"}`, `null`, false, 12, "https://assets.hardcover.app/work"},
+		{"edition preferred", `{"id":12,"url":"https://assets.hardcover.app/work"}`, `{"id":99,"url":"https://assets.hardcover.app/edition"}`, true, 99, "https://assets.hardcover.app/edition"},
+		{"book fallback", `{"id":12,"url":"https://assets.hardcover.app/work"}`, `null`, true, 12, "https://assets.hardcover.app/work"},
+		{"invalid edition image", `{"id":12,"url":"https://assets.hardcover.app/work"}`, `{"id":10000000000,"url":"https://assets.hardcover.app/edition"}`, true, 12, "https://assets.hardcover.app/work"},
+		{"edition ID without URL", `{"id":12,"url":"https://assets.hardcover.app/work"}`, `{"id":99}`, true, 99, ""},
+		{"neither", `null`, `null`, true, 0, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c := testCatalog(t, func(w http.ResponseWriter, r catalogRequest) {
-				assert.Contains(t, r.Query, "image { id }")
+				count := 1
+				if tc.previewEdition {
+					count = 2
+				}
+				assert.Equal(t, count, strings.Count(r.Query, "image { id url }"))
 				book := fmt.Sprintf(`{"id":42,"title":"Book","image":%s}`, tc.bookImage)
 				if tc.previewEdition {
-					fmt.Fprintf(w, `{"data":{"editions":[{"id":77,"image":%s,"book":%s}]}}`, tc.editionImage, book)
+					fmt.Fprintf(w, `{"data":{"editions":[{"id":77,"isbn_10":"080442957X","isbn_13":"9780804429573","image":%s,"book":%s}]}}`, tc.editionImage, book)
 				} else {
 					fmt.Fprintf(w, `{"data":{"books":[%s]}}`, book)
 				}
@@ -45,8 +55,17 @@ func TestCatalogCoverSelection(t *testing.T) {
 			if tc.previewEdition {
 				edition = "77"
 			}
-			m, err := c.Resolve(t.Context(), "42", edition, "")
+			m, err := c.ResolveMatcher(t.Context(), "42", edition, "")
 			require.NoError(t, err)
+			require.Empty(t, m.Author)
+			if tc.previewEdition {
+				require.Equal(t, "080442957X", *m.ISBN10)
+				require.Equal(t, "9780804429573", *m.ISBN13)
+			} else {
+				require.Nil(t, m.ISBN10)
+				require.Nil(t, m.ISBN13)
+			}
+			require.Equal(t, tc.wantURL, m.CoverURL)
 			if tc.wantID == 0 {
 				require.Nil(t, m.CoverID)
 			} else {
@@ -94,6 +113,7 @@ func TestCatalogCoverFetch(t *testing.T) {
 		{"userinfo", "https://user:secret@assets.hardcover.app/cover", 12, 12, 200, nil, false, metadata.ErrLookupCoverMissing},
 		{"redirect", asset, 12, 12, 302, nil, true, metadata.ErrLookupCoverMissing},
 		{"missing image", asset, 12, 12, 404, nil, true, metadata.ErrLookupCoverMissing},
+		{"asset rate limited", asset, 12, 12, 429, nil, true, matcherquota.ErrLimited},
 		{"upstream failed", asset, 12, 12, 503, nil, true, ErrProvider},
 		{"too many bytes with no Content-Length", asset, 12, 12, 200, bytes.Repeat([]byte{1}, maxCoverSource+1), true, metadata.ErrLookupCoverMissing},
 		{"invalid image", asset, 12, 12, 200, []byte(`<svg/>`), true, metadata.ErrLookupCoverMissing},
@@ -137,6 +157,68 @@ func TestCatalogCoverFetch(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestResolvedCatalogCoverUsesOnlyAssetRequest(t *testing.T) {
+	const asset = "https://assets.hardcover.app/edition/77/cover"
+	var queries atomic.Int32
+	c := testCatalog(t, func(w http.ResponseWriter, r catalogRequest) {
+		queries.Add(1)
+		assert.Contains(t, r.Query, "query AnthoLumeCatalogEditions")
+		assert.Equal(t, 2, strings.Count(r.Query, "image { id url }"))
+		fmt.Fprintf(w, `{"data":{"editions":[{"id":77,"image":{"id":12,"url":%q},"book":{"id":42,"title":"Book"}}]}}`, asset)
+	})
+	var art bytes.Buffer
+	require.NoError(t, jpeg.Encode(&art, image.NewGray(image.Rect(0, 0, 8, 12)), nil))
+	var requests int
+	c.assets.Transport = coverTransport(func(r *http.Request) (*http.Response, error) {
+		requests++
+		assert.Equal(t, asset, r.URL.String())
+		assert.Empty(t, r.Header.Get("Authorization"))
+		assert.Empty(t, r.Header.Get("Cookie"))
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(art.Bytes()))}, nil
+	})
+	match, err := c.ResolveMatcher(t.Context(), "42", "77", "")
+	require.NoError(t, err)
+	require.EqualValues(t, 12, *match.CoverID)
+	for _, invalid := range []string{"", "http://assets.hardcover.app/image", "https://assets.hardcover.app:443/image", "https://assets.hardcover.app.evil.example/image", "https://user@assets.hardcover.app/image"} {
+		_, err := c.CoverFromURL(t.Context(), invalid)
+		require.ErrorIs(t, err, metadata.ErrLookupCoverMissing)
+	}
+	require.Zero(t, requests)
+	got, err := c.CoverFromURL(t.Context(), match.CoverURL)
+	require.NoError(t, err)
+	require.Equal(t, art.Bytes(), got)
+	require.Equal(t, 1, requests)
+	require.EqualValues(t, 1, queries.Load())
+}
+
+func TestCatalogCoverLookupRateLimited(t *testing.T) {
+	c := testCatalog(t, func(w http.ResponseWriter, _ catalogRequest) {
+		w.WriteHeader(http.StatusTooManyRequests)
+	})
+	c.assets.Transport = coverTransport(func(_ *http.Request) (*http.Response, error) {
+		t.Error("a rate-limited image lookup must not download an asset")
+		return nil, ErrProvider
+	})
+	cover, err := c.Cover(t.Context(), 12)
+	require.ErrorIs(t, err, matcherquota.ErrLimited)
+	require.Nil(t, cover)
+}
+
+func TestCatalogCoverAssetCancellation(t *testing.T) {
+	c := testCatalog(t, func(w http.ResponseWriter, _ catalogRequest) {
+		fmt.Fprint(w, `{"data":{"images":[{"id":12,"url":"https://assets.hardcover.app/edition/77/cover"}]}}`)
+	})
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	c.assets.Transport = coverTransport(func(r *http.Request) (*http.Response, error) {
+		cancel()
+		return nil, r.Context().Err()
+	})
+	raw, err := c.Cover(ctx, 12)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, raw)
 }
 
 func TestCatalogCoverAssetDeadline(t *testing.T) {

@@ -18,6 +18,7 @@ type LookupMatch struct {
 	ID, Title, Author               string
 	Year                            *int
 	CoverID                         *int64
+	CoverURL                        string `json:"-"`
 	Description                     *string
 	EditionID, Publisher, Published *string
 	ISBN10, ISBN13                  *string

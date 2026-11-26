@@ -201,7 +201,12 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/BookMatcherWork'}
       responses:
-        '204': {description: 'Verified link saved, or identical link already present'}
+        '200':
+          description: Link and requested metadata changes committed together. An identical existing link returns an empty list without changing metadata.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BookMatcherConfirmation'}
+        '204': {description: 'Link-only confirmation: verified link saved, or identical link already present'}
         default: {$ref: '#/components/responses/Problem'}
     delete:
       operationId: unlinkBookMatch
@@ -1253,6 +1258,28 @@ components:
       required: [work_id]
       properties:
         work_id: {$ref: '#/components/schemas/MetadataWorkID'}
+        metadata_mode:
+          $ref: '#/components/schemas/BookMatcherMetadataMode'
+        edition_id:
+          $ref: '#/components/schemas/MetadataEditionID'
+        isbn:
+          description: Optional exact provider ISBN evidence. The edition must belong to the confirmed work and contain this ISBN.
+          type: string
+          pattern: '^([0-9]{13}|[0-9]{9}[0-9X])$'
+    BookMatcherMetadataMode:
+      description: Omit for link_only. The other modes apply only nonblank catalog values. ISBNs require a verified edition.
+      type: string
+      enum: [link_only, fill_missing, replace_fields]
+    BookMatcherChangedField:
+      type: string
+      enum: [title, author, description, isbn10, isbn13, cover]
+      x-enum-varnames: [BookMatcherChangedFieldTitle, BookMatcherChangedFieldAuthor, BookMatcherChangedFieldDescription, BookMatcherChangedFieldIsbn10, BookMatcherChangedFieldIsbn13, BookMatcherChangedFieldCover]
+    BookMatcherConfirmation:
+      type: object
+      additionalProperties: false
+      required: [changed_fields]
+      properties:
+        changed_fields: {type: array, maxItems: 6, uniqueItems: true, items: {$ref: '#/components/schemas/BookMatcherChangedField'}}
     BookMatcherLookupRequest:
       type: object
       additionalProperties: false

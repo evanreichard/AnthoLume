@@ -8,6 +8,8 @@ export type MatcherBook = S['Document'] & { matches: S['DocumentMatch'][] };
 export type MatcherPage = Omit<S['DocumentPage'], 'items'> & { items: MatcherBook[] };
 export type MatcherCandidate = S['BookMatcherCandidate'];
 export type MatcherLink = S['BookMatcherLink'];
+export type MatcherMetadataMode = S['BookMatcherMetadataMode'];
+export type MatcherSelection = Pick<MatcherCandidate, 'work_id' | 'edition_id' | 'isbn'>;
 export type MatcherResult = { document_id: string } & (
   { candidates: MatcherCandidate[] } | { error: string } | { match: MatcherLink }
 );

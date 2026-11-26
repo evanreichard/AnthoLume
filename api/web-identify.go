@@ -20,6 +20,7 @@ type catalogProvider interface {
 type hardcoverCatalogProvider interface {
 	catalogProvider
 	Cover(context.Context, int64) ([]byte, error)
+	CoverFromURL(context.Context, string) ([]byte, error)
 }
 
 func (api *API) catalogFor(provider MetadataProvider) (catalogProvider, error) {

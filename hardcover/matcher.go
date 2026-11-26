@@ -12,7 +12,7 @@ import (
 
 const matcherEditions = `query AnthoLumeMatcherEditions($where: editions_bool_exp!, $limit: Int!) {
   editions(where: $where, order_by: {id: asc}, limit: $limit) {
-    id isbn_10 isbn_13 book { id title release_year contributions(where: {contribution: {_eq: "Author"}}, limit: 8) { author { name } } }
+    id isbn_10 isbn_13 image { id url } book { id title release_year image { id url } contributions(where: {contribution: {_eq: "Author"}}, limit: 8) { author { name } } }
   }
 }`
 

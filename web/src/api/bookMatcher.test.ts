@@ -157,6 +157,47 @@ test('the matcher reads standard documents with associations for both providers'
   }
 });
 
+test('confirmation sends paired edition evidence only for metadata modes and validates actual changes', async () => {
+  const { account, api, fetch } = await matcherAPI();
+  const { work_id, edition_id, isbn } = candidate;
+  fetch.mockImplementationOnce(async (input) => {
+    if (!(input instanceof Request)) throw new Error('Expected Request');
+    expect(input.method).toBe('PUT');
+    expect(new URL(input.url).pathname).toBe('/api/v1/documents/book/matches/openlibrary');
+    expect(await input.json()).toEqual({ work_id, metadata_mode: 'fill_missing', edition_id, isbn });
+    return Response.json({ changed_fields: ['author', 'cover'] });
+  });
+  await expect(api.putMatcherLink(account, 'book', 'openlibrary', candidate, 'fill_missing')).resolves.toEqual({
+    changed_fields: ['author', 'cover'],
+  });
+  fetch.mockImplementationOnce(async (input) => {
+    if (!(input instanceof Request)) throw new Error('Expected Request');
+    expect(await input.json()).toEqual({ work_id });
+    return new Response(null, { status: 204 });
+  });
+  await expect(api.putMatcherLink(account, 'book', 'openlibrary', candidate)).resolves.toBeNull();
+  fetch.mockImplementationOnce(async (input) => {
+    if (!(input instanceof Request)) throw new Error('Expected Request');
+    expect(await input.json()).toEqual({ work_id, metadata_mode: 'replace_fields' });
+    return Response.json({ changed_fields: [] });
+  });
+  await expect(
+    api.putMatcherLink(account, 'book', 'openlibrary', { work_id, edition_id }, 'replace_fields'),
+  ).resolves.toEqual({
+    changed_fields: [],
+  });
+  for (const response of [
+    new Response(null, { status: 204 }),
+    Response.json({ changed_fields: ['title', 'title'] }),
+    Response.json({ changed_fields: ['unsupported'] }),
+  ]) {
+    fetch.mockResolvedValueOnce(response);
+    await expect(api.putMatcherLink(account, 'book', 'openlibrary', candidate, 'fill_missing')).rejects.toBeInstanceOf(
+      InvalidResponse,
+    );
+  }
+});
+
 test('the authenticated POST sends CSRF and account headers and guards every streamed outcome', async () => {
   const { account, api, fetch, gate, advanceEpoch } = await matcherAPI();
   fetch.mockImplementationOnce(async (input) => {

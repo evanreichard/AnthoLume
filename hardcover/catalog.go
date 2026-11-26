@@ -49,25 +49,26 @@ const catalogSearch = `query AnthoLumeCatalogSearch($q: String!) {
   search(query: $q` + catalogSearchArgs + `
 }`
 
-const catalogBookFields = `id title description release_year image { id } contributions(where: {contribution: {_eq: "Author"}}, limit: 20) { author { name } }`
+const catalogBookFields = `id title description release_year image { id url } contributions(where: {contribution: {_eq: "Author"}}, limit: 20) { author { name } }`
 const catalogWork = `query AnthoLumeCatalogWork($work: Int!) {
   books(where: {id: {_eq: $work}}, limit: 1) { ` + catalogBookFields + ` }
 }`
 
-const catalogEditionFields = `id isbn_10 isbn_13 release_date image { id } publisher { name } book { ` + catalogBookFields + ` }`
+const catalogEditionFields = `id isbn_10 isbn_13 release_date image { id url } publisher { name } book { ` + catalogBookFields + ` }`
 const catalogEditions = `query AnthoLumeCatalogEditions($where: editions_bool_exp!) {
   editions(where: $where, order_by: {id: asc}, limit: 8) { ` + catalogEditionFields + ` }
 }`
 
 type catalogImage struct {
-	ID int64 `json:"id"`
+	ID  int64  `json:"id"`
+	URL string `json:"url"`
 }
 
 const maxCatalogImageID int64 = 9999999999
 
 func (image catalogImage) cover(m *metadata.LookupMatch) {
 	if image.ID > 0 && image.ID <= maxCatalogImageID {
-		m.CoverID = &image.ID
+		m.CoverID, m.CoverURL = &image.ID, image.URL
 	}
 }
 

@@ -30,6 +30,10 @@ func (matcherEngineCatalog) Cover(context.Context, int64) ([]byte, error) {
 	return nil, errors.New("matcher does not fetch covers")
 }
 
+func (matcherEngineCatalog) CoverFromURL(context.Context, string) ([]byte, error) {
+	return nil, errors.New("matcher test did not expect an asset request")
+}
+
 func (c matcherEngineCatalog) LookupMatcherBatch(ctx context.Context, books []metadata.MatcherInput, emit func(string, []metadata.LookupMatch, error) error) error {
 	return c.lookup(ctx, books, emit)
 }
@@ -238,12 +242,16 @@ func TestMatcherEngineVerifiesThroughSelectedPacedCatalog(t *testing.T) {
 		}
 	}}
 	api := &API{hardcoverCatalog: catalog}
-	require.NoError(t, api.verifyMatcherLink(t.Context(), Hardcover, "42"))
+	verify := func(ctx context.Context, provider MetadataProvider, work string) error {
+		_, err := api.resolveMatcherLink(ctx, provider, work, "", "", true)
+		return err
+	}
+	require.NoError(t, verify(t.Context(), Hardcover, "42"))
 	require.Equal(t, "https://hardcover.app/id/book/42", matcherWorkURL(Hardcover, "42"))
-	require.ErrorContains(t, api.verifyMatcherLink(t.Context(), Hardcover, "43"), "invalid_request")
-	require.ErrorContains(t, api.verifyMatcherLink(t.Context(), Hardcover, "44"), "rate_limited")
-	require.ErrorContains(t, api.verifyMatcherLink(t.Context(), Openlibrary, "OL1W"), "metadata_unavailable")
+	require.ErrorContains(t, verify(t.Context(), Hardcover, "43"), "invalid_request")
+	require.ErrorContains(t, verify(t.Context(), Hardcover, "44"), "rate_limited")
+	require.ErrorContains(t, verify(t.Context(), Openlibrary, "OL1W"), "metadata_unavailable")
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	require.ErrorIs(t, api.verifyMatcherLink(ctx, Hardcover, "42"), context.Canceled)
+	require.ErrorIs(t, verify(ctx, Hardcover, "42"), context.Canceled)
 }

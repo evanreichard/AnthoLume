@@ -6,17 +6,19 @@ import {
   type MatcherBook,
   type MatcherCandidate,
   type MatcherLink,
+  type MatcherMetadataMode,
   type MatcherPage,
   type MatcherProvider,
 } from '../api/bookMatcher';
 import { matcherReturn, parseSort, type LibrarySort } from '../library';
 import { BookSortControl } from '../BookSortControl';
+import { invalidateBook } from '../catalogQueries';
 import { metadataProviderOptions } from '../metadataProviders';
 import { session, useSession } from '../session';
 import { BookInfo, CandidatePicker, ProviderPill, candidateProviders as providers } from '../CandidatePicker';
 import { BackPill, Button, Card, CircleAction, Pager } from '../Controls';
 import { Icon } from '../Icon';
-import { ReadingHTTPError, sameAccount, type Account } from '../reading';
+import { readCover, ReadingHTTPError, sameAccount, useReading, type Account } from '../reading';
 import { SkeletonRows } from '../Skeleton';
 import { useSnackbar } from '../Snackbar';
 import { PageHeader } from '../ui';
@@ -29,13 +31,10 @@ const metadataKey = (book: MatcherBook) => JSON.stringify([book.title, book.auth
 const rowKey = (provider: MatcherProvider, id: string) => JSON.stringify([provider, id]);
 const linkFor = (book: MatcherBook, provider: MatcherProvider) =>
   book.matches.find((match) => match.provider === provider);
-type Write = (
-  book: MatcherBook,
-  provider: MatcherProvider,
-  match: MatcherLink,
-  remove?: boolean,
-  undo?: boolean,
-) => Promise<boolean>;
+type LinkAction =
+  | { kind: 'confirm'; match: MatcherCandidate; mode: MatcherMetadataMode }
+  | { kind: 'unlink' | 'undo'; match: MatcherLink };
+type Write = (book: MatcherBook, provider: MatcherProvider, action: LinkAction) => Promise<boolean>;
 type Lookup = { metadata: string } & (
   { kind: 'searching' | 'error'; signal: AbortSignal } | { kind: 'ready'; candidates: MatcherCandidate[] }
 );
@@ -45,6 +44,7 @@ type PageControls = {
   account: Account;
   provider: MatcherProvider;
   data: MatcherPage;
+  mode: MatcherMetadataMode;
   lookups: ReadonlyMap<string, Lookup>;
   readLookup: (key: string) => Lookup | undefined;
   storeLookup: (key: string, value?: Lookup) => void;
@@ -78,6 +78,8 @@ export function BookMatcher() {
 
 function Matcher({ account, back }: { account: Account; back: ReactNode }) {
   const config = useQuery(metadataProviderOptions(account));
+  const reading = useReading();
+  const [mode, setMode] = useState<MatcherMetadataMode>('link_only');
   const [override, setProvider] = useState<MatcherProvider>();
   const provider =
     config.data &&
@@ -136,15 +138,16 @@ function Matcher({ account, back }: { account: Account; back: ReactNode }) {
     );
   }
 
-  async function write(book: MatcherBook, source: MatcherProvider, match: MatcherLink, remove = false, undo = false) {
+  async function write(book: MatcherBook, source: MatcherProvider, action: LinkAction) {
+    const { kind, match } = action;
     const key = rowKey(source, book.id);
-    if (writes.current.has(key)) return false;
+    if (writes.current.has(book.id)) return false;
     const currentAccount = () => {
       const access = session.getSnapshot().access;
       return access.kind === 'authenticated' && sameAccount(access.account, account);
     };
     if (!currentAccount()) return false;
-    writes.current.add(key);
+    writes.current.add(book.id);
     setBusy(new Set(writes.current));
     setErrors((current) => {
       const next = new Map(current);
@@ -152,42 +155,90 @@ function Matcher({ account, back }: { account: Account; back: ReactNode }) {
       return next;
     });
     try {
-      if (remove) await session.api.deleteMatcherLink(account, book.id, source, match.work_id);
-      else await session.api.putMatcherLink(account, book.id, source, match.work_id);
+      const result =
+        kind === 'unlink'
+          ? await session.api.deleteMatcherLink(account, book.id, source, match.work_id)
+          : await session.api.putMatcherLink(
+              account,
+              book.id,
+              source,
+              match,
+              kind === 'confirm' ? action.mode : 'link_only',
+            );
+      const changed = result?.changed_fields ?? [];
+      const metadataChanged = changed.length > 0;
       if (!currentAccount()) return false;
       await client.cancelQueries({
         queryKey: pagePrefix,
         predicate: (query) =>
-          (query.state.data as MatcherPage | undefined)?.items.some((item) => item.id === book.id) ??
-          query.state.fetchStatus === 'fetching',
+          metadataChanged ||
+          ((query.state.data as MatcherPage | undefined)?.items.some((item) => item.id === book.id) ??
+            query.state.fetchStatus === 'fetching'),
       });
       if (!currentAccount()) return false;
-      recordLink(book.id, source, remove ? null : match.work_id);
-      // Cold Pages - An interrupted first load has no cached links to patch and needs a fresh request.
-      void client.refetchQueries({
-        queryKey: pagePrefix,
-        type: 'active',
-        predicate: (query) => query.state.status === 'pending',
-      });
-      void client.invalidateQueries({ queryKey: ['document', { kind: 'server', account, documentId: book.id }] });
+      recordLink(book.id, source, kind === 'unlink' ? null : match.work_id);
+      const ref = { kind: 'server', account, documentId: book.id } as const;
+      if (metadataChanged) {
+        void invalidateBook(client, ref);
+      } else {
+        // Cold Pages - An interrupted first load has no cached links to patch.
+        void client.refetchQueries({
+          queryKey: pagePrefix,
+          type: 'active',
+          predicate: (query) => query.state.status === 'pending',
+        });
+        void client.invalidateQueries({ queryKey: ['document', ref] });
+      }
       const name = providers[source].name;
+      const linked = `Linked ${book.title} to ${name}`;
+      const summary = !result
+        ? ''
+        : !metadataChanged
+          ? ' · No metadata changes'
+          : ` · ${changed.length} ${changed.length === 1 ? 'field' : 'fields'} ${kind === 'confirm' && action.mode === 'fill_missing' ? 'filled' : 'updated'}`;
       show(
-        remove
+        kind === 'unlink'
           ? {
               message: `Unlinked ${book.title} from ${name}.`,
-              action: { label: 'Undo', onClick: () => void write(book, source, match, false, true) },
+              action: { label: 'Undo', onClick: () => void write(book, source, { kind: 'undo', match }) },
             }
-          : { message: `Linked ${book.title} to ${name}.` },
+          : { message: `${linked}${summary}.` },
       );
-      return true;
+      if (
+        changed.some((field) => field === 'title' || field === 'author' || field === 'cover') &&
+        reading.books.some(
+          (stored) =>
+            stored.ref.kind === 'server' &&
+            stored.ref.documentId === book.id &&
+            sameAccount(stored.ref.account, account),
+        )
+      ) {
+        try {
+          const signal = AbortSignal.timeout(8000);
+          const [document, cover] = await Promise.all([
+            session.api.document(account, book.id, signal),
+            changed.includes('cover')
+              ? session.api.bridge
+                  .fetchCover(account, book.id, signal)
+                  .then((response) => readCover(response, signal))
+                  .catch(() => undefined)
+              : undefined,
+          ]);
+          if (currentAccount())
+            await reading.updateDownloadMetadata(ref, { title: document.title, author: document.author }, cover);
+        } catch {
+          // Local Copy - A cache refresh failure does not undo the committed server change.
+        }
+      }
+      return currentAccount();
     } catch (error) {
       if (!currentAccount()) return false;
-      const conflict = error instanceof ReadingHTTPError && error.status === 409;
+      const conflict = error instanceof ReadingHTTPError && error.problem.code === 'book_match_changed';
       const message = conflict
         ? 'The match changed.'
-        : undo
+        : kind === 'undo'
           ? 'Could Not Restore Link'
-          : remove
+          : kind === 'unlink'
             ? 'Could Not Unlink'
             : 'Could Not Link';
       const retry = conflict
@@ -200,13 +251,18 @@ function Matcher({ account, back }: { account: Account; back: ReactNode }) {
             storeLookup(key);
             void client.invalidateQueries({ queryKey: pagePrefix }).then(() => setRevision((value) => value + 1));
           }
-        : () => void write(book, source, match, remove, undo);
+        : () => void write(book, source, action);
       setErrors((current) => new Map(current).set(key, { message, retry }));
-      if (undo || viewed.current.provider !== source || viewed.current.page !== page || viewed.current.sort !== sort)
+      if (
+        kind === 'undo' ||
+        viewed.current.provider !== source ||
+        viewed.current.page !== page ||
+        viewed.current.sort !== sort
+      )
         show({ message, tone: 'error', action: { label: 'Retry', onClick: retry } });
       return false;
     } finally {
-      writes.current.delete(key);
+      writes.current.delete(book.id);
       if (currentAccount()) setBusy(new Set(writes.current));
     }
   }
@@ -235,6 +291,8 @@ function Matcher({ account, back }: { account: Account; back: ReactNode }) {
             provider={provider}
             hardcoverAvailable={!!config.data?.hardcover_available}
             onProviderChange={setProvider}
+            mode={mode}
+            onModeChange={setMode}
           />
         </header>
         {config.isError && !config.data && (
@@ -269,6 +327,7 @@ function Matcher({ account, back }: { account: Account; back: ReactNode }) {
             account={account}
             provider={provider}
             data={documents.data}
+            mode={mode}
             lookups={lookups}
             readLookup={(key) => latestLookups.current.get(key)}
             storeLookup={storeLookup}
@@ -288,6 +347,7 @@ function Page({
   account,
   provider,
   data,
+  mode,
   lookups,
   readLookup,
   storeLookup,
@@ -298,8 +358,10 @@ function Page({
   recordLink,
 }: PageControls) {
   const page = data.page;
+  const pageMetadata = JSON.stringify(data.items.map((book) => [book.id, metadataKey(book)]));
   const request = useRef<AbortController | null>(null);
   const [focusRequest, setFocusRequest] = useState<{ bookId: string } | null>(null);
+  const [selections, setSelections] = useState<ReadonlyMap<string, string>>(() => new Map());
   const table = useRef<HTMLTableElement>(null);
 
   useLayoutEffect(() => {
@@ -346,16 +408,18 @@ function Page({
     void search(
       data.items.filter((book) => {
         const key = rowKey(provider, book.id);
-        if (linkFor(book, provider) || saving.has(key)) return false;
+        if (linkFor(book, provider)) return false;
         const cached = readLookup(key);
-        return cached?.kind !== 'ready' || cached.metadata !== metadataKey(book);
+        return (
+          !cached || cached.metadata !== metadataKey(book) || (cached.kind !== 'ready' && cached.signal !== signal)
+        );
       }),
       signal,
     );
   });
   useEffect(() => {
     searchPage();
-  }, []);
+  }, [pageMetadata]);
 
   useLayoutEffect(() => {
     if (!focusRequest) return;
@@ -363,17 +427,24 @@ function Page({
     row?.querySelector<HTMLElement>('[data-match-value]')?.focus({ preventScroll: true });
   }, [focusRequest]);
 
-  async function changeLink(book: MatcherBook, match: MatcherLink, remove = false) {
+  async function changeLink(book: MatcherBook, action: LinkAction) {
     const signal = request.current!.signal;
-    if (!signal.aborted && (await write(book, provider, match, remove)) && !signal.aborted)
+    if (!signal.aborted && (await write(book, provider, action)) && !signal.aborted) {
+      setSelections((current) => {
+        if (!current.has(book.id)) return current;
+        const next = new Map(current);
+        next.delete(book.id);
+        return next;
+      });
       setFocusRequest({ bookId: book.id });
+    }
   }
 
   function lookup(book: MatcherBook) {
     const signal = request.current?.signal;
     const key = rowKey(provider, book.id);
     const pending = readLookup(key);
-    if (signal && !saving.has(key) && !(pending?.kind === 'searching' && pending.signal === signal))
+    if (signal && !saving.has(book.id) && !(pending?.kind === 'searching' && pending.signal === signal))
       void search([book], signal);
   }
 
@@ -401,12 +472,15 @@ function Page({
                 (lookupState.kind === 'ready' || !lookupState.signal.aborted)
                   ? lookupState
                   : undefined;
-              const best = result?.kind === 'ready' ? result.candidates[0] : undefined;
-              const busy = saving.has(key);
+              const selection = selections.get(book.id);
+              const selected =
+                result?.kind === 'ready'
+                  ? (result.candidates.find((candidate) => candidate.work_id === selection) ?? result.candidates[0])
+                  : undefined;
+              const busy = saving.has(book.id);
               const reference = linkFor(book, provider);
               const match = reference && matcherLink(provider, reference.work_id);
               const failure = errors.get(key);
-              const save = (candidate: MatcherCandidate) => void changeLink(book, candidate);
               return (
                 <tr key={book.id} data-book-id={book.id}>
                   <th scope="row">
@@ -419,15 +493,17 @@ function Page({
                     {match ? (
                       <ProviderPill provider={provider} match={match} matchValue />
                     ) : result?.kind === 'ready' ? (
-                      best ? (
+                      selected ? (
                         <CandidatePicker
                           label={`Choose Match: ${book.title}`}
                           groupLabel={`Matches for ${book.title}`}
                           candidates={result.candidates}
-                          selected={best}
+                          selected={selected}
                           provider={provider}
                           disabled={busy}
-                          onChoose={save}
+                          onChoose={(candidate) =>
+                            setSelections((current) => new Map(current).set(book.id, candidate.work_id))
+                          }
                         />
                       ) : (
                         <span className={styles.noMatch}>No Match</span>
@@ -471,16 +547,16 @@ function Page({
                         icon="close"
                         label={`Unlink ${book.title} from ${providers[provider].name}`}
                         disabled={busy}
-                        onClick={() => void changeLink(book, match, true)}
+                        onClick={() => void changeLink(book, { kind: 'unlink', match })}
                       />
                     ) : (
-                      best && (
+                      selected && (
                         <CircleAction
                           emphasized
                           icon="check"
                           label={`Confirm Match for ${book.title}`}
                           disabled={busy}
-                          onClick={() => save(best)}
+                          onClick={() => void changeLink(book, { kind: 'confirm', match: selected, mode })}
                         />
                       )
                     )}

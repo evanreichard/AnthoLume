@@ -49,28 +49,48 @@ func matcherWorkURL(provider MetadataProvider, workID string) string {
 	}
 }
 
-func (api *API) verifyMatcherLink(ctx context.Context, provider MetadataProvider, workID string) error {
+func (api *API) resolveMatcherLink(ctx context.Context, provider MetadataProvider, workID, edition, isbn string, linkOnly bool) (metadata.LookupMatch, error) {
 	if err := ctx.Err(); err != nil {
-		return err
+		return metadata.LookupMatch{}, err
+	}
+	if isbn != "" && !metadata.ValidMatcherISBN(isbn) {
+		return metadata.LookupMatch{}, metadataLookupFailure(metadata.ErrInvalidLookupMatch)
 	}
 	catalog, err := api.matcherCatalogFor(provider)
 	if err != nil {
-		return err
+		return metadata.LookupMatch{}, err
 	}
-	match, err := catalog.ResolveMatcher(ctx, workID, "", "")
+	var match metadata.LookupMatch
+	if verifier, ok := catalog.(interface {
+		VerifyMatcherWork(context.Context, string) error
+	}); linkOnly && ok {
+		err = verifier.VerifyMatcherWork(ctx, workID)
+		match.ID = workID
+	} else {
+		match, err = catalog.ResolveMatcher(ctx, workID, edition, isbn)
+	}
 	if ctx.Err() != nil {
-		return ctx.Err()
+		return metadata.LookupMatch{}, ctx.Err()
 	}
 	if errors.Is(err, matcherquota.ErrLimited) {
-		return &reading.Failure{Status: http.StatusTooManyRequests, Code: "rate_limited"}
+		return metadata.LookupMatch{}, &reading.Failure{Status: http.StatusTooManyRequests, Code: "rate_limited"}
 	}
 	if err != nil {
-		return metadataLookupFailure(err)
+		return metadata.LookupMatch{}, metadataLookupFailure(err)
 	}
-	if match.ID != workID || workID == "" {
-		return metadataLookupFailure(metadata.ErrInvalidLookupMatch)
+	resolvedEdition := matchParam(match.EditionID)
+	if match.ID != workID || workID == "" ||
+		edition != "" && resolvedEdition != edition ||
+		isbn != "" && (resolvedEdition == "" || isbn != matchParam(match.ISBN10) && isbn != matchParam(match.ISBN13)) {
+		return metadata.LookupMatch{}, metadataLookupFailure(metadata.ErrInvalidLookupMatch)
 	}
-	return nil
+	if edition == "" && isbn == "" {
+		match.ISBN10, match.ISBN13 = nil, nil
+		if resolvedEdition != "" {
+			match.CoverID, match.CoverURL = nil, ""
+		}
+	}
+	return match, nil
 }
 
 type matcherKey struct {

@@ -101,6 +101,10 @@ func TestWebMetadataProviderSelectionAndTokenRemoval(t *testing.T) {
 
 type identifyCatalogFixture struct{}
 
+func (identifyCatalogFixture) CoverFromURL(context.Context, string) ([]byte, error) {
+	return nil, metadata.ErrLookupCoverMissing
+}
+
 func (identifyCatalogFixture) Cover(_ context.Context, id int64) ([]byte, error) {
 	if id == 123 {
 		return []byte("fixture cover"), nil

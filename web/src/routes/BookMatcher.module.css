@@ -28,14 +28,6 @@
   gap: 5px;
   white-space: nowrap;
 }
-.linkPreview {
-  inline-size: 100%;
-  contain: inline-size;
-  margin-top: 4px;
-  text-align: end;
-  color: var(--muted);
-  line-height: 1.3;
-}
 .feedback {
   display: flex;
   align-items: center;

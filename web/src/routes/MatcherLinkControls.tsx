@@ -1,5 +1,5 @@
-import { useId, useState } from 'react';
-import type { MatcherProvider } from '../api/bookMatcher';
+import { useState } from 'react';
+import type { MatcherMetadataMode, MatcherProvider } from '../api/bookMatcher';
 import { candidateProviders as providers } from '../CandidatePicker';
 import { ChoicePopover, type ChoiceDisclosure } from '../ChoicePopover';
 import { JoinedActions } from '../Controls';
@@ -7,9 +7,9 @@ import { Icon } from '../Icon';
 import styles from './BookMatcher.module.css';
 
 const linkModes = [
-  { value: 'link', label: 'Link Only', description: 'Save the provider link without editing the book.' },
-  { value: 'fill', label: 'Fill Missing', description: 'Fill blank fields and keep existing values.' },
-  { value: 'replace', label: 'Replace Fields', description: 'Update fields when the provider has a value.' },
+  { value: 'link_only', label: 'Link Only', description: 'Save the provider link without editing the book.' },
+  { value: 'fill_missing', label: 'Fill Missing', description: 'Fill blank fields and keep existing values.' },
+  { value: 'replace_fields', label: 'Replace Fields', description: 'Update fields when the provider has a value.' },
 ] as const;
 const providerOptions = ['openlibrary', 'hardcover'] as const;
 
@@ -17,15 +17,16 @@ export function MatcherLinkControls({
   provider,
   hardcoverAvailable,
   onProviderChange,
+  mode,
+  onModeChange,
 }: {
   provider?: MatcherProvider;
   hardcoverAvailable: boolean;
   onProviderChange: (provider: MatcherProvider) => void;
+  mode: MatcherMetadataMode;
+  onModeChange: (mode: MatcherMetadataMode) => void;
 }) {
-  const [mode, setMode] = useState<(typeof linkModes)[number]['value']>('link');
   const [open, setOpen] = useState<'provider' | 'mode' | null>(null);
-  const previewId = useId();
-  const preview = mode !== 'link';
   const modeLabel = linkModes.find((option) => option.value === mode)?.label;
   function disclosure(name: NonNullable<typeof open>): ChoiceDisclosure {
     return {
@@ -74,7 +75,6 @@ export function MatcherLinkControls({
           presentation="joined"
           label="Linking Options"
           triggerLabel={`When Linking: ${modeLabel}`}
-          descriptionId={preview ? previewId : undefined}
           trigger={
             <>
               <Icon name="link" size={17} />
@@ -85,17 +85,12 @@ export function MatcherLinkControls({
           options={linkModes}
           value={mode}
           onChange={(value) => {
-            setMode(value);
+            onModeChange(value);
             setOpen(null);
           }}
           disclosure={disclosure('mode')}
         />
       </JoinedActions>
-      {preview && (
-        <small className={styles.linkPreview} id={previewId} role="status">
-          Preview only: confirming a link won’t change book metadata.
-        </small>
-      )}
     </div>
   );
 }

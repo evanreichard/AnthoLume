@@ -123,12 +123,17 @@ func (api *API) documentDTOAtRoot(d database.Document, root string) Document {
 			}
 		}
 	}
-	if path, err := api.coverPath(d); err == nil {
-		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
-			out.CoverAvailable = true
-		}
-	}
+	out.CoverAvailable = api.documentCoverAvailable(d)
 	return out
+}
+
+func (api *API) documentCoverAvailable(d database.Document) bool {
+	path, err := api.coverPath(d)
+	if err != nil {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
 }
 
 type fileResponse struct {
