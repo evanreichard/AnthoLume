@@ -224,17 +224,19 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   });
   await page.route('**/api/v1/metadata/search?*', (route) => {
     const q = new URL(route.request().url()).searchParams.get('q');
-    expect(['no catalog result', 'manual alternate']).toContain(q);
-    return route.fulfill({ json: q === 'manual alternate' ? [alternate] : [] });
+    expect(['no catalog result', isbn13]).toContain(q);
+    return route.fulfill({ json: q === isbn13 ? [{ ...alternate, edition_id: 'OL99M' }] : [] });
   });
-  const alternateMatch = { provider: alternate.provider, work_id: alternate.id };
+  const alternateMatch = { provider: alternate.provider, work_id: alternate.id, isbn: isbn13 };
   const previews: object[] = [];
   await page.route('**/api/v1/metadata/match?*', async (route) => {
     const params = Object.fromEntries(new URL(route.request().url()).searchParams);
     previews.push(params);
     if (params.work_id === alternate.id) {
       expect(params).toEqual(alternateMatch);
-      return route.fulfill({ json: { ...alternate, description: 'Verified alternate synopsis.' } });
+      return route.fulfill({
+        json: { ...alternate, edition_id: 'OL4M', isbn13, description: 'Verified alternate synopsis.' },
+      });
     }
     expect(params).toEqual(match);
     await previewGate;
@@ -374,7 +376,7 @@ test('book editor previews metadata without saving, saves cover and fields, and 
   await field('Title').click();
   await pick.click();
   const manual = results.getByRole('button', { name: /Manual alternate/ });
-  for (const query of ['no catalog result', 'manual alternate']) {
+  for (const query of ['no catalog result', isbn13]) {
     await search.fill(query);
     if (query === 'no catalog result') {
       await search.press('Enter');

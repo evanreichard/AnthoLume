@@ -297,7 +297,12 @@ export function IdentifyBook({
       const isbn = normalizedISBN(text);
       const results = await session.api.lookupMetadata(refId.account, isbn ?? text, signal);
       signal.throwIfAborted();
-      setManual(results.map((result) => candidateFor(result, isbn)));
+      // ISBN Search - Open Library's search edition identifies the work's cover, not necessarily the queried ISBN.
+      setManual(
+        results.map((result) =>
+          candidateFor(isbn && result.provider === 'openlibrary' ? { ...result, edition_id: undefined } : result, isbn),
+        ),
+      );
     });
   }
 
