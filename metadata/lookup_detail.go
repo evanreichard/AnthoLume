@@ -165,14 +165,14 @@ type openLibraryEdition struct {
 func readOpenLibraryEdition(ctx context.Context, client matcherquota.Doer, base, edition, isbn string) (openLibraryEdition, error) {
 	var ed openLibraryEdition
 	path := "/books/" + edition + ".json"
-	if isbn != "" {
+	if edition == "" {
 		path = "/isbn/" + isbn + ".json"
 	}
 	if err := readLookupRecord(ctx, client, base, path, &ed); err != nil {
 		return ed, err
 	}
 	ed.ID = strings.TrimPrefix(ed.Key, "/books/")
-	if !editionID.MatchString(ed.ID) || isbn == "" && ed.ID != edition {
+	if !editionID.MatchString(ed.ID) || edition != "" && ed.ID != edition {
 		return ed, ErrInvalidLookupMatch
 	}
 	return ed, nil
