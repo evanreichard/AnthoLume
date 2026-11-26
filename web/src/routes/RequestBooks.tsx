@@ -256,19 +256,25 @@ function BookDescription({ text }: { text: string }) {
   );
 }
 
-function updateCachedRequests(client: QueryClient, account: Account, saved: ShelfmarkRelease[]) {
+function updateCachedRequests(
+  client: QueryClient,
+  account: Account,
+  kind: 'releases' | 'release-history',
+  saved: ShelfmarkRelease[],
+) {
   const requests = new Map(saved.map((row) => [row.key, row.request]));
-  client.setQueriesData<ShelfmarkReleases>(
-    { queryKey: shelfmarkKey(account, 'releases') },
-    (current) =>
-      current && {
-        ...current,
-        releases: current.releases.map((row) => {
-          const request = requests.get(row.key);
-          return request && (!row.request || row.request.state === 'unconfirmed') ? { ...row, request } : row;
-        }),
-      },
-  );
+  client.setQueriesData<ShelfmarkReleases>({ queryKey: shelfmarkKey(account, kind) }, (current) => {
+    if (!current) return;
+    let changed = false;
+    const releases = current.releases.map((row) => {
+      const request = requests.get(row.key);
+      if (!request || row.request?.state === request.state) return row;
+      if (row.request && row.request.state !== 'unconfirmed') return row;
+      changed = true;
+      return { ...row, request };
+    });
+    return changed ? { ...current, releases } : undefined;
+  });
 }
 
 function ReleaseDialog({
@@ -289,10 +295,14 @@ function ReleaseDialog({
   const releases = useQuery({
     queryKey: key,
     queryFn: async ({ signal }): Promise<ShelfmarkReleases> => {
-      if (!history) return session.api.shelfmarkReleases(account, book.provider, book.id, signal);
-      const saved = await session.api.shelfmarkReleaseHistory(account, book.provider, book.id, signal);
-      updateCachedRequests(client, account, saved);
-      return { releases: saved, partial: false };
+      const result = history
+        ? {
+            releases: await session.api.shelfmarkReleaseHistory(account, book.provider, book.id, signal),
+            partial: false,
+          }
+        : await session.api.shelfmarkReleases(account, book.provider, book.id, signal);
+      updateCachedRequests(client, account, history ? 'releases' : 'release-history', result.releases);
+      return result;
     },
     ...(history ? {} : { staleTime: Infinity, gcTime: Infinity }),
     refetchOnWindowFocus: false,
@@ -392,7 +402,7 @@ function ReleaseRow({
           bookKey(row) === bookKey(book) ? { ...row, request_count: Math.max(row.request_count, request_count) } : row,
         ),
       );
-      updateCachedRequests(client, account, [saved]);
+      updateCachedRequests(client, account, 'releases', [saved]);
       show({ message: `${releaseStatus(saved.request.state)} · ${saved.title}` });
     },
     onSettled: () => {

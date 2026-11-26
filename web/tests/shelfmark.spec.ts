@@ -213,6 +213,48 @@ test('Settings, explicit release selection and shared request history work acros
   expect(submissions).toEqual([illustrated.key]);
 });
 
+test('Reopening cached History reflects the outcome already seen in Search', async ({ page, server }) => {
+  await register(page, server.origin, 'history-reader');
+  await page.setViewportSize({ width: 1280, height: 844 });
+  const book = { ...dune, has_cover: false, request_count: 1 };
+  const row = { ...paperback, request: { username: 'alex', requested_at, state: 'unconfirmed' } };
+  await page.route('**/api/v1/shelfmark/settings', (route) =>
+    route.fulfill({ json: { configured: true, enabled: true } }),
+  );
+  await page.route('**/api/v1/shelfmark/requests?*', (route) => route.fulfill({ json: [book] }));
+  await page.route('**/api/v1/shelfmark/search?*', (route) => route.fulfill({ json: [book] }));
+  let historyReads = 0,
+    releaseLookups = 0;
+  await page.route('**/api/v1/shelfmark/requests/releases?*', (route) => {
+    historyReads++;
+    return route.fulfill({ json: [row] });
+  });
+  await page.route('**/api/v1/shelfmark/releases?*', (route) => {
+    releaseLookups++;
+    return route.fulfill({ json: { releases: [row], partial: false } });
+  });
+  await page.goto(`${server.origin}/request`);
+  const historyBook = page
+    .getByRole('region', { name: 'Request History' })
+    .getByRole('button', { name: 'Dune', exact: true });
+  const dialog = page.getByRole('dialog');
+  const close = dialog.getByRole('button', { name: 'Close Dialog' });
+  const queued = dialog.getByRole('button', { name: `Queued ${paperback.title}` });
+  await historyBook.click();
+  await expect(dialog.getByRole('button', { name: `Unconfirmed ${paperback.title}` })).toBeDisabled();
+  await close.click();
+  row.request.state = 'queued';
+  const search = page.getByRole('searchbox');
+  await search.fill('Dune');
+  await search.press('Enter');
+  await page.getByRole('group', { name: 'Search Results' }).getByRole('button', { name: 'Dune', exact: true }).click();
+  await expect(queued).toBeDisabled();
+  await close.click();
+  await historyBook.click();
+  await expect(queued).toBeDisabled();
+  expect([historyReads, releaseLookups]).toEqual([1, 1]);
+});
+
 test('A failed release lookup is retryable, and invalid selections never queue automatically', async ({
   page,
   server,
