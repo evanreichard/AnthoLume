@@ -180,18 +180,10 @@ func (s *webAPI) GetMetadataCover(ctx context.Context, r GetMetadataCoverRequest
 	} else if err := s.api.checkMetadataProvider(reqCtx, s.api.db.Queries, provider); err != nil {
 		return nil, err
 	}
-	var raw []byte
-	var err error
-	switch provider {
-	case Hardcover:
-		if s.api.hardcoverCatalog == nil {
-			return nil, &reading.Failure{Status: 503, Code: "metadata_unavailable"}
-		}
-		raw, err = s.api.hardcoverCatalog.Cover(reqCtx, r.CoverId)
-	case Openlibrary:
-		raw, err = metadata.LookupOpenLibraryCover(reqCtx, r.CoverId, r.Params.PreferLarge != nil && *r.Params.PreferLarge)
-	default:
-		return nil, &reading.Failure{Status: 400, Code: "invalid_request"}
+	raw, err := s.api.fetchMetadataCover(reqCtx, provider, r.CoverId)
+	var problem *reading.Failure
+	if errors.As(err, &problem) {
+		return nil, problem
 	}
 	if errors.Is(err, metadata.ErrLookupCoverMissing) {
 		return nil, &reading.Failure{Status: 404, Code: "not_found"}

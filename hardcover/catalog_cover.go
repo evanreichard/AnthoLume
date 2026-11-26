@@ -3,6 +3,7 @@ package hardcover
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/color"
 	"image/draw"
@@ -15,6 +16,7 @@ import (
 
 	xdraw "golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
+	"reichard.io/antholume/matcherquota"
 	"reichard.io/antholume/metadata"
 )
 
@@ -29,22 +31,43 @@ const (
 )
 
 func (c *Catalog) Cover(ctx context.Context, id int64) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if id < 1 || id > maxCatalogImageID {
 		return nil, metadata.ErrLookupCoverMissing
 	}
 	var data struct {
-		Images []struct {
-			ID  int64  `json:"id"`
-			URL string `json:"url"`
-		} `json:"images"`
+		Images []catalogImage `json:"images"`
 	}
-	if err := c.query(ctx, catalogImageQuery, map[string]any{"id": id}, &data); err != nil || data.Images == nil {
+	err := c.query(ctx, catalogImageQuery, map[string]any{"id": id}, &data)
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	if err != nil {
+		return nil, err
+	}
+	if data.Images == nil {
 		return nil, ErrProvider
 	}
 	if len(data.Images) != 1 || data.Images[0].ID != id {
 		return nil, metadata.ErrLookupCoverMissing
 	}
-	u, err := url.Parse(data.Images[0].URL)
+	return c.downloadCover(ctx, data.Images[0].URL)
+}
+
+func (c *Catalog) CoverFromMatch(ctx context.Context, match metadata.LookupMatch) ([]byte, error) {
+	if match.CoverID == nil {
+		return nil, metadata.ErrLookupCoverMissing
+	}
+	return c.downloadCover(ctx, match.CoverURL)
+}
+
+func (c *Catalog) downloadCover(ctx context.Context, resolvedURL string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	u, err := url.Parse(resolvedURL)
 	if err != nil || u.Scheme != "https" || !strings.EqualFold(u.Host, "assets.hardcover.app") || u.User != nil || u.Fragment != "" {
 		return nil, metadata.ErrLookupCoverMissing
 	}
@@ -58,26 +81,41 @@ func (c *Catalog) Cover(ctx context.Context, id int64) ([]byte, error) {
 	req.Header.Set("Accept", "image/jpeg, image/png, image/webp")
 	res, err := c.assets.Do(req)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return nil, ErrProvider
 	}
 	defer res.Body.Close()
-	if res.StatusCode == http.StatusNotFound || res.StatusCode == http.StatusGone || res.StatusCode >= 300 && res.StatusCode < 400 {
-		return nil, metadata.ErrLookupCoverMissing
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-	if res.StatusCode != http.StatusOK {
+	switch {
+	case res.StatusCode == http.StatusTooManyRequests:
+		return nil, errors.Join(ErrProvider, matcherquota.ErrLimited)
+	case res.StatusCode == http.StatusNotFound || res.StatusCode == http.StatusGone || res.StatusCode >= 300 && res.StatusCode < 400:
+		return nil, metadata.ErrLookupCoverMissing
+	case res.StatusCode != http.StatusOK:
 		return nil, ErrProvider
 	}
 	if res.ContentLength > maxCoverSource {
 		return nil, metadata.ErrLookupCoverMissing
 	}
 	raw, err := io.ReadAll(io.LimitReader(res.Body, maxCoverSource+1))
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	if err != nil {
 		return nil, ErrProvider
 	}
 	if len(raw) > maxCoverSource {
 		return nil, metadata.ErrLookupCoverMissing
 	}
-	return coverJPEG(raw)
+	cover, err := coverJPEG(raw)
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	return cover, err
 }
 
 func coverJPEG(raw []byte) ([]byte, error) {

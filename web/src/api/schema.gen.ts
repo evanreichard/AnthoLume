@@ -1036,6 +1036,20 @@ export interface components {
         };
         BookMatcherWork: {
             work_id: components["schemas"]["MetadataWorkID"];
+            metadata_mode?: components["schemas"]["BookMatcherMetadataMode"];
+            edition_id?: components["schemas"]["MetadataEditionID"];
+            /** @description Optional exact provider ISBN evidence. The edition must belong to the confirmed work and contain this ISBN. */
+            isbn?: string;
+        };
+        /**
+         * @description Omit for link_only. The other modes apply only nonblank catalog values. ISBNs require a verified edition.
+         * @enum {string}
+         */
+        BookMatcherMetadataMode: "link_only" | "fill_missing" | "replace_fields";
+        /** @enum {string} */
+        BookMatcherChangedField: "title" | "author" | "description" | "isbn10" | "isbn13" | "cover";
+        BookMatcherConfirmation: {
+            changed_fields: components["schemas"]["BookMatcherChangedField"][];
         };
         BookMatcherLookupRequest: {
             provider: components["schemas"]["MetadataProvider"];
@@ -1629,7 +1643,16 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Verified link saved, or identical link already present */
+            /** @description Link and requested metadata changes committed together. An identical existing link returns an empty list without changing metadata. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookMatcherConfirmation"];
+                };
+            };
+            /** @description Link-only confirmation: verified link saved, or identical link already present */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -1777,8 +1800,6 @@ export interface operations {
                 document_id?: components["schemas"]["ID"];
                 /** @description Expected confirmed work ID. Supply together with provider and document_id. */
                 work_id?: components["schemas"]["MetadataWorkID"];
-                /** @description For Open Library try the large cover before medium. */
-                prefer_large?: boolean;
             };
             header?: never;
             path: {
@@ -1788,7 +1809,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Cover artwork from the selected catalog provider */
+            /** @description Cover artwork from the selected catalog provider. Open Library falls back to medium only when large artwork is missing or unusable. */
             200: {
                 headers: {
                     [name: string]: unknown;

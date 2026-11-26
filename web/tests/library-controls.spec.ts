@@ -11,10 +11,18 @@ test('Library searches for literal all and Book Detail returns to the filtered L
   await expect(page.getByText('No matching books.', { exact: false })).toBeVisible();
 
   await search.fill('Public book 01');
-  await page.getByRole('button', { name: 'Sort Books', exact: true }).click();
-  const sort = page.getByRole('dialog', { name: 'Sort Books' });
-  await sort.press('Escape');
-  await expect(sort).toHaveCount(0);
+  const trigger = page.getByRole('button', { name: 'Sort Books', exact: true });
+  const sort = page.getByRole('group', { name: 'Sort Books', exact: true });
+  await trigger.click();
+  await page.keyboard.press('Tab');
+  await expect(sort.getByRole('button', { name: 'Title A–Z', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(sort).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await search.click();
+  await expect(sort).toBeHidden();
+  await expect(search).toBeFocused();
   await expect(search).toHaveValue('Public book 01');
   await search.press('Enter');
   await expect(page).toHaveURL(/q=Public\+book\+01$/);

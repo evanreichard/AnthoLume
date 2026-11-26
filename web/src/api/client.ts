@@ -3,12 +3,19 @@ import { createTransport } from './transport';
 import {
   matcherLookupRequest,
   readMatcherResults,
+  type MatcherMetadataMode,
   type MatcherPage,
   type MatcherProvider,
   type MatcherResult,
+  type MatcherSelection,
 } from './bookMatcher';
 import type { paths, components, operations } from './schema.gen';
-import { checkHardcoverConnect, checkHardcoverShelf, checkHardcoverStatus } from './guards.gen.js';
+import {
+  checkBookMatcherConfirmation,
+  checkHardcoverConnect,
+  checkHardcoverShelf,
+  checkHardcoverStatus,
+} from './guards.gen.js';
 import type { LibrarySort } from '../library';
 import { ReadingHTTPError, type Account, type ReadingBridge } from '../reading';
 import {
@@ -50,15 +57,9 @@ type S = components['schemas'];
 
 type LinkedCover = { document_id: string; work_id: string };
 
-export function metadataCoverURL(
-  provider: S['MetadataProvider'],
-  id: number,
-  preferLarge = false,
-  linked?: LinkedCover,
-) {
+export function metadataCoverURL(provider: S['MetadataProvider'], id: number, linked?: LinkedCover) {
   const query = new URLSearchParams();
   if (linked || provider !== 'openlibrary') query.set('provider', provider);
-  if (preferLarge) query.set('prefer_large', 'true');
   if (linked) {
     query.set('document_id', linked.document_id);
     query.set('work_id', linked.work_id);
@@ -479,18 +480,26 @@ export function createAPI(gate: SessionGate) {
       };
     },
     matcherLookups,
-    putMatcherLink: (account: Account, id: string, provider: MatcherProvider, work_id: string) =>
-      consume(
-        (client) =>
-          client.PUT('/api/v1/documents/{id}/matches/{provider}', {
-            params: { path: { id, provider } },
-            body: { work_id },
-            parseAs: 'stream',
-          }),
-        (value): value is null => value === null,
-        204,
-        account,
-      ),
+    putMatcherLink: async (
+      account: Account,
+      id: string,
+      provider: MatcherProvider,
+      { work_id, edition_id, isbn }: MatcherSelection,
+      mode: MatcherMetadataMode = 'link_only',
+    ) => {
+      const body: S['BookMatcherWork'] = {
+        work_id,
+        ...(mode !== 'link_only' && { metadata_mode: mode, ...(edition_id && isbn && { edition_id, isbn }) }),
+      };
+      const put = (client: ReturnType<typeof scopedClient>) =>
+        client.PUT('/api/v1/documents/{id}/matches/{provider}', {
+          params: { path: { id, provider } },
+          body,
+          parseAs: 'stream',
+        });
+      if (mode === 'link_only') return consume(put, (value): value is null => value === null, 204, account);
+      return consume(put, checkBookMatcherConfirmation, 200, account);
+    },
     deleteMatcherLink: (account: Account, id: string, provider: MatcherProvider, work_id: string) =>
       consume(
         (client) =>
@@ -604,11 +613,7 @@ export function createAPI(gate: SessionGate) {
       linked?: LinkedCover,
     ) => {
       const epoch = gate.epoch();
-      const response = await binary(
-        account,
-        metadataCoverURL(provider, id, provider === 'openlibrary', linked),
-        signal,
-      );
+      const response = await binary(account, metadataCoverURL(provider, id, linked), signal);
       if (!response.body) return null;
       if (
         !response.ok ||

@@ -12,30 +12,6 @@ import (
 	"reichard.io/antholume/reading"
 )
 
-type catalogProvider interface {
-	Lookup(context.Context, string) ([]metadata.LookupMatch, error)
-	Resolve(ctx context.Context, work, edition, isbn string) (metadata.LookupMatch, error)
-}
-
-type hardcoverCatalogProvider interface {
-	catalogProvider
-	Cover(context.Context, int64) ([]byte, error)
-}
-
-func (api *API) catalogFor(provider MetadataProvider) (catalogProvider, error) {
-	switch provider {
-	case Openlibrary:
-		if api.openLibraryCatalog != nil {
-			return api.openLibraryCatalog, nil
-		}
-	case Hardcover:
-		if api.hardcoverCatalog != nil {
-			return api.hardcoverCatalog, nil
-		}
-	}
-	return nil, &reading.Failure{Status: 503, Code: "metadata_unavailable"}
-}
-
 func (s *webAPI) LookupMetadata(ctx context.Context, r LookupMetadataRequestObject) (LookupMetadataResponseObject, error) {
 	q := strings.TrimSpace(r.Params.Q)
 	if len([]rune(q)) < 2 {

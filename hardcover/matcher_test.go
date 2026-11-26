@@ -93,7 +93,7 @@ func TestCatalogMatcherBatchesAndSharesProviderQuota(t *testing.T) {
 			return nil
 		})
 		require.NoError(t, err)
-		_, err = catalog.ResolveMatcher(t.Context(), "42", "99", "9780804429573")
+		_, err = catalog.Resolve(t.Context(), "42", "99", "9780804429573")
 		require.NoError(t, err)
 
 		err = catalog.LookupMatcherBatch(t.Context(), []metadata.MatcherInput{{ID: "limited", Title: "Limited book"}}, func(id string, results []metadata.LookupMatch, err error) error {
@@ -104,7 +104,7 @@ func TestCatalogMatcherBatchesAndSharesProviderQuota(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, []string{"a", "b", "none", "error", "last", "limited"}, emitted)
-		_, err = catalog.ResolveMatcher(t.Context(), "42", "", "")
+		_, err = catalog.Resolve(t.Context(), "42", "", "")
 		require.ErrorIs(t, err, matcherquota.ErrLimited)
 		require.Equal(t, []time.Duration{0, time.Second, 4 * time.Second, 5 * time.Second, 6 * time.Second}, calls)
 	})

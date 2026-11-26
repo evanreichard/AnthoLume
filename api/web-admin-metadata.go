@@ -16,7 +16,7 @@ func (api *API) metadataProviderStatus(ctx context.Context, queries *database.Qu
 }
 
 func (api *API) metadataProviderChoice(selected MetadataProvider) AdminMetadataProvider {
-	state := AdminMetadataProvider{Selected: selected, Effective: selected, HardcoverAvailable: api.hardcoverCatalog != nil}
+	state := AdminMetadataProvider{Selected: selected, Effective: selected, HardcoverAvailable: api.metadataCatalogs[Hardcover] != nil}
 	if selected == Hardcover && !state.HardcoverAvailable {
 		state.Effective = Openlibrary
 	}
@@ -42,7 +42,7 @@ func (s *webAPI) GetAdminMetadataProvider(ctx context.Context, _ GetAdminMetadat
 func (s *webAPI) SetAdminMetadataProvider(ctx context.Context, r SetAdminMetadataProviderRequestObject) (SetAdminMetadataProviderResponseObject, error) {
 	choice := r.Body.Provider
 	if err := s.adminTransaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
-		if choice == Hardcover && s.api.hardcoverCatalog == nil {
+		if choice == Hardcover && s.api.metadataCatalogs[Hardcover] == nil {
 			return adminFailure(409, "hardcover_catalog_unconfigured")
 		}
 		_, err := s.api.db.Queries.WithTx(tx).UpdateSettings(ctx, database.UpdateSettingsParams{

@@ -19,7 +19,7 @@ function jsonSchema(input) {
     }
     return { $ref: `urn:antholume:${name}` };
   }
-  const { nullable, properties, items, format, 'x-go-type': goType, description, ...schema } = input;
+  const { nullable, properties, items, format, 'x-go-type': goType, 'x-enum-varnames': enumNames, description, ...schema } = input;
   if (properties) schema.properties = Object.fromEntries(Object.entries(properties).map(([key, value]) => [key, jsonSchema(value)]));
   if (items) schema.items = jsonSchema(items);
   if (schema.type === 'integer') {

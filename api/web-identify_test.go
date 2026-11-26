@@ -88,10 +88,22 @@ func TestWebMetadataProviderSelectionAndTokenRemoval(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join(f.cfg.ConfigPath, "test.db"))
 	require.NoError(t, err)
 	require.NotContains(t, string(raw), token)
+	f.exec(`INSERT INTO documents(id,title) VALUES ('book','My Title')`)
+	f.exec(`INSERT INTO document_identifiers VALUES ('book','hardcover_book','42')`)
 
 	restart("")
 	check(Hardcover, Openlibrary, false)
 	assertProblem(t, f.call("GET", "/api/v1/metadata/match?provider=hardcover&work_id=42", nil, nil), 409, "metadata_provider_changed")
+	book := decodeWeb[Document](t, f.call("GET", linkedBookPath+"?include=matches", nil, nil))
+	require.NotNil(t, book.Matches)
+	require.Equal(t, []DocumentMatch{{Provider: Hardcover, WorkId: "42"}}, *book.Matches)
+	assertProblem(t, f.call("GET", linkedPreviewPath, nil, nil), 503, "metadata_unavailable")
+	assertProblem(t, f.call("GET", "/api/v1/metadata/covers/123?provider=hardcover&document_id=book&work_id=42", nil, nil), 503, "metadata_unavailable")
+	retry := f.call("PUT", hardcoverMatchPath, `{"work_id":"42","metadata_mode":"replace_fields"}`, nil)
+	require.Equal(t, 200, retry.status, string(retry.body))
+	require.JSONEq(t, `{"changed_fields":[]}`, string(retry.body))
+	require.Equal(t, 204, f.call("DELETE", linkedPreviewPath, nil, nil).status)
+	assertProblem(t, f.call("PUT", hardcoverMatchPath, `{"work_id":"42"}`, nil), 503, "metadata_unavailable")
 	require.Equal(t, 200, f.call("PUT", adminMetadataPath, MetadataProviderChoice{Provider: Openlibrary}, nil).status)
 	check(Openlibrary, Openlibrary, false)
 	checkStored(1)
@@ -99,7 +111,11 @@ func TestWebMetadataProviderSelectionAndTokenRemoval(t *testing.T) {
 	require.NotContains(t, logs.String(), token)
 }
 
-type identifyCatalogFixture struct{}
+type identifyCatalogFixture struct{ matcherEngineCatalog }
+
+func (identifyCatalogFixture) CoverFromMatch(context.Context, metadata.LookupMatch) ([]byte, error) {
+	return nil, metadata.ErrLookupCoverMissing
+}
 
 func (identifyCatalogFixture) Cover(_ context.Context, id int64) ([]byte, error) {
 	if id == 123 {
@@ -128,7 +144,7 @@ func (identifyCatalogFixture) Resolve(_ context.Context, work, edition, isbn str
 	return m, nil
 }
 
-type openLibraryCatalogFixture struct{}
+type openLibraryCatalogFixture struct{ matcherEngineCatalog }
 
 func (openLibraryCatalogFixture) Lookup(context.Context, string) ([]metadata.LookupMatch, error) {
 	return []metadata.LookupMatch{{ID: "OL20W", Title: "Open Library Title"}}, nil
@@ -148,8 +164,8 @@ func (openLibraryCatalogFixture) Resolve(_ context.Context, work, edition, _ str
 
 func TestWebDocumentMatch(t *testing.T) {
 	f := newWebFixture(t)
-	f.api.hardcoverCatalog = identifyCatalogFixture{}
-	f.api.openLibraryCatalog = openLibraryCatalogFixture{}
+	f.api.metadataCatalogs[Hardcover] = identifyCatalogFixture{}
+	f.api.metadataCatalogs[Openlibrary] = openLibraryCatalogFixture{}
 	setProvider := func(provider MetadataProvider) {
 		t.Helper()
 		_, err := f.db.Queries.UpdateSettings(t.Context(), database.UpdateSettingsParams{Name: "metadata_provider", Value: string(provider)})
@@ -247,8 +263,7 @@ func TestWebDocumentMatch(t *testing.T) {
 	require.Equal(t, 6, f.count("document_identifiers"))
 
 	// Plain edits and detail reads require no live provider connection.
-	f.api.openLibraryCatalog = nil
-	f.api.hardcoverCatalog = nil
+	clear(f.api.metadataCatalogs)
 	setProvider(Hardcover)
 	patch(`{"author":"Edited Author"}`, hc, ol)
 	require.Equal(t, 404, f.call("POST", path+"/identify", `{}`, nil).status)

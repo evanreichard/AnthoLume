@@ -186,6 +186,57 @@ func (e AutoImportScanTrigger) Valid() bool {
 	}
 }
 
+// Defines values for BookMatcherChangedField.
+const (
+	BookMatcherChangedFieldAuthor      BookMatcherChangedField = "author"
+	BookMatcherChangedFieldCover       BookMatcherChangedField = "cover"
+	BookMatcherChangedFieldDescription BookMatcherChangedField = "description"
+	BookMatcherChangedFieldIsbn10      BookMatcherChangedField = "isbn10"
+	BookMatcherChangedFieldIsbn13      BookMatcherChangedField = "isbn13"
+	BookMatcherChangedFieldTitle       BookMatcherChangedField = "title"
+)
+
+// Valid indicates whether the value is a known member of the BookMatcherChangedField enum.
+func (e BookMatcherChangedField) Valid() bool {
+	switch e {
+	case BookMatcherChangedFieldAuthor:
+		return true
+	case BookMatcherChangedFieldCover:
+		return true
+	case BookMatcherChangedFieldDescription:
+		return true
+	case BookMatcherChangedFieldIsbn10:
+		return true
+	case BookMatcherChangedFieldIsbn13:
+		return true
+	case BookMatcherChangedFieldTitle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BookMatcherMetadataMode.
+const (
+	FillMissing   BookMatcherMetadataMode = "fill_missing"
+	LinkOnly      BookMatcherMetadataMode = "link_only"
+	ReplaceFields BookMatcherMetadataMode = "replace_fields"
+)
+
+// Valid indicates whether the value is a known member of the BookMatcherMetadataMode enum.
+func (e BookMatcherMetadataMode) Valid() bool {
+	switch e {
+	case FillMissing:
+		return true
+	case LinkOnly:
+		return true
+	case ReplaceFields:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MetadataProvider.
 const (
 	Hardcover   MetadataProvider = "hardcover"
@@ -552,6 +603,14 @@ type BookMatcherCandidate struct {
 	WorkId MetadataWorkID `json:"work_id"`
 }
 
+// BookMatcherChangedField defines model for BookMatcherChangedField.
+type BookMatcherChangedField string
+
+// BookMatcherConfirmation defines model for BookMatcherConfirmation.
+type BookMatcherConfirmation struct {
+	ChangedFields []BookMatcherChangedField `json:"changed_fields"`
+}
+
 // BookMatcherLink defines model for BookMatcherLink.
 type BookMatcherLink struct {
 	Url    string         `json:"url"`
@@ -564,6 +623,9 @@ type BookMatcherLookupRequest struct {
 	Provider    MetadataProvider `json:"provider"`
 }
 
+// BookMatcherMetadataMode Omit for link_only. The other modes apply only nonblank catalog values. ISBNs require a verified edition.
+type BookMatcherMetadataMode string
+
 // BookMatcherOutcome Exactly one of candidates, error, or match is present. Empty candidates means a successful lookup found no match.
 type BookMatcherOutcome struct {
 	Candidates *[]BookMatcherCandidate `json:"candidates,omitempty"`
@@ -574,7 +636,14 @@ type BookMatcherOutcome struct {
 
 // BookMatcherWork defines model for BookMatcherWork.
 type BookMatcherWork struct {
-	WorkId MetadataWorkID `json:"work_id"`
+	EditionId *MetadataEditionID `json:"edition_id,omitempty"`
+
+	// Isbn Optional exact provider ISBN evidence. The edition must belong to the confirmed work and contain this ISBN.
+	Isbn *string `json:"isbn,omitempty"`
+
+	// MetadataMode Omit for link_only. The other modes apply only nonblank catalog values. ISBNs require a verified edition.
+	MetadataMode *BookMatcherMetadataMode `json:"metadata_mode,omitempty"`
+	WorkId       MetadataWorkID           `json:"work_id"`
 }
 
 // BookReadingStats Account-scoped statistics returned on the book detail endpoint.
@@ -1289,9 +1358,6 @@ type GetMetadataCoverParams struct {
 
 	// WorkId Expected confirmed work ID. Supply together with provider and document_id.
 	WorkId *MetadataWorkID `form:"work_id,omitempty" json:"work_id,omitempty"`
-
-	// PreferLarge For Open Library try the large cover before medium.
-	PreferLarge *bool `form:"prefer_large,omitempty" json:"prefer_large,omitempty"`
 }
 
 // LookupBookMatchesParams defines parameters for LookupBookMatches.
@@ -4033,14 +4099,6 @@ func (siw *ServerInterfaceWrapper) GetMetadataCover(c *gin.Context) {
 		return
 	}
 
-	// ------------- Optional query parameter "prefer_large" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "prefer_large", c.Request.URL.Query(), &params.PreferLarge, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter prefer_large: %w", err), http.StatusBadRequest)
-		return
-	}
-
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -6103,6 +6161,20 @@ type ConfirmBookMatchRequestObject struct {
 
 type ConfirmBookMatchResponseObject interface {
 	VisitConfirmBookMatchResponse(w http.ResponseWriter) error
+}
+
+type ConfirmBookMatch200JSONResponse BookMatcherConfirmation
+
+func (response ConfirmBookMatch200JSONResponse) VisitConfirmBookMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type ConfirmBookMatch204Response struct {

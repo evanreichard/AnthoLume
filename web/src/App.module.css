@@ -748,22 +748,6 @@
   min-height: 58px;
   align-content: center;
 }
-.matchLoadingCover {
-  min-height: 100%;
-  border-radius: var(--radius);
-}
-.matchIdentity {
-  display: grid;
-  gap: 6px;
-}
-.matchIdentity[data-cover] {
-  grid-template-columns: clamp(74px, 24%, 108px) minmax(0, 1fr);
-}
-.matchIdentityText {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
 .matchEdition {
   color: var(--muted);
   font-size: 0.8125rem;
@@ -811,39 +795,6 @@
   block-size: 16px;
   color: var(--accent);
 }
-.matchCoverCard {
-  position: relative;
-  display: block;
-  min-block-size: 104px;
-  padding: 0;
-  overflow: hidden;
-}
-.matchCoverCard .matchIndicator {
-  position: absolute;
-  inset: 4px 4px auto auto;
-  z-index: 1;
-}
-.matchCoverCard[aria-pressed='true'] .matchIndicator {
-  border-radius: 50%;
-  background: var(--surface);
-}
-.matchCoverCard:focus-visible {
-  z-index: 1;
-}
-.matchCoverCard .metadataPreview {
-  position: absolute;
-  inset: 0;
-  height: 100%;
-  max-height: none;
-}
-.matchCoverCard:focus-visible::after {
-  content: '';
-  position: absolute;
-  inset: 2px;
-  border: 2px solid var(--ink);
-  border-radius: inherit;
-  pointer-events: none;
-}
 .matchTextAction {
   border: 0;
   background: transparent;
@@ -852,13 +803,6 @@
   min-height: 44px;
   color: var(--muted);
   font-size: 0.8125rem;
-}
-.metadataPreview {
-  display: block;
-  width: 100%;
-  max-height: 104px;
-  object-fit: contain;
-  border-radius: 4px;
 }
 @media (max-width: 760px) {
   .dialog[data-placement='mobile-sheet'] {

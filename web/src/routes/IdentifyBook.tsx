@@ -130,8 +130,9 @@ export function IdentifyBook({
   const searchInput = useRef<HTMLInputElement>(null);
   const image = useCoverImage(review?.cover);
   const [coverStatus, setCoverStatus] = useState<{ url: string; ready: boolean }>();
-  const readyCover = image && coverStatus?.url === image.url && coverStatus.ready ? image : undefined;
-  const showCover = !!image && (coverStatus?.url !== image.url || coverStatus.ready);
+  const loadedCover = image && coverStatus?.url === image.url ? coverStatus : undefined;
+  const readyCover = loadedCover?.ready ? image : undefined;
+  const loadingCover = !!review?.cover && image !== null && !loadedCover;
 
   async function run<T>(
     operation: Operation,
@@ -296,7 +297,12 @@ export function IdentifyBook({
       const isbn = normalizedISBN(text);
       const results = await session.api.lookupMetadata(refId.account, isbn ?? text, signal);
       signal.throwIfAborted();
-      setManual(results.map((result) => candidateFor(result, isbn)));
+      // ISBN Search - Open Library's search edition identifies the work's cover, not necessarily the queried ISBN.
+      setManual(
+        results.map((result) =>
+          candidateFor(isbn && result.provider === 'openlibrary' ? { ...result, edition_id: undefined } : result, isbn),
+        ),
+      );
     });
   }
 
@@ -338,8 +344,7 @@ export function IdentifyBook({
   const replacing = !linkedSource && !!knownWork && knownWork !== match?.id;
   const linked = !!linkedSource || (!!knownWork && !replacing);
   const selected = review?.selected.filter((field) => field !== 'cover' || readyCover) ?? [];
-  const waitingForCover =
-    !!review?.selected.includes('cover') && image !== null && (image ? coverStatus?.url !== image.url : !!review.cover);
+  const waitingForCover = !!review?.selected.includes('cover') && loadingCover;
   const canApply = !!review && !waitingForCover && (!linked || selected.length > 0);
   const linkLabel = replacing ? 'Replace Link' : 'Link Book';
   const count = `${selected.length} ${selected.length === 1 ? 'Change' : 'Changes'}`;
@@ -555,9 +560,11 @@ export function IdentifyBook({
         <section className={styles.matchLoading} aria-label="Match Preview">
           <LoadingStatus>{busy === 'preview' ? 'Loading match preview…' : 'Finding suggested matches…'}</LoadingStatus>
           <div className={styles.matchFields}>
-            <div className={styles.matchIdentity} data-cover>
-              <Skeleton block className={styles.matchLoadingCover} />
-              <div className={styles.matchIdentityText}>
+            <div className={identify.identity}>
+              <div className={identify.coverSlot} data-cover-state="loading">
+                <Skeleton block className={identify.coverSkeleton} />
+              </div>
+              <div className={identify.identityText}>
                 <div className={styles.matchLoadingField}>
                   <Skeleton width="2rem" />
                   <Skeleton width="72%" />
@@ -599,28 +606,46 @@ export function IdentifyBook({
             }}
           >
             <fieldset aria-label="Suggested Metadata" className={styles.matchFields} disabled={busy === 'apply'}>
-              <div className={styles.matchIdentity} data-cover={showCover || undefined}>
-                {showCover && image && (
-                  <button
-                    type="button"
-                    className={`${styles.matchCard} ${styles.matchCoverCard}`}
-                    aria-label="Cover"
-                    aria-pressed={selected.includes('cover')}
-                    disabled={!readyCover}
-                    onClick={() => toggle('cover')}
-                  >
-                    {indicator('cover')}
-                    <img
-                      key={image.url}
-                      src={image.url}
-                      className={styles.metadataPreview}
-                      alt={`Cover for ${match.title}`}
-                      onLoad={() => setCoverStatus({ url: image.url, ready: true })}
-                      onError={() => setCoverStatus({ url: image.url, ready: false })}
-                    />
-                  </button>
-                )}
-                <div className={styles.matchIdentityText}>
+              <div className={identify.identity}>
+                <div
+                  className={identify.coverSlot}
+                  data-cover-state={loadingCover ? 'loading' : readyCover ? 'available' : 'unavailable'}
+                >
+                  {loadingCover ? (
+                    <>
+                      <Skeleton block className={identify.coverSkeleton} />
+                      <span className={styles.srOnly} role="status">
+                        Loading cover…
+                      </span>
+                    </>
+                  ) : !readyCover ? (
+                    <span className={identify.coverUnavailable}>
+                      <Icon name="book" size={24} />
+                      Cover unavailable
+                    </span>
+                  ) : null}
+                  {image && (loadingCover || readyCover) && (
+                    <button
+                      type="button"
+                      className={`${styles.matchCard} ${identify.coverChoice}`}
+                      aria-label="Cover"
+                      aria-pressed={selected.includes('cover')}
+                      disabled={!readyCover}
+                      hidden={!readyCover}
+                      onClick={() => toggle('cover')}
+                    >
+                      <img
+                        key={image.url}
+                        src={image.url}
+                        alt={`Cover for ${match.title}`}
+                        onLoad={() => setCoverStatus({ url: image.url, ready: true })}
+                        onError={() => setCoverStatus({ url: image.url, ready: false })}
+                      />
+                      {indicator('cover')}
+                    </button>
+                  )}
+                </div>
+                <div className={identify.identityText}>
                   {fields.filter((field) => field === 'title' || field === 'author').map(fieldCard)}
                 </div>
               </div>
