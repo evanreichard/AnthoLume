@@ -14,6 +14,19 @@ test('Admin card headings match the Library heading size across tabs', async ({ 
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto(`${server.origin}/admin/library`);
+    const titleInset = (name: string) =>
+      page
+        .getByRole('heading', { name, exact: true })
+        .evaluate(
+          (heading) => heading.getBoundingClientRect().top - heading.closest('section')!.getBoundingClientRect().top,
+        );
+    const plainInset = await titleInset('Metadata Provider');
+    for (const name of ['Storage Roots', 'Shelfmark', 'Backup & Restore']) {
+      expect(await titleInset(name)).toBeCloseTo(plainInset, 0);
+    }
+    const backup = page.getByRole('button', { name: 'Create Backup' });
+    expect((await backup.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await backup.click({ trial: true });
     const size = await page
       .getByRole('heading', { name: 'Storage Roots' })
       .evaluate((node) => getComputedStyle(node).fontSize);

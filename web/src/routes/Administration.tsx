@@ -10,6 +10,7 @@ import { AdminBackups } from './AdminBackups';
 import { AdminImport } from './AdminImport';
 import { AdminMaintenance } from './AdminMaintenance';
 import { AdminMetadata } from './AdminMetadata';
+import { useShelfmarkPreview } from '../shelfmarkPreview';
 import { SkeletonRows } from '../Skeleton';
 import { useSnackbar } from '../Snackbar';
 import { storageRootsOptions } from '../adminQueries';
@@ -70,11 +71,36 @@ export function AdminLibrary() {
   const { account } = useOutletContext<AdminContext>();
   const query = useQuery(storageRootsOptions(account));
   const roots = query.data ?? [];
+  const shelfmark = useShelfmarkPreview();
   return (
     <div className={styles.settingsLayout}>
       <StorageRoots account={account} roots={roots} error={query.error} />
       <AdminImport account={account} roots={roots} />
       <AdminMetadata account={account} />
+      <Card density="compact" aria-labelledby="shelfmark-heading">
+        <CardHeader
+          id="shelfmark-heading"
+          title="Shelfmark"
+          action={
+            <Button
+              size="slim"
+              role="switch"
+              aria-label="Enable Shelfmark Requests"
+              aria-checked={shelfmark.mode === 'enabled'}
+              disabled={shelfmark.mode === 'missing'}
+              onClick={shelfmark.toggle}
+            >
+              {shelfmark.mode === 'enabled' ? 'On' : 'Off'}
+            </Button>
+          }
+        />
+        {shelfmark.mode === 'missing' && (
+          <p className={styles.settingsCardFeedback}>
+            Set <code>SHELFMARK_URL</code> and <code>SHELFMARK_API_KEY</code> on the AnthoLume server, then restart it
+            to enable requests.
+          </p>
+        )}
+      </Card>
       <AdminBackups account={account} />
     </div>
   );

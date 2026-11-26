@@ -15,6 +15,7 @@ export const appRoutes = [
               { id: 'bookMatcher', path: 'library/matcher' },
               { id: 'book', path: 'books/:kind' },
               { id: 'reader', path: 'read/:kind' },
+              { id: 'request', path: 'request' },
               { id: 'insights', path: 'insights' },
               { id: 'activity', path: 'insights/activity' },
               { id: 'progress', path: 'insights/progress' },

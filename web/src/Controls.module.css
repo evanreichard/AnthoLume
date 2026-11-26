@@ -78,6 +78,13 @@
   gap: 4px 8px;
 }
 .compactCard > .cardHeader {
+  min-height: 32px;
+}
+/* Let the 44px touch target extend into the card padding around its 32px face. */
+.compactCard > .cardHeader > :is([data-size='slim'], .pillIcon) {
+  margin-block: -6px;
+}
+.compactCard > .cardHeader:has(~ :not(dialog)) {
   margin-bottom: 8px;
 }
 .compactCard > .cardHeader .cardTitle {
