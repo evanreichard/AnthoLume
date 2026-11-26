@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Outlet, useMatch, useOutletContext } from 'react-router';
 import type { components } from '../api/schema.gen';
 import { ReadingHTTPError, type Account } from '../reading';
@@ -10,6 +10,7 @@ import { AdminBackups } from './AdminBackups';
 import { AdminImport } from './AdminImport';
 import { AdminMaintenance } from './AdminMaintenance';
 import { AdminMetadata } from './AdminMetadata';
+import { shelfmarkKey, useShelfmarkSettings } from '../shelfmarkQueries';
 import { SkeletonRows } from '../Skeleton';
 import { useSnackbar } from '../Snackbar';
 import { storageRootsOptions } from '../adminQueries';
@@ -70,13 +71,61 @@ export function AdminLibrary() {
   const { account } = useOutletContext<AdminContext>();
   const query = useQuery(storageRootsOptions(account));
   const roots = query.data ?? [];
+
   return (
     <div className={styles.settingsLayout}>
       <StorageRoots account={account} roots={roots} error={query.error} />
       <AdminImport account={account} roots={roots} />
       <AdminMetadata account={account} />
+      <ShelfmarkSettings key={JSON.stringify(account)} account={account} />
       <AdminBackups account={account} />
     </div>
+  );
+}
+
+function ShelfmarkSettings({ account }: { account: Account }) {
+  const client = useQueryClient();
+  const status = useShelfmarkSettings(account);
+  const save = useMutation({
+    mutationFn: (enabled: boolean) => session.api.setShelfmarkSettings(account, enabled),
+    onMutate: () => client.cancelQueries({ queryKey: shelfmarkKey(account, 'settings') }),
+    onSuccess: (saved) => {
+      client.setQueryData(shelfmarkKey(account, 'settings'), saved);
+    },
+    onError: () => client.invalidateQueries({ queryKey: shelfmarkKey(account, 'settings') }),
+  });
+  return (
+    <Card density="compact" aria-labelledby="shelfmark-heading">
+      <CardHeader
+        id="shelfmark-heading"
+        title="Shelfmark"
+        action={
+          <Button
+            size="slim"
+            role="switch"
+            aria-label="Enable Shelfmark Requests"
+            aria-checked={status.data?.enabled ?? false}
+            disabled={!status.data?.configured || status.isError || status.isFetching || save.isPending}
+            onClick={() => save.mutate(!status.data?.enabled)}
+          >
+            {save.isPending ? 'Saving…' : status.data?.enabled ? 'On' : 'Off'}
+          </Button>
+        }
+      />
+      <ErrorNotice error={save.error ?? status.error} />
+      {status.isPending && <SkeletonRows label="Checking Shelfmark settings…" count={1} />}
+      {status.isError && (
+        <Button size="slim" onClick={() => void status.refetch()}>
+          Retry Settings Check
+        </Button>
+      )}
+      {status.data && !status.isError && !status.data.configured && (
+        <p className={styles.settingsCardFeedback}>
+          Set <code>SHELFMARK_URL</code> and <code>SHELFMARK_API_KEY</code> on the AnthoLume server, then restart it to
+          enable requests.
+        </p>
+      )}
+    </Card>
   );
 }
 

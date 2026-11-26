@@ -16,6 +16,14 @@ import {
   checkHardcoverShelf,
   checkHardcoverStatus,
 } from './guards.gen.js';
+import {
+  isShelfmarkSettings,
+  isShelfmarkSearch,
+  isShelfmarkHistory,
+  isShelfmarkDownloadResult,
+  isShelfmarkReleaseHistory,
+  isShelfmarkReleases,
+} from './shelfmark';
 import type { LibrarySort } from '../library';
 import { ReadingHTTPError, type Account, type ReadingBridge } from '../reading';
 import {
@@ -525,6 +533,91 @@ export function createAPI(gate: SessionGate) {
         200,
         account,
       ),
+    shelfmarkSettings: (account: Account, signal: AbortSignal) =>
+      consume(
+        (client) => client.GET('/api/v1/shelfmark/settings', { signal, parseAs: 'stream' }),
+        isShelfmarkSettings,
+        200,
+        account,
+      ),
+    setShelfmarkSettings: (account: Account, enabled: boolean) =>
+      consume(
+        (client) => client.PUT('/api/v1/admin/shelfmark', { body: { enabled }, parseAs: 'stream' }),
+        isShelfmarkSettings,
+        200,
+        account,
+      ),
+    shelfmarkSearch: (account: Account, q: string, signal: AbortSignal) =>
+      consume(
+        (client) => client.GET('/api/v1/shelfmark/search', { params: { query: { q } }, signal, parseAs: 'stream' }),
+        isShelfmarkSearch,
+        200,
+        account,
+      ),
+    shelfmarkHistory: (account: Account, offset: number, signal: AbortSignal) =>
+      consume(
+        (client) =>
+          client.GET('/api/v1/shelfmark/requests', { params: { query: { offset } }, signal, parseAs: 'stream' }),
+        isShelfmarkHistory,
+        200,
+        account,
+      ),
+    shelfmarkReleases: (account: Account, provider: string, id: string, signal: AbortSignal) =>
+      consume(
+        (client) =>
+          client.GET('/api/v1/shelfmark/releases', {
+            params: { query: { provider, id } },
+            // Allow time for the config lookup and response around Shelfmark’s five-minute release search.
+            signal: AbortSignal.any([signal, AbortSignal.timeout(320_000)]),
+            parseAs: 'stream',
+          }),
+        isShelfmarkReleases,
+        200,
+        account,
+      ),
+    shelfmarkReleaseHistory: (account: Account, provider: string, id: string, signal: AbortSignal) =>
+      consume(
+        (client) =>
+          client.GET('/api/v1/shelfmark/requests/releases', {
+            params: { query: { provider, id } },
+            signal,
+            parseAs: 'stream',
+          }),
+        isShelfmarkReleaseHistory,
+        200,
+        account,
+      ),
+    requestShelfmarkRelease: (account: Account, provider: string, id: string, releaseKey: string, selection: string) =>
+      consume(
+        (client) =>
+          client.POST('/api/v1/shelfmark/requests', {
+            body: { provider, id, release_key: releaseKey, selection },
+            signal: AbortSignal.timeout(30_000),
+            parseAs: 'stream',
+          }),
+        isShelfmarkDownloadResult,
+        200,
+        account,
+      ),
+    shelfmarkCover: async (account: Account, provider: string, id: string, signal: AbortSignal) => {
+      const epoch = gate.epoch();
+      const query = new URLSearchParams({ provider, id });
+      const response = await binary(account, `/api/v1/shelfmark/cover?${query}`, signal);
+      const media = response.headers.get('content-type')?.split(';')[0].trim();
+      if (!response.body) return null;
+      if (
+        response.status !== 200 ||
+        response.redirected ||
+        !media ||
+        !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(media)
+      ) {
+        await response.body.cancel();
+        return null;
+      }
+      const blob = await response.blob();
+      gate.assert(account, epoch);
+      return blob.size ? blob : null;
+    },
     devices: (account: Account, signal: AbortSignal) =>
       consume(
         (client) => client.GET('/api/v1/me/devices', { signal, parseAs: 'stream' }),

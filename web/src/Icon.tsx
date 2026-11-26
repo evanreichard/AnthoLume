@@ -5,6 +5,7 @@ export type IconName =
   | 'kept'
   | 'down'
   | 'library'
+  | 'request'
   | 'insights'
   | 'settings'
   | 'back'
@@ -42,6 +43,7 @@ const paths: Record<IconName, string> = {
   kept: 'M15 20H5V3h13v8 M8 6h7 M10 17h1 m3-1 2.5 2.5L22 13',
   down: 'm6 9 6 6 6-6',
   library: 'M4 5h4v14H4z M8 5h4v14H8z M14 6l3.5-1 4 13-3.5 1z',
+  request: 'M13 20H5a1 1 0 0 1-1-1V5a2 2 0 0 1 2-2h12v9 M5 17h7 M17 14v7m-3.5-3.5h7',
   insights: 'M4 19h16 M7 15v-4 M12 15V6 M17 15V9',
   settings: 'M4 6h7m4 0h5 M4 12h3m4 0h9 M4 18h10m4 0h2 M11 4v4 M7 10v4 M14 16v4',
   back: 'm14 6-6 6 6 6',

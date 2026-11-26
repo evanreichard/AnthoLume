@@ -180,6 +180,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/shelfmark/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getShelfmarkSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shelfmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setShelfmarkSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shelfmark/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["searchShelfmark"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shelfmark/cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getShelfmarkCover"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shelfmark/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listShelfmarkReleases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shelfmark/requests/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listShelfmarkRequestedReleases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shelfmark/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listShelfmarkRequests"];
+        put?: never;
+        post: operations["createShelfmarkRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/metadata/providers": {
         parameters: {
             query?: never;
@@ -738,6 +850,51 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ShelfmarkIdentifier: string;
+        ShelfmarkSettings: {
+            configured: boolean;
+            enabled: boolean;
+        };
+        ShelfmarkBook: {
+            provider: components["schemas"]["ShelfmarkIdentifier"];
+            id: components["schemas"]["ShelfmarkIdentifier"];
+            title: string;
+            author: string;
+            description: string;
+            year: number;
+            has_cover: boolean;
+            request_count: number;
+        };
+        ShelfmarkReleaseList: {
+            releases: components["schemas"]["ShelfmarkRelease"][];
+            partial: boolean;
+        };
+        /** @description Opaque download selection issued by AnthoLume */
+        ShelfmarkSelection: string;
+        ShelfmarkDownloadResult: {
+            release: components["schemas"]["ShelfmarkRelease"];
+            request_count: number;
+        };
+        ShelfmarkRelease: {
+            key: components["schemas"]["ShelfmarkIdentifier"];
+            selection?: components["schemas"]["ShelfmarkSelection"];
+            source: string;
+            title: string;
+            /** @description Author reported by the release source */
+            author?: string;
+            format: string;
+            size: string;
+            language: string;
+            indexer: string;
+            request?: components["schemas"]["ShelfmarkRequestInfo"];
+        };
+        ShelfmarkRequestInfo: {
+            username: string;
+            /** Format: date-time */
+            requested_at: string;
+            /** @enum {string} */
+            state: "queued" | "rejected" | "unconfirmed";
+        };
         HardcoverStatus: {
             enabled: boolean;
             username: string | null;
@@ -1687,6 +1844,212 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getShelfmarkSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Shelfmark configuration and effective request enablement */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfmarkSettings"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    setShelfmarkSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved Shelfmark settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfmarkSettings"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    searchShelfmark: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Matching books with a count of distinct releases requested through AnthoLume */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfmarkBook"][];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getShelfmarkCover: {
+        parameters: {
+            query: {
+                provider: components["schemas"]["ShelfmarkIdentifier"];
+                id: components["schemas"]["ShelfmarkIdentifier"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cover artwork */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/*": Blob;
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listShelfmarkReleases: {
+        parameters: {
+            query: {
+                provider: components["schemas"]["ShelfmarkIdentifier"];
+                id: components["schemas"]["ShelfmarkIdentifier"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Eligible ebook releases; partial indicates an incomplete upstream search */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfmarkReleaseList"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listShelfmarkRequestedReleases: {
+        parameters: {
+            query: {
+                provider: components["schemas"]["ShelfmarkIdentifier"];
+                id: components["schemas"]["ShelfmarkIdentifier"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All requested releases for the book, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfmarkRelease"][];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listShelfmarkRequests: {
+        parameters: {
+            query?: {
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Newest first. A 51st row indicates another page; advance offset by 50. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfmarkBook"][];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createShelfmarkRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Browser-provided, server-required exact PUBLIC_ORIGIN; never inferred from request Host */
+                Origin?: components["parameters"]["Origin"];
+                /** @description Server-required random session-bound token, supplied by client middleware; rotates on authentication changes */
+                "X-CSRF-Token"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    provider: components["schemas"]["ShelfmarkIdentifier"];
+                    id: components["schemas"]["ShelfmarkIdentifier"];
+                    release_key: components["schemas"]["ShelfmarkIdentifier"];
+                    selection: components["schemas"]["ShelfmarkSelection"];
+                };
+            };
+        };
+        responses: {
+            /** @description Submission outcome and current distinct-release count for the selected book */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfmarkDownloadResult"];
+                };
             };
             default: components["responses"]["Problem"];
         };

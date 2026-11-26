@@ -600,6 +600,12 @@
 .dialogHeader h2 {
   margin: 0;
 }
+.dialogSubtitle {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
 .dialogHeader h2:focus {
   outline: none;
 }
@@ -1095,7 +1101,8 @@
   }
   .tabs {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     gap: 4px;
   }
   .tabs a {

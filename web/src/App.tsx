@@ -22,6 +22,8 @@ import { BookDetail } from './routes/BookDetail';
 import { BookMatcher } from './routes/BookMatcher';
 import { AppLoading, Auth } from './routes/Auth';
 import { Insights } from './routes/Insights';
+import { RequestBooks } from './routes/RequestBooks';
+import { useShelfmarkSettings } from './shelfmarkQueries';
 import { Settings } from './routes/More';
 import { Administration, AdminUsers, AdminLibrary, AdminSystem } from './routes/Administration';
 import { AdminLogs } from './routes/AdminLogs';
@@ -160,10 +162,11 @@ function Shell() {
   const location = useLocation();
   const reader = location.pathname.startsWith('/read/');
   const { access } = useSession();
+  const shelfmark = useShelfmarkSettings(access.kind === 'authenticated' ? access.account : undefined);
   const showShell = access.kind === 'authenticated' || access.kind === 'offline';
   useEffect(() => {
     if (!reader && showShell)
-      document.title = `AnthoLume · ${location.pathname.startsWith('/settings') ? 'Settings' : location.pathname.startsWith('/insights') ? 'Insights' : 'Library'}`;
+      document.title = `AnthoLume · ${location.pathname.startsWith('/settings') ? 'Settings' : location.pathname.startsWith('/insights') ? 'Insights' : location.pathname === '/request' ? 'Request' : 'Library'}`;
   }, [location.pathname, reader, showShell]);
   if (!showShell) return <Outlet />;
   return (
@@ -190,6 +193,14 @@ function Shell() {
                 </i>
                 <span>Library</span>
               </NavLink>
+              {!shelfmark.isError && shelfmark.data?.enabled && (
+                <NavLink to="/request">
+                  <i className={styles.tabIcon}>
+                    <Icon name="request" />
+                  </i>
+                  <span>Request</span>
+                </NavLink>
+              )}
               <NavLink to="/insights">
                 <i className={styles.tabIcon}>
                   <Icon name="insights" />
@@ -242,6 +253,7 @@ const screens = {
   bookMatcher: { Component: BookMatcher },
   book: { Component: BookDetail },
   reader: { lazy: () => import('./routes/ReaderRoute') },
+  request: { Component: RequestBooks },
   insights: { Component: Insights },
   activity: { element: <Insights view="activity" /> },
   progress: { element: <Insights view="progress" /> },

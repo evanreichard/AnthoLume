@@ -171,6 +171,27 @@ type Setting struct {
 	CreatedAt string `json:"created_at"`
 }
 
+type ShelfmarkRelease struct {
+	ReleaseKey    string `json:"release_key"`
+	Source        string `json:"source"`
+	ReleaseTitle  string `json:"release_title"`
+	ReleaseAuthor string `json:"release_author"`
+	Format        string `json:"format"`
+	Size          string `json:"size"`
+	Language      string `json:"language"`
+	Indexer       string `json:"indexer"`
+	Provider      string `json:"provider"`
+	BookID        string `json:"book_id"`
+	BookTitle     string `json:"book_title"`
+	Author        string `json:"author"`
+	Description   string `json:"description"`
+	Year          int64  `json:"year"`
+	HasCover      bool   `json:"has_cover"`
+	Username      string `json:"username"`
+	RequestedAt   string `json:"requested_at"`
+	State         string `json:"state"`
+}
+
 type StorageRoot struct {
 	ID         string  `json:"id"`
 	Label      string  `json:"label"`

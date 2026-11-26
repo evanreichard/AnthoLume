@@ -21,6 +21,7 @@ import (
 	"github.com/gin-gonic/gin"
 	middleware "github.com/oapi-codegen/gin-middleware"
 	"reichard.io/antholume/reading"
+	"reichard.io/antholume/shelfmark"
 )
 
 // Opaque IDs - Route on escaped paths, then decode exactly once without treating a literal plus as a query-space.
@@ -54,6 +55,14 @@ func problem(status int, code string) Problem {
 		detail = "Set HARDCOVER_CATALOG_TOKEN and restart the server to enable Hardcover."
 	case "metadata_provider_changed":
 		detail = "The active metadata provider changed. Search again to identify this book."
+	case "shelfmark_unconfigured":
+		detail = "Set SHELFMARK_URL and SHELFMARK_API_KEY and restart the server to enable Shelfmark."
+	case "shelfmark_disabled":
+		detail = "Shelfmark requests are disabled."
+	case "shelfmark_upstream_error":
+		detail = "Shelfmark could not complete the lookup. Try again later."
+	case "shelfmark_invalid_selection":
+		detail = "This release selection could not be opened. Refresh the list and choose again."
 	}
 	return Problem{Type: "urn:antholume:problem:" + code, Title: http.StatusText(status), Status: status, Code: code, Detail: detail}
 }
@@ -264,6 +273,9 @@ func (api *API) webBoundary(c *gin.Context) {
 		return
 	}
 	limit := int64(8192)
+	if c.Request.Method == http.MethodPost && path == "/api/v1/shelfmark/requests" {
+		limit += shelfmark.MaxSelectionLength
+	}
 	if c.Request.Method == http.MethodPatch && strings.HasPrefix(path, "/api/v1/documents/") {
 		limit = 3 << 20
 	}

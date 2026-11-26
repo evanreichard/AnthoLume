@@ -92,7 +92,11 @@ Backups download on demand and the server does not retain a copy. Before restori
 | REGISTRATION_ENABLED | false         | Whether to allow registration (applies to both WebApp & KOSync API)        |
 | COOKIE_AUTH_KEY      | <EMPTY>       | Optional secret cookie authentication key (auto generated if not provided) |
 | COOKIE_ENC_KEY       | <EMPTY>       | Optional secret cookie encryption key (16 or 32 bytes)                     |
+| SHELFMARK_URL        | <EMPTY>       | Shelfmark service URL; use HTTPS when connecting over a network |
+| SHELFMARK_API_KEY    | <EMPTY>       | Server-only Shelfmark admin API key; requires a Shelfmark admin user and a policy allowing release downloads |
 | HARDCOVER_CATALOG_TOKEN | <EMPTY>    | Optional server-only Hardcover catalog API token; enables the admin choice |
+
+With both Shelfmark variables set, **Request** lets readers find books, review ebook releases, and queue a specific file with **Download**. Administrators can disable it under **Administration → Library**. Shared History groups releases queued or attempted through AnthoLume by book. The same release cannot be submitted twice; a different release of the same book can. **Queued** means Shelfmark accepted the submission, not that delivery finished.
 
 ## Security
 

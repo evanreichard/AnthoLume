@@ -20,26 +20,30 @@ import (
 	"reichard.io/antholume/config"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/reading"
+	"reichard.io/antholume/shelfmark"
 	"reichard.io/antholume/utils"
 )
 
 type API struct {
-	db                *database.DBManager
-	cfg               *config.Config
-	assets            fs.FS
-	httpServer        *http.Server
-	reading           *reading.Store
-	hardcoverAccounts hardcoverFlow
-	metadataCatalogs  map[MetadataProvider]catalogProvider
-	matcherEngine     matcherEngine
-	attempts          credentialLimiter
-	identitySlots     chan struct{}
-	restoreGate       sync.RWMutex
-	libraryWrite      sync.Mutex
-	webUploadSlots    chan struct{}
-	backupExport      sync.Mutex
-	restoreStage      sync.Mutex
-	adminJobs         adminJobLifecycle
+	db                   *database.DBManager
+	cfg                  *config.Config
+	assets               fs.FS
+	httpServer           *http.Server
+	reading              *reading.Store
+	hardcoverAccounts    hardcoverFlow
+	metadataCatalogs     map[MetadataProvider]catalogProvider
+	matcherEngine        matcherEngine
+	shelfmark            *shelfmark.Client
+	shelfmarkSubmissions sync.RWMutex
+	shelfmarkStopped     bool
+	attempts             credentialLimiter
+	identitySlots        chan struct{}
+	restoreGate          sync.RWMutex
+	libraryWrite         sync.Mutex
+	webUploadSlots       chan struct{}
+	backupExport         sync.Mutex
+	restoreStage         sync.Mutex
+	adminJobs            adminJobLifecycle
 }
 
 var htmlPolicy = bluemonday.StrictPolicy()
@@ -66,6 +70,12 @@ func NewAPI(db *database.DBManager, c *config.Config, assets fs.FS) (*API, error
 		webUploadSlots:   make(chan struct{}, 2),
 	}
 
+	if c.ShelfmarkURL != "" && c.ShelfmarkAPIKey != "" {
+		api.shelfmark, err = shelfmark.New(c.ShelfmarkURL, c.ShelfmarkAPIKey)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if err := api.configureHardcover(); err != nil {
 		return nil, err
 	}
@@ -192,6 +202,10 @@ func (api *API) Shutdown(ctx context.Context) error {
 	if httpErr != nil {
 		_ = api.httpServer.Close()
 	}
+	// Submission Drain - HTTP may have closed the browser connection while a claimed download still needs SQLite.
+	api.shelfmarkSubmissions.Lock()
+	api.shelfmarkStopped = true
+	api.shelfmarkSubmissions.Unlock()
 	return errors.Join(httpErr, api.adminJobs.wait(ctx))
 }
 

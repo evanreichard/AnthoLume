@@ -36,6 +36,7 @@ type DialogProps = {
   placement?: 'center' | 'mobile-sheet';
   toolbar?: ReactNode;
   titleLeading?: ReactNode;
+  subtitle?: string;
   footer?: ReactNode;
 };
 
@@ -50,6 +51,7 @@ export function Dialog({
   placement = 'center',
   toolbar,
   titleLeading,
+  subtitle,
   footer,
 }: DialogProps) {
   const titleId = useId();
@@ -100,10 +102,17 @@ export function Dialog({
       aria-labelledby={titleId}
     >
       <header className={styles.dialogHeader}>
-        {titleLeading ? (
+        {titleLeading || subtitle ? (
           <div className={styles.dialogTitleGroup}>
             {titleLeading}
-            {heading}
+            {subtitle ? (
+              <div>
+                {heading}
+                <p className={styles.dialogSubtitle}>{subtitle}</p>
+              </div>
+            ) : (
+              heading
+            )}
           </div>
         ) : (
           heading
