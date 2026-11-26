@@ -319,6 +319,62 @@ test('a library member reviews ten books, writes only explicit link changes, and
   await expect(lastLibraryBook(page)).toBeVisible();
 });
 
+test('confirming a second provider waits for fresh book metadata, including after a failed refresh', async ({
+  page,
+  server,
+}) => {
+  let revised = false;
+  await mockPages(
+    page,
+    () => [],
+    () => (revised ? [{ ...books[0], title: 'Revised title' }] : [books[0]]),
+  );
+  await page.route('**/api/v1/metadata/providers', (route) =>
+    route.fulfill({ json: { selected: 'openlibrary', effective: 'openlibrary', hardcover_available: true } }),
+  );
+  await mockMatcherLookup(page, (_, { provider }) => ({
+    candidates: [provider === 'hardcover' ? hardcoverCandidate : primary],
+  }));
+  let finishWrite!: () => void;
+  const write = new Promise<void>((resolve) => {
+    finishWrite = resolve;
+  });
+  await page.route('**/api/v1/documents/book-1/matches/openlibrary', async (route) => {
+    await write;
+    revised = true;
+    await route.fulfill({ json: { changed_fields: ['title'] } });
+  });
+  await register(page, server.origin, 'matcher-refresh');
+  await page.goto(server.origin + '/library/matcher');
+  await modeButton(page).click();
+  await modeOptions(page).getByRole('button', { name: 'Replace Fields' }).click();
+  const check = page.getByRole('button', { name: `Confirm Match for ${title(1)}` });
+  await check.click();
+  await providerButton(page).click();
+  await providerOptions(page).getByRole('button', { name: 'Hardcover', exact: true }).click();
+  await expect(check).toBeDisabled();
+  let failRefresh!: () => void;
+  const refresh = new Promise<void>((resolve) => {
+    failRefresh = resolve;
+  });
+  await page.route(
+    '**/api/v1/documents?*',
+    async (route) => {
+      await refresh;
+      await route.fulfill({ status: 500 });
+    },
+    { times: 1 },
+  );
+  finishWrite();
+  await expect(page.getByRole('status').filter({ hasText: '1 field updated' })).toBeVisible();
+  await expect(check).toBeDisabled();
+  failRefresh();
+  await expect(page.getByRole('alert')).toContainText('Could not load this page');
+  await expect(check).toBeDisabled();
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Confirm Match for Revised title' })).toBeEnabled();
+});
+
 test('direct matcher entry requires sign-in; streams render incrementally and cancel on navigation', async ({
   page,
   server,

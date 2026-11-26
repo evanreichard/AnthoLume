@@ -51,6 +51,7 @@ type PageControls = {
   onPageChange: (next: number) => void;
   write: Write;
   busy: ReadonlySet<string>;
+  canConfirm: boolean;
   errors: ReadonlyMap<string, WriteError>;
   recordLink: (id: string, provider: MatcherProvider, workID: string | null) => void;
 };
@@ -301,7 +302,7 @@ function Matcher({ account, back }: { account: Account; back: ReactNode }) {
             </Button>
           </div>
         )}
-        {documents.isError && !documents.data && (
+        {documents.isError && (
           <div className={styles.feedback}>
             <span role="alert">Could not load this page of books.</span>
             <Button size="slim" onClick={() => void documents.refetch()}>
@@ -332,6 +333,7 @@ function Matcher({ account, back }: { account: Account; back: ReactNode }) {
             onPageChange={turn}
             write={write}
             busy={busy}
+            canConfirm={documents.fetchStatus === 'idle' && !documents.isError}
             errors={errors}
             recordLink={recordLink}
           />
@@ -352,6 +354,7 @@ function Page({
   onPageChange,
   write,
   busy: saving,
+  canConfirm,
   errors,
   recordLink,
 }: PageControls) {
@@ -553,7 +556,7 @@ function Page({
                           emphasized
                           icon="check"
                           label={`Confirm Match for ${book.title}`}
-                          disabled={busy}
+                          disabled={busy || !canConfirm}
                           onClick={() => void changeLink(book, { kind: 'confirm', match: selected, mode })}
                         />
                       )
