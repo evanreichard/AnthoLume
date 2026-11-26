@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"context"
 	"github.com/stretchr/testify/require"
+	"reichard.io/antholume/database"
 	"reichard.io/antholume/shelfmark"
 )
 
@@ -224,6 +225,28 @@ func TestShelfmarkSharedReleaseClaimAndGroupedHistory(t *testing.T) {
 	stored, err := f.db.Queries.GetShelfmarkRelease(t.Context(), queued.Key)
 	require.NoError(t, err)
 	require.Equal(t, queued.Key, stored.ReleaseKey)
+}
+
+func TestShelfmarkClaimSurvivesDisconnectWhileWaitingToWrite(t *testing.T) {
+	f := newWebFixture(t)
+	db := f.db.DB
+	conn, err := db.Conn(t.Context())
+	require.NoError(t, err)
+	defer conn.Close()
+	waiting := db.Stats().WaitCount
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	result := make(chan error, 1)
+	go func() {
+		_, err := (&webAPI{f.api}).claimShelfmarkRelease(ctx, database.ClaimShelfmarkReleaseParams{ReleaseKey: "key"})
+		result <- err
+	}()
+	require.Eventually(t, func() bool { return db.Stats().WaitCount > waiting }, 2*time.Second, time.Millisecond)
+	cancel()
+	require.NoError(t, conn.Close())
+	require.NoError(t, <-result)
+	_, err = f.db.Queries.GetShelfmarkRelease(t.Context(), "key")
+	require.NoError(t, err)
 }
 
 func TestShelfmarkDisconnectAfterClaimStillSettles(t *testing.T) {

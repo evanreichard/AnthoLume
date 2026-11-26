@@ -232,7 +232,7 @@ func (s *webAPI) CreateShelfmarkRequest(ctx context.Context, r CreateShelfmarkRe
 	if err != nil {
 		return nil, adminFailure(http.StatusBadRequest, "shelfmark_invalid_selection")
 	}
-	row, err := queries.ClaimShelfmarkRelease(ctx, database.ClaimShelfmarkReleaseParams{
+	row, err := s.claimShelfmarkRelease(ctx, database.ClaimShelfmarkReleaseParams{
 		Source: release.Source, ReleaseKey: release.Key, ReleaseTitle: release.Title, ReleaseAuthor: release.Author,
 		Format: release.Format, Size: release.Size, Language: release.Language, Indexer: release.Indexer,
 		Provider: book.Provider, BookID: book.ID, BookTitle: book.Title, Author: book.Author, Description: book.Description,
@@ -248,7 +248,6 @@ func (s *webAPI) CreateShelfmarkRequest(ctx context.Context, r CreateShelfmarkRe
 		return nil, err
 	}
 
-	// Accepted Claim - The single time-bounded POST belongs to the server once the claim is durable.
 	dispatch := context.WithoutCancel(ctx)
 	err = s.api.shelfmark.Download(dispatch, release)
 	settle, cancel := context.WithTimeout(dispatch, 3*time.Second)
@@ -267,6 +266,22 @@ func (s *webAPI) CreateShelfmarkRequest(ctx context.Context, r CreateShelfmarkRe
 		return nil, err
 	}
 	return s.shelfmarkReleaseResponse(settle, book, row)
+}
+
+func (s *webAPI) claimShelfmarkRelease(ctx context.Context, params database.ClaimShelfmarkReleaseParams) (database.ShelfmarkRelease, error) {
+	// Claim Ownership - A browser disconnect must not leave a committed claim without a download.
+	claim, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+	defer cancel()
+	tx, err := s.api.db.DB.BeginTx(claim, nil)
+	if err != nil {
+		return database.ShelfmarkRelease{}, err
+	}
+	defer tx.Rollback()
+	row, err := s.api.db.Queries.WithTx(tx).ClaimShelfmarkRelease(claim, params)
+	if err != nil {
+		return row, err
+	}
+	return row, tx.Commit()
 }
 
 func (s *webAPI) shelfmarkReleaseResponse(ctx context.Context, book shelfmark.Book, row database.ShelfmarkRelease) (CreateShelfmarkRequestResponseObject, error) {
