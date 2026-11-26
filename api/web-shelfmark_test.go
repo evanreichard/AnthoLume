@@ -13,10 +13,15 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"reichard.io/antholume/database"
 	"reichard.io/antholume/shelfmark"
 )
 
 const shelfmarkRequestsPath = "/api/v1/shelfmark/requests"
+const shelfmarkReleasesPath = "/api/v1/shelfmark/releases"
+const shelfmarkTestBook = `{"provider":"hardcover","provider_id":"69589","title":"The Time Machine","authors":["H. G. Wells"],"publish_year":1895}`
+const shelfmarkTestAlias = `{"provider":"openlibrary","provider_id":"OL1W","title":"The Time Machine"}`
+const shelfmarkTestReleases = `[{"source":"prowlarr","source_id":"secret-source-one","title":"Release A","author":"Release A Author","format":"epub","download_url":"https://example.org/sensitive"},{"source":"newznab","source_id":"secret-source-one","title":"Release B","format":"pdf"}]`
 
 func testShelfmark(t *testing.T, f *webFixture, handle http.HandlerFunc) {
 	t.Helper()
@@ -26,12 +31,20 @@ func testShelfmark(t *testing.T, f *webFixture, handle http.HandlerFunc) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/api/config" {
+			fmt.Fprint(w, `{"supported_formats":["epub","pdf"]}`)
+			return
+		}
 		handle(w, r)
 	}))
 	t.Cleanup(upstream.Close)
 	var err error
 	f.api.shelfmark, err = shelfmark.New(upstream.URL, "test-shelfmark-key")
 	require.NoError(t, err)
+}
+
+func shelfmarkDownloadBody(release ShelfmarkRelease) map[string]string {
+	return map[string]string{"provider": "hardcover", "id": "69589", "release_key": release.Key, "selection": *release.Selection}
 }
 
 func TestShelfmarkConfigurationAndGate(t *testing.T) {
@@ -62,56 +75,61 @@ func TestShelfmarkConfigurationAndGate(t *testing.T) {
 	require.Equal(t, ShelfmarkSettings{Configured: true}, decodeWeb[ShelfmarkSettings](t, r))
 	r = f.call("GET", settings, nil, nil)
 	require.Equal(t, ShelfmarkSettings{Configured: true}, decodeWeb[ShelfmarkSettings](t, r))
-	assertProblem(t, f.call("GET", search, nil, nil), 409, "shelfmark_disabled")
-	assertProblem(t, f.call("GET", "/api/v1/shelfmark/cover?provider=hardcover&id=69589", nil, nil), 409, "shelfmark_disabled")
-	assertProblem(t, f.call("GET", shelfmarkRequestsPath, nil, nil), 409, "shelfmark_disabled")
-	assertProblem(t, f.call("POST", shelfmarkRequestsPath, map[string]string{"provider": "hardcover", "id": "69589"}, nil), 409, "shelfmark_disabled")
+	for _, endpoint := range []string{search, "/api/v1/shelfmark/cover?provider=hardcover&id=69589", shelfmarkRequestsPath,
+		shelfmarkReleasesPath + "?provider=hardcover&id=69589", shelfmarkRequestsPath + "/releases?provider=hardcover&id=69589"} {
+		assertProblem(t, f.call("GET", endpoint, nil, nil), 409, "shelfmark_disabled")
+	}
+	assertProblem(t, f.call("POST", shelfmarkRequestsPath, shelfmarkDownloadBody(ShelfmarkRelease{Key: "key", Selection: new("selection")}), nil), 409, "shelfmark_disabled")
 }
 
-func TestShelfmarkSharedClaimAndLostResponse(t *testing.T) {
+func TestShelfmarkSharedReleaseClaimAndGroupedHistory(t *testing.T) {
 	f := newWebFixture(t)
-	entered, letAccept := make(chan struct{}), make(chan struct{})
-	var release sync.Once
-	finish := func() { release.Do(func() { close(letAccept) }) }
-	var accepted atomic.Bool
+	entered, finish := make(chan struct{}), make(chan struct{})
+	var ready, release sync.Once
+	end := func() { release.Do(func() { close(finish) }) }
 	var posts atomic.Int32
-	const book = `{"provider":"hardcover","provider_id":"69589","title":"The Time Machine","authors":["H. G. Wells"],"publish_year":1895}`
 	testShelfmark(t, f, func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == "GET" && r.URL.Path == "/api/metadata/book/hardcover/69589":
-			fmt.Fprint(w, book)
-		case r.Method == "GET" && r.URL.Path == "/api/metadata/search":
-			fmt.Fprint(w, `{"books":[`+book+`,{"provider":"openlibrary","provider_id":"69589","title":"Different provider"}]}`)
-		case r.Method == "POST" && r.URL.Path == "/api/requests":
-			var payload struct {
-				Context  map[string]string `json:"context"`
-				BookData map[string]string `json:"book_data"`
-				Release  json.RawMessage   `json:"release_data"`
-			}
-			if json.NewDecoder(r.Body).Decode(&payload) != nil || payload.Context["request_level"] != "book" || payload.Context["content_type"] != "ebook" || payload.BookData["title"] != "The Time Machine" || payload.Release != nil {
+		switch r.Method + " " + r.URL.Path {
+		case "GET /api/metadata/book/hardcover/69589":
+			fmt.Fprint(w, shelfmarkTestBook)
+		case "GET /api/metadata/search":
+			fmt.Fprint(w, `{"books":[`+shelfmarkTestBook+`,`+shelfmarkTestAlias+`]}`)
+		case "GET /api/releases":
+			q := r.URL.Query()
+			if q.Get("content_type") != "ebook" {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			if posts.Add(1) == 1 {
-				close(entered)
+			book := shelfmarkTestBook
+			if q.Get("provider") == "openlibrary" && q.Get("book_id") == "OL1W" {
+				book = shelfmarkTestAlias
 			}
-			<-letAccept
-			accepted.Store(true)
-			conn, _, err := w.(http.Hijacker).Hijack()
-			if err == nil {
-				conn.Close()
-			}
-		case r.Method == "GET" && r.URL.Path == "/api/requests":
-			if !accepted.Load() {
-				fmt.Fprint(w, `[]`)
+			fmt.Fprint(w, `{"book":`+book+`,"releases":`+shelfmarkTestReleases+`,"errors":["another source was unavailable"]}`)
+		case "POST /api/releases/download":
+			posts.Add(1)
+			var payload map[string]any
+			if json.NewDecoder(r.Body).Decode(&payload) != nil || payload["source_id"] != "secret-source-one" || payload["content_type"] != "ebook" {
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			fmt.Fprint(w, `[{"id":101,"request_level":"book","content_type":"ebook","book_data":`+book+`}]`)
+			switch payload["source"] {
+			case "prowlarr":
+				ready.Do(func() { close(entered) })
+				<-finish
+				conn, _, err := w.(http.Hijacker).Hijack()
+				if err == nil {
+					conn.Close()
+				}
+			case "newznab":
+				fmt.Fprint(w, `{"status":"queued"}`)
+			default:
+				w.WriteHeader(http.StatusBadRequest)
+			}
 		default:
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 		}
 	})
-	t.Cleanup(finish)
+	t.Cleanup(end)
 	f.register("alex")
 	other := *f
 	jar, err := cookiejar.New(nil)
@@ -119,7 +137,26 @@ func TestShelfmarkSharedClaimAndLostResponse(t *testing.T) {
 	other.client = &http.Client{Jar: jar, Timeout: 5 * time.Second}
 	other.register("sam")
 	assertProblem(t, other.call("PUT", "/api/v1/admin/shelfmark", map[string]bool{"enabled": false}, nil), 403, "forbidden")
-	payload := map[string]string{"provider": "hardcover", "id": "69589"}
+	listing := f.call("GET", shelfmarkReleasesPath+"?provider=hardcover&id=69589", nil, nil)
+	require.Equal(t, 200, listing.status, string(listing.body))
+	require.NotContains(t, string(listing.body), "secret-source-one")
+	require.NotContains(t, string(listing.body), "example.org")
+	files := decodeWeb[ShelfmarkReleaseList](t, listing)
+	require.True(t, files.Partial)
+	require.Len(t, files.Releases, 2)
+	require.Nil(t, files.Releases[0].Request)
+	require.Equal(t, new("Release A Author"), files.Releases[0].Author)
+	require.Nil(t, files.Releases[1].Author)
+	assertProblem(t, f.call("POST", shelfmarkRequestsPath, shelfmarkDownloadBody(ShelfmarkRelease{Key: files.Releases[0].Key, Selection: new("tampered")}), nil), 400, "shelfmark_invalid_selection")
+	aliasList := decodeWeb[ShelfmarkReleaseList](t, other.call("GET", shelfmarkReleasesPath+"?provider=openlibrary&id=OL1W", nil, nil))
+	alias := shelfmarkDownloadBody(aliasList.Releases[0])
+	alias["provider"], alias["id"] = "openlibrary", "OL1W"
+	wrongBook := shelfmarkDownloadBody(files.Releases[0])
+	wrongBook["id"] = "999"
+	assertProblem(t, f.call("POST", shelfmarkRequestsPath, wrongBook, nil), 400, "shelfmark_invalid_selection")
+	require.Zero(t, posts.Load())
+
+	payload := shelfmarkDownloadBody(files.Releases[0])
 	first := f.newRequest("POST", shelfmarkRequestsPath, payload, nil)
 	type outcome struct {
 		response webResponse
@@ -143,63 +180,81 @@ func TestShelfmarkSharedClaimAndLostResponse(t *testing.T) {
 	}
 	shared := other.call("POST", shelfmarkRequestsPath, payload, nil)
 	require.Equal(t, 200, shared.status, string(shared.body))
-	claim := decodeWeb[ShelfmarkBook](t, shared).Request
-	require.NotNil(t, claim)
-	require.Equal(t, "alex", claim.Username)
-	require.Equal(t, Confirming, claim.State)
+	claim := decodeWeb[ShelfmarkDownloadResult](t, shared).Release
+	require.NotNil(t, claim.Request)
+	require.Equal(t, files.Releases[0].Author, claim.Author)
+	require.Equal(t, "alex", claim.Request.Username)
+	require.Equal(t, ShelfmarkUnconfirmed, claim.Request.State)
 	require.EqualValues(t, 1, posts.Load())
-
-	finish()
+	end()
 	out := <-done
 	require.NoError(t, out.err)
 	require.Equal(t, 200, out.response.status, string(out.response.body))
-	require.Equal(t, Confirming, decodeWeb[ShelfmarkBook](t, out.response).Request.State)
-	recheck := other.call("POST", shelfmarkRequestsPath, map[string]any{"provider": "hardcover", "id": "69589", "check_only": true}, nil)
-	require.Equal(t, 200, recheck.status, string(recheck.body))
-	expected := *claim
-	expected.State = Requested
-	require.Equal(t, expected, *decodeWeb[ShelfmarkBook](t, recheck).Request)
+	require.Equal(t, claim, decodeWeb[ShelfmarkDownloadResult](t, out.response).Release)
+
+	aliases := other.call("GET", shelfmarkReleasesPath+"?provider=openlibrary&id=OL1W", nil, nil)
+	require.Equal(t, 200, aliases.status, string(aliases.body))
+	require.Equal(t, claim.Request, decodeWeb[ShelfmarkReleaseList](t, aliases).Releases[0].Request)
+	duplicate := other.call("POST", shelfmarkRequestsPath, alias, nil)
+	require.Equal(t, 200, duplicate.status, string(duplicate.body))
+	require.Equal(t, claim, decodeWeb[ShelfmarkDownloadResult](t, duplicate).Release)
 	require.EqualValues(t, 1, posts.Load())
 
-	results := other.call("GET", "/api/v1/shelfmark/search?q=time", nil, nil)
-	require.Equal(t, 200, results.status, string(results.body))
-	matches := decodeWeb[[]ShelfmarkBook](t, results)
+	second := other.call("POST", shelfmarkRequestsPath, shelfmarkDownloadBody(files.Releases[1]), nil)
+	require.Equal(t, 200, second.status, string(second.body))
+	result := decodeWeb[ShelfmarkDownloadResult](t, second)
+	require.Equal(t, 2, result.RequestCount)
+	queued := result.Release
+	require.NotNil(t, queued.Request)
+	require.Nil(t, queued.Author)
+	require.Equal(t, "sam", queued.Request.Username)
+	require.Equal(t, ShelfmarkQueued, queued.Request.State)
+	require.EqualValues(t, 2, posts.Load())
+	matches := decodeWeb[[]ShelfmarkBook](t, other.call("GET", "/api/v1/shelfmark/search?q=time", nil, nil))
 	require.Len(t, matches, 2)
-	require.Equal(t, &expected, matches[0].Request)
-	require.Nil(t, matches[1].Request)
+	require.Equal(t, 2, matches[0].RequestCount)
+	require.Zero(t, matches[1].RequestCount)
 	history := other.call("GET", shelfmarkRequestsPath, nil, nil)
 	require.Equal(t, 200, history.status, string(history.body))
 	require.Equal(t, matches[:1], decodeWeb[[]ShelfmarkBook](t, history))
 	require.JSONEq(t, `[]`, string(other.call("GET", shelfmarkRequestsPath+"?offset=1", nil, nil).body))
+	details := other.call("GET", shelfmarkRequestsPath+"/releases?provider=hardcover&id=69589", nil, nil)
+	require.Equal(t, 200, details.status, string(details.body))
+	require.Equal(t, []ShelfmarkRelease{queued, claim}, decodeWeb[[]ShelfmarkRelease](t, details))
+	stored, err := f.db.Queries.GetShelfmarkReleaseBySource(t.Context(), database.GetShelfmarkReleaseBySourceParams{Source: "newznab", SourceID: "secret-source-one"})
+	require.NoError(t, err)
+	require.Equal(t, queued.Key, stored.ReleaseKey)
 }
 
-func TestShelfmarkRejectionReleasesClaim(t *testing.T) {
+func TestShelfmarkRejectedReleaseIsRecordedWithoutResubmission(t *testing.T) {
 	f := newWebFixture(t)
 	var posts atomic.Int32
 	testShelfmark(t, f, func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method + " " + r.URL.Path {
 		case "GET /api/metadata/book/hardcover/69589":
-			fmt.Fprint(w, `{"provider":"hardcover","provider_id":"69589","title":"The Time Machine"}`)
-		case "POST /api/requests":
-			if posts.Add(1) == 1 {
-				w.WriteHeader(http.StatusForbidden)
-				fmt.Fprint(w, `{"error":"policy refuses the request"}`)
-				return
-			}
-			w.WriteHeader(http.StatusCreated)
-			fmt.Fprint(w, `{"id":102}`)
+			fmt.Fprint(w, shelfmarkTestBook)
+		case "GET /api/releases":
+			fmt.Fprint(w, `{"book":`+shelfmarkTestBook+`,"releases":`+shelfmarkTestReleases+`}`)
+		case "POST /api/releases/download":
+			posts.Add(1)
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"error":"policy refuses the download"}`)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
 	})
 	f.register("reader")
-	payload := map[string]string{"provider": "hardcover", "id": "69589"}
-	assertProblem(t, f.call("POST", shelfmarkRequestsPath, map[string]any{"provider": "hardcover", "id": "69589", "check_only": true}, nil), 404, "shelfmark_request_not_found")
-	require.Zero(t, posts.Load())
-	assertProblem(t, f.call("POST", shelfmarkRequestsPath, payload, nil), 502, "shelfmark_request_rejected")
-	require.JSONEq(t, `[]`, string(f.call("GET", shelfmarkRequestsPath, nil, nil).body))
+	listing := f.call("GET", shelfmarkReleasesPath+"?provider=hardcover&id=69589", nil, nil)
+	require.Equal(t, 200, listing.status, string(listing.body))
+	files := decodeWeb[ShelfmarkReleaseList](t, listing).Releases
+	payload := shelfmarkDownloadBody(files[0])
 	response := f.call("POST", shelfmarkRequestsPath, payload, nil)
 	require.Equal(t, 200, response.status, string(response.body))
-	require.Equal(t, Requested, decodeWeb[ShelfmarkBook](t, response).Request.State)
-	require.EqualValues(t, 2, posts.Load())
+	rejected := decodeWeb[ShelfmarkDownloadResult](t, response).Release
+	require.NotNil(t, rejected.Request)
+	require.Equal(t, ShelfmarkRejected, rejected.Request.State)
+	repeat := f.call("POST", shelfmarkRequestsPath, payload, nil)
+	require.Equal(t, 200, repeat.status, string(repeat.body))
+	require.Equal(t, rejected, decodeWeb[ShelfmarkDownloadResult](t, repeat).Release)
+	require.EqualValues(t, 1, posts.Load())
 }

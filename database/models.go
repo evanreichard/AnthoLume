@@ -127,6 +127,20 @@ type HardcoverLink struct {
 	Credential []byte `json:"credential"`
 }
 
+type LegacyShelfmarkRequest struct {
+	Sequence    int64  `json:"sequence"`
+	Provider    string `json:"provider"`
+	BookID      string `json:"book_id"`
+	Title       string `json:"title"`
+	Author      string `json:"author"`
+	Description string `json:"description"`
+	Year        int64  `json:"year"`
+	HasCover    bool   `json:"has_cover"`
+	Username    string `json:"username"`
+	RequestedAt string `json:"requested_at"`
+	RemoteID    *int64 `json:"remote_id"`
+}
+
 type ReadingGeneration struct {
 	Singleton  int64  `json:"singleton"`
 	Generation string `json:"generation"`
@@ -171,18 +185,26 @@ type Setting struct {
 	CreatedAt string `json:"created_at"`
 }
 
-type ShelfmarkRequest struct {
-	Sequence    int64  `json:"sequence"`
-	Provider    string `json:"provider"`
-	BookID      string `json:"book_id"`
-	Title       string `json:"title"`
-	Author      string `json:"author"`
-	Description string `json:"description"`
-	Year        int64  `json:"year"`
-	HasCover    bool   `json:"has_cover"`
-	Username    string `json:"username"`
-	RequestedAt string `json:"requested_at"`
-	RemoteID    *int64 `json:"remote_id"`
+type ShelfmarkRelease struct {
+	Source        string `json:"source"`
+	SourceID      string `json:"source_id"`
+	ReleaseKey    string `json:"release_key"`
+	ReleaseTitle  string `json:"release_title"`
+	Format        string `json:"format"`
+	Size          string `json:"size"`
+	Language      string `json:"language"`
+	Indexer       string `json:"indexer"`
+	Provider      string `json:"provider"`
+	BookID        string `json:"book_id"`
+	BookTitle     string `json:"book_title"`
+	Author        string `json:"author"`
+	Description   string `json:"description"`
+	Year          int64  `json:"year"`
+	HasCover      bool   `json:"has_cover"`
+	Username      string `json:"username"`
+	RequestedAt   string `json:"requested_at"`
+	State         string `json:"state"`
+	ReleaseAuthor string `json:"release_author"`
 }
 
 type StorageRoot struct {

@@ -2,8 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import { session } from './session';
 import type { Account } from './reading';
 
-export const shelfmarkKey = (account: Account, kind: 'settings' | 'search' | 'history' | 'cover') =>
-  ['shelfmark', account, kind] as const;
+export const shelfmarkKey = (
+  account: Account,
+  kind: 'settings' | 'search' | 'history' | 'cover' | 'releases' | 'release-history',
+) => ['shelfmark', account, kind] as const;
 
 export function useShelfmarkSettings(account?: Account) {
   return useQuery({

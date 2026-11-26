@@ -9,97 +9,171 @@ import (
 	"context"
 )
 
-const claimShelfmarkRequest = `-- name: ClaimShelfmarkRequest :one
-INSERT INTO shelfmark_requests (provider, book_id, title, author, description, year, has_cover, username, requested_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (provider, book_id) DO NOTHING
-RETURNING sequence, provider, book_id, title, author, description, year, has_cover, username, requested_at, remote_id
+const claimShelfmarkRelease = `-- name: ClaimShelfmarkRelease :one
+INSERT INTO shelfmark_releases (
+    source, source_id, release_key, release_title, format, size, language, indexer,
+    provider, book_id, book_title, author, description, year, has_cover, username, requested_at, release_author
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT DO NOTHING
+RETURNING source, source_id, release_key, release_title, format, size, language, indexer, provider, book_id, book_title, author, description, year, has_cover, username, requested_at, state, release_author
 `
 
-type ClaimShelfmarkRequestParams struct {
-	Provider    string `json:"provider"`
-	BookID      string `json:"book_id"`
-	Title       string `json:"title"`
-	Author      string `json:"author"`
-	Description string `json:"description"`
-	Year        int64  `json:"year"`
-	HasCover    bool   `json:"has_cover"`
-	Username    string `json:"username"`
-	RequestedAt string `json:"requested_at"`
+type ClaimShelfmarkReleaseParams struct {
+	Source        string `json:"source"`
+	SourceID      string `json:"source_id"`
+	ReleaseKey    string `json:"release_key"`
+	ReleaseTitle  string `json:"release_title"`
+	Format        string `json:"format"`
+	Size          string `json:"size"`
+	Language      string `json:"language"`
+	Indexer       string `json:"indexer"`
+	Provider      string `json:"provider"`
+	BookID        string `json:"book_id"`
+	BookTitle     string `json:"book_title"`
+	Author        string `json:"author"`
+	Description   string `json:"description"`
+	Year          int64  `json:"year"`
+	HasCover      bool   `json:"has_cover"`
+	Username      string `json:"username"`
+	RequestedAt   string `json:"requested_at"`
+	ReleaseAuthor string `json:"release_author"`
 }
 
-func (q *Queries) ClaimShelfmarkRequest(ctx context.Context, arg ClaimShelfmarkRequestParams) (ShelfmarkRequest, error) {
-	row := q.db.QueryRowContext(ctx, claimShelfmarkRequest,
+func (q *Queries) ClaimShelfmarkRelease(ctx context.Context, arg ClaimShelfmarkReleaseParams) (ShelfmarkRelease, error) {
+	row := q.db.QueryRowContext(ctx, claimShelfmarkRelease,
+		arg.Source,
+		arg.SourceID,
+		arg.ReleaseKey,
+		arg.ReleaseTitle,
+		arg.Format,
+		arg.Size,
+		arg.Language,
+		arg.Indexer,
 		arg.Provider,
 		arg.BookID,
-		arg.Title,
+		arg.BookTitle,
 		arg.Author,
 		arg.Description,
 		arg.Year,
 		arg.HasCover,
 		arg.Username,
 		arg.RequestedAt,
+		arg.ReleaseAuthor,
 	)
-	var i ShelfmarkRequest
+	var i ShelfmarkRelease
 	err := row.Scan(
-		&i.Sequence,
+		&i.Source,
+		&i.SourceID,
+		&i.ReleaseKey,
+		&i.ReleaseTitle,
+		&i.Format,
+		&i.Size,
+		&i.Language,
+		&i.Indexer,
 		&i.Provider,
 		&i.BookID,
-		&i.Title,
+		&i.BookTitle,
 		&i.Author,
 		&i.Description,
 		&i.Year,
 		&i.HasCover,
 		&i.Username,
 		&i.RequestedAt,
-		&i.RemoteID,
+		&i.State,
+		&i.ReleaseAuthor,
 	)
 	return i, err
 }
 
-const completeShelfmarkRequest = `-- name: CompleteShelfmarkRequest :execrows
-UPDATE shelfmark_requests SET remote_id = ?1
-WHERE sequence = ?2 AND remote_id IS NULL
+const countShelfmarkBookReleases = `-- name: CountShelfmarkBookReleases :many
+SELECT r.provider, r.book_id, COUNT(*) AS request_count
+FROM shelfmark_releases r
+WHERE (r.provider, r.book_id) IN (
+    SELECT json_extract(k.value, '$[0]'), json_extract(k.value, '$[1]')
+    FROM json_each(CAST(?1 AS TEXT)) AS k
+)
+GROUP BY r.provider, r.book_id
 `
 
-type CompleteShelfmarkRequestParams struct {
-	RemoteID *int64 `json:"remote_id"`
-	Sequence int64  `json:"sequence"`
+type CountShelfmarkBookReleasesRow struct {
+	Provider     string `json:"provider"`
+	BookID       string `json:"book_id"`
+	RequestCount int64  `json:"request_count"`
 }
 
-func (q *Queries) CompleteShelfmarkRequest(ctx context.Context, arg CompleteShelfmarkRequestParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, completeShelfmarkRequest, arg.RemoteID, arg.Sequence)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const findShelfmarkRequests = `-- name: FindShelfmarkRequests :many
-SELECT r.sequence, r.provider, r.book_id, r.title, r.author, r.description, r.year, r.has_cover, r.username, r.requested_at, r.remote_id FROM json_each(CAST(?1 AS TEXT)) AS k
-JOIN shelfmark_requests AS r ON r.provider = json_extract(k.value, '$[0]') AND r.book_id = json_extract(k.value, '$[1]')
-`
-
-func (q *Queries) FindShelfmarkRequests(ctx context.Context, bookKeys string) ([]ShelfmarkRequest, error) {
-	rows, err := q.db.QueryContext(ctx, findShelfmarkRequests, bookKeys)
+func (q *Queries) CountShelfmarkBookReleases(ctx context.Context, bookKeys string) ([]CountShelfmarkBookReleasesRow, error) {
+	rows, err := q.db.QueryContext(ctx, countShelfmarkBookReleases, bookKeys)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ShelfmarkRequest
+	var items []CountShelfmarkBookReleasesRow
 	for rows.Next() {
-		var i ShelfmarkRequest
+		var i CountShelfmarkBookReleasesRow
+		if err := rows.Scan(&i.Provider, &i.BookID, &i.RequestCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countShelfmarkBookRequests = `-- name: CountShelfmarkBookRequests :one
+SELECT COUNT(*) FROM shelfmark_releases WHERE provider = ? AND book_id = ?
+`
+
+type CountShelfmarkBookRequestsParams struct {
+	Provider string `json:"provider"`
+	BookID   string `json:"book_id"`
+}
+
+func (q *Queries) CountShelfmarkBookRequests(ctx context.Context, arg CountShelfmarkBookRequestsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countShelfmarkBookRequests, arg.Provider, arg.BookID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const findShelfmarkReleaseRequests = `-- name: FindShelfmarkReleaseRequests :many
+SELECT r.source, r.source_id, r.release_key, r.release_title, r.format, r.size, r.language, r.indexer, r.provider, r.book_id, r.book_title, r.author, r.description, r.year, r.has_cover, r.username, r.requested_at, r.state, r.release_author FROM shelfmark_releases AS r
+WHERE r.release_key IN (SELECT CAST(value AS TEXT) FROM json_each(CAST(?1 AS TEXT)))
+`
+
+func (q *Queries) FindShelfmarkReleaseRequests(ctx context.Context, releaseKeys string) ([]ShelfmarkRelease, error) {
+	rows, err := q.db.QueryContext(ctx, findShelfmarkReleaseRequests, releaseKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ShelfmarkRelease
+	for rows.Next() {
+		var i ShelfmarkRelease
 		if err := rows.Scan(
-			&i.Sequence,
+			&i.Source,
+			&i.SourceID,
+			&i.ReleaseKey,
+			&i.ReleaseTitle,
+			&i.Format,
+			&i.Size,
+			&i.Language,
+			&i.Indexer,
 			&i.Provider,
 			&i.BookID,
-			&i.Title,
+			&i.BookTitle,
 			&i.Author,
 			&i.Description,
 			&i.Year,
 			&i.HasCover,
 			&i.Username,
 			&i.RequestedAt,
-			&i.RemoteID,
+			&i.State,
+			&i.ReleaseAuthor,
 		); err != nil {
 			return nil, err
 		}
@@ -125,59 +199,80 @@ func (q *Queries) GetShelfmarkEnabled(ctx context.Context) (string, error) {
 	return column_1, err
 }
 
-const getShelfmarkRequest = `-- name: GetShelfmarkRequest :one
-SELECT sequence, provider, book_id, title, author, description, year, has_cover, username, requested_at, remote_id FROM shelfmark_requests WHERE provider = ? AND book_id = ?
+const getShelfmarkReleaseBySource = `-- name: GetShelfmarkReleaseBySource :one
+SELECT source, source_id, release_key, release_title, format, size, language, indexer, provider, book_id, book_title, author, description, year, has_cover, username, requested_at, state, release_author FROM shelfmark_releases WHERE source = ? AND source_id = ?
 `
 
-type GetShelfmarkRequestParams struct {
-	Provider string `json:"provider"`
-	BookID   string `json:"book_id"`
+type GetShelfmarkReleaseBySourceParams struct {
+	Source   string `json:"source"`
+	SourceID string `json:"source_id"`
 }
 
-func (q *Queries) GetShelfmarkRequest(ctx context.Context, arg GetShelfmarkRequestParams) (ShelfmarkRequest, error) {
-	row := q.db.QueryRowContext(ctx, getShelfmarkRequest, arg.Provider, arg.BookID)
-	var i ShelfmarkRequest
+func (q *Queries) GetShelfmarkReleaseBySource(ctx context.Context, arg GetShelfmarkReleaseBySourceParams) (ShelfmarkRelease, error) {
+	row := q.db.QueryRowContext(ctx, getShelfmarkReleaseBySource, arg.Source, arg.SourceID)
+	var i ShelfmarkRelease
 	err := row.Scan(
-		&i.Sequence,
+		&i.Source,
+		&i.SourceID,
+		&i.ReleaseKey,
+		&i.ReleaseTitle,
+		&i.Format,
+		&i.Size,
+		&i.Language,
+		&i.Indexer,
 		&i.Provider,
 		&i.BookID,
-		&i.Title,
+		&i.BookTitle,
 		&i.Author,
 		&i.Description,
 		&i.Year,
 		&i.HasCover,
 		&i.Username,
 		&i.RequestedAt,
-		&i.RemoteID,
+		&i.State,
+		&i.ReleaseAuthor,
 	)
 	return i, err
 }
 
-const listShelfmarkRequests = `-- name: ListShelfmarkRequests :many
-SELECT sequence, provider, book_id, title, author, description, year, has_cover, username, requested_at, remote_id FROM shelfmark_requests ORDER BY sequence DESC LIMIT 51 OFFSET ?1
+const listShelfmarkRequestedReleases = `-- name: ListShelfmarkRequestedReleases :many
+SELECT source, source_id, release_key, release_title, format, size, language, indexer, provider, book_id, book_title, author, description, year, has_cover, username, requested_at, state, release_author FROM shelfmark_releases WHERE provider = ? AND book_id = ? ORDER BY requested_at DESC, release_key DESC
 `
 
-func (q *Queries) ListShelfmarkRequests(ctx context.Context, pageOffset int64) ([]ShelfmarkRequest, error) {
-	rows, err := q.db.QueryContext(ctx, listShelfmarkRequests, pageOffset)
+type ListShelfmarkRequestedReleasesParams struct {
+	Provider string `json:"provider"`
+	BookID   string `json:"book_id"`
+}
+
+func (q *Queries) ListShelfmarkRequestedReleases(ctx context.Context, arg ListShelfmarkRequestedReleasesParams) ([]ShelfmarkRelease, error) {
+	rows, err := q.db.QueryContext(ctx, listShelfmarkRequestedReleases, arg.Provider, arg.BookID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ShelfmarkRequest
+	var items []ShelfmarkRelease
 	for rows.Next() {
-		var i ShelfmarkRequest
+		var i ShelfmarkRelease
 		if err := rows.Scan(
-			&i.Sequence,
+			&i.Source,
+			&i.SourceID,
+			&i.ReleaseKey,
+			&i.ReleaseTitle,
+			&i.Format,
+			&i.Size,
+			&i.Language,
+			&i.Indexer,
 			&i.Provider,
 			&i.BookID,
-			&i.Title,
+			&i.BookTitle,
 			&i.Author,
 			&i.Description,
 			&i.Year,
 			&i.HasCover,
 			&i.Username,
 			&i.RequestedAt,
-			&i.RemoteID,
+			&i.State,
+			&i.ReleaseAuthor,
 		); err != nil {
 			return nil, err
 		}
@@ -192,14 +287,72 @@ func (q *Queries) ListShelfmarkRequests(ctx context.Context, pageOffset int64) (
 	return items, nil
 }
 
-const releaseShelfmarkRequest = `-- name: ReleaseShelfmarkRequest :execrows
-DELETE FROM shelfmark_requests WHERE sequence = ? AND remote_id IS NULL
+const listShelfmarkRequests = `-- name: ListShelfmarkRequests :many
+WITH recent AS (
+    SELECT provider, book_id, book_title, author, description, year, has_cover, requested_at, release_key,
+           CAST(COUNT(*) OVER (PARTITION BY provider, book_id) AS INTEGER) AS request_count,
+           ROW_NUMBER() OVER (PARTITION BY provider, book_id ORDER BY requested_at DESC, release_key DESC) AS position
+    FROM shelfmark_releases
+)
+SELECT provider, book_id, book_title, author, description, year, has_cover, request_count
+FROM recent WHERE position = 1
+ORDER BY requested_at DESC, release_key DESC LIMIT 51 OFFSET ?1
 `
 
-func (q *Queries) ReleaseShelfmarkRequest(ctx context.Context, sequence int64) (int64, error) {
-	result, err := q.db.ExecContext(ctx, releaseShelfmarkRequest, sequence)
+type ListShelfmarkRequestsRow struct {
+	Provider     string `json:"provider"`
+	BookID       string `json:"book_id"`
+	BookTitle    string `json:"book_title"`
+	Author       string `json:"author"`
+	Description  string `json:"description"`
+	Year         int64  `json:"year"`
+	HasCover     bool   `json:"has_cover"`
+	RequestCount int64  `json:"request_count"`
+}
+
+func (q *Queries) ListShelfmarkRequests(ctx context.Context, pageOffset int64) ([]ListShelfmarkRequestsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listShelfmarkRequests, pageOffset)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected()
+	defer rows.Close()
+	var items []ListShelfmarkRequestsRow
+	for rows.Next() {
+		var i ListShelfmarkRequestsRow
+		if err := rows.Scan(
+			&i.Provider,
+			&i.BookID,
+			&i.BookTitle,
+			&i.Author,
+			&i.Description,
+			&i.Year,
+			&i.HasCover,
+			&i.RequestCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setShelfmarkReleaseState = `-- name: SetShelfmarkReleaseState :exec
+UPDATE shelfmark_releases SET state = ?1
+WHERE release_key = ?2 AND state = 'unconfirmed'
+`
+
+type SetShelfmarkReleaseStateParams struct {
+	State      string `json:"state"`
+	ReleaseKey string `json:"release_key"`
+}
+
+func (q *Queries) SetShelfmarkReleaseState(ctx context.Context, arg SetShelfmarkReleaseStateParams) error {
+	_, err := q.db.ExecContext(ctx, setShelfmarkReleaseState, arg.State, arg.ReleaseKey)
+	return err
 }

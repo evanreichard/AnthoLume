@@ -244,6 +244,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/shelfmark/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listShelfmarkReleases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shelfmark/requests/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listShelfmarkRequestedReleases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/shelfmark/requests": {
         parameters: {
             query?: never;
@@ -831,6 +863,29 @@ export interface components {
             description: string;
             year: number;
             has_cover: boolean;
+            request_count: number;
+        };
+        ShelfmarkReleaseList: {
+            releases: components["schemas"]["ShelfmarkRelease"][];
+            partial: boolean;
+        };
+        /** @description Opaque download selection issued by AnthoLume */
+        ShelfmarkSelection: string;
+        ShelfmarkDownloadResult: {
+            release: components["schemas"]["ShelfmarkRelease"];
+            request_count: number;
+        };
+        ShelfmarkRelease: {
+            key: components["schemas"]["ShelfmarkIdentifier"];
+            selection?: components["schemas"]["ShelfmarkSelection"];
+            source: string;
+            title: string;
+            /** @description Author reported by the release source */
+            author?: string;
+            format: string;
+            size: string;
+            language: string;
+            indexer: string;
             request?: components["schemas"]["ShelfmarkRequestInfo"];
         };
         ShelfmarkRequestInfo: {
@@ -838,7 +893,7 @@ export interface components {
             /** Format: date-time */
             requested_at: string;
             /** @enum {string} */
-            state: "requested" | "confirming";
+            state: "queued" | "rejected" | "unconfirmed";
         };
         HardcoverStatus: {
             enabled: boolean;
@@ -1857,7 +1912,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Matching books with any existing AnthoLume requests */
+            /** @description Matching books with a count of distinct releases requested through AnthoLume */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1888,6 +1943,54 @@ export interface operations {
                 };
                 content: {
                     "image/*": Blob;
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listShelfmarkReleases: {
+        parameters: {
+            query: {
+                provider: components["schemas"]["ShelfmarkIdentifier"];
+                id: components["schemas"]["ShelfmarkIdentifier"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Eligible ebook releases; partial indicates an incomplete upstream search */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfmarkReleaseList"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listShelfmarkRequestedReleases: {
+        parameters: {
+            query: {
+                provider: components["schemas"]["ShelfmarkIdentifier"];
+                id: components["schemas"]["ShelfmarkIdentifier"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All requested releases for the book, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfmarkRelease"][];
                 };
             };
             default: components["responses"]["Problem"];
@@ -1933,19 +2036,19 @@ export interface operations {
                 "application/json": {
                     provider: components["schemas"]["ShelfmarkIdentifier"];
                     id: components["schemas"]["ShelfmarkIdentifier"];
-                    /** @description Reconcile an existing claim without creating a new one. */
-                    check_only?: boolean;
+                    release_key: components["schemas"]["ShelfmarkIdentifier"];
+                    selection: components["schemas"]["ShelfmarkSelection"];
                 };
             };
         };
         responses: {
-            /** @description New or existing request, including one awaiting confirmation */
+            /** @description Submission outcome and current distinct-release count for the selected book */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ShelfmarkBook"];
+                    "application/json": components["schemas"]["ShelfmarkDownloadResult"];
                 };
             };
             default: components["responses"]["Problem"];

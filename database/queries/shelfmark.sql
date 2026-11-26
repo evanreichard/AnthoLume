@@ -1,24 +1,47 @@
 -- name: GetShelfmarkEnabled :one
 SELECT CAST(COALESCE((SELECT value FROM settings WHERE name = 'shelfmark_enabled'), 'true') AS TEXT);
 
--- name: ClaimShelfmarkRequest :one
-INSERT INTO shelfmark_requests (provider, book_id, title, author, description, year, has_cover, username, requested_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (provider, book_id) DO NOTHING
+-- name: ClaimShelfmarkRelease :one
+INSERT INTO shelfmark_releases (
+    source, source_id, release_key, release_title, format, size, language, indexer,
+    provider, book_id, book_title, author, description, year, has_cover, username, requested_at, release_author
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT DO NOTHING
 RETURNING *;
 
--- name: GetShelfmarkRequest :one
-SELECT * FROM shelfmark_requests WHERE provider = ? AND book_id = ?;
+-- name: GetShelfmarkReleaseBySource :one
+SELECT * FROM shelfmark_releases WHERE source = ? AND source_id = ?;
 
--- name: CompleteShelfmarkRequest :execrows
-UPDATE shelfmark_requests SET remote_id = sqlc.arg(remote_id)
-WHERE sequence = sqlc.arg(sequence) AND remote_id IS NULL;
+-- name: SetShelfmarkReleaseState :exec
+UPDATE shelfmark_releases SET state = sqlc.arg(state)
+WHERE release_key = sqlc.arg(release_key) AND state = 'unconfirmed';
 
--- name: ReleaseShelfmarkRequest :execrows
-DELETE FROM shelfmark_requests WHERE sequence = ? AND remote_id IS NULL;
+-- name: CountShelfmarkBookRequests :one
+SELECT COUNT(*) FROM shelfmark_releases WHERE provider = ? AND book_id = ?;
 
 -- name: ListShelfmarkRequests :many
-SELECT * FROM shelfmark_requests ORDER BY sequence DESC LIMIT 51 OFFSET sqlc.arg(page_offset);
+WITH recent AS (
+    SELECT provider, book_id, book_title, author, description, year, has_cover, requested_at, release_key,
+           CAST(COUNT(*) OVER (PARTITION BY provider, book_id) AS INTEGER) AS request_count,
+           ROW_NUMBER() OVER (PARTITION BY provider, book_id ORDER BY requested_at DESC, release_key DESC) AS position
+    FROM shelfmark_releases
+)
+SELECT provider, book_id, book_title, author, description, year, has_cover, request_count
+FROM recent WHERE position = 1
+ORDER BY requested_at DESC, release_key DESC LIMIT 51 OFFSET sqlc.arg(page_offset);
 
--- name: FindShelfmarkRequests :many
-SELECT r.* FROM json_each(CAST(sqlc.arg(book_keys) AS TEXT)) AS k
-JOIN shelfmark_requests AS r ON r.provider = json_extract(k.value, '$[0]') AND r.book_id = json_extract(k.value, '$[1]');
+-- name: ListShelfmarkRequestedReleases :many
+SELECT * FROM shelfmark_releases WHERE provider = ? AND book_id = ? ORDER BY requested_at DESC, release_key DESC;
+
+-- name: CountShelfmarkBookReleases :many
+SELECT r.provider, r.book_id, COUNT(*) AS request_count
+FROM shelfmark_releases r
+WHERE (r.provider, r.book_id) IN (
+    SELECT json_extract(k.value, '$[0]'), json_extract(k.value, '$[1]')
+    FROM json_each(CAST(sqlc.arg(book_keys) AS TEXT)) AS k
+)
+GROUP BY r.provider, r.book_id;
+
+-- name: FindShelfmarkReleaseRequests :many
+SELECT r.* FROM shelfmark_releases AS r
+WHERE r.release_key IN (SELECT CAST(value AS TEXT) FROM json_each(CAST(sqlc.arg(release_keys) AS TEXT)));

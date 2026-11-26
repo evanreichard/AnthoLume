@@ -2,13 +2,10 @@ package shelfmark
 
 import (
 	"encoding/base64"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -118,98 +115,6 @@ func TestCoverFetchUsesOnlyVerifiedPublishedAssetWithoutKey(t *testing.T) {
 			require.Equal(t, asset.fetch, fetched.Load())
 		})
 	}
-}
-
-func TestCreateNeverRetriesAndClassifiesRefusals(t *testing.T) {
-	for _, tc := range []struct {
-		status   int
-		body     string
-		id       int64
-		rejected bool
-	}{
-		{201, `{"id":8}`, 8, false}, {201, `{"id":0}`, 0, false}, {200, `{"id":8}`, 0, false},
-		{403, `{"error":"blocked","code":"policy_blocked"}`, 0, true}, {403, `<html>Forbidden</html>`, 0, false},
-		{409, `{"error":"duplicate","code":"duplicate_pending_request"}`, 0, false},
-		{502, `{"error":"upstream failed"}`, 0, false}, {307, ``, 0, false},
-	} {
-		t.Run(strconv.Itoa(tc.status)+tc.body, func(t *testing.T) {
-			var posts atomic.Int32
-			c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
-				posts.Add(1)
-				if r.URL.Path != "/api/requests" || r.Method != http.MethodPost || r.Header.Get("X-Api-Key") != testKey {
-					t.Error("unexpected request")
-				}
-				var payload map[string]any
-				if json.NewDecoder(r.Body).Decode(&payload) != nil {
-					t.Error("bad payload")
-				}
-				ctx, _ := payload["context"].(map[string]any)
-				data, _ := payload["book_data"].(map[string]any)
-				if ctx["request_level"] != "book" || ctx["content_type"] != "ebook" || payload["release_data"] != nil || data["provider_id"] != "69589" {
-					t.Errorf("unexpected payload %v", payload)
-				}
-				if tc.status == 307 {
-					w.Header().Set("Location", "/must-not-follow")
-				}
-				w.WriteHeader(tc.status)
-				fmt.Fprint(w, tc.body)
-			}, "")
-			id, err := c.Create(t.Context(), Book{Provider: "hardcover", ID: "69589", Title: "The Time Machine"})
-			require.Equal(t, tc.id, id)
-			require.Equal(t, tc.rejected, errors.Is(err, ErrRejected))
-			require.Equal(t, tc.id == 0, err != nil)
-			require.EqualValues(t, 1, posts.Load())
-		})
-	}
-}
-
-func TestFindPagesAndMatchesOnlyAnEbookBookRequest(t *testing.T) {
-	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/requests" || r.URL.Query().Get("limit") != strconv.Itoa(pageSize) {
-			t.Error("unexpected page request")
-		}
-		switch r.URL.Query().Get("offset") {
-		case "0":
-			fmt.Fprint(w, `[`+strings.TrimSuffix(strings.Repeat(`{"id":2,"request_level":"release","content_type":"ebook","book_data":{"provider":"hardcover","provider_id":"69589"}},`, pageSize), ",")+`]`)
-		case strconv.Itoa(pageSize):
-			fmt.Fprint(w, `[{"id":7,"request_level":"book","content_type":"audiobook","book_data":{"provider":"hardcover","provider_id":"69589"}},{"id":8,"request_level":"book","content_type":"ebook","book_data":{"provider":"hardcover","provider_id":"69589"}}]`)
-		default:
-			t.Error("unexpected additional page")
-		}
-	}, "")
-	id, err := c.Find(t.Context(), "hardcover", "69589")
-	require.NoError(t, err)
-	require.EqualValues(t, 8, id)
-	id, err = c.Find(t.Context(), "openlibrary", "69589")
-	require.NoError(t, err)
-	require.Zero(t, id)
-}
-
-func TestFindAfterLostCreateResponse(t *testing.T) {
-	var writes atomic.Int32
-	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
-			writes.Add(1)
-			conn, _, err := http.NewResponseController(w).Hijack()
-			if err != nil {
-				t.Error(err)
-				return
-			}
-			conn.Close()
-			return
-		}
-		if writes.Load() == 1 {
-			fmt.Fprint(w, `[{"id":42,"request_level":"book","content_type":"ebook","book_data":{"provider":"hardcover","provider_id":"69589"}}]`)
-		}
-	}, "")
-	id, err := c.Create(t.Context(), Book{Provider: "hardcover", ID: "69589", Title: "The Time Machine"})
-	require.Error(t, err)
-	require.NotErrorIs(t, err, ErrRejected)
-	require.Zero(t, id)
-	id, err = c.Find(t.Context(), "hardcover", "69589")
-	require.NoError(t, err)
-	require.EqualValues(t, 42, id)
-	require.EqualValues(t, 1, writes.Load())
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

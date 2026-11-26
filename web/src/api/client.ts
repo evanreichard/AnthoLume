@@ -16,7 +16,14 @@ import {
   checkHardcoverShelf,
   checkHardcoverStatus,
 } from './guards.gen.js';
-import { isShelfmarkSettings, isShelfmarkSearch, isShelfmarkHistory, isRequestedShelfmarkBook } from './shelfmark';
+import {
+  isShelfmarkSettings,
+  isShelfmarkSearch,
+  isShelfmarkHistory,
+  isShelfmarkDownloadResult,
+  isShelfmarkReleaseHistory,
+  isShelfmarkReleases,
+} from './shelfmark';
 import type { LibrarySort } from '../library';
 import { ReadingHTTPError, type Account, type ReadingBridge } from '../reading';
 import {
@@ -555,20 +562,43 @@ export function createAPI(gate: SessionGate) {
         200,
         account,
       ),
-    requestShelfmarkBook: async (account: Account, provider: string, id: string, checkOnly = false) => {
-      const book = await consume(
+    shelfmarkReleases: (account: Account, provider: string, id: string, signal: AbortSignal) =>
+      consume(
         (client) =>
-          client.POST('/api/v1/shelfmark/requests', {
-            body: { provider, id, ...(checkOnly && { check_only: true }) },
+          client.GET('/api/v1/shelfmark/releases', {
+            params: { query: { provider, id } },
+            // Allow time for the config lookup and response around Shelfmark’s five-minute release search.
+            signal: AbortSignal.any([signal, AbortSignal.timeout(320_000)]),
             parseAs: 'stream',
           }),
-        isRequestedShelfmarkBook,
+        isShelfmarkReleases,
         200,
         account,
-      );
-      if (book.provider !== provider || book.id !== id) throw new InvalidResponse();
-      return book;
-    },
+      ),
+    shelfmarkReleaseHistory: (account: Account, provider: string, id: string, signal: AbortSignal) =>
+      consume(
+        (client) =>
+          client.GET('/api/v1/shelfmark/requests/releases', {
+            params: { query: { provider, id } },
+            signal,
+            parseAs: 'stream',
+          }),
+        isShelfmarkReleaseHistory,
+        200,
+        account,
+      ),
+    requestShelfmarkRelease: (account: Account, provider: string, id: string, releaseKey: string, selection: string) =>
+      consume(
+        (client) =>
+          client.POST('/api/v1/shelfmark/requests', {
+            body: { provider, id, release_key: releaseKey, selection },
+            signal: AbortSignal.timeout(30_000),
+            parseAs: 'stream',
+          }),
+        isShelfmarkDownloadResult,
+        200,
+        account,
+      ),
     shelfmarkCover: async (account: Account, provider: string, id: string, signal: AbortSignal) => {
       const epoch = gate.epoch();
       const query = new URLSearchParams({ provider, id });

@@ -1,6 +1,7 @@
 // Generated from api/openapi.yaml; do not edit.
 import type { components, operations } from './schema.gen';
 export declare function checkSearchShelfmark200(value: unknown): value is operations['searchShelfmark']['responses'][200]['content']['application/json'];
+export declare function checkListShelfmarkRequestedReleases200(value: unknown): value is operations['listShelfmarkRequestedReleases']['responses'][200]['content']['application/json'];
 export declare function checkListShelfmarkRequests200(value: unknown): value is operations['listShelfmarkRequests']['responses'][200]['content']['application/json'];
 export declare function checkLookupMetadata200(value: unknown): value is operations['lookupMetadata']['responses'][200]['content']['application/json'];
 export declare function checkListManagedDevices200(value: unknown): value is operations['listManagedDevices']['responses'][200]['content']['application/json'];
@@ -31,7 +32,11 @@ export declare function checkBookMatcherChangedField(value: unknown): value is c
 export declare function checkShelfmarkSettings(value: unknown): value is components['schemas']['ShelfmarkSettings'];
 export declare function checkShelfmarkBook(value: unknown): value is components['schemas']['ShelfmarkBook'];
 export declare function checkShelfmarkIdentifier(value: unknown): value is components['schemas']['ShelfmarkIdentifier'];
+export declare function checkShelfmarkReleaseList(value: unknown): value is components['schemas']['ShelfmarkReleaseList'];
+export declare function checkShelfmarkRelease(value: unknown): value is components['schemas']['ShelfmarkRelease'];
+export declare function checkShelfmarkSelection(value: unknown): value is components['schemas']['ShelfmarkSelection'];
 export declare function checkShelfmarkRequestInfo(value: unknown): value is components['schemas']['ShelfmarkRequestInfo'];
+export declare function checkShelfmarkDownloadResult(value: unknown): value is components['schemas']['ShelfmarkDownloadResult'];
 export declare function checkAdminMetadataProvider(value: unknown): value is components['schemas']['AdminMetadataProvider'];
 export declare function checkManagedDevice(value: unknown): value is components['schemas']['ManagedDevice'];
 export declare function checkDevice(value: unknown): value is components['schemas']['Device'];

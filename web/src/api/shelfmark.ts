@@ -1,31 +1,35 @@
 import type { components } from './schema.gen';
 import {
+  checkListShelfmarkRequestedReleases200,
   checkListShelfmarkRequests200,
   checkSearchShelfmark200,
-  checkShelfmarkBook,
+  checkShelfmarkDownloadResult,
+  checkShelfmarkReleaseList,
   checkShelfmarkSettings,
 } from './guards.gen.js';
 
 export type ShelfmarkBook = components['schemas']['ShelfmarkBook'];
-export type ShelfmarkRequestInfo = components['schemas']['ShelfmarkRequestInfo'];
+export type ShelfmarkRelease = components['schemas']['ShelfmarkRelease'];
+export type ShelfmarkReleases = components['schemas']['ShelfmarkReleaseList'];
 type ShelfmarkSettings = components['schemas']['ShelfmarkSettings'];
 
 export function isShelfmarkSettings(value: unknown): value is ShelfmarkSettings {
   return checkShelfmarkSettings(value) && (!value.enabled || value.configured);
 }
 
-function hasValidRequest(book: ShelfmarkBook): book is ShelfmarkBook & { request: ShelfmarkRequestInfo } {
-  return book.request !== undefined && Number.isFinite(Date.parse(book.request.requested_at));
+export const isShelfmarkSearch = checkSearchShelfmark200;
+export const isShelfmarkHistory = checkListShelfmarkRequests200;
+export function isShelfmarkReleases(value: unknown): value is ShelfmarkReleases {
+  return checkShelfmarkReleaseList(value) && value.releases.every((row) => !!row.request || !!row.selection);
 }
 
-export function isRequestedShelfmarkBook(value: unknown): value is ShelfmarkBook & { request: ShelfmarkRequestInfo } {
-  return checkShelfmarkBook(value) && hasValidRequest(value);
+export function isShelfmarkDownloadResult(value: unknown): value is {
+  release: ShelfmarkRelease & { request: NonNullable<ShelfmarkRelease['request']> };
+  request_count: number;
+} {
+  return checkShelfmarkDownloadResult(value) && value.release.request !== undefined;
 }
 
-export function isShelfmarkSearch(value: unknown): value is ShelfmarkBook[] {
-  return checkSearchShelfmark200(value) && value.every((book) => book.request === undefined || hasValidRequest(book));
-}
-
-export function isShelfmarkHistory(value: unknown): value is (ShelfmarkBook & { request: ShelfmarkRequestInfo })[] {
-  return checkListShelfmarkRequests200(value) && value.every(hasValidRequest);
+export function isShelfmarkReleaseHistory(value: unknown): value is ShelfmarkRelease[] {
+  return checkListShelfmarkRequestedReleases200(value) && value.every((release) => release.request !== undefined);
 }

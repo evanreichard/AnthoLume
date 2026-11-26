@@ -3,6 +3,7 @@ package shelfmark
 import (
 	"bytes"
 	"context"
+	"crypto/cipher"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -11,15 +12,14 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
 var (
-	// ErrRejected means Shelfmark confirmed it did not accept the submission.
-	ErrRejected = errors.New("Shelfmark refused the book request")
+	// ErrRejected means Shelfmark confirmed it did not queue the release.
+	ErrRejected = errors.New("Shelfmark refused the release")
 	ErrNotFound = errors.New("Shelfmark book or cover not found")
 	segment     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.~-]{0,127}$`)
 )
@@ -27,8 +27,6 @@ var (
 const (
 	maxBody  = 4 << 20
 	maxImage = 8 << 20
-	pageSize = 50
-	maxPages = 100
 )
 
 type Client struct {
@@ -38,6 +36,8 @@ type Client struct {
 	coverMu     sync.Mutex
 	covers      map[[2]string]string
 	coversUntil time.Time
+
+	selectionCipher cipher.AEAD
 }
 
 type Book struct {
@@ -71,7 +71,11 @@ func New(baseURL, key string) (*Client, error) {
 		return nil, errors.New("invalid Shelfmark API key")
 	}
 	u.Path = strings.TrimRight(u.Path, "/")
-	return &Client{base: u, key: key, http: &http.Client{Timeout: 12 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	selectionCipher, err := newSelectionCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	return &Client{base: u, key: key, selectionCipher: selectionCipher, http: &http.Client{Timeout: 12 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 
 func validBookKey(provider, id string) bool {
@@ -100,7 +104,13 @@ func (c *Client) do(ctx context.Context, method, endpoint string, body []byte, u
 		req.Header.Set("Content-Type", "application/json")
 		req.GetBody = nil
 	}
-	res, err := c.http.Do(req)
+	client := c.http
+	if useKey && method == http.MethodGet && req.URL.Path == c.base.Path+"/api/releases" {
+		searchClient := *client
+		searchClient.Timeout = releaseSearchTimeout
+		client = &searchClient
+	}
+	res, err := client.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -274,91 +284,4 @@ func (c *Client) Cover(ctx context.Context, provider, id string) ([]byte, string
 	default:
 		return nil, "", ErrNotFound
 	}
-}
-
-func (c *Client) Create(ctx context.Context, book Book) (int64, error) {
-	if !validBookKey(book.Provider, book.ID) || strings.TrimSpace(book.Title) == "" {
-		return 0, errors.New("invalid Shelfmark book")
-	}
-	body, err := json.Marshal(map[string]any{
-		"context":   map[string]string{"request_level": "book", "content_type": "ebook"},
-		"book_data": map[string]string{"provider": book.Provider, "provider_id": book.ID, "title": book.Title, "author": book.Author},
-	})
-	if err != nil {
-		return 0, err
-	}
-	res, err := c.do(ctx, http.MethodPost, c.endpoint("/api/requests", nil), body, true)
-	if err != nil {
-		return 0, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		var problem struct {
-			Error string `json:"error"`
-			Code  string `json:"code"`
-		}
-		switch res.StatusCode {
-		case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict:
-			// Duplicate Conflict - An existing request may resolve an uncertain submission via Find.
-			if decode(res.Body, &problem) == nil && problem.Error != "" && (res.StatusCode != http.StatusConflict || problem.Code == "max_pending_reached") {
-				return 0, fmt.Errorf("%w (HTTP %d)", ErrRejected, res.StatusCode)
-			}
-		}
-		return 0, fmt.Errorf("uncertain Shelfmark request outcome (HTTP %d)", res.StatusCode)
-	}
-	var created struct {
-		ID int64 `json:"id"`
-	}
-	if err := decode(res.Body, &created); err != nil {
-		return 0, err
-	}
-	if created.ID <= 0 {
-		return 0, errors.New("Shelfmark response is missing the request ID")
-	}
-	return created.ID, nil
-}
-
-// Find reads the API identity's book-level ebook requests. A zero result does not prove a timed-out write failed.
-func (c *Client) Find(ctx context.Context, provider, id string) (int64, error) {
-	if !validBookKey(provider, id) {
-		return 0, errors.New("invalid Shelfmark book identifier")
-	}
-	for page := 0; page < maxPages; page++ {
-		var rows []struct {
-			ID          int64  `json:"id"`
-			Level       string `json:"request_level"`
-			ContentType string `json:"content_type"`
-			Book        struct {
-				Provider string          `json:"provider"`
-				ID       json.RawMessage `json:"provider_id"`
-			} `json:"book_data"`
-		}
-		query := url.Values{"limit": {strconv.Itoa(pageSize)}, "offset": {strconv.Itoa(page * pageSize)}}
-		if err := c.get(ctx, "/api/requests", query, &rows); err != nil {
-			return 0, err
-		}
-		if rows == nil {
-			return 0, errors.New("Shelfmark request list is not an array")
-		}
-		for _, row := range rows {
-			if row.ID > 0 && row.Book.Provider == provider && matchesProviderID(row.Book.ID, id) && row.ContentType == "ebook" && row.Level == "book" {
-				return row.ID, nil
-			}
-		}
-		if len(rows) < pageSize {
-			return 0, nil
-		}
-	}
-	return 0, errors.New("Shelfmark request lookup exceeded its page limit")
-}
-
-func matchesProviderID(raw json.RawMessage, id string) bool {
-	if len(raw) == 0 {
-		return false
-	}
-	if raw[0] >= '0' && raw[0] <= '9' {
-		return string(raw) == id
-	}
-	var value string
-	return json.Unmarshal(raw, &value) == nil && value == id
 }

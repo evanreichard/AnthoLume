@@ -255,7 +255,7 @@ paths:
         - {name: q, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 128}}
       responses:
         '200':
-          description: Matching books with any existing AnthoLume requests
+          description: Matching books with a count of distinct releases requested through AnthoLume
           content:
             application/json:
               schema: {type: array, items: {$ref: '#/components/schemas/ShelfmarkBook'}}
@@ -272,6 +272,32 @@ paths:
           content:
             image/*:
               schema: {type: string, format: binary}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/shelfmark/releases:
+    get:
+      operationId: listShelfmarkReleases
+      parameters:
+        - {name: provider, in: query, required: true, schema: {$ref: '#/components/schemas/ShelfmarkIdentifier'}}
+        - {name: id, in: query, required: true, schema: {$ref: '#/components/schemas/ShelfmarkIdentifier'}}
+      responses:
+        '200':
+          description: Eligible ebook releases; partial indicates an incomplete upstream search
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ShelfmarkReleaseList'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/shelfmark/requests/releases:
+    get:
+      operationId: listShelfmarkRequestedReleases
+      parameters:
+        - {name: provider, in: query, required: true, schema: {$ref: '#/components/schemas/ShelfmarkIdentifier'}}
+        - {name: id, in: query, required: true, schema: {$ref: '#/components/schemas/ShelfmarkIdentifier'}}
+      responses:
+        '200':
+          description: All requested releases for the book, newest first
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ShelfmarkRelease'}}
         default: {$ref: '#/components/responses/Problem'}
   /api/v1/shelfmark/requests:
     get:
@@ -295,17 +321,18 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [provider, id]
+              required: [provider, id, release_key, selection]
               properties:
                 provider: {$ref: '#/components/schemas/ShelfmarkIdentifier'}
                 id: {$ref: '#/components/schemas/ShelfmarkIdentifier'}
-                check_only: {type: boolean, description: Reconcile an existing claim without creating a new one.}
+                release_key: {$ref: '#/components/schemas/ShelfmarkIdentifier'}
+                selection: {$ref: '#/components/schemas/ShelfmarkSelection'}
       responses:
         '200':
-          description: New or existing request, including one awaiting confirmation
+          description: Submission outcome and current distinct-release count for the selected book
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ShelfmarkBook'}
+              schema: {$ref: '#/components/schemas/ShelfmarkDownloadResult'}
         default: {$ref: '#/components/responses/Problem'}
   /api/v1/metadata/providers:
     get:
@@ -965,7 +992,7 @@ components:
     ShelfmarkBook:
       type: object
       additionalProperties: false
-      required: [provider, id, title, author, description, year, has_cover]
+      required: [provider, id, title, author, description, year, has_cover, request_count]
       properties:
         provider: {$ref: '#/components/schemas/ShelfmarkIdentifier'}
         id: {$ref: '#/components/schemas/ShelfmarkIdentifier'}
@@ -974,6 +1001,40 @@ components:
         description: {type: string}
         year: {type: integer}
         has_cover: {type: boolean}
+        request_count: {type: integer, minimum: 0}
+    ShelfmarkReleaseList:
+      type: object
+      additionalProperties: false
+      required: [releases, partial]
+      properties:
+        releases: {type: array, items: {$ref: '#/components/schemas/ShelfmarkRelease'}}
+        partial: {type: boolean}
+    ShelfmarkSelection:
+      type: string
+      minLength: 1
+      maxLength: 262144
+      description: Opaque download selection issued by AnthoLume
+    ShelfmarkDownloadResult:
+      type: object
+      additionalProperties: false
+      required: [release, request_count]
+      properties:
+        release: {$ref: '#/components/schemas/ShelfmarkRelease'}
+        request_count: {type: integer, minimum: 0}
+    ShelfmarkRelease:
+      type: object
+      additionalProperties: false
+      required: [key, source, title, format, size, language, indexer]
+      properties:
+        key: {$ref: '#/components/schemas/ShelfmarkIdentifier'}
+        selection: {$ref: '#/components/schemas/ShelfmarkSelection'}
+        source: {type: string}
+        title: {type: string}
+        author: {type: string, description: Author reported by the release source}
+        format: {type: string}
+        size: {type: string}
+        language: {type: string}
+        indexer: {type: string}
         request: {$ref: '#/components/schemas/ShelfmarkRequestInfo'}
     ShelfmarkRequestInfo:
       type: object
@@ -982,7 +1043,7 @@ components:
       properties:
         username: {type: string}
         requested_at: {type: string, format: date-time}
-        state: {type: string, enum: [requested, confirming]}
+        state: {type: string, enum: [queued, rejected, unconfirmed], x-enum-varnames: [ShelfmarkQueued, ShelfmarkRejected, ShelfmarkUnconfirmed]}
     HardcoverStatus:
       type: object
       additionalProperties: false

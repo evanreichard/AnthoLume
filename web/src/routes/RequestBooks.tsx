@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useId, useRef, useState } from 'react';
+import { useInfiniteQuery, useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router';
 import { ActionRow, ActionRows, Button, Card, CardHeader, SearchField, SegmentedControl } from '../Controls';
-import type { ShelfmarkBook, ShelfmarkRequestInfo } from '../api/shelfmark';
+import type { ShelfmarkBook, ShelfmarkRelease, ShelfmarkReleases } from '../api/shelfmark';
 import { ReadingHTTPError, type Account } from '../reading';
 import { session, useSession } from '../session';
 import { shelfmarkKey, useShelfmarkSettings } from '../shelfmarkQueries';
@@ -18,8 +18,8 @@ const requestDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
 const bookKey = (book: ShelfmarkBook) => JSON.stringify([book.provider, book.id]);
 const bookByline = (book: ShelfmarkBook, ...rest: string[]) =>
   [book.author, book.year ? String(book.year) : '', ...rest].filter(Boolean).join(' · ');
-const attribution = (info: ShelfmarkRequestInfo) => `Requested by ${info.username}`;
-const confirming = 'Shelfmark hasn’t confirmed this request yet.';
+const requestCount = (count: number) => `${count} ${count === 1 ? 'request' : 'requests'}`;
+const releaseStatus = (state: string) => state.charAt(0).toUpperCase() + state.slice(1);
 
 function Cover({ account, book }: { account: Account; book: ShelfmarkBook }) {
   const { data } = useQuery({
@@ -65,104 +65,55 @@ export function RequestBooks() {
 }
 
 function RequestCatalog({ account }: { account: Account }) {
+  const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 900px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 900px)');
+    const update = () => setDesktop(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   const [view, setView] = useState<'search' | 'history'>('search');
+  const showSearch = desktop || view === 'search';
+  const showHistory = desktop || view === 'history';
   const [query, setQuery] = useState('');
   const [term, setTerm] = useState('');
-  const [selected, select] = useState<ShelfmarkBook | null>(null);
-  const [uncertain, setUncertain] = useState<Record<string, boolean>>({});
-  const client = useQueryClient();
-  const { show } = useSnackbar(JSON.stringify(account));
+  const [selected, select] = useState<{ book: ShelfmarkBook; history: boolean } | null>(null);
   const searchKey = shelfmarkKey(account, 'search');
   const historyKey = shelfmarkKey(account, 'history');
   const search = useQuery({
     queryKey: [...searchKey, term],
-    enabled: view === 'search' && !!term,
+    enabled: showSearch && !!term,
     queryFn: ({ signal }) => session.api.shelfmarkSearch(account, term, signal),
   });
   const history = useInfiniteQuery({
     queryKey: historyKey,
-    enabled: view === 'history',
+    enabled: showHistory,
     initialPageParam: 0,
     queryFn: ({ pageParam, signal }) => session.api.shelfmarkHistory(account, pageParam, signal),
     getNextPageParam: (page, _pages, offset) => (page.length > historyPageSize ? offset + historyPageSize : undefined),
   });
   const historyRows = history.data?.pages.flatMap((page) => page.slice(0, historyPageSize)) ?? [];
   const results = search.data ?? [];
-  const selectedKey = selected && bookKey(selected);
-  const previous =
-    selected &&
-    ((view === 'history' ? historyRows : results).find((book) => bookKey(book) === selectedKey)?.request ??
-      selected.request);
-  const unknown = !!selectedKey && !!uncertain[selectedKey] && !previous;
-  const visibleResults = (book: ShelfmarkBook) =>
-    book.request
-      ? book.request.state === 'confirming'
-        ? [book.author, 'Confirming Request'].filter(Boolean).join(' · ')
-        : [book.author, attribution(book.request)].filter(Boolean).join(' · ')
-      : uncertain[bookKey(book)]
-        ? bookByline(book, 'Request Status Unknown')
-        : bookByline(book);
-  const request = useMutation({
-    mutationFn: ({ book, checkOnly }: { book: ShelfmarkBook; checkOnly: boolean }) =>
-      session.api.requestShelfmarkBook(account, book.provider, book.id, checkOnly),
-  });
-  function close() {
-    request.reset();
-    select(null);
-  }
   function editQuery(value: string) {
     setQuery(value);
     if (value.trim() !== term) setTerm('');
-  }
-  function confirm(book: ShelfmarkBook, checkOnly = false) {
-    if (request.isPending || (!checkOnly && (previous || unknown))) return;
-    request.mutate(
-      { book, checkOnly },
-      {
-        onSuccess: (saved) => {
-          client.setQueriesData<ShelfmarkBook[]>({ queryKey: searchKey }, (rows) =>
-            rows?.map((row) => (bookKey(row) === bookKey(saved) ? { ...row, request: saved.request } : row)),
-          );
-          void client.invalidateQueries({ queryKey: historyKey });
-          select(null);
-          show({
-            message:
-              saved.request.state === 'confirming' ? confirming : `${saved.title} · ${attribution(saved.request)}`,
-          });
-        },
-        onError: (error) => {
-          if (checkOnly && error instanceof ReadingHTTPError && error.problem.code === 'shelfmark_request_not_found') {
-            setUncertain((current) => ({ ...current, [bookKey(book)]: false }));
-            void client.invalidateQueries({ queryKey: searchKey });
-            void client.invalidateQueries({ queryKey: historyKey });
-            return;
-          }
-          if (
-            !checkOnly &&
-            (!(error instanceof ReadingHTTPError) ||
-              (!error.problem.code.startsWith('shelfmark_') && ![400, 401, 403, 404, 422, 429].includes(error.status)))
-          ) {
-            setUncertain((current) => ({ ...current, [bookKey(book)]: true }));
-            void client.invalidateQueries({ queryKey: historyKey });
-          }
-        },
-      },
-    );
   }
   return (
     <>
       <PageHeader title="Request" mobileBrand />
       <div className={styles.settingsLayout}>
-        <SegmentedControl
-          label="Request Views"
-          options={[
-            ['search', 'Search'],
-            ['history', 'History'],
-          ]}
-          value={view}
-          onChange={setView}
-        />
-        {view === 'search' ? (
+        {!desktop && (
+          <SegmentedControl
+            label="Request Views"
+            options={[
+              ['search', 'Search'],
+              ['history', 'History'],
+            ]}
+            value={view}
+            onChange={setView}
+          />
+        )}
+        {showSearch && (
           <Card density="compact" aria-labelledby="request-search">
             <CardHeader id="request-search" title="Find a Book" />
             <form
@@ -191,7 +142,7 @@ function RequestCatalog({ account }: { account: Account }) {
                 {search.isFetching && (
                   <p className={results.length ? styles.srOnly : coverStyles.resultStatus} role="status">
                     {!results.length && <span className={styles.lookupSpinner} aria-hidden="true" />}
-                    <span className={styles.srOnly}>Searching…</span>
+                    <span>Searching Shelfmark for books…</span>
                   </p>
                 )}
                 {search.isError && (
@@ -216,8 +167,8 @@ function RequestCatalog({ account }: { account: Account }) {
                         key={bookKey(book)}
                         leading={<Cover account={account} book={book} />}
                         label={book.title}
-                        subtitle={visibleResults(book)}
-                        onClick={() => select(book)}
+                        subtitle={bookByline(book, book.request_count ? requestCount(book.request_count) : '')}
+                        onClick={() => select({ book, history: false })}
                       />
                     ))}
                   </ActionRows>
@@ -225,7 +176,8 @@ function RequestCatalog({ account }: { account: Account }) {
               </div>
             )}
           </Card>
-        ) : (
+        )}
+        {showHistory && (
           <Card density="compact" aria-labelledby="request-history">
             <CardHeader id="request-history" title="Request History" />
             <ErrorNotice error={history.error} />
@@ -244,8 +196,8 @@ function RequestCatalog({ account }: { account: Account }) {
                     key={bookKey(book)}
                     leading={<Cover account={account} book={book} />}
                     label={book.title}
-                    subtitle={`${attribution(book.request)} · ${requestDate.format(new Date(book.request.requested_at))}${book.request.state === 'confirming' ? ' · Confirming' : ''}`}
-                    onClick={() => select(book)}
+                    subtitle={bookByline(book, requestCount(book.request_count))}
+                    onClick={() => select({ book, history: true })}
                   />
                 ))}
               </ActionRows>
@@ -265,54 +217,234 @@ function RequestCatalog({ account }: { account: Account }) {
         )}
       </div>
       {selected && (
-        <Dialog
-          title={selected.title}
-          titleLeading={<Cover account={account} book={selected} />}
-          placement="mobile-sheet"
-          onClose={close}
-          dismissDisabled={request.isPending}
-          footer={
-            previous?.state === 'confirming' || unknown ? (
-              <Button disabled={request.isPending} onClick={() => confirm(selected, true)}>
-                {request.isPending ? 'Checking Status…' : 'Check Status'}
-              </Button>
-            ) : previous ? (
-              <Button onClick={close}>Done</Button>
-            ) : (
-              <Button
-                tone="primary"
-                disabled={request.isPending || search.isFetching || search.isError}
-                onClick={() => confirm(selected)}
-              >
-                {request.isPending ? 'Requesting Ebook…' : 'Request Ebook'}
-              </Button>
-            )
-          }
-        >
-          <p className={styles.settingsCardFeedback}>{bookByline(selected, 'Ebook')}</p>
-          {selected.description && <p>{selected.description}</p>}
-          {previous && (
-            <p className={styles.settingsCardFeedback}>
-              {attribution(previous)} on {requestDate.format(new Date(previous.requested_at))}.
-              {previous.state === 'confirming' ? ` ${confirming}` : ''}
-            </p>
-          )}
-          {unknown && (
-            <p role="alert" className={styles.settingsCardFeedback}>
-              Couldn’t verify whether Shelfmark received this request. Check its status before trying again.
-            </p>
-          )}
-          {(!unknown || request.variables?.checkOnly) && <ErrorNotice error={request.error} />}
-          {!previous && !unknown && search.isError && (
-            <>
-              <ErrorNotice error={search.error} />
-              <Button size="slim" onClick={() => void search.refetch()}>
-                Retry Search
-              </Button>
-            </>
-          )}
-        </Dialog>
+        <ReleaseDialog account={account} book={selected.book} history={selected.history} onClose={() => select(null)} />
       )}
     </>
+  );
+}
+
+function BookDescription({ text }: { text: string }) {
+  const id = useId();
+  const paragraph = useRef<HTMLParagraphElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  useEffect(() => {
+    const node = paragraph.current;
+    if (!node || expanded) return;
+    const observer = new ResizeObserver(() => setOverflows(node.scrollHeight > node.clientHeight + 1));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [expanded, text]);
+  return (
+    <>
+      <p id={id} ref={paragraph} className={coverStyles.description} data-collapsed={!expanded || undefined}>
+        {text}
+      </p>
+      {(expanded || overflows) && (
+        <Button size="slim" aria-controls={id} aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
+          {expanded ? 'Show Less' : 'Show More'}
+        </Button>
+      )}
+    </>
+  );
+}
+
+function ReleaseDialog({
+  account,
+  book,
+  history,
+  onClose,
+}: {
+  account: Account;
+  book: ShelfmarkBook;
+  history: boolean;
+  onClose: () => void;
+}) {
+  const key = [...shelfmarkKey(account, history ? 'release-history' : 'releases'), book.provider, book.id];
+  const mutationKey = ['shelfmark-download', account, book.provider, book.id];
+  const pending = useIsMutating({ mutationKey, exact: true });
+  const releases = useQuery({
+    queryKey: key,
+    queryFn: async ({ signal }): Promise<ShelfmarkReleases> =>
+      history
+        ? {
+            releases: await session.api.shelfmarkReleaseHistory(account, book.provider, book.id, signal),
+            partial: false,
+          }
+        : session.api.shelfmarkReleases(account, book.provider, book.id, signal),
+    ...(history ? {} : { staleTime: Infinity, gcTime: Infinity }),
+    refetchOnWindowFocus: false,
+  });
+  const rows = releases.data?.releases ?? [];
+  return (
+    <Dialog
+      title={book.title}
+      titleLeading={<Cover account={account} book={book} />}
+      subtitle={bookByline(book)}
+      placement="mobile-sheet"
+      size="wide"
+      layout="scroll-body"
+      scrollHeight="tall"
+      onClose={onClose}
+      dismissDisabled={pending > 0}
+    >
+      {!history && book.description && <BookDescription text={book.description} />}
+      <section aria-label={history ? 'Requested Releases' : 'Ebook Releases'} className={coverStyles.results}>
+        {releases.isFetching && (
+          <p className={rows.length ? styles.srOnly : coverStyles.resultStatus} role="status">
+            {!rows.length && <span className={styles.lookupSpinner} aria-hidden="true" />}
+            <span>{history ? 'Loading requested releases…' : 'Finding releases…'}</span>
+          </p>
+        )}
+        {releases.isError && (
+          <div className={coverStyles.resultStatus}>
+            <ErrorNotice
+              error={
+                !history &&
+                releases.error instanceof ReadingHTTPError &&
+                releases.error.problem.code === 'shelfmark_upstream_error'
+                  ? 'Couldn’t load releases from Shelfmark.'
+                  : releases.error
+              }
+            />
+            <Button size="slim" disabled={releases.isFetching} onClick={() => void releases.refetch()}>
+              {history ? 'Retry History' : 'Retry Releases'}
+            </Button>
+          </div>
+        )}
+        {releases.data?.partial && (
+          <p role="status" className={styles.settingsCardFeedback}>
+            Some sources didn’t return results. This list may be incomplete.
+          </p>
+        )}
+        {releases.isSuccess && !releases.isFetching && !rows.length && (
+          <p className={coverStyles.resultStatus} role="status">
+            {history ? 'No saved releases for this book.' : 'No releases found.'}
+          </p>
+        )}
+        {rows.length > 0 && (
+          <ul className={coverStyles.releaseList}>
+            {rows.map((release) => (
+              <ReleaseRow
+                key={release.key}
+                release={release}
+                download={!history && !releases.isFetching && !releases.isError}
+                account={account}
+                book={book}
+                mutationKey={mutationKey}
+                refresh={async () => (await releases.refetch()).isSuccess}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
+    </Dialog>
+  );
+}
+
+function ReleaseRow({
+  release,
+  download,
+  account,
+  book,
+  mutationKey,
+  refresh,
+}: {
+  release: ShelfmarkRelease;
+  download: boolean;
+  account: Account;
+  book: ShelfmarkBook;
+  mutationKey: readonly unknown[];
+  refresh: () => Promise<boolean>;
+}) {
+  const client = useQueryClient();
+  const { show } = useSnackbar(JSON.stringify(account));
+  const request = useMutation({
+    mutationKey,
+    mutationFn: () =>
+      session.api.requestShelfmarkRelease(account, book.provider, book.id, release.key, release.selection!),
+    retry: false,
+    onSuccess: ({ release: saved, request_count }) => {
+      client.setQueriesData<ShelfmarkBook[]>({ queryKey: shelfmarkKey(account, 'search') }, (books) =>
+        books?.map((row) =>
+          bookKey(row) === bookKey(book) ? { ...row, request_count: Math.max(row.request_count, request_count) } : row,
+        ),
+      );
+      client.setQueriesData<ShelfmarkReleases>(
+        { queryKey: shelfmarkKey(account, 'releases') },
+        (current) =>
+          current && {
+            ...current,
+            releases: current.releases.map((row) =>
+              row.key === release.key ? { ...row, request: saved.request } : row,
+            ),
+          },
+      );
+      show({ message: `${releaseStatus(saved.request.state)} · ${saved.title}` });
+    },
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: shelfmarkKey(account, 'history') });
+      void client.invalidateQueries({
+        queryKey: [...shelfmarkKey(account, 'release-history'), book.provider, book.id],
+      });
+    },
+  });
+  const invalidSelection =
+    request.error instanceof ReadingHTTPError && request.error.problem.code === 'shelfmark_invalid_selection';
+  const saved = release.request ?? request.data?.release.request;
+  const buttonLabel = saved ? releaseStatus(saved.state) : request.isPending ? 'Queueing…' : 'Download';
+  const byline = release.author ? `By ${release.author}` : book.author ? `Catalog author: ${book.author}` : '';
+  const metadata = [
+    release.format.toUpperCase(),
+    release.size,
+    release.language,
+    release.indexer && release.indexer !== release.source ? `${release.source} › ${release.indexer}` : release.source,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    <li className={coverStyles.releaseRow}>
+      <div className={coverStyles.releaseDetails}>
+        <strong>{release.title}</strong>
+        {byline && <span>{byline}</span>}
+        {metadata && <span>{metadata}</span>}
+        {saved && (
+          <span>
+            Requested by {saved.username} ·{' '}
+            <time dateTime={saved.requested_at}>{requestDate.format(new Date(saved.requested_at))}</time>
+          </span>
+        )}
+      </div>
+      {!saved && request.isError ? (
+        <Button
+          size="slim"
+          disabled={!download}
+          aria-label={`Refresh Releases for ${release.title}`}
+          onClick={async () => {
+            if (await refresh()) request.reset();
+          }}
+        >
+          Refresh Releases
+        </Button>
+      ) : (
+        <Button
+          size="slim"
+          disabled={!!saved || !download || request.isPending}
+          aria-label={`${buttonLabel} ${release.title}`}
+          onClick={() => {
+            if (!saved && download && !request.isPending) request.mutate();
+          }}
+        >
+          {buttonLabel}
+        </Button>
+      )}
+      {!saved && request.isError && (
+        <p role="alert" className={coverStyles.releaseError}>
+          {invalidSelection
+            ? 'This release list has changed. Refresh releases before choosing again.'
+            : 'Couldn’t confirm whether this release was queued. Refresh releases before trying again.'}
+        </p>
+      )}
+    </li>
   );
 }

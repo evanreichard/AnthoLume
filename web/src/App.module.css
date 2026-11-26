@@ -600,6 +600,12 @@
 .dialogHeader h2 {
   margin: 0;
 }
+.dialogSubtitle {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
 .dialogHeader h2:focus {
   outline: none;
 }
