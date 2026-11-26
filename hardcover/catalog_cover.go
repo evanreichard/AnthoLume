@@ -53,10 +53,17 @@ func (c *Catalog) Cover(ctx context.Context, id int64) ([]byte, error) {
 	if len(data.Images) != 1 || data.Images[0].ID != id {
 		return nil, metadata.ErrLookupCoverMissing
 	}
-	return c.CoverFromURL(ctx, data.Images[0].URL)
+	return c.downloadCover(ctx, data.Images[0].URL)
 }
 
-func (c *Catalog) CoverFromURL(ctx context.Context, resolvedURL string) ([]byte, error) {
+func (c *Catalog) CoverFromMatch(ctx context.Context, match metadata.LookupMatch) ([]byte, error) {
+	if match.CoverID == nil {
+		return nil, metadata.ErrLookupCoverMissing
+	}
+	return c.downloadCover(ctx, match.CoverURL)
+}
+
+func (c *Catalog) downloadCover(ctx context.Context, resolvedURL string) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

@@ -30,8 +30,11 @@ func (c matcherMetadataCatalog) Cover(ctx context.Context, id int64) ([]byte, er
 	return c.previewCover(ctx, id)
 }
 
-func (c matcherMetadataCatalog) CoverFromURL(ctx context.Context, url string) ([]byte, error) {
-	if url != matcherCoverURL {
+func (c matcherMetadataCatalog) CoverFromMatch(ctx context.Context, match metadata.LookupMatch) ([]byte, error) {
+	if match.CoverURL == "" {
+		return nil, metadata.ErrLookupCoverMissing
+	}
+	if match.CoverURL != matcherCoverURL {
 		return nil, errors.New("unexpected resolved cover URL")
 	}
 	return c.cover(ctx)
@@ -48,7 +51,7 @@ func TestMatcherFillsOrReplacesVerifiedMetadata(t *testing.T) {
 			var art bytes.Buffer
 			require.NoError(t, png.Encode(&art, image.NewRGBA(image.Rect(0, 0, 12, 16))))
 			var resolutions, covers atomic.Int32
-			f.api.hardcoverCatalog = matcherMetadataCatalog{matcherEngineCatalog: matcherEngineCatalog{resolve: func(_ context.Context, work, edition, isbn string) (metadata.LookupMatch, error) {
+			f.api.metadataCatalogs[Hardcover] = matcherMetadataCatalog{matcherEngineCatalog: matcherEngineCatalog{resolve: func(_ context.Context, work, edition, isbn string) (metadata.LookupMatch, error) {
 				resolutions.Add(1)
 				if work != "42" || edition != "99" || isbn != "9780765391193" {
 					return metadata.LookupMatch{}, metadata.ErrInvalidLookupMatch
@@ -103,7 +106,7 @@ func TestMatcherRejectsUnverifiedEditionEvidence(t *testing.T) {
 	f := newWebFixture(t)
 	registerMatcherReader(t, f)
 	f.exec(`INSERT INTO documents(id,title) VALUES ('book','Original')`)
-	f.api.openLibraryCatalog = matcherEngineCatalog{resolve: func(_ context.Context, work, edition, _ string) (metadata.LookupMatch, error) {
+	f.api.metadataCatalogs[Openlibrary] = matcherEngineCatalog{resolve: func(_ context.Context, work, edition, _ string) (metadata.LookupMatch, error) {
 		match := metadata.LookupMatch{ID: work, Title: "Catalog Title", Description: new("Synopsis"), ISBN10: new("0306406152")}
 		if edition == "OL2M" {
 			match.EditionID = &edition
@@ -149,7 +152,7 @@ func TestMatcherMetadataAndStagedArtRespectLatestBook(t *testing.T) {
 					close(release)
 				}
 			}()
-			f.api.hardcoverCatalog = matcherMetadataCatalog{matcherEngineCatalog: matcherEngineCatalog{resolve: func(_ context.Context, work, _, _ string) (metadata.LookupMatch, error) {
+			f.api.metadataCatalogs[Hardcover] = matcherMetadataCatalog{matcherEngineCatalog: matcherEngineCatalog{resolve: func(_ context.Context, work, _, _ string) (metadata.LookupMatch, error) {
 				return metadata.LookupMatch{ID: work, Title: "Catalog Title", Author: "Catalog Author", Description: new("Catalog Synopsis"), CoverID: new(int64(7)), CoverURL: matcherCoverURL}, nil
 			}}, cover: func(ctx context.Context) ([]byte, error) {
 				close(started)
@@ -218,7 +221,7 @@ func TestMatcherRollsBackMetadataWhenLinkCannotBeSaved(t *testing.T) {
 	f.exec(`CREATE TRIGGER refuse_test_link BEFORE INSERT ON document_identifiers BEGIN SELECT RAISE(ABORT, 'fixture write failure'); END`)
 	var art bytes.Buffer
 	require.NoError(t, png.Encode(&art, image.NewRGBA(image.Rect(0, 0, 12, 16))))
-	f.api.hardcoverCatalog = matcherMetadataCatalog{matcherEngineCatalog: matcherEngineCatalog{resolve: func(_ context.Context, work, _, _ string) (metadata.LookupMatch, error) {
+	f.api.metadataCatalogs[Hardcover] = matcherMetadataCatalog{matcherEngineCatalog: matcherEngineCatalog{resolve: func(_ context.Context, work, _, _ string) (metadata.LookupMatch, error) {
 		return metadata.LookupMatch{ID: work, Title: "Catalog Title", CoverID: new(int64(7)), CoverURL: matcherCoverURL}, nil
 	}}, cover: func(context.Context) ([]byte, error) { return art.Bytes(), nil }}
 	response := f.call("PUT", hardcoverMatchPath, `{"work_id":"42","metadata_mode":"replace_fields"}`, nil)

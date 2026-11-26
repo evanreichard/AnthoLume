@@ -55,7 +55,7 @@ func TestCatalogCoverSelection(t *testing.T) {
 			if tc.previewEdition {
 				edition = "77"
 			}
-			m, err := c.ResolveMatcher(t.Context(), "42", edition, "")
+			m, err := c.Resolve(t.Context(), "42", edition, "")
 			require.NoError(t, err)
 			require.Empty(t, m.Author)
 			if tc.previewEdition {
@@ -178,15 +178,17 @@ func TestResolvedCatalogCoverUsesOnlyAssetRequest(t *testing.T) {
 		assert.Empty(t, r.Header.Get("Cookie"))
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(art.Bytes()))}, nil
 	})
-	match, err := c.ResolveMatcher(t.Context(), "42", "77", "")
+	match, err := c.Resolve(t.Context(), "42", "77", "")
 	require.NoError(t, err)
 	require.EqualValues(t, 12, *match.CoverID)
 	for _, invalid := range []string{"", "http://assets.hardcover.app/image", "https://assets.hardcover.app:443/image", "https://assets.hardcover.app.evil.example/image", "https://user@assets.hardcover.app/image"} {
-		_, err := c.CoverFromURL(t.Context(), invalid)
+		unusable := match
+		unusable.CoverURL = invalid
+		_, err := c.CoverFromMatch(t.Context(), unusable)
 		require.ErrorIs(t, err, metadata.ErrLookupCoverMissing)
 	}
 	require.Zero(t, requests)
-	got, err := c.CoverFromURL(t.Context(), match.CoverURL)
+	got, err := c.CoverFromMatch(t.Context(), match)
 	require.NoError(t, err)
 	require.Equal(t, art.Bytes(), got)
 	require.Equal(t, 1, requests)

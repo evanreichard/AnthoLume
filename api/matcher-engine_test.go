@@ -22,23 +22,22 @@ func (matcherEngineCatalog) Lookup(context.Context, string) ([]metadata.LookupMa
 	return nil, errors.New("matcher must use the batch adapter")
 }
 
-func (matcherEngineCatalog) Resolve(context.Context, string, string, string) (metadata.LookupMatch, error) {
-	return metadata.LookupMatch{}, errors.New("matcher must use the paced resolver")
-}
-
 func (matcherEngineCatalog) Cover(context.Context, int64) ([]byte, error) {
 	return nil, errors.New("matcher does not fetch covers")
 }
 
-func (matcherEngineCatalog) CoverFromURL(context.Context, string) ([]byte, error) {
+func (matcherEngineCatalog) CoverFromMatch(context.Context, metadata.LookupMatch) ([]byte, error) {
 	return nil, errors.New("matcher test did not expect an asset request")
 }
 
 func (c matcherEngineCatalog) LookupMatcherBatch(ctx context.Context, books []metadata.MatcherInput, emit func(string, []metadata.LookupMatch, error) error) error {
+	if c.lookup == nil {
+		return errors.New("test did not expect batch lookup")
+	}
 	return c.lookup(ctx, books, emit)
 }
 
-func (c matcherEngineCatalog) ResolveMatcher(ctx context.Context, work, edition, isbn string) (metadata.LookupMatch, error) {
+func (c matcherEngineCatalog) Resolve(ctx context.Context, work, edition, isbn string) (metadata.LookupMatch, error) {
 	return c.resolve(ctx, work, edition, isbn)
 }
 
@@ -78,7 +77,7 @@ func TestMatcherEngineCacheScopeAndExpiry(t *testing.T) {
 			}
 			return nil
 		}}
-		api := &API{openLibraryCatalog: catalog, hardcoverCatalog: catalog}
+		api := &API{metadataCatalogs: map[MetadataProvider]catalogProvider{Openlibrary: catalog, Hardcover: catalog}}
 		book := metadata.MatcherInput{ID: "earthsea", Title: " Earthsea ", Author: "Le Guin", ISBN: "978-0547773742"}
 		missing := metadata.MatcherInput{ID: "other", Title: "No match"}
 		results := collectMatcherResults(t, api, Openlibrary, book, missing)
@@ -118,7 +117,7 @@ func TestMatcherEngineCacheCapacity(t *testing.T) {
 		calls++
 		return emitEmptyMatches(books, emit)
 	}}
-	api := &API{openLibraryCatalog: catalog}
+	api := &API{metadataCatalogs: map[MetadataProvider]catalogProvider{Openlibrary: catalog}}
 	for start := 0; start < matcherCacheSize; start += metadata.MatcherBatchSize {
 		var books []metadata.MatcherInput
 		for id := start; id < min(matcherCacheSize, start+metadata.MatcherBatchSize); id++ {
@@ -155,7 +154,7 @@ func TestMatcherEngineSharesOverlappingRequestsAndCancelsUnusedWork(t *testing.T
 			}
 			return emitEmptyMatches(books, emit)
 		}}
-		api := &API{openLibraryCatalog: catalog}
+		api := &API{metadataCatalogs: map[MetadataProvider]catalogProvider{Openlibrary: catalog}}
 		listen := func(books ...metadata.MatcherInput) (context.CancelFunc, <-chan BookMatcherOutcome, <-chan error) {
 			ctx, cancel := context.WithCancel(t.Context())
 			rows, done := make(chan BookMatcherOutcome, len(books)), make(chan error, 1)
@@ -198,7 +197,7 @@ func TestMatcherEngineWriteFailureAbandonsPendingBatch(t *testing.T) {
 			stopped <- ctx.Err()
 			return ctx.Err()
 		}}
-		api := &API{openLibraryCatalog: catalog}
+		api := &API{metadataCatalogs: map[MetadataProvider]catalogProvider{Openlibrary: catalog}}
 		writeErr := errors.New("stream closed")
 		slow := metadata.MatcherInput{ID: "slow"}
 		err := api.runMatcherLookups(t.Context(), Openlibrary, []metadata.MatcherInput{{ID: "fast"}, slow}, func(BookMatcherOutcome) error { return writeErr })
@@ -221,7 +220,7 @@ func TestMatcherEngineReportsUnfinishedAndLimitedRowsWithoutCachingErrors(t *tes
 		}
 		return emit(books[0].ID, nil, nil)
 	}}
-	api := &API{openLibraryCatalog: catalog}
+	api := &API{metadataCatalogs: map[MetadataProvider]catalogProvider{Openlibrary: catalog}}
 	limited, unfinished := metadata.MatcherInput{ID: "limited"}, metadata.MatcherInput{ID: "unfinished"}
 	require.Equal(t, []BookMatcherOutcome{{DocumentId: limited.ID, Error: new("rate_limited")}, {DocumentId: unfinished.ID, Error: new("lookup_failed")}}, collectMatcherResults(t, api, Openlibrary, limited, unfinished))
 	require.Equal(t, []BookMatcherOutcome{{DocumentId: limited.ID, Candidates: &[]BookMatcherCandidate{}}}, collectMatcherResults(t, api, Openlibrary, limited))
@@ -241,7 +240,7 @@ func TestMatcherEngineVerifiesThroughSelectedPacedCatalog(t *testing.T) {
 			return metadata.LookupMatch{}, matcherquota.ErrLimited
 		}
 	}}
-	api := &API{hardcoverCatalog: catalog}
+	api := &API{metadataCatalogs: map[MetadataProvider]catalogProvider{Hardcover: catalog}}
 	verify := func(ctx context.Context, provider MetadataProvider, work string) error {
 		_, err := api.resolveMatcherLink(ctx, provider, work, "", "", true)
 		return err

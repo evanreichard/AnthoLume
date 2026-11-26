@@ -26,8 +26,8 @@ type matcherCoverFixture struct {
 
 const matcherCoverURL = "https://assets.hardcover.app/edition/77/cover"
 
-func (f matcherCoverFixture) CoverFromURL(ctx context.Context, url string) ([]byte, error) {
-	return f.cover(ctx, url)
+func (f matcherCoverFixture) CoverFromMatch(ctx context.Context, match metadata.LookupMatch) ([]byte, error) {
+	return f.cover(ctx, match.CoverURL)
 }
 
 func TestStageMatcherCover(t *testing.T) {
@@ -64,12 +64,12 @@ func TestStageMatcherCover(t *testing.T) {
 			data := t.TempDir()
 			covers := filepath.Join(data, "covers")
 			require.NoError(t, os.Mkdir(covers, 0700))
-			api := &API{cfg: &config.Config{DataPath: data}, hardcoverCatalog: matcherCoverFixture{
+			api := &API{cfg: &config.Config{DataPath: data}, metadataCatalogs: map[MetadataProvider]catalogProvider{Hardcover: matcherCoverFixture{
 				cover: func(_ context.Context, url string) ([]byte, error) {
 					require.Equal(t, matcherCoverURL, url)
 					return tc.body, tc.coverErr
 				},
-			}}
+			}}}
 			staged, err := api.stageMatcherCover(t.Context(), Hardcover, metadata.LookupMatch{CoverID: new(int64(123)), CoverURL: matcherCoverURL})
 			if tc.status != 0 {
 				var problem *reading.Failure
@@ -101,7 +101,7 @@ func TestMatcherDoesNotLookUpCoverByID(t *testing.T) {
 	f := newWebFixture(t)
 	registerMatcherReader(t, f)
 	f.exec(`INSERT INTO documents(id,title) VALUES ('book','Original'), ('without-art','Original')`)
-	f.api.hardcoverCatalog = matcherMetadataCatalog{
+	f.api.metadataCatalogs[Hardcover] = matcherMetadataCatalog{
 		matcherEngineCatalog: matcherEngineCatalog{resolve: func(_ context.Context, work, _, _ string) (metadata.LookupMatch, error) {
 			match := metadata.LookupMatch{ID: work, Title: "Provider Title", CoverID: new(int64(123))}
 			if work == "42" {
@@ -122,7 +122,7 @@ func TestMatcherAndIdentifyReportCoverRateLimits(t *testing.T) {
 	f := newWebFixture(t)
 	registerMatcherReader(t, f)
 	f.exec(`INSERT INTO documents(id,title) VALUES ('book','Original')`)
-	f.api.hardcoverCatalog = matcherMetadataCatalog{
+	f.api.metadataCatalogs[Hardcover] = matcherMetadataCatalog{
 		matcherEngineCatalog: matcherEngineCatalog{resolve: func(_ context.Context, work, _, _ string) (metadata.LookupMatch, error) {
 			return metadata.LookupMatch{ID: work, Title: "Provider Title", CoverID: new(int64(123)), CoverURL: matcherCoverURL}, nil
 		}},
@@ -148,13 +148,13 @@ func TestStageMatcherCoverDiscardsCancelledFetch(t *testing.T) {
 	defer cancel()
 	var raw bytes.Buffer
 	require.NoError(t, jpeg.Encode(&raw, image.NewRGBA(image.Rect(0, 0, 8, 12)), nil))
-	api := &API{cfg: &config.Config{DataPath: data}, hardcoverCatalog: matcherCoverFixture{
+	api := &API{cfg: &config.Config{DataPath: data}, metadataCatalogs: map[MetadataProvider]catalogProvider{Hardcover: matcherCoverFixture{
 		cover: func(fetchContext context.Context, _ string) ([]byte, error) {
 			require.NoError(t, fetchContext.Err())
 			cancel()
 			return raw.Bytes(), nil
 		},
-	}}
+	}}}
 	staged, err := api.stageMatcherCover(ctx, Hardcover, metadata.LookupMatch{CoverID: new(int64(123)), CoverURL: matcherCoverURL})
 	require.ErrorIs(t, err, context.Canceled)
 	require.Empty(t, staged)

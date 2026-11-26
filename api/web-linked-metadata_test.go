@@ -46,7 +46,7 @@ const (
 )
 
 func seedLinkedReviewBook(f *webFixture, catalog *linkedCatalogFixture) {
-	f.api.hardcoverCatalog = catalog
+	f.api.metadataCatalogs[Hardcover] = catalog
 	registerMatcherReader(f.t, f)
 	f.exec(`INSERT INTO documents(id,title) VALUES('book','Original')`)
 	f.exec(`INSERT INTO document_identifiers VALUES('book','hardcover_book','42'), ('book','openlibrary_work','OL20W')`)

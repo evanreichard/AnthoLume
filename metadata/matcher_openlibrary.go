@@ -17,10 +17,6 @@ func (OpenLibraryCatalog) LookupMatcherBatch(ctx context.Context, books []Matche
 	return lookupOpenLibraryMatcher(ctx, openLibraryMatcherQuota.Client(lookupClient, 1), openLibraryBase+"/search.json", books, emit)
 }
 
-func (c OpenLibraryCatalog) ResolveMatcher(ctx context.Context, work, edition, isbn string) (LookupMatch, error) {
-	return c.Resolve(ctx, work, edition, isbn)
-}
-
 func lookupOpenLibraryMatcher(ctx context.Context, client matcherquota.Doer, endpoint string, books []MatcherInput, emit func(string, []LookupMatch, error) error) error {
 	if err := ValidateMatcherBatch(books); err != nil {
 		return err

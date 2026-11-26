@@ -22,22 +22,6 @@ const (
 	matcherBatchTimeout = time.Minute
 )
 
-type matcherCatalog interface {
-	LookupMatcherBatch(context.Context, []metadata.MatcherInput, func(string, []metadata.LookupMatch, error) error) error
-	ResolveMatcher(ctx context.Context, work, edition, isbn string) (metadata.LookupMatch, error)
-}
-
-func (api *API) matcherCatalogFor(provider MetadataProvider) (matcherCatalog, error) {
-	catalog, err := api.catalogFor(provider)
-	if err != nil {
-		return nil, err
-	}
-	if matcher, ok := catalog.(matcherCatalog); ok {
-		return matcher, nil
-	}
-	return nil, &reading.Failure{Status: http.StatusServiceUnavailable, Code: "metadata_unavailable"}
-}
-
 func matcherWorkURL(provider MetadataProvider, workID string) string {
 	switch provider {
 	case Openlibrary:
@@ -56,7 +40,7 @@ func (api *API) resolveMatcherLink(ctx context.Context, provider MetadataProvide
 	if isbn != "" && !metadata.ValidMatcherISBN(isbn) {
 		return metadata.LookupMatch{}, metadataLookupFailure(metadata.ErrInvalidLookupMatch)
 	}
-	catalog, err := api.matcherCatalogFor(provider)
+	catalog, err := api.catalogFor(provider)
 	if err != nil {
 		return metadata.LookupMatch{}, err
 	}
@@ -67,7 +51,7 @@ func (api *API) resolveMatcherLink(ctx context.Context, provider MetadataProvide
 		err = verifier.VerifyMatcherWork(ctx, workID)
 		match.ID = workID
 	} else {
-		match, err = catalog.ResolveMatcher(ctx, workID, edition, isbn)
+		match, err = catalog.Resolve(ctx, workID, edition, isbn)
 	}
 	if ctx.Err() != nil {
 		return metadata.LookupMatch{}, ctx.Err()
@@ -139,7 +123,7 @@ func (api *API) runMatcherLookups(ctx context.Context, provider MetadataProvider
 	if err := metadata.ValidateMatcherBatch(inputs); err != nil {
 		return err
 	}
-	catalog, err := api.matcherCatalogFor(provider)
+	catalog, err := api.catalogFor(provider)
 	if err != nil {
 		for _, book := range inputs {
 			if err := ctx.Err(); err != nil {
@@ -172,7 +156,7 @@ func (api *API) runMatcherLookups(ctx context.Context, provider MetadataProvider
 	return nil
 }
 
-func (e *matcherEngine) subscribe(provider MetadataProvider, inputs []metadata.MatcherInput, results chan BookMatcherOutcome, catalog matcherCatalog) []*matcherFlight {
+func (e *matcherEngine) subscribe(provider MetadataProvider, inputs []metadata.MatcherInput, results chan BookMatcherOutcome, catalog catalogProvider) []*matcherFlight {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.flights == nil {
@@ -239,7 +223,7 @@ func (e *matcherEngine) cancelUnobserved(batch *matcherBatch) {
 	clear(batch.byID)
 }
 
-func (e *matcherEngine) lookup(catalog matcherCatalog, batch *matcherBatch, books []metadata.MatcherInput) {
+func (e *matcherEngine) lookup(catalog catalogProvider, batch *matcherBatch, books []metadata.MatcherInput) {
 	defer batch.cancel()
 	err := catalog.LookupMatcherBatch(batch.ctx, books, func(id string, matches []metadata.LookupMatch, err error) error {
 		if ctxErr := batch.ctx.Err(); ctxErr != nil {

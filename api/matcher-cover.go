@@ -17,19 +17,11 @@ import (
 )
 
 func (api *API) fetchMetadataCover(ctx context.Context, provider MetadataProvider, coverID int64) ([]byte, error) {
-	var raw []byte
-	var err error
-	switch provider {
-	case Hardcover:
-		if api.hardcoverCatalog == nil {
-			return nil, &reading.Failure{Status: http.StatusServiceUnavailable, Code: "metadata_unavailable"}
-		}
-		raw, err = api.hardcoverCatalog.Cover(ctx, coverID)
-	case Openlibrary:
-		raw, err = metadata.LookupOpenLibraryCover(ctx, coverID)
-	default:
-		return nil, &reading.Failure{Status: http.StatusBadRequest, Code: "invalid_request"}
+	catalog, err := api.catalogFor(provider)
+	if err != nil {
+		return nil, err
 	}
+	raw, err := catalog.Cover(ctx, coverID)
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -51,20 +43,11 @@ func (api *API) stageMatcherCover(ctx context.Context, provider MetadataProvider
 	if match.CoverID == nil {
 		return "", nil
 	}
-	var raw []byte
-	var err error
-	if provider == Hardcover {
-		if match.CoverURL == "" {
-			return "", nil
-		}
-		if api.hardcoverCatalog == nil {
-			return "", &reading.Failure{Status: http.StatusServiceUnavailable, Code: "metadata_unavailable"}
-		}
-		raw, err = api.hardcoverCatalog.CoverFromURL(ctx, match.CoverURL)
-		err = metadataCoverFailure(err)
-	} else {
-		raw, err = api.fetchMetadataCover(ctx, provider, *match.CoverID)
+	catalog, err := api.catalogFor(provider)
+	if err != nil {
+		return "", err
 	}
+	raw, err := catalog.CoverFromMatch(ctx, match)
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
@@ -73,7 +56,7 @@ func (api *API) stageMatcherCover(ctx context.Context, provider MetadataProvider
 	}
 	if err != nil {
 		var problem *reading.Failure
-		if errors.As(err, &problem) {
+		if errors.As(metadataCoverFailure(err), &problem) {
 			return "", problem
 		}
 		return "", &reading.Failure{Status: http.StatusServiceUnavailable, Code: "metadata_unavailable"}

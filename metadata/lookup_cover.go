@@ -30,8 +30,15 @@ func allowedCoverURL(u *url.URL) bool {
 	return u.Scheme == "https" && u.User == nil && u.Port() == "" && (host == "covers.openlibrary.org" || host == "archive.org" || archiveCoverHost.MatchString(host))
 }
 
-func LookupOpenLibraryCover(ctx context.Context, id int64) ([]byte, error) {
+func (OpenLibraryCatalog) Cover(ctx context.Context, id int64) ([]byte, error) {
 	return lookupOpenLibraryCover(ctx, lookupCoverClient, "https://covers.openlibrary.org", id)
+}
+
+func (c OpenLibraryCatalog) CoverFromMatch(ctx context.Context, match LookupMatch) ([]byte, error) {
+	if match.CoverID == nil {
+		return nil, ErrLookupCoverMissing
+	}
+	return c.Cover(ctx, *match.CoverID)
 }
 
 func lookupOpenLibraryCover(ctx context.Context, client *http.Client, base string, id int64) ([]byte, error) {

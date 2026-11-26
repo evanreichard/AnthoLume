@@ -100,7 +100,7 @@ func TestListDocumentsIncludesConfirmedMatchesAfterPagination(t *testing.T) {
 func TestBookMatcherStreamsWithoutHoldingSQLite(t *testing.T) {
 	f := newWebFixture(t)
 	lookupStarted, release := make(chan struct{}), make(chan struct{})
-	f.api.openLibraryCatalog = matcherEngineCatalog{lookup: func(ctx context.Context, books []metadata.MatcherInput, emit func(string, []metadata.LookupMatch, error) error) error {
+	f.api.metadataCatalogs[Openlibrary] = matcherEngineCatalog{lookup: func(ctx context.Context, books []metadata.MatcherInput, emit func(string, []metadata.LookupMatch, error) error) error {
 		for _, book := range books {
 			if book.Title == "Fast Title" {
 				if err := emit(book.ID, []metadata.LookupMatch{{ID: "OL200W", Title: book.Title, Author: book.Author}}, nil); err != nil {
@@ -171,7 +171,7 @@ func TestBookMatcherConcurrentConfirms(t *testing.T) {
 			return metadata.LookupMatch{}, ctx.Err()
 		}
 	}
-	f.api.openLibraryCatalog = catalog
+	f.api.metadataCatalogs[Openlibrary] = catalog
 	registerMatcherReader(t, f)
 	f.exec(`INSERT INTO documents(id,title) VALUES ('book','Local Title')`)
 
@@ -213,8 +213,8 @@ func TestBookMatcherConcurrentConfirms(t *testing.T) {
 
 func TestBookMatcherLinkMutations(t *testing.T) {
 	f := newWebFixture(t)
-	f.api.openLibraryCatalog = matcherLinkCatalog()
-	f.api.hardcoverCatalog = identifyCatalogFixture{}
+	f.api.metadataCatalogs[Openlibrary] = matcherLinkCatalog()
+	f.api.metadataCatalogs[Hardcover] = identifyCatalogFixture{}
 	registerMatcherReader(t, f)
 	f.exec(`INSERT INTO settings(name,value) VALUES ('metadata_provider','hardcover') ON CONFLICT(name) DO UPDATE SET value=excluded.value`)
 	f.exec(`INSERT INTO documents(id,title,author,isbn13,description,coverfile) VALUES ('book','Local Title','Local Author','9780765391193','Local Description','local.png')`)
