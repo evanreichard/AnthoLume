@@ -49,7 +49,10 @@ func TestShelfmarkReleaseAuthorMigrationPreservesConduitHistory(t *testing.T) {
 		VALUES ('prowlarr', '1', 'key', 'Release', 'epub', '', '', '', 'hardcover', '1', 'Book', 'Catalog Author', '', 2026, 0, 'reader', '2026-01-01T12:00:00Z', 'queued')`)
 	require.NoError(t, err)
 	require.NoError(t, MigrateRestore(ctx, db.DB, dir))
-	row, err := New(db.DB).GetShelfmarkReleaseBySource(ctx, GetShelfmarkReleaseBySourceParams{Source: "prowlarr", SourceID: "1"})
+	var rawIDColumns int
+	require.NoError(t, db.DB.QueryRow(`SELECT count(*) FROM pragma_table_info('shelfmark_releases') WHERE name='source_id'`).Scan(&rawIDColumns))
+	require.Zero(t, rawIDColumns)
+	row, err := New(db.DB).GetShelfmarkRelease(ctx, "key")
 	require.NoError(t, err)
 	require.Equal(t, "Catalog Author", row.Author)
 	require.Empty(t, row.ReleaseAuthor)
@@ -65,14 +68,14 @@ func TestShelfmarkHistoryPaginatesBooksByMostRecentRelease(t *testing.T) {
 	for i := range 53 {
 		release := fmt.Sprintf("file-%d", i)
 		_, err := queries.ClaimShelfmarkRelease(ctx, ClaimShelfmarkReleaseParams{
-			Source: "prowlarr", SourceID: release, ReleaseKey: release,
+			Source: "prowlarr", ReleaseKey: release,
 			Provider: "hardcover", BookID: fmt.Sprint(i % 52), BookTitle: release, Username: "reader",
 			RequestedAt: time.Unix(int64(i), 0).UTC().Format(time.RFC3339),
 		})
 		require.NoError(t, err)
 	}
 	_, err := queries.ClaimShelfmarkRelease(ctx, ClaimShelfmarkReleaseParams{
-		Source: "prowlarr", SourceID: "file-52", ReleaseKey: "different-key",
+		Source: "prowlarr", ReleaseKey: "file-52",
 		Provider: "openlibrary", BookID: "alias", Username: "another-reader",
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows)

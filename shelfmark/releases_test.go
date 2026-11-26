@@ -115,7 +115,6 @@ func TestReleasesVerifiesFormatBindsBookAndHidesCredentials(t *testing.T) {
 	sealed, err := selectionEncoding.DecodeString(item.Selection)
 	require.NoError(t, err)
 	require.NotContains(t, string(sealed), "fake-token")
-	require.NotContains(t, string(sealed), item.SourceID)
 	sealed[len(sealed)-1] ^= 1
 	tampered := selectionEncoding.EncodeToString(sealed)
 	restarted, err := New(c.base.String()+"/", testKey)
@@ -147,7 +146,6 @@ func TestReleasesVerifiesFormatBindsBookAndHidesCredentials(t *testing.T) {
 	want := out.Book
 	want.Description = ""
 	require.Equal(t, want, book)
-	require.Equal(t, item.SourceID, release.SourceID)
 	require.Equal(t, item.Key, release.Key)
 	require.Equal(t, item.Title, release.Title)
 	require.ErrorIs(t, restarted.Download(ctx, item), ErrInvalidSelection)
@@ -247,7 +245,7 @@ func TestReleaseUsesConfiguredFormatsAtSearchOnly(t *testing.T) {
 	out, err := c.Releases(ctx, "hardcover", "69589")
 	require.NoError(t, err)
 	require.Len(t, out.Releases, 1)
-	require.Equal(t, "epub", out.Releases[0].SourceID)
+	require.Equal(t, "epub", out.Releases[0].Format)
 	item := out.Releases[0]
 	_, selected, err := c.OpenSelection("hardcover", "69589", item.Key, item.Selection)
 	require.NoError(t, err)

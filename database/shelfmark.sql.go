@@ -11,16 +11,15 @@ import (
 
 const claimShelfmarkRelease = `-- name: ClaimShelfmarkRelease :one
 INSERT INTO shelfmark_releases (
-    source, source_id, release_key, release_title, format, size, language, indexer,
+    source, release_key, release_title, format, size, language, indexer,
     provider, book_id, book_title, author, description, year, has_cover, username, requested_at, release_author
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT DO NOTHING
-RETURNING source, source_id, release_key, release_title, format, size, language, indexer, provider, book_id, book_title, author, description, year, has_cover, username, requested_at, state, release_author
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (release_key) DO NOTHING
+RETURNING release_key, source, release_title, release_author, format, size, language, indexer, provider, book_id, book_title, author, description, year, has_cover, username, requested_at, state
 `
 
 type ClaimShelfmarkReleaseParams struct {
 	Source        string `json:"source"`
-	SourceID      string `json:"source_id"`
 	ReleaseKey    string `json:"release_key"`
 	ReleaseTitle  string `json:"release_title"`
 	Format        string `json:"format"`
@@ -42,7 +41,6 @@ type ClaimShelfmarkReleaseParams struct {
 func (q *Queries) ClaimShelfmarkRelease(ctx context.Context, arg ClaimShelfmarkReleaseParams) (ShelfmarkRelease, error) {
 	row := q.db.QueryRowContext(ctx, claimShelfmarkRelease,
 		arg.Source,
-		arg.SourceID,
 		arg.ReleaseKey,
 		arg.ReleaseTitle,
 		arg.Format,
@@ -62,10 +60,10 @@ func (q *Queries) ClaimShelfmarkRelease(ctx context.Context, arg ClaimShelfmarkR
 	)
 	var i ShelfmarkRelease
 	err := row.Scan(
-		&i.Source,
-		&i.SourceID,
 		&i.ReleaseKey,
+		&i.Source,
 		&i.ReleaseTitle,
+		&i.ReleaseAuthor,
 		&i.Format,
 		&i.Size,
 		&i.Language,
@@ -80,7 +78,6 @@ func (q *Queries) ClaimShelfmarkRelease(ctx context.Context, arg ClaimShelfmarkR
 		&i.Username,
 		&i.RequestedAt,
 		&i.State,
-		&i.ReleaseAuthor,
 	)
 	return i, err
 }
@@ -141,7 +138,7 @@ func (q *Queries) CountShelfmarkBookRequests(ctx context.Context, arg CountShelf
 }
 
 const findShelfmarkReleaseRequests = `-- name: FindShelfmarkReleaseRequests :many
-SELECT r.source, r.source_id, r.release_key, r.release_title, r.format, r.size, r.language, r.indexer, r.provider, r.book_id, r.book_title, r.author, r.description, r.year, r.has_cover, r.username, r.requested_at, r.state, r.release_author FROM shelfmark_releases AS r
+SELECT r.release_key, r.source, r.release_title, r.release_author, r.format, r.size, r.language, r.indexer, r.provider, r.book_id, r.book_title, r.author, r.description, r.year, r.has_cover, r.username, r.requested_at, r.state FROM shelfmark_releases AS r
 WHERE r.release_key IN (SELECT CAST(value AS TEXT) FROM json_each(CAST(?1 AS TEXT)))
 `
 
@@ -155,10 +152,10 @@ func (q *Queries) FindShelfmarkReleaseRequests(ctx context.Context, releaseKeys 
 	for rows.Next() {
 		var i ShelfmarkRelease
 		if err := rows.Scan(
-			&i.Source,
-			&i.SourceID,
 			&i.ReleaseKey,
+			&i.Source,
 			&i.ReleaseTitle,
+			&i.ReleaseAuthor,
 			&i.Format,
 			&i.Size,
 			&i.Language,
@@ -173,7 +170,6 @@ func (q *Queries) FindShelfmarkReleaseRequests(ctx context.Context, releaseKeys 
 			&i.Username,
 			&i.RequestedAt,
 			&i.State,
-			&i.ReleaseAuthor,
 		); err != nil {
 			return nil, err
 		}
@@ -199,23 +195,18 @@ func (q *Queries) GetShelfmarkEnabled(ctx context.Context) (string, error) {
 	return column_1, err
 }
 
-const getShelfmarkReleaseBySource = `-- name: GetShelfmarkReleaseBySource :one
-SELECT source, source_id, release_key, release_title, format, size, language, indexer, provider, book_id, book_title, author, description, year, has_cover, username, requested_at, state, release_author FROM shelfmark_releases WHERE source = ? AND source_id = ?
+const getShelfmarkRelease = `-- name: GetShelfmarkRelease :one
+SELECT release_key, source, release_title, release_author, format, size, language, indexer, provider, book_id, book_title, author, description, year, has_cover, username, requested_at, state FROM shelfmark_releases WHERE release_key = ?
 `
 
-type GetShelfmarkReleaseBySourceParams struct {
-	Source   string `json:"source"`
-	SourceID string `json:"source_id"`
-}
-
-func (q *Queries) GetShelfmarkReleaseBySource(ctx context.Context, arg GetShelfmarkReleaseBySourceParams) (ShelfmarkRelease, error) {
-	row := q.db.QueryRowContext(ctx, getShelfmarkReleaseBySource, arg.Source, arg.SourceID)
+func (q *Queries) GetShelfmarkRelease(ctx context.Context, releaseKey string) (ShelfmarkRelease, error) {
+	row := q.db.QueryRowContext(ctx, getShelfmarkRelease, releaseKey)
 	var i ShelfmarkRelease
 	err := row.Scan(
-		&i.Source,
-		&i.SourceID,
 		&i.ReleaseKey,
+		&i.Source,
 		&i.ReleaseTitle,
+		&i.ReleaseAuthor,
 		&i.Format,
 		&i.Size,
 		&i.Language,
@@ -230,13 +221,12 @@ func (q *Queries) GetShelfmarkReleaseBySource(ctx context.Context, arg GetShelfm
 		&i.Username,
 		&i.RequestedAt,
 		&i.State,
-		&i.ReleaseAuthor,
 	)
 	return i, err
 }
 
 const listShelfmarkRequestedReleases = `-- name: ListShelfmarkRequestedReleases :many
-SELECT source, source_id, release_key, release_title, format, size, language, indexer, provider, book_id, book_title, author, description, year, has_cover, username, requested_at, state, release_author FROM shelfmark_releases WHERE provider = ? AND book_id = ? ORDER BY requested_at DESC, release_key DESC
+SELECT release_key, source, release_title, release_author, format, size, language, indexer, provider, book_id, book_title, author, description, year, has_cover, username, requested_at, state FROM shelfmark_releases WHERE provider = ? AND book_id = ? ORDER BY requested_at DESC, release_key DESC
 `
 
 type ListShelfmarkRequestedReleasesParams struct {
@@ -254,10 +244,10 @@ func (q *Queries) ListShelfmarkRequestedReleases(ctx context.Context, arg ListSh
 	for rows.Next() {
 		var i ShelfmarkRelease
 		if err := rows.Scan(
-			&i.Source,
-			&i.SourceID,
 			&i.ReleaseKey,
+			&i.Source,
 			&i.ReleaseTitle,
+			&i.ReleaseAuthor,
 			&i.Format,
 			&i.Size,
 			&i.Language,
@@ -272,7 +262,6 @@ func (q *Queries) ListShelfmarkRequestedReleases(ctx context.Context, arg ListSh
 			&i.Username,
 			&i.RequestedAt,
 			&i.State,
-			&i.ReleaseAuthor,
 		); err != nil {
 			return nil, err
 		}

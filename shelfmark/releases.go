@@ -19,7 +19,6 @@ const releaseSearchTimeout = 300 * time.Second
 
 type Release struct {
 	Key, Source                                    string
-	SourceID                                       string `json:"-"`
 	Title, Author, Format, Size, Language, Indexer string
 	Selection                                      string `json:",omitempty"`
 	payload                                        json.RawMessage
@@ -147,7 +146,7 @@ func verifyRelease(raw json.RawMessage, allowed map[string]bool) (verifiedReleas
 	}
 	key := sha256.Sum256([]byte(row.Source + "\x00" + row.SourceID))
 	return verifiedRelease{release: Release{
-		Key: hex.EncodeToString(key[:]), Source: row.Source, SourceID: row.SourceID,
+		Key: hex.EncodeToString(key[:]), Source: row.Source,
 		Title: row.Title, Author: author, Format: format, Size: row.Size, Language: row.Language, Indexer: row.Indexer,
 	}, payload: body}, true
 }

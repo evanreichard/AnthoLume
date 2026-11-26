@@ -3,14 +3,14 @@ SELECT CAST(COALESCE((SELECT value FROM settings WHERE name = 'shelfmark_enabled
 
 -- name: ClaimShelfmarkRelease :one
 INSERT INTO shelfmark_releases (
-    source, source_id, release_key, release_title, format, size, language, indexer,
+    source, release_key, release_title, format, size, language, indexer,
     provider, book_id, book_title, author, description, year, has_cover, username, requested_at, release_author
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT DO NOTHING
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (release_key) DO NOTHING
 RETURNING *;
 
--- name: GetShelfmarkReleaseBySource :one
-SELECT * FROM shelfmark_releases WHERE source = ? AND source_id = ?;
+-- name: GetShelfmarkRelease :one
+SELECT * FROM shelfmark_releases WHERE release_key = ?;
 
 -- name: SetShelfmarkReleaseState :exec
 UPDATE shelfmark_releases SET state = sqlc.arg(state)

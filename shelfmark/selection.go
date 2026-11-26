@@ -69,13 +69,6 @@ func (c *Client) OpenSelection(provider, id, key, selection string) (Book, Relea
 	if json.Unmarshal(plain, &selected) != nil {
 		return Book{}, Release{}, ErrInvalidSelection
 	}
-	var identity struct {
-		SourceID string `json:"source_id"`
-	}
-	if json.Unmarshal(selected.Payload, &identity) != nil || identity.SourceID == "" {
-		return Book{}, Release{}, ErrInvalidSelection
-	}
-	selected.Release.SourceID = identity.SourceID
 	selected.Release.payload = selected.Payload
 	return selected.Book, selected.Release, nil
 }

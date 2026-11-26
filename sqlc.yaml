@@ -17,6 +17,7 @@ sql:
       - database/migrations/20261126000006_shelfmark_requests.sql
       - database/migrations/20261126000007_shelfmark_releases.sql
       - database/migrations/20261126000008_shelfmark_release_author.sql
+      - database/migrations/20261126000009_shelfmark_release_keys.sql
     queries:
       - database/query.sql
       - database/queries

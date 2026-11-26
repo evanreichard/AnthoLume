@@ -233,13 +233,13 @@ func (s *webAPI) CreateShelfmarkRequest(ctx context.Context, r CreateShelfmarkRe
 		return nil, adminFailure(http.StatusBadRequest, "shelfmark_invalid_selection")
 	}
 	row, err := queries.ClaimShelfmarkRelease(ctx, database.ClaimShelfmarkReleaseParams{
-		Source: release.Source, SourceID: release.SourceID, ReleaseKey: release.Key, ReleaseTitle: release.Title, ReleaseAuthor: release.Author,
+		Source: release.Source, ReleaseKey: release.Key, ReleaseTitle: release.Title, ReleaseAuthor: release.Author,
 		Format: release.Format, Size: release.Size, Language: release.Language, Indexer: release.Indexer,
 		Provider: book.Provider, BookID: book.ID, BookTitle: book.Title, Author: book.Author, Description: book.Description,
 		Year: int64(book.Year), HasCover: book.HasCover, Username: username, RequestedAt: time.Now().UTC().Format("2006-01-02T15:04:05.000000000Z"),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		row, err = queries.GetShelfmarkReleaseBySource(ctx, database.GetShelfmarkReleaseBySourceParams{Source: release.Source, SourceID: release.SourceID})
+		row, err = queries.GetShelfmarkRelease(ctx, key)
 		if err == nil {
 			return s.shelfmarkReleaseResponse(ctx, book, row)
 		}
@@ -248,9 +248,10 @@ func (s *webAPI) CreateShelfmarkRequest(ctx context.Context, r CreateShelfmarkRe
 		return nil, err
 	}
 
-	err = s.api.shelfmark.Download(ctx, release)
-	// Settle a known outcome even when the reader's connection has gone away.
-	settle, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+	// Accepted Claim - The single time-bounded POST belongs to the server once the claim is durable.
+	dispatch := context.WithoutCancel(ctx)
+	err = s.api.shelfmark.Download(dispatch, release)
+	settle, cancel := context.WithTimeout(dispatch, 3*time.Second)
 	defer cancel()
 	var state ShelfmarkRequestInfoState
 	switch {

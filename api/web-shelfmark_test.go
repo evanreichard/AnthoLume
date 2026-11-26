@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"context"
 	"github.com/stretchr/testify/require"
-	"reichard.io/antholume/database"
 	"reichard.io/antholume/shelfmark"
 )
 
@@ -221,9 +221,58 @@ func TestShelfmarkSharedReleaseClaimAndGroupedHistory(t *testing.T) {
 	details := other.call("GET", shelfmarkRequestsPath+"/releases?provider=hardcover&id=69589", nil, nil)
 	require.Equal(t, 200, details.status, string(details.body))
 	require.Equal(t, []ShelfmarkRelease{queued, claim}, decodeWeb[[]ShelfmarkRelease](t, details))
-	stored, err := f.db.Queries.GetShelfmarkReleaseBySource(t.Context(), database.GetShelfmarkReleaseBySourceParams{Source: "newznab", SourceID: "secret-source-one"})
+	stored, err := f.db.Queries.GetShelfmarkRelease(t.Context(), queued.Key)
 	require.NoError(t, err)
 	require.Equal(t, queued.Key, stored.ReleaseKey)
+}
+
+func TestShelfmarkDisconnectAfterClaimStillSettles(t *testing.T) {
+	f := newWebFixture(t)
+	entered, finish := make(chan struct{}), make(chan struct{})
+	var unblock sync.Once
+	end := func() { unblock.Do(func() { close(finish) }) }
+	var posts atomic.Int32
+	testShelfmark(t, f, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/releases":
+			fmt.Fprint(w, `{"book":`+shelfmarkTestBook+`,"releases":`+shelfmarkTestReleases+`}`)
+		case "/api/releases/download":
+			if posts.Add(1) == 1 {
+				close(entered)
+			}
+			<-finish
+			fmt.Fprint(w, `{"status":"queued"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	t.Cleanup(end)
+	f.register("reader")
+	file := decodeWeb[ShelfmarkReleaseList](t, f.call("GET", shelfmarkReleasesPath+"?provider=hardcover&id=69589", nil, nil)).Releases[0]
+	ctx, disconnect := context.WithCancel(t.Context())
+	defer disconnect()
+	req := f.newRequest("POST", shelfmarkRequestsPath, shelfmarkDownloadBody(file), nil).WithContext(ctx)
+	returned := make(chan error, 1)
+	go func() {
+		res, err := f.client.Do(req)
+		if res != nil {
+			res.Body.Close()
+		}
+		returned <- err
+	}()
+	select {
+	case <-entered:
+	case <-time.After(4 * time.Second):
+		t.Fatal("upstream submission never arrived")
+	}
+	disconnect()
+	require.ErrorIs(t, <-returned, context.Canceled)
+	end()
+	require.Eventually(t, func() bool {
+		row, err := f.db.Queries.GetShelfmarkRelease(t.Context(), file.Key)
+		return err == nil && row.State == string(ShelfmarkQueued)
+	}, 3*time.Second, 10*time.Millisecond)
+	require.EqualValues(t, 1, posts.Load())
 }
 
 func TestShelfmarkRejectedReleaseIsRecordedWithoutResubmission(t *testing.T) {

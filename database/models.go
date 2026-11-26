@@ -186,10 +186,10 @@ type Setting struct {
 }
 
 type ShelfmarkRelease struct {
-	Source        string `json:"source"`
-	SourceID      string `json:"source_id"`
 	ReleaseKey    string `json:"release_key"`
+	Source        string `json:"source"`
 	ReleaseTitle  string `json:"release_title"`
+	ReleaseAuthor string `json:"release_author"`
 	Format        string `json:"format"`
 	Size          string `json:"size"`
 	Language      string `json:"language"`
@@ -204,7 +204,6 @@ type ShelfmarkRelease struct {
 	Username      string `json:"username"`
 	RequestedAt   string `json:"requested_at"`
 	State         string `json:"state"`
-	ReleaseAuthor string `json:"release_author"`
 }
 
 type StorageRoot struct {
