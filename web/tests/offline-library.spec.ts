@@ -482,6 +482,7 @@ test('a deleted book’s draft can be discarded locally without a server compari
   const user = 'discard-deleted-book';
   await readOffline(page, context, server.origin, user);
   await page.goto(server.origin + '/library');
+  await expect(page.getByRole('region', { name: 'Offline controls' })).toBeVisible();
   const { csrf_token, user: identity } = await (await page.request.get(server.origin + '/api/v1/session')).json();
   const removed = await page.request.delete(server.origin + '/api/v1/documents/book_001', {
     headers: {

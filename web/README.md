@@ -36,7 +36,7 @@ Open [http://localhost:5323/login](http://localhost:5323/login) for the built ap
 
 Both modes also listen on `127.0.0.1` and on the tailnet IPv4 address when available. Use plain HTTP on a trusted tailnet only; offline startup requires loopback HTTP or HTTPS. The internal Go backend stays on `127.0.0.1:5324`; use the frontend URL to sign in. Override occupied ports with `DEV_PORT` and `DEV_GO_PORT`.
 
-Browser tests share port 5323 by default; stop dev before running them. Set `CHROMIUM_PATH` for a system Chromium or `GO_BINARY` to override `go` on `PATH`. Fixture binaries and databases use the OS temporary directory and are removed at teardown.
+Browser tests use OS-assigned loopback ports and can run alongside dev or another CI job. Set `CHROMIUM_PATH` for a system Chromium or `GO_BINARY` to override `go` on `PATH`. Fixture binaries and databases use the OS temporary directory and are removed at teardown.
 
 From the repository root, browser reports, logs, and screenshots are under `build/test-results/{app,reader}/`. The generated 300 MB EPUB and its reference hashes are cached in `build/test-cache/reader/`; delete that directory to regenerate them on the next reader test run.
 

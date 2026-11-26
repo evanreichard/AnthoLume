@@ -74,10 +74,11 @@ export const test = base.extend<{ server: Server; dataDir: string }, { serverBin
     );
     let child: ReturnType<typeof spawn> | null = null;
     let logs = '';
-    const addr = `127.0.0.1:${process.env.ANTHOLUME_TEST_PORT ?? 5323}`;
-    const origin = `http://${addr}`;
+    let origin = '';
     async function start() {
       if (child) return;
+      // Stable Origin - A restart must keep the browser's cookies, service worker and IndexedDB.
+      const addr = origin ? new URL(origin).host : '127.0.0.1:0';
       child = spawn(serverBinary, ['--root', root, '--data', data, '--addr', addr], {
         cwd: root,
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -94,7 +95,9 @@ export const test = base.extend<{ server: Server; dataDir: string }, { serverBin
       for (let n = 0; n < 200; n++) {
         if (child.exitCode !== null) throw new Error(`Production router exited ${child.exitCode}: ${logs}`);
         try {
-          if (startup.includes(`"origin":"${origin}"`)) {
+          const announced = /^\{"origin":"(http:\/\/127\.0\.0\.1:\d+)"\}$/m.exec(startup)?.[1];
+          if (announced) {
+            origin = announced;
             const response = await fetch(`${origin}/api/v1/session`, { signal: AbortSignal.timeout(1000) });
             if (response.ok) {
               ready = true;

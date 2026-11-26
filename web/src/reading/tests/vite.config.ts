@@ -39,9 +39,8 @@ export default defineConfig({
   ],
   server: {
     forwardConsole: false,
-    host: '127.0.0.1',
-    port: 5346,
-    strictPort: true,
+    middlewareMode: true,
+    ws: false,
     fs: { allow: [fileURLToPath(new URL('../../..', import.meta.url))] },
   },
 });

@@ -158,9 +158,8 @@ make build_web
 # Clean Local Build
 make clean
 
-# Tests (after building React assets)
-make tests
-npm --prefix web test
+# Full release checks (run on the commit you intend to tag)
+make check-release
 ```
 
 ## Notes

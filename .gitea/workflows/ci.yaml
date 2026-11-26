@@ -25,21 +25,12 @@ jobs:
             go.sum
             api/audit.sh
 
-      - name: Go tests
-        run: go test -mod=readonly -count=1 ./...
+      - name: Go tests, vet, module verification and vulnerability audit
+        run: make check-go
 
       - name: Go race tests
         if: env.FULL_CHECKS == 'true'
-        run: go test -mod=readonly -race -count=1 -timeout=20m ./...
-
-      - name: Go vet
-        run: go vet -mod=readonly ./...
-
-      - name: Verify modules
-        run: go mod verify
-
-      - name: Vulnerability audit
-        run: bash api/audit.sh
+        run: make check-race
 
   tests:
     name: Frontend and browser tests
@@ -62,31 +53,16 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      - name: Frontend and generation
-        run: make check_web check_generation
-
-      - name: Frontend lint and formatting
-        run: |
-          npm --prefix web run lint
-          npm --prefix web run format:check
-
-      - name: Build server with frontend assets
-        run: go build -mod=readonly -o /dev/null .
-
-      - name: Frontend unit tests
-        run: npm --prefix web test
-
-      - name: Install headless Chromium
-        run: web/node_modules/.bin/playwright install --with-deps --only-shell chromium
+      - name: Frontend checks and browser setup
+        run: make check-frontend PLAYWRIGHT_INSTALL_FLAGS=--with-deps
 
       - name: Browser tests
         id: browser
         run: |
           if [ "$FULL_CHECKS" = true ]; then
-            npm --prefix web run test:browser
-            npm --prefix web run test:reader
+            make check-browser-full
           else
-            npm --prefix web run test:smoke
+            make check-browser-smoke
           fi
 
       - name: Save browser failure diagnostics

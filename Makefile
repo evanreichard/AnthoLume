@@ -34,6 +34,34 @@ build_web:
 check_web: build_web
 	test -s assets/app/index.html && test -s assets/app/sw.js && test -s assets/app/manifest.json && test -s assets/app/shell-paths.json
 
+.PHONY: check-release check-go check-race check-frontend check-browser-full check-browser-smoke
+check-release: check-go check-race check-frontend
+	$(MAKE) check-browser-full
+
+check-go:
+	go test -mod=readonly -count=1 ./...
+	go vet -mod=readonly ./...
+	go mod verify
+	bash api/audit.sh
+
+check-race:
+	go test -mod=readonly -race -count=1 -timeout=20m ./...
+
+check-frontend: check_web
+	$(MAKE) check_generation
+	npm --prefix web run lint
+	npm --prefix web run format:check
+	go build -mod=readonly -o /dev/null .
+	npm --prefix web test
+	@if [ -z "$$CHROMIUM_PATH" ]; then web/node_modules/.bin/playwright install $(PLAYWRIGHT_INSTALL_FLAGS) --only-shell chromium; fi
+
+check-browser-full:
+	npm --prefix web run test:browser
+	npm --prefix web run test:reader
+
+check-browser-smoke:
+	npm --prefix web run test:smoke
+
 .PHONY: screenshots
 screenshots: check_web
 	@if [ -z "$$CHROMIUM_PATH" ]; then web/node_modules/.bin/playwright install --only-shell chromium; fi
