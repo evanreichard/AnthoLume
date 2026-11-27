@@ -46,6 +46,7 @@ type AutoImportRule struct {
 	SourceTotal     *int64  `json:"source_total"`
 	LastScanTrigger *string `json:"last_scan_trigger"`
 	NextScanTrigger *string `json:"next_scan_trigger"`
+	ScanErrors      []byte  `json:"scan_errors"`
 }
 
 type Device struct {

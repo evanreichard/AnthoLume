@@ -485,6 +485,7 @@ type AdminBackupPreview struct {
 // AdminImportResult defines model for AdminImportResult.
 type AdminImportResult struct {
 	File   string                  `json:"file"`
+	Reason *string                 `json:"reason,omitempty"`
 	Status AdminImportResultStatus `json:"status"`
 }
 
@@ -602,7 +603,8 @@ type AutoImportID = string
 
 // AutoImportScanSummary defines model for AutoImportScanSummary.
 type AutoImportScanSummary struct {
-	BooksAdded int `json:"books_added"`
+	BooksAdded int                `json:"books_added"`
+	Errors     *[]ImportFileError `json:"errors,omitempty"`
 
 	// SourceTotal EPUBs found in the rule's source during the scan.
 	SourceTotal int `json:"source_total"`
@@ -791,6 +793,12 @@ type HardcoverStatus struct {
 
 // ID defines model for ID.
 type ID = string
+
+// ImportFileError defines model for ImportFileError.
+type ImportFileError struct {
+	File   string `json:"file"`
+	Reason string `json:"reason"`
+}
 
 // InsightActivity defines model for InsightActivity.
 type InsightActivity struct {

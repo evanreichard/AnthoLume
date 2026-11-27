@@ -2,14 +2,15 @@ package metadata
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/binary"
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/gabriel-vasile/mimetype"
+	"reichard.io/antholume/internal/epub"
 )
 
 var (
@@ -166,7 +167,7 @@ func validateEPUBArchive(f *os.File, size int64) error {
 			FullPath string `xml:"full-path,attr"`
 		} `xml:"rootfiles>rootfile"`
 	}
-	if err := xml.Unmarshal(data, &directory); err != nil {
+	if err := epub.DecodeXML(bytes.NewReader(data), &directory); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidDocument, err)
 	}
 	if len(directory.Rootfiles) == 0 {

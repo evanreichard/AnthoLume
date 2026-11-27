@@ -15,6 +15,7 @@ sql:
       - database/migrations/schema/document_identifiers.sql
       - database/migrations/20261126000005_unique_settings_names.sql
       - database/migrations/20261126000006_shelfmark_releases.sql
+      - database/migrations/20261126000007_auto_import_errors.sql
     queries:
       - database/query.sql
       - database/queries

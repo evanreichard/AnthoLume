@@ -1211,6 +1211,16 @@ components:
       properties:
         books_added: {type: integer, minimum: 0}
         source_total: {type: integer, minimum: 0, description: EPUBs found in the rule's source during the scan.}
+        errors:
+          type: array
+          items: {$ref: '#/components/schemas/ImportFileError'}
+    ImportFileError:
+      type: object
+      additionalProperties: false
+      required: [file, reason]
+      properties:
+        file: {type: string}
+        reason: {type: string}
     AdminRestoreApply:
       type: object
       additionalProperties: false
@@ -1251,6 +1261,7 @@ components:
       properties:
         file: {type: string}
         status: {type: string, enum: [imported, relinked, skipped, failed]}
+        reason: {type: string}
     AdminSystem:
       type: object
       additionalProperties: false

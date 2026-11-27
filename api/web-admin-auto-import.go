@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
@@ -19,7 +20,7 @@ import (
 
 const autoImportQuiet = 5 * time.Second
 
-func autoImportResponse(row database.AutoImportRule) AdminAutoImport {
+func autoImportResponse(row database.AutoImportRule) (AdminAutoImport, error) {
 	rule := AdminAutoImport{
 		Id:       row.ID,
 		LastScan: row.LastScan,
@@ -40,8 +41,13 @@ func autoImportResponse(row database.AutoImportRule) AdminAutoImport {
 	}
 	if row.BooksAdded != nil && row.SourceTotal != nil {
 		rule.ScanSummary = &AutoImportScanSummary{BooksAdded: int(*row.BooksAdded), SourceTotal: int(*row.SourceTotal)}
+		if len(row.ScanErrors) != 0 {
+			if err := json.Unmarshal(row.ScanErrors, &rule.ScanSummary.Errors); err != nil {
+				return AdminAutoImport{}, err
+			}
+		}
 	}
-	return rule
+	return rule, nil
 }
 
 func (api *API) autoImportSource(ctx context.Context, id string) (AdminStorageRoot, error) {
@@ -189,7 +195,11 @@ func (api *API) autoImportRules(ctx context.Context, enabled bool) ([]AdminAutoI
 	}
 	out := make([]AdminAutoImport, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, autoImportResponse(row))
+		rule, err := autoImportResponse(row)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, rule)
 	}
 	return out, nil
 }
@@ -243,6 +253,7 @@ func (api *API) runAutoImport(ctx context.Context, id string, changed bool, cach
 	var retry bool
 	var imported, found int64
 	var booksAdded, sourceTotal *int64
+	var scanErrors []byte
 	if err == nil {
 		cache := caches[id]
 		if cache.source != source.Path || cache.reference != cfg.Reference || cache.files == nil {
@@ -271,15 +282,20 @@ func (api *API) runAutoImport(ctx context.Context, id string, changed bool, cach
 		})
 		err = scanErr
 		if err == nil {
+			var failures []ImportFileError
 			for _, result := range results {
-				if result.Status == "failed" {
-					status = "errors"
+				if result.Reason != nil {
+					failures = append(failures, ImportFileError{File: result.File, Reason: *result.Reason})
 					continue
 				}
 				if result.Status == "imported" {
 					imported++
 				}
 				seen[result.File] = candidates[result.File]
+			}
+			if len(failures) > 0 {
+				status = "errors"
+				scanErrors, err = json.Marshal(failures)
 			}
 			cache.files = seen
 			caches[id] = cache
@@ -314,6 +330,7 @@ func (api *API) runAutoImport(ctx context.Context, id string, changed bool, cach
 		Status:           status,
 		BooksAdded:       booksAdded,
 		SourceTotal:      sourceTotal,
+		ScanErrors:       scanErrors,
 	}) == nil
 }
 

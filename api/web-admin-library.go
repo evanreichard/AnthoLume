@@ -17,6 +17,7 @@ import (
 	"strings"
 	"syscall"
 
+	log "github.com/sirupsen/logrus"
 	"reichard.io/antholume/database"
 	"reichard.io/antholume/metadata"
 	"reichard.io/antholume/pkg/storagepath"
@@ -405,8 +406,13 @@ func (api *API) importBooks(ctx context.Context, sourceID string, reference, rel
 		if accept != nil && !accept(root, file) {
 			continue
 		}
-		status, _ := api.importBook(ctx, root, target, file, reference, relink)
-		results = append(results, AdminImportResult{File: file, Status: status})
+		status, err := api.importBook(ctx, root, target, file, reference, relink)
+		result := AdminImportResult{File: file, Status: status}
+		if err != nil {
+			log.WithFields(log.Fields{"source": sourceID, "file": file}).WithError(err).Warn("Book import failed")
+			result.Reason = new(err.Error())
+		}
+		results = append(results, result)
 	}
 	return results, nil
 }

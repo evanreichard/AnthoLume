@@ -205,7 +205,7 @@ export function AdminImport({ account, roots }: Context) {
                 {results.data.map((row) => (
                   <li key={row.file}>
                     <span>{row.file}</span>
-                    <strong>{row.status}</strong>
+                    <strong>{row.reason ? `${row.status}: ${row.reason}` : row.status}</strong>
                   </li>
                 ))}
               </ul>
@@ -342,6 +342,9 @@ const scanTriggers = {
 
 const cadences = [
   { id: 'changes', label: scanTriggers.on_change, watch: true, minutes: null },
+  { id: 'five-minutes', label: 'Every 5 minutes', watch: false, minutes: 5 },
+  { id: 'ten-minutes', label: 'Every 10 minutes', watch: false, minutes: 10 },
+  { id: 'fifteen-minutes', label: 'Every 15 minutes', watch: false, minutes: 15 },
   { id: 'hourly', label: 'Every hour', watch: false, minutes: 60 },
   { id: 'six-hourly', label: 'Every 6 hours', watch: false, minutes: 360 },
   { id: 'twelve-hourly', label: 'Every 12 hours', watch: false, minutes: 720 },
@@ -368,6 +371,9 @@ function RuleEditor({ account, roots, rule, close }: Context & { rule?: Rule; cl
   const [error, setError] = useState<unknown>(null);
   const [scanRequest, setScanRequest] = useState<{ lastScan: Rule['last_scan'] } | null>(null);
   const summary = rule?.scan_summary;
+  const [expandedScan, setExpandedScan] = useState<string>();
+  const showErrors = !!rule?.last_scan && expandedScan === rule.last_scan;
+  const failureCount = summary?.errors?.length ?? 0;
   const scanQueued = scanRequest !== null && scanRequest.lastScan === rule?.last_scan;
   const before = rule?.settings;
   const selectedCadence = cadences.find((item) => item.id === cadence);
@@ -530,17 +536,44 @@ function RuleEditor({ account, roots, rule, close }: Context & { rule?: Rule; cl
               <p className={layout.resultNote}>Waiting for the import worker.</p>
             ) : summary ? (
               <>
-                <dl className={layout.resultMetrics}>
+                <div className={layout.resultMetrics}>
                   <div>
-                    <dt>Found</dt>
-                    <dd>{summary.source_total.toLocaleString()}</dd>
+                    <strong>{summary.source_total.toLocaleString()}</strong>Found
                   </div>
                   <div>
-                    <dt>Added</dt>
-                    <dd>{summary.books_added.toLocaleString()}</dd>
+                    <strong>{summary.books_added.toLocaleString()}</strong>Added
                   </div>
-                </dl>
-                {rule.status === 'errors' && <p className={layout.resultNote}>Some files failed to import.</p>}
+                  {rule.status === 'errors' && (
+                    <button
+                      type="button"
+                      aria-expanded={showErrors}
+                      aria-controls={`${formId}-failures`}
+                      onClick={() => setExpandedScan(showErrors ? undefined : rule.last_scan)}
+                    >
+                      <strong>{failureCount ? failureCount.toLocaleString() : '—'}</strong>
+                      <span>
+                        {failureCount === 1 ? 'Error' : 'Errors'}{' '}
+                        <span aria-hidden="true">{showErrors ? '▴' : '▾'}</span>
+                      </span>
+                    </button>
+                  )}
+                </div>
+                {rule.status === 'errors' && (
+                  <div id={`${formId}-failures`} className={layout.scanErrors} hidden={!showErrors}>
+                    {summary.errors?.length ? (
+                      <ul>
+                        {summary.errors.map(({ file, reason }) => (
+                          <li key={file}>
+                            <strong>{file}</strong>
+                            <span>{reason}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className={layout.resultNote}>This scan didn’t record file details. Scan again to see them.</p>
+                    )}
+                  </div>
+                )}
               </>
             ) : (
               <p className={layout.resultNote}>{statusLabels[rule.status]}</p>

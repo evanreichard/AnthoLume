@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/taylorskalyo/goreader/epub"
+	"reichard.io/antholume/internal/epub"
 )
 
 func readEPUB(f *os.File) (*epub.Reader, error) {

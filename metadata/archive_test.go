@@ -55,6 +55,16 @@ func TestEPUBMimetypeAnywhere(t *testing.T) {
 
 }
 
+func TestDeclaredEPUBCharset(t *testing.T) {
+	entries := testEPUBEntries()
+	const declaration = `<?xml version="1.0" encoding="iso-8859-1"?>`
+	entries[0].data = declaration + entries[0].data
+	entries[1].data = declaration + strings.Replace(entries[1].data, "Test author", "Ren\xe9", 1)
+	info, err := GetMetadata(writeTestArchive(t, entries))
+	require.NoError(t, err)
+	require.Equal(t, "René", *info.Author)
+}
+
 func TestUnsupportedArchive(t *testing.T) {
 	for _, entries := range [][]archiveEntry{
 		{{"book.txt", "not an EPUB"}},

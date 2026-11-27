@@ -69,6 +69,7 @@ export declare function checkAutoImportID(value: unknown): value is components['
 export declare function checkAdminAutoImportSettings(value: unknown): value is components['schemas']['AdminAutoImportSettings'];
 export declare function checkAutoImportScanTrigger(value: unknown): value is components['schemas']['AutoImportScanTrigger'];
 export declare function checkAutoImportScanSummary(value: unknown): value is components['schemas']['AutoImportScanSummary'];
+export declare function checkImportFileError(value: unknown): value is components['schemas']['ImportFileError'];
 export declare function checkAdminImportResult(value: unknown): value is components['schemas']['AdminImportResult'];
 export declare function checkAdminSystem(value: unknown): value is components['schemas']['AdminSystem'];
 export declare function checkProblem(value: unknown): value is components['schemas']['Problem'];

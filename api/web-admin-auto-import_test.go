@@ -78,6 +78,44 @@ func TestAutoImportWatchAndManualScan(t *testing.T) {
 	require.Equal(t, 2, f.count("documents"))
 }
 
+func TestAutoImportReportsLatestFileErrors(t *testing.T) {
+	f := newWebFixture(t)
+	f.register("owner")
+	f.exec(`UPDATE users SET admin=1 WHERE id='owner'`)
+	endpoint := "/api/v1/admin/auto-import"
+	config := AdminAutoImportSettings{Name: "Inbox", RootId: importsRoot, Reference: true, Enabled: true, IntervalMinutes: 60}
+	require.Equal(t, 204, f.call("PUT", endpoint, config, nil).status)
+	read := func() AdminAutoImport {
+		return decodeWeb[[]AdminAutoImport](t, f.call("GET", endpoint, nil, nil))[0]
+	}
+	id := read().Id
+	dir := filepath.Join(f.cfg.DataPath, "imports")
+	files := []string{"broken-one.epub", "broken-two.epub"}
+	for _, name := range files {
+		path := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(path, []byte("not an epub"), 0600))
+		old := time.Now().Add(-time.Minute)
+		require.NoError(t, os.Chtimes(path, old, old))
+	}
+	cache := make(map[string]autoImportCache)
+	require.True(t, f.api.runAutoImport(context.Background(), id, false, cache))
+	rule := read()
+	require.EqualValues(t, "errors", rule.Status)
+	require.NotNil(t, rule.ScanSummary.Errors)
+	var failed []string
+	for _, failure := range *rule.ScanSummary.Errors {
+		require.NotEmpty(t, failure.Reason)
+		failed = append(failed, failure.File)
+	}
+	require.ElementsMatch(t, files, failed)
+	for _, name := range files {
+		require.NoError(t, os.Remove(filepath.Join(dir, name)))
+	}
+	require.Equal(t, 204, f.call("POST", endpoint+"?id="+id, map[string]any{}, nil).status)
+	require.True(t, f.api.runAutoImport(context.Background(), id, false, cache))
+	require.Equal(t, &AutoImportScanSummary{}, read().ScanSummary)
+}
+
 func TestAutoImportIntervalSchedulesNextScan(t *testing.T) {
 	f := newWebFixture(t)
 	f.register("owner")

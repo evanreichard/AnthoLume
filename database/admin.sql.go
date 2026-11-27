@@ -170,7 +170,7 @@ func (q *Queries) FinishAdminJob(ctx context.Context, arg FinishAdminJobParams) 
 }
 
 const getEnabledAutoImportRule = `-- name: GetEnabledAutoImportRule :one
-SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status, books_added, source_total, last_scan_trigger, next_scan_trigger
+SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status, books_added, source_total, last_scan_trigger, next_scan_trigger, scan_errors
 FROM auto_import_rules
 WHERE id = ? AND enabled
 `
@@ -193,6 +193,7 @@ func (q *Queries) GetEnabledAutoImportRule(ctx context.Context, id string) (Auto
 		&i.SourceTotal,
 		&i.LastScanTrigger,
 		&i.NextScanTrigger,
+		&i.ScanErrors,
 	)
 	return i, err
 }
@@ -358,7 +359,7 @@ func (q *Queries) ListAdminUsers(ctx context.Context, afterID string) ([]ListAdm
 }
 
 const listAutoImportRules = `-- name: ListAutoImportRules :many
-SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status, books_added, source_total, last_scan_trigger, next_scan_trigger
+SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status, books_added, source_total, last_scan_trigger, next_scan_trigger, scan_errors
 FROM auto_import_rules
 ORDER BY name COLLATE NOCASE, id
 `
@@ -387,6 +388,7 @@ func (q *Queries) ListAutoImportRules(ctx context.Context) ([]AutoImportRule, er
 			&i.SourceTotal,
 			&i.LastScanTrigger,
 			&i.NextScanTrigger,
+			&i.ScanErrors,
 		); err != nil {
 			return nil, err
 		}
@@ -402,7 +404,7 @@ func (q *Queries) ListAutoImportRules(ctx context.Context) ([]AutoImportRule, er
 }
 
 const listEnabledAutoImportRules = `-- name: ListEnabledAutoImportRules :many
-SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status, books_added, source_total, last_scan_trigger, next_scan_trigger
+SELECT id, name, root_id, enabled, watch, interval_minutes, reference, last_scan, next_scan, status, books_added, source_total, last_scan_trigger, next_scan_trigger, scan_errors
 FROM auto_import_rules
 WHERE enabled
 ORDER BY COALESCE(next_scan, ''), id
@@ -432,6 +434,7 @@ func (q *Queries) ListEnabledAutoImportRules(ctx context.Context) ([]AutoImportR
 			&i.SourceTotal,
 			&i.LastScanTrigger,
 			&i.NextScanTrigger,
+			&i.ScanErrors,
 		); err != nil {
 			return nil, err
 		}
@@ -479,10 +482,10 @@ func (q *Queries) QueueAutoImportRule(ctx context.Context, arg QueueAutoImportRu
 const recordAutoImportScan = `-- name: RecordAutoImportScan :exec
 UPDATE auto_import_rules
 SET last_scan = ?1, status = ?2, books_added = ?3,
-    source_total = ?4, last_scan_trigger = ?5,
-    next_scan = CASE WHEN next_scan IS ?6 THEN ?7 ELSE next_scan END,
-    next_scan_trigger = CASE WHEN next_scan IS ?6 THEN ?8 ELSE next_scan_trigger END
-WHERE id = ?9
+    source_total = ?4, scan_errors = ?5, last_scan_trigger = ?6,
+    next_scan = CASE WHEN next_scan IS ?7 THEN ?8 ELSE next_scan END,
+    next_scan_trigger = CASE WHEN next_scan IS ?7 THEN ?9 ELSE next_scan_trigger END
+WHERE id = ?10
 `
 
 type RecordAutoImportScanParams struct {
@@ -490,6 +493,7 @@ type RecordAutoImportScanParams struct {
 	Status           string  `json:"status"`
 	BooksAdded       *int64  `json:"books_added"`
 	SourceTotal      *int64  `json:"source_total"`
+	ScanErrors       []byte  `json:"scan_errors"`
 	LastScanTrigger  *string `json:"last_scan_trigger"`
 	PreviousNextScan *string `json:"previous_next_scan"`
 	NextScan         *string `json:"next_scan"`
@@ -503,6 +507,7 @@ func (q *Queries) RecordAutoImportScan(ctx context.Context, arg RecordAutoImport
 		arg.Status,
 		arg.BooksAdded,
 		arg.SourceTotal,
+		arg.ScanErrors,
 		arg.LastScanTrigger,
 		arg.PreviousNextScan,
 		arg.NextScan,
@@ -544,7 +549,7 @@ func (q *Queries) UpdateAdminUser(ctx context.Context, arg UpdateAdminUserParams
 const updateAutoImportRule = `-- name: UpdateAutoImportRule :execrows
 UPDATE auto_import_rules
 SET name = ?, root_id = ?, enabled = ?, watch = ?, interval_minutes = ?, reference = ?, next_scan = ?, status = 'idle', last_scan = NULL,
-    books_added = NULL, source_total = NULL, last_scan_trigger = NULL, next_scan_trigger = NULL
+    books_added = NULL, source_total = NULL, scan_errors = NULL, last_scan_trigger = NULL, next_scan_trigger = NULL
 WHERE id = ?
 `
 

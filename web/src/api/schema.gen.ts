@@ -1017,6 +1017,11 @@ export interface components {
             books_added: number;
             /** @description EPUBs found in the rule's source during the scan. */
             source_total: number;
+            errors?: components["schemas"]["ImportFileError"][];
+        };
+        ImportFileError: {
+            file: string;
+            reason: string;
         };
         AdminRestoreApply: {
             token: string;
@@ -1045,6 +1050,7 @@ export interface components {
             file: string;
             /** @enum {string} */
             status: "imported" | "relinked" | "skipped" | "failed";
+            reason?: string;
         };
         AdminSystem: {
             version: string;
