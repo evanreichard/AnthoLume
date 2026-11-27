@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 )
@@ -31,6 +32,7 @@ type ReleaseList struct {
 type verifiedRelease struct {
 	release Release
 	payload []byte
+	info    json.RawMessage
 }
 
 type upstreamRelease struct {
@@ -44,6 +46,7 @@ type upstreamRelease struct {
 	Indexer  string          `json:"indexer"`
 	Extra    struct {
 		Author json.RawMessage `json:"author"`
+		Info   json.RawMessage `json:"info"`
 	} `json:"extra"`
 }
 
@@ -79,7 +82,7 @@ func verifyRelease(raw json.RawMessage) (verifiedRelease, bool) {
 	return verifiedRelease{release: Release{
 		Key: hex.EncodeToString(key[:]), Source: row.Source,
 		Title: row.Title, Author: author, Format: row.Format, Size: row.Size, Language: row.Language, Indexer: row.Indexer,
-	}, payload: body}, true
+	}, payload: body, info: row.Extra.Info}, true
 }
 
 func (c *Client) Releases(ctx context.Context, provider, id string) (ReleaseList, error) {
@@ -99,10 +102,11 @@ func (c *Client) Releases(ctx context.Context, provider, id string) (ReleaseList
 		return ReleaseList{}, errors.New("invalid Shelfmark releases response")
 	}
 	out := ReleaseList{Book: c.normalize(result.Book), Releases: make([]Release, 0, len(result.Releases)), Partial: len(result.Errors) > 0}
-	seen := make(map[string]bool)
+	match := newReleaseMatcher(result.Book)
+	scores := make(map[string]int)
 	for _, raw := range result.Releases {
 		item, ok := verifyRelease(raw)
-		if !ok || seen[item.release.Key] {
+		if _, seen := scores[item.release.Key]; !ok || seen {
 			continue
 		}
 		selection, err := c.sealSelection(out.Book, item)
@@ -110,10 +114,13 @@ func (c *Client) Releases(ctx context.Context, provider, id string) (ReleaseList
 			out.Partial = true
 			continue
 		}
-		seen[item.release.Key] = true
+		scores[item.release.Key] = match.score(item)
 		item.release.Selection = selection
 		out.Releases = append(out.Releases, item.release)
 	}
+	sort.SliceStable(out.Releases, func(i, j int) bool {
+		return scores[out.Releases[i].Key] > scores[out.Releases[j].Key]
+	})
 	return out, nil
 }
 

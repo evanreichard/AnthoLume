@@ -51,6 +51,8 @@ type metadataBook struct {
 	ID          string   `json:"provider_id"`
 	Title       string   `json:"title"`
 	Authors     []string `json:"authors"`
+	ISBN10      string   `json:"isbn_10"`
+	ISBN13      string   `json:"isbn_13"`
 	Description string   `json:"description"`
 	Year        int      `json:"publish_year"`
 	CoverURL    string   `json:"cover_url"`

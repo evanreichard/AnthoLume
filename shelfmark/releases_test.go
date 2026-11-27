@@ -33,6 +33,34 @@ func TestVerifyReleaseAuthor(t *testing.T) {
 	}
 }
 
+func TestReleasesReturnBestBookMatchFirst(t *testing.T) {
+	rows := []string{
+		`{"source":"index","source_id":"1","title":"The Time Machinery"}`,
+		`{"source":"index","source_id":"2","title":"Other work","extra":{"info":{"ISBN-13":123}}}`,
+		`{"source":"index","source_id":"3","title":"Another work","author":"H. G. Wells"}`,
+		`{"source":"index","source_id":"4","title":"The.Time.Machine [EPUB]"}`,
+		`{"source":"index","source_id":"5","title":"THE TIME MACHINE"}`,
+		`{"source":"index","source_id":"6","title":"H.G.Wells - The Time Machine [PDF]"}`,
+		`{"source":"index","source_id":"7","title":"The Time Machine","extra":{"author":"H. G. Wells"}}`,
+		`{"source":"index","source_id":"8","title":"Alternate title [0-8044-2957-X]"}`,
+		`{"source":"index","source_id":"9","title":"Other edition title","extra":{"info":{"ISBN-13":["9780804429573"]}}}`,
+	}
+	c := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, strings.Replace(releaseResults("69589", rows...), `"publish_year":`, `"isbn_13":"9780804429573","publish_year":`, 1))
+	}, "")
+	list, err := c.Releases(t.Context(), "hardcover", "69589")
+	require.NoError(t, err)
+	var titles []string
+	for _, release := range list.Releases {
+		titles = append(titles, release.Title)
+	}
+	require.Equal(t, []string{
+		"Alternate title [0-8044-2957-X]", "Other edition title",
+		"The Time Machine", "H.G.Wells - The Time Machine [PDF]", "THE TIME MACHINE", "The.Time.Machine [EPUB]",
+		"Another work", "The Time Machinery", "Other work",
+	}, titles)
+}
+
 func TestReleasesBindsBookAndHidesCredentials(t *testing.T) {
 	var gets, posts atomic.Int32
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
