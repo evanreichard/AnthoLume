@@ -1,5 +1,5 @@
 // Generated from api/openapi.yaml; do not edit.
-export const [checkSearchShelfmark200, checkListShelfmarkRequestedReleases200, checkListShelfmarkRequests200, checkLookupMetadata200, checkListManagedDevices200, checkListAdminUsers200, checkListAdminJobs200, checkListAdminStorageRoots200, checkListAdminAutoImports200, checkPreviewAdminImport200, checkListAdminImportResults200, checkSession, checkSessionUser, checkID, checkCapabilities, checkHardcoverStatus, checkHardcoverConnect, checkHardcoverShelf, checkHardcoverBook, checkDocumentPage, checkDocument, checkBookReadingStats, checkDocumentMatch, checkMetadataProvider, checkMetadataWorkID, checkMetadataMatch, checkMetadataEditionID, checkBookMatcherConfirmation, checkBookMatcherChangedField, checkShelfmarkSettings, checkShelfmarkBook, checkShelfmarkIdentifier, checkShelfmarkReleaseList, checkShelfmarkRelease, checkShelfmarkSelection, checkShelfmarkRequestInfo, checkShelfmarkDownloadResult, checkAdminMetadataProvider, checkManagedDevice, checkDevice, checkReadingState, checkRevision, checkReceipt, checkEventID, checkInsights, checkInsightDay, checkInsightActivityPage, checkInsightActivity, checkInsightCursor, checkInsightProgressPage, checkInsightProgress, checkInsightRankings, checkInsightRank, checkAdminUser, checkAdminJob, checkAdminBackupPreview, checkAdminRestore, checkAdminLogPage, checkAdminLog, checkAdminLogLevel, checkAdminStorageRoot, checkStorageRootID, checkMakeLibraryPlan, checkAdminStorageDirectories, checkAdminAutoImport, checkAutoImportID, checkAdminAutoImportSettings, checkAutoImportScanTrigger, checkAutoImportScanSummary, checkImportFileError, checkAdminImportResult, checkAdminSystem, checkProblem, checkAdminBackupPathIssue, checkAdminBackupPathKind] = (function() {
+export const [checkSearchShelfmark200, checkListShelfmarkRequestedReleases200, checkListShelfmarkRequests200, checkLookupMetadata200, checkListManagedDevices200, checkListAdminUsers200, checkListAdminJobs200, checkListAdminStorageRoots200, checkListAdminAutoImports200, checkPreviewAdminImport200, checkListAdminImportResults200, checkSession, checkSessionUser, checkID, checkCapabilities, checkHardcoverStatus, checkHardcoverConnect, checkHardcoverShelf, checkHardcoverBook, checkDocumentPage, checkDocument, checkBookReadingStats, checkDocumentMatch, checkMetadataProvider, checkMetadataWorkID, checkMetadataMatch, checkMetadataEditionID, checkBookMatcherConfirmation, checkBookMatcherChangedField, checkShelfmarkSettings, checkShelfmarkBook, checkShelfmarkIdentifier, checkShelfmarkReleaseList, checkShelfmarkRelease, checkShelfmarkSelection, checkShelfmarkRequestInfo, checkShelfmarkRecommendation, checkShelfmarkDownloadResult, checkAdminMetadataProvider, checkManagedDevice, checkDevice, checkReadingState, checkRevision, checkReceipt, checkEventID, checkInsights, checkInsightDay, checkInsightActivityPage, checkInsightActivity, checkInsightCursor, checkInsightProgressPage, checkInsightProgress, checkInsightRankings, checkInsightRank, checkAdminUser, checkAdminJob, checkAdminBackupPreview, checkAdminRestore, checkAdminLogPage, checkAdminLog, checkAdminLogLevel, checkAdminStorageRoot, checkStorageRootID, checkMakeLibraryPlan, checkAdminStorageDirectories, checkAdminAutoImport, checkAutoImportID, checkAdminAutoImportSettings, checkAutoImportScanTrigger, checkAutoImportScanSummary, checkImportFileError, checkAdminImportResult, checkAdminSystem, checkProblem, checkAdminBackupPathIssue, checkAdminBackupPathKind] = (function() {
 'use strict'
 const hasOwn = Function.prototype.call.bind(Object.prototype.hasOwnProperty);
 const stringLength = (string) =>
@@ -860,6 +860,18 @@ const ref67 = function validate(data) {
   if (!ref2(data)) return false
   return true
 };
+const ref70 = function validate(data) {
+  if (!(typeof data === "object" && data && !Array.isArray(data))) return false
+  if (!("release_key" in data && hasOwn(data, "release_key"))) return false
+  if (!("basis" in data && hasOwn(data, "basis"))) return false
+  if (!ref2(data.release_key)) return false
+  if (!(typeof data.basis === "string")) return false
+  if (!(data.basis === "isbn" || data.basis === "title_author")) return false
+  for (const key26 of Object.keys(data)) {
+    if (key26 !== "release_key" && key26 !== "basis") return false
+  }
+  return true
+};
 const ref69 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("releases" in data && hasOwn(data, "releases"))) return false
@@ -871,8 +883,11 @@ const ref69 = function validate(data) {
     }
   }
   if (!(typeof data.partial === "boolean")) return false
-  for (const key26 of Object.keys(data)) {
-    if (key26 !== "releases" && key26 !== "partial") return false
+  if ("recommendation" in data && hasOwn(data, "recommendation")) {
+    if (!ref70(data.recommendation)) return false
+  }
+  for (const key27 of Object.keys(data)) {
+    if (key27 !== "releases" && key27 !== "partial" && key27 !== "recommendation") return false
   }
   return true
 };
@@ -880,19 +895,23 @@ const ref68 = function validate(data) {
   if (!ref69(data)) return false
   return true
 };
-const ref70 = function validate(data) {
+const ref71 = function validate(data) {
   if (!ref4(data)) return false
   return true
 };
-const ref71 = function validate(data) {
+const ref72 = function validate(data) {
   if (!ref5(data)) return false
   return true
 };
-const ref72 = function validate(data) {
+const ref73 = function validate(data) {
   if (!ref6(data)) return false
   return true
 };
 const ref74 = function validate(data) {
+  if (!ref70(data)) return false
+  return true
+};
+const ref76 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("release" in data && hasOwn(data, "release"))) return false
   if (!("request_count" in data && hasOwn(data, "request_count"))) return false
@@ -900,25 +919,8 @@ const ref74 = function validate(data) {
   if (!Number.isInteger(data.request_count)) return false
   if (!(0 <= data.request_count)) return false
   if (!(9007199254740991 >= data.request_count)) return false
-  for (const key27 of Object.keys(data)) {
-    if (key27 !== "release" && key27 !== "request_count") return false
-  }
-  return true
-};
-const ref73 = function validate(data) {
-  if (!ref74(data)) return false
-  return true
-};
-const ref76 = function validate(data) {
-  if (!(typeof data === "object" && data && !Array.isArray(data))) return false
-  if (!("selected" in data && hasOwn(data, "selected"))) return false
-  if (!("effective" in data && hasOwn(data, "effective"))) return false
-  if (!("hardcover_available" in data && hasOwn(data, "hardcover_available"))) return false
-  if (!ref10(data.selected)) return false
-  if (!ref10(data.effective)) return false
-  if (!(typeof data.hardcover_available === "boolean")) return false
   for (const key28 of Object.keys(data)) {
-    if (key28 !== "selected" && key28 !== "effective" && key28 !== "hardcover_available") return false
+    if (key28 !== "release" && key28 !== "request_count") return false
   }
   return true
 };
@@ -926,11 +928,28 @@ const ref75 = function validate(data) {
   if (!ref76(data)) return false
   return true
 };
+const ref78 = function validate(data) {
+  if (!(typeof data === "object" && data && !Array.isArray(data))) return false
+  if (!("selected" in data && hasOwn(data, "selected"))) return false
+  if (!("effective" in data && hasOwn(data, "effective"))) return false
+  if (!("hardcover_available" in data && hasOwn(data, "hardcover_available"))) return false
+  if (!ref10(data.selected)) return false
+  if (!ref10(data.effective)) return false
+  if (!(typeof data.hardcover_available === "boolean")) return false
+  for (const key29 of Object.keys(data)) {
+    if (key29 !== "selected" && key29 !== "effective" && key29 !== "hardcover_available") return false
+  }
+  return true
+};
 const ref77 = function validate(data) {
-  if (!ref14(data)) return false
+  if (!ref78(data)) return false
   return true
 };
 const ref79 = function validate(data) {
+  if (!ref14(data)) return false
+  return true
+};
+const ref81 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("id" in data && hasOwn(data, "id"))) return false
   if (!("name" in data && hasOwn(data, "name"))) return false
@@ -938,22 +957,22 @@ const ref79 = function validate(data) {
   if (!(typeof data.name === "string")) return false
   if (data.name.length > 128 && stringLength(data.name) > 128) return false
   if (data.name.length < 1 || stringLength(data.name) < 1) return false
-  for (const key29 of Object.keys(data)) {
-    if (key29 !== "id" && key29 !== "name") return false
+  for (const key30 of Object.keys(data)) {
+    if (key30 !== "id" && key30 !== "name") return false
   }
   return true
 };
-const ref78 = function validate(data) {
-  if (!ref79(data)) return false
+const ref80 = function validate(data) {
+  if (!ref81(data)) return false
   return true
 };
 const pattern5 = new RegExp("^(0|[1-9][0-9]{0,17})$", "u");
-const ref82 = function validate(data) {
+const ref84 = function validate(data) {
   if (!(typeof data === "string")) return false
   if (!pattern5.test(data)) return false
   return true
 };
-const ref81 = function validate(data) {
+const ref83 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("document_id" in data && hasOwn(data, "document_id"))) return false
   if (!("revision" in data && hasOwn(data, "revision"))) return false
@@ -962,7 +981,7 @@ const ref81 = function validate(data) {
   if (!("device_id" in data && hasOwn(data, "device_id"))) return false
   if (!("updated_at" in data && hasOwn(data, "updated_at"))) return false
   if (!ref15(data.document_id)) return false
-  if (!ref82(data.revision)) return false
+  if (!ref84(data.revision)) return false
   if (!(typeof data.position === "string" || data.position === null)) return false
   if (typeof data.position === "string") {
     if (data.position.length > 4096 && stringLength(data.position) > 4096) return false
@@ -981,22 +1000,22 @@ const ref81 = function validate(data) {
   if (typeof data.updated_at === "string") {
     if (!format0(data.updated_at)) return false
   }
-  for (const key30 of Object.keys(data)) {
-    if (key30 !== "document_id" && key30 !== "revision" && key30 !== "position" && key30 !== "fraction" && key30 !== "device_id" && key30 !== "updated_at") return false
+  for (const key31 of Object.keys(data)) {
+    if (key31 !== "document_id" && key31 !== "revision" && key31 !== "position" && key31 !== "fraction" && key31 !== "device_id" && key31 !== "updated_at") return false
   }
   return true
 };
-const ref80 = function validate(data) {
-  if (!ref81(data)) return false
+const ref82 = function validate(data) {
+  if (!ref83(data)) return false
   return true
 };
-const ref83 = function validate(data) {
-  if (!ref82(data)) return false
+const ref85 = function validate(data) {
+  if (!ref84(data)) return false
   return true
 };
 const format2 = new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", "i");
 const pattern6 = new RegExp("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", "u");
-const ref86 = function validate(data) {
+const ref88 = function validate(data) {
   if (!(typeof data === "string")) return false
   if (data.length > 36 && stringLength(data) > 36) return false
   if (data.length < 36 || stringLength(data) < 36) return false
@@ -1004,29 +1023,29 @@ const ref86 = function validate(data) {
   if (!pattern6.test(data)) return false
   return true
 };
-const ref85 = function validate(data) {
+const ref87 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("event_id" in data && hasOwn(data, "event_id"))) return false
   if (!("kind" in data && hasOwn(data, "kind"))) return false
   if (!("revision" in data && hasOwn(data, "revision"))) return false
-  if (!ref86(data.event_id)) return false
+  if (!ref88(data.event_id)) return false
   if (!(typeof data.kind === "string")) return false
   if (!(data.kind === "progress" || data.kind === "activity")) return false
   if (!(typeof data.revision === "string" || data.revision === null)) return false
   if (typeof data.revision === "string") {
     if (!pattern5.test(data.revision)) return false
   }
-  for (const key31 of Object.keys(data)) {
-    if (key31 !== "event_id" && key31 !== "kind" && key31 !== "revision") return false
+  for (const key32 of Object.keys(data)) {
+    if (key32 !== "event_id" && key32 !== "kind" && key32 !== "revision") return false
   }
   return true
 };
-const ref84 = function validate(data) {
-  if (!ref85(data)) return false
+const ref86 = function validate(data) {
+  if (!ref87(data)) return false
   return true
 };
-const ref87 = function validate(data) {
-  if (!ref86(data)) return false
+const ref89 = function validate(data) {
+  if (!ref88(data)) return false
   return true
 };
 const format3 = (input) => {
@@ -1041,7 +1060,7 @@ const format3 = (input) => {
     if (input.endsWith('31')) return /^\d\d\d\d-(?:0[13578]|1[02])-31$/.test(input)
     return /^\d\d\d\d-(?:0[13-9]|1[012])-(?:[012][1-9]|[123]0)$/.test(input)
   };
-const ref90 = function validate(data) {
+const ref92 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("date" in data && hasOwn(data, "date"))) return false
   if (!("seconds_read" in data && hasOwn(data, "seconds_read"))) return false
@@ -1050,12 +1069,12 @@ const ref90 = function validate(data) {
   if (!Number.isInteger(data.seconds_read)) return false
   if (!(0 <= data.seconds_read)) return false
   if (!(9007199254740991 >= data.seconds_read)) return false
-  for (const key32 of Object.keys(data)) {
-    if (key32 !== "date" && key32 !== "seconds_read") return false
+  for (const key33 of Object.keys(data)) {
+    if (key33 !== "date" && key33 !== "seconds_read") return false
   }
   return true
 };
-const ref89 = function validate(data) {
+const ref91 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("timezone" in data && hasOwn(data, "timezone"))) return false
   if (!("as_of" in data && hasOwn(data, "as_of"))) return false
@@ -1076,7 +1095,7 @@ const ref89 = function validate(data) {
   if (data.days.length < 30) return false
   for (let ii = 0; ii < data.days.length; ii++) {
     if (ii in data.days && hasOwn(data.days, ii)) {
-      if (!ref90(data.days[ii])) return false
+      if (!ref92(data.days[ii])) return false
     }
   }
   if (!Number.isInteger(data.seconds_read)) return false
@@ -1097,20 +1116,20 @@ const ref89 = function validate(data) {
   if (!Number.isInteger(data.longest_week_streak)) return false
   if (!(0 <= data.longest_week_streak)) return false
   if (!(9007199254740991 >= data.longest_week_streak)) return false
-  for (const key33 of Object.keys(data)) {
-    if (key33 !== "timezone" && key33 !== "as_of" && key33 !== "days" && key33 !== "seconds_read" && key33 !== "active_days" && key33 !== "current_streak" && key33 !== "longest_streak" && key33 !== "current_week_streak" && key33 !== "longest_week_streak") return false
+  for (const key34 of Object.keys(data)) {
+    if (key34 !== "timezone" && key34 !== "as_of" && key34 !== "days" && key34 !== "seconds_read" && key34 !== "active_days" && key34 !== "current_streak" && key34 !== "longest_streak" && key34 !== "current_week_streak" && key34 !== "longest_week_streak") return false
   }
   return true
 };
-const ref88 = function validate(data) {
-  if (!ref89(data)) return false
+const ref90 = function validate(data) {
+  if (!ref91(data)) return false
   return true
 };
-const ref91 = function validate(data) {
-  if (!ref90(data)) return false
+const ref93 = function validate(data) {
+  if (!ref92(data)) return false
   return true
 };
-const ref94 = function validate(data) {
+const ref96 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("id" in data && hasOwn(data, "id"))) return false
   if (!("document_id" in data && hasOwn(data, "document_id"))) return false
@@ -1135,19 +1154,19 @@ const ref94 = function validate(data) {
   if (!(typeof data.end_fraction === "number")) return false
   if (!(0 <= data.end_fraction)) return false
   if (!(1 >= data.end_fraction)) return false
-  for (const key34 of Object.keys(data)) {
-    if (key34 !== "id" && key34 !== "document_id" && key34 !== "title" && key34 !== "available" && key34 !== "started_at" && key34 !== "duration" && key34 !== "start_fraction" && key34 !== "end_fraction") return false
+  for (const key35 of Object.keys(data)) {
+    if (key35 !== "id" && key35 !== "document_id" && key35 !== "title" && key35 !== "available" && key35 !== "started_at" && key35 !== "duration" && key35 !== "start_fraction" && key35 !== "end_fraction") return false
   }
   return true
 };
 const pattern7 = new RegExp("^[A-Za-z0-9_-]+$", "u");
-const ref95 = function validate(data) {
+const ref97 = function validate(data) {
   if (!(typeof data === "string")) return false
   if (data.length > 1024 && stringLength(data) > 1024) return false
   if (!pattern7.test(data)) return false
   return true
 };
-const ref93 = function validate(data) {
+const ref95 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("items" in data && hasOwn(data, "items"))) return false
   if (!("has_more" in data && hasOwn(data, "has_more"))) return false
@@ -1156,34 +1175,34 @@ const ref93 = function validate(data) {
   if (data.items.length > 20) return false
   for (let jj = 0; jj < data.items.length; jj++) {
     if (jj in data.items && hasOwn(data.items, jj)) {
-      if (!ref94(data.items[jj])) return false
+      if (!ref96(data.items[jj])) return false
     }
   }
   if (!(typeof data.has_more === "boolean")) return false
   if ("next_cursor" in data && hasOwn(data, "next_cursor")) {
-    if (!ref95(data.next_cursor)) return false
+    if (!ref97(data.next_cursor)) return false
   }
   if (!(typeof data.timezone === "string")) return false
   if (data.timezone.length > 128 && stringLength(data.timezone) > 128) return false
   if (data.timezone.length < 1 || stringLength(data.timezone) < 1) return false
-  for (const key35 of Object.keys(data)) {
-    if (key35 !== "items" && key35 !== "has_more" && key35 !== "next_cursor" && key35 !== "timezone") return false
+  for (const key36 of Object.keys(data)) {
+    if (key36 !== "items" && key36 !== "has_more" && key36 !== "next_cursor" && key36 !== "timezone") return false
   }
   return true
 };
-const ref92 = function validate(data) {
-  if (!ref93(data)) return false
-  return true
-};
-const ref96 = function validate(data) {
-  if (!ref94(data)) return false
-  return true
-};
-const ref97 = function validate(data) {
+const ref94 = function validate(data) {
   if (!ref95(data)) return false
   return true
 };
-const ref100 = function validate(data) {
+const ref98 = function validate(data) {
+  if (!ref96(data)) return false
+  return true
+};
+const ref99 = function validate(data) {
+  if (!ref97(data)) return false
+  return true
+};
+const ref102 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("document_id" in data && hasOwn(data, "document_id"))) return false
   if (!("title" in data && hasOwn(data, "title"))) return false
@@ -1200,12 +1219,12 @@ const ref100 = function validate(data) {
     if (!(0 <= data.fraction)) return false
     if (!(1 >= data.fraction)) return false
   }
-  for (const key36 of Object.keys(data)) {
-    if (key36 !== "document_id" && key36 !== "title" && key36 !== "available" && key36 !== "updated_at" && key36 !== "fraction") return false
+  for (const key37 of Object.keys(data)) {
+    if (key37 !== "document_id" && key37 !== "title" && key37 !== "available" && key37 !== "updated_at" && key37 !== "fraction") return false
   }
   return true
 };
-const ref99 = function validate(data) {
+const ref101 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("items" in data && hasOwn(data, "items"))) return false
   if (!("has_more" in data && hasOwn(data, "has_more"))) return false
@@ -1214,30 +1233,30 @@ const ref99 = function validate(data) {
   if (data.items.length > 20) return false
   for (let kk = 0; kk < data.items.length; kk++) {
     if (kk in data.items && hasOwn(data.items, kk)) {
-      if (!ref100(data.items[kk])) return false
+      if (!ref102(data.items[kk])) return false
     }
   }
   if (!(typeof data.has_more === "boolean")) return false
   if ("next_cursor" in data && hasOwn(data, "next_cursor")) {
-    if (!ref95(data.next_cursor)) return false
+    if (!ref97(data.next_cursor)) return false
   }
   if (!(typeof data.timezone === "string")) return false
   if (data.timezone.length > 128 && stringLength(data.timezone) > 128) return false
   if (data.timezone.length < 1 || stringLength(data.timezone) < 1) return false
-  for (const key37 of Object.keys(data)) {
-    if (key37 !== "items" && key37 !== "has_more" && key37 !== "next_cursor" && key37 !== "timezone") return false
+  for (const key38 of Object.keys(data)) {
+    if (key38 !== "items" && key38 !== "has_more" && key38 !== "next_cursor" && key38 !== "timezone") return false
   }
   return true
 };
-const ref98 = function validate(data) {
-  if (!ref99(data)) return false
+const ref100 = function validate(data) {
+  if (!ref101(data)) return false
   return true
 };
-const ref101 = function validate(data) {
-  if (!ref100(data)) return false
+const ref103 = function validate(data) {
+  if (!ref102(data)) return false
   return true
 };
-const ref104 = function validate(data) {
+const ref106 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("user" in data && hasOwn(data, "user"))) return false
   if (!("value" in data && hasOwn(data, "value"))) return false
@@ -1245,12 +1264,12 @@ const ref104 = function validate(data) {
   if (!Number.isInteger(data.value)) return false
   if (!(0 <= data.value)) return false
   if (!(9007199254740991 >= data.value)) return false
-  for (const key38 of Object.keys(data)) {
-    if (key38 !== "user" && key38 !== "value") return false
+  for (const key39 of Object.keys(data)) {
+    if (key39 !== "user" && key39 !== "value") return false
   }
   return true
 };
-const ref103 = function validate(data) {
+const ref105 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("items" in data && hasOwn(data, "items"))) return false
   if (!("as_of" in data && hasOwn(data, "as_of"))) return false
@@ -1260,31 +1279,31 @@ const ref103 = function validate(data) {
   if (data.items.length > 20) return false
   for (let ll = 0; ll < data.items.length; ll++) {
     if (ll in data.items && hasOwn(data.items, ll)) {
-      if (!ref104(data.items[ll])) return false
+      if (!ref106(data.items[ll])) return false
     }
   }
-  for (const key39 of Object.keys(data)) {
-    if (key39 !== "as_of" && key39 !== "items") return false
+  for (const key40 of Object.keys(data)) {
+    if (key40 !== "as_of" && key40 !== "items") return false
   }
   return true
 };
-const ref102 = function validate(data) {
-  if (!ref103(data)) return false
-  return true
-};
-const ref105 = function validate(data) {
-  if (!ref104(data)) return false
-  return true
-};
-const ref106 = function validate(data) {
-  if (!ref17(data)) return false
+const ref104 = function validate(data) {
+  if (!ref105(data)) return false
   return true
 };
 const ref107 = function validate(data) {
-  if (!ref19(data)) return false
+  if (!ref106(data)) return false
+  return true
+};
+const ref108 = function validate(data) {
+  if (!ref17(data)) return false
   return true
 };
 const ref109 = function validate(data) {
+  if (!ref19(data)) return false
+  return true
+};
+const ref111 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("files" in data && hasOwn(data, "files"))) return false
   if (!("bytes" in data && hasOwn(data, "bytes"))) return false
@@ -1298,17 +1317,17 @@ const ref109 = function validate(data) {
   if (!Number.isInteger(data.missing)) return false
   if (!(0 <= data.missing)) return false
   if (!(9007199254740991 >= data.missing)) return false
-  for (const key40 of Object.keys(data)) {
-    if (key40 !== "files" && key40 !== "bytes" && key40 !== "missing") return false
+  for (const key41 of Object.keys(data)) {
+    if (key41 !== "files" && key41 !== "bytes" && key41 !== "missing") return false
   }
   return true
 };
-const ref108 = function validate(data) {
-  if (!ref109(data)) return false
+const ref110 = function validate(data) {
+  if (!ref111(data)) return false
   return true
 };
 const pattern8 = new RegExp("^[a-f0-9]{64}$", "u");
-const ref111 = function validate(data) {
+const ref113 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("token" in data && hasOwn(data, "token"))) return false
   if (!("files" in data && hasOwn(data, "files"))) return false
@@ -1320,52 +1339,8 @@ const ref111 = function validate(data) {
   if ("library_path" in data && hasOwn(data, "library_path")) {
     if (!(typeof data.library_path === "string")) return false
   }
-  for (const key41 of Object.keys(data)) {
-    if (key41 !== "token" && key41 !== "files" && key41 !== "library_path") return false
-  }
-  return true
-};
-const ref110 = function validate(data) {
-  if (!ref111(data)) return false
-  return true
-};
-const ref115 = function validate(data) {
-  if (!(typeof data === "string")) return false
-  if (!(data === "trace" || data === "debug" || data === "info" || data === "warn" || data === "error" || data === "fatal" || data === "panic")) return false
-  return true
-};
-const ref114 = function validate(data) {
-  if (!(typeof data === "object" && data && !Array.isArray(data))) return false
-  if (!("time" in data && hasOwn(data, "time"))) return false
-  if (!("level" in data && hasOwn(data, "level"))) return false
-  if (!("message" in data && hasOwn(data, "message"))) return false
-  if (!("details" in data && hasOwn(data, "details"))) return false
-  if (!(typeof data.time === "string")) return false
-  if (!format0(data.time)) return false
-  if (!ref115(data.level)) return false
-  if (!(typeof data.message === "string")) return false
-  if (!(typeof data.details === "string")) return false
   for (const key42 of Object.keys(data)) {
-    if (key42 !== "time" && key42 !== "level" && key42 !== "message" && key42 !== "details") return false
-  }
-  return true
-};
-const ref113 = function validate(data) {
-  if (!(typeof data === "object" && data && !Array.isArray(data))) return false
-  if (!("entries" in data && hasOwn(data, "entries"))) return false
-  if (!Array.isArray(data.entries)) return false
-  if (data.entries.length > 15) return false
-  for (let mm = 0; mm < data.entries.length; mm++) {
-    if (mm in data.entries && hasOwn(data.entries, mm)) {
-      if (!ref114(data.entries[mm])) return false
-    }
-  }
-  if ("next_cursor" in data && hasOwn(data, "next_cursor")) {
-    if (!(typeof data.next_cursor === "string")) return false
-    if (data.next_cursor.length > 128 && stringLength(data.next_cursor) > 128) return false
-  }
-  for (const key43 of Object.keys(data)) {
-    if (key43 !== "entries" && key43 !== "next_cursor") return false
+    if (key42 !== "token" && key42 !== "files" && key42 !== "library_path") return false
   }
   return true
 };
@@ -1373,23 +1348,67 @@ const ref112 = function validate(data) {
   if (!ref113(data)) return false
   return true
 };
-const ref116 = function validate(data) {
-  if (!ref114(data)) return false
+const ref117 = function validate(data) {
+  if (!(typeof data === "string")) return false
+  if (!(data === "trace" || data === "debug" || data === "info" || data === "warn" || data === "error" || data === "fatal" || data === "panic")) return false
   return true
 };
-const ref117 = function validate(data) {
+const ref116 = function validate(data) {
+  if (!(typeof data === "object" && data && !Array.isArray(data))) return false
+  if (!("time" in data && hasOwn(data, "time"))) return false
+  if (!("level" in data && hasOwn(data, "level"))) return false
+  if (!("message" in data && hasOwn(data, "message"))) return false
+  if (!("details" in data && hasOwn(data, "details"))) return false
+  if (!(typeof data.time === "string")) return false
+  if (!format0(data.time)) return false
+  if (!ref117(data.level)) return false
+  if (!(typeof data.message === "string")) return false
+  if (!(typeof data.details === "string")) return false
+  for (const key43 of Object.keys(data)) {
+    if (key43 !== "time" && key43 !== "level" && key43 !== "message" && key43 !== "details") return false
+  }
+  return true
+};
+const ref115 = function validate(data) {
+  if (!(typeof data === "object" && data && !Array.isArray(data))) return false
+  if (!("entries" in data && hasOwn(data, "entries"))) return false
+  if (!Array.isArray(data.entries)) return false
+  if (data.entries.length > 15) return false
+  for (let mm = 0; mm < data.entries.length; mm++) {
+    if (mm in data.entries && hasOwn(data.entries, mm)) {
+      if (!ref116(data.entries[mm])) return false
+    }
+  }
+  if ("next_cursor" in data && hasOwn(data, "next_cursor")) {
+    if (!(typeof data.next_cursor === "string")) return false
+    if (data.next_cursor.length > 128 && stringLength(data.next_cursor) > 128) return false
+  }
+  for (const key44 of Object.keys(data)) {
+    if (key44 !== "entries" && key44 !== "next_cursor") return false
+  }
+  return true
+};
+const ref114 = function validate(data) {
   if (!ref115(data)) return false
   return true
 };
 const ref118 = function validate(data) {
-  if (!ref21(data)) return false
+  if (!ref116(data)) return false
   return true
 };
 const ref119 = function validate(data) {
-  if (!ref22(data)) return false
+  if (!ref117(data)) return false
+  return true
+};
+const ref120 = function validate(data) {
+  if (!ref21(data)) return false
   return true
 };
 const ref121 = function validate(data) {
+  if (!ref22(data)) return false
+  return true
+};
+const ref123 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("id" in data && hasOwn(data, "id"))) return false
   if (!("source_path" in data && hasOwn(data, "source_path"))) return false
@@ -1414,16 +1433,16 @@ const ref121 = function validate(data) {
   if (!(0 <= data.paused_rules)) return false
   if (!(9007199254740991 >= data.paused_rules)) return false
   if (!(typeof data.same_folder === "boolean")) return false
-  for (const key44 of Object.keys(data)) {
-    if (key44 !== "id" && key44 !== "source_path" && key44 !== "configured_source_path" && key44 !== "library_path" && key44 !== "incoming" && key44 !== "outgoing" && key44 !== "paused_rules" && key44 !== "same_folder") return false
+  for (const key45 of Object.keys(data)) {
+    if (key45 !== "id" && key45 !== "source_path" && key45 !== "configured_source_path" && key45 !== "library_path" && key45 !== "incoming" && key45 !== "outgoing" && key45 !== "paused_rules" && key45 !== "same_folder") return false
   }
   return true
 };
-const ref120 = function validate(data) {
-  if (!ref121(data)) return false
+const ref122 = function validate(data) {
+  if (!ref123(data)) return false
   return true
 };
-const ref123 = function validate(data) {
+const ref125 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("path" in data && hasOwn(data, "path"))) return false
   if (!("parent" in data && hasOwn(data, "parent"))) return false
@@ -1436,73 +1455,73 @@ const ref123 = function validate(data) {
       if (!(typeof data.entries[nn] === "string")) return false
     }
   }
-  for (const key45 of Object.keys(data)) {
-    if (key45 !== "path" && key45 !== "parent" && key45 !== "entries") return false
+  for (const key46 of Object.keys(data)) {
+    if (key46 !== "path" && key46 !== "parent" && key46 !== "entries") return false
   }
-  return true
-};
-const ref122 = function validate(data) {
-  if (!ref123(data)) return false
   return true
 };
 const ref124 = function validate(data) {
-  if (!ref24(data)) return false
-  return true
-};
-const ref125 = function validate(data) {
-  if (!ref25(data)) return false
+  if (!ref125(data)) return false
   return true
 };
 const ref126 = function validate(data) {
-  if (!ref26(data)) return false
+  if (!ref24(data)) return false
   return true
 };
 const ref127 = function validate(data) {
-  if (!ref27(data)) return false
+  if (!ref25(data)) return false
   return true
 };
 const ref128 = function validate(data) {
-  if (!ref28(data)) return false
+  if (!ref26(data)) return false
   return true
 };
 const ref129 = function validate(data) {
-  if (!ref29(data)) return false
+  if (!ref27(data)) return false
   return true
 };
 const ref130 = function validate(data) {
-  if (!ref32(data)) return false
-  return true
-};
-const ref132 = function validate(data) {
-  if (!(typeof data === "object" && data && !Array.isArray(data))) return false
-  if (!("version" in data && hasOwn(data, "version"))) return false
-  if (!(typeof data.version === "string")) return false
-  for (const key46 of Object.keys(data)) {
-    if (key46 !== "version") return false
-  }
+  if (!ref28(data)) return false
   return true
 };
 const ref131 = function validate(data) {
-  if (!ref132(data)) return false
+  if (!ref29(data)) return false
   return true
 };
-const ref136 = function validate(data) {
+const ref132 = function validate(data) {
+  if (!ref32(data)) return false
+  return true
+};
+const ref134 = function validate(data) {
+  if (!(typeof data === "object" && data && !Array.isArray(data))) return false
+  if (!("version" in data && hasOwn(data, "version"))) return false
+  if (!(typeof data.version === "string")) return false
+  for (const key47 of Object.keys(data)) {
+    if (key47 !== "version") return false
+  }
+  return true
+};
+const ref133 = function validate(data) {
+  if (!ref134(data)) return false
+  return true
+};
+const ref138 = function validate(data) {
   if (!(typeof data === "string")) return false
   if (!(data === "book" || data === "cover")) return false
   return true
 };
-const ref135 = function validate(data) {
+const ref137 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("document_id" in data && hasOwn(data, "document_id"))) return false
   if (!("kind" in data && hasOwn(data, "kind"))) return false
   if (!(typeof data.document_id === "string")) return false
-  if (!ref136(data.kind)) return false
-  for (const key47 of Object.keys(data)) {
-    if (key47 !== "document_id" && key47 !== "kind") return false
+  if (!ref138(data.kind)) return false
+  for (const key48 of Object.keys(data)) {
+    if (key48 !== "document_id" && key48 !== "kind") return false
   }
   return true
 };
-const ref134 = function validate(data) {
+const ref136 = function validate(data) {
   if (!(typeof data === "object" && data && !Array.isArray(data))) return false
   if (!("type" in data && hasOwn(data, "type"))) return false
   if (!("title" in data && hasOwn(data, "title"))) return false
@@ -1517,26 +1536,26 @@ const ref134 = function validate(data) {
   if (!(typeof data.code === "string")) return false
   if (!(typeof data.detail === "string")) return false
   if ("current_revision" in data && hasOwn(data, "current_revision")) {
-    if (!ref82(data.current_revision)) return false
+    if (!ref84(data.current_revision)) return false
   }
   if ("backup_path_issue" in data && hasOwn(data, "backup_path_issue")) {
-    if (!ref135(data.backup_path_issue)) return false
+    if (!ref137(data.backup_path_issue)) return false
   }
-  for (const key48 of Object.keys(data)) {
-    if (key48 !== "type" && key48 !== "title" && key48 !== "status" && key48 !== "code" && key48 !== "detail" && key48 !== "current_revision" && key48 !== "backup_path_issue") return false
+  for (const key49 of Object.keys(data)) {
+    if (key49 !== "type" && key49 !== "title" && key49 !== "status" && key49 !== "code" && key49 !== "detail" && key49 !== "current_revision" && key49 !== "backup_path_issue") return false
   }
   return true
 };
-const ref133 = function validate(data) {
-  if (!ref134(data)) return false
-  return true
-};
-const ref137 = function validate(data) {
-  if (!ref135(data)) return false
-  return true
-};
-const ref138 = function validate(data) {
+const ref135 = function validate(data) {
   if (!ref136(data)) return false
+  return true
+};
+const ref139 = function validate(data) {
+  if (!ref137(data)) return false
+  return true
+};
+const ref140 = function validate(data) {
+  if (!ref138(data)) return false
   return true
 };
 return ([
@@ -1573,46 +1592,47 @@ return ([
   ref66,
   ref67,
   ref68,
-  ref70,
   ref71,
   ref72,
   ref73,
+  ref74,
   ref75,
   ref77,
-  ref78,
+  ref79,
   ref80,
-  ref83,
-  ref84,
-  ref87,
-  ref88,
-  ref91,
-  ref92,
-  ref96,
-  ref97,
+  ref82,
+  ref85,
+  ref86,
+  ref89,
+  ref90,
+  ref93,
+  ref94,
   ref98,
-  ref101,
-  ref102,
-  ref105,
-  ref106,
+  ref99,
+  ref100,
+  ref103,
+  ref104,
   ref107,
   ref108,
+  ref109,
   ref110,
   ref112,
-  ref116,
-  ref117,
+  ref114,
   ref118,
   ref119,
   ref120,
+  ref121,
   ref122,
   ref124,
-  ref125,
   ref126,
   ref127,
   ref128,
   ref129,
   ref130,
   ref131,
+  ref132,
   ref133,
-  ref137,
-  ref138
+  ref135,
+  ref139,
+  ref140
 ])})();

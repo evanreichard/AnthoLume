@@ -79,6 +79,40 @@ func TestShelfmarkConfigurationAndGate(t *testing.T) {
 	assertProblem(t, f.call("POST", shelfmarkRequestsPath, shelfmarkDownloadBody(ShelfmarkRelease{Key: "key", Selection: new("selection")}), nil), 409, "shelfmark_disabled")
 }
 
+func TestShelfmarkReleaseRecommendation(t *testing.T) {
+	f := newWebFixture(t)
+	var posts atomic.Int32
+	testShelfmark(t, f, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			posts.Add(1)
+		}
+		if r.Method != http.MethodGet || r.URL.Path != "/api/releases" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		fmt.Fprint(w, `{"book":`+shelfmarkTestBook+`,"releases":[
+			{"source":"prowlarr","source_id":"wrong-title","title":"The Time Machine Companion","author":"H. G. Wells","format":"epub","content_type":"ebook"},
+			{"source":"prowlarr","source_id":"correct-title","title":"The Time Machine","author":"H. G. Wells","format":"epub","content_type":"ebook"}
+		]}`)
+	})
+	f.register("alex")
+	query := "?provider=hardcover&id=69589"
+	response := f.call("GET", shelfmarkReleasesPath+query, nil, nil)
+	require.Equal(t, 200, response.status, string(response.body))
+	list := decodeWeb[ShelfmarkReleaseList](t, response)
+	require.Len(t, list.Releases, 2)
+	require.Equal(t, "The Time Machine", list.Releases[0].Title)
+	require.NotNil(t, list.Releases[0].Selection)
+	require.Equal(t, &ShelfmarkRecommendation{
+		ReleaseKey: list.Releases[0].Key,
+		Basis:      ShelfmarkMatchTitleAuthor,
+	}, list.Recommendation)
+	history := f.call("GET", shelfmarkRequestsPath+"/releases"+query, nil, nil)
+	require.Equal(t, 200, history.status, string(history.body))
+	require.JSONEq(t, `[]`, string(history.body))
+	require.Zero(t, posts.Load())
+}
+
 func TestShelfmarkSharedReleaseClaimAndGroupedHistory(t *testing.T) {
 	f := newWebFixture(t)
 	entered, finish := make(chan struct{}), make(chan struct{})

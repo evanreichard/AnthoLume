@@ -46,11 +46,19 @@ type Book struct {
 	HasCover                                 bool
 }
 
+type seriesMetadata struct {
+	Name     json.RawMessage `json:"series_name"`
+	Position json.RawMessage `json:"series_position"`
+}
+
 type metadataBook struct {
+	seriesMetadata
 	Provider    string   `json:"provider"`
 	ID          string   `json:"provider_id"`
 	Title       string   `json:"title"`
 	Authors     []string `json:"authors"`
+	Subtitle    string   `json:"subtitle"`
+	Language    string   `json:"language"`
 	ISBN10      string   `json:"isbn_10"`
 	ISBN13      string   `json:"isbn_13"`
 	Description string   `json:"description"`

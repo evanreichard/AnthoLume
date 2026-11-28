@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import {
   type QueryClient,
   useInfiniteQuery,
@@ -308,6 +308,7 @@ function ReleaseDialog({
     refetchOnWindowFocus: false,
   });
   const rows = releases.data?.releases ?? [];
+  const recommendation = history ? undefined : releases.data?.recommendation;
   return (
     <Dialog
       title={book.title}
@@ -360,6 +361,7 @@ function ReleaseDialog({
               <ReleaseRow
                 key={release.key}
                 release={release}
+                recommendation={recommendation?.release_key === release.key ? recommendation.basis : undefined}
                 download={!history && !releases.isFetching && !releases.isError}
                 account={account}
                 book={book}
@@ -374,8 +376,105 @@ function ReleaseDialog({
   );
 }
 
+type RecommendationBasis = NonNullable<ShelfmarkReleases['recommendation']>['basis'];
+
+function RecommendationBadge({ basis }: { basis: RecommendationBasis }) {
+  const id = useId();
+  const badge = useRef<HTMLButtonElement>(null);
+  const tooltip = useRef<HTMLSpanElement>(null);
+  const [mode, setMode] = useState<'hover' | 'focus' | 'pinned'>();
+  const open = mode !== undefined;
+
+  useLayoutEffect(() => {
+    const popup = tooltip.current;
+    const trigger = badge.current;
+    if (!open || !popup || !trigger) return;
+    popup.showPopover();
+    function position() {
+      if (!popup || !trigger) return;
+      const anchor = trigger.getBoundingClientRect();
+      const { width, height } = popup.getBoundingClientRect();
+      const right = document.documentElement.clientWidth - width - 8;
+      const below = anchor.bottom + height <= document.documentElement.clientHeight - 8;
+      popup.style.left = `${Math.max(8, Math.min(anchor.left, right))}px`;
+      popup.style.top = `${below ? anchor.bottom : anchor.top - height}px`;
+    }
+    position();
+    window.addEventListener('resize', position);
+    window.addEventListener('scroll', position, true);
+    return () => {
+      popup.hidePopover();
+      window.removeEventListener('resize', position);
+      window.removeEventListener('scroll', position, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const dialog = badge.current?.closest('dialog');
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setMode(undefined);
+    };
+    const onClickOutside = (event: MouseEvent) => {
+      if (
+        !(event.target instanceof Node) ||
+        badge.current?.contains(event.target) ||
+        tooltip.current?.contains(event.target)
+      )
+        return;
+      if (dialog && event.target === dialog) {
+        const { left, top, right, bottom } = dialog.getBoundingClientRect();
+        if (event.clientX < left || event.clientX >= right || event.clientY < top || event.clientY >= bottom) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }
+      setMode(undefined);
+    };
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('click', onClickOutside, true);
+    return () => {
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('click', onClickOutside, true);
+    };
+  }, [open]);
+
+  return (
+    <span
+      className={coverStyles.releaseRecommendation}
+      onPointerEnter={(event) => {
+        if (event.pointerType === 'mouse') setMode((current) => current ?? 'hover');
+      }}
+      onPointerLeave={() => setMode((current) => (current === 'hover' ? undefined : current))}
+    >
+      <button
+        ref={badge}
+        type="button"
+        className={coverStyles.recommendationBadge}
+        aria-describedby={id}
+        onFocus={(event) => {
+          if (event.currentTarget.matches(':focus-visible')) setMode('focus');
+        }}
+        onBlur={(event) => {
+          if (event.relatedTarget) setMode((current) => (current === 'focus' ? undefined : current));
+        }}
+        onClick={() => setMode((current) => (current === 'pinned' ? undefined : 'pinned'))}
+      >
+        Recommended
+      </button>
+      <span ref={tooltip} id={id} popover="manual" role="tooltip" className={coverStyles.recommendationReason}>
+        {basis === 'isbn' ? 'ISBN match' : 'Title and author match'}
+      </span>
+    </span>
+  );
+}
+
 function ReleaseRow({
   release,
+  recommendation,
   download,
   account,
   book,
@@ -383,6 +482,7 @@ function ReleaseRow({
   refresh,
 }: {
   release: ShelfmarkRelease;
+  recommendation?: RecommendationBasis;
   download: boolean;
   account: Account;
   book: ShelfmarkBook;
@@ -428,7 +528,15 @@ function ReleaseRow({
   return (
     <li className={coverStyles.releaseRow}>
       <div className={coverStyles.releaseDetails}>
-        <strong>{release.title}</strong>
+        <div>
+          <strong>{release.title}</strong>
+          {recommendation && (
+            <>
+              {' '}
+              <RecommendationBadge basis={recommendation} />
+            </>
+          )}
+        </div>
         {byline && <span>{byline}</span>}
         {metadata && <span>{metadata}</span>}
         {saved && (

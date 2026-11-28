@@ -273,6 +273,24 @@ func (e ReceiptKind) Valid() bool {
 	}
 }
 
+// Defines values for ShelfmarkRecommendationBasis.
+const (
+	ShelfmarkMatchISBN        ShelfmarkRecommendationBasis = "isbn"
+	ShelfmarkMatchTitleAuthor ShelfmarkRecommendationBasis = "title_author"
+)
+
+// Valid indicates whether the value is a known member of the ShelfmarkRecommendationBasis enum.
+func (e ShelfmarkRecommendationBasis) Valid() bool {
+	switch e {
+	case ShelfmarkMatchISBN:
+		return true
+	case ShelfmarkMatchTitleAuthor:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ShelfmarkRequestInfoState.
 const (
 	ShelfmarkQueued      ShelfmarkRequestInfoState = "queued"
@@ -1026,6 +1044,15 @@ type ShelfmarkDownloadResult struct {
 // ShelfmarkIdentifier defines model for ShelfmarkIdentifier.
 type ShelfmarkIdentifier = string
 
+// ShelfmarkRecommendation The first release qualified for automatic selection. No download has been started.
+type ShelfmarkRecommendation struct {
+	Basis      ShelfmarkRecommendationBasis `json:"basis"`
+	ReleaseKey ShelfmarkIdentifier          `json:"release_key"`
+}
+
+// ShelfmarkRecommendationBasis defines model for ShelfmarkRecommendation.Basis.
+type ShelfmarkRecommendationBasis string
+
 // ShelfmarkRelease defines model for ShelfmarkRelease.
 type ShelfmarkRelease struct {
 	// Author Author reported by the release source
@@ -1045,8 +1072,11 @@ type ShelfmarkRelease struct {
 
 // ShelfmarkReleaseList defines model for ShelfmarkReleaseList.
 type ShelfmarkReleaseList struct {
-	Partial  bool               `json:"partial"`
-	Releases []ShelfmarkRelease `json:"releases"`
+	Partial bool `json:"partial"`
+
+	// Recommendation The first release qualified for automatic selection. No download has been started.
+	Recommendation *ShelfmarkRecommendation `json:"recommendation,omitempty"`
+	Releases       []ShelfmarkRelease       `json:"releases"`
 }
 
 // ShelfmarkRequestInfo defines model for ShelfmarkRequestInfo.

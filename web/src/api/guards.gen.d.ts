@@ -36,6 +36,7 @@ export declare function checkShelfmarkReleaseList(value: unknown): value is comp
 export declare function checkShelfmarkRelease(value: unknown): value is components['schemas']['ShelfmarkRelease'];
 export declare function checkShelfmarkSelection(value: unknown): value is components['schemas']['ShelfmarkSelection'];
 export declare function checkShelfmarkRequestInfo(value: unknown): value is components['schemas']['ShelfmarkRequestInfo'];
+export declare function checkShelfmarkRecommendation(value: unknown): value is components['schemas']['ShelfmarkRecommendation'];
 export declare function checkShelfmarkDownloadResult(value: unknown): value is components['schemas']['ShelfmarkDownloadResult'];
 export declare function checkAdminMetadataProvider(value: unknown): value is components['schemas']['AdminMetadataProvider'];
 export declare function checkManagedDevice(value: unknown): value is components['schemas']['ManagedDevice'];

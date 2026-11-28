@@ -1009,6 +1009,15 @@ components:
       properties:
         releases: {type: array, items: {$ref: '#/components/schemas/ShelfmarkRelease'}}
         partial: {type: boolean}
+        recommendation: {$ref: '#/components/schemas/ShelfmarkRecommendation'}
+    ShelfmarkRecommendation:
+      type: object
+      description: The first release qualified for automatic selection. No download has been started.
+      additionalProperties: false
+      required: [release_key, basis]
+      properties:
+        release_key: {$ref: '#/components/schemas/ShelfmarkIdentifier'}
+        basis: {type: string, enum: [isbn, title_author], x-enum-varnames: [ShelfmarkMatchISBN, ShelfmarkMatchTitleAuthor]}
     ShelfmarkSelection:
       type: string
       minLength: 1

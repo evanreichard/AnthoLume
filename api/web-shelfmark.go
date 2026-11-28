@@ -186,6 +186,12 @@ func (s *webAPI) ListShelfmarkReleases(ctx context.Context, r ListShelfmarkRelea
 		return nil, shelfmarkError(err, "shelfmark_book_not_found")
 	}
 	out := ListShelfmarkReleases200JSONResponse{Releases: make([]ShelfmarkRelease, 0, len(list.Releases)), Partial: list.Partial}
+	if match := list.Recommendation; match != nil {
+		out.Recommendation = &ShelfmarkRecommendation{
+			ReleaseKey: match.ReleaseKey,
+			Basis:      ShelfmarkRecommendationBasis(match.Basis),
+		}
+	}
 	if len(list.Releases) == 0 {
 		return out, nil
 	}

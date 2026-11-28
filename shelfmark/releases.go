@@ -24,29 +24,41 @@ type Release struct {
 }
 
 type ReleaseList struct {
-	Book     Book
-	Releases []Release
-	Partial  bool
+	Book           Book
+	Releases       []Release
+	Partial        bool
+	Recommendation *Recommendation
+}
+
+type Recommendation struct {
+	ReleaseKey, Basis string
 }
 
 type verifiedRelease struct {
-	release Release
-	payload []byte
-	info    json.RawMessage
+	release            Release
+	payload            []byte
+	info               json.RawMessage
+	contentType        json.RawMessage
+	conflictingAuthors bool
+	bookTitle          string
+	series             seriesMetadata
 }
 
 type upstreamRelease struct {
-	Source   string          `json:"source"`
-	SourceID string          `json:"source_id"`
-	Title    string          `json:"title"`
-	Author   json.RawMessage `json:"author"`
-	Format   string          `json:"format"`
-	Language string          `json:"language"`
-	Size     string          `json:"size"`
-	Indexer  string          `json:"indexer"`
-	Extra    struct {
-		Author json.RawMessage `json:"author"`
-		Info   json.RawMessage `json:"info"`
+	Source      string          `json:"source"`
+	SourceID    string          `json:"source_id"`
+	ContentType json.RawMessage `json:"content_type"`
+	Title       string          `json:"title"`
+	Author      json.RawMessage `json:"author"`
+	Format      string          `json:"format"`
+	Language    string          `json:"language"`
+	Size        string          `json:"size"`
+	Indexer     string          `json:"indexer"`
+	Extra       struct {
+		Author    json.RawMessage `json:"author"`
+		Info      json.RawMessage `json:"info"`
+		BookTitle json.RawMessage `json:"book_title"`
+		seriesMetadata
 	} `json:"extra"`
 }
 
@@ -70,19 +82,25 @@ func verifyRelease(raw json.RawMessage) (verifiedRelease, bool) {
 	if err != nil {
 		return verifiedRelease{}, false
 	}
-	var author string
-	for _, raw := range []json.RawMessage{row.Author, row.Extra.Author} {
-		var name string
-		if json.Unmarshal(raw, &name) == nil && strings.TrimSpace(name) != "" {
-			author = strings.TrimSpace(name)
-			break
-		}
+	author, extraAuthor := metadataString(row.Author), metadataString(row.Extra.Author)
+	conflict := author != "" && extraAuthor != "" && authorName(author) != authorName(extraAuthor)
+	if author == "" {
+		author = extraAuthor
 	}
 	key := sha256.Sum256([]byte(row.Source + "\x00" + row.SourceID))
 	return verifiedRelease{release: Release{
 		Key: hex.EncodeToString(key[:]), Source: row.Source,
 		Title: row.Title, Author: author, Format: row.Format, Size: row.Size, Language: row.Language, Indexer: row.Indexer,
-	}, payload: body, info: row.Extra.Info}, true
+	}, payload: body, info: row.Extra.Info, contentType: row.ContentType, conflictingAuthors: conflict,
+		bookTitle: metadataString(row.Extra.BookTitle), series: row.Extra.seriesMetadata}, true
+}
+
+func metadataString(raw json.RawMessage) string {
+	var value string
+	if json.Unmarshal(raw, &value) != nil {
+		return ""
+	}
+	return strings.TrimSpace(value)
 }
 
 func (c *Client) Releases(ctx context.Context, provider, id string) (ReleaseList, error) {
@@ -103,10 +121,14 @@ func (c *Client) Releases(ctx context.Context, provider, id string) (ReleaseList
 	}
 	out := ReleaseList{Book: c.normalize(result.Book), Releases: make([]Release, 0, len(result.Releases)), Partial: len(result.Errors) > 0}
 	match := newReleaseMatcher(result.Book)
-	scores := make(map[string]int)
+	type assessment struct {
+		score int
+		basis string
+	}
+	matches := make(map[string]assessment)
 	for _, raw := range result.Releases {
 		item, ok := verifyRelease(raw)
-		if _, seen := scores[item.release.Key]; !ok || seen {
+		if _, seen := matches[item.release.Key]; !ok || seen {
 			continue
 		}
 		selection, err := c.sealSelection(out.Book, item)
@@ -114,13 +136,22 @@ func (c *Client) Releases(ctx context.Context, provider, id string) (ReleaseList
 			out.Partial = true
 			continue
 		}
-		scores[item.release.Key] = match.score(item)
+		isbn := match.isbnEvidence(item)
+		matches[item.release.Key] = assessment{score: match.score(item, isbn), basis: match.approvalBasis(item, isbn)}
 		item.release.Selection = selection
 		out.Releases = append(out.Releases, item.release)
 	}
 	sort.SliceStable(out.Releases, func(i, j int) bool {
-		return scores[out.Releases[i].Key] > scores[out.Releases[j].Key]
+		return matches[out.Releases[i].Key].score > matches[out.Releases[j].Key].score
 	})
+	for i, release := range out.Releases {
+		if basis := matches[release.Key].basis; basis != "" {
+			out.Recommendation = &Recommendation{ReleaseKey: release.Key, Basis: basis}
+			copy(out.Releases[1:i+1], out.Releases[:i])
+			out.Releases[0] = release
+			break
+		}
+	}
 	return out, nil
 }
 

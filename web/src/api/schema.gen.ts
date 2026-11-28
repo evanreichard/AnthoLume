@@ -868,6 +868,13 @@ export interface components {
         ShelfmarkReleaseList: {
             releases: components["schemas"]["ShelfmarkRelease"][];
             partial: boolean;
+            recommendation?: components["schemas"]["ShelfmarkRecommendation"];
+        };
+        /** @description The first release qualified for automatic selection. No download has been started. */
+        ShelfmarkRecommendation: {
+            release_key: components["schemas"]["ShelfmarkIdentifier"];
+            /** @enum {string} */
+            basis: "isbn" | "title_author";
         };
         /** @description Opaque download selection issued by AnthoLume */
         ShelfmarkSelection: string;

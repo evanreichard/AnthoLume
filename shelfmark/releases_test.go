@@ -55,8 +55,8 @@ func TestReleasesReturnBestBookMatchFirst(t *testing.T) {
 		titles = append(titles, release.Title)
 	}
 	require.Equal(t, []string{
-		"Alternate title [0-8044-2957-X]", "Other edition title",
-		"The Time Machine", "H.G.Wells - The Time Machine [PDF]", "THE TIME MACHINE", "The.Time.Machine [EPUB]",
+		"H.G.Wells - The Time Machine [PDF]", "Alternate title [0-8044-2957-X]", "Other edition title",
+		"The Time Machine", "THE TIME MACHINE", "The.Time.Machine [EPUB]",
 		"Another work", "The Time Machinery", "Other work",
 	}, titles)
 }
