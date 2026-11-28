@@ -96,7 +96,7 @@ Backups download on demand and the server does not retain a copy. Before restori
 | SHELFMARK_API_KEY    | <EMPTY>       | Server-only Shelfmark admin API key; requires a Shelfmark admin user and a policy allowing release downloads |
 | HARDCOVER_CATALOG_TOKEN | <EMPTY>    | Optional server-only Hardcover catalog API token; enables the admin choice |
 
-With both Shelfmark variables set, **Request** lets readers find books, review ebook releases ranked by match, and queue a specific file with **Download**. When a release’s full title and author or edition ISBN match without conflicting evidence, the best qualifying release appears first as **Recommended**. Nothing downloads automatically. Administrators can disable it under **Administration → Library**. Shared History groups releases queued or attempted through AnthoLume by book. The same release cannot be submitted twice; a different release of the same book can. **Queued** means Shelfmark accepted the submission, not that delivery finished.
+With both Shelfmark variables set, **Request** lets readers find books, review ebook releases ranked by match, and queue a specific file with **Download**. When a release’s full title and author or edition ISBN match without conflicting evidence, the best qualifying release appears first as [**Recommended**](screenshots/mobile/request.png). Nothing downloads automatically. Administrators can disable it under **Administration → Library**. Shared History groups releases queued or attempted through AnthoLume by book. The same release cannot be submitted twice; a different release of the same book can. **Queued** means Shelfmark accepted the submission, not that delivery finished.
 
 ## Security
 

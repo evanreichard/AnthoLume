@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { copyFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { seedLibrary } from '../demo-data/seed.mjs';
+import { openReleasePicker } from './request.mjs';
 
 const [origin, temp] = process.argv.slice(2);
 if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(origin) || !temp)
@@ -78,6 +79,9 @@ try {
   await page.keyboard.press('c');
   await expect(reader.getByRole('button', { name: 'Contents', exact: true })).toBeVisible();
   await capture('reader');
+
+  await openReleasePicker(page, origin, docs.find((doc) => doc.title === 'The Time Machine'));
+  await capture('request');
 
   await mkdir('screenshots/mobile', { recursive: true });
   for (const name of names) await copyFile(join(temp, name + '.png'), `screenshots/mobile/${name}.png`);
